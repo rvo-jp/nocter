@@ -416,6 +416,16 @@ fn validate_parameters(program: &DeclarationProgram) -> Result<(), ProgramIntegr
     for (id, parameter) in declarations.parameters().iter() {
         require_symbol(program, parameter.name(), DeclarationDomain::Parameter)?;
         require_type(program, parameter.ty(), DeclarationDomain::Parameter)?;
+        if let Some(pack) = parameter.argument_pack()
+            && let Some(value) = pack.value()
+        {
+            require_type(program, value, DeclarationDomain::Parameter)?;
+        }
+        if matches!(parameter.role(), ParameterRole::ArgumentPack { .. })
+            != parameter.argument_pack().is_some()
+        {
+            return Err(ProgramIntegrityError::InvalidCallableShape);
+        }
         match parameter.owner() {
             ParameterOwner::Callable(owner) => {
                 let callable = require(

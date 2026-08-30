@@ -3,8 +3,8 @@ use nocter_declarations::{
     RequirementOwner,
 };
 use nocter_model::{
-    BodyId, BorrowCapability, CallableCapability, CallableId, FieldId, ParameterId, RequirementId,
-    TypeId, TypeKind, VariantId,
+    ArgumentPackType, BodyId, BorrowCapability, CallableCapability, CallableId, FieldId,
+    ParameterId, RequirementId, TypeId, TypeKind, VariantId,
 };
 use nocter_source_index::{SemanticEntity, SourceRole};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxOrigin, SyntaxToken, TokenKind};
@@ -29,6 +29,7 @@ pub(super) struct AllocatedHeaders {
 struct ParameterSyntax {
     name: SyntaxToken,
     ty: TypeId,
+    pack_value: Option<TypeId>,
     role: ParameterRole,
 }
 
@@ -421,7 +422,20 @@ fn allocate_parameter(
         .reserved
         .program
         .declarations_mut()
-        .add_parameter(Parameter::new(owner, name, syntax.ty, syntax.role));
+        .add_parameter(match (syntax.role, syntax.pack_value) {
+            (ParameterRole::ArgumentPack { position }, Some(value)) => {
+                Parameter::new_argument_pack(
+                    owner,
+                    name,
+                    position,
+                    ArgumentPackType::Keyed {
+                        key: syntax.ty,
+                        value,
+                    },
+                )
+            }
+            _ => Parameter::new(owner, name, syntax.ty, syntax.role),
+        });
     project_parameter(types, declaration, parameter, syntax.name)?;
     Ok(parameter)
 }
@@ -471,6 +485,7 @@ fn ordinary_parameter_syntax(
         return Ok(vec![ParameterSyntax {
             name,
             ty,
+            pack_value: None,
             role: ParameterRole::Ordinary { position: 0 },
         }]);
     }
@@ -520,12 +535,17 @@ fn validate_argument_pack_shape(
         });
     let valid = match kind {
         SurfaceDeclarationKind::Literal => {
-            let sequence =
-                syntax::descendant(tree, root, NodeKind::LiteralShape).is_some_and(|shape| {
-                    syntax::has_punctuation(tree, shape, Punctuation::LeftBracket)
-                });
-            if sequence {
-                one_final && parameter_nodes.len() == 1
+            let shape = syntax::descendant(tree, root, NodeKind::LiteralShape);
+            let bracket = shape.is_some_and(|shape| {
+                syntax::has_punctuation(tree, shape, Punctuation::LeftBracket)
+            });
+            let mapping =
+                shape.is_some_and(|shape| syntax::has_punctuation(tree, shape, Punctuation::Colon));
+            let keyed = parameter_nodes.first().is_some_and(|parameter| {
+                syntax::direct_node(tree, *parameter, NodeKind::ArgumentPackValueType).is_some()
+            });
+            if bracket {
+                one_final && parameter_nodes.len() == 1 && mapping == keyed
             } else {
                 packs.is_empty()
             }
@@ -560,6 +580,10 @@ fn ordinary_parameter(
     Ok(ParameterSyntax {
         name,
         ty: normalized_type(types, ty_node)?,
+        pack_value: syntax::direct_node(tree, node, NodeKind::ArgumentPackValueType)
+            .and_then(|value| syntax::descendant(tree, value, NodeKind::Type))
+            .map(|value| normalized_type(types, value))
+            .transpose()?,
         role: if syntax::direct_node(tree, node, NodeKind::ArgumentPackModifier).is_some() {
             ParameterRole::ArgumentPack { position }
         } else {
@@ -595,6 +619,7 @@ fn receiver_syntax(
     Ok(Some(ParameterSyntax {
         name,
         ty: owner_self_type(types, declaration)?,
+        pack_value: None,
         role: ParameterRole::Receiver(capability),
     }))
 }

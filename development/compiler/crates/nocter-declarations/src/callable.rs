@@ -1,14 +1,15 @@
 use std::fmt;
 
 use nocter_model::{
-    BodyId, CallableCapability, CallableId, CompilationTarget, ConstructionId, DeclarationSiteId,
-    DropId, GenericParameterId, InstanceId, InterfaceId, ModuleId, ParameterId, RequirementId,
-    Symbol, TestId, TypeId, VariantId,
+    ArgumentPackType, BodyId, CallableCapability, CallableId, CompilationTarget, ConstructionId,
+    DeclarationSiteId, DropId, GenericParameterId, InstanceId, InterfaceId, ModuleId, ParameterId,
+    RequirementId, Symbol, TestId, TypeId, VariantId,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LiteralShape {
     Sequence,
+    Mapping,
     String,
 }
 
@@ -286,8 +287,14 @@ pub enum ParameterRole {
 pub struct Parameter {
     owner: ParameterOwner,
     name: Symbol,
-    ty: TypeId,
+    shape: ParameterShape,
     role: ParameterRole,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ParameterShape {
+    Value(TypeId),
+    ArgumentPack(ArgumentPackType),
 }
 
 impl Parameter {
@@ -296,8 +303,30 @@ impl Parameter {
         Self {
             owner,
             name,
-            ty,
+            shape: match role {
+                ParameterRole::ArgumentPack { .. } => {
+                    ParameterShape::ArgumentPack(ArgumentPackType::Values(ty))
+                }
+                ParameterRole::Ordinary { .. } | ParameterRole::Receiver(_) => {
+                    ParameterShape::Value(ty)
+                }
+            },
             role,
+        }
+    }
+
+    #[must_use]
+    pub const fn new_argument_pack(
+        owner: ParameterOwner,
+        name: Symbol,
+        position: usize,
+        pack: ArgumentPackType,
+    ) -> Self {
+        Self {
+            owner,
+            name,
+            shape: ParameterShape::ArgumentPack(pack),
+            role: ParameterRole::ArgumentPack { position },
         }
     }
 
@@ -313,7 +342,18 @@ impl Parameter {
 
     #[must_use]
     pub const fn ty(self) -> TypeId {
-        self.ty
+        match self.shape {
+            ParameterShape::Value(ty) => ty,
+            ParameterShape::ArgumentPack(pack) => pack.primary(),
+        }
+    }
+
+    #[must_use]
+    pub const fn argument_pack(self) -> Option<ArgumentPackType> {
+        match self.shape {
+            ParameterShape::Value(_) => None,
+            ParameterShape::ArgumentPack(pack) => Some(pack),
+        }
     }
 
     #[must_use]

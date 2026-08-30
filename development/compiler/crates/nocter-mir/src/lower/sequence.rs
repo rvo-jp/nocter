@@ -26,6 +26,12 @@ enum PreparedSegment {
         value: MirValueId,
         destruction: Option<MirDestructionPlan>,
     },
+    KeyedValue {
+        key: MirValueId,
+        key_destruction: Option<MirDestructionPlan>,
+        value: MirValueId,
+        value_destruction: Option<MirDestructionPlan>,
+    },
     Spread {
         iterator: PreparedIterator,
         plan: Box<ExecutablePackSpread>,
@@ -158,6 +164,41 @@ impl FunctionLowerer<'_> {
                             .transpose()?,
                     })
                 }
+                ExecutablePackSegment::KeyedValue {
+                    key,
+                    key_type,
+                    key_destruction,
+                    value,
+                    value_type,
+                    value_destruction,
+                } => {
+                    let key_value = self.require_value(*key)?;
+                    let value_value = self.require_value(*value)?;
+                    if self.builder.value_type(key_value) != Some(*key_type)
+                        || self.builder.value_type(value_value) != Some(*value_type)
+                        || !matches!(
+                            self.executable.types().get(input.element()),
+                            Some(TypeKind::PackEntry {
+                                key: expected_key,
+                                value: expected_value,
+                            }) if expected_key == key_type && expected_value == value_type
+                        )
+                    {
+                        return Err(MirLoweringError::InvalidDispatch(owner));
+                    }
+                    Ok(PreparedSegment::KeyedValue {
+                        key: key_value,
+                        key_destruction: key_destruction
+                            .as_ref()
+                            .map(|plan| self.lower_deferred_destruction(owner, plan))
+                            .transpose()?,
+                        value: value_value,
+                        value_destruction: value_destruction
+                            .as_ref()
+                            .map(|plan| self.lower_deferred_destruction(owner, plan))
+                            .transpose()?,
+                    })
+                }
             })
             .collect()
     }
@@ -170,7 +211,12 @@ impl FunctionLowerer<'_> {
         let usize_ty = self.executable.types().builtin(BuiltinType::Usize);
         let fixed = segments
             .iter()
-            .filter(|segment| matches!(segment, PreparedSegment::Value { .. }))
+            .filter(|segment| {
+                matches!(
+                    segment,
+                    PreparedSegment::Value { .. } | PreparedSegment::KeyedValue { .. }
+                )
+            })
             .count();
         let fixed = i128::try_from(fixed).map_err(|_| MirLoweringError::InvalidDispatch(owner))?;
         let mut length = self.append_value(
@@ -218,6 +264,22 @@ impl FunctionLowerer<'_> {
                         return Err(MirLoweringError::InvalidDispatch(owner));
                     }
                     Ok(MirPackSegment::Value { value, destruction })
+                }
+                PreparedSegment::KeyedValue {
+                    key,
+                    key_destruction,
+                    value,
+                    value_destruction,
+                } => {
+                    if remaining.is_some() {
+                        return Err(MirLoweringError::InvalidDispatch(owner));
+                    }
+                    Ok(MirPackSegment::KeyedValue {
+                        key,
+                        key_destruction,
+                        value,
+                        value_destruction,
+                    })
                 }
                 PreparedSegment::Spread {
                     iterator,

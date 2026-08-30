@@ -173,7 +173,9 @@ fn lower_projection(
     match projection {
         MirProjectionKind::Field(_)
         | MirProjectionKind::ClosureCapture(_)
-        | MirProjectionKind::VariantPayload { .. } => push_offset(
+        | MirProjectionKind::VariantPayload { .. }
+        | MirProjectionKind::PackEntryKey
+        | MirProjectionKind::PackEntryValue => push_offset(
             context.place,
             context.ids,
             &mut state.steps,
@@ -254,6 +256,12 @@ fn static_projection_offset(
             .variant(variant)
             .and_then(|_| context.layouts.payload(variant, parameter))
             .map(crate::MachinePayloadLayout::offset),
+        (MirProjectionKind::PackEntryKey, MachineLayoutKind::PackEntry { key, .. }) => {
+            Some(key.offset())
+        }
+        (MirProjectionKind::PackEntryValue, MachineLayoutKind::PackEntry { value, .. }) => {
+            Some(value.offset())
+        }
         _ => None,
     };
     offset.ok_or_else(|| invalid_projection(context.ids, context.place))

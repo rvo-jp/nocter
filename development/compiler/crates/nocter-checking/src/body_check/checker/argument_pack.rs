@@ -1,5 +1,5 @@
 use nocter_declarations::ParameterRole;
-use nocter_model::{ParameterId, TypeId};
+use nocter_model::{ArgumentPackType, ParameterId, TypeId};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
 
@@ -47,7 +47,7 @@ impl BodyChecker<'_, '_> {
     pub(super) fn argument_pack_parameter(
         &mut self,
         mut syntax: NodeId,
-    ) -> Result<Option<(ParameterId, TypeId)>, BodyCheckError> {
+    ) -> Result<Option<(ParameterId, ArgumentPackType)>, BodyCheckError> {
         while self.kind(syntax).is_ok_and(is_transparent_expression) {
             let children = child_nodes(self.tree(), syntax);
             let [child] = children.as_slice() else {
@@ -78,7 +78,12 @@ impl BodyChecker<'_, '_> {
             return Ok(None);
         }
         self.consumed_uses.insert(origin);
-        Ok(Some((parameter, declaration.ty())))
+        Ok(Some((
+            parameter,
+            declaration
+                .argument_pack()
+                .ok_or(BodyCheckInternalError::InvalidSyntax(syntax))?,
+        )))
     }
 
     pub(super) fn check_argument_pack_method(

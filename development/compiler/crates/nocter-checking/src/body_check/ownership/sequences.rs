@@ -4,14 +4,14 @@ use super::OwnershipAnalyzer;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::ownership::{OwnershipState, TemporaryIdentity};
 use crate::{
-    CallTarget, CheckedCall, CheckedIteratorAcquisition, CheckedOperation, CheckedSequence,
+    CallTarget, CheckedCall, CheckedIteratorAcquisition, CheckedOperation, CheckedPackLiteral,
     CleanupAction, ReceiverPreparation,
 };
 
 impl OwnershipAnalyzer<'_> {
-    pub(super) fn visit_sequence(
+    pub(super) fn visit_pack_literal(
         &mut self,
-        sequence: &CheckedSequence,
+        sequence: &CheckedPackLiteral,
         state: &mut OwnershipState,
     ) -> Result<bool, BodyCheckError> {
         if !self.visit_allocation(sequence.allocation(), state)? {
@@ -22,10 +22,7 @@ impl OwnershipAnalyzer<'_> {
                 .pack()
                 .segments()
                 .iter()
-                .map(|element| match element {
-                    crate::ArgumentPackSegment::Value(value) => *value,
-                    crate::ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
-                }),
+                .flat_map(crate::ArgumentPackSegment::operands),
             state,
         )
     }
@@ -122,15 +119,13 @@ impl OwnershipAnalyzer<'_> {
         }
         if let Some(pack) = call.pack() {
             for segment in pack.segments() {
-                let value = match segment {
-                    crate::ArgumentPackSegment::Value(value) => *value,
-                    crate::ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
-                };
-                if !self.visit(value, state)? {
-                    return Ok(false);
-                }
-                if self.activate_expression_temporary(value, state)? {
-                    staged.push(value);
+                for value in segment.operands() {
+                    if !self.visit(value, state)? {
+                        return Ok(false);
+                    }
+                    if self.activate_expression_temporary(value, state)? {
+                        staged.push(value);
+                    }
                 }
             }
         }

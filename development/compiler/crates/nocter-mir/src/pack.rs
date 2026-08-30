@@ -112,6 +112,12 @@ pub enum MirPackSegment {
         value: MirValueId,
         destruction: Option<MirDestructionPlan>,
     },
+    KeyedValue {
+        key: MirValueId,
+        key_destruction: Option<MirDestructionPlan>,
+        value: MirValueId,
+        value_destruction: Option<MirDestructionPlan>,
+    },
     Spread(MirPackSpread),
 }
 

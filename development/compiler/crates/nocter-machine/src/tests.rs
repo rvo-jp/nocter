@@ -1772,7 +1772,8 @@ fn literal_spread(
             let pack = function.body().pack(pack).unwrap();
             if let Some(spread) = pack.segments().iter().find_map(|segment| match segment {
                 crate::MachinePackSegment::Spread(spread) => Some(spread),
-                crate::MachinePackSegment::Value { .. } => None,
+                crate::MachinePackSegment::Value { .. }
+                | crate::MachinePackSegment::KeyedValue { .. } => None,
             }) {
                 return (caller, *literal, spread);
             }

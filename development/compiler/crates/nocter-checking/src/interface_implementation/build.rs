@@ -613,12 +613,11 @@ fn compatible_signature(
         return Ok(None);
     }
     for (expected, actual) in expected.parameters().iter().zip(actual.parameters()) {
-        let (expected_type, expected_pack) = parameter_contract(graph, *expected)?;
-        let (actual_type, actual_pack) = parameter_contract(graph, *actual)?;
-        if expected_pack != actual_pack
-            || substitution.apply_type(types, expected_type)?
-                != actual_substitution.apply_type(types, actual_type)?
-        {
+        let expected = parameter_contract(graph, *expected)?
+            .try_map(|ty| substitution.apply_type(types, ty))?;
+        let actual = parameter_contract(graph, *actual)?
+            .try_map(|ty| actual_substitution.apply_type(types, ty))?;
+        if expected != actual {
             return Ok(None);
         }
     }
@@ -761,19 +760,41 @@ fn receiver_capability(
 fn parameter_contract(
     graph: &DeclarationGraph,
     parameter: ParameterId,
-) -> Result<(nocter_model::TypeId, bool), InterfaceImplementationInternalError> {
+) -> Result<ParameterContract, InterfaceImplementationInternalError> {
     graph
         .declarations()
         .parameters()
         .get(parameter)
         .and_then(|parameter| match parameter.role() {
-            nocter_declarations::ParameterRole::Ordinary { .. } => Some((parameter.ty(), false)),
-            nocter_declarations::ParameterRole::ArgumentPack { .. } => Some((parameter.ty(), true)),
+            nocter_declarations::ParameterRole::Ordinary { .. } => {
+                Some(ParameterContract::Value(parameter.ty()))
+            }
+            nocter_declarations::ParameterRole::ArgumentPack { .. } => {
+                parameter.argument_pack().map(ParameterContract::Pack)
+            }
             nocter_declarations::ParameterRole::Receiver(_) => None,
         })
         .ok_or(InterfaceImplementationInternalError::MissingParameter(
             parameter,
         ))
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ParameterContract {
+    Value(nocter_model::TypeId),
+    Pack(nocter_model::ArgumentPackType),
+}
+
+impl ParameterContract {
+    fn try_map<E>(
+        self,
+        mut map: impl FnMut(nocter_model::TypeId) -> Result<nocter_model::TypeId, E>,
+    ) -> Result<Self, E> {
+        match self {
+            Self::Value(ty) => map(ty).map(Self::Value),
+            Self::Pack(pack) => pack.try_map(map).map(Self::Pack),
+        }
+    }
 }
 
 fn site_origin(

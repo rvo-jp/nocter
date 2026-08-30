@@ -1,5 +1,6 @@
 use nocter_model::{
-    CallableId, DeclarationSiteId, FieldId, GenericParameterId, RequirementId, TypeId,
+    ArgumentPackType, CallableId, DeclarationSiteId, FieldId, GenericParameterId, RequirementId,
+    TypeId,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -56,7 +57,7 @@ pub(crate) struct CheckedLiteralConstructor {
     construction_parameters: Box<[GenericParameterId]>,
     callable: CallableId,
     site: DeclarationSiteId,
-    parameter_type: TypeId,
+    pack_type: Option<ArgumentPackType>,
     result: TypeId,
     requirements: Box<[RequirementId]>,
 }
@@ -68,7 +69,7 @@ impl CheckedLiteralConstructor {
         construction_parameters: impl Into<Box<[GenericParameterId]>>,
         callable: CallableId,
         site: DeclarationSiteId,
-        parameter_type: TypeId,
+        pack_type: Option<ArgumentPackType>,
         result: TypeId,
         requirements: impl Into<Box<[RequirementId]>>,
     ) -> Self {
@@ -77,7 +78,7 @@ impl CheckedLiteralConstructor {
             construction_parameters: construction_parameters.into(),
             callable,
             site,
-            parameter_type,
+            pack_type,
             result,
             requirements: requirements.into(),
         }
@@ -104,8 +105,8 @@ impl CheckedLiteralConstructor {
     }
 
     #[must_use]
-    pub(crate) const fn parameter_type(&self) -> TypeId {
-        self.parameter_type
+    pub(crate) const fn pack_type(&self) -> Option<ArgumentPackType> {
+        self.pack_type
     }
 
     #[must_use]

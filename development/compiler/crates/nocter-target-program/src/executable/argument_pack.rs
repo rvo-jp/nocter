@@ -103,6 +103,14 @@ pub enum ExecutablePackSegment {
         ty: TypeId,
         destruction: Option<ConcreteDestructionPlan>,
     },
+    KeyedValue {
+        key: BodyNodeId,
+        key_type: TypeId,
+        key_destruction: Option<ConcreteDestructionPlan>,
+        value: BodyNodeId,
+        value_type: TypeId,
+        value_destruction: Option<ConcreteDestructionPlan>,
+    },
     Spread(ExecutablePackSpread),
 }
 

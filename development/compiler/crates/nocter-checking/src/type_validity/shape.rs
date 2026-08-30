@@ -122,10 +122,17 @@ pub fn validate_type(
             TypeKind::FixedArray { element, .. } => {
                 pending.push((*element, TypePosition::Data));
             }
+            TypeKind::PackEntry { key, value } => {
+                pending.push((*value, TypePosition::Data));
+                pending.push((*key, TypePosition::Data));
+            }
             TypeKind::Callable(contract) => {
                 pending.push((contract.result(), TypePosition::CallableResult));
                 if let Some(pack) = contract.pack() {
-                    pending.push((pack, TypePosition::Data));
+                    pending.push((pack.primary(), TypePosition::Data));
+                    if let Some(value) = pack.value() {
+                        pending.push((value, TypePosition::Data));
+                    }
                 }
                 pending.extend(
                     contract

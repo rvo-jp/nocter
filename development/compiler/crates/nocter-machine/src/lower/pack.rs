@@ -8,6 +8,7 @@ use nocter_runtime_contract::RuntimeType;
 use super::MachineProgramError;
 use super::body::BodyIdentities;
 use super::context::ProgramLoweringContext;
+use crate::destruction_table::PackComponent;
 use crate::{
     MachineAddress, MachineAddressRoot, MachineAddressStep, MachineArgumentLocation,
     MachineFunctionId, MachineLayoutKind, MachineOutcomeKind, MachinePack, MachinePackContribution,
@@ -53,6 +54,32 @@ fn lower_pack(
                 destruction: pack_destruction(
                     destruction.is_some(),
                     segment_index,
+                    PackComponent::Value,
+                    operation,
+                    context,
+                    ids,
+                )?,
+            }),
+            MirPackSegment::KeyedValue {
+                key,
+                key_destruction,
+                value,
+                value_destruction,
+            } => Ok(MachinePackSegment::KeyedValue {
+                key: ids.value(*key)?,
+                key_destruction: pack_destruction(
+                    key_destruction.is_some(),
+                    segment_index,
+                    PackComponent::Key,
+                    operation,
+                    context,
+                    ids,
+                )?,
+                value: ids.value(*value)?,
+                value_destruction: pack_destruction(
+                    value_destruction.is_some(),
+                    segment_index,
+                    PackComponent::MappedValue,
                     operation,
                     context,
                     ids,
@@ -82,6 +109,7 @@ fn lower_pack(
                 let destruction = pack_destruction(
                     spread.destruction().is_some(),
                     segment_index,
+                    PackComponent::Value,
                     operation,
                     context,
                     ids,
@@ -265,6 +293,7 @@ fn static_address_offset(address: &MachineAddress) -> Option<u64> {
 fn pack_destruction(
     required: bool,
     segment: usize,
+    component: PackComponent,
     operation: MirOperationId,
     context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
@@ -274,7 +303,7 @@ fn pack_destruction(
     }
     let destruction = context
         .destructions
-        .pack_segment(ids.owner(), operation, segment)
+        .pack_segment(ids.owner(), operation, segment, component)
         .ok_or(MachineProgramError::MissingPackDestruction {
             owner: ids.owner(),
             operation,

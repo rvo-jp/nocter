@@ -287,10 +287,10 @@ impl Analyzer<'_, '_> {
                     });
             if pack.forwarded_parameter().is_none() {
                 for segment in pack.segments() {
-                    match segment {
-                        crate::ArgumentPackSegment::Value(value) => {
+                    if !matches!(segment, crate::ArgumentPackSegment::Spread { .. }) {
+                        for value in segment.operands() {
                             let (carried, reaches) =
-                                self.evaluate(*value, state, &invocation_active)?;
+                                self.evaluate(value, state, &invocation_active)?;
                             if !reaches {
                                 return Ok(None);
                             }
@@ -298,8 +298,8 @@ impl Analyzer<'_, '_> {
                                 .input
                                 .body
                                 .nodes()
-                                .get(*value)
-                                .ok_or(BodyCheckInternalError::MissingNode(*value))?;
+                                .get(value)
+                                .ok_or(BodyCheckInternalError::MissingNode(value))?;
                             let argument = match checked.operation() {
                                 CheckedOperation::Borrow { place, .. } => InvocationLoan {
                                     carried: self.read_place(*place, state)?,
@@ -310,22 +310,24 @@ impl Analyzer<'_, '_> {
                             elements.union_with(argument.retained(true));
                             argument.extend_active(&mut invocation_active);
                         }
-                        crate::ArgumentPackSegment::Spread {
-                            mode, iteration, ..
-                        } => {
-                            let (iterator, reaches) =
-                                self.evaluate(iteration.iterator(), state, &invocation_active)?;
-                            if !reaches {
-                                return Ok(None);
-                            }
-                            let contribution = mode
-                                .contribution_type(self.types, iteration.item())
-                                .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                            if type_can_carry_loan(self.graph, self.types, contribution) {
-                                let item = self.iteration_item_loans(iteration, &iterator)?;
-                                invocation_active.extend(item.all_loans());
-                                elements.union_with(&item);
-                            }
+                        continue;
+                    }
+                    if let crate::ArgumentPackSegment::Spread {
+                        mode, iteration, ..
+                    } = segment
+                    {
+                        let (iterator, reaches) =
+                            self.evaluate(iteration.iterator(), state, &invocation_active)?;
+                        if !reaches {
+                            return Ok(None);
+                        }
+                        let contribution = mode
+                            .contribution_type(self.types, iteration.item())
+                            .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                        if type_can_carry_loan(self.graph, self.types, contribution) {
+                            let item = self.iteration_item_loans(iteration, &iterator)?;
+                            invocation_active.extend(item.all_loans());
+                            elements.union_with(&item);
                         }
                     }
                 }

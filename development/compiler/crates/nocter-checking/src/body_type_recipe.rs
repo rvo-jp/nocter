@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
 use nocter_model::{
-    BorrowCapability, CallableCapability, CallableContract, ClosureId, GenericParameterId,
-    InterfaceId, InvalidParameterOrigin, NominalTypeId, OpaqueTypeId, ResultProvenance, TypeId,
-    TypeKind, TypeStore, TypeTransaction, UnknownTypeId,
+    ArgumentPack, BorrowCapability, CallableCapability, CallableContract, ClosureId,
+    GenericParameterId, InterfaceId, InvalidParameterOrigin, NominalTypeId, OpaqueTypeId,
+    ResultProvenance, TypeId, TypeKind, TypeStore, TypeTransaction, UnknownTypeId,
 };
 
 /// Reference from one body-local type extension to either its immutable program prefix or an
@@ -69,6 +69,10 @@ enum BodyTypeKind {
         element: BodyTypeRef,
         length: u64,
     },
+    PackEntry {
+        key: BodyTypeRef,
+        value: BodyTypeRef,
+    },
     Closure {
         definition: BodyClosureRef,
         arguments: Box<[BodyTypeRef]>,
@@ -76,7 +80,7 @@ enum BodyTypeKind {
     Callable {
         capability: CallableCapability,
         parameters: Box<[BodyTypeRef]>,
-        pack: Option<BodyTypeRef>,
+        pack: Option<ArgumentPack<BodyTypeRef>>,
         result: BodyTypeRef,
         provenance: ResultProvenance,
     },
@@ -313,6 +317,10 @@ fn capture_kind(
             element: reference(*element)?,
             length: *length,
         },
+        TypeKind::PackEntry { key, value } => BodyTypeKind::PackEntry {
+            key: reference(*key)?,
+            value: reference(*value)?,
+        },
         TypeKind::Closure {
             definition,
             arguments,
@@ -326,7 +334,10 @@ fn capture_kind(
         TypeKind::Callable(contract) => BodyTypeKind::Callable {
             capability: contract.capability(),
             parameters: capture_types(contract.parameters(), reference)?,
-            pack: contract.pack().map(reference).transpose()?,
+            pack: contract
+                .pack()
+                .map(|pack| pack.try_map(reference))
+                .transpose()?,
             result: reference(contract.result())?,
             provenance: contract.provenance().clone(),
         },
@@ -393,6 +404,10 @@ fn replay_kind(
             element: resolve(*element)?,
             length: *length,
         },
+        BodyTypeKind::PackEntry { key, value } => TypeKind::PackEntry {
+            key: resolve(*key)?,
+            value: resolve(*value)?,
+        },
         BodyTypeKind::Closure {
             definition,
             arguments,
@@ -413,7 +428,7 @@ fn replay_kind(
             CallableContract::new(
                 *capability,
                 replay_types(parameters, &resolve)?,
-                pack.map(resolve).transpose()?,
+                pack.map(|pack| pack.try_map(resolve)).transpose()?,
                 resolve(*result)?,
                 provenance.clone(),
             )

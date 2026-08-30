@@ -452,7 +452,7 @@ fn substitute_callable(
             .collect::<Result<Vec<_>, _>>()?,
         contract
             .pack()
-            .map(|pack| substitution.apply_type(types, pack))
+            .map(|pack| pack.try_map(|ty| substitution.apply_type(types, ty)))
             .transpose()?,
         substitution.apply_type(types, contract.result())?,
         contract.provenance().clone(),

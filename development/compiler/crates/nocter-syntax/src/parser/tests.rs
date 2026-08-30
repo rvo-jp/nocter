@@ -544,6 +544,40 @@ fn parses_construction_functions_and_both_literal_shapes() {
 }
 
 #[test]
+fn parses_keyed_argument_packs_and_mapping_literals() {
+    let tree = assert_syntax_ok(
+        "construct Map<K, V> {\n    pub literal [:](...entries: K: V): Self {}\n}\nfunc load(...entries: &str: i32): void {\n    for key: value in entries { load(key: value) }\n    let values = Map [\"one\": 1, \"two\": 2]\n    let empty = Map<&str, i32> [:]\n}\n",
+        ParseGoal::SourceFile,
+    );
+
+    for kind in [
+        NodeKind::ArgumentPackValueType,
+        NodeKind::TypedMappingLiteral,
+        NodeKind::MappingBody,
+        NodeKind::MappingElement,
+        NodeKind::KeyedArgument,
+        NodeKind::ForBindings,
+    ] {
+        assert!(has_node_kind(&tree, kind), "missing {kind:?}");
+    }
+}
+
+#[test]
+fn callable_types_distinguish_value_and_keyed_packs() {
+    let tree = assert_syntax_ok(
+        "type Values = func(...i32): void\ntype Entries = func(...&str: i32): void\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::ArgumentPackValueType)
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn callable_argument_packs_and_call_spreads_share_the_general_expression_grammar() {
     let tree = assert_syntax_ok(
         "func collect<T>(first: T, ...rest: T): void { collect(first, ...rest) }\n",

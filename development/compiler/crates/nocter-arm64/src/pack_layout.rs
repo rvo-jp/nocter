@@ -30,6 +30,14 @@ pub enum Arm64PackSegmentLayout {
         size: u64,
         alignment: u64,
     },
+    KeyedValue {
+        key_offset: u64,
+        key_size: u64,
+        key_alignment: u64,
+        value_offset: u64,
+        value_size: u64,
+        value_alignment: u64,
+    },
     Spread {
         remaining_offset: u64,
         iterator_offset: u64,
@@ -71,6 +79,27 @@ impl Arm64PackStateLayout {
                         value_offset,
                         size,
                         alignment,
+                    }
+                }
+                MachinePackSegment::KeyedValue { key, value, .. } => {
+                    let (key_size, key_alignment) = stored_value(body, *key)?;
+                    let key_offset = align_up(next, key_alignment)?;
+                    next = key_offset
+                        .checked_add(key_size)
+                        .ok_or(Arm64PackLayoutError::SizeOverflow)?;
+                    let (value_size, value_alignment) = stored_value(body, *value)?;
+                    let value_offset = align_up(next, value_alignment)?;
+                    next = value_offset
+                        .checked_add(value_size)
+                        .ok_or(Arm64PackLayoutError::SizeOverflow)?;
+                    state_alignment = state_alignment.max(key_alignment).max(value_alignment);
+                    Arm64PackSegmentLayout::KeyedValue {
+                        key_offset,
+                        key_size,
+                        key_alignment,
+                        value_offset,
+                        value_size,
+                        value_alignment,
                     }
                 }
                 MachinePackSegment::Spread(spread) => {

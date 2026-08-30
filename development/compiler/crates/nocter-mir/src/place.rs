@@ -89,6 +89,8 @@ pub enum MirProjectionKind {
     FixedIndex(u64),
     DynamicIndex(MirValueId),
     OptionalPayload,
+    PackEntryKey,
+    PackEntryValue,
     FallibleSuccess,
     FallibleFailure,
     OpaqueWitness(OpaqueTypeId),

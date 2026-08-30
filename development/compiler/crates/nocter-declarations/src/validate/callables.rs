@@ -102,9 +102,21 @@ fn validate_argument_pack_shape(
             .then_some(position)
         })
         .collect::<Vec<_>>();
+    let pack = callable
+        .parameters()
+        .last()
+        .and_then(|parameter| program.declarations().parameters().get(*parameter))
+        .and_then(|parameter| parameter.argument_pack());
     let valid = match callable.kind() {
         CallableKind::Literal(crate::LiteralShape::Sequence) => {
-            callable.parameters().len() == 1 && pack_positions.as_slice() == [0]
+            callable.parameters().len() == 1
+                && pack_positions.as_slice() == [0]
+                && matches!(pack, Some(nocter_model::ArgumentPack::Values(_)))
+        }
+        CallableKind::Literal(crate::LiteralShape::Mapping) => {
+            callable.parameters().len() == 1
+                && pack_positions.as_slice() == [0]
+                && matches!(pack, Some(nocter_model::ArgumentPack::Keyed { .. }))
         }
         CallableKind::Function | CallableKind::Method | CallableKind::ConstructionFunction => {
             pack_positions.is_empty()

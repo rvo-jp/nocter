@@ -158,6 +158,73 @@ fn fixed_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() {
 }
 
 #[test]
+fn fixed_mapping_argument_pack_callbacks_cross_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "struct Sum { value: i32 }\n\
+         construct Sum {\n\
+             pub literal [:](...entries: i32: i32): Self {\n\
+                 var total = 0\n\
+                 for key: value in entries { total += key + value }\n\
+                 return Self { value: total }\n\
+             }\n\
+         }\n\
+         func main(): i32 {\n\
+             let result = Sum [10: 20, 5: 7]\n\
+             return result.value\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn keyed_argument_pack_forwarding_crosses_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "func total(...entries: i32: i32): i32 {\n\
+             var result = 0\n\
+             for key: value in entries { result += key + value }\n\
+             return result\n\
+         }\n\
+         func forward(...entries: i32: i32): i32 {\n\
+             return total(...entries)\n\
+         }\n\
+         func main(): i32 { return forward(10: 20, 5: 7) }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn unconsumed_mapping_pack_destroys_keys_and_values_exactly_once() {
+    let machine = lower_machine(
+        "struct Counter { value: i32 }\n\
+         struct Counted { counter: &+Counter }\n\
+         drop Counted(&+self) { self.counter.value += 1 }\n\
+         struct Sink {}\n\
+         construct Sink {\n\
+             pub literal [:](...entries: Counted: Counted): Self { return Self {} }\n\
+         }\n\
+         func main(): i32 {\n\
+             var key_counter = Counter { value: 0 }\n\
+             var value_counter = Counter { value: 0 }\n\
+             let sink = Sink [\n\
+                 Counted { counter: &+key_counter }: Counted { counter: &+value_counter },\n\
+             ]\n\
+             drop sink\n\
+             return key_counter.value + value_counter.value\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 2);
+}
+
+#[test]
 fn ordinary_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func total(seed: i32, ...items: i32): i32 {\n\

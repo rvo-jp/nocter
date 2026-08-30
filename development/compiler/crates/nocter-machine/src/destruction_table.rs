@@ -38,7 +38,15 @@ impl MachineDestruction {
 pub(crate) struct MachineDestructionPlanTable {
     entries: MachineTable<MachineDestructionId, MachineDestruction>,
     calls: BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionId>,
-    pack_segments: BTreeMap<(MachineLinkageId, MirOperationId, usize), MachineDestructionId>,
+    pack_segments:
+        BTreeMap<(MachineLinkageId, MirOperationId, usize, PackComponent), MachineDestructionId>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) enum PackComponent {
+    Value,
+    Key,
+    MappedValue,
 }
 
 impl MachineDestructionPlanTable {
@@ -109,7 +117,7 @@ impl MachineDestructionPlanTable {
         let calls = close_edges(calls, &ids, |(owner, operation)| {
             MachineProgramError::MissingGeneratedDestruction(owner, operation)
         })?;
-        let pack_segments = close_edges(pack_segments, &ids, |(owner, operation, segment)| {
+        let pack_segments = close_edges(pack_segments, &ids, |(owner, operation, segment, _)| {
             MachineProgramError::MissingPackDestruction {
                 owner,
                 operation,
@@ -143,9 +151,10 @@ impl MachineDestructionPlanTable {
         owner: MachineLinkageId,
         operation: MirOperationId,
         segment: usize,
+        component: PackComponent,
     ) -> Option<MachineDestructionId> {
         self.pack_segments
-            .get(&(owner, operation, segment))
+            .get(&(owner, operation, segment, component))
             .copied()
     }
 
@@ -164,7 +173,10 @@ fn collect_body(
     functions: crate::function_domain::MachineFunctionDomain<'_>,
     plans: &mut BTreeSet<MachineDestructionPlan>,
     calls: &mut BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionPlan>,
-    pack_segments: &mut BTreeMap<(MachineLinkageId, MirOperationId, usize), MachineDestructionPlan>,
+    pack_segments: &mut BTreeMap<
+        (MachineLinkageId, MirOperationId, usize, PackComponent),
+        MachineDestructionPlan,
+    >,
 ) -> Result<(), MachineProgramError> {
     for (operation, value) in body.operations().iter() {
         let MirOperationKind::Call(call) = value.kind() else {
@@ -189,25 +201,41 @@ fn collect_body(
         }
         if let Some(nocter_mir::MirCallPack::Prepared(pack)) = call.pack() {
             for (segment, source) in pack.segments().iter().enumerate() {
-                let destruction = match source {
-                    MirPackSegment::Value { destruction, .. } => destruction.as_ref(),
-                    MirPackSegment::Spread(spread) => spread.destruction(),
+                let destructions = match source {
+                    MirPackSegment::Value { destruction, .. } => [
+                        (PackComponent::Value, destruction.as_ref()),
+                        (PackComponent::Key, None),
+                    ],
+                    MirPackSegment::KeyedValue {
+                        key_destruction,
+                        value_destruction,
+                        ..
+                    } => [
+                        (PackComponent::Key, key_destruction.as_ref()),
+                        (PackComponent::MappedValue, value_destruction.as_ref()),
+                    ],
+                    MirPackSegment::Spread(spread) => [
+                        (PackComponent::Value, spread.destruction()),
+                        (PackComponent::Key, None),
+                    ],
                 };
-                let Some(destruction) = destruction else {
-                    continue;
-                };
-                let plan = lower_plan(destruction, owner, operation, layouts, functions)?;
-                if pack_segments
-                    .insert((owner, operation, segment), plan.clone())
-                    .is_some()
-                {
-                    return Err(MachineProgramError::DuplicatePackDestruction {
-                        owner,
-                        operation,
-                        segment,
-                    });
+                for (component, destruction) in destructions {
+                    let Some(destruction) = destruction else {
+                        continue;
+                    };
+                    let plan = lower_plan(destruction, owner, operation, layouts, functions)?;
+                    if pack_segments
+                        .insert((owner, operation, segment, component), plan.clone())
+                        .is_some()
+                    {
+                        return Err(MachineProgramError::DuplicatePackDestruction {
+                            owner,
+                            operation,
+                            segment,
+                        });
+                    }
+                    plans.insert(plan);
                 }
-                plans.insert(plan);
             }
         }
     }

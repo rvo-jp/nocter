@@ -1,7 +1,7 @@
 use nocter_declarations::{CallableDeclaration, DeclarationGraph, ParameterRole};
 use nocter_model::{
-    CallableCapability, CallableId, GenericParameterId, InterfaceImplementationId, ParameterId,
-    TypeId, TypeKind,
+    ArgumentPackType, CallableCapability, CallableId, GenericParameterId,
+    InterfaceImplementationId, ParameterId, TypeId, TypeKind,
 };
 
 use super::build::InterfaceImplementationInternalError;
@@ -13,7 +13,7 @@ use crate::type_relations::TypeSubstitution;
 pub struct RequiredInterfaceImplementationParameter {
     declaration: ParameterId,
     ty: TypeId,
-    argument_pack: bool,
+    argument_pack: Option<ArgumentPackType>,
 }
 
 impl RequiredInterfaceImplementationParameter {
@@ -28,7 +28,7 @@ impl RequiredInterfaceImplementationParameter {
     }
 
     #[must_use]
-    pub const fn is_argument_pack(self) -> bool {
+    pub const fn argument_pack(self) -> Option<ArgumentPackType> {
         self.argument_pack
     }
 }
@@ -94,8 +94,11 @@ impl RequiredInterfaceImplementationMethod {
                     .get(*id)
                     .ok_or(InterfaceImplementationInternalError::MissingParameter(*id))?;
                 let argument_pack = match parameter.role() {
-                    ParameterRole::Ordinary { .. } => false,
-                    ParameterRole::ArgumentPack { .. } => true,
+                    ParameterRole::Ordinary { .. } => None,
+                    ParameterRole::ArgumentPack { .. } => parameter
+                        .argument_pack()
+                        .map(|pack| pack.try_map(|ty| substitution.apply_type(types, ty)))
+                        .transpose()?,
                     ParameterRole::Receiver(_) => {
                         return Err(InterfaceImplementationInternalError::MissingParameter(*id));
                     }

@@ -585,6 +585,10 @@ fn runtime_type_table(
                 element: *element,
                 length: *length,
             },
+            TypeKind::PackEntry { key, value } => RuntimeType::PackEntry {
+                key: *key,
+                value: *value,
+            },
             TypeKind::Nominal { .. } => RuntimeType::Aggregate,
             TypeKind::Closure { .. } => RuntimeType::Closure,
             TypeKind::Callable(_) => RuntimeType::Callable,

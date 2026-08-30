@@ -70,6 +70,7 @@ pub(super) fn close_type_representations(
             | TypeKind::Borrow { .. }
             | TypeKind::Slice(_)
             | TypeKind::FixedArray { .. }
+            | TypeKind::PackEntry { .. }
             | TypeKind::Closure { .. }
             | TypeKind::Callable(_)
             | TypeKind::Optional(_)
@@ -219,9 +220,16 @@ fn enqueue_structural_children(kind: &TypeKind, pending: &mut BTreeSet<TypeId>) 
         | TypeKind::Fallible(base) => {
             pending.insert(*base);
         }
+        TypeKind::PackEntry { key, value } => {
+            pending.insert(*key);
+            pending.insert(*value);
+        }
         TypeKind::Callable(contract) => {
             pending.extend(contract.parameters().iter().copied());
-            pending.extend(contract.pack());
+            if let Some(pack) = contract.pack() {
+                pending.insert(pack.primary());
+                pending.extend(pack.value());
+            }
             pending.insert(contract.result());
         }
         TypeKind::Builtin(_) | TypeKind::GenericParameter(_) | TypeKind::InterfaceSelf(_) => {}

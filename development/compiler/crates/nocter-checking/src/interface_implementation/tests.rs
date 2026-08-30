@@ -79,6 +79,10 @@ fn interface_implementation_method_failures_have_distinct_rules() {
             "pub interface Readable { pub method &self.read(...values: i32): i32 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(value: i32): i32 { return value }\n}\n",
             "E0352",
         ),
+        (
+            "pub interface Readable { pub method &self.read(...values: i32: i32): i32 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(...values: i32: u32): i32 { return 0 }\n}\n",
+            "E0352",
+        ),
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);

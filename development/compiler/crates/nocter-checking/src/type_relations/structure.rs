@@ -16,9 +16,18 @@ pub(crate) fn visit_type_children(kind: &TypeKind, mut visit: impl FnMut(TypeId)
         | TypeKind::FixedArray { element: base, .. }
         | TypeKind::Optional(base)
         | TypeKind::Fallible(base) => visit(*base),
+        TypeKind::PackEntry { key, value } => {
+            visit(*key);
+            visit(*value);
+        }
         TypeKind::Callable(contract) => {
             contract.parameters().iter().copied().for_each(&mut visit);
-            contract.pack().into_iter().for_each(&mut visit);
+            if let Some(pack) = contract.pack() {
+                visit(pack.primary());
+                if let Some(value) = pack.value() {
+                    visit(value);
+                }
+            }
             visit(contract.result());
         }
     }
@@ -82,6 +91,10 @@ where
             element: map(element)?,
             length,
         },
+        TypeKind::PackEntry { key, value } => TypeKind::PackEntry {
+            key: map(key)?,
+            value: map(value)?,
+        },
         TypeKind::Callable(contract) => TypeKind::Callable(
             CallableContract::new(
                 contract.capability(),
@@ -91,7 +104,10 @@ where
                     .copied()
                     .map(&mut map)
                     .collect::<Result<Vec<_>, _>>()?,
-                contract.pack().map(&mut map).transpose()?,
+                contract
+                    .pack()
+                    .map(|pack| pack.try_map(&mut map))
+                    .transpose()?,
                 map(contract.result())?,
                 contract.provenance().clone(),
             )

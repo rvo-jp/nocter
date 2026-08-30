@@ -203,6 +203,15 @@ fn validate_pack_dependencies(
                     validate_deferred_drop_calls(caller, plan, functions, executable)?;
                 }
             }
+            MirPackSegment::KeyedValue {
+                key_destruction,
+                value_destruction,
+                ..
+            } => {
+                for plan in [key_destruction, value_destruction].into_iter().flatten() {
+                    validate_deferred_drop_calls(caller, plan, functions, executable)?;
+                }
+            }
             MirPackSegment::Spread(spread) => {
                 if let MirCallTarget::Direct(callee) = spread.next_target() {
                     validate_direct_call(

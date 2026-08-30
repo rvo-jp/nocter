@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use nocter_checking::{
     ArgumentPackSegment, ConcreteDestructionPlan, DropSelection, StaticSelection, TypeSubstitution,
 };
-use nocter_model::{BodyId, BodyNodeId, ExecutableItemId, TypeId};
+use nocter_model::{ArgumentPack, BodyId, BodyNodeId, ExecutableItemId, TypeId};
 
 use super::{
     DraftDispatchEdge, DraftDispatchPlan, DraftDispatchStep, ExecutableClosureBuilder,
@@ -93,7 +93,7 @@ impl ExecutableClosureBuilder<'_> {
                 .copied()
                 .filter_map(|source| {
                     let node = checked.nodes().get(source)?;
-                    let nocter_checking::CheckedOperation::Sequence(sequence) = node.operation()
+                    let nocter_checking::CheckedOperation::PackLiteral(sequence) = node.operation()
                     else {
                         return None;
                     };
@@ -210,6 +210,7 @@ impl ExecutableClosureBuilder<'_> {
                     return Err(ExecutableProgramError::InvalidArgumentPackPlan(source));
                 };
                 if incoming.source() != forwarded
+                    || incoming.shape() != input.shape()
                     || incoming.element() != input.element()
                     || incoming.next() != input.next()
                     || !pack.segments().is_empty()
@@ -245,6 +246,9 @@ impl ExecutableClosureBuilder<'_> {
     ) -> Result<ExecutablePackSegment, ExecutableProgramError> {
         match element {
             ArgumentPackSegment::Value(source) => {
+                let ArgumentPack::Values(expected) = context.input.shape() else {
+                    return Err(context.invalid());
+                };
                 let source_type = context
                     .node_types
                     .get(source)
@@ -253,7 +257,7 @@ impl ExecutableClosureBuilder<'_> {
                 let ty = self
                     .resolver
                     .specialize_type(source_type, context.substitution)?;
-                if ty != context.input.element() {
+                if ty != expected {
                     return Err(context.invalid());
                 }
                 let destruction = self
@@ -264,6 +268,50 @@ impl ExecutableClosureBuilder<'_> {
                     source: *source,
                     ty,
                     destruction,
+                })
+            }
+            ArgumentPackSegment::KeyedValue { key, value } => {
+                let ArgumentPack::Keyed {
+                    key: expected_key,
+                    value: expected_value,
+                } = context.input.shape()
+                else {
+                    return Err(context.invalid());
+                };
+                let key_type = context
+                    .node_types
+                    .get(key)
+                    .copied()
+                    .ok_or_else(|| context.invalid())?;
+                let value_type = context
+                    .node_types
+                    .get(value)
+                    .copied()
+                    .ok_or_else(|| context.invalid())?;
+                let concrete_key = self
+                    .resolver
+                    .specialize_type(key_type, context.substitution)?;
+                let concrete_value = self
+                    .resolver
+                    .specialize_type(value_type, context.substitution)?;
+                if concrete_key != expected_key || concrete_value != expected_value {
+                    return Err(context.invalid());
+                }
+                let key_destruction = self
+                    .resolver
+                    .resolve_destruction(key_type, context.substitution)?;
+                let value_destruction = self
+                    .resolver
+                    .resolve_destruction(value_type, context.substitution)?;
+                self.record_sequence_destruction(key_destruction.as_ref(), drops)?;
+                self.record_sequence_destruction(value_destruction.as_ref(), drops)?;
+                Ok(ExecutablePackSegment::KeyedValue {
+                    key: *key,
+                    key_type: concrete_key,
+                    key_destruction,
+                    value: *value,
+                    value_type: concrete_value,
+                    value_destruction,
                 })
             }
             ArgumentPackSegment::Spread {

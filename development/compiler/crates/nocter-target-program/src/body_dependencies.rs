@@ -352,7 +352,7 @@ impl<'program> DependencyCollector<'program> {
                     self.record_selection(selection);
                 }
             }
-            CheckedOperation::Sequence(sequence) => {
+            CheckedOperation::PackLiteral(sequence) => {
                 self.record_selection(sequence.constructor());
                 self.visit_argument_pack(sequence.pack())?;
                 self.visit_allocation(sequence.allocation())?;
@@ -445,6 +445,10 @@ impl<'program> DependencyCollector<'program> {
         for segment in pack.segments() {
             match segment {
                 ArgumentPackSegment::Value(value) => self.visit_node(*value)?,
+                ArgumentPackSegment::KeyedValue { key, value } => {
+                    self.visit_node(*key)?;
+                    self.visit_node(*value)?;
+                }
                 ArgumentPackSegment::Spread {
                     iteration,
                     exact_size,
@@ -610,6 +614,10 @@ impl<'program> DependencyCollector<'program> {
             LoopKind::While { condition } => self.visit_node(*condition)?,
             LoopKind::For { iteration, .. } => self.visit_iteration(iteration)?,
             LoopKind::ArgumentPack { item, .. } => self.record_type(*item)?,
+            LoopKind::KeyedArgumentPack { key, value, .. } => {
+                self.record_type(*key)?;
+                self.record_type(*value)?;
+            }
             LoopKind::Range { start, end, .. } => {
                 self.visit_node(*start)?;
                 self.visit_node(*end)?;

@@ -153,15 +153,10 @@ impl Analyzer<'_> {
             CheckedOperation::IteratorAcquisition(acquisition) => {
                 self.operand(acquisition.source().value(), live)?
             }
-            CheckedOperation::Sequence(sequence) => {
+            CheckedOperation::PackLiteral(sequence) => {
                 let mut operands = Vec::new();
                 for element in sequence.pack().segments() {
-                    match element {
-                        crate::ArgumentPackSegment::Value(value) => operands.push(*value),
-                        crate::ArgumentPackSegment::Spread { iteration, .. } => {
-                            operands.push(iteration.iterator());
-                        }
-                    }
+                    operands.extend(element.operands());
                 }
                 let live = self.operands(operands, live)?;
                 self.allocation(sequence.allocation(), live)?
@@ -211,10 +206,11 @@ impl Analyzer<'_> {
         }
         operands.extend_from_slice(call.arguments());
         if let Some(pack) = call.pack() {
-            operands.extend(pack.segments().iter().map(|segment| match segment {
-                crate::ArgumentPackSegment::Value(value) => *value,
-                crate::ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
-            }));
+            operands.extend(
+                pack.segments()
+                    .iter()
+                    .flat_map(crate::ArgumentPackSegment::operands),
+            );
         }
         self.operands(operands, live)
     }
@@ -501,6 +497,15 @@ impl Analyzer<'_> {
             {
                 Self::kill_root(&mut body_live, PlaceRoot::Local(*binding));
             }
+            if let LoopKind::KeyedArgumentPack {
+                key_binding,
+                value_binding,
+                ..
+            } = definition.kind()
+            {
+                Self::kill_root(&mut body_live, PlaceRoot::Local(*key_binding));
+                Self::kill_root(&mut body_live, PlaceRoot::Local(*value_binding));
+            }
             let mut next = match definition.kind() {
                 LoopKind::While { condition } => {
                     body_live.extend(after.iter().cloned());
@@ -509,7 +514,8 @@ impl Analyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
-                | LoopKind::ArgumentPack { .. } => body_live,
+                | LoopKind::ArgumentPack { .. }
+                | LoopKind::KeyedArgumentPack { .. } => body_live,
             };
             let frame = self
                 .loops

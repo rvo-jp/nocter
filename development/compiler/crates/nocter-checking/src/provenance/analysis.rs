@@ -711,7 +711,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             CheckedOperation::IteratorAcquisition(acquisition) => {
                 self.evaluate_iterator_acquisition(&acquisition, state)?
             }
-            CheckedOperation::Sequence(sequence) => self.evaluate_sequence(&sequence, state)?,
+            CheckedOperation::PackLiteral(sequence) => {
+                self.evaluate_pack_literal(&sequence, state)?
+            }
             CheckedOperation::Interpolation(interpolation) => {
                 let allocation = self.allocation_provenance(interpolation.allocation(), state)?;
                 for part in interpolation.parts() {

@@ -131,6 +131,10 @@ fn project_type(
             element: project_type(source, target, projected, element)?,
             length,
         },
+        TypeKind::PackEntry { key, value } => TypeKind::PackEntry {
+            key: project_type(source, target, projected, key)?,
+            value: project_type(source, target, projected, value)?,
+        },
         TypeKind::Closure {
             definition,
             arguments,
@@ -142,7 +146,7 @@ fn project_type(
             let parameters = project_types(source, target, projected, contract.parameters())?;
             let pack = contract
                 .pack()
-                .map(|pack| project_type(source, target, projected, pack))
+                .map(|pack| pack.try_map(|ty| project_type(source, target, projected, ty)))
                 .transpose()?;
             let result = project_type(source, target, projected, contract.result())?;
             TypeKind::Callable(CallableContract::new(

@@ -2,6 +2,7 @@ use nocter_checking::{CheckedLoop, LoopKind};
 use nocter_model::{BodyNodeId, BuiltinType, LoopId, MirBlockId, TypeId, TypeKind};
 
 use super::MirLoweringError;
+use super::argument_pack::PackLoopBindings;
 use super::function::FunctionLowerer;
 use crate::{
     MirBinaryOperation, MirBranchTarget, MirConstant, MirOperationKind, MirPlaceRoot, MirReadMode,
@@ -46,9 +47,29 @@ impl FunctionLowerer<'_> {
             } => self.lower_argument_pack_loop(
                 node,
                 loop_,
-                *binding,
                 *parameter,
-                *item,
+                PackLoopBindings::Values {
+                    binding: *binding,
+                    item: *item,
+                },
+                definition.body(),
+            ),
+            LoopKind::KeyedArgumentPack {
+                key_binding,
+                value_binding,
+                parameter,
+                key,
+                value,
+            } => self.lower_argument_pack_loop(
+                node,
+                loop_,
+                *parameter,
+                PackLoopBindings::Keyed {
+                    key_binding: *key_binding,
+                    value_binding: *value_binding,
+                    key: *key,
+                    value: *value,
+                },
                 definition.body(),
             ),
         }

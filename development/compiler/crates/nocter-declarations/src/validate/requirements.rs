@@ -46,7 +46,10 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
                     require_type(program, *parameter, DeclarationDomain::Requirement)?;
                 }
                 if let Some(pack) = contract.pack() {
-                    require_type(program, pack, DeclarationDomain::Requirement)?;
+                    require_type(program, pack.primary(), DeclarationDomain::Requirement)?;
+                    if let Some(value) = pack.value() {
+                        require_type(program, value, DeclarationDomain::Requirement)?;
+                    }
                 }
                 require_type(program, contract.result(), DeclarationDomain::Requirement)?;
             }

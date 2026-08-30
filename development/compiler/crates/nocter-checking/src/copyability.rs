@@ -435,6 +435,7 @@ impl CopyabilityTransaction {
                 ..
             }
             | TypeKind::Slice(_)
+            | TypeKind::PackEntry { .. }
             | TypeKind::Callable(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. }

@@ -282,6 +282,14 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 Some(TypeKind::Optional(payload)) if *payload == result => {}
                 _ => return Err(MirValidationError::InvalidProjection { place }),
             },
+            MirProjectionKind::PackEntryKey => match self.types.get(source) {
+                Some(TypeKind::PackEntry { key, .. }) if *key == result => {}
+                _ => return Err(MirValidationError::InvalidProjection { place }),
+            },
+            MirProjectionKind::PackEntryValue => match self.types.get(source) {
+                Some(TypeKind::PackEntry { value, .. }) if *value == result => {}
+                _ => return Err(MirValidationError::InvalidProjection { place }),
+            },
             MirProjectionKind::FallibleSuccess => match self.types.get(source) {
                 Some(TypeKind::Fallible(payload)) if *payload == result => {}
                 _ => return Err(MirValidationError::InvalidProjection { place }),
@@ -995,6 +1003,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     for segment in pack.segments() {
                         match segment {
                             crate::MirPackSegment::Value { value, .. } => values.push(*value),
+                            crate::MirPackSegment::KeyedValue { key, value, .. } => {
+                                values.extend([*key, *value]);
+                            }
                             crate::MirPackSegment::Spread(spread) => {
                                 values.extend([spread.remaining(), spread.receiver()]);
                                 values.extend(place_values(self.require_place(spread.iterator())?));

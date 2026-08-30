@@ -359,19 +359,26 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         node: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionInternalError> {
-        let token = direct_identifier(self.tree(), node)
+        let bindings = direct_node(self.tree(), node, NodeKind::ForBindings)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
+        let tokens = descendant_identifiers(self.tree(), bindings);
+        if tokens.is_empty() || tokens.len() > 2 {
+            return Err(NameResolutionInternalError::InvalidSyntaxNode(bindings));
+        }
         let source = direct_node(self.tree(), node, NodeKind::ForSource)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::EnterBlock {
             block,
-            introductions: vec![Introduction {
-                token,
-                kind: LocalBindingKind::Loop,
-                documentation: None,
-            }],
+            introductions: tokens
+                .into_iter()
+                .map(|token| Introduction {
+                    token,
+                    kind: LocalBindingKind::Loop,
+                    documentation: None,
+                })
+                .collect(),
         });
         actions.push(Action::Visit(source));
         Ok(())

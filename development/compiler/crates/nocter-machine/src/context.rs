@@ -226,6 +226,17 @@ fn pack_requires_context(
                     return Ok(true);
                 }
             }
+            MachinePackSegment::KeyedValue {
+                key_destruction,
+                value_destruction,
+                ..
+            } => {
+                for function in [key_destruction, value_destruction].into_iter().flatten() {
+                    if function_requires_context(kind, requirements, *function)? {
+                        return Ok(true);
+                    }
+                }
+            }
             MachinePackSegment::Spread(spread) => {
                 if function_requires_context(kind, requirements, spread.next().target())? {
                     return Ok(true);

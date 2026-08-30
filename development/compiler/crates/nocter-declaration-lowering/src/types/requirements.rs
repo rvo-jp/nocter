@@ -510,6 +510,10 @@ fn contains_generic(
             BoundTypeKind::Callable(callable) => {
                 pending.push(callable.result());
                 pending.extend(callable.parameters().iter().copied());
+                if let Some(pack) = callable.pack() {
+                    pending.push(pack.primary());
+                    pending.extend(pack.value());
+                }
             }
             BoundTypeKind::Builtin(_)
             | BoundTypeKind::GenericParameter(_)

@@ -388,8 +388,8 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             CheckedOperation::IteratorAcquisition(acquisition) => {
                 self.evaluate_iterator_acquisition(node, &acquisition, state, extra_active)?
             }
-            CheckedOperation::Sequence(sequence) => {
-                self.evaluate_sequence(&sequence, state, extra_active)?
+            CheckedOperation::PackLiteral(sequence) => {
+                self.evaluate_pack_literal(&sequence, state, extra_active)?
             }
             CheckedOperation::Interpolation(interpolation) => {
                 self.evaluate_interpolation(node, &interpolation, state, extra_active)?

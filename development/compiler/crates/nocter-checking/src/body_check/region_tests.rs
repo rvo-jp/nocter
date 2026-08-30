@@ -99,7 +99,7 @@ func allocate(allocator: &+Allocator): void {
         .nodes()
         .iter()
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Sequence(sequence) => Some(sequence.allocation()),
+            CheckedOperation::PackLiteral(sequence) => Some(sequence.allocation()),
             _ => None,
         })
         .collect::<Vec<_>>();

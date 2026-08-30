@@ -208,6 +208,40 @@ fn repeated_checked_member_queries_are_semantically_identical() {
 }
 
 #[test]
+fn keyed_argument_pack_hover_retains_both_component_types() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "func collect(...entries: i32: u32): void { return }\n",
+        "func main(): i32 {\n",
+        "    collect(1: 2)\n",
+        "    return 0\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(59));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "keyed pack fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let call = source_text.rfind("collect").unwrap();
+    let subject = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(call).unwrap()))
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        subject.presentation().code(),
+        "func collect(...entries: i32: u32): void"
+    );
+}
+
+#[test]
 fn repeated_recovery_member_queries_are_semantically_identical() {
     let tree = TempTree::new();
     let source_text = concat!(

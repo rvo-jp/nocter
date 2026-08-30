@@ -94,6 +94,7 @@ impl BodyChecker<'_, '_> {
                 self.kind(syntax.root)?,
                 NodeKind::StructLiteral
                     | NodeKind::TypedSequenceLiteral
+                    | NodeKind::TypedMappingLiteral
                     | NodeKind::TypedStringLiteral
                     | NodeKind::ArrayLiteral
                     | NodeKind::StringExpression

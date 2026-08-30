@@ -216,13 +216,25 @@ fn validate_value_positions(
             }
             ParameterRole::Receiver(_) => TypePosition::TypeOperand,
         };
-        validate_position(
-            types,
-            source_index,
-            parameter.ty(),
-            position,
-            SemanticEntity::Parameter(id),
-        )?;
+        if let Some(pack) = parameter.argument_pack() {
+            for ty in pack.components() {
+                validate_position(
+                    types,
+                    source_index,
+                    ty,
+                    position,
+                    SemanticEntity::Parameter(id),
+                )?;
+            }
+        } else {
+            validate_position(
+                types,
+                source_index,
+                parameter.ty(),
+                position,
+                SemanticEntity::Parameter(id),
+            )?;
+        }
     }
     for (id, callable) in declarations.callables().iter() {
         validate_position(
@@ -265,7 +277,16 @@ fn validate_requirement(
                 validate_position(types, source_index, *parameter, TypePosition::Data, entity)?;
             }
             if let Some(pack) = contract.pack() {
-                validate_position(types, source_index, pack, TypePosition::Data, entity)?;
+                validate_position(
+                    types,
+                    source_index,
+                    pack.primary(),
+                    TypePosition::Data,
+                    entity,
+                )?;
+                if let Some(value) = pack.value() {
+                    validate_position(types, source_index, value, TypePosition::Data, entity)?;
+                }
             }
             validate_position(
                 types,

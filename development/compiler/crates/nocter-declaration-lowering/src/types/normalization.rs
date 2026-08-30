@@ -467,7 +467,11 @@ impl Evaluator<'_> {
                     .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
             },
             BoundTypeKind::Callable(callable) => {
-                let mut parameters = self.results(&key, callable.parameters())?.into_vec();
+                let parameters = self.results(&key, callable.parameters())?;
+                let pack = callable
+                    .pack()
+                    .map(|pack| pack.try_map(|ty| self.result(&key, ty)))
+                    .transpose()?;
                 let result = self.result(&key, callable.result())?;
                 let provenance = match callable.explicit_origins() {
                     Some(origins) => ResultProvenance::from_origins(origins.iter().copied())
@@ -475,14 +479,10 @@ impl Evaluator<'_> {
                     None => self.infer_callable_provenance(
                         key.ty,
                         &parameters,
+                        pack,
                         callable.named_parameters(),
                         result,
                     )?,
-                };
-                let pack = if callable.has_argument_pack() {
-                    parameters.pop()
-                } else {
-                    None
                 };
                 TypeKind::Callable(
                     CallableContract::new(
@@ -544,23 +544,40 @@ impl Evaluator<'_> {
         &self,
         bound: BoundTypeId,
         parameters: &[TypeId],
+        pack: Option<nocter_model::ArgumentPackType>,
         named: &[bool],
         result: TypeId,
     ) -> Result<ResultProvenance, TypeNormalizationError> {
         if !self.store.may_carry_storage(result) {
             return Ok(ResultProvenance::empty());
         }
-        let eligible: Vec<_> = parameters
+        let mut storage_parameters = parameters
             .iter()
+            .copied()
+            .map(|ty| self.store.may_carry_storage(ty))
+            .collect::<Vec<_>>();
+        if let Some(pack) = pack {
+            storage_parameters.push(
+                self.store.may_carry_storage(pack.primary())
+                    || pack
+                        .value()
+                        .is_some_and(|value| self.store.may_carry_storage(value)),
+            );
+        }
+        let eligible: Vec<_> = storage_parameters
+            .iter()
+            .copied()
             .enumerate()
-            .filter(|(position, ty)| {
-                named.get(*position).copied().unwrap_or(false) && self.store.may_carry_storage(**ty)
+            .filter(|(position, carries)| {
+                *carries && named.get(*position).copied().unwrap_or(false)
             })
             .map(|(position, _)| ParameterOrigin::new(position))
             .collect();
-        let unnamed_eligible = parameters.iter().enumerate().any(|(position, ty)| {
-            !named.get(position).copied().unwrap_or(false) && self.store.may_carry_storage(*ty)
-        });
+        let unnamed_eligible = storage_parameters
+            .iter()
+            .copied()
+            .enumerate()
+            .any(|(position, carries)| carries && !named.get(position).copied().unwrap_or(false));
         match eligible.as_slice() {
             [] if !unnamed_eligible => Ok(ResultProvenance::empty()),
             [origin] if !unnamed_eligible => ResultProvenance::from_origins([*origin])
@@ -834,6 +851,12 @@ fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey>
             .parameters()
             .iter()
             .copied()
+            .chain(
+                callable
+                    .pack()
+                    .into_iter()
+                    .flat_map(|pack| std::iter::once(pack.primary()).chain(pack.value())),
+            )
             .chain([callable.result()])
             .collect(),
         BoundTypeKind::Builtin(_)

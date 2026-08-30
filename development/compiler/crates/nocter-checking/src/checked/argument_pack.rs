@@ -1,4 +1,4 @@
-use nocter_model::{BodyNodeId, BorrowCapability, ParameterId, TypeId, TypeKind};
+use nocter_model::{ArgumentPackType, BodyNodeId, BorrowCapability, ParameterId, TypeId, TypeKind};
 
 use super::TypedIteration;
 
@@ -43,6 +43,10 @@ impl SpreadMode {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ArgumentPackSegment {
     Value(BodyNodeId),
+    KeyedValue {
+        key: BodyNodeId,
+        value: BodyNodeId,
+    },
     Spread {
         mode: SpreadMode,
         iteration: TypedIteration,
@@ -50,9 +54,23 @@ pub enum ArgumentPackSegment {
     },
 }
 
+impl ArgumentPackSegment {
+    /// Returns the already checked source operands in evaluation order.
+    #[must_use]
+    pub fn operands(&self) -> impl DoubleEndedIterator<Item = BodyNodeId> + '_ {
+        let operands = match self {
+            Self::Value(value) => [Some(*value), None],
+            Self::KeyedValue { key, value } => [Some(*key), Some(*value)],
+            Self::Spread { iteration, .. } => [Some(iteration.iterator()), None],
+        };
+        operands.into_iter().flatten()
+    }
+}
+
 /// One complete caller-owned pack prepared for a callable invocation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedArgumentPack {
+    shape: ArgumentPackType,
     transport: ArgumentPackTransport,
 }
 
@@ -82,16 +100,26 @@ impl CheckedArgumentPack {
         }
         Ok(())
     }
-    pub(crate) fn new(segments: impl Into<Box<[ArgumentPackSegment]>>) -> Self {
+    pub(crate) fn new(
+        shape: ArgumentPackType,
+        segments: impl Into<Box<[ArgumentPackSegment]>>,
+    ) -> Self {
         Self {
+            shape,
             transport: ArgumentPackTransport::Prepared(segments.into()),
         }
     }
 
-    pub(crate) fn forwarded(parameter: ParameterId) -> Self {
+    pub(crate) fn forwarded(parameter: ParameterId, shape: ArgumentPackType) -> Self {
         Self {
+            shape,
             transport: ArgumentPackTransport::Forwarded(parameter),
         }
+    }
+
+    #[must_use]
+    pub const fn shape(&self) -> ArgumentPackType {
+        self.shape
     }
 
     #[must_use]

@@ -200,7 +200,12 @@ fn loop_statement(parser: &mut Parser<'_>) -> CompletedMarker {
 fn for_statement(parser: &mut Parser<'_>) -> CompletedMarker {
     let marker = parser.start();
     parser.bump();
+    let bindings = parser.start();
     parser.expect_name();
+    if parser.eat_punctuation(Punctuation::Colon) {
+        parser.expect_name();
+    }
+    parser.complete(bindings, NodeKind::ForBindings);
     parser.expect_keyword(Keyword::In);
     let source = parser.start();
     expression::expression(parser, expression::ExpressionMode::Header);

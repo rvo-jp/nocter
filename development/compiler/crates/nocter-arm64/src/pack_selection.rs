@@ -134,6 +134,29 @@ fn select_segment(
             selected,
         ),
         (
+            MachinePackSegment::KeyedValue { key, value, .. },
+            Arm64PackSegmentLayout::KeyedValue {
+                key_offset,
+                key_size,
+                value_offset,
+                value_size,
+                ..
+            },
+        ) => {
+            copy_value_to_frame(
+                context, operation, *key, state, key_offset, key_size, selected,
+            )?;
+            copy_value_to_frame(
+                context,
+                operation,
+                *value,
+                state,
+                value_offset,
+                value_size,
+                selected,
+            )
+        }
+        (
             MachinePackSegment::Spread(spread),
             Arm64PackSegmentLayout::Spread {
                 remaining_offset,

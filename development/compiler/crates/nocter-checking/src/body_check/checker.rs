@@ -696,6 +696,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::TypedSequenceLiteral => {
                     return self.check_typed_sequence_literal(current, expected);
                 }
+                NodeKind::TypedMappingLiteral => {
+                    return self.check_typed_mapping_literal(current, expected);
+                }
                 NodeKind::TypedStringLiteral => {
                     return self.check_typed_string_literal(current, expected);
                 }

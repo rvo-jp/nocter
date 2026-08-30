@@ -407,8 +407,14 @@ impl BodyChecker<'_, '_> {
         } else {
             None
         };
-        let contract = CallableContract::new(capability, parameters, pack, result, provenance)
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+        let contract = CallableContract::new(
+            capability,
+            parameters,
+            pack.map(nocter_model::ArgumentPack::Values),
+            result,
+            provenance,
+        )
+        .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         self.types
             .intern(TypeKind::Callable(contract))
             .map_err(|_| BodyCheckInternalError::UnknownType(result).into())

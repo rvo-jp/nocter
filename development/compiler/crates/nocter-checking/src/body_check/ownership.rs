@@ -276,7 +276,7 @@ impl OwnershipAnalyzer<'_> {
             CheckedOperation::IteratorAcquisition(acquisition) => {
                 self.visit_iterator_acquisition(acquisition, state)
             }
-            CheckedOperation::Sequence(sequence) => self.visit_sequence(sequence, state),
+            CheckedOperation::PackLiteral(sequence) => self.visit_pack_literal(sequence, state),
             CheckedOperation::StringLiteral { allocation, .. } => {
                 self.visit_allocation(*allocation, state)
             }
@@ -738,7 +738,8 @@ impl OwnershipAnalyzer<'_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
-                | LoopKind::ArgumentPack { .. } => true,
+                | LoopKind::ArgumentPack { .. }
+                | LoopKind::KeyedArgumentPack { .. } => true,
             };
             if condition_reaches && let LoopKind::While { condition } = definition.kind() {
                 let actions =
@@ -753,6 +754,7 @@ impl OwnershipAnalyzer<'_> {
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
                         | LoopKind::ArgumentPack { .. }
+                        | LoopKind::KeyedArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches
@@ -763,6 +765,19 @@ impl OwnershipAnalyzer<'_> {
                 iteration
                     .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))
                     .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+            }
+            if condition_reaches
+                && let LoopKind::KeyedArgumentPack {
+                    key_binding,
+                    value_binding,
+                    ..
+                } = definition.kind()
+            {
+                for binding in [*key_binding, *value_binding] {
+                    iteration
+                        .declare_initialized(MovePath::root(crate::PlaceRoot::Local(binding)))
+                        .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+                }
             }
             let body_reaches =
                 condition_reaches && self.visit(definition.body(), &mut iteration)?;

@@ -130,6 +130,10 @@ pub enum MachineLayoutKind {
     Closure {
         captures: Box<[MachineCaptureLayout]>,
     },
+    PackEntry {
+        key: MachineFieldLayout,
+        value: MachineFieldLayout,
+    },
     Outcome {
         kind: MachineOutcomeKind,
         tag_offset: u64,
@@ -391,6 +395,29 @@ impl LayoutBuilder<'_> {
                         element: *element,
                         length: *length,
                         stride,
+                    },
+                })
+            }
+            RuntimeType::PackEntry { key, value } => {
+                let key_layout = self.layout(*key)?.clone();
+                let value_layout = self.layout(*value)?.clone();
+                let value_offset = align_up(key_layout.size, value_layout.alignment, ty)?;
+                let alignment = key_layout.alignment.max(value_layout.alignment);
+                let unaligned_size = value_offset
+                    .checked_add(value_layout.size)
+                    .ok_or(MachineLayoutError::LayoutOverflow(ty))?;
+                Ok(MachineLayout {
+                    size: align_up(unaligned_size, alignment, ty)?,
+                    alignment,
+                    kind: MachineLayoutKind::PackEntry {
+                        key: MachineFieldLayout {
+                            ty: *key,
+                            offset: 0,
+                        },
+                        value: MachineFieldLayout {
+                            ty: *value,
+                            offset: value_offset,
+                        },
                     },
                 })
             }

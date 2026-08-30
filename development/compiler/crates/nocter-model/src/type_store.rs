@@ -23,6 +23,67 @@ pub enum CallableCapability {
     Owned,
 }
 
+/// The semantic shape of one compiler-owned final argument pack.
+///
+/// A keyed pack retains each key/value pair as one entry. It is never represented as alternating
+/// values or as two independently ordered packs.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ArgumentPack<T> {
+    Values(T),
+    Keyed { key: T, value: T },
+}
+
+pub type ArgumentPackType = ArgumentPack<TypeId>;
+
+impl<T: Copy> ArgumentPack<T> {
+    #[must_use]
+    pub const fn primary(self) -> T {
+        match self {
+            Self::Values(element) => element,
+            Self::Keyed { key, .. } => key,
+        }
+    }
+
+    #[must_use]
+    pub const fn value(self) -> Option<T> {
+        match self {
+            Self::Values(_) => None,
+            Self::Keyed { value, .. } => Some(value),
+        }
+    }
+
+    /// Returns the component types in their source and ABI order.
+    #[must_use]
+    pub fn components(self) -> impl Iterator<Item = T> {
+        [Some(self.primary()), self.value()].into_iter().flatten()
+    }
+}
+
+impl<T> ArgumentPack<T> {
+    pub fn try_map<U, E>(
+        self,
+        mut map: impl FnMut(T) -> Result<U, E>,
+    ) -> Result<ArgumentPack<U>, E> {
+        match self {
+            Self::Values(element) => map(element).map(ArgumentPack::Values),
+            Self::Keyed { key, value } => Ok(ArgumentPack::Keyed {
+                key: map(key)?,
+                value: map(value)?,
+            }),
+        }
+    }
+
+    pub(crate) fn visit(self, visit: &mut impl FnMut(T)) {
+        match self {
+            Self::Values(element) => visit(element),
+            Self::Keyed { key, value } => {
+                visit(key);
+                visit(value);
+            }
+        }
+    }
+}
+
 impl CallableCapability {
     /// Whether this caller-side access can invoke a body with `required` environment access.
     #[must_use]
@@ -44,7 +105,7 @@ const fn callable_capability_rank(capability: CallableCapability) -> u8 {
 pub struct CallableContract {
     capability: CallableCapability,
     parameters: Box<[TypeId]>,
-    pack: Option<TypeId>,
+    pack: Option<ArgumentPackType>,
     result: TypeId,
     provenance: ResultProvenance,
 }
@@ -59,7 +120,7 @@ impl CallableContract {
     pub fn new(
         capability: CallableCapability,
         parameters: impl Into<Box<[TypeId]>>,
-        pack: Option<TypeId>,
+        pack: Option<ArgumentPackType>,
         result: TypeId,
         provenance: ResultProvenance,
     ) -> Result<Self, InvalidParameterOrigin> {
@@ -94,9 +155,9 @@ impl CallableContract {
         &self.parameters
     }
 
-    /// Returns the element type of the final compiler-owned argument pack, when present.
+    /// Returns the semantic shape of the final compiler-owned argument pack, when present.
     #[must_use]
-    pub const fn pack(&self) -> Option<TypeId> {
+    pub const fn pack(&self) -> Option<ArgumentPackType> {
         self.pack
     }
 
@@ -138,6 +199,11 @@ pub enum TypeKind {
         element: TypeId,
         length: u64,
     },
+    /// One compiler-owned keyed-pack entry. Source syntax cannot name or construct this type.
+    PackEntry {
+        key: TypeId,
+        value: TypeId,
+    },
     /// One concrete anonymous closure environment and its statically generated body.
     ///
     /// The signature and environment layout live in the checked-program closure authority. A
@@ -168,9 +234,15 @@ impl TypeKind {
             | Self::FixedArray { element: base, .. }
             | Self::Optional(base)
             | Self::Fallible(base) => visit(*base),
+            Self::PackEntry { key, value } => {
+                visit(*key);
+                visit(*value);
+            }
             Self::Callable(contract) => {
                 contract.parameters().iter().copied().for_each(&mut *visit);
-                contract.pack().into_iter().for_each(&mut *visit);
+                if let Some(pack) = contract.pack() {
+                    pack.visit(visit);
+                }
                 visit(contract.result());
             }
         }
@@ -353,10 +425,14 @@ impl TypeProperties {
             | TypeKind::FixedArray { element: base, .. }
             | TypeKind::Optional(base)
             | TypeKind::Fallible(base) => child(*base).concrete,
+            TypeKind::PackEntry { key, value } => child(*key).concrete && child(*value).concrete,
             TypeKind::Callable(contract) => {
                 child(contract.result()).concrete
                     && children_concrete(contract.parameters())
-                    && contract.pack().is_none_or(|pack| child(pack).concrete)
+                    && contract.pack().is_none_or(|pack| {
+                        child(pack.primary()).concrete
+                            && pack.value().is_none_or(|value| child(value).concrete)
+                    })
             }
         };
         let may_carry_storage = match kind {
@@ -371,6 +447,9 @@ impl TypeProperties {
             | TypeKind::Slice(_)
             | TypeKind::Closure { .. }
             | TypeKind::Callable(_) => true,
+            TypeKind::PackEntry { key, value } => {
+                child(*key).may_carry_storage || child(*value).may_carry_storage
+            }
             TypeKind::FixedArray { element, .. }
             | TypeKind::Optional(element)
             | TypeKind::Fallible(element) => child(*element).may_carry_storage,
@@ -451,7 +530,8 @@ mod tests {
     use crate::{ParameterOrigin, ResultProvenance, TypeAuthority};
 
     use super::{
-        BorrowCapability, BuiltinType, CallableCapability, CallableContract, TypeKind, TypeStore,
+        ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
+        TypeKind, TypeStore,
     };
 
     #[test]
@@ -551,7 +631,7 @@ mod tests {
         let packed = CallableContract::new(
             CallableCapability::Owned,
             [],
-            Some(value),
+            Some(ArgumentPackType::Values(value)),
             value,
             ResultProvenance::empty(),
         )
@@ -573,7 +653,7 @@ mod tests {
         CallableContract::new(
             CallableCapability::Owned,
             [value],
-            Some(value),
+            Some(ArgumentPackType::Values(value)),
             value,
             provenance,
         )

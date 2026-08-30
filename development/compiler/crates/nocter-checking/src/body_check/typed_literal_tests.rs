@@ -119,7 +119,7 @@ func rendered(): Text { Text "line\nvalue" }
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Sequence(sequence) => Some((node.ty(), sequence)),
+            CheckedOperation::PackLiteral(sequence) => Some((node.ty(), sequence)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -307,7 +307,7 @@ func move_spread(source: Source): Vec<i32> { Vec [...move source] }
         .iter()
         .flat_map(|(_, body)| body.nodes().iter().map(move |(_, node)| (body, node)))
         .filter_map(|(body, node)| match node.operation() {
-            CheckedOperation::Sequence(sequence) => Some((body, sequence)),
+            CheckedOperation::PackLiteral(sequence) => Some((body, sequence)),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -435,7 +435,7 @@ func collect<C, I, T>(source: &C): Vec<T> where (...&C): I, I impl Iterator { .I
             body.nodes()
                 .iter()
                 .find_map(|(_, node)| match node.operation() {
-                    CheckedOperation::Sequence(sequence) => Some((body, sequence)),
+                    CheckedOperation::PackLiteral(sequence) => Some((body, sequence)),
                     _ => None,
                 })
         })
@@ -613,7 +613,7 @@ func build(source: Source, input: i32!): Vec<i32>! {
         .find(|(_, body)| {
             body.nodes()
                 .iter()
-                .any(|(_, node)| matches!(node.operation(), CheckedOperation::Sequence(_)))
+                .any(|(_, node)| matches!(node.operation(), CheckedOperation::PackLiteral(_)))
         })
         .unwrap();
     let iterator = body
@@ -701,7 +701,7 @@ func values(allocator: &+Allocator): Vec<i32> {
         .iter()
         .find_map(|(_, body)| {
             body.nodes().iter().find_map(|(_, node)| {
-                let CheckedOperation::Sequence(sequence) = node.operation() else {
+                let CheckedOperation::PackLiteral(sequence) = node.operation() else {
                     return None;
                 };
                 matches!(sequence.allocation(), AllocationSelection::Explicit(_))

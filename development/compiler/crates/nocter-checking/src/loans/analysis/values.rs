@@ -209,39 +209,41 @@ impl Analyzer<'_, '_> {
         Ok(())
     }
 
-    pub(super) fn evaluate_sequence(
+    pub(super) fn evaluate_pack_literal(
         &mut self,
-        sequence: &crate::CheckedSequence,
+        sequence: &crate::CheckedPackLiteral,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
     ) -> Result<(LoanValue, bool), BodyCheckError> {
         self.evaluate_allocation(sequence.allocation(), state, extra)?;
         let mut elements = LoanValue::independent();
         for element in sequence.pack().segments() {
-            match element {
-                crate::ArgumentPackSegment::Value(value) => {
-                    let (value, reaches) = self.evaluate(*value, state, extra)?;
+            if !matches!(element, crate::ArgumentPackSegment::Spread { .. }) {
+                for operand in element.operands() {
+                    let (value, reaches) = self.evaluate(operand, state, extra)?;
                     if !reaches {
                         return Ok((LoanValue::independent(), false));
                     }
                     elements.union_with(&value);
                 }
-                crate::ArgumentPackSegment::Spread {
-                    mode, iteration, ..
-                } => {
-                    let (iterator, reaches) = self.evaluate(iteration.iterator(), state, extra)?;
-                    if !reaches {
-                        return Ok((LoanValue::independent(), false));
-                    }
-                    let contribution = mode
-                        .contribution_type(self.types, iteration.item())
-                        .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-                    if !self.types.may_carry_storage(contribution) {
-                        continue;
-                    }
-                    let value = self.iteration_item_loans(iteration, &iterator)?;
-                    elements.union_with(&value);
+                continue;
+            }
+            if let crate::ArgumentPackSegment::Spread {
+                mode, iteration, ..
+            } = element
+            {
+                let (iterator, reaches) = self.evaluate(iteration.iterator(), state, extra)?;
+                if !reaches {
+                    return Ok((LoanValue::independent(), false));
                 }
+                let contribution = mode
+                    .contribution_type(self.types, iteration.item())
+                    .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+                if !self.types.may_carry_storage(contribution) {
+                    continue;
+                }
+                let value = self.iteration_item_loans(iteration, &iterator)?;
+                elements.union_with(&value);
             }
         }
         Ok((

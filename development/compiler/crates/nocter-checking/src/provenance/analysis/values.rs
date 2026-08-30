@@ -7,9 +7,9 @@ use crate::provenance::state::ProvenanceState;
 use crate::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,
     BodyCheckError, BodyCheckInternalError, CallTarget, CheckedArgumentPack, CheckedCall,
-    CheckedIteratorAcquisition, CheckedOperation, CheckedOutcome, CheckedReceiver, CheckedSequence,
-    IterationAcquisition, PlaceRoot, ProvenanceProjection, ProvenanceSource, ReceiverPreparation,
-    StaticDispatch, ValueProvenance,
+    CheckedIteratorAcquisition, CheckedOperation, CheckedOutcome, CheckedPackLiteral,
+    CheckedReceiver, IterationAcquisition, PlaceRoot, ProvenanceProjection, ProvenanceSource,
+    ReceiverPreparation, StaticDispatch, ValueProvenance,
 };
 
 struct CallableValueProvenance {
@@ -385,17 +385,17 @@ impl Analyzer<'_, '_> {
         }
         let mut elements = ValueProvenance::independent();
         for segment in pack.segments() {
-            match segment {
-                ArgumentPackSegment::Value(value) => {
-                    let (provenance, reaches) = self.evaluate(*value, state)?;
+            if !matches!(segment, ArgumentPackSegment::Spread { .. }) {
+                for value in segment.operands() {
+                    let (provenance, reaches) = self.evaluate(value, state)?;
                     if !reaches {
                         return Ok(None);
                     }
                     let checked = self
                         .body
                         .nodes()
-                        .get(*value)
-                        .ok_or(BodyCheckInternalError::MissingNode(*value))?;
+                        .get(value)
+                        .ok_or(BodyCheckInternalError::MissingNode(value))?;
                     let argument = match checked.operation() {
                         CheckedOperation::Borrow { place, .. } => ArgumentProvenance {
                             carried: self.read_place(*place, state)?,
@@ -405,24 +405,26 @@ impl Analyzer<'_, '_> {
                     };
                     elements.union_with(&argument.retained(true).flattened());
                 }
-                ArgumentPackSegment::Spread {
-                    mode, iteration, ..
-                } => {
-                    let (iterator, reaches) = self.evaluate(iteration.iterator(), state)?;
-                    if !reaches {
-                        return Ok(None);
-                    }
-                    let contribution = mode
-                        .contribution_type(self.types, iteration.item())
-                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    if self.types.may_carry_storage(contribution) {
-                        elements.union_with(&self.iteration_item_provenance(
-                            iteration,
-                            &iterator,
-                            state.current_allocation(),
-                            ProvenanceSource::StatementTemporary(iteration.iterator()),
-                        )?);
-                    }
+                continue;
+            }
+            if let ArgumentPackSegment::Spread {
+                mode, iteration, ..
+            } = segment
+            {
+                let (iterator, reaches) = self.evaluate(iteration.iterator(), state)?;
+                if !reaches {
+                    return Ok(None);
+                }
+                let contribution = mode
+                    .contribution_type(self.types, iteration.item())
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                if self.types.may_carry_storage(contribution) {
+                    elements.union_with(&self.iteration_item_provenance(
+                        iteration,
+                        &iterator,
+                        state.current_allocation(),
+                        ProvenanceSource::StatementTemporary(iteration.iterator()),
+                    )?);
                 }
             }
         }
@@ -627,43 +629,45 @@ impl Analyzer<'_, '_> {
         Ok(result)
     }
 
-    pub(super) fn evaluate_sequence(
+    pub(super) fn evaluate_pack_literal(
         &mut self,
-        sequence: &CheckedSequence,
+        sequence: &CheckedPackLiteral,
         state: &mut ProvenanceState,
     ) -> Result<(ValueProvenance, bool), BodyCheckError> {
         let mut result = self.allocation_provenance(sequence.allocation(), state)?;
         let mut elements = ValueProvenance::independent();
         for element in sequence.pack().segments() {
-            match element {
-                ArgumentPackSegment::Value(value) => {
-                    let (value, reaches) = self.evaluate(*value, state)?;
+            if !matches!(element, ArgumentPackSegment::Spread { .. }) {
+                for operand in element.operands() {
+                    let (value, reaches) = self.evaluate(operand, state)?;
                     if !reaches {
                         return Ok((ValueProvenance::independent(), false));
                     }
                     elements.union_with(&value);
                 }
-                ArgumentPackSegment::Spread {
-                    mode, iteration, ..
-                } => {
-                    let (iterator, reaches) = self.evaluate(iteration.iterator(), state)?;
-                    if !reaches {
-                        return Ok((ValueProvenance::independent(), false));
-                    }
-                    let contribution = mode
-                        .contribution_type(self.types, iteration.item())
-                        .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    if !self.types.may_carry_storage(contribution) {
-                        continue;
-                    }
-                    let value = self.iteration_item_provenance(
-                        iteration,
-                        &iterator,
-                        state.current_allocation(),
-                        ProvenanceSource::StatementTemporary(iteration.iterator()),
-                    )?;
-                    elements.union_with(&value);
+                continue;
+            }
+            if let ArgumentPackSegment::Spread {
+                mode, iteration, ..
+            } = element
+            {
+                let (iterator, reaches) = self.evaluate(iteration.iterator(), state)?;
+                if !reaches {
+                    return Ok((ValueProvenance::independent(), false));
                 }
+                let contribution = mode
+                    .contribution_type(self.types, iteration.item())
+                    .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+                if !self.types.may_carry_storage(contribution) {
+                    continue;
+                }
+                let value = self.iteration_item_provenance(
+                    iteration,
+                    &iterator,
+                    state.current_allocation(),
+                    ProvenanceSource::StatementTemporary(iteration.iterator()),
+                )?;
+                elements.union_with(&value);
             }
         }
         result.insert_projection(ProvenanceProjection::Element, elements);

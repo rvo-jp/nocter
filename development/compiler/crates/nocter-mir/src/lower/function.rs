@@ -209,7 +209,7 @@ impl<'a> FunctionLowerer<'a> {
                 self.lower_interpolation(node, ty, interpolation)
             }
             CheckedOperation::Control(control) => self.lower_control(node, control),
-            CheckedOperation::Sequence(_) => self.lower_sequence(node, ty).map(Some),
+            CheckedOperation::PackLiteral(_) => self.lower_sequence(node, ty).map(Some),
             CheckedOperation::Place(_) => Err(MirLoweringError::UnsupportedOperation(node)),
         }?;
         if let Some(value) = lowered

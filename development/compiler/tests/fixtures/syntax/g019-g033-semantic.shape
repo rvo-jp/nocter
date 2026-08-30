@@ -51,6 +51,7 @@ SourceFile
       Block
         ExecutableSequence
           ForStatement
+            ForBindings
             ForSource
               Expression
                 ReferenceExpression

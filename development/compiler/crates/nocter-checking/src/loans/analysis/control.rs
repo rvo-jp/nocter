@@ -336,7 +336,8 @@ impl Analyzer<'_, '_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
-                | LoopKind::ArgumentPack { .. } => true,
+                | LoopKind::ArgumentPack { .. }
+                | LoopKind::KeyedArgumentPack { .. } => true,
             };
             let condition_exit = (condition_reaches
                 && matches!(
@@ -345,6 +346,7 @@ impl Analyzer<'_, '_> {
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
                         | LoopKind::ArgumentPack { .. }
+                        | LoopKind::KeyedArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches && let LoopKind::Range { binding, .. } = definition.kind() {
@@ -363,6 +365,21 @@ impl Analyzer<'_, '_> {
                         .ok_or(BodyCheckInternalError::LoanAnalysis)?,
                 )?;
                 iteration.set_root(PlaceRoot::Local(*binding), value);
+            }
+            if condition_reaches
+                && let LoopKind::KeyedArgumentPack {
+                    key_binding,
+                    value_binding,
+                    parameter,
+                    ..
+                } = definition.kind()
+            {
+                let value = iteration.value(&LiveSlot::Place(LivePlace::from_parts(
+                    PlaceRoot::Parameter(*parameter),
+                    Box::new([]),
+                )));
+                iteration.set_root(PlaceRoot::Local(*key_binding), value.clone());
+                iteration.set_root(PlaceRoot::Local(*value_binding), value);
             }
             if condition_reaches
                 && let LoopKind::ArgumentPack {

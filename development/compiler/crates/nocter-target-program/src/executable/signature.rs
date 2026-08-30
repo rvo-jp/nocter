@@ -1,8 +1,8 @@
 use nocter_checking::{ConcreteDispatchResolver, TypeSubstitution};
 use nocter_declarations::{CallableKind, LiteralShape, Parameter, ParameterRole};
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableCapability, ClosureId, LocalBindingId, ParameterId,
-    TypeId, TypeKind,
+    ArgumentPack, ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability, ClosureId,
+    LocalBindingId, ParameterId, TypeId, TypeKind,
 };
 
 use super::{ExecutableItemKey, ExecutableProgramError};
@@ -31,6 +31,7 @@ pub struct ExecutableInput {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ExecutablePackInput {
     source: ParameterId,
+    shape: ArgumentPackType,
     element: TypeId,
     next: TypeId,
 }
@@ -39,6 +40,11 @@ impl ExecutablePackInput {
     #[must_use]
     pub const fn source(self) -> ParameterId {
         self.source
+    }
+
+    #[must_use]
+    pub const fn shape(self) -> ArgumentPackType {
+        self.shape
     }
 
     #[must_use]
@@ -132,13 +138,25 @@ pub(super) fn callable_signature(
             .copied()
             .ok_or(ExecutableProgramError::MissingParameter(parameter))?;
         if matches!(declaration.role(), ParameterRole::ArgumentPack { .. }) {
-            let element = resolver.specialize_type(declaration.ty(), substitution)?;
+            let shape = declaration
+                .argument_pack()
+                .ok_or(ExecutableProgramError::InvalidArgumentPackSignature(
+                    key.callable(),
+                ))?
+                .try_map(|ty| resolver.specialize_type(ty, substitution))?;
+            let element = match shape {
+                ArgumentPack::Values(element) => element,
+                ArgumentPack::Keyed { key, value } => {
+                    resolver.intern_concrete(TypeKind::PackEntry { key, value })?
+                }
+            };
             let next = resolver.intern_concrete(TypeKind::Optional(element))?;
             if callable.kind() == CallableKind::Primitive
                 || callable.kind() == CallableKind::Literal(LiteralShape::String)
                 || pack
                     .replace(ExecutablePackInput {
                         source: parameter,
+                        shape,
                         element,
                         next,
                     })

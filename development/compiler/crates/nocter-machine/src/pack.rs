@@ -161,6 +161,12 @@ pub enum MachinePackSegment {
         value: MachineValueId,
         destruction: Option<MachineFunctionId>,
     },
+    KeyedValue {
+        key: MachineValueId,
+        key_destruction: Option<MachineFunctionId>,
+        value: MachineValueId,
+        value_destruction: Option<MachineFunctionId>,
+    },
     Spread(MachinePackSpread),
 }
 

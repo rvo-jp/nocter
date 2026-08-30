@@ -150,25 +150,61 @@ fn materialize_fixed_next(
         .enumerate()
     {
         code.bind(label)?;
-        let (
-            nocter_machine::MachinePackSegment::Value { .. },
-            crate::Arm64PackSegmentLayout::Value {
-                value_offset, size, ..
-            },
-        ) = (segment, layout)
-        else {
-            return Err(Arm64MaterializationError::InvalidPackCallback(key));
-        };
         destination.zero(&frame, next_layout.size(), &mut code)?;
         destination.store_byte(&frame, tag_offset, 0, &mut code)?;
-        destination.copy_from_register(
-            &frame,
-            payload_offset,
-            state_register(),
-            *value_offset,
-            *size,
-            &mut code,
-        )?;
+        match (segment, layout) {
+            (
+                nocter_machine::MachinePackSegment::Value { .. },
+                crate::Arm64PackSegmentLayout::Value {
+                    value_offset, size, ..
+                },
+            ) => destination.copy_from_register(
+                &frame,
+                payload_offset,
+                state_register(),
+                *value_offset,
+                *size,
+                &mut code,
+            )?,
+            (
+                nocter_machine::MachinePackSegment::KeyedValue { .. },
+                crate::Arm64PackSegmentLayout::KeyedValue {
+                    key_offset,
+                    key_size,
+                    value_offset,
+                    value_size,
+                    ..
+                },
+            ) => {
+                let Some(nocter_machine::MachineLayoutKind::PackEntry {
+                    key: key_layout,
+                    value: value_layout,
+                }) = machine
+                    .layouts()
+                    .get(pack.element())
+                    .map(|layout| layout.kind())
+                else {
+                    return Err(Arm64MaterializationError::InvalidPackCallback(key));
+                };
+                destination.copy_from_register(
+                    &frame,
+                    checked_add(payload_offset, key_layout.offset())?,
+                    state_register(),
+                    *key_offset,
+                    *key_size,
+                    &mut code,
+                )?;
+                destination.copy_from_register(
+                    &frame,
+                    checked_add(payload_offset, value_layout.offset())?,
+                    state_register(),
+                    *value_offset,
+                    *value_size,
+                    &mut code,
+                )?;
+            }
+            _ => return Err(Arm64MaterializationError::InvalidPackCallback(key)),
+        }
         let next = u64::try_from(index)
             .ok()
             .and_then(|index| index.checked_add(1))
@@ -292,21 +328,33 @@ fn materialize_destroy(
         .enumerate()
         .rev()
     {
-        let (destruction, value_offset) = match (segment, layout) {
+        let destructions = match (segment, layout) {
             (
                 nocter_machine::MachinePackSegment::Value { destruction, .. },
                 crate::Arm64PackSegmentLayout::Value { value_offset, .. },
-            ) => (*destruction, *value_offset),
+            ) => [(*destruction, *value_offset), (None, 0)],
+            (
+                nocter_machine::MachinePackSegment::KeyedValue {
+                    key_destruction,
+                    value_destruction,
+                    ..
+                },
+                crate::Arm64PackSegmentLayout::KeyedValue {
+                    key_offset,
+                    value_offset,
+                    ..
+                },
+            ) => [
+                (*value_destruction, *value_offset),
+                (*key_destruction, *key_offset),
+            ],
             (
                 nocter_machine::MachinePackSegment::Spread(spread),
                 crate::Arm64PackSegmentLayout::Spread {
                     iterator_offset, ..
                 },
-            ) => (spread.destruction(), *iterator_offset),
+            ) => [(spread.destruction(), *iterator_offset), (None, 0)],
             _ => return Err(Arm64MaterializationError::InvalidPackCallback(key)),
-        };
-        let Some(destruction) = destruction else {
-            continue;
         };
         let skip = code.create_label();
         compare_immediate(
@@ -315,19 +363,24 @@ fn materialize_destroy(
             u64::try_from(index).map_err(|_| Arm64MaterializationError::OffsetOverflow)?,
         );
         code.branch_conditional(skip, Arm64BranchCondition::UnsignedHigher);
-        move_register(&mut code, argument(0), state_register());
-        crate::frame_access::load_immediate(
-            &mut code,
-            argument(1),
-            value_offset,
-            Arm64DataSize::Bits64,
-        );
-        move_register(
-            &mut code,
-            Arm64NocterAbi::allocation_context_register(),
-            context_register(),
-        );
-        code.call(function_target(functions, destruction)?);
+        for (destruction, value_offset) in destructions {
+            let Some(destruction) = destruction else {
+                continue;
+            };
+            move_register(&mut code, argument(0), state_register());
+            crate::frame_access::load_immediate(
+                &mut code,
+                argument(1),
+                value_offset,
+                Arm64DataSize::Bits64,
+            );
+            move_register(
+                &mut code,
+                Arm64NocterAbi::allocation_context_register(),
+                context_register(),
+            );
+            code.call(function_target(functions, destruction)?);
+        }
         code.bind(skip)?;
     }
     Arm64FrameCode::emit_epilogue(&frame, &mut code);

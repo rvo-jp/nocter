@@ -331,7 +331,14 @@ fn call_suffix(parser: &mut Parser<'_>) {
 
 fn call_argument(parser: &mut Parser<'_>) {
     if !parser.at_punctuation(Punctuation::Expansion) {
-        expression(parser, ExpressionMode::Delimited);
+        let key = expression(parser, ExpressionMode::Delimited);
+        if parser.at_punctuation(Punctuation::Colon) {
+            let marker = parser.precede(key);
+            parser.bump();
+            newline::after_incomplete(parser, newline::Boundary::Delimited);
+            expression(parser, ExpressionMode::Delimited);
+            parser.complete(marker, NodeKind::KeyedArgument);
+        }
         return;
     }
     let marker = parser.start();

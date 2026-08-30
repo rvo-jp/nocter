@@ -8,6 +8,20 @@ use crate::{
     MirProjectionKind, MirReadMode, MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator,
 };
 
+#[derive(Clone, Copy)]
+pub(super) enum PackLoopBindings {
+    Values {
+        binding: LocalBindingId,
+        item: TypeId,
+    },
+    Keyed {
+        key_binding: LocalBindingId,
+        value_binding: LocalBindingId,
+        key: TypeId,
+        value: TypeId,
+    },
+}
+
 impl FunctionLowerer<'_> {
     pub(super) fn lower_pack_length(
         &mut self,
@@ -26,16 +40,44 @@ impl FunctionLowerer<'_> {
         &mut self,
         node: BodyNodeId,
         loop_: LoopId,
-        binding: LocalBindingId,
         parameter: ParameterId,
-        item: TypeId,
+        bindings: PackLoopBindings,
         body: BodyNodeId,
     ) -> Result<(), MirLoweringError> {
         let pack = self.require_pack(node, parameter)?;
-        let item = self.concrete_type(item)?;
-        if item != pack.element() {
-            return Err(MirLoweringError::InvalidLoop(loop_));
-        }
+        let bindings = match bindings {
+            PackLoopBindings::Values { binding, item } => {
+                let item = self.concrete_type(item)?;
+                if item != pack.element() {
+                    return Err(MirLoweringError::InvalidLoop(loop_));
+                }
+                PackLoopBindings::Values { binding, item }
+            }
+            PackLoopBindings::Keyed {
+                key_binding,
+                value_binding,
+                key,
+                value,
+            } => {
+                let key = self.concrete_type(key)?;
+                let value = self.concrete_type(value)?;
+                if !matches!(
+                    self.executable.types().get(pack.element()),
+                    Some(nocter_model::TypeKind::PackEntry {
+                        key: expected_key,
+                        value: expected_value,
+                    }) if *expected_key == key && *expected_value == value
+                ) {
+                    return Err(MirLoweringError::InvalidLoop(loop_));
+                }
+                PackLoopBindings::Keyed {
+                    key_binding,
+                    value_binding,
+                    key,
+                    value,
+                }
+            }
+        };
         let next = pack.next();
         let next_local = self.builder.add_local(next, MirLocalKind::Temporary, true);
         let next_place = self
@@ -83,32 +125,79 @@ impl FunctionLowerer<'_> {
         )?;
 
         self.current = Some(body_block);
-        let item_place = self.builder.add_place(
+        let entry = pack.element();
+        let entry_place = self.builder.add_place(
             MirPlaceRoot::Local(next_local),
-            [MirProjection::new(MirProjectionKind::OptionalPayload, item)],
-            item,
+            [MirProjection::new(
+                MirProjectionKind::OptionalPayload,
+                entry,
+            )],
+            entry,
         );
-        let value = self.append_value(
-            item,
-            MirOperationKind::Read {
-                place: item_place,
-                mode: MirReadMode::Move,
-            },
-        )?;
-        let binding_local = self.ensure_local(binding)?;
-        let binding_place = self
-            .builder
-            .add_place(MirPlaceRoot::Local(binding_local), [], item);
-        self.append_effect(MirOperationKind::Initialize {
-            destination: binding_place,
-            value,
-        })?;
-        self.mark_binding_initialized(binding)?;
+        match bindings {
+            PackLoopBindings::Values { binding, item } => {
+                self.move_pack_entry_component(loop_, entry_place, None, binding, item)?;
+            }
+            PackLoopBindings::Keyed {
+                key_binding,
+                value_binding,
+                key,
+                value,
+            } => {
+                self.move_pack_entry_component(
+                    loop_,
+                    entry_place,
+                    Some(MirProjectionKind::PackEntryKey),
+                    key_binding,
+                    key,
+                )?;
+                self.move_pack_entry_component(
+                    loop_,
+                    entry_place,
+                    Some(MirProjectionKind::PackEntryValue),
+                    value_binding,
+                    value,
+                )?;
+            }
+        }
         self.lower_node(body)?;
         self.finish_loop_iteration(header)?;
         self.leave_loop(loop_)?;
         self.current = Some(exit);
         Ok(())
+    }
+
+    fn move_pack_entry_component(
+        &mut self,
+        loop_: LoopId,
+        entry: nocter_model::MirPlaceId,
+        projection: Option<MirProjectionKind>,
+        binding: LocalBindingId,
+        ty: TypeId,
+    ) -> Result<(), MirLoweringError> {
+        let source = if let Some(kind) = projection {
+            let entry = self
+                .builder
+                .place(entry)
+                .cloned()
+                .ok_or(MirLoweringError::InvalidLoop(loop_))?;
+            let mut projections = entry.projections().to_vec();
+            projections.push(MirProjection::new(kind, ty));
+            self.builder.add_place(entry.root(), projections, ty)
+        } else {
+            entry
+        };
+        let value = self.append_value(
+            ty,
+            MirOperationKind::Read {
+                place: source,
+                mode: MirReadMode::Move,
+            },
+        )?;
+        let local = self.ensure_local(binding)?;
+        let destination = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
+        self.append_effect(MirOperationKind::Initialize { destination, value })?;
+        self.mark_binding_initialized(binding)
     }
 
     pub(super) fn destroy_pack(&mut self) -> Result<(), MirLoweringError> {

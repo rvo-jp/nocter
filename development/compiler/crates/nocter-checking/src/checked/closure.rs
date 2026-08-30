@@ -203,7 +203,7 @@ struct BodyClosureDefinition {
 struct BodyCallableContract {
     capability: CallableCapability,
     parameters: Box<[BodyTypeRef]>,
-    pack: Option<BodyTypeRef>,
+    pack: Option<nocter_model::ArgumentPack<BodyTypeRef>>,
     result: BodyTypeRef,
     provenance: nocter_model::ResultProvenance,
 }
@@ -356,7 +356,10 @@ impl BodyCallableContract {
                 .map(|ty| types.reference(ty))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_boxed_slice(),
-            pack: contract.pack().map(|ty| types.reference(ty)).transpose()?,
+            pack: contract
+                .pack()
+                .map(|pack| pack.try_map(|ty| types.reference(ty)))
+                .transpose()?,
             result: types.reference(contract.result())?,
             provenance: contract.provenance().clone(),
         })
@@ -373,7 +376,9 @@ impl BodyCallableContract {
                 .copied()
                 .map(|ty| types.resolve(ty))
                 .collect::<Result<Vec<_>, _>>()?,
-            self.pack.map(|ty| types.resolve(ty)).transpose()?,
+            self.pack
+                .map(|pack| pack.try_map(|ty| types.resolve(ty)))
+                .transpose()?,
             types.resolve(self.result)?,
             self.provenance.clone(),
         )?)

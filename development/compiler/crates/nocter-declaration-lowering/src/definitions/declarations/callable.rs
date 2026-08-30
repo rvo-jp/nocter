@@ -134,7 +134,11 @@ fn literal_shape(
     let shape = syntax::descendant(tree, root, NodeKind::LiteralShape)
         .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?;
     if syntax::has_punctuation(tree, shape, Punctuation::LeftBracket) {
-        Ok(LiteralShape::Sequence)
+        if syntax::has_punctuation(tree, shape, Punctuation::Colon) {
+            Ok(LiteralShape::Mapping)
+        } else {
+            Ok(LiteralShape::Sequence)
+        }
     } else if syntax::direct_tokens(tree, shape).into_iter().any(|token| {
         matches!(
             token.kind(),

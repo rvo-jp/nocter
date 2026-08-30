@@ -310,7 +310,26 @@ fn decompose_callable(
     }
     append_paired(left.parameters(), right.parameters(), pending);
     if let (Some(left), Some(right)) = (left.pack(), right.pack()) {
-        pending.push((left, right));
+        match (left, right) {
+            (
+                nocter_model::ArgumentPack::Values(left),
+                nocter_model::ArgumentPack::Values(right),
+            ) => pending.push((left, right)),
+            (
+                nocter_model::ArgumentPack::Keyed {
+                    key: left_key,
+                    value: left_value,
+                },
+                nocter_model::ArgumentPack::Keyed {
+                    key: right_key,
+                    value: right_value,
+                },
+            ) => {
+                pending.push((left_key, right_key));
+                pending.push((left_value, right_value));
+            }
+            _ => return false,
+        }
     }
     pending.push((left.result(), right.result()));
     true
@@ -337,9 +356,13 @@ fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
         | TypeKind::Fallible(base) => output.push(*base),
         TypeKind::Callable(contract) => {
             output.extend(contract.parameters().iter().copied());
-            output.extend(contract.pack());
+            if let Some(pack) = contract.pack() {
+                output.push(pack.primary());
+                output.extend(pack.value());
+            }
             output.push(contract.result());
         }
+        TypeKind::PackEntry { key, value } => output.extend([*key, *value]),
     }
 }
 

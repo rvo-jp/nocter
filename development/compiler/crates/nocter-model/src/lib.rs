@@ -38,7 +38,7 @@ pub use symbol::{Symbol, SymbolTable};
 pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_projection::{TypeProjection, TypeProjectionError};
 pub use type_store::{
-    BorrowCapability, BuiltinType, CallableCapability, CallableContract, InvalidParameterOrigin,
-    TypeKind, TypeStore, UnknownTypeId,
+    ArgumentPack, ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability,
+    CallableContract, InvalidParameterOrigin, TypeKind, TypeStore, UnknownTypeId,
 };
 pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};

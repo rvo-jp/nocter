@@ -1,5 +1,5 @@
 use nocter_declarations::LiteralShape;
-use nocter_model::{CallableId, TypeId, TypeKind};
+use nocter_model::{ArgumentPack, ArgumentPackType, CallableId, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind};
 
@@ -11,11 +11,11 @@ use super::value_planning::PositionalValueContext;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::interface_implementation::normalize_requirements;
-use crate::syntax::{direct_node, direct_nodes};
+use crate::syntax::{child_nodes, direct_node, direct_nodes};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    AllocationSelection, ArgumentPackSegment, CallableInference, CheckedOperation, CheckedSequence,
-    GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
+    AllocationSelection, ArgumentPackSegment, CallableInference, CheckedOperation,
+    CheckedPackLiteral, GenericArgument, GenericArguments, StaticDispatch, StaticSelection,
 };
 
 struct LiteralPlan {
@@ -25,7 +25,7 @@ struct LiteralPlan {
     construction_parameters: Box<[nocter_model::GenericParameterId]>,
     inference_parameters: Box<[nocter_model::GenericParameterId]>,
     substitution: TypeSubstitution,
-    parameter_type: TypeId,
+    pack_type: Option<ArgumentPackType>,
     result_pattern: TypeId,
     requirements: Box<[nocter_model::RequirementId]>,
 }
@@ -33,6 +33,11 @@ struct LiteralPlan {
 enum SequenceElementDraft {
     Value(usize),
     Spread(CheckedSpreadDraft),
+}
+
+struct MappingElementDraft {
+    key: usize,
+    value: usize,
 }
 
 impl BodyChecker<'_, '_> {
@@ -46,8 +51,10 @@ impl BodyChecker<'_, '_> {
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let allocation = self.literal_allocation(node)?;
 
-        let element_pattern =
-            self.apply_type_substitution(&plan.substitution, plan.parameter_type)?;
+        let Some(ArgumentPack::Values(parameter_type)) = plan.pack_type else {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        };
+        let element_pattern = self.apply_type_substitution(&plan.substitution, parameter_type)?;
         let result_pattern =
             self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let requirements = normalize_requirements(
@@ -110,12 +117,119 @@ impl BodyChecker<'_, '_> {
             })
             .collect::<Vec<_>>();
         let result = self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
+        let element = self.apply_type_substitution(&plan.substitution, parameter_type)?;
         let selection = self.finish_literal_selection(node, &plan, result)?;
         self.project_literal_constructor(sequence_open(self.tree(), body)?, plan.constructor)?;
         let checked = self.add_node(
             node,
             result,
-            CheckedOperation::Sequence(CheckedSequence::new(selection, elements, allocation)),
+            CheckedOperation::PackLiteral(CheckedPackLiteral::new(
+                selection,
+                nocter_model::ArgumentPack::Values(element),
+                elements,
+                allocation,
+            )),
+        )?;
+        expected.map_or(Ok(checked), |expected| {
+            self.apply_expected(node, checked, expected)
+        })
+    }
+
+    pub(super) fn check_typed_mapping_literal(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
+        let mut plan = self.literal_plan(node, LiteralShape::Mapping)?;
+        let body = direct_node(self.tree(), node, NodeKind::MappingBody)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        let allocation = self.literal_allocation(node)?;
+        let Some(ArgumentPack::Keyed {
+            key: key_parameter,
+            value: value_parameter,
+        }) = plan.pack_type
+        else {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        };
+        let key_pattern = self.apply_type_substitution(&plan.substitution, key_parameter)?;
+        let value_pattern = self.apply_type_substitution(&plan.substitution, value_parameter)?;
+        let result_pattern =
+            self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
+        let requirements = normalize_requirements(
+            self.graph,
+            self.types,
+            &plan.substitution,
+            &plan.requirements,
+        )
+        .map_err(BodyCheckInternalError::CallSubstitution)?;
+        let mut inference = CallableInference::new(plan.inference_parameters.clone());
+        let mut values = Vec::new();
+        let mut destinations = Vec::new();
+        let mut entries = Vec::new();
+        for entry in direct_nodes(self.tree(), body, NodeKind::MappingElement) {
+            let parts = child_nodes(self.tree(), entry);
+            let [key, value] = parts.as_slice() else {
+                return Err(BodyCheckInternalError::InvalidSyntax(entry).into());
+            };
+            let key_position = values.len();
+            values.push(self.draft_positional_value(
+                *key,
+                key_pattern,
+                &plan.inference_parameters,
+                &requirements,
+                &mut inference,
+                BodyRule::InvalidConstruction,
+            )?);
+            destinations.push(key_pattern);
+            let value_position = values.len();
+            values.push(self.draft_positional_value(
+                *value,
+                value_pattern,
+                &plan.inference_parameters,
+                &requirements,
+                &mut inference,
+                BodyRule::InvalidConstruction,
+            )?);
+            destinations.push(value_pattern);
+            entries.push(MappingElementDraft {
+                key: key_position,
+                value: value_position,
+            });
+        }
+        let context = PositionalValueContext {
+            owner: node,
+            result: result_pattern,
+            inference_parameters: &plan.inference_parameters,
+            destination_types: &destinations,
+            requirements: &requirements,
+            result_context: super::value_planning::CallResultContext::complete(expected),
+            failure_rule: BodyRule::InvalidConstruction,
+        };
+        let inferred = self.finish_positional_inference(&mut values, &context, inference)?;
+        bind_inferred_arguments(&mut plan.substitution, &inferred);
+        let values =
+            self.materialize_positional_values(values, destinations, &plan.substitution)?;
+        let entries = entries
+            .into_iter()
+            .map(|entry| ArgumentPackSegment::KeyedValue {
+                key: values[entry.key],
+                value: values[entry.value],
+            })
+            .collect::<Vec<_>>();
+        let result = self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
+        let key = self.apply_type_substitution(&plan.substitution, key_parameter)?;
+        let value = self.apply_type_substitution(&plan.substitution, value_parameter)?;
+        let selection = self.finish_literal_selection(node, &plan, result)?;
+        self.project_literal_constructor(sequence_open(self.tree(), body)?, plan.constructor)?;
+        let checked = self.add_node(
+            node,
+            result,
+            CheckedOperation::PackLiteral(CheckedPackLiteral::new(
+                selection,
+                ArgumentPack::Keyed { key, value },
+                entries,
+                allocation,
+            )),
         )?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
@@ -229,7 +343,7 @@ impl BodyChecker<'_, '_> {
             construction_parameters: construction_parameters.into_boxed_slice(),
             inference_parameters: inference_parameters.into_boxed_slice(),
             substitution,
-            parameter_type: constructor.parameter_type(),
+            pack_type: constructor.pack_type(),
             result_pattern: constructor.result(),
             requirements: constructor.requirements().into(),
         })

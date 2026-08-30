@@ -19,8 +19,9 @@ use std::fmt;
 
 use nocter_declarations::{ExpansionCapability, RequirementSubject};
 use nocter_model::{
-    AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability, GenericParameterId,
-    InterfaceId, NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol, TypeAliasId,
+    ArgumentPack, AssociatedTypeId, BorrowCapability, BuiltinType, CallableCapability,
+    GenericParameterId, InterfaceId, NominalTypeId, OpaqueTypeId, ParameterOrigin, Symbol,
+    TypeAliasId,
 };
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, direct_node};
@@ -44,7 +45,7 @@ impl BoundTypeId {
 pub struct BoundCallableType {
     capability: CallableCapability,
     parameters: Box<[BoundTypeId]>,
-    has_argument_pack: bool,
+    pack: Option<ArgumentPack<BoundTypeId>>,
     result: BoundTypeId,
     named_parameters: Box<[bool]>,
     explicit_origins: Option<Box<[ParameterOrigin]>>,
@@ -62,8 +63,8 @@ impl BoundCallableType {
     }
 
     #[must_use]
-    pub const fn has_argument_pack(&self) -> bool {
-        self.has_argument_pack
+    pub const fn pack(&self) -> Option<ArgumentPack<BoundTypeId>> {
+        self.pack
     }
 
     #[must_use]

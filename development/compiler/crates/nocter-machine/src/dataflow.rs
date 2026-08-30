@@ -407,6 +407,10 @@ fn add_pack_inputs(
     for segment in pack.segments() {
         match segment {
             MachinePackSegment::Value { value, .. } => insert_value(body, *value, inputs)?,
+            MachinePackSegment::KeyedValue { key, value, .. } => {
+                insert_value(body, *key, inputs)?;
+                insert_value(body, *value, inputs)?;
+            }
             MachinePackSegment::Spread(spread) => {
                 add_address_inputs(body, spread.iterator(), inputs)?;
                 insert_value(body, spread.remaining(), inputs)?;

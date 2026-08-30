@@ -34,7 +34,18 @@ pub(super) fn valid_literal_signature(
         return false;
     }
     match shape {
-        LiteralShape::Sequence => parameter.role() == ParameterRole::ArgumentPack { position: 0 },
+        LiteralShape::Sequence => {
+            matches!(
+                parameter.argument_pack(),
+                Some(nocter_model::ArgumentPack::Values(_))
+            ) && parameter.role() == ParameterRole::ArgumentPack { position: 0 }
+        }
+        LiteralShape::Mapping => {
+            matches!(
+                parameter.argument_pack(),
+                Some(nocter_model::ArgumentPack::Keyed { .. })
+            ) && parameter.role() == ParameterRole::ArgumentPack { position: 0 }
+        }
         LiteralShape::String => {
             parameter.role() == ParameterRole::Ordinary { position: 0 }
                 && matches!(

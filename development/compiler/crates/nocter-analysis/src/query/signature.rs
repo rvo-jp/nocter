@@ -136,6 +136,7 @@ impl AnalysisSnapshot {
             .chain(call.pack().into_iter().flat_map(|pack| {
                 pack.segments().iter().map(|segment| match segment {
                     ArgumentPackSegment::Value(value) => *value,
+                    ArgumentPackSegment::KeyedValue { key, .. } => *key,
                     ArgumentPackSegment::Spread { iteration, .. } => iteration.iterator(),
                 })
             }))

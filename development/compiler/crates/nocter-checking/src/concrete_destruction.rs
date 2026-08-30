@@ -322,6 +322,7 @@ impl ConcreteDispatchResolver<'_> {
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
             | TypeKind::Slice(_)
+            | TypeKind::PackEntry { .. }
             | TypeKind::Callable(_) => None,
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)

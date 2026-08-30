@@ -589,7 +589,7 @@ fn checked_literal_constructor(
         construction_parameters,
         callable_id,
         callable.site(),
-        parameter.ty(),
+        parameter.argument_pack(),
         callable.result(),
         callable.requirements(),
     ))

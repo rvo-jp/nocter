@@ -346,7 +346,8 @@ impl Analyzer<'_, '_> {
                 LoopKind::Infinite
                 | LoopKind::Range { .. }
                 | LoopKind::For { .. }
-                | LoopKind::ArgumentPack { .. } => true,
+                | LoopKind::ArgumentPack { .. }
+                | LoopKind::KeyedArgumentPack { .. } => true,
             };
             let condition_exit = (condition_reaches
                 && matches!(
@@ -355,6 +356,7 @@ impl Analyzer<'_, '_> {
                         | LoopKind::Range { .. }
                         | LoopKind::For { .. }
                         | LoopKind::ArgumentPack { .. }
+                        | LoopKind::KeyedArgumentPack { .. }
                 ))
             .then(|| iteration.clone());
             if condition_reaches {
@@ -422,6 +424,16 @@ impl Analyzer<'_, '_> {
             } => {
                 let value = state.value(PlaceRoot::Parameter(*parameter));
                 state.set_value(PlaceRoot::Local(*binding), value);
+            }
+            LoopKind::KeyedArgumentPack {
+                key_binding,
+                value_binding,
+                parameter,
+                ..
+            } => {
+                let value = state.value(PlaceRoot::Parameter(*parameter));
+                state.set_value(PlaceRoot::Local(*key_binding), value.clone());
+                state.set_value(PlaceRoot::Local(*value_binding), value);
             }
             LoopKind::Infinite | LoopKind::While { .. } => {}
         }

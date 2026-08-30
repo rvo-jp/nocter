@@ -204,7 +204,7 @@ fn owner_or_reference(parser: &mut Parser<'_>, mode: ExpressionMode) -> Complete
             return struct_literal(parser, owner.completed);
         }
         if has_gap_before_current(parser) && parser.at_punctuation(Punctuation::LeftBracket) {
-            return typed_sequence_literal(parser, owner.completed);
+            return typed_bracket_literal(parser, owner.completed);
         }
         if has_gap_before_current(parser)
             && matches!(parser.current_kind(), TokenKind::StringStart(_))
@@ -270,7 +270,7 @@ fn array_literal(parser: &mut Parser<'_>) -> CompletedMarker {
     parser.complete(marker, NodeKind::ArrayLiteral)
 }
 
-fn typed_sequence_literal(parser: &mut Parser<'_>, owner: CompletedMarker) -> CompletedMarker {
+fn typed_bracket_literal(parser: &mut Parser<'_>, owner: CompletedMarker) -> CompletedMarker {
     let marker = parser.precede(owner);
     let body = parser.start();
     parser.bump();
@@ -279,17 +279,76 @@ fn typed_sequence_literal(parser: &mut Parser<'_>, owner: CompletedMarker) -> Co
         parser.complete(body, NodeKind::SequenceBody);
         return parser.complete(marker, NodeKind::TypedSequenceLiteral);
     }
-    parser.comma_list(
-        Punctuation::RightBracket,
-        true,
-        ExpectedSyntax::Expression,
-        sequence_element,
-    );
+    parser.eat_newlines();
+    let mapping = if parser.eat_punctuation(Punctuation::Colon) {
+        true
+    } else if parser.at_punctuation(Punctuation::RightBracket) || parser.at(TokenKind::Eof) {
+        false
+    } else {
+        first_bracket_element(parser)
+    };
+    while parser.eat_punctuation(Punctuation::Comma) {
+        parser.eat_newlines();
+        if parser.at_punctuation(Punctuation::RightBracket) || parser.at(TokenKind::Eof) {
+            break;
+        }
+        if mapping {
+            mapping_element(parser);
+        } else {
+            sequence_element(parser);
+        }
+    }
+    parser.eat_newlines();
+    if !parser.at_punctuation(Punctuation::RightBracket) && !parser.at(TokenKind::Eof) {
+        parser.missing(ExpectedSyntax::Punctuation(Punctuation::Comma));
+    }
     parser.expect_punctuation(Punctuation::RightBracket);
     parser.leave_nesting();
-    parser.complete(body, NodeKind::SequenceBody);
+    parser.complete(
+        body,
+        if mapping {
+            NodeKind::MappingBody
+        } else {
+            NodeKind::SequenceBody
+        },
+    );
     allocation_override(parser);
-    parser.complete(marker, NodeKind::TypedSequenceLiteral)
+    parser.complete(
+        marker,
+        if mapping {
+            NodeKind::TypedMappingLiteral
+        } else {
+            NodeKind::TypedSequenceLiteral
+        },
+    )
+}
+
+fn first_bracket_element(parser: &mut Parser<'_>) -> bool {
+    if parser.at_punctuation(Punctuation::Expansion) {
+        sequence_element(parser);
+        return false;
+    }
+    let first = expression(parser, ExpressionMode::Delimited);
+    if !parser.at_punctuation(Punctuation::Colon) {
+        let marker = parser.precede(first);
+        parser.complete(marker, NodeKind::SequenceElement);
+        return false;
+    }
+    let marker = parser.precede(first);
+    parser.bump();
+    newline::after_incomplete(parser, newline::Boundary::Delimited);
+    expression(parser, ExpressionMode::Delimited);
+    parser.complete(marker, NodeKind::MappingElement);
+    true
+}
+
+fn mapping_element(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    expression(parser, ExpressionMode::Delimited);
+    parser.expect_punctuation(Punctuation::Colon);
+    newline::after_incomplete(parser, newline::Boundary::Delimited);
+    expression(parser, ExpressionMode::Delimited);
+    parser.complete(marker, NodeKind::MappingElement);
 }
 
 fn sequence_element(parser: &mut Parser<'_>) {

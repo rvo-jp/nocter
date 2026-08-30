@@ -58,7 +58,7 @@ impl CheckedOperation {
             Self::OpaqueWitness(witness) => witness.rebind(semantics)?,
             Self::Closure(closure) => closure.closure = semantics.closure(closure.closure)?,
             Self::IteratorAcquisition(acquisition) => acquisition.rebind(semantics)?,
-            Self::Sequence(sequence) => sequence.rebind(semantics)?,
+            Self::PackLiteral(sequence) => sequence.rebind(semantics)?,
             Self::StringLiteral { constructor, .. } => constructor.rebind(semantics)?,
             Self::Interpolation(interpolation) => interpolation.rebind(semantics)?,
             Self::Control(control) => control.rebind(semantics)?,
@@ -98,7 +98,7 @@ pub enum CheckedOperation {
     Closure(CheckedClosure),
     ArgumentPackLength(ParameterId),
     IteratorAcquisition(CheckedIteratorAcquisition),
-    Sequence(CheckedSequence),
+    PackLiteral(CheckedPackLiteral),
     StringLiteral {
         constructor: StaticSelection,
         text: Box<str>,
@@ -716,13 +716,13 @@ pub enum IterationAcquisition {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedSequence {
+pub struct CheckedPackLiteral {
     constructor: StaticSelection,
     pack: CheckedArgumentPack,
     allocation: AllocationSelection,
 }
 
-impl CheckedSequence {
+impl CheckedPackLiteral {
     fn rebind(
         &mut self,
         semantics: &super::CheckedSemanticRebinder<'_>,
@@ -732,12 +732,13 @@ impl CheckedSequence {
     }
     pub(crate) fn new(
         constructor: StaticSelection,
+        shape: nocter_model::ArgumentPackType,
         segments: impl Into<Box<[ArgumentPackSegment]>>,
         allocation: AllocationSelection,
     ) -> Self {
         Self {
             constructor,
-            pack: CheckedArgumentPack::new(segments),
+            pack: CheckedArgumentPack::new(shape, segments),
             allocation,
         }
     }
@@ -1063,6 +1064,13 @@ pub enum LoopKind {
         parameter: ParameterId,
         item: TypeId,
     },
+    KeyedArgumentPack {
+        key_binding: LocalBindingId,
+        value_binding: LocalBindingId,
+        parameter: ParameterId,
+        key: TypeId,
+        value: TypeId,
+    },
     Range {
         binding: LocalBindingId,
         start: BodyNodeId,
@@ -1085,6 +1093,10 @@ impl CheckedLoop {
         match &mut self.kind {
             LoopKind::For { iteration, .. } => iteration.rebind(semantics)?,
             LoopKind::ArgumentPack { item, .. } => *item = semantics.ty(*item)?,
+            LoopKind::KeyedArgumentPack { key, value, .. } => {
+                *key = semantics.ty(*key)?;
+                *value = semantics.ty(*value)?;
+            }
             LoopKind::Infinite | LoopKind::While { .. } | LoopKind::Range { .. } => {}
         }
         Ok(())

@@ -60,6 +60,37 @@ fn validate_pack(
                 }
                 validate_segment_destruction(environment, destruction.as_ref(), pack.element())?;
             }
+            MirPackSegment::KeyedValue {
+                key,
+                key_destruction,
+                value,
+                value_destruction,
+            } => {
+                let Some(TypeKind::PackEntry {
+                    key: key_type,
+                    value: value_type,
+                }) = types.get(pack.element())
+                else {
+                    return Err(invalid());
+                };
+                if function
+                    .values()
+                    .get(*key)
+                    .copied()
+                    .map(crate::MirValue::ty)
+                    != Some(*key_type)
+                    || function
+                        .values()
+                        .get(*value)
+                        .copied()
+                        .map(crate::MirValue::ty)
+                        != Some(*value_type)
+                {
+                    return Err(invalid());
+                }
+                validate_segment_destruction(environment, key_destruction.as_ref(), *key_type)?;
+                validate_segment_destruction(environment, value_destruction.as_ref(), *value_type)?;
+            }
             MirPackSegment::Spread(spread) => {
                 let iterator_ty = function
                     .places()

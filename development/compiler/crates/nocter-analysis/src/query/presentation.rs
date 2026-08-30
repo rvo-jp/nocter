@@ -388,7 +388,7 @@ impl<'a> Renderer<'a> {
                     self.symbol(parameter.name())?
                 )
                 .ok()?;
-                self.ty(parameter.ty())?;
+                self.parameter_shape(parameter)?;
             }
             SemanticEntity::LocalBinding(body, id) => {
                 let _ = body;
@@ -484,6 +484,7 @@ impl<'a> Renderer<'a> {
                 self.output.push(' ');
                 self.output.push_str(match shape {
                     nocter_declarations::LiteralShape::Sequence => "[]",
+                    nocter_declarations::LiteralShape::Mapping => "[:]",
                     nocter_declarations::LiteralShape::String => "\"\"",
                 });
             }
@@ -531,13 +532,17 @@ impl<'a> Renderer<'a> {
             if index != 0 {
                 self.output.push_str(", ");
             }
-            if parameter.is_argument_pack() {
+            if parameter.argument_pack().is_some() {
                 self.output.push_str("...");
             }
             let declaration = declarations.parameters().get(parameter.declaration())?;
             self.output.push_str(self.symbol(declaration.name())?);
             self.output.push_str(": ");
-            self.ty(parameter.ty())?;
+            if let Some(pack) = parameter.argument_pack() {
+                self.argument_pack_types(pack)?;
+            } else {
+                self.ty(parameter.ty())?;
+            }
         }
         self.output.push_str("): ");
         self.ty(required.result())?;
@@ -834,7 +839,26 @@ impl<'a> Renderer<'a> {
         }
         self.output.push_str(self.symbol(parameter.name())?);
         self.output.push_str(": ");
-        self.ty(parameter.ty())
+        self.parameter_shape(parameter)
+    }
+
+    fn parameter_shape(&mut self, parameter: &nocter_declarations::Parameter) -> Option<()> {
+        if let Some(pack) = parameter.argument_pack() {
+            self.argument_pack_types(pack)
+        } else {
+            self.ty(parameter.ty())
+        }
+    }
+
+    fn argument_pack_types(&mut self, pack: nocter_model::ArgumentPackType) -> Option<()> {
+        match pack {
+            nocter_model::ArgumentPack::Values(element) => self.ty(element),
+            nocter_model::ArgumentPack::Keyed { key, value } => {
+                self.ty(key)?;
+                self.output.push_str(": ");
+                self.ty(value)
+            }
+        }
     }
 
     fn visibility(&mut self, site: nocter_model::DeclarationSiteId) -> Option<()> {
@@ -1139,6 +1163,8 @@ impl<'a> Renderer<'a> {
             TypeKind::Callable(contract) => {
                 self.callable_contract(contract)?;
             }
+            // Pack entries are compiler-owned ABI elements and cannot be named in source.
+            TypeKind::PackEntry { .. } => return None,
             TypeKind::Optional(payload) => {
                 self.ty(*payload)?;
                 self.output.push('?');
@@ -1179,7 +1205,11 @@ impl<'a> Renderer<'a> {
             if named {
                 write!(self.output, "p{}: ", contract.parameters().len()).ok()?;
             }
-            self.ty(pack)?;
+            self.ty(pack.primary())?;
+            if let Some(value) = pack.value() {
+                self.output.push_str(": ");
+                self.ty(value)?;
+            }
             self.record_parameter(start);
         }
         self.output.push_str("): ");

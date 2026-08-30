@@ -30,6 +30,10 @@ pub enum RuntimeType {
         element: TypeId,
         length: u64,
     },
+    PackEntry {
+        key: TypeId,
+        value: TypeId,
+    },
     Aggregate,
     Closure,
     Callable,
@@ -113,6 +117,15 @@ impl RuntimeTypeTableBuilder {
                 | RuntimeType::Fallible(ty) => Some(*ty),
                 RuntimeType::Borrow { referent, .. } => Some(*referent),
                 RuntimeType::FixedArray { element, .. } => Some(*element),
+                RuntimeType::PackEntry { key, value } => {
+                    if !self.entries.contains_key(key) {
+                        return Err(RuntimeTypeTableBuildError::UnknownReference {
+                            owner: *owner,
+                            referenced: *key,
+                        });
+                    }
+                    Some(*value)
+                }
                 RuntimeType::Primitive(_)
                 | RuntimeType::Aggregate
                 | RuntimeType::Closure

@@ -1,4 +1,4 @@
-use nocter_model::{BodyNodeId, BuiltinType, LoopId};
+use nocter_model::{ArgumentPack, BodyNodeId, BuiltinType, LoopId};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
 
@@ -6,7 +6,7 @@ use super::{BlockExpectation, BodyChecker};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::body_check::literal::is_integer_type;
-use crate::syntax::{direct_identifier, direct_nodes};
+use crate::syntax::direct_nodes;
 use crate::{CheckedControl, CheckedLoop, CheckedOperation, LoopKind};
 
 pub(super) struct LoopConstruction {
@@ -51,7 +51,8 @@ impl BodyChecker<'_, '_> {
             | LoopKind::While { .. }
             | LoopKind::Range { .. }
             | LoopKind::For { .. }
-            | LoopKind::ArgumentPack { .. } => self.types.builtin(BuiltinType::Void),
+            | LoopKind::ArgumentPack { .. }
+            | LoopKind::KeyedArgumentPack { .. } => self.types.builtin(BuiltinType::Void),
         };
         self.builder
             .define_loop(loop_, CheckedLoop::new(kind, body, body_scope))?;
@@ -77,20 +78,42 @@ impl BodyChecker<'_, '_> {
         statement: NodeId,
         source: NodeId,
     ) -> Result<LoopKind, BodyCheckError> {
-        if let Some((parameter, item)) = self.argument_pack_parameter(source)? {
+        if let Some((parameter, shape)) = self.argument_pack_parameter(source)? {
             self.register_argument_pack_iteration(parameter, source)?;
-            let binding = self.loop_binding(statement)?;
-            self.builder.define_local(binding, item)?;
-            return Ok(LoopKind::ArgumentPack {
-                binding,
-                parameter,
-                item,
-            });
+            let bindings = self.loop_bindings(statement)?;
+            return match (shape, bindings.as_slice()) {
+                (ArgumentPack::Values(item), [binding]) => {
+                    self.builder.define_local(*binding, item)?;
+                    Ok(LoopKind::ArgumentPack {
+                        binding: *binding,
+                        parameter,
+                        item,
+                    })
+                }
+                (ArgumentPack::Keyed { key, value }, [key_binding, value_binding]) => {
+                    self.builder.define_local(*key_binding, key)?;
+                    self.builder.define_local(*value_binding, value)?;
+                    Ok(LoopKind::KeyedArgumentPack {
+                        key_binding: *key_binding,
+                        value_binding: *value_binding,
+                        parameter,
+                        key,
+                        value,
+                    })
+                }
+                _ => Err(self.rule(BodyRule::InvalidArgumentPackUse, statement)?),
+            };
         }
         let iteration = self.check_collection_iteration(statement, source)?;
-        let binding = self.loop_binding(statement)?;
-        self.builder.define_local(binding, iteration.item())?;
-        Ok(LoopKind::For { binding, iteration })
+        let bindings = self.loop_bindings(statement)?;
+        let [binding] = bindings.as_slice() else {
+            return Err(self.rule(BodyRule::TypeMismatch, statement)?);
+        };
+        self.builder.define_local(*binding, iteration.item())?;
+        Ok(LoopKind::For {
+            binding: *binding,
+            iteration,
+        })
     }
 
     fn check_range_loop(
@@ -106,25 +129,33 @@ impl BodyChecker<'_, '_> {
             return Err(self.rule(BodyRule::TypeMismatch, start_syntax)?);
         }
         let end = self.check_expression(end, Some(ty))?;
-        let binding = self.loop_binding(statement)?;
-        self.builder.define_local(binding, ty)?;
+        let bindings = self.loop_bindings(statement)?;
+        let [binding] = bindings.as_slice() else {
+            return Err(self.rule(BodyRule::TypeMismatch, statement)?);
+        };
+        self.builder.define_local(*binding, ty)?;
         Ok(LoopKind::Range {
-            binding,
+            binding: *binding,
             start,
             end,
         })
     }
 
-    fn loop_binding(
+    fn loop_bindings(
         &self,
         statement: NodeId,
-    ) -> Result<nocter_model::LocalBindingId, BodyCheckInternalError> {
-        let token = direct_identifier(self.tree(), statement)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(statement))?;
-        self.local_declarations
-            .get(&SyntaxOrigin::Token(token))
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingLocalDeclaration(statement))
+    ) -> Result<Vec<nocter_model::LocalBindingId>, BodyCheckInternalError> {
+        let bindings = self.required_child(statement, NodeKind::ForBindings)?;
+        let tokens = crate::syntax::descendant_identifiers(self.tree(), bindings);
+        tokens
+            .into_iter()
+            .map(|token| {
+                self.local_declarations
+                    .get(&SyntaxOrigin::Token(token))
+                    .copied()
+                    .ok_or(BodyCheckInternalError::MissingLocalDeclaration(statement))
+            })
+            .collect()
     }
 
     pub(super) fn check_loop_control(

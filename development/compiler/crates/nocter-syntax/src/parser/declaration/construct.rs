@@ -53,6 +53,7 @@ fn literal_declaration(parser: &mut Parser<'_>) {
 fn literal_shape(parser: &mut Parser<'_>) {
     let marker = parser.start();
     if parser.eat_punctuation(Punctuation::LeftBracket) {
+        parser.eat_punctuation(Punctuation::Colon);
         parser.expect_punctuation(Punctuation::RightBracket);
     } else if parser.at(TokenKind::StringStart(StringDelimiter::SingleLine))
         && parser.nth_kind(1) == TokenKind::StringEnd(StringDelimiter::SingleLine)
