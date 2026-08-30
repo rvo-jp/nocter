@@ -1904,6 +1904,141 @@ mod tests {
     }
 
     #[test]
+    fn invalid_json_api_calls_report_at_public_user_source() {
+        for (name, text, expected_code, expected_primary) in [
+            (
+                "parse-argument",
+                concat!(
+                    "use std/json.parse\n",
+                    "func main(): void! {\n",
+                    "    let value = parse(1)?\n",
+                    "    return\n",
+                    "}\n",
+                ),
+                "E0370",
+                "1",
+            ),
+            (
+                "writer-evidence",
+                concat!(
+                    "use std/json.{parse, write}\n",
+                    "use std/string.String\n",
+                    "func main(): void! {\n",
+                    "    let value = parse(\"null\")?\n",
+                    "    var destination = String.empty()\n",
+                    "    write(&+destination, &value)?\n",
+                    "    return\n",
+                    "}\n",
+                ),
+                "E0390",
+                "write(&+destination, &value)",
+            ),
+        ] {
+            let temporary = TemporaryDirectory::new();
+            let source = temporary.path().join(format!("{name}.nct"));
+            let uri = format!("file://{}", source.display());
+            let mut server = semantic_server(temporary.path());
+            server.receive(&format!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+                temporary.path().display()
+            ));
+            server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+            let opened = set_completion_document(&mut server, &uri, text, 1);
+            let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+            assert_eq!(
+                snapshot.status(),
+                nocter_analysis::AnalysisStatus::CompilationFailed,
+                "{name}: {:?}",
+                snapshot.diagnostics()
+            );
+            let diagnostic = &snapshot.diagnostics()[0];
+            assert_eq!(diagnostic.code(), expected_code, "{name}: {diagnostic:?}");
+            let primary = diagnostic.primary();
+            let primary_source = snapshot.sources().get(primary.source()).unwrap();
+            let primary_text = primary_source.text_at(primary.span().range()).unwrap();
+            assert!(
+                primary_text.contains(expected_primary),
+                "{name}: {primary_text:?}"
+            );
+            let rendered = format!("{:?}", snapshot.diagnostics());
+            for internal in [
+                "ParserState",
+                "Continuation",
+                "GenerationFrame",
+                "ByteSink",
+                "WriterSink",
+            ] {
+                assert!(!rendered.contains(internal), "{name}: {rendered}");
+            }
+            assert!(opened.issue().is_none(), "{name}: {:?}", opened.issue());
+        }
+    }
+
+    #[test]
+    fn recoverable_json_surface_shares_hover_and_signature_authority() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/json.{try_parse, try_stringify, try_write}\n",
+            "use std/mem.page_try_allocator\n",
+            "use std/io.stdout\n",
+            "func main(): void! {\n",
+            "    var allocator = page_try_allocator()\n",
+            "    let value = try_parse(&+allocator, \"null\")?\n",
+            "    let text = try_stringify(&+allocator, &value)?\n",
+            "    var output = stdout()\n",
+            "    try_write(&+allocator, &+output, &value)?\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":5,\"character\":18}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "pub func try_parse(allocator: &+TryAllocator, text: &str): ",
+                "Value! from allocator"
+            )),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":8,\"character\":43}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "func try_write<File>(allocator: &+TryAllocator, destination: &+File, ",
+                "value: &Value): void!"
+            )),
+            "{response}"
+        );
+        assert!(response.contains("\"activeParameter\":2"), "{response}");
+        for internal in ["GenerationAttempt", "ByteSink", "WriterSink"] {
+            assert!(!response.contains(internal), "{response}");
+        }
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+    }
+
+    #[test]
     fn completion_uses_the_use_site_construction_surface_in_every_generation_state() {
         let temporary = TemporaryDirectory::new();
         let (uri, mut server) = construction_completion_server(&temporary);

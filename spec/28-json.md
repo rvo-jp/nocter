@@ -86,6 +86,51 @@ the complete initial public surface. Parsing from a stream, pretty printing, can
 ordering, generic serialization derivation, and floating-point conversion are not implied by these
 declarations.
 
+## Common Use
+
+Parse one complete text and return its compact spelling:
+
+```nct
+use std/json.{parse, stringify}
+use std/string.String
+
+func normalize(text: &str): String! {
+    let value = parse(text)?
+    return stringify(&value)
+}
+```
+
+Write the same compact spelling directly to any `Writer` without first constructing the complete
+output String:
+
+```nct
+use std/io.Writer
+use std/json.{parse, write}
+
+func normalize_into<W>(destination: &+W, text: &str): void! where W impl Writer {
+    let value = parse(text)?
+    write(destination, &value)?
+    return
+}
+```
+
+Use one explicit recoverable allocator for both the owning value and returned text:
+
+```nct
+use std/json.{try_parse, try_stringify}
+use std/mem.TryAllocator
+use std/string.String
+
+func try_normalize(allocator: &+TryAllocator, text: &str): String! from allocator {
+    let value = try_parse(allocator, text)?
+    return try_stringify(allocator, &value)?
+}
+```
+
+The complete runnable [json-normalize example](../examples/json-normalize/index.nct) composes
+process arguments, UTF-8 filesystem input, parsing, public error reporting, and Writer generation.
+It uses no JSON-specific filesystem or operating-system operation.
+
 ## JSON Value Model
 
 `Value` owns all decoded data. A successful parser result retains no borrow of its input. String

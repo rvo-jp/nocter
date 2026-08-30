@@ -69,6 +69,19 @@ nocter run examples/ordering.nct
 
 ## Package Examples
 
+[json-normalize/index.nct](json-normalize/index.nct) reads one UTF-8 JSON file, validates and owns
+its complete value, then writes the shared compact spelling directly to standard output. Its
+[normalize.nct](json-normalize/normalize.nct) implementation composes process arguments, paths,
+filesystem input, JSON parsing, and the public `Writer` generator without a JSON-specific file or
+operating-system API.
+
+```sh
+cd examples/json-normalize
+nocter check
+nocter build
+./json-normalize ../../example.json
+```
+
 [line-frequency/index.nct](line-frequency/index.nct) counts logical input lines with `Map`,
 tracks distinct lines with `Set`, and reports the frequency of a requested line. Its
 [frequency.nct](line-frequency/frequency.nct) implementation demonstrates the prelude collection

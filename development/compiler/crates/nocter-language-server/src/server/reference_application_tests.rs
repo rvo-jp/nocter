@@ -93,6 +93,114 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 }
 
+#[test]
+fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/json-normalize");
+    let source = root.join("normalize.nct");
+    let text = fs::read_to_string(&source).unwrap();
+    let mut server = semantic_server(&root);
+    server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+        root.display()
+    ));
+    server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+    let mut did_open = format!(
+        "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\",\"languageId\":\"nocter\",\"version\":1,\"text\":",
+        source.display()
+    );
+    nocter_json::write_string(&mut did_open, &text);
+    did_open.push_str("}}}");
+    let opened = server.receive(&did_open);
+    let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+    assert_eq!(
+        snapshot.status(),
+        nocter_analysis::AnalysisStatus::Complete,
+        "{:?}",
+        snapshot.diagnostics()
+    );
+
+    let (parse_line, parse_source) = source_line(&text, "let value = parse");
+    let parse_character = parse_source.find("parse").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        parse_line,
+        parse_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub func parse(text: &str): Value!"),
+        "{response}"
+    );
+    for internal in ["ParserState", "Continuation", "GenerationFrame", "ByteSink"] {
+        assert!(!response.contains(internal), "{response}");
+    }
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        parse_line,
+        parse_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/json/index.nct"), "{response}");
+    assert!(!response.contains("parsing.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let (write_line, write_source) = source_line(&text, "write(&+output, &value)");
+    let write_argument = write_source.find("&value").unwrap() + 2;
+    let signature = server.receive(&position_request(
+        4,
+        "textDocument/signatureHelp",
+        &source,
+        write_line,
+        write_argument,
+    ));
+    let response = signature.response().unwrap();
+    assert!(
+        response.contains("func write<File>(destination: &+File, value: &Value): void!"),
+        "{response}"
+    );
+    assert!(response.contains("\"activeParameter\":1"), "{response}");
+    assert!(!response.contains("WriterSink"), "{response}");
+    assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+    let incomplete = text.replace("output.write_text(\"\\n\")", "output.");
+    let mut incomplete_json = String::new();
+    nocter_json::write_string(&mut incomplete_json, &incomplete);
+    let changed = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\",\"version\":2}},\"contentChanges\":[{{\"text\":{incomplete_json}}}]}}}}",
+        source.display()
+    ));
+    assert_eq!(
+        changed.analysis().unwrap().snapshot().unwrap().status(),
+        nocter_analysis::AnalysisStatus::SyntaxFailed
+    );
+    let (completion_line, completion_source) = source_line(&incomplete, "output.");
+    let completion_character = completion_source.find("output.").unwrap() + "output.".len();
+    let completion = server.receive(&position_request(
+        5,
+        "textDocument/completion",
+        &source,
+        completion_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in ["write", "write_text", "flush"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    for internal in ["emit", "ByteSink", "WriterSink"] {
+        assert!(!response.contains(internal), "{response}");
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
 fn source_line<'a>(source: &'a str, needle: &str) -> (usize, &'a str) {
     source
         .lines()

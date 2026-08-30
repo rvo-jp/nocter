@@ -212,6 +212,27 @@ allocation failure; `try_write` returns either. String-sink failure is allocatio
 construction, so `stringify` terminates and `try_stringify` returns it. None of these wrappers
 compare public error-code text to reconstruct private failure classes.
 
+## Phase 4 Realization
+
+The runnable `json-normalize` package is a consumer of the public standard library, not another
+JSON implementation layer. It obtains one UTF-8 path from the process API, reads one String through
+`std/fs`, parses that String through `std/json`, and writes the compact result through the public
+`Writer` contract. Usage and JSON failures are rendered through the built-in error surface. The
+application contains no parser state, JSON cursor, traversal frame, sink adapter, filesystem
+primitive, or operating-system binding.
+
+Process qualification executes the package through the complete target session. It fixes three
+observable boundaries: invalid command usage, successful normalization, and malformed-input error
+reporting. Formatter qualification discovers the package through the existing repository-wide
+runnable-example contract, so JSON gains no private formatting path or fixture-only source form.
+
+Editor qualification opens the same application source used by native execution. Hover,
+definition, signature help, and receiver completion are projected from the ordinary semantic
+snapshot and public declarations. Separate recoverable-source qualification covers `try_parse`,
+`try_stringify`, and `try_write`. Invalid public calls prove that diagnostics select user-source
+arguments rather than internal parser or Writer-adapter declarations. The LSP contains no JSON
+token parser, API list, source-text fallback, or phase-specific feature path.
+
 ## Enforcement
 
 Implementation and review must reject:

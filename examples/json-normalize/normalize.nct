@@ -1,0 +1,61 @@
+use std/fs.read_to_string
+
+use std/io.{Writer, stderr, stdout}
+
+use std/json.{parse, write}
+
+use std/path.Utf8Path
+
+use std/process.{arg, arg_count}
+
+func run(): i32 {
+    if arg_count() != 2 {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    let requested = arg(1) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    } otherwise {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    let path = Utf8Path.new(requested) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    let source = read_to_string(&path) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    let value = parse(&source) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    var output = stdout()
+    write(&+output, &value) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    output.write_text("\n") catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    return 0
+}
+
+func report_usage(): void! {
+    var output = stderr()
+    output.write_text("usage: json-normalize PATH\n")?
+    return
+}
+
+func report_failure(failure: &error): void! {
+    var output = stderr()
+    output.write_text("json-normalize: ")?
+    output.write_text(failure.code())?
+    output.write_text(": ")?
+    output.write_text(failure.message())?
+    output.write_text("\n")?
+    return
+}

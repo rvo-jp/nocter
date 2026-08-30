@@ -13,6 +13,7 @@ internally without forcing consumers that use only its contract to change.
 - [v0.22.0 Phase 1 lexical and Unicode review](v0.22.0-phase-1.md) — complete
 - [v0.22.0 Phase 2 owning DOM parser review](v0.22.0-phase-2.md) — complete
 - [v0.22.0 Phase 3 shared generator review](v0.22.0-phase-3.md) — complete
+- [v0.22.0 Phase 4 practical integration review](v0.22.0-phase-4.md) — complete
 - [v0.21.0 Phase 5 practical qualification review](v0.21.0-phase-5.md) — complete
 - [v0.21.0 Phase 4 iteration and Set review](v0.21.0-phase-4.md) — complete
 - [v0.21.0 Phase 3 private-table and Map review](v0.21.0-phase-3.md) — complete

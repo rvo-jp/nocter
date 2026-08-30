@@ -100,6 +100,44 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "json-normalize",
+        package_identity: "workspace:json-normalize",
+        executable: "json-normalize",
+        fixtures: &[
+            PublicExampleFixture::File {
+                path: "valid.json",
+                contents: b"  {\"items\": [true, \"\xc3\xa9\", 1E+2]}\n",
+            },
+            PublicExampleFixture::File {
+                path: "invalid.json",
+                contents: b"[1,]\n",
+            },
+        ],
+        runs: &[
+            PublicExampleRun {
+                name: "usage",
+                arguments: &[],
+                status: 2,
+                stdout: b"",
+                stderr: b"usage: json-normalize PATH\n",
+            },
+            PublicExampleRun {
+                name: "success",
+                arguments: &[PublicExampleArgument::FixturePath("valid.json")],
+                status: 0,
+                stdout: b"{\"items\":[true,\"\xc3\xa9\",1E+2]}\n",
+                stderr: b"",
+            },
+            PublicExampleRun {
+                name: "invalid-json",
+                arguments: &[PublicExampleArgument::FixturePath("invalid.json")],
+                status: 2,
+                stdout: b"",
+                stderr: b"json-normalize: std.json.invalid_syntax: invalid JSON syntax at byte 3\n",
+            },
+        ],
+    },
+    PublicPackageExample {
         directory: "line-frequency",
         package_identity: "workspace:line-frequency",
         executable: "line-frequency",

@@ -129,6 +129,8 @@
                 <li><a href="./recovery/index.html#content">recovery.nct</a></li>
                 <li><a href="./mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
                 <li><a href="./ordering/index.html#content">ordering.nct</a></li>
+                <li><a href="./json-normalize/index/index.html#content">json-normalize/index.nct</a></li>
+                <li><a href="./json-normalize/normalize/index.html#content">normalize.nct</a></li>
                 <li><a href="./line-frequency/index/index.html#content">line-frequency/index.nct</a></li>
                 <li><a href="./line-frequency/frequency/index.html#content">frequency.nct</a></li>
                 <li><a href="./file-summary/index/index.html#content">file-summary/index.nct</a></li>
@@ -161,7 +163,11 @@
 <span class="token-function">nocter</span> run examples/mutable-iteration.nct
 </code></pre><p><a href="./ordering/index.html#content">ordering.nct</a> defines strict ordering for a project type, uses the same structural requirement from generic code, and compares <code>String</code> plus <code>Vec</code> values through standard source declarations and readonly coercions.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/ordering.nct
 <span class="token-function">nocter</span> run examples/ordering.nct
-</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./line-frequency/index/index.html#content">line-frequency/index.nct</a> counts logical input lines with <code>Map</code>, tracks distinct lines with <code>Set</code>, and reports the frequency of a requested line. Its <a href="./line-frequency/frequency/index.html#content">frequency.nct</a> implementation demonstrates the prelude collection surface, keyed mapping operations, indexing mutation, ownership transfer, process arguments, fallible file input, and a package root containing only its tiny executable adapter.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/line-frequency
+</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./json-normalize/index/index.html#content">json-normalize/index.nct</a> reads one UTF-8 JSON file, validates and owns its complete value, then writes the shared compact spelling directly to standard output. Its <a href="./json-normalize/normalize/index.html#content">normalize.nct</a> implementation composes process arguments, paths, filesystem input, JSON parsing, and the public <code>Writer</code> generator without a JSON-specific file or operating-system API.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/json-normalize
+<span class="token-function">nocter</span> check
+<span class="token-function">nocter</span> build
+./json-normalize ../../example.json
+</code></pre><p><a href="./line-frequency/index/index.html#content">line-frequency/index.nct</a> counts logical input lines with <code>Map</code>, tracks distinct lines with <code>Set</code>, and reports the frequency of a requested line. Its <a href="./line-frequency/frequency/index.html#content">frequency.nct</a> implementation demonstrates the prelude collection surface, keyed mapping operations, indexing mutation, ownership transfer, process arguments, fallible file input, and a package root containing only its tiny executable adapter.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/line-frequency
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build
 ./line-frequency ../../README.md Nocter

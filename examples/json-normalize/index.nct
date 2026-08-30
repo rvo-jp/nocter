@@ -1,0 +1,14 @@
+#package: {
+    name: "json-normalize",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "json-normalize",
+}
+
+see ./normalize.nct
+
+func main(): i32 {
+    return run()
+}
