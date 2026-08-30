@@ -85,11 +85,11 @@ native process contract, public-source misuse diagnostics, shared checked editor
 mapping-literal formatter correction, generated documentation, and final private-representation
 audit.
 
-Begin v0.21.0 release preparation. Freeze the qualified language and standard-library surface;
-update release identity and notes, assemble deterministic artifacts, run archive and installed
-toolchain qualification, then publish only after explicit authorization. Do not add release-scope
-features or introduce `HashMap`/`HashSet` aliases, a compiler-known table, two independent Map/Set
-storage engines, or public bucket access.
+Qualify the clean v0.21.0 release-content commit through two independent external Cargo targets,
+warnings-denied Clippy, deterministic package generation, fresh extraction, installed CLI and LSP
+smoke tests, and the explicit public-HTTPS acquisition test. Qualification must not publish the
+candidate. Do not add release-scope features or introduce `HashMap`/`HashSet` aliases, a
+compiler-known table, two independent Map/Set storage engines, or public bucket access.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand
