@@ -1183,6 +1183,7 @@ fn command_toolchain() -> super::CommandToolchain {
         StandardPackage::new(
             PackageIdentity::new("toolchain:std"),
             compiler_root.join("../std"),
+            "0.22.0",
         ),
     )
 }

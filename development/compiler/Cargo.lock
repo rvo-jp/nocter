@@ -1675,6 +1675,7 @@ name = "nocter"
 version = "0.0.0"
 dependencies = [
  "nocter-command",
+ "nocter-content-integrity",
  "nocter-diagnostics",
  "nocter-installation",
  "nocter-language-server",
@@ -1821,6 +1822,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-content-integrity"
+version = "0.0.0"
+dependencies = [
+ "nocter-hash",
+]
+
+[[package]]
 name = "nocter-declaration-lowering"
 version = "0.0.0"
 dependencies = [
@@ -1899,6 +1907,7 @@ version = "0.0.0"
 name = "nocter-installation"
 version = "0.0.0"
 dependencies = [
+ "nocter-content-integrity",
  "nocter-json",
  "nocter-model",
  "nocter-package",
@@ -2032,7 +2041,7 @@ dependencies = [
 name = "nocter-package-cache"
 version = "0.0.0"
 dependencies = [
- "nocter-hash",
+ "nocter-content-integrity",
 ]
 
 [[package]]

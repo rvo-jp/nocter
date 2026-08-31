@@ -52,7 +52,11 @@ impl TempTree {
         PackageResolutionRequest::new(
             self.0.join("app"),
             self.0.join("home"),
-            StandardPackage::new(PackageIdentity::new("toolchain-std"), self.0.join("std")),
+            StandardPackage::new(
+                PackageIdentity::new("toolchain-std"),
+                self.0.join("std"),
+                "0.0.0",
+            ),
             policy,
         )
     }

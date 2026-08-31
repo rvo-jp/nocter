@@ -141,15 +141,17 @@ Each Nocter home contains release metadata at its root.
 ```json
 {
   "schema": "nocter.manifest",
-  "schema_version": 1,
+  "schema_version": 2,
   "release": "<version>",
   "host": "arm64-darwin",
   "default_target": "arm64-darwin",
   "compiler": {
-    "path": "nocter"
+    "path": "nocter",
+    "sha256": "<lowercase SHA-256>"
   },
   "std": {
-    "path": "std"
+    "path": "std",
+    "tree_sha256": "<lowercase SHA-256>"
   },
   "license": {
     "id": "Apache-2.0",
@@ -184,7 +186,13 @@ Rules:
 - `MANIFEST.json.implemented_targets` lists implemented targets bundled with this Nocter home, not merely reserved target names.
 - `compiler.path` is `nocter` and is relative to Nocter home.
 - `std.path` is `std` and is relative to Nocter home.
-- v1 does not include a compiler checksum. Checksum metadata should be added only after the release pipeline and hash verification rules are designed.
+- `compiler.sha256` is SHA-256 over the exact bytes of `compiler.path`.
+- `std.tree_sha256` binds the complete physical regular tree at `std.path`. The tree hash starts
+  with `nocter-regular-tree-v1` followed by a zero byte. Each directory is visited in ascending
+  UTF-8 name order. Every descendant contributes its kind (`D` or `F`), normalized `/`-separated
+  relative-path byte length as big-endian `u64`, relative UTF-8 path, and content length as
+  big-endian `u64`; directories use length zero and files then contribute their exact bytes.
+  Symlinks, special files, and non-Unicode paths are invalid.
 - A release `<version>` uses source tag `v<version>`.
 - Its ARM64 macOS asset is `nocter-v<version>-arm64-darwin.tar.gz`.
 
@@ -205,10 +213,14 @@ Rules:
 - `~/.nocter` is not searched automatically.
 - A symlink such as `/usr/local/bin/nocter -> ~/.nocter/nocter` works naturally because the resolved real executable path still points inside Nocter home.
 - Copying `nocter` outside Nocter home is not a normal installation method. If executable-path resolution no longer points into Nocter home, the user must set `NOCTER_HOME`.
-- When `NOCTER_HOME` selects a directory other than the executable's parent, the running compiler
-  must have exactly the same contents as that home's `compiler.path`. This permits an unchanged
-  copied compiler while preventing one compiler release from consuming another release's standard
-  library and metadata.
+- The running compiler digest must equal `compiler.sha256`, whether the executable is inside or
+  outside the selected home.
+- The selected home's compiler and standard-library tree must match their manifest digests before
+  the installation can supply a toolchain snapshot. A corrupted or partially updated home is
+  rejected before package or source analysis.
+- The selected standard package must declare package name `std` and the same release as
+  `MANIFEST.json`. Package resolution validates this source declaration without duplicating its
+  parser in the installation layer.
 - The selected Nocter home must contain `VERSION`, `MANIFEST.json`, and `std/`.
 - The compiler should report a command-line or Nocter-home error if the selected home is missing required files.
 

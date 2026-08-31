@@ -24,6 +24,8 @@ separate crates.
 
 - `index.nct` with `#package` is the sole package-root declaration.
 - Dependency aliases never replace canonical package identities.
+- The compiler-selected standard package must declare `name: "std"` and the exact release carried
+  by its `StandardPackage` input before its graph can close.
 - Each dependency declaration is the sole syntax authority for both its source intent and optional
   exact selection; no parallel alias-to-lock map is decoded from source.
 - Resolution is deterministic and independent of filesystem enumeration order.

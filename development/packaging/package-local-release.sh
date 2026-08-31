@@ -6,7 +6,7 @@ script_directory="$(cd -- "$(dirname -- "$0")" && pwd -P)"
 repository_root="$(cd -- "$script_directory/../.." && pwd -P)"
 compiler_manifest="$repository_root/development/compiler/Cargo.toml"
 version_file="$script_directory/VERSION"
-manifest_file="$script_directory/MANIFEST.json"
+release_file="$script_directory/RELEASE.json"
 standard_root="$repository_root/development/std"
 output_directory="${1:-$repository_root/dist}"
 
@@ -15,18 +15,8 @@ if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then
   exit 1
 fi
 
-node "$script_directory/validate-manifest.js" "$manifest_file" "$version_file"
 version="$(tr -d '\n' < "$version_file")"
 archive_name="nocter-v${version}-arm64-darwin.tar.gz"
-
-std_version="$({
-  sed -n '/^#package:/,/^}/s/^[[:space:]]*version:[[:space:]]*"\([^"]*\)".*/\1/p' \
-    "$standard_root/index.nct" || true
-})"
-if [[ "$std_version" != "$version" ]]; then
-  echo "standard-library version $std_version does not match release $version" >&2
-  exit 1
-fi
 
 temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/nocter-package.XXXXXX")"
 temporary_archive=""
@@ -57,10 +47,16 @@ fi
 
 echo "Building optimized compiler for $archive_name"
 CARGO_TARGET_DIR="$temporary_root/cargo-target" \
-  cargo build --locked --release --manifest-path "$compiler_manifest" --package nocter
+  cargo build --locked --release --manifest-path "$compiler_manifest" \
+    --package nocter --package nocter-content-integrity
 compiler="$temporary_root/cargo-target/release/nocter"
+content_integrity="$temporary_root/cargo-target/release/nocter-content-integrity"
 if [[ ! -x "$compiler" ]]; then
   echo "release compiler was not produced at $compiler" >&2
+  exit 1
+fi
+if [[ ! -x "$content_integrity" ]]; then
+  echo "content-integrity tool was not produced at $content_integrity" >&2
   exit 1
 fi
 
@@ -69,7 +65,6 @@ home="$image_root/.nocter"
 mkdir -p "$home/std"
 install -m 755 "$compiler" "$home/nocter"
 install -m 644 "$version_file" "$home/VERSION"
-install -m 644 "$manifest_file" "$home/MANIFEST.json"
 install -m 644 "$repository_root/LICENSE" "$home/LICENSE"
 install -m 644 "$repository_root/NOTICE" "$home/NOTICE"
 
@@ -79,6 +74,13 @@ while IFS= read -r tracked; do
   mkdir -p "$(dirname -- "$destination")"
   install -m 644 "$repository_root/$tracked" "$destination"
 done < "$tracked_list"
+
+compiler_digest="$("$content_integrity" file "$home/nocter")"
+standard_digest="$("$content_integrity" tree "$home/std")"
+node "$script_directory/render-manifest.js" \
+  "$release_file" "$version_file" "$compiler_digest" "$standard_digest" "$home/MANIFEST.json"
+"$home/nocter" doctor >/dev/null
+"$home/nocter" check --file "$repository_root/examples/hello.nct" --offline >/dev/null
 
 find "$image_root" -type d -exec chmod 755 {} +
 find "$image_root" -type f ! -path "$home/nocter" -exec chmod 644 {} +

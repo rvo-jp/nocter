@@ -14,7 +14,7 @@ directories, or parse Nocter source.
 
 ## Internal Responsibilities
 
-- deterministic streaming package-tree hashing
+- exact-package root-entry policy over the shared deterministic tree-digest implementation
 - exact package manifest encoding and validation
 - physical file, directory, and symlink validation
 - verified exact-package root capability construction

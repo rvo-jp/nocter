@@ -426,7 +426,11 @@ mod tests {
         let command = command.prepare(&directory).unwrap();
         let context = CommandPackageContext::new(
             &home,
-            StandardPackage::new(PackageIdentity::new("toolchain-std-v0.14.0"), &standard),
+            StandardPackage::new(
+                PackageIdentity::new("toolchain-std-v0.14.0"),
+                &standard,
+                "0.14.0",
+            ),
         );
 
         let result = execute_prepared_graph(command, &context).unwrap();
@@ -487,7 +491,7 @@ mod tests {
         let command = command.prepare(&directory).unwrap();
         let context = CommandPackageContext::new(
             &home,
-            StandardPackage::new(PackageIdentity::new("toolchain-std"), &standard),
+            StandardPackage::new(PackageIdentity::new("toolchain-std"), &standard, "0.0.0"),
         );
 
         let error = execute_prepared_graph(command, &context).unwrap_err();

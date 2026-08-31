@@ -1652,7 +1652,11 @@ mod tests {
             WorkspaceToolchain::new(
                 CompilationTarget::Arm64Darwin,
                 root,
-                StandardPackage::new(PackageIdentity::new("toolchain:std"), standard_root),
+                StandardPackage::new(
+                    PackageIdentity::new("toolchain:std"),
+                    standard_root,
+                    "0.22.0",
+                ),
             ),
         )
         .unwrap()

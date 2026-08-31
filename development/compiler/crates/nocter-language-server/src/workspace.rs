@@ -170,7 +170,11 @@ mod tests {
             LanguageServerToolchain::new(
                 CompilationTarget::Arm64Darwin,
                 current_directory,
-                StandardPackage::new(PackageIdentity::new("toolchain:std"), current_directory),
+                StandardPackage::new(
+                    PackageIdentity::new("toolchain:std"),
+                    current_directory,
+                    "0.0.0",
+                ),
             ),
         )
     }

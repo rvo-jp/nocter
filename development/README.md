@@ -1,7 +1,8 @@
 # Contributor Documentation
 
-Nocter has published and externally audited v0.22.0. The working tree is a qualified v0.24.0
-candidate with explicit value subjects and a compiler built from the language specification. The
+Nocter has published and externally audited v0.22.0. The working tree is a qualified and
+installation-identity-stabilized v0.24.0 candidate with explicit value subjects and a compiler
+built from the language specification. The
 v0.13.0 compiler
 implementation was not an input to the rewrite.
 

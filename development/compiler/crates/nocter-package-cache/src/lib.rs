@@ -1,15 +1,15 @@
 //! Exact package cache representation and content-integrity authority.
 
+use std::ffi::OsStr;
 use std::fmt;
-use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-use nocter_hash::Sha256;
+use nocter_content_integrity::{ContentIntegrityError, TreeHashOptions, sha256_regular_tree};
 
 const MANIFEST_NAME: &str = ".nocter-exact-package";
-const MANIFEST_FORMAT: &str = "nocter-exact-package-v1";
-const BUFFER_SIZE: usize = 64 * 1024;
+const MANIFEST_FORMAT: &str = "nocter-exact-package-v2";
 
 /// One physical exact-package root whose current tree matches its sealed identity and digest.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -61,10 +61,7 @@ pub fn seal_exact_package(
         }
     }
     let tree_digest = hash_tree(root)?;
-    let contents = format!(
-        "{MANIFEST_FORMAT}\nidentity={identity}\ntree-sha256={}\n",
-        lower_hex(&tree_digest)
-    );
+    let contents = format!("{MANIFEST_FORMAT}\nidentity={identity}\ntree-sha256={tree_digest}\n");
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -101,7 +98,7 @@ pub fn verify_exact_package(
         ));
     }
     let actual = hash_tree(root)?;
-    if lower_hex(&actual) != sealed.tree_digest {
+    if actual.to_string() != sealed.tree_digest {
         return Err(invalid(
             &manifest,
             "exact-package content does not match its sealed digest",
@@ -160,118 +157,31 @@ fn require_regular_file(
     }
 }
 
-fn hash_tree(root: &Path) -> Result<[u8; 32], ExactPackageCacheError> {
-    let mut digest = Sha256::new();
-    digest.update(b"nocter-exact-package-tree-v1\0");
-    hash_directory(root, Path::new(""), &mut digest)?;
-    Ok(digest.finish())
-}
-
-fn hash_directory(
+fn hash_tree(
     root: &Path,
-    relative: &Path,
-    digest: &mut Sha256,
-) -> Result<(), ExactPackageCacheError> {
-    let directory = root.join(relative);
-    let entries = fs::read_dir(&directory)
-        .map_err(|source| io_error("read exact-package directory", &directory, source))?;
-    let mut entries = entries
-        .map(|entry| {
-            entry.map_err(|source| io_error("read exact-package entry", &directory, source))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    entries.sort_by_key(std::fs::DirEntry::file_name);
-    for entry in entries {
-        let name = entry.file_name();
-        let Some(name) = name.to_str() else {
-            return Err(invalid(
-                &entry.path(),
-                "exact-package entry name is not Unicode",
-            ));
-        };
-        if relative.as_os_str().is_empty() && name == MANIFEST_NAME {
-            continue;
-        }
-        let child_relative = relative.join(name);
-        let child = root.join(&child_relative);
-        let metadata = fs::symlink_metadata(&child)
-            .map_err(|source| io_error("inspect exact-package entry", &child, source))?;
-        let normalized = normalized_relative(&child, &child_relative)?;
-        if metadata.is_dir() && !metadata.file_type().is_symlink() {
-            hash_record(digest, b'D', normalized.as_bytes(), 0);
-            hash_directory(root, &child_relative, digest)?;
-        } else if metadata.is_file() && !metadata.file_type().is_symlink() {
-            hash_record(digest, b'F', normalized.as_bytes(), metadata.len());
-            hash_file(&child, metadata.len(), digest)?;
-        } else {
-            return Err(invalid(
-                &child,
-                "exact-package tree contains a symlink or special file",
-            ));
-        }
-    }
-    Ok(())
+) -> Result<nocter_content_integrity::ContentDigest, ExactPackageCacheError> {
+    sha256_regular_tree(
+        root,
+        TreeHashOptions::excluding_root_entry(OsStr::new(MANIFEST_NAME)),
+    )
+    .map_err(content_error)
 }
 
-fn normalized_relative(path: &Path, relative: &Path) -> Result<String, ExactPackageCacheError> {
-    let mut normalized = String::new();
-    for component in relative.components() {
-        let Some(component) = component.as_os_str().to_str() else {
-            return Err(invalid(path, "exact-package path is not Unicode"));
-        };
-        if !normalized.is_empty() {
-            normalized.push('/');
-        }
-        normalized.push_str(component);
-    }
-    Ok(normalized)
-}
-
-fn hash_record(digest: &mut Sha256, kind: u8, path: &[u8], byte_length: u64) {
-    digest.update(&[kind]);
-    digest.update(&(path.len() as u64).to_be_bytes());
-    digest.update(path);
-    digest.update(&byte_length.to_be_bytes());
-}
-
-fn hash_file(
-    path: &Path,
-    expected_length: u64,
-    digest: &mut Sha256,
-) -> Result<(), ExactPackageCacheError> {
-    let mut file =
-        File::open(path).map_err(|source| io_error("open exact-package file", path, source))?;
-    let mut buffer = vec![0_u8; BUFFER_SIZE].into_boxed_slice();
-    let mut actual_length = 0_u64;
-    loop {
-        let read = file
-            .read(&mut buffer)
-            .map_err(|source| io_error("read exact-package file", path, source))?;
-        if read == 0 {
-            break;
-        }
-        actual_length = actual_length
-            .checked_add(read as u64)
-            .ok_or_else(|| invalid(path, "exact-package file length overflowed"))?;
-        digest.update(&buffer[..read]);
-    }
-    if actual_length != expected_length {
-        return Err(invalid(
+fn content_error(error: ContentIntegrityError) -> ExactPackageCacheError {
+    match error {
+        ContentIntegrityError::Io {
+            operation,
             path,
-            "exact-package file changed while it was hashed",
-        ));
+            source,
+        } => ExactPackageCacheError::Io {
+            operation,
+            path,
+            source,
+        },
+        ContentIntegrityError::Invalid { path, reason } => {
+            ExactPackageCacheError::Invalid { path, reason }
+        }
     }
-    Ok(())
-}
-
-fn lower_hex(bytes: &[u8]) -> String {
-    use fmt::Write;
-
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(output, "{byte:02x}").expect("writing to String cannot fail");
-    }
-    output
 }
 
 struct SealedManifest<'manifest> {

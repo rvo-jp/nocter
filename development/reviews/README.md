@@ -9,6 +9,7 @@ internally without forcing consumers that use only its contract to change.
 
 ## Current Candidate Reviews
 
+- [v0.24.0 installation image identity review](v0.24.0-installation-image-identity.md) — complete
 - [v0.24.0 explicit value subjects review](v0.24.0-explicit-value-subjects.md) — complete
 - [v0.23.0 Phase 3 qualification and full review](v0.23.0-phase-3.md) — complete
 - [v0.23.0 Phase 2 type-owned API review](v0.23.0-phase-2.md) — complete

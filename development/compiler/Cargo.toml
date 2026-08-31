@@ -8,6 +8,7 @@ members = [
     "crates/nocter-command",
     "crates/nocter-compiler-computation",
     "crates/nocter-computation",
+    "crates/nocter-content-integrity",
     "crates/nocter-constant-evaluation",
     "crates/nocter-conformance",
     "crates/nocter-declarations",

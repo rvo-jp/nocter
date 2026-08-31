@@ -3,14 +3,18 @@
 This directory owns the metadata, assembly, and installed-artifact qualification boundary for a
 local release candidate.
 
-- `VERSION` and `MANIFEST.json` are the release-identity inputs.
-- `validate-manifest.js` enforces the exact v1 metadata schema and agreement with `VERSION`.
+- `VERSION` is the sole authored release-version identity. `RELEASE.json` owns version-independent
+  host, target, license, and archive-layout metadata.
+- `render-manifest.js` validates those inputs, derives the versioned archive name, and combines them
+  with the compiler file digest and standard-library tree digest to create the installed
+  `MANIFEST.json` v2.
 - `package-local-release.sh` builds the optimized compiler in a fresh temporary Cargo target,
-  copies only tracked standard-library files, normalizes archive metadata, and atomically writes
-  one host archive. The temporary target is removed on exit.
-- `qualify-local-release.sh` requires a clean release-content commit, creates the archive twice,
-  refuses to reuse a version already tagged at another commit, creates the archive twice, compares
-  both compressed archives and extracted homes, and exercises the installed compiler.
+  computes both artifact identities through the shared Rust content-integrity implementation,
+  validates the assembled home through its own compiler, normalizes archive metadata, and
+  atomically writes one host archive. The temporary target is removed on exit.
+- `qualify-local-release.sh` requires a clean release-content commit, refuses to reuse a version
+  already tagged at another commit, creates the archive twice, compares both compressed archives
+  and extracted homes, and exercises the installed compiler.
 - `verify-lsp.js` owns the framed installed-LSP lifecycle check used by qualification.
 
 From the repository root, create and qualify the candidate with:
@@ -19,7 +23,8 @@ From the repository root, create and qualify the candidate with:
 development/packaging/qualify-local-release.sh
 ```
 
-Qualification covers version, installation diagnosis, help, package initialization, locked and
+Qualification covers manifest-bound compiler and standard-library content, version, installation
+diagnosis, help, package initialization, locked and
 offline checking, native tests, deterministic JSON graphs, native run and build, direct execution,
 and LSP analysis of installed standard-library contract and implementation sources. It also proves
 that these commands do not mutate the installed home. Only after every check passes does it replace

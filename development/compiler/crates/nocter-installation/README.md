@@ -14,14 +14,14 @@ environment or installation layout themselves.
 ## Internal Responsibilities
 
 - real executable and Nocter-home resolution
-- manifest and component validation
+- exact manifest v2 decoding and component digest validation
 - compiler/standard-package compatibility
 - installed package-root location
 
 ## Invariants
 
-- Installation identity comes from validated content, not directory spelling alone.
-- A configured home accepts the running compiler only when it is the bundled executable or an
-  exact byte-for-byte copy of that executable.
+- The manifest binds the exact compiler file and complete regular standard-library tree.
+- A configured home accepts the running compiler only when its digest equals the manifest-bound
+  compiler digest.
 - Environment and executable-path reads occur at the outer boundary.
-- Invalid or mixed-version homes cannot supply a toolchain snapshot.
+- Invalid, corrupted, or partially updated homes cannot supply a toolchain snapshot.

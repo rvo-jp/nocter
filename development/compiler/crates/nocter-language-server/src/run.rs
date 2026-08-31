@@ -112,7 +112,7 @@ mod tests {
             crate::LanguageServerToolchain::new(
                 CompilationTarget::Arm64Darwin,
                 &root,
-                StandardPackage::new(PackageIdentity::new("toolchain:std"), &root),
+                StandardPackage::new(PackageIdentity::new("toolchain:std"), &root, "0.0.0"),
             ),
         );
         let exit = run_language_server(

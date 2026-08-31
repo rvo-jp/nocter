@@ -6,9 +6,12 @@
 use std::ffi::OsString;
 use std::fmt;
 use std::fs;
-use std::io::{self, Read};
+use std::io;
 use std::path::{Path, PathBuf};
 
+use nocter_content_integrity::{
+    ContentDigest, ContentIntegrityError, TreeHashOptions, sha256_file, sha256_regular_tree,
+};
 use nocter_model::PackageIdentity;
 use nocter_package::StandardPackage;
 
@@ -17,7 +20,8 @@ mod manifest;
 
 pub use compatibility::{CompilerInstallation, InstallationCompatibilityError};
 pub use manifest::{
-    ArchiveMetadata, ImplementedTarget, InstallationManifest, LicenseMetadata, ManifestError,
+    ArchiveMetadata, ArtifactMetadata, ImplementedTarget, InstallationManifest, LicenseMetadata,
+    ManifestError,
 };
 
 /// Explicit process facts needed to select a Nocter home.
@@ -85,15 +89,6 @@ impl NocterHome {
         }
         let version = required_file(&root, "VERSION")?;
         let manifest_path = required_file(&root, "MANIFEST.json")?;
-        let compiler = required_file(&root, "nocter")?;
-        if !files_have_equal_contents(&executable, &compiler)? {
-            return Err(NocterHomeError::CompilerMismatch {
-                running: executable,
-                installed: compiler,
-            });
-        }
-        let standard_root = required_directory(&root, "std")?;
-        required_file(&standard_root, "index.nct")?;
         let release = read_release(&version)?;
         let manifest_bytes =
             fs::read(&manifest_path).map_err(|error| NocterHomeError::Filesystem {
@@ -108,6 +103,43 @@ impl NocterHome {
                     error,
                 }
             })?;
+        let compiler = required_relative_file(&root, "compiler.path", manifest.compiler().path())?;
+        let installed_compiler_digest =
+            sha256_file(&compiler).map_err(|error| NocterHomeError::ContentIntegrity {
+                name: "compiler",
+                error,
+            })?;
+        verify_digest(
+            "compiler",
+            &compiler,
+            manifest.compiler().digest(),
+            installed_compiler_digest,
+        )?;
+        let running_compiler_digest = if executable == compiler {
+            installed_compiler_digest
+        } else {
+            sha256_file(&executable).map_err(|error| NocterHomeError::ContentIntegrity {
+                name: "running compiler",
+                error,
+            })?
+        };
+        if running_compiler_digest != manifest.compiler().digest() {
+            return Err(NocterHomeError::CompilerMismatch {
+                running: executable,
+                installed: compiler,
+            });
+        }
+        let standard_root =
+            required_relative_directory(&root, "std.path", manifest.standard().path())?;
+        required_file(&standard_root, "index.nct")?;
+        let standard_digest = sha256_regular_tree(&standard_root, TreeHashOptions::complete())
+            .map_err(|error| NocterHomeError::ContentIntegrity { name: "std", error })?;
+        verify_digest(
+            "std",
+            &standard_root,
+            manifest.standard().digest(),
+            standard_digest,
+        )?;
         let license = required_relative_file(&root, "license.path", manifest.license().path())?;
         let notice = required_relative_file(&root, "license.notice", manifest.license().notice())?;
         Ok(Self {
@@ -186,58 +218,27 @@ impl NocterHome {
         StandardPackage::new(
             PackageIdentity::new(format!("toolchain-std-v{}", self.release())),
             self.standard_root.clone(),
+            self.release(),
         )
     }
 }
 
-fn files_have_equal_contents(left: &Path, right: &Path) -> Result<bool, NocterHomeError> {
-    if left == right {
-        return Ok(true);
-    }
-    let mut left_file = open_comparison_file(left)?;
-    let mut right_file = open_comparison_file(right)?;
-    let mut left_bytes = [0_u8; 8 * 1024];
-    let mut right_bytes = [0_u8; 8 * 1024];
-    loop {
-        let left_read = read_comparison_chunk(&mut left_file, left, &mut left_bytes)?;
-        let right_read = read_comparison_chunk(&mut right_file, right, &mut right_bytes)?;
-        if left_read != right_read || left_bytes[..left_read] != right_bytes[..right_read] {
-            return Ok(false);
-        }
-        if left_read == 0 {
-            return Ok(true);
-        }
-    }
-}
-
-fn open_comparison_file(path: &Path) -> Result<fs::File, NocterHomeError> {
-    fs::File::open(path).map_err(|error| NocterHomeError::Filesystem {
-        operation: "open compiler executable",
-        path: path.into(),
-        error,
-    })
-}
-
-fn read_comparison_chunk(
-    file: &mut fs::File,
+fn verify_digest(
+    name: &'static str,
     path: &Path,
-    buffer: &mut [u8],
-) -> Result<usize, NocterHomeError> {
-    let mut filled = 0;
-    while filled < buffer.len() {
-        let read =
-            file.read(&mut buffer[filled..])
-                .map_err(|error| NocterHomeError::Filesystem {
-                    operation: "read compiler executable",
-                    path: path.into(),
-                    error,
-                })?;
-        if read == 0 {
-            break;
-        }
-        filled += read;
+    expected: ContentDigest,
+    actual: ContentDigest,
+) -> Result<(), NocterHomeError> {
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(NocterHomeError::ArtifactDigestMismatch {
+            name,
+            path: path.into(),
+            expected,
+            actual,
+        })
     }
-    Ok(filled)
 }
 
 fn required_relative_file(
@@ -273,10 +274,21 @@ fn inspect_required_file(
     }
 }
 
-fn required_directory(root: &Path, name: &'static str) -> Result<PathBuf, NocterHomeError> {
-    let path = root.join(name);
-    match fs::metadata(&path) {
-        Ok(metadata) if metadata.is_dir() => {
+fn required_relative_directory(
+    root: &Path,
+    name: &'static str,
+    relative: &Path,
+) -> Result<PathBuf, NocterHomeError> {
+    inspect_required_directory(root, name, root.join(relative))
+}
+
+fn inspect_required_directory(
+    root: &Path,
+    name: &'static str,
+    path: PathBuf,
+) -> Result<PathBuf, NocterHomeError> {
+    match fs::symlink_metadata(&path) {
+        Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
             canonical_required(root, name, "canonicalize required directory", &path)
         }
         Ok(_) => Err(NocterHomeError::RequiredEntryNotDirectory { name, path }),
@@ -358,6 +370,16 @@ pub enum NocterHomeError {
         running: PathBuf,
         installed: PathBuf,
     },
+    ArtifactDigestMismatch {
+        name: &'static str,
+        path: PathBuf,
+        expected: ContentDigest,
+        actual: ContentDigest,
+    },
+    ContentIntegrity {
+        name: &'static str,
+        error: ContentIntegrityError,
+    },
     InvalidVersion {
         path: PathBuf,
     },
@@ -422,6 +444,19 @@ impl fmt::Display for NocterHomeError {
                 running.display(),
                 installed.display()
             ),
+            Self::ArtifactDigestMismatch {
+                name,
+                path,
+                expected,
+                actual,
+            } => write!(
+                formatter,
+                "Nocter home {name} digest does not match its manifest at {}: expected {expected}, actual {actual}",
+                path.display()
+            ),
+            Self::ContentIntegrity { name, error } => {
+                write!(formatter, "cannot validate Nocter home {name}: {error}")
+            }
             Self::InvalidVersion { path } => write!(
                 formatter,
                 "Nocter home VERSION is not one non-empty UTF-8 line: {}",
@@ -448,6 +483,7 @@ impl std::error::Error for NocterHomeError {
         match self {
             Self::Filesystem { error, .. } => Some(error),
             Self::Manifest { error, .. } => Some(error),
+            Self::ContentIntegrity { error, .. } => Some(error),
             Self::EmptyConfiguredHome
             | Self::ExecutableNotFile(_)
             | Self::ExecutableWithoutParent(_)
@@ -457,6 +493,7 @@ impl std::error::Error for NocterHomeError {
             | Self::RequiredEntryNotDirectory { .. }
             | Self::RequiredEntryEscapesHome { .. }
             | Self::CompilerMismatch { .. }
+            | Self::ArtifactDigestMismatch { .. }
             | Self::InvalidVersion { .. } => None,
         }
     }
@@ -490,7 +527,6 @@ mod tests {
             let release = std::str::from_utf8(version)
                 .unwrap_or("0.14.0")
                 .trim_end_matches('\n');
-            fs::write(root.join("MANIFEST.json"), manifest(release)).unwrap();
             fs::write(root.join("nocter"), b"compiler").unwrap();
             fs::write(root.join("LICENSE"), b"license").unwrap();
             fs::write(root.join("NOTICE"), b"notice").unwrap();
@@ -499,20 +535,38 @@ mod tests {
                 b"#package: { name: \"std\", version: \"0.0.0\", }\n",
             )
             .unwrap();
+            let compiler_digest = sha256_file(&root.join("nocter")).unwrap();
+            let standard_digest =
+                sha256_regular_tree(&root.join("std"), TreeHashOptions::complete()).unwrap();
+            fs::write(
+                root.join("MANIFEST.json"),
+                manifest(release, compiler_digest, standard_digest),
+            )
+            .unwrap();
             root
         }
     }
 
-    fn manifest(release: &str) -> String {
+    fn manifest(
+        release: &str,
+        compiler_digest: ContentDigest,
+        standard_digest: ContentDigest,
+    ) -> String {
         format!(
             r#"{{
                 "schema": "nocter.manifest",
-                "schema_version": 1,
+                "schema_version": 2,
                 "release": "{release}",
                 "host": "arm64-darwin",
                 "default_target": "arm64-darwin",
-                "compiler": {{ "path": "nocter" }},
-                "std": {{ "path": "std" }},
+                "compiler": {{
+                    "path": "nocter",
+                    "sha256": "{compiler_digest}"
+                }},
+                "std": {{
+                    "path": "std",
+                    "tree_sha256": "{standard_digest}"
+                }},
                 "license": {{
                     "id": "Apache-2.0",
                     "path": "LICENSE",
@@ -576,6 +630,37 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(error, NocterHomeError::CompilerMismatch { .. }));
+    }
+
+    #[test]
+    fn manifest_digest_closes_compiler_and_standard_content_identity() {
+        let tree = TempTree::new();
+        let changed_compiler = tree.installation("changed-compiler", b"0.14.0\n");
+        fs::write(changed_compiler.join("nocter"), b"changed compiler").unwrap();
+        assert!(matches!(
+            NocterHome::resolve(NocterHomeRequest::new(
+                None,
+                changed_compiler.join("nocter")
+            )),
+            Err(NocterHomeError::ArtifactDigestMismatch {
+                name: "compiler",
+                ..
+            })
+        ));
+
+        let changed_standard = tree.installation("changed-standard", b"0.14.0\n");
+        fs::write(
+            changed_standard.join("std/index.nct"),
+            b"#package: { name: \"std\", version: \"99.0.0\", }\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            NocterHome::resolve(NocterHomeRequest::new(
+                None,
+                changed_standard.join("nocter")
+            )),
+            Err(NocterHomeError::ArtifactDigestMismatch { name: "std", .. })
+        ));
     }
 
     #[test]
@@ -710,6 +795,25 @@ mod tests {
             )),
             Err(NocterHomeError::RequiredEntryEscapesHome {
                 name: "MANIFEST.json",
+                ..
+            })
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn standard_tree_root_must_be_physical_even_when_a_symlink_stays_inside_home() {
+        use std::os::unix::fs::symlink;
+
+        let tree = TempTree::new();
+        let installation = tree.installation("home-with-linked-std", b"0.14.0\n");
+        fs::rename(installation.join("std"), installation.join("std-real")).unwrap();
+        symlink("std-real", installation.join("std")).unwrap();
+
+        assert!(matches!(
+            NocterHome::resolve(NocterHomeRequest::new(None, installation.join("nocter"))),
+            Err(NocterHomeError::RequiredEntryNotDirectory {
+                name: "std.path",
                 ..
             })
         ));

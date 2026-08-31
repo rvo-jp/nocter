@@ -114,7 +114,11 @@ function validateDiagnosticCatalog() {
 
     const compilerCodes = new Set();
     for (const file of collectFilesWithExtension(path.join(PROJECT_ROOT, "development/compiler/crates"), ".rs")) {
-        for (const code of fs.readFileSync(file, "utf8").match(/E\d{4}/g) || []) {
+        // Diagnostic codes are exact Rust string literals. Searching arbitrary substrings makes
+        // unrelated data such as hexadecimal hash vectors part of the public diagnostic catalog.
+        const source = fs.readFileSync(file, "utf8");
+        for (const match of source.matchAll(/"(E\d{4})"/g)) {
+            const code = match[1];
             if (code !== "E9998" && code !== "E9999") {
                 compilerCodes.add(code);
             }

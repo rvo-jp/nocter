@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use nocter_content_integrity::{TreeHashOptions, sha256_file, sha256_regular_tree};
 use nocter_package_acquisition::PackageAcquisitionError;
 
 use super::*;
@@ -34,19 +35,30 @@ impl TempTree {
         if complete_standard {
             let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
             copy_directory(&compiler.join("../std"), &standard);
+            let root_source = standard.join("index.nct");
+            let source = fs::read_to_string(&root_source)
+                .unwrap()
+                .replace("version: \"0.22.0\"", "version: \"0.14.0\"");
+            fs::write(root_source, source).unwrap();
         } else {
             fs::create_dir(&standard).unwrap();
             fs::write(
                 standard.join("index.nct"),
-                "#package: { name: \"std\", version: \"0.0.0\", }\n",
+                "#package: { name: \"std\", version: \"0.14.0\", }\n",
             )
             .unwrap();
         }
-        fs::write(root.join("VERSION"), "0.14.0\n").unwrap();
-        fs::write(root.join("MANIFEST.json"), manifest(host)).unwrap();
         fs::write(root.join("nocter"), "compiler").unwrap();
         fs::write(root.join("LICENSE"), "license").unwrap();
         fs::write(root.join("NOTICE"), "notice").unwrap();
+        fs::write(root.join("VERSION"), "0.14.0\n").unwrap();
+        let compiler_digest = sha256_file(&root.join("nocter")).unwrap();
+        let standard_digest = sha256_regular_tree(&standard, TreeHashOptions::complete()).unwrap();
+        fs::write(
+            root.join("MANIFEST.json"),
+            manifest(host, compiler_digest, standard_digest),
+        )
+        .unwrap();
         root
     }
 }
@@ -57,16 +69,26 @@ impl Drop for TempTree {
     }
 }
 
-fn manifest(host: &str) -> String {
+fn manifest(
+    host: &str,
+    compiler_digest: nocter_content_integrity::ContentDigest,
+    standard_digest: nocter_content_integrity::ContentDigest,
+) -> String {
     format!(
         r#"{{
             "schema": "nocter.manifest",
-            "schema_version": 1,
+            "schema_version": 2,
             "release": "0.14.0",
             "host": "{host}",
             "default_target": "arm64-darwin",
-            "compiler": {{ "path": "nocter" }},
-            "std": {{ "path": "std" }},
+            "compiler": {{
+                "path": "nocter",
+                "sha256": "{compiler_digest}"
+            }},
+            "std": {{
+                "path": "std",
+                "tree_sha256": "{standard_digest}"
+            }},
             "license": {{
                 "id": "Apache-2.0",
                 "path": "LICENSE",

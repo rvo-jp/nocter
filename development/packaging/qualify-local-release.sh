@@ -64,9 +64,7 @@ if grep -E '(^/|(^|/)\.\.(/|$))' "$mapfile_path" | grep -q .; then
   exit 1
 fi
 
-for input in VERSION MANIFEST.json; do
-  cmp "$script_directory/$input" "$home/$input"
-done
+cmp "$script_directory/VERSION" "$home/VERSION"
 for input in LICENSE NOTICE; do
   cmp "$repository_root/$input" "$home/$input"
 done

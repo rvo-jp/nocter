@@ -373,6 +373,32 @@ impl PackageGraphBuilder {
         self.packages.get(identity)?.declaration.as_ref()
     }
 
+    pub(crate) fn validate_declaration_identity(
+        &self,
+        identity: &PackageIdentity,
+        expected_name: &str,
+        expected_version: &str,
+    ) -> Result<(), PackageGraphError> {
+        let Some(declaration) = self.declaration(identity) else {
+            return Ok(());
+        };
+        if declaration.name().value() != expected_name {
+            return Err(PackageGraphError::PackageNameMismatch {
+                package: identity.clone(),
+                expected: expected_name.into(),
+                actual: declaration.name().value().into(),
+            });
+        }
+        if declaration.version().value() != expected_version {
+            return Err(PackageGraphError::PackageVersionMismatch {
+                package: identity.clone(),
+                expected: expected_version.into(),
+                actual: declaration.version().value().into(),
+            });
+        }
+        Ok(())
+    }
+
     pub(crate) fn source_snapshot(&self) -> PackageSourceSnapshot {
         PackageSourceSnapshot {
             package_roots: self.package_roots.snapshot(),
@@ -726,6 +752,16 @@ fn canonical_text(path: &Path) -> Result<Box<str>, PackageGraphError> {
 pub enum PackageGraphError {
     DuplicatePackage(PackageIdentity),
     UnknownPackage(PackageIdentity),
+    PackageNameMismatch {
+        package: PackageIdentity,
+        expected: Box<str>,
+        actual: Box<str>,
+    },
+    PackageVersionMismatch {
+        package: PackageIdentity,
+        expected: Box<str>,
+        actual: Box<str>,
+    },
     InvalidPackageRoot {
         package: PackageIdentity,
         path: PathBuf,
@@ -792,6 +828,18 @@ impl fmt::Display for PackageGraphError {
             Self::UnknownPackage(package) => {
                 write!(formatter, "unknown resolved package {}", package.as_str())
             }
+            Self::PackageNameMismatch {
+                package,
+                expected,
+                actual,
+            } => format_declaration_identity_mismatch(formatter, package, "name", expected, actual),
+            Self::PackageVersionMismatch {
+                package,
+                expected,
+                actual,
+            } => format_declaration_identity_mismatch(
+                formatter, package, "version", expected, actual,
+            ),
             Self::InvalidPackageRoot { package, path } => write!(
                 formatter,
                 "package {} has invalid root {}",
@@ -808,13 +856,7 @@ impl fmt::Display for PackageGraphError {
                 first,
                 second,
                 path,
-            } => write!(
-                formatter,
-                "packages {} and {} share canonical root {}",
-                first.as_str(),
-                second.as_str(),
-                path.display()
-            ),
+            } => format_duplicate_canonical_root(formatter, first, second, path),
             Self::DependencyEdgeMismatch { package, alias } => write!(
                 formatter,
                 "package {} has no exact resolved edge for dependency {alias}",
@@ -881,6 +923,35 @@ impl fmt::Display for PackageGraphError {
     }
 }
 
+fn format_declaration_identity_mismatch(
+    formatter: &mut fmt::Formatter<'_>,
+    package: &PackageIdentity,
+    field: &str,
+    expected: &str,
+    actual: &str,
+) -> fmt::Result {
+    write!(
+        formatter,
+        "package {} must declare {field} `{expected}`, not `{actual}`",
+        package.as_str()
+    )
+}
+
+fn format_duplicate_canonical_root(
+    formatter: &mut fmt::Formatter<'_>,
+    first: &PackageIdentity,
+    second: &PackageIdentity,
+    path: &Path,
+) -> fmt::Result {
+    write!(
+        formatter,
+        "packages {} and {} share canonical root {}",
+        first.as_str(),
+        second.as_str(),
+        path.display()
+    )
+}
+
 impl std::error::Error for PackageGraphError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -889,6 +960,8 @@ impl std::error::Error for PackageGraphError {
             Self::Filesystem { error, .. } => Some(error),
             Self::DuplicatePackage(_)
             | Self::UnknownPackage(_)
+            | Self::PackageNameMismatch { .. }
+            | Self::PackageVersionMismatch { .. }
             | Self::InvalidPackageRoot { .. }
             | Self::MissingPackageRootSource { .. }
             | Self::DuplicateCanonicalRoot { .. }

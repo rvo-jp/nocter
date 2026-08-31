@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::path::PathBuf;
+use std::str::FromStr;
 
+use nocter_content_integrity::ContentDigest;
 use nocter_json::{self as json, Member, Value};
 use nocter_model::CompilationTarget;
 
@@ -67,6 +69,25 @@ pub struct ArchiveMetadata {
     root: Box<str>,
 }
 
+/// One manifest-owned physical artifact path and its exact content digest.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArtifactMetadata {
+    path: PathBuf,
+    digest: ContentDigest,
+}
+
+impl ArtifactMetadata {
+    #[must_use]
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
+    #[must_use]
+    pub const fn digest(&self) -> ContentDigest {
+        self.digest
+    }
+}
+
 impl ArchiveMetadata {
     #[must_use]
     pub const fn name(&self) -> &str {
@@ -79,14 +100,14 @@ impl ArchiveMetadata {
     }
 }
 
-/// Complete validated `nocter.manifest` v1 metadata.
+/// Complete validated `nocter.manifest` v2 metadata.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct InstallationManifest {
     release: Box<str>,
     host: Box<str>,
     default_target: CompilationTarget,
-    compiler_path: PathBuf,
-    standard_path: PathBuf,
+    compiler: ArtifactMetadata,
+    standard: ArtifactMetadata,
     license: LicenseMetadata,
     implemented_targets: Box<[ImplementedTarget]>,
     archive: ArchiveMetadata,
@@ -124,13 +145,13 @@ impl InstallationManifest {
     }
 
     #[must_use]
-    pub fn compiler_path(&self) -> &std::path::Path {
-        &self.compiler_path
+    pub const fn compiler(&self) -> &ArtifactMetadata {
+        &self.compiler
     }
 
     #[must_use]
-    pub fn standard_path(&self) -> &std::path::Path {
-        &self.standard_path
+    pub const fn standard(&self) -> &ArtifactMetadata {
+        &self.standard
     }
 
     #[must_use]
@@ -167,7 +188,7 @@ fn decode_root(value: Value, version: &str) -> Result<InstallationManifest, Mani
         ],
     )?;
     exact_string(root.take("schema")?, "$.schema", "nocter.manifest")?;
-    exact_integer(root.take("schema_version")?, "$.schema_version", "1")?;
+    exact_integer(root.take("schema_version")?, "$.schema_version", "2")?;
     let release = string(root.take("release")?, "$.release")?;
     validate_release(&release)?;
     if release.as_ref() != version {
@@ -178,8 +199,8 @@ fn decode_root(value: Value, version: &str) -> Result<InstallationManifest, Mani
     }
     let host = metadata_token(root.take("host")?, "$.host")?;
     let default_target = target(root.take("default_target")?, "$.default_target")?;
-    let compiler_path = single_path_record(root.take("compiler")?, "$.compiler", "nocter")?;
-    let standard_path = single_path_record(root.take("std")?, "$.std", "std")?;
+    let compiler = artifact_record(root.take("compiler")?, "$.compiler", "nocter", "sha256")?;
+    let standard = artifact_record(root.take("std")?, "$.std", "std", "tree_sha256")?;
     let license = decode_license(root.take("license")?)?;
     let implemented_targets = decode_targets(root.take("implemented_targets")?)?;
     if !implemented_targets
@@ -193,30 +214,39 @@ fn decode_root(value: Value, version: &str) -> Result<InstallationManifest, Mani
         release,
         host,
         default_target,
-        compiler_path,
-        standard_path,
+        compiler,
+        standard,
         license,
         implemented_targets: implemented_targets.into_boxed_slice(),
         archive,
     })
 }
 
-fn single_path_record(
+fn artifact_record(
     value: Value,
     field: &'static str,
-    expected: &'static str,
-) -> Result<PathBuf, ManifestError> {
-    let mut object = ExactObject::new(value, field, &["path"])?;
+    expected_path: &'static str,
+    digest_name: &'static str,
+) -> Result<ArtifactMetadata, ManifestError> {
+    let mut object = ExactObject::new(value, field, &["path", digest_name])?;
     let path_field = format!("{field}.path");
     let value = string(object.take("path")?, &path_field)?;
-    if value.as_ref() != expected {
+    if value.as_ref() != expected_path {
         return Err(ManifestError::UnexpectedValue {
             field: path_field.into_boxed_str(),
-            expected: expected.into(),
+            expected: expected_path.into(),
             actual: value,
         });
     }
-    portable_relative_path(expected, &path_field)
+    let path = portable_relative_path(expected_path, &path_field)?;
+    let digest_field = format!("{field}.{digest_name}");
+    let digest_text = string(object.take(digest_name)?, &digest_field)?;
+    let digest =
+        ContentDigest::from_str(&digest_text).map_err(|_| ManifestError::InvalidDigest {
+            field: digest_field.into_boxed_str(),
+            value: digest_text,
+        })?;
+    Ok(ArtifactMetadata { path, digest })
 }
 
 fn decode_license(value: Value) -> Result<LicenseMetadata, ManifestError> {
@@ -484,6 +514,10 @@ pub enum ManifestError {
         field: Box<str>,
         value: Box<str>,
     },
+    InvalidDigest {
+        field: Box<str>,
+        value: Box<str>,
+    },
 }
 
 impl fmt::Display for ManifestError {
@@ -545,6 +579,10 @@ impl fmt::Display for ManifestError {
                 formatter,
                 "manifest field {field} is not a portable relative path: `{value}`"
             ),
+            Self::InvalidDigest { field, value } => write!(
+                formatter,
+                "manifest field {field} is not a lowercase SHA-256 digest: `{value}`"
+            ),
         }
     }
 }
@@ -558,12 +596,18 @@ mod tests {
     fn valid_manifest() -> String {
         r#"{
             "schema": "nocter.manifest",
-            "schema_version": 1,
+            "schema_version": 2,
             "release": "0.14.0",
             "host": "arm64-darwin",
             "default_target": "arm64-darwin",
-            "compiler": { "path": "nocter" },
-            "std": { "path": "std" },
+            "compiler": {
+                "path": "nocter",
+                "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+            },
+            "std": {
+                "path": "std",
+                "tree_sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+            },
             "license": {
                 "id": "Apache-2.0",
                 "path": "LICENSE",
@@ -584,13 +628,13 @@ mod tests {
     }
 
     #[test]
-    fn decodes_the_complete_exact_v1_schema() {
+    fn decodes_the_complete_exact_v2_schema() {
         let manifest = InstallationManifest::decode(valid_manifest().as_bytes(), "0.14.0").unwrap();
         assert_eq!(manifest.release(), "0.14.0");
         assert_eq!(manifest.host(), "arm64-darwin");
         assert_eq!(manifest.default_target(), CompilationTarget::Arm64Darwin);
-        assert_eq!(manifest.compiler_path(), std::path::Path::new("nocter"));
-        assert_eq!(manifest.standard_path(), std::path::Path::new("std"));
+        assert_eq!(manifest.compiler().path(), std::path::Path::new("nocter"));
+        assert_eq!(manifest.standard().path(), std::path::Path::new("std"));
         assert_eq!(manifest.implemented_targets().len(), 1);
         assert_eq!(
             manifest.archive().name(),
@@ -613,8 +657,8 @@ mod tests {
         ));
 
         let unknown = valid_manifest().replacen(
-            r#""schema_version": 1,"#,
-            r#""schema_version": 1, "future": true,"#,
+            r#""schema_version": 2,"#,
+            r#""schema_version": 2, "future": true,"#,
             1,
         );
         assert!(matches!(
@@ -622,7 +666,7 @@ mod tests {
             Err(ManifestError::UnknownField(field)) if field.as_ref() == "$.future"
         ));
 
-        let missing = valid_manifest().replacen(r#""schema_version": 1,"#, "", 1);
+        let missing = valid_manifest().replacen(r#""schema_version": 2,"#, "", 1);
         assert!(matches!(
             InstallationManifest::decode(missing.as_bytes(), "0.14.0"),
             Err(ManifestError::MissingField(field)) if field.as_ref() == "$.schema_version"
@@ -664,6 +708,16 @@ mod tests {
         assert!(matches!(
             InstallationManifest::decode(unsafe_release.as_bytes(), "../0.14.0"),
             Err(ManifestError::InvalidRelease(_))
+        ));
+
+        let uppercase_digest = valid_manifest().replace(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
+        );
+        assert!(matches!(
+            InstallationManifest::decode(uppercase_digest.as_bytes(), "0.14.0"),
+            Err(ManifestError::InvalidDigest { field, .. })
+                if field.as_ref() == "$.compiler.sha256"
         ));
     }
 }

@@ -51,14 +51,20 @@ impl PackageResolutionPolicy {
 pub struct StandardPackage {
     identity: PackageIdentity,
     root: PathBuf,
+    release: Box<str>,
 }
 
 impl StandardPackage {
     #[must_use]
-    pub fn new(identity: PackageIdentity, root: impl Into<PathBuf>) -> Self {
+    pub fn new(
+        identity: PackageIdentity,
+        root: impl Into<PathBuf>,
+        release: impl Into<Box<str>>,
+    ) -> Self {
         Self {
             identity,
             root: root.into(),
+            release: release.into(),
         }
     }
 
@@ -70,6 +76,11 @@ impl StandardPackage {
     #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    #[must_use]
+    pub const fn release(&self) -> &str {
+        &self.release
     }
 }
 
@@ -255,17 +266,19 @@ pub fn resolve_package_selection_with_root_catalog(
         .map_err(PackageResolutionError::Graph)
         .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?;
     let standard_id = standard.identity;
+    let standard_release = standard.release;
 
     let source_overlay_for_resolution = source_overlay.clone();
     let mut builder = PackageGraphBuilder::new(package_roots);
     let mut roots = BTreeMap::new();
     let mut pending = BTreeMap::new();
-    if let Err(error) = insert_package(
+    if let Err(error) = insert_and_validate_standard_package(
         &mut builder,
         &mut roots,
         &mut pending,
-        standard_id.clone(),
+        &standard_id,
         standard_root,
+        &standard_release,
         source_syntax,
     ) {
         return Err(PackageResolutionFailure::from_builder(error, &builder));
@@ -329,6 +342,28 @@ pub fn resolve_package_selection_with_root_catalog(
         edges.insert(identity, resolved.edges);
     }
     finish_resolution(builder, edges, root_id, standard_id)
+}
+
+fn insert_and_validate_standard_package(
+    builder: &mut PackageGraphBuilder,
+    roots: &mut BTreeMap<PackageIdentity, PathBuf>,
+    pending: &mut BTreeMap<PackageIdentity, PathBuf>,
+    identity: &PackageIdentity,
+    root: PathBuf,
+    release: &str,
+    source_syntax: &mut dyn SourceSyntaxProvider,
+) -> Result<(), PackageResolutionError> {
+    insert_package(
+        builder,
+        roots,
+        pending,
+        identity.clone(),
+        root,
+        source_syntax,
+    )?;
+    builder
+        .validate_declaration_identity(identity, "std", release)
+        .map_err(PackageResolutionError::Graph)
 }
 
 fn finish_resolution(
@@ -465,15 +500,22 @@ pub fn resolve_standard_package_with_root_catalog(
     package_roots: PackageRootCatalog,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<ResolvedPackageGraph, PackageGraphError> {
-    let identity = standard.identity;
-    ResolvedPackageGraph::load_with_root_catalog(
-        vec![
-            crate::ResolvedPackageSpec::new(identity.clone(), standard.root)
-                .with_standard_dependency(identity),
-        ],
-        package_roots,
-        source_syntax,
-    )
+    let StandardPackage {
+        identity,
+        root,
+        release,
+    } = standard;
+    let mut builder = PackageGraphBuilder::new(package_roots);
+    builder.load(identity.clone(), &root, source_syntax)?;
+    builder.validate_declaration_identity(&identity, "std", &release)?;
+    builder.finish(BTreeMap::from([(
+        identity.clone(),
+        ResolvedPackageEdges {
+            authored: BTreeMap::new(),
+            locks: BTreeMap::new(),
+            implicit: BTreeMap::from([("std".into(), identity)]),
+        },
+    )]))
 }
 
 fn insert_package(
@@ -862,7 +904,11 @@ mod tests {
             PackageResolutionRequest::new(
                 self.0.join("app"),
                 self.0.join("home"),
-                StandardPackage::new(PackageIdentity::new("toolchain-std"), self.0.join("std")),
+                StandardPackage::new(
+                    PackageIdentity::new("toolchain-std"),
+                    self.0.join("std"),
+                    "0.0.0",
+                ),
                 policy,
             )
         }
@@ -932,6 +978,51 @@ mod tests {
         for package in graph.packages() {
             assert!(package.dependencies().contains_key("std"));
         }
+    }
+
+    #[test]
+    fn selected_standard_package_must_declare_its_expected_name_and_release() {
+        let wrong_version = base_tree(false);
+        wrong_version.source(
+            "std/index.nct",
+            "#package: { name: \"std\", version: \"99.0.0\", }\n",
+        );
+        assert!(matches!(
+            resolve_package_graph(wrong_version.request(PackageResolutionPolicy::new(true, true))),
+            Err(PackageResolutionError::Graph(
+                PackageGraphError::PackageVersionMismatch { .. }
+            ))
+        ));
+
+        let wrong_name = base_tree(false);
+        wrong_name.source(
+            "std/index.nct",
+            "#package: { name: \"other\", version: \"0.0.0\", }\n",
+        );
+        assert!(matches!(
+            resolve_package_graph(wrong_name.request(PackageResolutionPolicy::new(true, true))),
+            Err(PackageResolutionError::Graph(
+                PackageGraphError::PackageNameMismatch { .. }
+            ))
+        ));
+
+        let standard_only = base_tree(false);
+        standard_only.source(
+            "std/index.nct",
+            "#package: { name: \"std\", version: \"99.0.0\", }\n",
+        );
+        assert!(matches!(
+            resolve_standard_package_with_root_catalog(
+                StandardPackage::new(
+                    PackageIdentity::new("toolchain-std"),
+                    standard_only.0.join("std"),
+                    "0.0.0",
+                ),
+                PackageRootCatalog::new(SourceOverlay::empty()),
+                &mut DirectSourceSyntax,
+            ),
+            Err(PackageGraphError::PackageVersionMismatch { .. })
+        ));
     }
 
     #[test]

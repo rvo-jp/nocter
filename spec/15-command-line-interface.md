@@ -547,8 +547,9 @@ primitive func syscall0(number: u64): i64
 ## Version and Doctor
 
 `nocter --version` reports the compiler release, host, and default target. `nocter doctor` validates
-the active Nocter home, including `VERSION`, `MANIFEST.json`, the host/default-target relationship,
-and the standard-library directory. Neither command reads user source.
+the active Nocter home, including `VERSION`, the exact `MANIFEST.json` v2 schema, compiler digest,
+standard-library tree digest, and host/default-target relationship. Neither command reads user
+source.
 
 Both commands first select and physically validate the same Nocter home used by compilation. The
 installation host must equal the running compiler host. While cross compilation is unsupported,

@@ -111,7 +111,8 @@ Supporting boundary crates remain deliberately narrow:
 | syntax-owned target-gate decisions | [`nocter-target-selection`](../compiler/crates/nocter-target-selection/README.md) |
 | compile-time expression evaluation | [`nocter-constant-evaluation`](../compiler/crates/nocter-constant-evaluation/README.md) |
 | source-only formatting and inspection | [`nocter-source-tooling`](../compiler/crates/nocter-source-tooling/README.md) |
-| deterministic JSON and hashing | [`nocter-json`](../compiler/crates/nocter-json/README.md) and [`nocter-hash`](../compiler/crates/nocter-hash/README.md) |
+| deterministic JSON and byte-stream hashing | [`nocter-json`](../compiler/crates/nocter-json/README.md) and [`nocter-hash`](../compiler/crates/nocter-hash/README.md) |
+| physical file and regular-tree content identity | [`nocter-content-integrity`](../compiler/crates/nocter-content-integrity/README.md) |
 | outer process boundary | [`nocter-cli`](../compiler/crates/nocter-cli/README.md) |
 | shared test fixture construction | [`nocter-test-support`](../compiler/crates/nocter-test-support/README.md) |
 | whole-pipeline conformance tests | [`nocter-conformance`](../compiler/crates/nocter-conformance/README.md) |
@@ -139,6 +140,14 @@ cannot expose a partial exact package, and an interrupted installation cannot ex
 display names never replace canonical package identities. Workspace topology freezes a
 revision-local package-root catalog; package loading and discovery extend that catalog without
 reopening a root already selected from the same overlay.
+
+Physical content identity is a shared mechanism, not a package or installation authority.
+`nocter-content-integrity` defines one deterministic regular-tree projection. Package-cache sealing,
+installation validation, and release assembly select their roots and exclusions, then consume that
+projection. An installed manifest binds the compiler file and complete standard-library tree. The
+installation layer validates those bytes without parsing Nocter source; package resolution remains
+the sole owner of the standard package declaration and checks its declared name and version against
+the installation-selected release.
 
 ## Editor Generation Boundary
 

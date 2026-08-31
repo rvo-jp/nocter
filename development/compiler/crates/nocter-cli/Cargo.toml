@@ -21,5 +21,8 @@ nocter-language-server = { path = "../nocter-language-server" }
 nocter-package-acquisition = { path = "../nocter-package-acquisition" }
 nocter-source = { path = "../nocter-source" }
 
+[dev-dependencies]
+nocter-content-integrity = { path = "../nocter-content-integrity" }
+
 [lints]
 workspace = true

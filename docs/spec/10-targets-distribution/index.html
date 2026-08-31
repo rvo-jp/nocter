@@ -265,15 +265,17 @@ arm64-windows  reserved, not implemented
 </code></pre><p><code>VERSION</code> is a single UTF-8 text line containing the release version:</p><pre><code class="language-text">&lt;version&gt;
 </code></pre><p><code>MANIFEST.json</code> is structured metadata for tools:</p><pre><code class="language-json">{
   "schema": "nocter.manifest",
-  "schema_version": 1,
+  "schema_version": 2,
   "release": "&lt;version&gt;",
   "host": "arm64-darwin",
   "default_target": "arm64-darwin",
   "compiler": {
-    "path": "nocter"
+    "path": "nocter",
+    "sha256": "&lt;lowercase SHA-256&gt;"
   },
   "std": {
-    "path": "std"
+    "path": "std",
+    "tree_sha256": "&lt;lowercase SHA-256&gt;"
   },
   "license": {
     "id": "Apache-2.0",
@@ -295,10 +297,17 @@ arm64-windows  reserved, not implemented
 }
 </code></pre><p>Rules:</p><ul><li><code>VERSION</code>, <code>MANIFEST.json</code>, <code>LICENSE</code>, and <code>NOTICE</code> are required in a
   release archive.</li><li><code>VERSION</code> must match <code>MANIFEST.json</code>'s <code>release</code>.</li><li><code>MANIFEST.json.license.id</code> is <code>Apache-2.0</code>.</li><li><code>MANIFEST.json.license.path</code> and <code>MANIFEST.json.license.notice</code> are relative
-  to Nocter home.</li><li><code>MANIFEST.json.host</code> identifies the host that runs the bundled <code>nocter</code> binary.</li><li><code>MANIFEST.json.default_target</code> is the target used when <code>--target</code> is omitted.</li><li><code>MANIFEST.json.implemented_targets</code> lists implemented targets bundled with this Nocter home, not merely reserved target names.</li><li><code>compiler.path</code> is <code>nocter</code> and is relative to Nocter home.</li><li><code>std.path</code> is <code>std</code> and is relative to Nocter home.</li><li>v1 does not include a compiler checksum. Checksum metadata should be added only after the release pipeline and hash verification rules are designed.</li><li>A release <code>&lt;version&gt;</code> uses source tag <code>v&lt;version&gt;</code>.</li><li>Its ARM64 macOS asset is <code>nocter-v&lt;version&gt;-arm64-darwin.tar.gz</code>.</li></ul><h2 id="nocter-home-resolution">Nocter Home Resolution</h2><p><code>nocter</code> uses an explicit, deterministic Nocter home. It does not silently search unrelated directories.</p><p>Resolution order:</p><ol><li>1. If <code>NOCTER_HOME</code> is set, use it as the active Nocter home.</li><li>Otherwise, resolve the real path of the running <code>nocter</code> executable and use its parent directory.</li></ol><p>Rules:</p><ul><li><code>NOCTER_HOME</code> must point to a Nocter home directory, not to <code>std/</code>.</li><li>The executable path resolution should resolve symlinks when the host can provide the real executable path.</li><li><code>cwd/.nocter</code> is not searched automatically.</li><li><code>~/.nocter</code> is not searched automatically.</li><li>A symlink such as <code>/usr/local/bin/nocter -&gt; ~/.nocter/nocter</code> works naturally because the resolved real executable path still points inside Nocter home.</li><li>Copying <code>nocter</code> outside Nocter home is not a normal installation method. If executable-path resolution no longer points into Nocter home, the user must set <code>NOCTER_HOME</code>.</li><li>When <code>NOCTER_HOME</code> selects a directory other than the executable's parent, the running compiler
-  must have exactly the same contents as that home's <code>compiler.path</code>. This permits an unchanged
-  copied compiler while preventing one compiler release from consuming another release's standard
-  library and metadata.</li><li>The selected Nocter home must contain <code>VERSION</code>, <code>MANIFEST.json</code>, and <code>std/</code>.</li><li>The compiler should report a command-line or Nocter-home error if the selected home is missing required files.</li></ul><p>Future cross compilation adds target-gated standard-library primitive declarations and compiler backends to the installed Nocter home:</p><pre><code class="language-text">~/.nocter/
+  to Nocter home.</li><li><code>MANIFEST.json.host</code> identifies the host that runs the bundled <code>nocter</code> binary.</li><li><code>MANIFEST.json.default_target</code> is the target used when <code>--target</code> is omitted.</li><li><code>MANIFEST.json.implemented_targets</code> lists implemented targets bundled with this Nocter home, not merely reserved target names.</li><li><code>compiler.path</code> is <code>nocter</code> and is relative to Nocter home.</li><li><code>std.path</code> is <code>std</code> and is relative to Nocter home.</li><li><code>compiler.sha256</code> is SHA-256 over the exact bytes of <code>compiler.path</code>.</li><li><code>std.tree_sha256</code> binds the complete physical regular tree at <code>std.path</code>. The tree hash starts
+  with <code>nocter-regular-tree-v1</code> followed by a zero byte. Each directory is visited in ascending
+  UTF-8 name order. Every descendant contributes its kind (<code>D</code> or <code>F</code>), normalized <code>/</code>-separated
+  relative-path byte length as big-endian <code>u64</code>, relative UTF-8 path, and content length as
+  big-endian <code>u64</code>; directories use length zero and files then contribute their exact bytes.
+  Symlinks, special files, and non-Unicode paths are invalid.</li><li>A release <code>&lt;version&gt;</code> uses source tag <code>v&lt;version&gt;</code>.</li><li>Its ARM64 macOS asset is <code>nocter-v&lt;version&gt;-arm64-darwin.tar.gz</code>.</li></ul><h2 id="nocter-home-resolution">Nocter Home Resolution</h2><p><code>nocter</code> uses an explicit, deterministic Nocter home. It does not silently search unrelated directories.</p><p>Resolution order:</p><ol><li>1. If <code>NOCTER_HOME</code> is set, use it as the active Nocter home.</li><li>Otherwise, resolve the real path of the running <code>nocter</code> executable and use its parent directory.</li></ol><p>Rules:</p><ul><li><code>NOCTER_HOME</code> must point to a Nocter home directory, not to <code>std/</code>.</li><li>The executable path resolution should resolve symlinks when the host can provide the real executable path.</li><li><code>cwd/.nocter</code> is not searched automatically.</li><li><code>~/.nocter</code> is not searched automatically.</li><li>A symlink such as <code>/usr/local/bin/nocter -&gt; ~/.nocter/nocter</code> works naturally because the resolved real executable path still points inside Nocter home.</li><li>Copying <code>nocter</code> outside Nocter home is not a normal installation method. If executable-path resolution no longer points into Nocter home, the user must set <code>NOCTER_HOME</code>.</li><li>The running compiler digest must equal <code>compiler.sha256</code>, whether the executable is inside or
+  outside the selected home.</li><li>The selected home's compiler and standard-library tree must match their manifest digests before
+  the installation can supply a toolchain snapshot. A corrupted or partially updated home is
+  rejected before package or source analysis.</li><li>The selected standard package must declare package name <code>std</code> and the same release as
+  <code>MANIFEST.json</code>. Package resolution validates this source declaration without duplicating its
+  parser in the installation layer.</li><li>The selected Nocter home must contain <code>VERSION</code>, <code>MANIFEST.json</code>, and <code>std/</code>.</li><li>The compiler should report a command-line or Nocter-home error if the selected home is missing required files.</li></ul><p>Future cross compilation adds target-gated standard-library primitive declarations and compiler backends to the installed Nocter home:</p><pre><code class="language-text">~/.nocter/
     nocter
     VERSION
     MANIFEST.json

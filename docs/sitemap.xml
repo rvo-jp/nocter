@@ -61,6 +61,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/compiler/crates/nocter-content-integrity/</loc>
+    <lastmod>2026-08-31</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-declaration-lowering/</loc>
     <lastmod>2026-08-30</lastmod>
     <changefreq>weekly</changefreq>
@@ -170,7 +176,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-package-cache/</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-08-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -182,7 +188,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-package/</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-08-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -278,7 +284,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/docs/architecture/</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-08-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -908,6 +914,12 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/reviews/v0.24.0-explicit-value-subjects/</loc>
+    <lastmod>2026-08-31</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/reviews/v0.24.0-installation-image-identity/</loc>
     <lastmod>2026-08-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1934,7 +1946,7 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/15-command-line-interface/</loc>
-    <lastmod>2026-08-30</lastmod>
+    <lastmod>2026-08-31</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.18.0 Phase 0 Construction Review - Nocter</title>
-    <meta name="description" content="Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl">
+    <title>nocter-content-integrity - Nocter</title>
+    <meta name="description" content="Project physical files and regular directory trees into deterministic SHA-256 content identities.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.18.0-phase-0/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-content-integrity/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.18.0 Phase 0 Construction Review - Nocter">
-    <meta property="og:description" content="Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.18.0-phase-0/">
+    <meta property="og:title" content="nocter-content-integrity - Nocter">
+    <meta property="og:description" content="Project physical files and regular directory trees into deterministic SHA-256 content identities.">
+    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-content-integrity/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-25">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.18.0 Phase 0 Construction Review - Nocter">
-    <meta name="twitter:description" content="Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl">
+    <meta name="twitter:title" content="nocter-content-integrity - Nocter">
+    <meta name="twitter:description" content="Project physical files and regular directory trees into deterministic SHA-256 content identities.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.18.0 Phase 0 Construction Review - Nocter","description":"Result: passed (2026-08-25). This review covers the breaking removal of construction default, structural-construction independence, and nominal-hover simpl","url":"https://nocter.dev/development/reviews/v0.18.0-phase-0/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.18.0-phase-0/","dateModified":"2026-08-25","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.18.0 Phase 0","item":"https://nocter.dev/development/reviews/v0.18.0-phase-0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-content-integrity - Nocter","description":"Project physical files and regular directory trees into deterministic SHA-256 content identities.","url":"https://nocter.dev/development/compiler/crates/nocter-content-integrity/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-content-integrity/","dateModified":"2026-08-31","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Content Integrity","item":"https://nocter.dev/development/compiler/crates/nocter-content-integrity/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../../../style.css">
 </head>
-<body class="has-directory-toc">
+<body>
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -174,58 +174,15 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/reviews/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 installation image identity review</a></li>
-                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
-                <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
-                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
-                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 decimal authority review</a></li>
-                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
-                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
-                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
-                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
-                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
-                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
-                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 practical qualification review</a></li>
-                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 iteration and Set review</a></li>
-                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 private-table and Map review</a></li>
-                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 hash-foundation review</a></li>
-                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review</a></li>
-                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
-                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
-                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
-                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
-                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
-                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
-                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
-                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
-                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
-                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.18.0 Phase 0 construction review</a></li>
-                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
-                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
-                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
-                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
-                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
-                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
-                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
-                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
-            </ul>
-        </aside>
+        <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.18.0-phase-0.md</span>
+                <span class="markdown-path-text">/development/compiler/crates/nocter-content-integrity/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-18-0-phase-0-construction-review">v0.18.0 Phase 0 Construction Review</h1><p><strong>Result: passed (2026-08-25).</strong> This review covers the breaking removal of construction <code>default</code>, structural-construction independence, and nominal-hover simplification. It evaluates the completed working tree rather than the published v0.17.0 tag.</p><h2 id="review-criteria">Review Criteria</h2><p>The review searched for:</p><ul><li>superseded syntax, semantic fields, diagnostics, presentation branches, and standard-library
-  spellings;</li><li>wrappers, indexes, and public APIs retained only for the removed default-member state;</li><li>repeated visibility, construction-entry, or declaration-member decisions;</li><li>analysis or presentation code reinterpreting checking internals;</li><li>multiple authorities for representation opacity, structural construction, or hover shape;</li><li>dependencies that require one responsibility to know another responsibility's private storage.</li></ul><p>Historical release notes and completed milestone records remain unchanged because they describe the language that was published at their tags. They are not compatibility inputs to the active parser.</p><h2 id="findings-and-remediation">Findings and Remediation</h2><h3 id="removed-default-member-authority">Removed default-member authority</h3><p>The syntax parser, declaration model, definition lowering, graph validation, checking surface, canonical renderer, diagnostics, tests, standard library, and current documentation retained parts of the old feature. Phase 0 removed the state rather than setting it to <code>None</code>: there is no construction-default field, selected-default index, duplicate-default rule, <code>E0314</code> projection, public-presentation surface, or construction-only contextual-word scanner.</p><h3 id="structural-completion-repeated-the-same-decision">Structural completion repeated the same decision</h3><p>Structural-field completion first selected the complete construction surface and then fetched the same structural fields again. <code>ConstructionSurfaceTable::accessible_structural_fields</code> now owns the single complete decision. The lower-level <code>representation_fields</code> query remains separate because body checking must diagnose an inaccessible named field rather than collapse it into a generic invalid-construction result.</p><h3 id="hover-reconstructed-a-weaker-visibility-rule">Hover reconstructed a weaker visibility rule</h3><p>The first nominal-hover implementation checked public module visibility directly and could diverge from direct-source visibility used by checking. <code>SourceAccessContext</code> now exposes the exact checking-owned declaration-site and representation queries. Analysis receives that read-only contract from <code>CheckedProgram</code>; the raw <code>SourceAccessTable</code> and construction-surface table are not public analysis APIs. Construction selection no longer stores a second opaque-representation bit.</p><h3 id="the-semantic-graph-admitted-an-empty-construct">The semantic graph admitted an empty construct</h3><p>The parser rejected an empty construct, but freeze-time graph validation still accepted an empty <code>ConstructionDeclaration</code>. The immutable graph now rejects that shape as an integrity failure. A dedicated graph test protects the boundary, and the duplicate-construction test now uses real construction members rather than relying on the invalid empty shape.</p><h3 id="hover-looked-up-each-nominal-member-twice">Hover looked up each nominal member twice</h3><p>Nominal hover first checked field or variant visibility and then repeated the declaration lookup while rendering. It now retains the validated declarations for the rendering pass. This preserves the all-or-header rule without a second graph traversal.</p><h2 id="final-boundary-assessment">Final Boundary Assessment</h2><ul><li><code>spec/</code> is the only owner of observable construction and hover behavior.</li><li>syntax owns recognition and the nonempty construct shape; it retains no compatibility parse.</li><li>declarations own construction identity and graph integrity, but no primary-entry concept.</li><li>checking owns derived construction indexes and exact source visibility. Its public editor contract
-  exposes decisions, not tables.</li><li>analysis owns canonical text rendering and consumes only declaration identities plus the
-  checking-owned visibility contract. It does not consume a checking construction view for type
-  hover.</li><li>the language server converts ranges and protocol values; it does not select construction or
-  representation policy.</li><li>standard-library source uses the same ordinary construct syntax as user packages.</li></ul><p>No unresolved responsibility leak, duplicate authority, compatibility branch, or feature-specific wrapper was found in the completed Phase 0 scope.</p><h2 id="verification">Verification</h2><p>The completed tree passed:</p><ul><li><code>cargo test --workspace --quiet</code> using an external target directory;</li><li><code>cargo clippy --workspace --all-targets -- -D warnings</code> using the same external target;</li><li><code>cargo fmt --all --check</code>;</li><li><code>node docs/build-docs.js</code>;</li><li>active-source searches for removed semantic and diagnostic identities;</li><li><code>git diff --check</code>.</li></ul>
+                <h1 id="nocter-content-integrity">nocter-content-integrity</h1><h2 id="responsibility">Responsibility</h2><p>Project physical files and regular directory trees into deterministic SHA-256 content identities.</p><h2 id="contract">Contract</h2><p>Consumers select an exact physical root and an explicit root-entry policy. The crate rejects symlinks, special entries, non-Unicode relative paths, and files that change length while being read. It publishes a typed digest; it does not assign package, installation, or release meaning.</p><p>The companion binary exposes the same library operations to release packaging. It contains no second hashing implementation.</p><h2 id="invariants">Invariants</h2><ul><li>A regular file digest is SHA-256 over its exact bytes.</li><li>A tree digest includes normalized relative paths, entry kinds, file lengths, and file bytes in
+  deterministic order.</li><li>Excluded entries are explicit root entries; descendants and pattern-based exclusions do not
+  exist.</li><li>Package cache, installation validation, and packaging consume this one physical-content model.</li></ul>
             </div>
         </main>
     </div>
@@ -241,6 +198,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../../../script.js" defer></script>
 </body>
 </html>

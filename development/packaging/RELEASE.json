@@ -1,15 +1,8 @@
 {
-  "schema": "nocter.manifest",
+  "schema": "nocter.release",
   "schema_version": 1,
-  "release": "0.22.0",
   "host": "arm64-darwin",
   "default_target": "arm64-darwin",
-  "compiler": {
-    "path": "nocter"
-  },
-  "std": {
-    "path": "std"
-  },
   "license": {
     "id": "Apache-2.0",
     "path": "LICENSE",
@@ -24,7 +17,6 @@
     }
   ],
   "archive": {
-    "name": "nocter-v0.22.0-arm64-darwin.tar.gz",
     "root": ".nocter"
   }
 }

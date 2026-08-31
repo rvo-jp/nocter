@@ -11,6 +11,9 @@ complete. The exact source, artifact, publication, and public re-download eviden
 The active compiler is under `development/compiler/`. The v0.24.0 explicit-value-subject migration
 is complete and reviewed: selected imports are type-only, external functions and constants retain
 a module subject, namespace aliases are first-class, and constants require `UPPER_SNAKE_CASE`.
+Installation image stabilization is also complete: manifest v2 binds the compiler file and complete
+standard-library tree, the running compiler must match that identity, and package resolution checks
+that the selected standard package declares the installation release.
 Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 milestone, release, and review records rather than this handoff.
@@ -22,7 +25,8 @@ that every workspace member carries the required README contract sections.
 ## Next Work
 
 Prepare the qualified [v0.24.0](milestones/v0.24.0.md) candidate for release only when publication
-is requested.
+is requested. Do not publish from the v0.22.0 packaging identity until release preparation updates
+the versioned source, standard package, release descriptor, and public documentation together.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand
