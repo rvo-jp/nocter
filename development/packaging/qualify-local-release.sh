@@ -12,6 +12,16 @@ if [[ -n "$(git -C "$repository_root" status --porcelain --untracked-files=all)"
   exit 1
 fi
 
+release_tag="v$version"
+if tagged_commit="$(git -C "$repository_root" rev-parse --verify "$release_tag^{commit}" 2>/dev/null)"; then
+  current_commit="$(git -C "$repository_root" rev-parse HEAD)"
+  if [[ "$tagged_commit" != "$current_commit" ]]; then
+    echo "release $version is already fixed at $release_tag ($tagged_commit)" >&2
+    echo "refusing to qualify the same release identity from $current_commit" >&2
+    exit 1
+  fi
+fi
+
 temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/nocter-qualification.XXXXXX")"
 cleanup() {
   rm -rf -- "$temporary_root"

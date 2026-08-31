@@ -9,7 +9,8 @@ local release candidate.
   copies only tracked standard-library files, normalizes archive metadata, and atomically writes
   one host archive. The temporary target is removed on exit.
 - `qualify-local-release.sh` requires a clean release-content commit, creates the archive twice,
-  compares both compressed archives and extracted homes, and exercises the installed compiler.
+  refuses to reuse a version already tagged at another commit, creates the archive twice, compares
+  both compressed archives and extracted homes, and exercises the installed compiler.
 - `verify-lsp.js` owns the framed installed-LSP lifecycle check used by qualification.
 
 From the repository root, create and qualify the candidate with:

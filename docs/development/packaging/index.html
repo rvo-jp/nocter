@@ -18,14 +18,14 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-24">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Release Packaging Inputs - Nocter">
     <meta name="twitter:description" content="This directory owns the metadata, assembly, and installed-artifact qualification boundary for a local release candidate.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Release Packaging Inputs - Nocter","description":"This directory owns the metadata, assembly, and installed-artifact qualification boundary for a local release candidate.","url":"https://nocter.dev/development/packaging/","mainEntityOfPage":"https://nocter.dev/development/packaging/","dateModified":"2026-08-24","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Packaging","item":"https://nocter.dev/development/packaging/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Release Packaging Inputs - Nocter","description":"This directory owns the metadata, assembly, and installed-artifact qualification boundary for a local release candidate.","url":"https://nocter.dev/development/packaging/","mainEntityOfPage":"https://nocter.dev/development/packaging/","dateModified":"2026-08-31","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Packaging","item":"https://nocter.dev/development/packaging/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -183,7 +183,8 @@
                 <h1 id="release-packaging-inputs">Release Packaging Inputs</h1><p>This directory owns the metadata, assembly, and installed-artifact qualification boundary for a local release candidate.</p><ul><li><code>VERSION</code> and <code>MANIFEST.json</code> are the release-identity inputs.</li><li><code>validate-manifest.js</code> enforces the exact v1 metadata schema and agreement with <code>VERSION</code>.</li><li><code>package-local-release.sh</code> builds the optimized compiler in a fresh temporary Cargo target,
   copies only tracked standard-library files, normalizes archive metadata, and atomically writes
   one host archive. The temporary target is removed on exit.</li><li><code>qualify-local-release.sh</code> requires a clean release-content commit, creates the archive twice,
-  compares both compressed archives and extracted homes, and exercises the installed compiler.</li><li><code>verify-lsp.js</code> owns the framed installed-LSP lifecycle check used by qualification.</li></ul><p>From the repository root, create and qualify the candidate with:</p><pre><code class="language-sh"><span class="token-function">development</span>/packaging/qualify-local-release.sh
+  refuses to reuse a version already tagged at another commit, creates the archive twice, compares
+  both compressed archives and extracted homes, and exercises the installed compiler.</li><li><code>verify-lsp.js</code> owns the framed installed-LSP lifecycle check used by qualification.</li></ul><p>From the repository root, create and qualify the candidate with:</p><pre><code class="language-sh"><span class="token-function">development</span>/packaging/qualify-local-release.sh
 </code></pre><p>Qualification covers version, installation diagnosis, help, package initialization, locked and offline checking, native tests, deterministic JSON graphs, native run and build, direct execution, and LSP analysis of installed standard-library contract and implementation sources. It also proves that these commands do not mutate the installed home. Only after every check passes does it replace the generated candidate outputs in <code>dist/</code>.</p><p>Generated repository-root <code>dist/.nocter/</code>, <code>dist/SHA256SUMS</code>, and <code>dist/nocter-v&lt;version&gt;-arm64-darwin.tar.gz</code> outputs are not committed to git. Packaging and qualification do not tag, push, upload, or publish anything.</p>
             </div>
         </main>
