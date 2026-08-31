@@ -4,7 +4,7 @@ see ./index.nct
 
 use /fmt.{try_append_i32, try_append_u8, try_append_usize}
 use /mem.TryAllocator
-use /internal/mem.{allocation_abort, checked_add, checked_multiply}
+use /internal/mem.allocation_abort
 use /string.String
 
 primitive func u8_truncate_raw(value: u64): u8
@@ -40,62 +40,6 @@ instance u64 {
     method self.rotate_right(amount: u64): u64 {
         return u64_rotate_right_raw(self, amount)
     }
-}
-
-func parse_usize(text: &str): usize? {
-    let raw = text.bytes()
-    if raw.len() == 0 { return none }
-    var value: usize = 0
-    var offset: usize = 0
-    while offset < raw.len() {
-        let byte: u8 = raw[offset]
-        if byte < 48 || byte > 57 { return none }
-        let digit: usize = (byte - 48) as usize
-        let scaled: usize = checked_multiply(value, 10) otherwise { return none }
-        value = checked_add(scaled, digit) otherwise { return none }
-        offset += 1
-    }
-    return value
-}
-
-func parse_u8(text: &str): u8? {
-    let raw = text.bytes()
-    if raw.len() == 0 { return none }
-    var value: u8 = 0
-    var offset: usize = 0
-    while offset < raw.len() {
-        let byte: u8 = raw[offset]
-        if byte < 48 || byte > 57 { return none }
-        let digit: u8 = byte - 48
-        if value > (255 - digit) / 10 { return none }
-        value = value * 10 + digit
-        offset += 1
-    }
-    return value
-}
-
-func parse_i32(text: &str): i32? {
-    let raw = text.bytes()
-    if raw.len() == 0 { return none }
-    var offset: usize = 0
-    var negative: bool = false
-    if raw[0] == 45 {
-        negative = true
-        offset = 1
-        if offset == raw.len() { return none }
-    }
-    var value: i32 = 0
-    while offset < raw.len() {
-        let byte: u8 = raw[offset]
-        if byte < 48 || byte > 57 { return none }
-        let digit: i32 = (byte - 48) as i32
-        if value < (-2147483648 + digit) / 10 { return none }
-        value = value * 10 - digit
-        offset += 1
-    }
-    if negative { return value }
-    if value == -2147483648 { return none }
-    return 0 - value
 }
 
 func usize_to_string(value: usize): String {

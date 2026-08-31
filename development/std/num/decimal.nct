@@ -1,0 +1,143 @@
+//! One-pass decimal parsing and exact narrow-destination publication.
+
+see ./index.nct
+
+primitive func u16_truncate_raw(value: u64): u16
+primitive func u32_truncate_raw(value: u64): u32
+primitive func i8_truncate_raw(value: i64): i8
+primitive func i16_truncate_raw(value: i64): i16
+primitive func i32_truncate_raw(value: i64): i32
+
+func parse_unsigned_decimal(text: &str): u64? {
+    let raw = text.bytes()
+    if raw.len() == 0 { return none }
+
+    var value: u64 = 0
+    var offset: usize = 0
+    while offset < raw.len() {
+        let byte = raw[offset]
+        if byte < 48 || byte > 57 { return none }
+        let digit = (byte - 48) as u64
+        if value > (18446744073709551615 - digit) / 10 { return none }
+        value = value * 10 + digit
+        offset += 1
+    }
+    return value
+}
+
+func parse_signed_decimal(text: &str): i64? {
+    let raw = text.bytes()
+    if raw.len() == 0 { return none }
+
+    var offset: usize = 0
+    var negative = false
+    if raw[0] == 45 {
+        negative = true
+        offset = 1
+        if offset == raw.len() { return none }
+    }
+
+    var negative_value: i64 = 0
+    while offset < raw.len() {
+        let byte = raw[offset]
+        if byte < 48 || byte > 57 { return none }
+        let digit = (byte - 48) as i64
+        if negative_value < (-9223372036854775808 + digit) / 10 { return none }
+        negative_value = negative_value * 10 - digit
+        offset += 1
+    }
+
+    if negative { return negative_value }
+    if negative_value == -9223372036854775808 { return none }
+    return 0 - negative_value
+}
+
+func narrow_u16(value: u64): u16? {
+    if value > 65535 { return none }
+    return u16_truncate_raw(value)
+}
+
+func narrow_u32(value: u64): u32? {
+    if value > 4294967295 { return none }
+    return u32_truncate_raw(value)
+}
+
+func narrow_i8(value: i64): i8? {
+    if value < -128 || value > 127 { return none }
+    return i8_truncate_raw(value)
+}
+
+func narrow_i16(value: i64): i16? {
+    if value < -32768 || value > 32767 { return none }
+    return i16_truncate_raw(value)
+}
+
+func narrow_i32(value: i64): i32? {
+    if value < -2147483648 || value > 2147483647 { return none }
+    return i32_truncate_raw(value)
+}
+
+func parse_usize(text: &str): usize? {
+    let value = parse_unsigned_decimal(text) otherwise { return none }
+    return value as usize
+}
+
+func parse_u8(text: &str): u8? {
+    let value = parse_unsigned_decimal(text) otherwise { return none }
+    return u8.checked(value)
+}
+
+func parse_i32(text: &str): i32? {
+    let value = parse_signed_decimal(text) otherwise { return none }
+    return narrow_i32(value)
+}
+
+test shared_decimal_parsers_cover_full_width_boundaries {
+    let unsigned = parse_unsigned_decimal("18446744073709551615") otherwise {
+        return error.new("std.num.unsigned", "u64 maximum was rejected")
+    }
+    if unsigned != 18446744073709551615 {
+        return error.new("std.num.unsigned", "u64 maximum changed")
+    }
+    let _unsigned_overflow = parse_unsigned_decimal("18446744073709551616") otherwise {
+        let signed_minimum = parse_signed_decimal("-9223372036854775808") otherwise {
+            return error.new("std.num.signed", "i64 minimum was rejected")
+        }
+        if signed_minimum != -9223372036854775808 {
+            return error.new("std.num.signed", "i64 minimum changed")
+        }
+        let _signed_overflow = parse_signed_decimal("9223372036854775808") otherwise { return }
+        return error.new("std.num.signed", "i64 overflow was accepted")
+    }
+    return error.new("std.num.unsigned", "u64 overflow was accepted")
+}
+
+test narrow_decimal_results_publish_only_representable_values {
+    let small_signed = narrow_i8(-128) otherwise {
+        return error.new("std.num.narrow", "i8 minimum was rejected")
+    }
+    let small_unsigned = narrow_u16(65535) otherwise {
+        return error.new("std.num.narrow", "u16 maximum was rejected")
+    }
+    let medium_signed = narrow_i16(-32768) otherwise {
+        return error.new("std.num.narrow", "i16 minimum was rejected")
+    }
+    let medium_unsigned = narrow_u32(4294967295) otherwise {
+        return error.new("std.num.narrow", "u32 maximum was rejected")
+    }
+    if small_signed != -128 { return error.new("std.num.narrow", "i8 result changed") }
+    if small_unsigned != 65535 {
+        return error.new("std.num.narrow", "u16 result changed")
+    }
+    if medium_signed != -32768 {
+        return error.new("std.num.narrow", "i16 result changed")
+    }
+    if medium_unsigned != 4294967295 {
+        return error.new("std.num.narrow", "narrow result changed")
+    }
+    let _too_signed = narrow_i8(128) otherwise {
+        let _too_unsigned = narrow_u16(65536) otherwise { return }
+        return error.new("std.num.narrow", "u16 overflow was accepted")
+    }
+    return error.new("std.num.narrow", "i8 overflow was accepted")
+}

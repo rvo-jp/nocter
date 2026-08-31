@@ -95,6 +95,11 @@ pub fn primitive_source_location(
         Role::StringLength => (&["str"], "str_len_raw"),
         Role::StringPointerAddress => (&["str"], "str_ptr_addr_raw"),
         Role::U8Truncate => (&["num"], "u8_truncate_raw"),
+        Role::U16Truncate => (&["num"], "u16_truncate_raw"),
+        Role::U32Truncate => (&["num"], "u32_truncate_raw"),
+        Role::I8Truncate => (&["num"], "i8_truncate_raw"),
+        Role::I16Truncate => (&["num"], "i16_truncate_raw"),
+        Role::I32Truncate => (&["num"], "i32_truncate_raw"),
         Role::U64WrappingAdd => (&["num"], "u64_wrapping_add_raw"),
         Role::U64WrappingMultiply => (&["num"], "u64_wrapping_mul_raw"),
         Role::U64BitwiseXor => (&["num"], "u64_bit_xor_raw"),
@@ -258,6 +263,11 @@ pub primitive type u64
 pub primitive type usize
 pub primitive type isize
 primitive func u8_truncate_raw(value: u64): u8
+primitive func u16_truncate_raw(value: u64): u16
+primitive func u32_truncate_raw(value: u64): u32
+primitive func i8_truncate_raw(value: i64): i8
+primitive func i16_truncate_raw(value: i64): i16
+primitive func i32_truncate_raw(value: i64): i32
 primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
 primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
 primitive func u64_bit_xor_raw(left: u64, right: u64): u64

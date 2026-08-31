@@ -3,29 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.20.0 Phase 2 Unified Query Entry Review - Nocter</title>
-    <meta name="description" content="Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an">
+    <title>v0.23.0 Phase 1 Decimal Authority Review - Nocter</title>
+    <meta name="description" content="Status: complete (2026-08-31). This review covers the shared parsing and private narrowing foundation. Public type-owned declarations remain Phase 2 work.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.20.0-phase-2/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.23.0-phase-1/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.20.0 Phase 2 Unified Query Entry Review - Nocter">
-    <meta property="og:description" content="Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.20.0-phase-2/">
+    <meta property="og:title" content="v0.23.0 Phase 1 Decimal Authority Review - Nocter">
+    <meta property="og:description" content="Status: complete (2026-08-31). This review covers the shared parsing and private narrowing foundation. Public type-owned declarations remain Phase 2 work.">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.23.0-phase-1/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-29">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.20.0 Phase 2 Unified Query Entry Review - Nocter">
-    <meta name="twitter:description" content="Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an">
+    <meta name="twitter:title" content="v0.23.0 Phase 1 Decimal Authority Review - Nocter">
+    <meta name="twitter:description" content="Status: complete (2026-08-31). This review covers the shared parsing and private narrowing foundation. Public type-owned declarations remain Phase 2 work.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.20.0 Phase 2 Unified Query Entry Review - Nocter","description":"Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime an","url":"https://nocter.dev/development/reviews/v0.20.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.20.0-phase-2/","dateModified":"2026-08-29","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.20.0 Phase 2","item":"https://nocter.dev/development/reviews/v0.20.0-phase-2/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.23.0 Phase 1 Decimal Authority Review - Nocter","description":"Status: complete (2026-08-31). This review covers the shared parsing and private narrowing foundation. Public type-owned declarations remain Phase 2 work.","url":"https://nocter.dev/development/reviews/v0.23.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.23.0-phase-1/","dateModified":"2026-08-31","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.23.0 Phase 1","item":"https://nocter.dev/development/reviews/v0.23.0-phase-1/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -123,7 +123,7 @@
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 decimal authority review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.23.0 Phase 1 decimal authority review</a></li>
                 <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
                 <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
                 <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
@@ -137,7 +137,7 @@
                 <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review</a></li>
                 <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
                 <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.20.0 Phase 2 unified query entry review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
                 <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
                 <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
                 <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
@@ -158,37 +158,21 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.20.0-phase-2.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.23.0-phase-1.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-20-0-phase-2-unified-query-entry-review">v0.20.0 Phase 2 Unified Query Entry Review</h1><h2 id="result">Result</h2><p>Phase 2 is complete. No correctness or architecture blocker remains in the reviewed scope. CLI and workspace analysis now differ in computation lifetime and presentation policy, not source parser, semantic scheduler, recovery traversal, or session transition.</p><p>The phase was reopened after the first review found enforcement gaps. The final design rejects foreign and stale source revisions, routes every production package-root probe through the computed provider, prevents session from depending on semantic query execution, and keeps executable identity inseparable from the target program that declared it.</p><p>A final repository-wide follow-up also closed three structural gaps: semantic publication and query demand now share one private owner, inactive revision-derived computation storage is bounded, and direct parse/package convenience entries no longer exist in production APIs.</p><p>A later whole-repository audit corrected an over-broad package-state contract. Exact-package publication is now modeled explicitly as cache warming rather than as part of the root-source transaction. The distinction matches the persisted authority: only an authored root <code>#lock</code> can select a cached package.</p><h2 id="reviewed-flow">Reviewed Flow</h2><p>The accepted flow is:</p><pre><code class="language-text">command policy ----------------&gt; ephemeral CompilerComputation
-workspace revision policy -----&gt; persistent CompilerComputation
-                                           |
-                     computed source syntax provider
-                                           |
-                         discovery + semantic publication
-                                           |
-                              closed UnitAnalysisProduct
-                                           |
-                         session outcome/target translation
-                                           |
-                              optional native lowering
-</code></pre><p><code>CompilerComputation</code> hides the raw database and exposes source revision publication, one syntax provider, one closed unit-analysis demand, and instrumentation. Neither command nor workspace code can demand a declaration, preparation, body, or finalization query directly. Session cannot invoke those stages; it can only translate the variants already selected by <code>UnitAnalysisProduct</code>.</p><h2 id="findings-closed-during-review">Findings Closed During Review</h2><h3 id="parse-goal-identity-was-lost-at-a-shared-physical-path">Parse-goal identity was lost at a shared physical path</h3><p>Discovery previously reused an existing syntax tree whenever a module root path was already in the package graph. The existing tree represented package-declaration parsing, while semantic body inputs required source-file parsing. A generated-lock package test exposed the mismatch as a missing body input. Discovery now requests <code>ParseGoal::SourceFile</code> for every module source even when the physical source already has another parse product. Path identity no longer substitutes for parse-product identity.</p><h3 id="package-state-returned-a-pre-commit-source-snapshot">Package state returned a pre-commit source snapshot</h3><p>A generated lock was committed after the transaction had selected the graph it returned. The computed provider correctly rejected that graph because its retained root bytes differed from the filesystem bytes after commit. Package-state transactions now revalidate through the injected read-only resolver after committing generated lock source and return only that post-commit graph. Commands inject their ephemeral compiler computation as the resolver, so package parsing and later discovery share one source/query authority.</p><h3 id="native-and-session-layers-could-reopen-semantic-compilation">Native and session layers could reopen semantic compilation</h3><p>Executable, native-image-set, and native-test requests previously carried <code>DiscoveredUnit</code> and called session compilation internally. They now own <code>CompiledTarget</code>. The eager session semantic pipeline and public direct analysis/compilation entries were deleted, including forwarding paths.</p><h3 id="command-target-conversion-could-narrow-a-closed-diagnostic-result">Command target conversion could narrow a closed diagnostic result</h3><p>The first query-backed command adapter converted a failed <code>AnalyzedUnit</code> into only its primary <code>CompileSessionError</code>, then rebuilt a command failure from that error. Recovery diagnostics already selected by the query could therefore be discarded. Target conversion now returns a closed session failure envelope containing the primary error, exact source snapshot, and complete diagnostic set. Command presentation consumes that envelope without reconstructing semantic diagnostics.</p><h3 id="semantic-publication-relied-on-a-correctly-behaving-caller">Semantic publication relied on a correctly behaving caller</h3><p>Module-surface fingerprints, body publications, and discovered units could previously be assembled through public functions in a separate query crate. The current owner happened to pair them correctly, but the type boundary did not enforce that fact. Semantic input construction and final demand now live in a private <code>nocter-compiler-computation</code> subsystem. A caller can submit only an owner-bound discovered unit; it cannot manufacture or reorder semantic inputs.</p><h3 id="persistent-workspace-computation-retained-every-historical-key">Persistent workspace computation retained every historical key</h3><p>The computation database had no inactive-entry policy and retained old overlay bytes, semantic scopes, body inputs, and query products for the lifetime of the language server. Inputs now declare persistent or revision-derived retention. Compiler computation retains 32 accepted source revisions and collects older revision-derived dependency closures while preserving independent persistent roots. The unused <code>changed_at</code> state was removed; fingerprints and verified revisions remain the sole invalidation facts.</p><h3 id="lower-layers-exposed-direct-production-parser-and-resolver-entries">Lower layers exposed direct production parser and resolver entries</h3><p>Discovery and package-state exposed convenience functions that constructed a direct parser, so a future production caller could bypass the shared source query authority. Production APIs now require an injected syntax or package-resolution provider. Direct parsing remains only in tests.</p><h3 id="exact-package-cache-publication-was-described-as-transactional-state">Exact-package cache publication was described as transactional state</h3><p>The package-state owner published validated exact packages before its final root-source compare-and-replace, but its documentation promised that any later failure exposed no persistent state. Rolling back published cache entries would be unsafe under concurrent readers and unnecessary because those entries carry no selection authority. Cache publication now has a dedicated owner and result type, while root lock-source commit remains the failure-atomic transition. A regression test proves that a concurrent root edit can reject the lock transition, leave the root source unchanged, and retain only the complete immutable exact package.</p><h2 id="boundary-audit">Boundary Audit</h2><ul><li>There is one production source-text/parse query implementation and one raw database owner.</li><li>Syntax-provider access and semantic analysis both require the same owner-bound current source
-  token. Internal semantic publication cannot invalidate that source identity.</li><li>There is one complete-versus-incomplete unit query and one public session consumer.</li><li>Discovery owns physical topology and exact parse-goal binding; it does not schedule semantics.</li><li>Session depends only on <code>nocter-semantic-product</code>, owns target/runtime validation and
-  recovery-capability projection, and cannot schedule compiler stages.</li><li>Session owns the complete source-and-diagnostic failure envelope; command presentation cannot
-  reduce it to a primary diagnostic and rebuild it.</li><li>Native layers receive executable programs already closed with their declaring target owner; they
-  cannot pair an identity from one target program with another or observe source discovery.</li><li>Package-state mutation accepts an injected read-only resolver and cannot return a snapshot older
-  than its own commit. Its filesystem revision advances only after an exact-cache visibility
-  transition or root source commit, not after an overlay-only resolver retry.</li><li>Exact-package cache publication is append-only and separate from root dependency selection. A
-  cached identity cannot enter a graph without the root's authored <code>#lock</code> authority.</li><li>Command and workspace crates depend on <code>nocter-compiler-computation</code> but not directly on semantic
-  computation or declaration lowering.</li><li>Semantic input types and intermediate query entries are private to their owner; correct pairing is
-  not a caller obligation.</li><li>Query and revision-derived input storage is bounded by an owner-selected retained source window.</li></ul><h2 id="evidence">Evidence</h2><ul><li>One-shot command instrumentation executes source text, parse, declaration surface, module
-  surface, declaration, preparation, body-name, typed-body, finalization, complete-analysis, and
-  unit-analysis query families through the shared owner.</li><li>Existing workspace instrumentation continues to prove parsing and semantic reuse across accepted
-  revisions and equality between warmed and fresh analysis results.</li><li>Command acquisition tests cover post-lock source authority, command tests cover diagnostics and
-  native output, and native-session tests cover complete and incomplete semantic outcomes through
-  the query entry.</li><li>Architecture tests freeze the shared dependency entry. Rust dependency visibility, rather than a
-  source-text scan, prevents session from naming semantic-stage calls.</li></ul><p>The complete workspace test suite, warnings-denied all-target Clippy, formatting, documentation generation, and repository integrity gates passed on 2026-08-30.</p>
+                <h1 id="v0-23-0-phase-1-decimal-authority-review">v0.23.0 Phase 1 Decimal Authority Review</h1><p><strong>Status: complete (2026-08-31).</strong> This review covers the shared parsing and private narrowing foundation. Public type-owned declarations remain Phase 2 work.</p><h2 id="authority-and-dependency-findings">Authority and Dependency Findings</h2><ul><li><code>std/num/decimal.nct</code> owns the only general decimal input scans: one unsigned <code>u64</code> accumulator
+  and one negative <code>i64</code> accumulator. Destination publication performs range checks only and never
+  reads the source text again.</li><li><code>std/fmt/formatting.nct</code> remains the only decimal output algorithm. <code>std/num</code> calls its append
+  contracts; <code>std/fmt</code> does not import <code>std/num</code>, so no dependency cycle or reverse callback exists.</li><li>Narrowing is not expressed as a generic unchecked function. Each private primitive has one exact
+  source and result type, and the compiler's closed runtime-role registry, target-program contract,
+  session profile, and ARM64 ABI selector agree on that identity.</li><li>ARM64 narrowing emits no second computation: after the source range check, the one-word argument
+  and result intentionally share the ABI result register. The declared destination type owns later
+  width interpretation.</li></ul><h2 id="failure-and-boundary-findings">Failure and Boundary Findings</h2><p>The unsigned accumulator admits <code>u64::MAX</code> and rejects the adjacent decimal value before multiply or addition can overflow. The signed accumulator retains a negative value throughout the scan, so <code>i64::MIN</code> is representable without constructing its positive magnitude. Positive <code>i64::MAX</code>, the adjacent positive overflow, narrow signed minima, and narrow unsigned maxima cross native tests.</p><p>Invalid syntax and overflow remain <code>none</code>; no parser allocation or built-in error construction was introduced. The private primitives are source-private, target-independent numeric roles rather than target syscalls.</p><h2 id="qualification">Qualification</h2><ul><li>Rust formatting passed.</li><li><code>nocter-runtime-contract</code>, <code>nocter-target-program</code>, <code>nocter-session</code>, <code>nocter-arm64</code>, and
+  <code>nocter-discovery</code> tests passed: 96 tests total, zero failures.</li><li>The dedicated native standard numeric target compiled and executed all three current <code>std/num</code>
+  tests.</li><li>The separated Unicode/JSON native target retained 19 passing cases after numeric tests moved to
+  their own target.</li><li>A current debug compiler with an isolated home containing the authored standard library checked
+  <code>examples/hello.nct</code> successfully.</li></ul><p>No legacy free function was removed in Phase 1, and no compatibility API was added. Phase 2 can replace the declarations while retaining this parsing and output authority unchanged.</p>
             </div>
         </main>
     </div>

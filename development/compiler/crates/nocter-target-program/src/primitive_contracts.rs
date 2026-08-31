@@ -417,8 +417,13 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let void = || builtin(BuiltinType::Void);
     let never = || builtin(BuiltinType::Never);
     let usize = || builtin(BuiltinType::Usize);
+    let i8 = || builtin(BuiltinType::I8);
+    let i16 = || builtin(BuiltinType::I16);
     let i32 = || builtin(BuiltinType::I32);
+    let i64 = || builtin(BuiltinType::I64);
     let u8 = || builtin(BuiltinType::U8);
+    let u16 = || builtin(BuiltinType::U16);
+    let u32 = || builtin(BuiltinType::U32);
     let u64 = || builtin(BuiltinType::U64);
     let str_ref = || TypeContract::readonly(builtin(BuiltinType::Str));
     let byte_pointer = || TypeContract::pointer(u8());
@@ -632,6 +637,11 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             make(0, vec![str_ref()], usize(), private, None, vec![])
         }
         PrimitiveRole::U8Truncate => make(0, vec![u64()], u8(), private, None, vec![]),
+        PrimitiveRole::U16Truncate => make(0, vec![u64()], u16(), private, None, vec![]),
+        PrimitiveRole::U32Truncate => make(0, vec![u64()], u32(), private, None, vec![]),
+        PrimitiveRole::I8Truncate => make(0, vec![i64()], i8(), private, None, vec![]),
+        PrimitiveRole::I16Truncate => make(0, vec![i64()], i16(), private, None, vec![]),
+        PrimitiveRole::I32Truncate => make(0, vec![i64()], i32(), private, None, vec![]),
         PrimitiveRole::U64WrappingAdd
         | PrimitiveRole::U64WrappingMultiply
         | PrimitiveRole::U64BitwiseXor

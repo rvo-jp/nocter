@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>development/std/num/decimal.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/num/decimal.nct.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/std/num/decimal/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="development/std/num/decimal.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/num/decimal.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/num/decimal/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="article:modified_time" content="2026-08-31">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="development/std/num/decimal.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/num/decimal.nct.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/num/decimal.nct - Nocter","description":"Nocter source code for development/std/num/decimal.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/num/decimal/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Num","item":"https://nocter.dev/development/std/num/"},{"@type":"ListItem","position":5,"name":"Decimal","item":"https://nocter.dev/development/std/num/decimal/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="greet">greet</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="writer">writer</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="session">session</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="ownership">ownership</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="construction">construction</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="greet"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+
+<span class="token-keyword">func</span> <span class="token-function">greet</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> name <span class="token-operator">=</span> user<span class="token-operator">.</span>display<span class="token-operator">.</span><span class="token-function">name</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"guest"</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> tone <span class="token-operator">=</span> <span class="token-keyword">match</span> user<span class="token-operator">.</span>presence <span class="token-operator">{</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>online <span class="token-operator">{</span> <span class="token-string">"hello"</span> <span class="token-operator">}</span>
+        <span class="token-type">Presence</span><span class="token-operator">.</span>away <span class="token-operator">{</span> <span class="token-string">"welcome back"</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"${tone}, ${name}\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="writer" hidden><code class="language-nocter"><span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> save_log<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">Event</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> event <span class="token-keyword">in</span> events <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>event<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span><span class="token-string">"\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="session" hidden><code class="language-nocter"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    id<span class="token-operator">:</span> <span class="token-type">SessionId</span>
+    user<span class="token-operator">:</span> <span class="token-type">User</span>
+    expires_at<span class="token-operator">:</span> <span class="token-type">Time</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">start</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> clock<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Clock</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+            id<span class="token-operator">:</span> <span class="token-type">SessionId</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            user<span class="token-operator">:</span> <span class="token-keyword">move</span> user<span class="token-operator">,</span>
+            expires_at<span class="token-operator">:</span> clock<span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">plus_minutes</span><span class="token-operator">(</span><span class="token-number">30</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="ownership" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">for</span> value <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span>
+        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>value <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="construction" hidden><code class="language-nocter"><span class="token-keyword">construct</span> <span class="token-type">NonEmptyList</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-operator">[</span><span class="token-operator">]</span><span class="token-operator">(</span><span class="token-operator">...</span>items<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> from items <span class="token-operator">{</span>
+        <span class="token-keyword">var</span> list <span class="token-operator">=</span> <span class="token-type">Self</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+        <span class="token-keyword">for</span> item <span class="token-keyword">in</span> items <span class="token-operator">{</span>
+            list<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> item<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">return</span> <span class="token-keyword">move</span> list
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
+                <li><a href="../../../milestones/v0.22.0/index.html#content">Completed v0.22.0 milestone</a></li>
+                <li><a href="../../../milestones/v0.22.0-release-preparation/index.html#content">v0.22.0 release preparation</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
+                <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
+                <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
+                <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
+                <li><a href="../../../reviews/v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 practical qualification review</a></li>
+                <li><a href="../../../reviews/v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 iteration and Set review</a></li>
+                <li><a href="../../../reviews/v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
+                <li><a href="../../../docs/associative-collection-implementation/index.html#content">Associative collection implementation boundary</a></li>
+                <li><a href="../../../milestones/v0.20.0/index.html#content">Completed v0.20.0 compiler-foundation milestone</a></li>
+                <li><a href="../../../reviews/v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
+                <li><a href="../../../reviews/v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query-entry review</a></li>
+                <li><a href="../../../reviews/v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic-computation review</a></li>
+                <li><a href="../../../reviews/v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
+                <li><a href="../../../milestones/v0.19.0/index.html#content">Completed v0.19.0 milestone</a></li>
+                <li><a href="../../../milestones/v0.19.0-release-preparation/index.html#content">v0.19.0 release preparation</a></li>
+                <li><a href="../../../milestones/v0.18.0/index.html#content">Completed v0.18.0 milestone</a></li>
+                <li><a href="../../../milestones/v0.18.0-release-preparation/index.html#content">v0.18.0 release preparation</a></li>
+                <li><a href="../../../reviews/index.html#content">Design reviews</a></li>
+                <li><a href="../../../releases/v0.22.0/index.html#content">Latest published release qualification</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/std/num/decimal.nct</span>
+            </div>
+            <div class="markdown-body">
+                <h1>decimal.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! One-pass decimal parsing and exact narrow-destination publication.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">u16_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u16</span>
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">u32_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u32</span>
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">i8_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i8</span>
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">i16_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i16</span>
+<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">i32_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span>
+
+<span class="token-keyword">func</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">var</span> value<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> byte <span class="token-operator">=</span> raw<span class="token-operator">[</span>offset<span class="token-operator">]</span>
+        <span class="token-keyword">if</span> byte <span class="token-operator">&lt;</span> <span class="token-number">48</span> || byte <span class="token-operator">&gt;</span> <span class="token-number">57</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> digit <span class="token-operator">=</span> <span class="token-operator">(</span>byte - <span class="token-number">48</span><span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-type">u64</span>
+        <span class="token-keyword">if</span> value <span class="token-operator">&gt;</span> <span class="token-operator">(</span><span class="token-number">18446744073709551615</span> - digit<span class="token-operator">)</span> <span class="token-operator">/</span> <span class="token-number">10</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        value <span class="token-operator">=</span> value <span class="token-operator">*</span> <span class="token-number">10</span> <span class="token-operator">+</span> digit
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> value
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> negative <span class="token-operator">=</span> <span class="token-keyword">false</span>
+    <span class="token-keyword">if</span> raw<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">45</span> <span class="token-operator">{</span>
+        negative <span class="token-operator">=</span> <span class="token-keyword">true</span>
+        offset <span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-keyword">if</span> offset <span class="token-operator">=</span><span class="token-operator">=</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">var</span> negative_value<span class="token-operator">:</span> <span class="token-type">i64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> byte <span class="token-operator">=</span> raw<span class="token-operator">[</span>offset<span class="token-operator">]</span>
+        <span class="token-keyword">if</span> byte <span class="token-operator">&lt;</span> <span class="token-number">48</span> || byte <span class="token-operator">&gt;</span> <span class="token-number">57</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> digit <span class="token-operator">=</span> <span class="token-operator">(</span>byte - <span class="token-number">48</span><span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-type">i64</span>
+        <span class="token-keyword">if</span> negative_value <span class="token-operator">&lt;</span> <span class="token-operator">(</span>-<span class="token-number">9223372036854775808</span> <span class="token-operator">+</span> digit<span class="token-operator">)</span> <span class="token-operator">/</span> <span class="token-number">10</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        negative_value <span class="token-operator">=</span> negative_value <span class="token-operator">*</span> <span class="token-number">10</span> - digit
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">if</span> negative <span class="token-operator">{</span> <span class="token-keyword">return</span> negative_value <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> negative_value <span class="token-operator">=</span><span class="token-operator">=</span> -<span class="token-number">9223372036854775808</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span> - negative_value
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">narrow_u16</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">&gt;</span> <span class="token-number">65535</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">u16_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">narrow_u32</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">&gt;</span> <span class="token-number">4294967295</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">u32_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">narrow_i8</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i8</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">&lt;</span> -<span class="token-number">128</span> || value <span class="token-operator">&gt;</span> <span class="token-number">127</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">i8_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">narrow_i16</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i16</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">&lt;</span> -<span class="token-number">32768</span> || value <span class="token-operator">&gt;</span> <span class="token-number">32767</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">i16_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">narrow_i32</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">&lt;</span> -<span class="token-number">2147483648</span> || value <span class="token-operator">&gt;</span> <span class="token-number">2147483647</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">i32_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">parse_usize</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> value <span class="token-keyword">as</span> <span class="token-type">usize</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">parse_u8</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">parse_i32</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">narrow_i32</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">test</span> shared_decimal_parsers_cover_full_width_boundaries <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> unsigned <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span><span class="token-string">"18446744073709551615"</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.unsigned"</span><span class="token-operator">,</span> <span class="token-string">"u64 maximum was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> unsigned <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">18446744073709551615</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.unsigned"</span><span class="token-operator">,</span> <span class="token-string">"u64 maximum changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> _unsigned_overflow <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span><span class="token-string">"18446744073709551616"</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> signed_minimum <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span><span class="token-string">"-9223372036854775808"</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.signed"</span><span class="token-operator">,</span> <span class="token-string">"i64 minimum was rejected"</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">if</span> signed_minimum <span class="token-operator">!</span><span class="token-operator">=</span> -<span class="token-number">9223372036854775808</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.signed"</span><span class="token-operator">,</span> <span class="token-string">"i64 minimum changed"</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> _signed_overflow <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span><span class="token-string">"9223372036854775808"</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.signed"</span><span class="token-operator">,</span> <span class="token-string">"i64 overflow was accepted"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.unsigned"</span><span class="token-operator">,</span> <span class="token-string">"u64 overflow was accepted"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">test</span> narrow_decimal_results_publish_only_representable_values <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> small_signed <span class="token-operator">=</span> <span class="token-function">narrow_i8</span><span class="token-operator">(</span>-<span class="token-number">128</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"i8 minimum was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> small_unsigned <span class="token-operator">=</span> <span class="token-function">narrow_u16</span><span class="token-operator">(</span><span class="token-number">65535</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"u16 maximum was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> medium_signed <span class="token-operator">=</span> <span class="token-function">narrow_i16</span><span class="token-operator">(</span>-<span class="token-number">32768</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"i16 minimum was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> medium_unsigned <span class="token-operator">=</span> <span class="token-function">narrow_u32</span><span class="token-operator">(</span><span class="token-number">4294967295</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"u32 maximum was rejected"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> small_signed <span class="token-operator">!</span><span class="token-operator">=</span> -<span class="token-number">128</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"i8 result changed"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> small_unsigned <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">65535</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"u16 result changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> medium_signed <span class="token-operator">!</span><span class="token-operator">=</span> -<span class="token-number">32768</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"i16 result changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> medium_unsigned <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">4294967295</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"narrow result changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> _too_signed <span class="token-operator">=</span> <span class="token-function">narrow_i8</span><span class="token-operator">(</span><span class="token-number">128</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> _too_unsigned <span class="token-operator">=</span> <span class="token-function">narrow_u16</span><span class="token-operator">(</span><span class="token-number">65536</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"u16 overflow was accepted"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.num.narrow"</span><span class="token-operator">,</span> <span class="token-string">"i8 overflow was accepted"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../../script.js" defer></script>
+</body>
+</html>

@@ -1021,14 +1021,54 @@ fn standard_hash_contract_crosses_native_tests() {
 }
 
 #[test]
+fn standard_num_contract_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"numeric\", module: \"./num\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["num"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("standard numeric tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 3);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+#[test]
 fn standard_json_phase_three_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str(concat!(
-        "\n#test: { name: \"numeric\", module: \"./num\" }\n",
-        "#test: { name: \"unicode\", module: \"./internal/utf8\" }\n",
+        "\n#test: { name: \"unicode\", module: \"./internal/utf8\" }\n",
         "#test: { name: \"json\", module: \"./json\" }\n",
     ));
     let mut overlay = SourceOverlay::builder();
@@ -1046,7 +1086,6 @@ fn standard_json_phase_three_contract_crosses_native_tests() {
         ),
         vec![
             ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
-            ModuleIdentity::new(standard_package.clone(), ["num"]),
             ModuleIdentity::new(standard_package.clone(), ["internal", "utf8"]),
             ModuleIdentity::new(standard_package.clone(), ["json"]),
         ],
@@ -1056,7 +1095,7 @@ fn standard_json_phase_three_contract_crosses_native_tests() {
 
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
-    assert_eq!(compiled.targets().len(), 3);
+    assert_eq!(compiled.targets().len(), 2);
     let output = TempPackage::new();
     let mut case_count = 0;
     for target in compiled.targets() {
@@ -1068,7 +1107,7 @@ fn standard_json_phase_three_contract_crosses_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 20);
+    assert_eq!(case_count, 19);
 }
 
 #[test]

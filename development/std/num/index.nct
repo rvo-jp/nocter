@@ -2,6 +2,7 @@
 
 use /mem.TryAllocator
 use /string.String
+see ./decimal.nct
 see ./scalar.nct
 
 /// Boolean truth value.
