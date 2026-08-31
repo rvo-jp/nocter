@@ -158,7 +158,11 @@ pub(super) fn completions(
                         )
                         .with_entity(candidate.entity)
                         .with_additional_edit(insertion.edit(&import))
-                        .with_automatic_import(import),
+                        .with_automatic_import(
+                            import.as_str(),
+                            member,
+                            Option::<Box<str>>::None,
+                        ),
                     );
                     continue;
                 }
@@ -167,12 +171,12 @@ pub(super) fn completions(
                 let label = format!("{namespace}.{member}");
                 let automatic_import = import.as_deref().unwrap_or(path);
                 let completion = SemanticCompletion::new(
-                    label,
+                    label.as_str(),
                     candidate.kind,
                     program.completion_detail(candidate.entity, &spellings)?,
                 )
                 .with_entity(candidate.entity)
-                .with_automatic_import(automatic_import);
+                .with_automatic_import(automatic_import, member, Some(label));
                 completions.push(if let Some(import) = import {
                     completion.with_additional_edit(insertion.edit(&import))
                 } else {

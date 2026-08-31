@@ -1,4 +1,4 @@
-use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
+use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -145,7 +145,12 @@ impl BodyRule {
         notes: impl Into<Box<[DiagnosticNote]>>,
     ) -> SourceDiagnostic {
         let (message, help) = self.message_and_help();
-        SourceDiagnostic::new(self.code(), message, primary, notes, Some(help))
+        let diagnostic = SourceDiagnostic::new(self.code(), message, primary, notes, Some(help));
+        if self == Self::InvalidOutcomeOperation {
+            diagnostic.with_repair(DiagnosticRepair::AddCallableOutcomeContract)
+        } else {
+            diagnostic
+        }
     }
 
     fn message_and_help(self) -> (&'static str, &'static str) {

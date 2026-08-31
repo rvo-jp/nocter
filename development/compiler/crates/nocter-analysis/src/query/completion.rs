@@ -35,7 +35,7 @@ pub struct SemanticCompletion {
     kind: SemanticCompletionKind,
     detail: Option<Box<str>>,
     additional_edits: Box<[SemanticCompletionEdit]>,
-    automatic_import: Option<Box<str>>,
+    automatic_import: Option<SemanticAutomaticImport>,
     entity: Option<SemanticEntity>,
 }
 
@@ -60,8 +60,17 @@ impl SemanticCompletion {
         self
     }
 
-    fn with_automatic_import(mut self, path: impl Into<Box<str>>) -> Self {
-        self.automatic_import = Some(path.into());
+    fn with_automatic_import(
+        mut self,
+        route: impl Into<Box<str>>,
+        unresolved_name: impl Into<Box<str>>,
+        replacement: Option<impl Into<Box<str>>>,
+    ) -> Self {
+        self.automatic_import = Some(SemanticAutomaticImport {
+            route: route.into(),
+            unresolved_name: unresolved_name.into(),
+            replacement: replacement.map(Into::into),
+        });
         self
     }
 
@@ -95,10 +104,31 @@ impl SemanticCompletion {
         &self.additional_edits
     }
 
-    /// Returns the exact compiler-selected import route for an automatic-import candidate.
     #[must_use]
-    pub fn automatic_import(&self) -> Option<&str> {
-        self.automatic_import.as_deref()
+    pub(in crate::query) const fn automatic_import(&self) -> Option<&SemanticAutomaticImport> {
+        self.automatic_import.as_ref()
+    }
+}
+
+/// Exact import route and name relation selected by semantic completion.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(in crate::query) struct SemanticAutomaticImport {
+    route: Box<str>,
+    unresolved_name: Box<str>,
+    replacement: Option<Box<str>>,
+}
+
+impl SemanticAutomaticImport {
+    pub(super) fn route(&self) -> &str {
+        &self.route
+    }
+
+    pub(super) fn unresolved_name(&self) -> &str {
+        &self.unresolved_name
+    }
+
+    pub(super) fn replacement(&self) -> Option<&str> {
+        self.replacement.as_deref()
     }
 }
 

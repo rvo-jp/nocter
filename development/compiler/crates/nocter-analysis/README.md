@@ -28,6 +28,8 @@ results. Protocol crates receive result values only.
 - Every semantic/source join uses one sealed generation.
 - Diagnostics are read from the sealed discovery or analyzed state and are not cloned into a
   parallel snapshot authority.
+- Code actions consume phase-selected diagnostic repair capabilities and completion-owned name
+  relations; they do not recover semantic intent from codes, rendered labels, or source text.
 - Missing authored evidence is explicit; an integrity failure cannot become an empty feature result.
 - Rename and code actions publish only a whole-generation validated candidate.
 

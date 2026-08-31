@@ -295,24 +295,14 @@ fn terminator_import_edits(
         if completion.entity() != Some(SemanticEntity::Callable(terminator)) {
             continue;
         }
-        match completion.automatic_import() {
-            Some(_) => {
-                return Ok(Some(TerminatorEditPlan {
-                    name: completion.label().into(),
-                    edits: completion
-                        .additional_edits()
-                        .iter()
-                        .map(|edit| SemanticSourceEdit::new(source, edit.range(), edit.new_text()))
-                        .collect(),
-                }));
-            }
-            None => {
-                return Ok(Some(TerminatorEditPlan {
-                    name: completion.label().into(),
-                    edits: Vec::new(),
-                }));
-            }
-        }
+        return Ok(Some(TerminatorEditPlan {
+            name: completion.label().into(),
+            edits: completion
+                .additional_edits()
+                .iter()
+                .map(|edit| SemanticSourceEdit::new(source, edit.range(), edit.new_text()))
+                .collect(),
+        }));
     }
     Ok(None)
 }

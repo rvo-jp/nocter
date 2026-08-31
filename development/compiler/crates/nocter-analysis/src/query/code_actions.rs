@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_checking::{InterfaceImplementationRule, NameRule};
+use nocter_diagnostics::DiagnosticRepair;
 use nocter_source::{SourceId, TextRange};
 
 use crate::{AnalysisSnapshot, SemanticSourceEdit};
@@ -59,8 +59,6 @@ impl SemanticCodeAction {
 /// An inconsistency while planning a source repair from retained compiler state.
 #[derive(Debug)]
 pub enum SemanticCodeActionError {
-    MissingSource(SourceId),
-    InvalidDiagnosticRange { source: SourceId, range: TextRange },
     Completion(SemanticCompletionError),
     InterfaceImplementation(InterfaceImplementationActionError),
     Outcome(OutcomeActionError),
@@ -69,15 +67,6 @@ pub enum SemanticCodeActionError {
 impl fmt::Display for SemanticCodeActionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingSource(source) => {
-                write!(formatter, "code-action source {source} is absent")
-            }
-            Self::InvalidDiagnosticRange { source, range } => write!(
-                formatter,
-                "code-action diagnostic range is invalid in {source}: {}..{}",
-                range.start().get(),
-                range.end().get()
-            ),
             Self::Completion(error) => error.fmt(formatter),
             Self::InterfaceImplementation(error) => error.fmt(formatter),
             Self::Outcome(error) => error.fmt(formatter),
@@ -91,7 +80,6 @@ impl std::error::Error for SemanticCodeActionError {
             Self::Completion(error) => Some(error),
             Self::InterfaceImplementation(error) => Some(error),
             Self::Outcome(error) => Some(error),
-            Self::MissingSource(_) | Self::InvalidDiagnosticRange { .. } => None,
         }
     }
 }
@@ -130,10 +118,6 @@ impl AnalysisSnapshot {
         source: SourceId,
         requested_range: TextRange,
     ) -> Result<Box<[SemanticCodeAction]>, SemanticCodeActionError> {
-        let source_file = self
-            .sources()
-            .get(source)
-            .ok_or(SemanticCodeActionError::MissingSource(source))?;
         let mut actions = Vec::new();
         for diagnostic in self.diagnostics() {
             let primary = diagnostic.primary();
@@ -141,7 +125,10 @@ impl AnalysisSnapshot {
             if primary.source() != source || !diagnostic_matches_request(range, requested_range) {
                 continue;
             }
-            if diagnostic.code() == InterfaceImplementationRule::MissingMethod.code() {
+            let Some(repair) = diagnostic.repair() else {
+                continue;
+            };
+            if repair == &DiagnosticRepair::ImplementMissingInterfaceMethod {
                 let Some(query) = self
                     .semantic_query()
                     .map_err(InterfaceImplementationActionError::from)?
@@ -160,7 +147,7 @@ impl AnalysisSnapshot {
                 }
                 continue;
             }
-            if diagnostic.code() == nocter_checking::BodyRule::InvalidOutcomeOperation.code() {
+            if repair == &DiagnosticRepair::AddCallableOutcomeContract {
                 if let Some(action) =
                     outcomes::callable_contract_action(self, source, diagnostic.code(), range)?
                 {
@@ -168,22 +155,14 @@ impl AnalysisSnapshot {
                 }
                 continue;
             }
-            if diagnostic.code() != NameRule::UnknownName.code() {
+            let DiagnosticRepair::ImportUnknownName { name } = repair else {
                 continue;
-            }
-            let name = source_file
-                .text_at(range)
-                .ok_or(SemanticCodeActionError::InvalidDiagnosticRange { source, range })?;
+            };
             for completion in self.semantic_completions(source, range.start())? {
                 let Some(import) = completion.automatic_import() else {
                     continue;
                 };
-                let label = completion.label();
-                if label != name
-                    && label
-                        .rsplit_once('.')
-                        .is_none_or(|(_, member)| member != name)
-                {
+                if import.unresolved_name() != name.as_ref() {
                     continue;
                 }
                 let mut edits = completion
@@ -191,17 +170,17 @@ impl AnalysisSnapshot {
                     .iter()
                     .map(|edit| SemanticSourceEdit::new(source, edit.range(), edit.new_text()))
                     .collect::<Vec<_>>();
-                if label != name {
-                    edits.push(SemanticSourceEdit::new(source, range, label));
+                if let Some(replacement) = import.replacement() {
+                    edits.push(SemanticSourceEdit::new(source, range, replacement));
                 }
                 if edits.is_empty() {
                     continue;
                 }
                 actions.push(SemanticCodeAction {
-                    title: if label == name {
-                        format!("Import `{name}` from `{import}`").into()
+                    title: if let Some(replacement) = import.replacement() {
+                        format!("Use `{replacement}` from `{}`", import.route()).into()
                     } else {
-                        format!("Use `{label}` from `{import}`").into()
+                        format!("Import `{name}` from `{}`", import.route()).into()
                     },
                     diagnostic_code: diagnostic.code().into(),
                     diagnostic_range: range,

@@ -1,4 +1,4 @@
-use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
+use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 /// Closed body-name rule family.
@@ -42,6 +42,7 @@ pub(super) fn unknown_name(name: &str, primary: SourceOrigin) -> SourceDiagnosti
         [],
         Some("declare or import the name before using it"),
     )
+    .with_repair(DiagnosticRepair::ImportUnknownName { name: name.into() })
 }
 
 pub(super) fn name_collision(

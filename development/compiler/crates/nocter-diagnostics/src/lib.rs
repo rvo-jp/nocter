@@ -121,6 +121,19 @@ pub struct SourceDiagnostic {
     primary: DiagnosticOrigin,
     notes: Box<[DiagnosticNote]>,
     help: Option<Box<str>>,
+    repair: Option<DiagnosticRepair>,
+}
+
+/// Compiler-selected semantic repair capability attached at the point a rule fails.
+///
+/// Consumers use this value instead of inferring repair eligibility from diagnostic codes,
+/// rendered messages, or source text. The phase that owns the failed rule also owns the exact
+/// authored evidence needed by a repair.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DiagnosticRepair {
+    ImportUnknownName { name: Box<str> },
+    ImplementMissingInterfaceMethod,
+    AddCallableOutcomeContract,
 }
 
 impl SourceDiagnostic {
@@ -138,7 +151,14 @@ impl SourceDiagnostic {
             primary: primary.into(),
             notes: notes.into(),
             help: help.map(Into::into),
+            repair: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_repair(mut self, repair: DiagnosticRepair) -> Self {
+        self.repair = Some(repair);
+        self
     }
 
     #[must_use]
@@ -165,6 +185,11 @@ impl SourceDiagnostic {
     pub fn help(&self) -> Option<&str> {
         self.help.as_deref()
     }
+
+    #[must_use]
+    pub const fn repair(&self) -> Option<&DiagnosticRepair> {
+        self.repair.as_ref()
+    }
 }
 
 #[cfg(test)]
@@ -173,7 +198,7 @@ mod tests {
     use nocter_source_index::SourceOrigin;
     use nocter_syntax::{ParseGoal, parse};
 
-    use super::{DiagnosticNote, SourceDiagnostic};
+    use super::{DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
 
     #[test]
     fn envelope_keeps_primary_related_and_help_separate() {
@@ -189,10 +214,15 @@ mod tests {
             origin,
             [DiagnosticNote::new("related", origin)],
             Some("add a variant"),
-        );
+        )
+        .with_repair(DiagnosticRepair::ImplementMissingInterfaceMethod);
 
         assert_eq!(diagnostic.code(), "E0200");
         assert_eq!(diagnostic.notes()[0].message(), "related");
         assert_eq!(diagnostic.help(), Some("add a variant"));
+        assert_eq!(
+            diagnostic.repair(),
+            Some(&DiagnosticRepair::ImplementMissingInterfaceMethod)
+        );
     }
 }

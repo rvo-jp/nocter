@@ -1,4 +1,4 @@
-use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
+use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -39,6 +39,7 @@ pub(super) fn missing_method(
         )],
         Some("add one method with the interface method's name and signature"),
     )
+    .with_repair(DiagnosticRepair::ImplementMissingInterfaceMethod)
 }
 
 pub(super) fn extra_method(primary: SourceOrigin, interface: SourceOrigin) -> SourceDiagnostic {
