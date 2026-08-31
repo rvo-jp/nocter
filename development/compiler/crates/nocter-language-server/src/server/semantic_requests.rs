@@ -2851,6 +2851,30 @@ mod tests {
         );
         assert!(response.contains("use dep/api as dep_api"), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let aliased = concat!(
+            "use dep/api as service\n",
+            "\n",
+            "func public_helper(): i32 { return 0 }\n",
+            "func main(): void {\n",
+            "    return\n",
+            "}\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, aliased, 3);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+        let completion = request_completion(&mut server, &uri, 4, 4, 4);
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "\"label\":\"service.public_helper\",\"kind\":3,",
+                "\"detail\":\"pub func public_helper(): i32\"}"
+            )),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 
     #[test]

@@ -199,7 +199,11 @@ fn value_namespace(
         if existing.entity == SemanticEntity::Module(module) {
             return Ok((default.into(), None));
         }
-    } else {
+    }
+    if let Some(namespace) = visible_module_namespace(graph, visible, module)? {
+        return Ok((namespace, None));
+    }
+    if visible_candidate(graph, visible, default).is_none() {
         return Ok((default.into(), Some(path.into())));
     }
 
@@ -231,6 +235,27 @@ fn value_namespace(
             .checked_add(1)
             .ok_or(AutomaticImportError::UnknownModule(module))?;
     }
+}
+
+fn visible_module_namespace(
+    graph: &DeclarationGraph,
+    visible: &BTreeMap<Symbol, Candidate>,
+    module: ModuleId,
+) -> Result<Option<Box<str>>, AutomaticImportError> {
+    let mut namespace: Option<&str> = None;
+    for (name, candidate) in visible {
+        if candidate.entity != SemanticEntity::Module(module) {
+            continue;
+        }
+        let spelling = graph
+            .symbols()
+            .spelling(*name)
+            .ok_or(AutomaticImportError::UnknownSymbol(*name))?;
+        if namespace.is_none() || namespace.is_some_and(|current| spelling < current) {
+            namespace = Some(spelling);
+        }
+    }
+    Ok(namespace.map(Into::into))
 }
 
 fn visible_candidate(
