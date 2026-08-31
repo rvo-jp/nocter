@@ -8,8 +8,8 @@ The specification entry point is [README.md](README.md).
 A constant gives one immutable, storage-independent value a semantic name.
 
 ```nct
-const retry_limit: usize = 4
-pub const protocol_name: &str = "nocter"
+const RETRY_LIMIT: usize = 4
+pub const PROTOCOL_NAME: &str = "nocter"
 ```
 
 The type annotation is mandatory. The initializer must be a constant expression whose type is
@@ -23,8 +23,11 @@ nominal values, pointers, mutable borrows, slices, optionals, fallible values, c
 generic-dependent values are not constant types.
 
 Visibility and target directives apply in the same way as for other targetable declarations.
-Constants occupy the ordinary value namespace and may be selected through `use`, direct
-`see`, or a module-qualified reference.
+Every constant name uses ASCII `UPPER_SNAKE_CASE`: it begins with `A` through `Z`, contains only
+uppercase letters, digits, and single interior underscores, and has no trailing underscore.
+Constants occupy the ordinary value namespace. A direct `see` exposes a same-module constant
+unqualified; an external module constant is reached through a module-qualified reference.
+Selected `use` never imports a constant.
 
 ## Contract and Initializer Separation
 
@@ -34,7 +37,7 @@ A visible bodyless declaration in `index.nct` may act as a public contract:
 //! index.nct
 see ./limits.nct
 
-pub const buffer_size: usize
+pub const BUFFER_SIZE: usize
 ```
 
 The reciprocally seen implementation source supplies exactly one private initializer with the
@@ -44,7 +47,7 @@ same name, type, and module:
 //! limits.nct
 see ./index.nct
 
-const buffer_size: usize = 4096
+const BUFFER_SIZE: usize = 4096
 ```
 
 The pair denotes one constant identity. Contract joining sees only sources selected for the current
@@ -82,10 +85,10 @@ detection.
 The length in `[T; expression]` is a constant expression with expected type `usize`:
 
 ```nct
-const lane_count: usize = 4
-const block_count: usize = 2
+const LANE_COUNT: usize = 4
+const BLOCK_COUNT: usize = 2
 
-type Block = [u8; lane_count * block_count]
+type Block = [u8; LANE_COUNT * BLOCK_COUNT]
 ```
 
 Each fixed-array length is evaluated once by the semantic context that owns its name scope. A
@@ -94,9 +97,10 @@ exact lexical scope at that annotation, including block imports:
 
 ```nct
 func receive(): void {
-    use ./protocol.{Byte, frame_width}
+    use ./protocol.Byte
+    use ./protocol
 
-    let frame: [Byte; frame_width] = []
+    let frame: [Byte; protocol.FRAME_WIDTH] = []
     return
 }
 ```

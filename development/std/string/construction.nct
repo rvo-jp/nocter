@@ -4,9 +4,10 @@ see ./index.nct
 see ./storage.nct
 see ./utf8.nct
 
-use /internal/ptr.{copy_ptr_to_ptr, copy_str_to_ptr}
-use /internal/utf8.validate_utf8
-use /mem.{TryAllocator, current_allocator, empty_unbound_buffer}
+use /internal/ptr
+use /internal/utf8
+use /mem.TryAllocator
+use /mem
 
 construct String {
     literal ""(text: &str): Self {
@@ -15,13 +16,13 @@ construct String {
 
     func empty(): Self {
         return String {
-            storage: empty_unbound_buffer(1),
+            storage: mem.empty_unbound_buffer(1),
             len: 0,
         }
     }
 
     func with_capacity(requested_capacity: usize): Self {
-        var allocator = current_allocator()
+        var allocator = mem.current_allocator()
         return String {
             storage: allocator.alloc(requested_capacity, 1),
             len: 0,
@@ -41,7 +42,7 @@ construct String {
     func copy(value: &str): Self {
         let value_len: usize = value.len()
         var result = String.with_capacity(value_len)
-        copy_str_to_ptr(result.storage.bytes().ptr(), 0, value)
+        ptr.copy_str_to_ptr(result.storage.bytes().ptr(), 0, value)
         result.len = value_len
         return move result
     }
@@ -57,15 +58,15 @@ construct String {
     func try_copy(allocator: &+TryAllocator, value: &str): Self! from allocator {
         let value_len: usize = value.len()
         var result = String.try_with_capacity(allocator, value_len)?
-        copy_str_to_ptr(result.storage.bytes().ptr(), 0, value)
+        ptr.copy_str_to_ptr(result.storage.bytes().ptr(), 0, value)
         result.len = value_len
         return move result
     }
 
     func from_utf8(candidate: &[u8]): Self! {
-        validate_utf8(candidate)?
+        utf8.validate_utf8(candidate)?
         var result = String.with_capacity(candidate.len())
-        copy_ptr_to_ptr(result.storage.bytes().ptr(), candidate.ptr(), candidate.len())
+        ptr.copy_ptr_to_ptr(result.storage.bytes().ptr(), candidate.ptr(), candidate.len())
         result.len = candidate.len()
         return move result
     }
@@ -74,9 +75,9 @@ construct String {
         allocator: &+TryAllocator,
         candidate: &[u8],
     ): Self! from allocator {
-        validate_utf8(candidate)?
+        utf8.validate_utf8(candidate)?
         var result = String.try_with_capacity(allocator, candidate.len())?
-        copy_ptr_to_ptr(result.storage.bytes().ptr(), candidate.ptr(), candidate.len())
+        ptr.copy_ptr_to_ptr(result.storage.bytes().ptr(), candidate.ptr(), candidate.len())
         result.len = candidate.len()
         return move result
     }

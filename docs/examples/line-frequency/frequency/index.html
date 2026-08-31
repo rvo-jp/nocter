@@ -149,23 +149,25 @@
                 <span class="markdown-path-text">/examples/line-frequency/frequency.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>frequency.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> print<span class="token-operator">}</span>
+                <h1>frequency.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">}</span>
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-type">Utf8Path</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span>arg
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>process
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
 <span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> requested<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
-        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"usage: line-frequency PATH NEEDLE\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> requested<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> process<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"usage: line-frequency PATH NEEDLE\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> requested_needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">2</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
-        <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"usage: line-frequency PATH NEEDLE\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> requested_needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> process<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">2</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"usage: line-frequency PATH NEEDLE\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> path <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>requested<span class="token-operator">)</span><span class="token-operator">?</span>
@@ -204,7 +206,7 @@
         <span class="token-operator">&amp;</span>matching_text<span class="token-operator">,</span>
         <span class="token-string">"\n"</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
-    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 </code></pre>

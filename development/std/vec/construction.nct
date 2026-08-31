@@ -4,11 +4,12 @@ see ./index.nct
 see ./errors.nct
 see ./storage.nct
 
-use /internal/mem.{allocation_abort, capacity_overflow, checked_multiply}
-use /internal/ptr.{from_addr, pointee_align, pointee_size}
+use /internal/mem
+use /internal/ptr as internal_ptr
 use /iter.{ExactSizeIterator, Iterator}
-use /mem.{TryAllocator, current_allocator, empty_unbound_buffer}
-use /ptr.addr
+use /mem.TryAllocator
+use /mem as mem_module
+use /ptr
 
 construct Vec<T> {
     literal [](...items: T): Self {
@@ -28,19 +29,19 @@ construct Vec<T> {
     }
 
     func with_capacity(requested_capacity: usize): Self {
-        let pointer: *T = from_addr(1)
-        let element_size: usize = pointee_size(pointer)
+        let pointer: *T = internal_ptr.from_addr(1)
+        let element_size: usize = internal_ptr.pointee_size(pointer)
         if element_size == 0 {
             return empty_with_capacity(requested_capacity)
         }
-        let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {
-            return allocation_abort()
+        let byte_capacity: usize = mem.checked_multiply(requested_capacity, element_size) otherwise {
+            return mem.allocation_abort()
         }
-        var allocator = current_allocator()
-        let storage = allocator.alloc(byte_capacity, pointee_align(pointer))
-        let address: usize = addr(storage.bytes().ptr())
+        var allocator = mem_module.current_allocator()
+        let storage = allocator.alloc(byte_capacity, internal_ptr.pointee_align(pointer))
+        let address: usize = ptr.addr(storage.bytes().ptr())
         return Vec<T> {
-            ptr: from_addr(address),
+            ptr: internal_ptr.from_addr(address),
             storage: move storage,
             len: 0,
             capacity: requested_capacity,
@@ -51,18 +52,18 @@ construct Vec<T> {
         allocator: &+TryAllocator,
         requested_capacity: usize,
     ): Self! {
-        let pointer: *T = from_addr(1)
-        let element_size: usize = pointee_size(pointer)
+        let pointer: *T = internal_ptr.from_addr(1)
+        let element_size: usize = internal_ptr.pointee_size(pointer)
         if element_size == 0 {
             return empty_with_capacity(requested_capacity)
         }
-        let byte_capacity: usize = checked_multiply(requested_capacity, element_size) otherwise {
-            return capacity_overflow()
+        let byte_capacity: usize = mem.checked_multiply(requested_capacity, element_size) otherwise {
+            return mem.capacity_overflow()
         }
-        let storage = allocator.try_alloc(byte_capacity, pointee_align(pointer))?
-        let address: usize = addr(storage.bytes().ptr())
+        let storage = allocator.try_alloc(byte_capacity, internal_ptr.pointee_align(pointer))?
+        let address: usize = ptr.addr(storage.bytes().ptr())
         return Vec<T> {
-            ptr: from_addr(address),
+            ptr: internal_ptr.from_addr(address),
             storage: move storage,
             len: 0,
             capacity: requested_capacity,
@@ -115,11 +116,11 @@ construct Vec<T> {
 }
 
 func empty_with_capacity<T>(logical_capacity: usize): Vec<T> {
-    let pointer: *T = from_addr(1)
-    let element_align: usize = pointee_align(pointer)
-    let storage = empty_unbound_buffer(element_align)
+    let pointer: *T = internal_ptr.from_addr(1)
+    let element_align: usize = internal_ptr.pointee_align(pointer)
+    let storage = mem_module.empty_unbound_buffer(element_align)
     return Vec<T> {
-        ptr: from_addr(1),
+        ptr: internal_ptr.from_addr(1),
         storage: move storage,
         len: 0,
         capacity: logical_capacity,

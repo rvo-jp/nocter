@@ -1,4 +1,4 @@
-use std/io.print
+use std/io
 
 use std/vec.Vec
 
@@ -29,6 +29,6 @@ func main(): i32! {
     if values[0] + values[1] + values[2] != 8 {
         return 1
     }
-    print("equality found the point\n")?
+    io.print("equality found the point\n")?
     return 0
 }

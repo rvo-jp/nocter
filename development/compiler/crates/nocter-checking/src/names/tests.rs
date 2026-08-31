@@ -283,9 +283,9 @@ fn authored_module_names_collide_but_prelude_fallback_is_shadowable() {
 }
 
 #[test]
-fn block_import_resolves_to_export_without_creating_local_storage() {
+fn block_namespace_alias_resolves_members_without_creating_local_storage() {
     let fixture = Fixture::new(
-        "func main(): void {\n    use lib.helper\n\n    helper()\n    return\n}\n",
+        "func main(): void {\n    use lib as support\n\n    support.helper()\n    return\n}\n",
         "",
     );
     let use_node = find_nodes(&fixture.app, NodeKind::BlockUseDeclaration)[0];
@@ -318,6 +318,24 @@ fn block_import_resolves_to_export_without_creating_local_storage() {
             .iter()
             .any(|binding| matches!(binding.target(), NameTarget::Exported(_)))
     }));
+}
+
+#[test]
+fn selected_block_import_rejects_values() {
+    let fixture = Fixture::new(
+        "func main(): void {\n    use lib.value\n\n    return\n}\n",
+        "",
+    );
+    let use_node = find_nodes(&fixture.app, NodeKind::BlockUseDeclaration)[0];
+    let target = ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["lib"]);
+    let resolutions = vec![UseResolutionInput::new(use_node, target)];
+    let input = fixture.input_with_library(false, resolutions);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let error =
+        resolve_body_names(&input, program.graph(), &frontend_bindings, source_index).unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0349");
 }
 
 #[test]
@@ -382,7 +400,11 @@ impl Fixture {
             crate::test_support::BUILTIN_DECLARATIONS,
         );
         let prelude_id = add_source(&mut sources, "/std/prelude/index.nct", prelude);
-        let library_id = add_source(&mut sources, "/app/lib/index.nct", "pub struct helper {}\n");
+        let library_id = add_source(
+            &mut sources,
+            "/app/lib/index.nct",
+            "pub struct helper {}\npub func value(): void { return }\n",
+        );
         Self {
             app_manifest: parse_source(&sources, app_manifest_id, ParseGoal::SourceFile),
             std_manifest: parse_source(&sources, std_manifest_id, ParseGoal::SourceFile),

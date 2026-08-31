@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-30">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/internal/os/darwin/index.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -191,112 +193,112 @@
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">error_from_errno</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSError</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_read<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_READ</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_write<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_WRITE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_open<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_OPEN</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_close<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_CLOSE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_unlink<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_UNLINK</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_rename<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_RENAME</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_munmap<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_MUNMAP</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_mmap<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_MMAP</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_stat64<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_STAT64</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_getdirentries64<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_GETDIRENTRIES64</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_getentropy<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_GETENTROPY</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> open_read_only<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">OPEN_READ_ONLY</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> open_directory_only<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">OPEN_DIRECTORY_ONLY</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> open_create_truncate<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">OPEN_CREATE_TRUNCATE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> open_create_append<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">OPEN_CREATE_APPEND</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> create_mode<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">CREATE_MODE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> mmap_read_write<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">MMAP_READ_WRITE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> mmap_private_anonymous<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">MMAP_PRIVATE_ANONYMOUS</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> mmap_no_file<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">MMAP_NO_FILE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> errno_interrupted<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">ERRNO_INTERRUPTED</span><span class="token-operator">:</span> <span class="token-type">i32</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> sys_fcntl<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_FCNTL</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> f_getpath<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">F_GETPATH</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> max_path_len<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">MAX_PATH_LEN</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> stat_buffer_size<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">STAT_BUFFER_SIZE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> stat_mode_offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">STAT_MODE_OFFSET</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> stat_size_offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">STAT_SIZE_OFFSET</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> stat_mode_regular<span class="token-operator">:</span> <span class="token-type">u16</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">STAT_MODE_REGULAR</span><span class="token-operator">:</span> <span class="token-type">u16</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> stat_mode_directory<span class="token-operator">:</span> <span class="token-type">u16</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">STAT_MODE_DIRECTORY</span><span class="token-operator">:</span> <span class="token-type">u16</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_inode_offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_INODE_OFFSET</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_record_length_offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_RECORD_LENGTH_OFFSET</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_name_length_offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_NAME_LENGTH_OFFSET</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_type_offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_TYPE_OFFSET</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_name_offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_NAME_OFFSET</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_type_directory<span class="token-operator">:</span> <span class="token-type">u8</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_TYPE_DIRECTORY</span><span class="token-operator">:</span> <span class="token-type">u8</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_type_regular<span class="token-operator">:</span> <span class="token-type">u8</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_TYPE_REGULAR</span><span class="token-operator">:</span> <span class="token-type">u8</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> dirent_type_symlink<span class="token-operator">:</span> <span class="token-type">u8</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">DIRENT_TYPE_SYMLINK</span><span class="token-operator">:</span> <span class="token-type">u8</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">syscall1</span><span class="token-operator">(</span>

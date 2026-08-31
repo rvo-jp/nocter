@@ -1468,18 +1468,18 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/fs.read_dir\\nfunc main(): void {{ return }}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/fs\\nfunc main(): void! {{\\n    let stream = fs.read_dir(\\\".\\\")?\\n    return\\n}}\\n\"}}}}}}"
         ));
 
         let completion = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":1,\"character\":20}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":20}}}}}}"
         ));
         let response = completion.response().unwrap();
-        assert!(response.contains("\"label\":\"read_dir\""), "{response}");
+        assert!(response.contains("\"label\":\"fs.read_dir\""), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
 
         let definition = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":0,\"character\":14}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":23}}}}}}"
         ));
         let response = definition.response().unwrap();
         assert!(response.contains("/std/fs/index.nct"), "{response}");
@@ -1509,7 +1509,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("if record_len <= dirent_name_offset"))
+            .find(|(_, line)| line.contains("if record_len <= darwin.DIRENT_NAME_OFFSET"))
             .unwrap();
         let character = source_line.find("record_len").unwrap();
         let hover = server.receive(&format!(
@@ -1658,7 +1658,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("let element_size = pointee_size(pointer)"))
+            .find(|(_, line)| line.contains("let element_size = ptr.pointee_size(pointer)"))
             .unwrap();
         let character = source_line.find("element_size").unwrap();
         let hover = server.receive(&format!(

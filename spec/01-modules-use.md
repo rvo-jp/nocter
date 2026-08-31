@@ -46,11 +46,12 @@ Import paths use `/` and omit `.nct`:
 ## Module Imports
 
 `use` is lexical compile-time syntax, not a runtime statement. Module imports may introduce a
-namespace, selected public names, or public re-exports:
+namespace, select public type names, or define public re-exports:
 
 ```nct
 use std/io
-use std/io.{File, stdout, stderr}
+use std/io as console
+use std/io.{File, Writer}
 use std/io.File as StdFile
 use ./parser.Parser
 use ../shared/path.Path
@@ -61,14 +62,17 @@ pub use std/string.String
 Meaning:
 
 - `use path` introduces the module namespace under the path's final segment.
-- `use path.Name` introduces one exported name.
-- `use path.Name as Alias` introduces one exported name under an alias.
-- `use path.{A, B}` introduces several exported names; each may use `as`.
+- `use path as Alias` introduces the module namespace under an explicit alias.
+- `use path.Name` introduces one exported type-namespace name.
+- `use path.Name as Alias` introduces one exported type-namespace name under an alias.
+- `use path.{A, B}` introduces several exported type-namespace names; each may use `as`.
 - `pub use path` re-exports a module namespace under its final segment.
-- `pub use path.Name` and `pub use path.{...}` re-export selected public names.
+- `pub use path.Name` and `pub use path.{...}` re-export selected public type names.
 
 The default namespace name is the final path segment. `use std/io` introduces `io` and
-`use ./path/to/parser` introduces `parser`.
+`use ./path/to/parser` introduces `parser`. An alias is required when that name collides with an
+existing visible name. `use / as root` is the explicit spelling for a package-root namespace,
+because `/` has no final path segment.
 
 Namespace members use `.` after import. The same selection shape works in value and type position;
 resolution keeps those namespaces distinct:
@@ -81,6 +85,21 @@ func parse_text(text: &str): parser.Value! {
 }
 ```
 
+Selected imports accept only names in the type namespace: built-in or nominal types, type aliases,
+and interfaces. Functions, constants, and other values remain owned by their module namespace:
+
+```nct
+use std/io.File
+use std/io
+
+func write_message(file: &+File): void! {
+    io.write(file, "ready\n")?
+    return
+}
+```
+
+`use std/io.write` is an error. This keeps the subject of an external value operation visible at
+every call site and prevents unrelated modules from flattening values into one local namespace.
 Selected-name import braces are comma-delimited. One trailing comma is valid on either a single
 line or multiple lines under [Comma-Delimited Lists](13-lexical-grammar.md#comma-delimited-lists).
 
@@ -90,9 +109,9 @@ statements in their block:
 ```nct
 func greet(debug: bool): void {
     if debug {
-        use std/io.print
+        use std/io
 
-        print("debug mode")
+        io.print("debug mode")
     }
 }
 ```
@@ -107,6 +126,7 @@ namespace alias re-exports:
 
 ```nct
 use std/io.*
+use std/io.print
 use std.io.File
 use ./config.nct.Config
 pub use std/io as console
@@ -348,7 +368,7 @@ implementation sources.
 
 ## Re-exports
 
-A public re-export can expose a child module namespace or selected public names:
+A public re-export can expose a child module namespace or selected public type names:
 
 ```nct
 pub use ./parser
@@ -364,6 +384,8 @@ Rules:
 - re-exported names participate in ordinary collision checks
 - wildcard and namespace-alias re-exports are invalid
 - selected-name re-exports do not also create a namespace alias
+- functions, constants, and other values cannot be selected or re-exported without their module
+  namespace
 
 ## Synthetic Standard Prelude
 
@@ -437,12 +459,12 @@ code:
     name: "unit",
     module: "./tests/unit",
 }
-use std/io.print
+use std/io
 use ./parser.Parser
 
 func main(): i32! {
     let parser = Parser.new()
-    print("ready\n")?
+    io.print("ready\n")?
     return 0
 }
 ```
@@ -545,15 +567,15 @@ use /parser.Parser
 use /.RootValue
 ```
 
-The second form selects a name directly from the package root module. Bare `use /` is invalid
-because a namespace import requires a final module segment from which to derive its local name.
+The second form selects a type name directly from the package root module. Bare `use /` is invalid
+because a namespace import requires a local name; write `use / as root` instead.
 
 Non-relative paths begin with a declared dependency alias or `std` and resolve directory modules
 only:
 
 ```nct
 use json/value.Value
-use std/io.print
+use std/io
 ```
 
 Rules:

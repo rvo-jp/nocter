@@ -65,7 +65,7 @@ fn assert_token_projection(tree: &SyntaxTree) {
 #[test]
 fn parses_block_imports_statements_and_body_results() {
     assert_ok(
-        "func flow(input: i32): i32 {\n    use std/io.print\n\n    let value: i32 = input\n    var total = 0\n    total\n        += value\n    drop input\n    total\n}\nfunc stop(): void { return }\nfunc repeat(): void { loop {\n    break\n    continue\n} }\n",
+        "func flow(input: i32): i32 {\n    use std/io\n\n    let value: i32 = input\n    var total = 0\n    total\n        += value\n    drop input\n    total\n}\nfunc stop(): void { return }\nfunc repeat(): void { loop {\n    break\n    continue\n} }\n",
     );
 }
 

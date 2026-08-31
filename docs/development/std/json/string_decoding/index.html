@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-30">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/json/string_decoding.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -174,8 +176,9 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>failure<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>utf8<span class="token-operator">.</span>encode_scalar
-<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> page_try_allocator<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>utf8
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 <span class="token-keyword">func</span> <span class="token-function">hex_value</span><span class="token-operator">(</span>byte<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">?</span> <span class="token-operator">{</span>
@@ -299,7 +302,7 @@
             <span class="token-keyword">let</span> scalar <span class="token-operator">=</span> <span class="token-function">decoded_scalar</span><span class="token-operator">(</span>cursor<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-function">invalid_syntax</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> cursor<span class="token-operator">.</span><span class="token-function">offset</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
             <span class="token-operator">}</span>
-            <span class="token-keyword">let</span> encoded <span class="token-operator">=</span> <span class="token-function">encode_scalar</span><span class="token-operator">(</span>scalar<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+            <span class="token-keyword">let</span> encoded <span class="token-operator">=</span> utf8<span class="token-operator">.</span><span class="token-function">encode_scalar</span><span class="token-operator">(</span>scalar<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-function">invalid_syntax</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> cursor<span class="token-operator">.</span><span class="token-function">offset</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
             <span class="token-operator">}</span>
             output<span class="token-operator">.</span><span class="token-function">try_push_utf8</span><span class="token-operator">(</span>encoded<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
@@ -309,7 +312,7 @@
             <span class="token-keyword">let</span> scalar <span class="token-operator">=</span> <span class="token-function">escaped_ascii</span><span class="token-operator">(</span>escape<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-function">invalid_syntax</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> cursor<span class="token-operator">.</span><span class="token-function">offset</span><span class="token-operator">(</span><span class="token-operator">)</span> - <span class="token-number">1</span><span class="token-operator">)</span>
             <span class="token-operator">}</span>
-            <span class="token-keyword">let</span> encoded <span class="token-operator">=</span> <span class="token-function">encode_scalar</span><span class="token-operator">(</span>scalar <span class="token-keyword">as</span> <span class="token-type">u32</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+            <span class="token-keyword">let</span> encoded <span class="token-operator">=</span> utf8<span class="token-operator">.</span><span class="token-function">encode_scalar</span><span class="token-operator">(</span>scalar <span class="token-keyword">as</span> <span class="token-type">u32</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
                 <span class="token-keyword">return</span> <span class="token-function">invalid_syntax</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> cursor<span class="token-operator">.</span><span class="token-function">offset</span><span class="token-operator">(</span><span class="token-operator">)</span> - <span class="token-number">1</span><span class="token-operator">)</span>
             <span class="token-operator">}</span>
             output<span class="token-operator">.</span><span class="token-function">try_push_utf8</span><span class="token-operator">(</span>encoded<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
@@ -322,7 +325,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">decoded_string</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> mem<span class="token-operator">.</span><span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> cursor <span class="token-operator">=</span> <span class="token-type">Cursor</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
     <span class="token-keyword">let</span> attempt <span class="token-operator">=</span> <span class="token-function">decode_string</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>cursor<span class="token-operator">)</span>
     <span class="token-keyword">match</span> <span class="token-keyword">move</span> attempt <span class="token-operator">{</span>

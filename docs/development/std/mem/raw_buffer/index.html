@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/mem/raw_buffer.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -175,30 +177,30 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>layout<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_addr<span class="token-operator">,</span> slice_from_raw_parts<span class="token-operator">,</span> slice_from_raw_parts_mut<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr <span class="token-keyword">as</span> internal_ptr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
 
 <span class="token-keyword">func</span> <span class="token-function">bytes</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>len<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> internal_ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">bytes_mut</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_mut</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>len<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> internal_ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts_mut</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">prefix</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> len <span class="token-operator">&gt;</span> buffer<span class="token-operator">.</span>len <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> len<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> internal_ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">prefix_mut</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> len<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> len <span class="token-operator">&gt;</span> buffer<span class="token-operator">.</span>len <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_mut</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> len<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> internal_ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts_mut</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
@@ -222,11 +224,11 @@
 drop <span class="token-type">RawBuffer</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> self<span class="token-operator">.</span>len <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> <span class="token-function">allocator_kind_is_page</span><span class="token-operator">(</span>self<span class="token-operator">.</span>allocator_kind<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-function">free_pages</span><span class="token-operator">(</span><span class="token-function">addr</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">)</span><span class="token-operator">,</span> self<span class="token-operator">.</span>len<span class="token-operator">)</span>
+            <span class="token-function">free_pages</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>self<span class="token-operator">.</span>ptr<span class="token-operator">)</span><span class="token-operator">,</span> self<span class="token-operator">.</span>len<span class="token-operator">)</span>
         <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">allocator_kind_is_region</span><span class="token-operator">(</span>self<span class="token-operator">.</span>allocator_kind<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+            <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
-        self<span class="token-operator">.</span>ptr <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
+        self<span class="token-operator">.</span>ptr <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
         self<span class="token-operator">.</span>len <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>

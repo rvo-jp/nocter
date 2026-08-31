@@ -1,10 +1,10 @@
 use std/fs
-use std/process.arg
+use std/process
 use std/string.String
 use std/vec.Vec
 
 func main(): i32! {
-    let root: &str = arg(1)? otherwise {
+    let root: &str = process.arg(1)? otherwise {
         return error.new("phase0.missing_root", "filesystem test root is missing")
     }
     let text_path = String.concat(root, "/text.txt")

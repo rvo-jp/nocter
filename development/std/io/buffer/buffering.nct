@@ -3,7 +3,7 @@
 see ./index.nct
 
 use /io.{File, Reader, Writer}
-use /internal/io.closed_stream_error
+use /internal/io
 use /string.String
 use /vec.Vec
 
@@ -203,7 +203,7 @@ construct BufWriter {
 
 func write(writer: &+BufWriter, bytes: &[u8]): void! {
     if !writer.is_open {
-        return closed_stream_error()
+        return io.closed_stream_error()
     }
     var offset: usize = 0
     while offset < bytes.len() {
@@ -218,7 +218,7 @@ func write(writer: &+BufWriter, bytes: &[u8]): void! {
 
 func flush(writer: &+BufWriter): void! {
     if !writer.is_open {
-        return closed_stream_error()
+        return io.closed_stream_error()
     }
     if writer.buffer.len() == 0 {
         return

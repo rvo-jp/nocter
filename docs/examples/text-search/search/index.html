@@ -125,13 +125,17 @@
                 <span class="markdown-path-text">/examples/text-search/search.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>search.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">FileType</span><span class="token-operator">,</span> read_dir<span class="token-operator">}</span>
+                <h1>search.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs<span class="token-operator">.</span><span class="token-type">FileType</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">,</span> stderr<span class="token-operator">,</span> stdout<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>fs
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
+
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">/</span>buffer<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">BufReader</span><span class="token-operator">,</span> <span class="token-type">BufWriter</span><span class="token-operator">}</span>
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span><span class="token-operator">{</span>arg<span class="token-operator">,</span> arg_count<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>process
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
@@ -149,18 +153,18 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> <span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">3</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> process<span class="token-operator">.</span><span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">3</span> <span class="token-operator">{</span>
         <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">2</span> <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> needle <span class="token-operator">=</span> <span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> needle <span class="token-operator">=</span> process<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-function">report_failure</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>failure<span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">2</span> <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
         <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">2</span> <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> root <span class="token-operator">=</span> <span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">2</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> root <span class="token-operator">=</span> process<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span><span class="token-number">2</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-function">report_failure</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>failure<span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">2</span> <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
     <span class="token-operator">}</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
@@ -182,7 +186,7 @@
     <span class="token-function">collect_directory</span><span class="token-operator">(</span>root<span class="token-operator">,</span> <span class="token-string">""</span><span class="token-operator">,</span> <span class="token-operator">&amp;+</span>paths<span class="token-operator">)</span><span class="token-operator">?</span>
     paths<span class="token-operator">.</span><span class="token-function">sort</span><span class="token-operator">(</span><span class="token-operator">)</span>
 
-    <span class="token-keyword">var</span> output <span class="token-operator">=</span> <span class="token-type">BufWriter</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> output <span class="token-operator">=</span> <span class="token-type">BufWriter</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>io<span class="token-operator">.</span><span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> matched <span class="token-operator">=</span> <span class="token-keyword">false</span>
     <span class="token-keyword">for</span> path <span class="token-keyword">in</span> <span class="token-operator">&amp;</span>paths <span class="token-operator">{</span>
         <span class="token-keyword">if</span> <span class="token-function">search_file</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>output<span class="token-operator">,</span> needle<span class="token-operator">,</span> path<span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
@@ -198,7 +202,7 @@
     display_directory<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     files<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">SearchPath</span><span class="token-operator">&gt;</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> stream <span class="token-operator">=</span> <span class="token-function">read_dir</span><span class="token-operator">(</span>full_directory<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> stream <span class="token-operator">=</span> fs<span class="token-operator">.</span><span class="token-function">read_dir</span><span class="token-operator">(</span>full_directory<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">let</span> context <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">concat</span><span class="token-operator">(</span><span class="token-string">"cannot read directory "</span><span class="token-operator">,</span> full_directory<span class="token-operator">)</span>
         <span class="token-keyword">return</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>context<span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -289,13 +293,13 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> output <span class="token-operator">=</span> <span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> output <span class="token-operator">=</span> io<span class="token-operator">.</span><span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span>
     output<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"usage: text-search NEEDLE ROOT\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">report_failure</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> <span class="token-operator">&amp;</span>error<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> output <span class="token-operator">=</span> <span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> output <span class="token-operator">=</span> io<span class="token-operator">.</span><span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span>
     output<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"text-search: "</span><span class="token-operator">)</span><span class="token-operator">?</span>
     output<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">code</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     output<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">": "</span><span class="token-operator">)</span><span class="token-operator">?</span>

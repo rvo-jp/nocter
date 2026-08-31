@@ -7,9 +7,10 @@ see ./failure.nct
 see ./number.nct
 see ./string_decoding.nct
 
-use /internal/mem.allocation_abort
+use /internal/mem
 use /map.Map
-use /mem.{TryAllocator, current_try_allocator, page_allocator, page_try_allocator}
+use /mem.TryAllocator
+use /mem as mem_module
 use /string.String
 use /vec.Vec
 
@@ -247,12 +248,12 @@ func parse_core(
 }
 
 func parse(text: &str): Value! {
-    var allocator = current_try_allocator()
+    var allocator = mem_module.current_try_allocator()
     let attempt = parse_core(&+allocator, text)
     match move attempt {
         Attempt.success(value) { return move value }
         Attempt.input(failure) { return move failure }
-        Attempt.allocation(_) { return allocation_abort() }
+        Attempt.allocation(_) { return mem.allocation_abort() }
     }
 }
 
@@ -381,7 +382,7 @@ test parser_uses_an_explicit_stack_for_deep_input {
 }
 
 test recoverable_parser_owns_result_in_selected_allocator {
-    var allocator = page_try_allocator()
+    var allocator = mem_module.page_try_allocator()
     let parsed = try_parse(&+allocator, "[\"owned\"]")?
     match move parsed {
         Value.array(values) {
@@ -397,8 +398,8 @@ test recoverable_parser_owns_result_in_selected_allocator {
 }
 
 func recoverable_parse_inside_region(): Value! {
-    var selected = page_try_allocator()
-    var backing = page_allocator()
+    var selected = mem_module.page_try_allocator()
+    var backing = mem_module.page_allocator()
     region temporary using backing {
         return try_parse(&+selected, "[1,2]")?
     }
@@ -419,8 +420,8 @@ test recoverable_parser_does_not_capture_the_current_region {
 }
 
 func recoverable_failure_inside_region(): error {
-    var selected = page_try_allocator()
-    var backing = page_allocator()
+    var selected = mem_module.page_try_allocator()
+    var backing = mem_module.page_allocator()
     region temporary using backing {
         let _value = try_parse(&+selected, "[1,]") catch failure {
             return move failure

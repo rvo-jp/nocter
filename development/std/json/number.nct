@@ -5,8 +5,9 @@ see ./cursor.nct
 see ./errors.nct
 see ./failure.nct
 
-use /internal/mem.allocation_abort
-use /mem.{TryAllocator, current_try_allocator}
+use /internal/mem
+use /mem.TryAllocator
+use /mem as mem_module
 use /string.String
 
 copy struct NumberShape {
@@ -210,12 +211,12 @@ func try_parse_number(
 }
 
 func parse_number(text: &str): Number! {
-    var allocator = current_try_allocator()
+    var allocator = mem_module.current_try_allocator()
     let attempt = try_parse_number(&+allocator, text)
     match move attempt {
         Attempt.success(value) { return move value }
         Attempt.input(failure) { return move failure }
-        Attempt.allocation(_) { return allocation_abort() }
+        Attempt.allocation(_) { return mem.allocation_abort() }
     }
 }
 

@@ -2,17 +2,17 @@
 
 see ./index.nct
 
-use /ptr.{from_ref, from_ref_mut}
+use /ptr
 
 func replace_value<T>(place: &+T, replacement: T): T {
-    let pointer = from_ref_mut(place)
+    let pointer = ptr.from_ref_mut(place)
     let previous: T = take_value_at_ptr(pointer, 0)
     store_value_to_ptr(pointer, 0, move replacement)
     return move previous
 }
 
 func copy_value<T>(value: &T): T where copy T {
-    let pointer = from_ref(value)
+    let pointer = ptr.from_ref(value)
     let values = slice_from_raw_parts_value(pointer, 1)
     return values[0]
 }

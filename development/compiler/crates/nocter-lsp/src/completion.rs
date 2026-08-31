@@ -137,15 +137,15 @@ mod tests {
     fn renders_compiler_supplied_additional_text_edits() {
         let edit = TextEdit::new(
             Range::new(Position::new(0, 0), Position::new(0, 0)),
-            "use std/io.print\n\n",
+            "use std/io\n\n",
         );
-        let item = CompletionItem::new("print", CompletionItemKind::Function, None)
+        let item = CompletionItem::new("io.print", CompletionItemKind::Function, None)
             .with_additional_text_edits(std::slice::from_ref(&edit));
         let mut rendered = String::new();
         write_value(&mut rendered, &completion_result(&[item]));
         assert_eq!(
             rendered,
-            "[{\"label\":\"print\",\"kind\":3,\"additionalTextEdits\":[{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},\"newText\":\"use std/io.print\\n\\n\"}]}]"
+            "[{\"label\":\"io.print\",\"kind\":3,\"additionalTextEdits\":[{\"range\":{\"start\":{\"line\":0,\"character\":0},\"end\":{\"line\":0,\"character\":0}},\"newText\":\"use std/io\\n\\n\"}]}]"
         );
     }
 

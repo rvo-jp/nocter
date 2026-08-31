@@ -1073,11 +1073,11 @@ fn process_error_reporting_and_user_drop_are_closed_machine_operations() {
 fn region_lifetime_operations_reference_machine_values_and_stack_objects() {
     let fixture = CompilerFixture::with_app_allocation_standard_uses(
         "use std.Allocator\n\
-         use std/mem.allocation_context_state_for_test\n\
+         use std/mem\n\
          func main(): void {\n\
              let allocator = Allocator { state: 0, kind: 0 }\n\
              region temporary using allocator {\n\
-                 let _ = allocation_context_state_for_test()\n\
+                 let _ = mem.allocation_context_state_for_test()\n\
              }\n\
              return\n\
          }\n",
@@ -1116,13 +1116,12 @@ fn region_lifetime_operations_reference_machine_values_and_stack_objects() {
 #[test]
 fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.addr\n\
-         use std/ptr.from_ref\n\
+        "use std/ptr\n\
          func main(): usize {\n\
              let value: i32 = 7\n\
-             addr(from_ref(&value))\n\
+             ptr.addr(ptr.from_ref(&value))\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
     let calls = program
@@ -1153,14 +1152,13 @@ fn standard_primitives_keep_roles_and_use_the_shared_abi_planner() {
 #[test]
 fn repeated_standard_primitive_signatures_share_one_machine_abi_entry() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.addr\n\
-         use std/ptr.from_ref\n\
+        "use std/ptr\n\
          func main(): usize {\n\
              let value: i32 = 7\n\
-             let _ = from_ref(&value)\n\
-             addr(from_ref(&value))\n\
+             let _ = ptr.from_ref(&value)\n\
+             ptr.addr(ptr.from_ref(&value))\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["ptr"]],
     );
     let program = MachineProgram::lower(&lower_selected_fixture(&fixture, false)).unwrap();
     let abis = program
@@ -1453,8 +1451,8 @@ fn allocation_context_requirement_propagates_only_through_inherited_calls() {
     );
 
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/mem.allocation_context_state_for_test\n\
-         func helper(): usize { allocation_context_state_for_test() }\n\
+        "use std/mem\n\
+         func helper(): usize { mem.allocation_context_state_for_test() }\n\
          func main(): i32 {\n\
              let _ = helper()\n\
              0\n\
@@ -1498,8 +1496,8 @@ fn allocation_context_requirement_propagates_only_through_inherited_calls() {
 fn ambient_context_plans_separate_process_state_from_allocation_selection() {
     let mir = lower_selected_fixture(
         &CompilerFixture::with_app_standard_uses(
-            "use std/process.arg_count_for_test\n\
-             func read_count(): usize { return arg_count_for_test() }\n\
+            "use std/process\n\
+             func read_count(): usize { return process.arg_count_for_test() }\n\
              func main(): usize { return read_count() }\n",
             &[&["process"]],
         ),
@@ -1553,7 +1551,7 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
-         use std/mem.allocation_context_state_for_test\n\
+         use std/mem\n\
          struct Vec<T> {}\n\
          construct Vec<T> {\n\
              pub literal [](...items: T): Self {\n\
@@ -1571,7 +1569,7 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
          drop Iter(&+self) {\n\
-             let _ = allocation_context_state_for_test()\n\
+             let _ = mem.allocation_context_state_for_test()\n\
              return\n\
          }\n\
          func main(): i32 {\n\
@@ -1611,11 +1609,11 @@ fn pack_residual_destruction_propagates_allocation_context_to_the_literal() {
 fn explicit_literal_context_does_not_make_the_caller_context_dependent() {
     let fixture = CompilerFixture::with_app_allocation_standard_uses(
         "use std.Allocator\n\
-         use std/mem.allocation_context_state_for_test\n\
+         use std/mem\n\
          struct Vec<T> {}\n\
          construct Vec<T> {\n\
              pub literal [](...items: T): Self {\n\
-                 let _ = allocation_context_state_for_test()\n\
+                 let _ = mem.allocation_context_state_for_test()\n\
                  for item in items {}\n\
                  return Self {}\n\
              }\n\

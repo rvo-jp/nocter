@@ -1,6 +1,6 @@
 func late_use(): void {
     work()
-    use std/io.print
+    use std/io
 }
 
 func missing_initializer(): void {

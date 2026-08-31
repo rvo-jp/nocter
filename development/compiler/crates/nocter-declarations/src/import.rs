@@ -15,6 +15,20 @@ pub enum ExportedEntity {
     Constant(ConstantId),
 }
 
+impl ExportedEntity {
+    /// Reports whether an authored selected import may introduce this entity unqualified.
+    ///
+    /// Values retain their owning module as the source-level subject. Modules are imported by
+    /// their path rather than selected as a member.
+    #[must_use]
+    pub const fn is_selectable_type(self) -> bool {
+        matches!(
+            self,
+            Self::BuiltinType(_) | Self::NominalType(_) | Self::TypeAlias(_) | Self::Interface(_)
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ImportedName {
     exported_name: Symbol,

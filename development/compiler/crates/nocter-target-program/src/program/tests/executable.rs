@@ -647,13 +647,12 @@ fn executable_cleanup_keeps_enum_residual_distinct_from_complete_destruction() {
 #[test]
 fn bodyless_standard_calls_become_typed_primitive_steps() {
     let target = build_target_program(&Fixture::with_app_standard_uses(
-        "use std/ptr.addr\n\
-         use std/ptr.from_ref\n\
+        "use std/ptr\n\
          func main(): usize {\n\
              let value = 1\n\
-             addr(from_ref(&value))\n\
+             ptr.addr(ptr.from_ref(&value))\n\
          }\n",
-        &[&["ptr"], &["ptr"]],
+        &[&["ptr"]],
     ));
     let target = Arc::new(target);
     let selected = target
@@ -708,14 +707,14 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
 #[test]
 fn pointer_destruction_primitive_freezes_its_concrete_semantic_dependency() {
     let target = build_target_program(&Fixture::with_app_standard_uses(
-        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct Resource {}\n\
          drop Resource(&+self) { return }\n\
          func main(): i32 {\n\
              var value = Resource {}\n\
-             let pointer = from_ref_mut(&+value)\n\
-             drop_value_at_ptr_for_test(pointer, 0)\n\
+             let pointer = ptr.from_ref_mut(&+value)\n\
+             internal_ptr.drop_value_at_ptr_for_test(pointer, 0)\n\
              return 0\n\
          }\n",
         &[&["internal", "ptr"], &["ptr"]],

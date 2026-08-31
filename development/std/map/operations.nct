@@ -4,7 +4,7 @@ see ./index.nct
 see ./storage.nct
 
 use /hash.Hash
-use /internal/safety.bounds_abort
+use /internal/safety
 
 instance Map<K, V> where K impl Hash {
     method &self.len(): usize {
@@ -59,11 +59,11 @@ instance Map<K, V> where K impl Hash {
     }
 
     operator (&self[key: &K]): &V {
-        return self.get(key) otherwise { return bounds_abort() }
+        return self.get(key) otherwise { return safety.bounds_abort() }
     }
 
     operator (&+self[key: &K]): &+V {
-        return self.get_mut(key) otherwise { return bounds_abort() }
+        return self.get_mut(key) otherwise { return safety.bounds_abort() }
     }
 
     operator (&self == other: &Self): bool where (&V == &V): bool {

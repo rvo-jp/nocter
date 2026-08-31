@@ -132,7 +132,7 @@ fn parsed_expression(text: &str) -> (SourceMap, SyntaxTree, NodeId) {
     let source = sources
         .add_bytes(
             SourceName::new("/constant.nct"),
-            format!("const value: i32 = {text}\n").as_bytes(),
+            format!("const VALUE: i32 = {text}\n").as_bytes(),
         )
         .unwrap();
     let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);

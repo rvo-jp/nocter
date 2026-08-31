@@ -213,6 +213,11 @@ pub(super) fn use_tree(parser: &mut Parser<'_>) {
             selected_name(parser);
         }
         parser.complete(selection, NodeKind::ImportSelection);
+    } else if parser.at_keyword(Keyword::As) {
+        let alias = parser.start();
+        parser.bump();
+        expect_module_segment(parser);
+        parser.complete(alias, NodeKind::ModuleAlias);
     }
 }
 
@@ -246,7 +251,9 @@ fn module_path(parser: &mut Parser<'_>) {
         false
     };
 
-    if package_absolute && parser.at_punctuation(Punctuation::Dot) {
+    if package_absolute
+        && (parser.at_punctuation(Punctuation::Dot) || parser.at_keyword(Keyword::As))
+    {
         return;
     }
 

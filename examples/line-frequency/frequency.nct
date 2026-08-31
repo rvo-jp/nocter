@@ -1,20 +1,22 @@
-use std/io.{File, Reader, print}
+use std/io.{File, Reader}
+
+use std/io
 
 use std/path.Utf8Path
 
-use std/process.arg
+use std/process
 
 use std/string.String
 
 see ./index.nct
 
 func run(): i32! {
-    let requested: &str = arg(1)? otherwise {
-        print("usage: line-frequency PATH NEEDLE\n")?
+    let requested: &str = process.arg(1)? otherwise {
+        io.print("usage: line-frequency PATH NEEDLE\n")?
         return 2
     }
-    let requested_needle: &str = arg(2)? otherwise {
-        print("usage: line-frequency PATH NEEDLE\n")?
+    let requested_needle: &str = process.arg(2)? otherwise {
+        io.print("usage: line-frequency PATH NEEDLE\n")?
         return 2
     }
     let path = Utf8Path.new(requested)?
@@ -53,6 +55,6 @@ func run(): i32! {
         &matching_text,
         "\n",
     )
-    print(&output)?
+    io.print(&output)?
     return 0
 }

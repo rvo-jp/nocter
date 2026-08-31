@@ -126,6 +126,12 @@ fn has_node_kind(tree: &SyntaxTree, expected: NodeKind) -> bool {
     false
 }
 
+fn count_node_kind(tree: &SyntaxTree, expected: NodeKind) -> usize {
+    tree.nodes()
+        .filter(|(_, node)| node.kind() == expected)
+        .count()
+}
+
 #[test]
 fn parses_empty_and_nested_package_directive_values() {
     assert_syntax_ok("", ParseGoal::SourceFile);
@@ -223,12 +229,9 @@ fn rejects_noncanonical_source_visibility_paths() {
 }
 
 #[test]
-fn rejects_empty_selection_and_namespace_alias() {
+fn rejects_empty_selection() {
     let empty = parse_text("use ./parser.{}\n", ParseGoal::SourceFile);
     assert!(empty.has_errors());
-
-    let alias = parse_text("use std/io as console\n", ParseGoal::SourceFile);
-    assert!(alias.has_errors());
 }
 
 #[test]
@@ -412,8 +415,22 @@ fn rejects_closed_type_shapes_without_semantic_assistance() {
 #[test]
 fn parses_fixed_array_lengths_as_constant_expressions() {
     assert_syntax_ok(
-        "const width: usize = 4\ntype Buffer = [u8; width * 2]\n",
+        "const WIDTH: usize = 4\ntype Buffer = [u8; WIDTH * 2]\n",
         ParseGoal::SourceFile,
+    );
+}
+
+#[test]
+fn parses_module_namespace_aliases_in_top_level_and_block_imports() {
+    let tree = assert_syntax_ok(
+        "use std/io as console\nuse / as root\nfunc main(): void {\n    use ./support as local_support\n\n    return\n}\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        count_node_kind(&tree, NodeKind::ModuleAlias),
+        3,
+        "every namespace alias must have one explicit syntax node"
     );
 }
 

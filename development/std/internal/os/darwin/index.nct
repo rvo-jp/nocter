@@ -21,112 +21,112 @@ pub(/) func errno(code: i32): Errno
 pub(/) func error_from_errno(value: Errno): OSError
 
 #target: "arm64-darwin"
-pub(/) const sys_read: usize
+pub(/) const SYS_READ: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_write: usize
+pub(/) const SYS_WRITE: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_open: usize
+pub(/) const SYS_OPEN: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_close: usize
+pub(/) const SYS_CLOSE: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_unlink: usize
+pub(/) const SYS_UNLINK: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_rename: usize
+pub(/) const SYS_RENAME: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_munmap: usize
+pub(/) const SYS_MUNMAP: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_mmap: usize
+pub(/) const SYS_MMAP: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_stat64: usize
+pub(/) const SYS_STAT64: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_getdirentries64: usize
+pub(/) const SYS_GETDIRENTRIES64: usize
 
 #target: "arm64-darwin"
-pub(/) const sys_getentropy: usize
+pub(/) const SYS_GETENTROPY: usize
 
 #target: "arm64-darwin"
-pub(/) const open_read_only: usize
+pub(/) const OPEN_READ_ONLY: usize
 
 #target: "arm64-darwin"
-pub(/) const open_directory_only: usize
+pub(/) const OPEN_DIRECTORY_ONLY: usize
 
 #target: "arm64-darwin"
-pub(/) const open_create_truncate: usize
+pub(/) const OPEN_CREATE_TRUNCATE: usize
 
 #target: "arm64-darwin"
-pub(/) const open_create_append: usize
+pub(/) const OPEN_CREATE_APPEND: usize
 
 #target: "arm64-darwin"
-pub(/) const create_mode: usize
+pub(/) const CREATE_MODE: usize
 
 #target: "arm64-darwin"
-pub(/) const mmap_read_write: usize
+pub(/) const MMAP_READ_WRITE: usize
 
 #target: "arm64-darwin"
-pub(/) const mmap_private_anonymous: usize
+pub(/) const MMAP_PRIVATE_ANONYMOUS: usize
 
 #target: "arm64-darwin"
-pub(/) const mmap_no_file: usize
+pub(/) const MMAP_NO_FILE: usize
 
 #target: "arm64-darwin"
-pub(/) const errno_interrupted: i32
+pub(/) const ERRNO_INTERRUPTED: i32
 
 #target: "arm64-darwin"
-pub(/) const sys_fcntl: usize
+pub(/) const SYS_FCNTL: usize
 
 #target: "arm64-darwin"
-pub(/) const f_getpath: usize
+pub(/) const F_GETPATH: usize
 
 #target: "arm64-darwin"
-pub(/) const max_path_len: usize
+pub(/) const MAX_PATH_LEN: usize
 
 #target: "arm64-darwin"
-pub(/) const stat_buffer_size: usize
+pub(/) const STAT_BUFFER_SIZE: usize
 
 #target: "arm64-darwin"
-pub(/) const stat_mode_offset: usize
+pub(/) const STAT_MODE_OFFSET: usize
 
 #target: "arm64-darwin"
-pub(/) const stat_size_offset: usize
+pub(/) const STAT_SIZE_OFFSET: usize
 
 #target: "arm64-darwin"
-pub(/) const stat_mode_regular: u16
+pub(/) const STAT_MODE_REGULAR: u16
 
 #target: "arm64-darwin"
-pub(/) const stat_mode_directory: u16
+pub(/) const STAT_MODE_DIRECTORY: u16
 
 #target: "arm64-darwin"
-pub(/) const dirent_inode_offset: usize
+pub(/) const DIRENT_INODE_OFFSET: usize
 
 #target: "arm64-darwin"
-pub(/) const dirent_record_length_offset: usize
+pub(/) const DIRENT_RECORD_LENGTH_OFFSET: usize
 
 #target: "arm64-darwin"
-pub(/) const dirent_name_length_offset: usize
+pub(/) const DIRENT_NAME_LENGTH_OFFSET: usize
 
 #target: "arm64-darwin"
-pub(/) const dirent_type_offset: usize
+pub(/) const DIRENT_TYPE_OFFSET: usize
 
 #target: "arm64-darwin"
-pub(/) const dirent_name_offset: usize
+pub(/) const DIRENT_NAME_OFFSET: usize
 
 #target: "arm64-darwin"
-pub(/) const dirent_type_directory: u8
+pub(/) const DIRENT_TYPE_DIRECTORY: u8
 
 #target: "arm64-darwin"
-pub(/) const dirent_type_regular: u8
+pub(/) const DIRENT_TYPE_REGULAR: u8
 
 #target: "arm64-darwin"
-pub(/) const dirent_type_symlink: u8
+pub(/) const DIRENT_TYPE_SYMLINK: u8
 
 #target: "arm64-darwin"
 pub(/) primitive func syscall1(

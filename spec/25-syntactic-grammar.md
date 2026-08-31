@@ -143,7 +143,8 @@ SourcePathSegment = ModuleSegment
 
 UseDeclaration = Visibility? "use" UseTree
 
-UseTree = ModulePath
+UseTree = ModulePath ("as" Name)?
+        | "/" "as" Name
         | ModulePath "." ImportSelection
         | "/" "." ImportSelection
 
@@ -164,6 +165,9 @@ contains the exact source filename and admits neither a missing `.nct` suffix no
 prefix. Semantic resolution permits the canonical target only when both sources have the same
 physical module owner. A
 `ModulePath` never contains `.nct`; every `use` is a directory-module import.
+Semantic validation permits `as` on a private namespace import, rejects it on a namespace
+re-export, and permits `ImportSelection` only for exported type-namespace declarations. A function,
+constant, or other value is reached through an imported module namespace.
 
 A block-scope import uses the private `BlockUseDeclaration` form. Its enclosing block owns the
 newline separator. Visibility is recognized only on a top-level use declaration. `see` has no
@@ -192,6 +196,10 @@ TargetDirective = "#" "target" ":" StringLiteral newline+
 ```text
 ConstantDeclaration = Visibility? "const" Name ":" Type ("=" Expression)?
 ```
+
+A constant's `Name` must satisfy the semantic `UPPER_SNAKE_CASE` rule in
+[Compile-Time Constants](26-constants.md#declaration). The lexer keeps one identifier token class;
+the parser does not duplicate the naming-policy check.
 
 A constant without an initializer is a module-root contract and must join exactly one private
 initializer definition. Every other constant declaration has an initializer.
@@ -426,7 +434,7 @@ The following examples are syntax errors, independently of whether their names r
 
 ```nct
 func late(): void { return }
-use std/io.print // imports cannot follow items
+use std/io // imports cannot follow items
 
 pub instance Buffer {} // instance has no declaration visibility
 

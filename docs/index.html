@@ -137,10 +137,10 @@
 </code></pre><p>If <code>/usr/local/bin</code> requires elevated permissions, use <code>sudo ln -s ...</code> or choose a user-owned directory that is already on <code>PATH</code>, such as <code>~/.local/bin</code> when your shell already includes it.</p><p>Do not copy the <code>nocter</code> binary out of <code>.nocter/</code>; the compiler locates its standard library from the real installed binary path. If symlinks are not available in your environment, set <code>NOCTER_HOME</code> explicitly:</p><pre><code class="language-sh"><span class="token-function">export</span> NOCTER_HOME=<span class="token-string">"$HOME/.nocter"</span>
 </code></pre><p>Uninstalling a <code>.nocter/</code> installation is intentionally plain:</p><pre><code class="language-sh"><span class="token-function">rm</span> /usr/<span class="token-function">local</span>/bin/nocter
 <span class="token-function">rm</span> <span class="token-option">-rf</span> <span class="token-string">"$HOME/.nocter"</span>
-</code></pre><h2 id="first-program">First Program</h2><p>Create <code>hello.nct</code>:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io<span class="token-operator">.</span>print
+</code></pre><h2 id="first-program">First Program</h2><p>Create <code>hello.nct</code>:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
 <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 </code></pre><p>Run it directly:</p><pre><code class="language-sh"><span class="token-function">nocter</span> run hello.nct

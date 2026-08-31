@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/mem/allocation.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -174,20 +176,20 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>layout<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>allocation_abort<span class="token-operator">,</span> checked_add<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>mmap_no_file<span class="token-operator">,</span> mmap_private_anonymous<span class="token-operator">,</span> mmap_read_write<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>sys_mmap<span class="token-operator">,</span> sys_munmap<span class="token-operator">,</span> syscall2<span class="token-operator">,</span> syscall6<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>copy_ptr_to_ptr<span class="token-operator">,</span> from_addr<span class="token-operator">,</span> slice_from_raw_parts_value<span class="token-operator">,</span> store_value_to_ptr<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">alloc_pages</span><span class="token-operator">(</span>size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">syscall6</span><span class="token-operator">(</span>
-        sys_mmap<span class="token-operator">,</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall6</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_MMAP</span><span class="token-operator">,</span>
         <span class="token-number">0</span><span class="token-operator">,</span>
         size<span class="token-operator">,</span>
-        mmap_read_write<span class="token-operator">,</span>
-        mmap_private_anonymous<span class="token-operator">,</span>
-        mmap_no_file<span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">MMAP_READ_WRITE</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">MMAP_PRIVATE_ANONYMOUS</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">MMAP_NO_FILE</span><span class="token-operator">,</span>
         <span class="token-number">0</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
@@ -198,7 +200,7 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">free_pages</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-function">syscall2</span><span class="token-operator">(</span>sys_munmap<span class="token-operator">,</span> address<span class="token-operator">,</span> size<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall2</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_MUNMAP</span><span class="token-operator">,</span> address<span class="token-operator">,</span> size<span class="token-operator">)</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
@@ -211,10 +213,10 @@
     <span class="token-comment">// within the mapping, so region release can walk mappings without storing</span>
     <span class="token-comment">// metadata beside or inside user-visible bytes.</span>
     <span class="token-keyword">let</span> header_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">16</span>
-    <span class="token-keyword">let</span> header_and_payload<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>header_size<span class="token-operator">,</span> size<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> header_and_payload<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> mem<span class="token-operator">.</span><span class="token-function">checked_add</span><span class="token-operator">(</span>header_size<span class="token-operator">,</span> size<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> mapping_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>header_and_payload<span class="token-operator">,</span> align<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> mapping_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> mem<span class="token-operator">.</span><span class="token-function">checked_add</span><span class="token-operator">(</span>header_and_payload<span class="token-operator">,</span> align<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">let</span> mapping <span class="token-operator">=</span> <span class="token-function">alloc_pages</span><span class="token-operator">(</span>mapping_size<span class="token-operator">)</span><span class="token-operator">?</span>
@@ -225,13 +227,13 @@
         padding <span class="token-operator">=</span> align - remainder
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">let</span> state_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>state<span class="token-operator">)</span>
-    <span class="token-keyword">let</span> state_words<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>state_pointer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span>
+    <span class="token-keyword">let</span> state_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">usize</span> <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>state<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> state_words<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span> <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>state_pointer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span>
     <span class="token-keyword">let</span> previous<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> state_words<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span>
-    <span class="token-keyword">let</span> header<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>mapping<span class="token-operator">)</span>
-    <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>header<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> previous<span class="token-operator">)</span>
-    <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>header<span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">,</span> mapping_size<span class="token-operator">)</span>
-    <span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>state_pointer<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> mapping<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> header<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">usize</span> <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>mapping<span class="token-operator">)</span>
+    ptr<span class="token-operator">.</span><span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>header<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> previous<span class="token-operator">)</span>
+    ptr<span class="token-operator">.</span><span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>header<span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">,</span> mapping_size<span class="token-operator">)</span>
+    ptr<span class="token-operator">.</span><span class="token-function">store_value_to_ptr</span><span class="token-operator">(</span>state_pointer<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> mapping<span class="token-operator">)</span>
     <span class="token-keyword">return</span> payload_start <span class="token-operator">+</span> padding
 <span class="token-operator">}</span>
 
@@ -250,7 +252,7 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> requested<span class="token-operator">.</span>size <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
-            ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            ptr<span class="token-operator">:</span> ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
             len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
             align<span class="token-operator">:</span> requested<span class="token-operator">.</span>align<span class="token-operator">,</span>
             allocator_state<span class="token-operator">:</span> allocator<span class="token-operator">.</span>state<span class="token-operator">,</span>
@@ -267,7 +269,7 @@
         <span class="token-keyword">return</span> <span class="token-function">invalid_argument</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
-        ptr<span class="token-operator">:</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>address<span class="token-operator">)</span><span class="token-operator">,</span>
+        ptr<span class="token-operator">:</span> ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>address<span class="token-operator">)</span><span class="token-operator">,</span>
         len<span class="token-operator">:</span> requested<span class="token-operator">.</span>size<span class="token-operator">,</span>
         align<span class="token-operator">:</span> requested<span class="token-operator">.</span>align<span class="token-operator">,</span>
         allocator_state<span class="token-operator">:</span> allocator<span class="token-operator">.</span>state<span class="token-operator">,</span>
@@ -282,7 +284,7 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> fallible <span class="token-operator">=</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span> state<span class="token-operator">:</span> allocator<span class="token-operator">.</span>state<span class="token-operator">,</span> kind<span class="token-operator">:</span> allocator<span class="token-operator">.</span>kind <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-function">try_alloc</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>fallible<span class="token-operator">,</span> size<span class="token-operator">,</span> align<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
@@ -292,7 +294,7 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> fallible <span class="token-operator">=</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span> state<span class="token-operator">:</span> allocator<span class="token-operator">.</span>state<span class="token-operator">,</span> kind<span class="token-operator">:</span> allocator<span class="token-operator">.</span>kind <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-function">try_alloc_layout</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>fallible<span class="token-operator">,</span> requested<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
@@ -318,7 +320,7 @@
 
     <span class="token-keyword">var</span> replacement <span class="token-operator">=</span> <span class="token-function">try_alloc</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> new_size<span class="token-operator">,</span> buffer<span class="token-operator">.</span>align<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">if</span> buffer<span class="token-operator">.</span>len <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-function">copy_ptr_to_ptr</span><span class="token-operator">(</span>replacement<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>len<span class="token-operator">)</span>
+        ptr<span class="token-operator">.</span><span class="token-function">copy_ptr_to_ptr</span><span class="token-operator">(</span>replacement<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span> buffer<span class="token-operator">.</span>len<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
     <span class="token-keyword">var</span> previous <span class="token-operator">=</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
@@ -335,7 +337,7 @@
     buffer<span class="token-operator">.</span>allocator_state <span class="token-operator">=</span> replacement<span class="token-operator">.</span>allocator_state
     buffer<span class="token-operator">.</span>allocator_kind <span class="token-operator">=</span> replacement<span class="token-operator">.</span>allocator_kind
 
-    replacement<span class="token-operator">.</span>ptr <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
+    replacement<span class="token-operator">.</span>ptr <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
     replacement<span class="token-operator">.</span>len <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
@@ -356,7 +358,7 @@
 <span class="token-keyword">func</span> <span class="token-function">grow</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Allocator</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> new_size<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> fallible <span class="token-operator">=</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span> state<span class="token-operator">:</span> allocator<span class="token-operator">.</span>state<span class="token-operator">,</span> kind<span class="token-operator">:</span> allocator<span class="token-operator">.</span>kind <span class="token-operator">}</span>
     <span class="token-function">try_grow</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>fallible<span class="token-operator">,</span> buffer<span class="token-operator">,</span> new_size<span class="token-operator">)</span> <span class="token-keyword">catch</span> allocation_error <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>

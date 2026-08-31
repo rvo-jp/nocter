@@ -2,8 +2,8 @@
 
 see ./index.nct
 
-use /internal/ptr.slice_from_raw_parts_value
-use /ptr.from_ref
+use /internal/ptr
+use /ptr as ptr_module
 
 copy struct ScalarEncoding {
     encoded_bytes: [u8; 4]
@@ -63,7 +63,7 @@ func encode_scalar(value: u32): ScalarEncoding? {
 
 instance ScalarEncoding {
     method &self.bytes(): &[u8] {
-        return slice_from_raw_parts_value(from_ref(&self.encoded_bytes[0]), self.initialized_len)
+        return ptr.slice_from_raw_parts_value(ptr_module.from_ref(&self.encoded_bytes[0]), self.initialized_len)
     }
 }
 

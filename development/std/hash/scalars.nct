@@ -2,82 +2,82 @@
 
 see ./index.nct
 
-use /internal/ptr.{from_addr, pointee_size, slice_from_raw_parts}
-use /ptr.{addr, from_ref}
+use /internal/ptr
+use /ptr as ptr_module
 
 func write_bool(state: &+HashState, value: &bool): void {
-    let pointer: *bool = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *bool = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_i8(state: &+HashState, value: &i8): void {
-    let pointer: *i8 = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *i8 = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_i16(state: &+HashState, value: &i16): void {
-    let pointer: *i16 = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *i16 = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_i32(state: &+HashState, value: &i32): void {
-    let pointer: *i32 = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *i32 = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_i64(state: &+HashState, value: &i64): void {
-    let pointer: *i64 = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *i64 = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_isize(state: &+HashState, value: &isize): void {
-    let pointer: *isize = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *isize = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_u8(state: &+HashState, value: &u8): void {
-    let pointer: *u8 = from_ref(value)
-    state.write(slice_from_raw_parts(pointer, pointee_size(pointer)))
+    let pointer: *u8 = ptr_module.from_ref(value)
+    state.write(ptr.slice_from_raw_parts(pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_u16(state: &+HashState, value: &u16): void {
-    let pointer: *u16 = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *u16 = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_u32(state: &+HashState, value: &u32): void {
-    let pointer: *u32 = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *u32 = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_u64(state: &+HashState, value: &u64): void {
-    let pointer: *u64 = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *u64 = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 
 func write_usize(state: &+HashState, value: &usize): void {
-    let pointer: *usize = from_ref(value)
-    let bytes_pointer: *u8 = from_addr(addr(pointer))
-    state.write(slice_from_raw_parts(bytes_pointer, pointee_size(pointer)))
+    let pointer: *usize = ptr_module.from_ref(value)
+    let bytes_pointer: *u8 = ptr.from_addr(ptr_module.addr(pointer))
+    state.write(ptr.slice_from_raw_parts(bytes_pointer, ptr.pointee_size(pointer)))
     return
 }
 

@@ -724,7 +724,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     return self.check_call(current, expected);
                 }
                 NodeKind::PostfixExpression => {
-                    if let Some((owner, member)) = calls::construction_member_syntax(self, current)?
+                    if !self.is_constant_reference(current)
+                        && let Some((owner, member)) =
+                            calls::construction_member_syntax(self, current)?
                     {
                         return self
                             .check_inferred_construction_member(current, owner, member, expected);

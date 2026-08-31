@@ -15,10 +15,10 @@ Use the formatter's output as the only canonical source style.
 Important spellings:
 
 ```nct
-use std/io.print
+use std/io
 
 func main(): i32! {
-    print("Hello")?
+    io.print("Hello")?
     return 0
 }
 ```
@@ -49,9 +49,10 @@ Rules for generated code:
 - Never use string-literal addresses as identity. Distinct occurrences may share pooled static
   bytes or use separate storage; compare `str` contents instead.
 - Use `let` for immutable bindings and `var` for mutable bindings.
-- Use `const name: Type = expression` only for storage-independent `bool`, integer, or static
+- Use `const NAME: Type = expression` only for storage-independent `bool`, integer, or static
   readonly `&str` values. A constant is a value, not a place; do not borrow, assign, move, or drop
-  it. Fixed-array lengths may use the same constant-expression subset.
+  it. Constant names must use ASCII `UPPER_SNAKE_CASE`. Fixed-array lengths may use the same
+  constant-expression subset.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Move only from owned bindings, owned parameters, owned closure captures, or their named struct
   fields. `&+` permits mutation but never permits moving ownership out of the borrowed value.
@@ -113,7 +114,7 @@ Nocter does not use a `module` declaration. A source belongs to the nearest ance
 containing `index.nct`.
 
 ```nct
-use std/io.print
+use std/io
 use ./config.Config
 see ./helpers.nct
 ```
@@ -124,7 +125,8 @@ Rules:
 - Do not write `use std/prelude` in generated user code; source-level prelude imports are invalid.
 - Files inside the active Nocter home `std/` tree do not receive the synthetic prelude.
 - `use path` imports a module namespace using the path's default name.
-- `use path.Name` imports selected public names.
+- `use path.Name` imports a selected public type name. Functions, constants, and other values stay
+  qualified through a module namespace.
 - `use path as name` imports a namespace alias.
 - `use` resolves directory modules and never physical source files. Relative module paths may use
   `./` or `../` and omit both `index.nct` and `.nct`.
@@ -143,10 +145,10 @@ Rules:
 Fallible values use `T!`. The failure payload is always the built-in `error` type.
 
 ```nct
-use std/io.print
+use std/io
 
 func announce(text: &str): void! {
-    print(text)?
+    io.print(text)?
     return
 }
 ```
@@ -194,14 +196,14 @@ let user = lookup("USER") otherwise { "unknown" }
 Fallible optional success values use `T?!`.
 
 ```nct
-use std/process.env
+use std/process
 
 func user_name(): &str! {
-    return env("USER")? otherwise { "unknown" }
+    return process.env("USER")? otherwise { "unknown" }
 }
 ```
 
-`env("USER")?` unwraps the fallible layer and leaves `&str?`; `otherwise` chooses a fallback when the optional success is `none`.
+`process.env("USER")?` unwraps the fallible layer and leaves `&str?`; `otherwise` chooses a fallback when the optional success is `none`.
 
 ## Enums And Match
 
@@ -252,7 +254,7 @@ Rules:
 
 ```nct
 match &message {
-    Message.text(text) { print(text as &str)? } // text: &String
+    Message.text(text) { io.print(text as &str)? } // text: &String
     _ { ... }
 }
 ```
@@ -358,10 +360,10 @@ print("Hello")
 Prefer:
 
 ```nct
-use std/io.print
+use std/io
 
 func main(): i32! {
-    print("Hello")?
+    io.print("Hello")?
     return 0
 }
 ```

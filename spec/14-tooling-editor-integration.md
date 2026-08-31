@@ -179,6 +179,13 @@ Private, unreachable, dependency-internal, and standard-library-internal declara
 candidates. A candidate whose added module edge would create an import cycle is also excluded;
 top-level and block imports both participate in that proof.
 
+Automatic import presentation follows the language namespace contract. A type candidate is
+inserted as an unqualified selected import. A function or constant candidate is presented as
+`module.member` and inserts a namespace import. If the default module name already denotes another
+visible entity, the compiler derives and inserts a deterministic namespace alias. Local values do
+not suppress a same-spelled qualified candidate, because `member` and `module.member` occupy
+different use-site shapes. Completion and code actions consume this same compiler-owned plan.
+
 Member completion for a generic receiver combines its declared capability set. Distinct interfaces
 with the same applicable member name are ambiguous; order never chooses one.
 
@@ -245,7 +252,7 @@ valid destination. In single-file mode it may edit the containing instance. If n
 destination exists, the compiler reports the missing methods without offering an edit; the server
 does not invent a source file or choose one by path order. Each generated signature uses the
 implementation-specialized associated types, callable generics, parameter and result types, and
-`where` predicates. Generated method bodies call `std/process.abort()`; the action adds that import
+`where` predicates. Generated method bodies call `process.abort()`; the action adds `use std/process`
 when it is not already visible. The server offers no action unless the complete edited package
 passes ordinary compilation, so a partial method set, unresolved signature type, or conflicting
 `abort` binding is not published.

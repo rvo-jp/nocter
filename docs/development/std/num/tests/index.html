@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -172,7 +174,7 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span>page_try_allocator
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 <span class="token-keyword">func</span> <span class="token-function">require</span><span class="token-operator">(</span>condition<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span> message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
@@ -386,7 +388,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">test</span> recoverable_integer_text_uses_the_supplied_allocator <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> mem<span class="token-operator">.</span><span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">let</span> signed8<span class="token-operator">:</span> <span class="token-type">i8</span> <span class="token-operator">=</span> -<span class="token-number">128</span>
     <span class="token-keyword">let</span> signed16<span class="token-operator">:</span> <span class="token-type">i16</span> <span class="token-operator">=</span> -<span class="token-number">32768</span>
     <span class="token-keyword">let</span> signed32<span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">=</span> -<span class="token-number">2147483648</span>

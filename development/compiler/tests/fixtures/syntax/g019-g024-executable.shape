@@ -17,8 +17,6 @@ SourceFile
       Block
         BlockUseDeclaration
           ModulePath
-          ImportSelection
-            SelectedName
         ExecutableSequence
           BindingStatement
             BindingTarget
@@ -75,7 +73,9 @@ SourceFile
                 BodyResult
                   Expression
                     PostfixExpression
-                      ReferenceExpression
+                      PostfixExpression
+                        ReferenceExpression
+                        MemberSuffix
                       CallSuffix
                         Expression
                           ReferenceExpression
@@ -90,7 +90,9 @@ SourceFile
                 BodyResult
                   Expression
                     PostfixExpression
-                      ReferenceExpression
+                      PostfixExpression
+                        ReferenceExpression
+                        MemberSuffix
                       CallSuffix
                         Expression
                           ReferenceExpression
@@ -102,7 +104,9 @@ SourceFile
                 BodyResult
                   Expression
                     PostfixExpression
-                      ReferenceExpression
+                      PostfixExpression
+                        ReferenceExpression
+                        MemberSuffix
                       CallSuffix
                         Expression
                           ReferenceExpression

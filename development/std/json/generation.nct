@@ -4,10 +4,11 @@ see ./index.nct
 see ./escaping.nct
 see ./generation_failure.nct
 
-use /internal/mem.allocation_abort
+use /internal/mem
 use /io.Writer
 use /map.Map
-use /mem.{TryAllocator, current_try_allocator, page_allocator, page_try_allocator}
+use /mem.TryAllocator
+use /mem as mem_module
 use /json/output.{ByteSink, StringSink, WriterSink}
 use /string.String
 use /vec.Vec
@@ -132,16 +133,16 @@ func generate_core<S>(
 }
 
 func stringify(value: &Value): String {
-    var allocator = current_try_allocator()
+    var allocator = mem_module.current_try_allocator()
     var output: String = String.try_with_capacity(&+allocator, 0) catch _ {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     var sink = StringSink.new(&+output)
     let attempt = generate_core(&+allocator, &+sink, value)
     match move attempt {
         GenerationAttempt.complete { return move output }
-        GenerationAttempt.sink(_) { return allocation_abort() }
-        GenerationAttempt.allocation(_) { return allocation_abort() }
+        GenerationAttempt.sink(_) { return mem.allocation_abort() }
+        GenerationAttempt.allocation(_) { return mem.allocation_abort() }
     }
 }
 
@@ -160,13 +161,13 @@ func try_stringify(
 }
 
 func write<W>(destination: &+W, value: &Value): void! where W impl Writer {
-    var allocator = current_try_allocator()
+    var allocator = mem_module.current_try_allocator()
     var sink = WriterSink<W>.new(destination)
     let attempt = generate_core(&+allocator, &+sink, value)
     match move attempt {
         GenerationAttempt.complete { return }
         GenerationAttempt.sink(failure) { return move failure }
-        GenerationAttempt.allocation(_) { return allocation_abort() }
+        GenerationAttempt.allocation(_) { return mem.allocation_abort() }
     }
 }
 
@@ -250,8 +251,8 @@ test generator_uses_an_explicit_stack_for_deep_values {
 }
 
 func recoverable_stringify_inside_region(value: &Value): String! {
-    var selected = page_try_allocator()
-    var backing = page_allocator()
+    var selected = mem_module.page_try_allocator()
+    var backing = mem_module.page_allocator()
     region temporary using backing {
         return try_stringify(&+selected, value)?
     }

@@ -7,6 +7,11 @@ in [`development/releases/`](../releases/README.md).
 
 ## Active Milestone
 
+The [v0.24.0 milestone](v0.24.0.md) makes imported value ownership explicit through module-qualified
+use sites, reserves selected imports for type names, and requires `UPPER_SNAKE_CASE` constants.
+Implementation, source migration, qualification, and final review are complete; release preparation
+has not started.
+
 The [v0.23.0 milestone](v0.23.0.md) completes type-owned decimal parsing and owned text conversion
 for every built-in integer. Phases 0 through 3 and the full design review are complete; release
 preparation has not started.

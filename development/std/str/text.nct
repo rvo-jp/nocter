@@ -6,7 +6,7 @@ see ./views.nct
 see ./owned.nct
 
 use /iter.{Iterator, ViewIter}
-use /internal/ptr.from_addr
+use /internal/ptr
 use /string.String
 use /vec.Vec
 
@@ -53,7 +53,7 @@ instance str {
     }
 
     method &self.ptr(): *u8 {
-        return from_addr(str_ptr_addr_raw(self))
+        return ptr.from_addr(str_ptr_addr_raw(self))
     }
 
     method &self.bytes(): &[u8] {

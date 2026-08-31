@@ -6,6 +6,7 @@ use nocter_declarations::{DeclarationGraph, Module, ModulePath};
 use nocter_discovery::DiscoveredUnit;
 use nocter_model::{ModuleId, PackageId, PackageIdentity, Symbol};
 use nocter_source::{ByteOffset, SourceFile, SourceId, TextRange};
+use nocter_source_index::SemanticEntity;
 use nocter_syntax::{CommentKind, NodeKind, SyntaxElement, SyntaxTree};
 
 use super::{Candidate, SemanticCompletion, SemanticCompletionEdit, exported_candidate};
@@ -130,15 +131,13 @@ pub(super) fn completions(
             continue;
         }
         for entry in namespace.authored() {
-            if visible.contains_key(&entry.name())
-                || !graph.is_visible_from(entry.visibility(), module, candidate_module)
-            {
+            if !graph.is_visible_from(entry.visibility(), module, candidate_module) {
                 continue;
             }
             let Some(candidate) = exported_candidate(graph, entry.target()) else {
                 continue;
             };
-            let label = graph
+            let member = graph
                 .symbols()
                 .spelling(entry.name())
                 .ok_or(AutomaticImportError::UnknownSymbol(entry.name()))?;
@@ -146,21 +145,104 @@ pub(super) fn completions(
                 if !emitted.insert((entry.name(), path.clone())) {
                     continue;
                 }
-                let import = format!("{path}.{label}");
-                completions.push(
-                    SemanticCompletion::new(
-                        label,
-                        candidate.kind,
-                        program.completion_detail(candidate.entity, &spellings)?,
-                    )
-                    .with_entity(candidate.entity)
-                    .with_additional_edit(insertion.edit(&import))
-                    .with_automatic_import(import),
-                );
+                if entry.target().is_selectable_type() {
+                    if visible.contains_key(&entry.name()) {
+                        continue;
+                    }
+                    let import = format!("{path}.{member}");
+                    completions.push(
+                        SemanticCompletion::new(
+                            member,
+                            candidate.kind,
+                            program.completion_detail(candidate.entity, &spellings)?,
+                        )
+                        .with_entity(candidate.entity)
+                        .with_additional_edit(insertion.edit(&import))
+                        .with_automatic_import(import),
+                    );
+                    continue;
+                }
+
+                let (namespace, import) = value_namespace(graph, visible, candidate_module, path)?;
+                let label = format!("{namespace}.{member}");
+                let automatic_import = import.as_deref().unwrap_or(path);
+                let completion = SemanticCompletion::new(
+                    label,
+                    candidate.kind,
+                    program.completion_detail(candidate.entity, &spellings)?,
+                )
+                .with_entity(candidate.entity)
+                .with_automatic_import(automatic_import);
+                completions.push(if let Some(import) = import {
+                    completion.with_additional_edit(insertion.edit(&import))
+                } else {
+                    completion
+                });
             }
         }
     }
     Ok(completions.into_boxed_slice())
+}
+
+fn value_namespace(
+    graph: &DeclarationGraph,
+    visible: &BTreeMap<Symbol, Candidate>,
+    module: ModuleId,
+    path: &str,
+) -> Result<(Box<str>, Option<Box<str>>), AutomaticImportError> {
+    let default = path
+        .split('/')
+        .rev()
+        .find(|segment| !segment.is_empty() && *segment != "." && *segment != "..")
+        .unwrap_or("root");
+    if let Some(existing) = visible_candidate(graph, visible, default) {
+        if existing.entity == SemanticEntity::Module(module) {
+            return Ok((default.into(), None));
+        }
+    } else {
+        return Ok((default.into(), Some(path.into())));
+    }
+
+    let stem = path
+        .split('/')
+        .filter(|segment| !segment.is_empty() && *segment != "." && *segment != "..")
+        .collect::<Vec<_>>()
+        .join("_");
+    let stem = if stem.is_empty() { "root" } else { &stem };
+    for suffix in ["", "_module"] {
+        let alias = format!("{stem}{suffix}");
+        if visible_candidate(graph, visible, &alias).is_none() {
+            return Ok((
+                alias.clone().into(),
+                Some(format!("{path} as {alias}").into()),
+            ));
+        }
+    }
+    let mut index = 2_u32;
+    loop {
+        let alias = format!("{stem}_module_{index}");
+        if visible_candidate(graph, visible, &alias).is_none() {
+            return Ok((
+                alias.clone().into(),
+                Some(format!("{path} as {alias}").into()),
+            ));
+        }
+        index = index
+            .checked_add(1)
+            .ok_or(AutomaticImportError::UnknownModule(module))?;
+    }
+}
+
+fn visible_candidate(
+    graph: &DeclarationGraph,
+    visible: &BTreeMap<Symbol, Candidate>,
+    spelling: &str,
+) -> Option<Candidate> {
+    graph
+        .symbols()
+        .get(spelling)
+        .and_then(|symbol| visible.get(&symbol))
+        .copied()
 }
 
 fn modules_reaching(
@@ -457,11 +539,11 @@ mod tests {
             "func main(): void { return }\n",
         );
         assert_eq!(
-            apply_import(source, "std/io.print"),
+            apply_import(source, "std/io"),
             concat!(
                 "//! Package API.\n",
                 "\n",
-                "use std/io.print\n",
+                "use std/io\n",
                 "\n",
                 "/// Runs the application.\n",
                 "func main(): void { return }\n",
@@ -479,12 +561,12 @@ mod tests {
             "func main(): void { return }\n",
         );
         assert_eq!(
-            apply_import(source, "std/io.print"),
+            apply_import(source, "std/io"),
             concat!(
                 "use ./first\n",
                 "\n",
                 "use ./second\n",
-                "use std/io.print\n",
+                "use std/io\n",
                 "\n",
                 "func main(): void { return }\n",
             )
@@ -499,10 +581,10 @@ mod tests {
             "func main(): void { return }\n",
         );
         assert_eq!(
-            apply_import(source, "std/io.print"),
+            apply_import(source, "std/io"),
             concat!(
                 "use ./first // establishes the namespace\n",
-                "use std/io.print\n",
+                "use std/io\n",
                 "\n",
                 "func main(): void { return }\n",
             )

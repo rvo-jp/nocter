@@ -4,7 +4,7 @@ see ./index.nct
 see ./primitives.nct
 
 use /internal/os.{OSError, OSErrorKind, Platform}
-use /ptr.{addr, from_ref_mut}
+use /ptr
 
 #target: "arm64-darwin"
 func errno(code: i32): Errno {
@@ -56,117 +56,117 @@ func kind_from_errno(value: Errno): OSErrorKind {
 }
 
 #target: "arm64-darwin"
-const sys_read: usize = 0x02000003
+const SYS_READ: usize = 0x02000003
 
 #target: "arm64-darwin"
-const sys_write: usize = 0x02000004
+const SYS_WRITE: usize = 0x02000004
 
 #target: "arm64-darwin"
-const sys_open: usize = 0x02000005
+const SYS_OPEN: usize = 0x02000005
 
 #target: "arm64-darwin"
-const sys_close: usize = 0x02000006
+const SYS_CLOSE: usize = 0x02000006
 
 #target: "arm64-darwin"
-const sys_unlink: usize = 0x0200000a
+const SYS_UNLINK: usize = 0x0200000a
 
 #target: "arm64-darwin"
-const sys_rename: usize = 0x02000080
+const SYS_RENAME: usize = 0x02000080
 
 #target: "arm64-darwin"
-const sys_munmap: usize = 0x02000049
+const SYS_MUNMAP: usize = 0x02000049
 
 #target: "arm64-darwin"
-const sys_mmap: usize = 0x020000c5
+const SYS_MMAP: usize = 0x020000c5
 
 #target: "arm64-darwin"
-const sys_stat64: usize = 0x02000152
+const SYS_STAT64: usize = 0x02000152
 
 #target: "arm64-darwin"
-const sys_getdirentries64: usize = 0x02000158
+const SYS_GETDIRENTRIES64: usize = 0x02000158
 
 #target: "arm64-darwin"
-const sys_getentropy: usize = 0x020001f4
+const SYS_GETENTROPY: usize = 0x020001f4
 
 #target: "arm64-darwin"
-const open_read_only: usize = 0
+const OPEN_READ_ONLY: usize = 0
 
 #target: "arm64-darwin"
 // O_RDONLY | O_DIRECTORY | O_CLOEXEC
-const open_directory_only: usize = 0x01100000
+const OPEN_DIRECTORY_ONLY: usize = 0x01100000
 
 #target: "arm64-darwin"
 // O_WRONLY | O_CREAT | O_TRUNC
-const open_create_truncate: usize = 0x0601
+const OPEN_CREATE_TRUNCATE: usize = 0x0601
 
 #target: "arm64-darwin"
 // O_WRONLY | O_CREAT | O_APPEND
-const open_create_append: usize = 0x0209
+const OPEN_CREATE_APPEND: usize = 0x0209
 
 #target: "arm64-darwin"
 // 0666, filtered by the process umask.
-const create_mode: usize = 438
+const CREATE_MODE: usize = 438
 
 #target: "arm64-darwin"
-const mmap_read_write: usize = 3
+const MMAP_READ_WRITE: usize = 3
 
 #target: "arm64-darwin"
-const mmap_private_anonymous: usize = 0x1002
+const MMAP_PRIVATE_ANONYMOUS: usize = 0x1002
 
 #target: "arm64-darwin"
-const mmap_no_file: usize = 0xffffffffffffffff
+const MMAP_NO_FILE: usize = 0xffffffffffffffff
 
 #target: "arm64-darwin"
-const errno_interrupted: i32 = 4
+const ERRNO_INTERRUPTED: i32 = 4
 
 #target: "arm64-darwin"
-const sys_fcntl: usize = 0x0200005c
+const SYS_FCNTL: usize = 0x0200005c
 
 #target: "arm64-darwin"
-const f_getpath: usize = 50
+const F_GETPATH: usize = 50
 
 #target: "arm64-darwin"
-const max_path_len: usize = 1024
+const MAX_PATH_LEN: usize = 1024
 
 #target: "arm64-darwin"
 // Darwin arm64 `struct stat`: SDK sys/stat.h __DARWIN_STRUCT_STAT64.
-const stat_buffer_size: usize = 144
+const STAT_BUFFER_SIZE: usize = 144
 
 #target: "arm64-darwin"
-const stat_mode_offset: usize = 4
+const STAT_MODE_OFFSET: usize = 4
 
 #target: "arm64-darwin"
-const stat_size_offset: usize = 96
+const STAT_SIZE_OFFSET: usize = 96
 
 #target: "arm64-darwin"
-const stat_mode_regular: u16 = 32768
+const STAT_MODE_REGULAR: u16 = 32768
 
 #target: "arm64-darwin"
-const stat_mode_directory: u16 = 16384
+const STAT_MODE_DIRECTORY: u16 = 16384
 
 #target: "arm64-darwin"
-const dirent_inode_offset: usize = 0
+const DIRENT_INODE_OFFSET: usize = 0
 
 #target: "arm64-darwin"
-const dirent_record_length_offset: usize = 16
+const DIRENT_RECORD_LENGTH_OFFSET: usize = 16
 
 #target: "arm64-darwin"
-const dirent_name_length_offset: usize = 18
+const DIRENT_NAME_LENGTH_OFFSET: usize = 18
 
 #target: "arm64-darwin"
-const dirent_type_offset: usize = 20
+const DIRENT_TYPE_OFFSET: usize = 20
 
 #target: "arm64-darwin"
-const dirent_name_offset: usize = 21
+const DIRENT_NAME_OFFSET: usize = 21
 
 #target: "arm64-darwin"
-const dirent_type_directory: u8 = 4
+const DIRENT_TYPE_DIRECTORY: u8 = 4
 
 #target: "arm64-darwin"
-const dirent_type_regular: u8 = 8
+const DIRENT_TYPE_REGULAR: u8 = 8
 
 #target: "arm64-darwin"
-const dirent_type_symlink: u8 = 10
+const DIRENT_TYPE_SYMLINK: u8 = 10
 
 #target: "arm64-darwin"
 func read_directory_entries(
@@ -175,10 +175,10 @@ func read_directory_entries(
     position: &+u64,
 ): SyscallResult {
     return syscall4(
-        sys_getdirentries64,
+        SYS_GETDIRENTRIES64,
         fd,
-        addr(buffer.ptr()),
+        ptr.addr(buffer.ptr()),
         buffer.len(),
-        addr(from_ref_mut(position)),
+        ptr.addr(ptr.from_ref_mut(position)),
     )
 }

@@ -1,10 +1,10 @@
-use std/mem.page_try_allocator
-use std/process.arg
+use std/mem
+use std/process
 use std/string.String
-use std/testing.assert
+use std/testing
 
 func main(): i32! {
-    let mode: &str = arg(1)? otherwise { "verify" }
+    let mode: &str = process.arg(1)? otherwise { "verify" }
     if mode == "report" {
         return error.new("phase1.report", "leaf").context("inner").context("outer")
     }
@@ -46,19 +46,19 @@ func verify_propagation_and_rethrow(): void! {
 }
 
 func propagate_assertion(): void! {
-    assert(false)?
+    testing.assert(false)?
     return
 }
 
 func rethrow_assertion(): void! {
-    assert(false) catch failure {
+    testing.assert(false) catch failure {
         return move failure
     }
     return
 }
 
 func verify_static_allocation_failure(): void! {
-    var allocator = page_try_allocator()
+    var allocator = mem.page_try_allocator()
     let unexpectedly_allocated = String.try_with_capacity(
         &+allocator,
         18446744073709551615,

@@ -5,8 +5,8 @@ see ./storage.nct
 see ./probing.nct
 
 use /hash.Hash
-use /internal/mem.{allocation_abort, capacity_overflow, checked_add}
-use /internal/ptr.replace_value
+use /internal/mem
+use /internal/ptr
 use /vec.Vec
 
 func reserve_destination(
@@ -24,7 +24,7 @@ func reserve_destination(
             _ { false }
         }
         if available {
-            let _ = replace_value(
+            let _ = ptr.replace_value(
                 &+buckets[bucket_index],
                 Bucket.occupied(entry_index),
             )
@@ -63,11 +63,11 @@ func try_rebuild<K, V>(table: &+Table<K, V>, new_count: usize): void! where K im
 
     var destination: usize = 0
     while destination < new_count {
-        let moved = replace_value(
+        let moved = ptr.replace_value(
             &+table.buckets[old_count + destination],
             Bucket.empty,
         )
-        let _ = replace_value(&+table.buckets[destination], move moved)
+        let _ = ptr.replace_value(&+table.buckets[destination], move moved)
         destination += 1
     }
     table.buckets.truncate(new_count)
@@ -77,8 +77,8 @@ func try_rebuild<K, V>(table: &+Table<K, V>, new_count: usize): void! where K im
 }
 
 func try_reserve_table<K, V>(table: &+Table<K, V>, additional: usize): void! where K impl Hash {
-    let required = checked_add(table.keys.len(), additional) otherwise {
-        return capacity_overflow()
+    let required = mem.checked_add(table.keys.len(), additional) otherwise {
+        return mem.capacity_overflow()
     }
     if required <= table_capacity(table) {
         return
@@ -112,7 +112,7 @@ func cleanup_sparse<K, V>(table: &+Table<K, V>): void where K impl Hash {
 instance Table<K, V> where K impl Hash {
     method &+self.reserve(additional: usize): void {
         try_reserve_table(self, additional) catch _ {
-            return allocation_abort()
+            return mem.allocation_abort()
         }
         return
     }

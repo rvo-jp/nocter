@@ -3,7 +3,7 @@
 see ./index.nct
 see ./into_iter.nct
 
-use /internal/ptr.{from_addr, slice_from_raw_parts_value, slice_from_raw_parts_value_mut}
+use /internal/ptr
 use /iter.{MutableViewIter, ViewIter}
 use /mem.RawBuffer
 
@@ -22,11 +22,11 @@ struct Vec<T> {
 }
 
 func view<T>(values: &Vec<T>): &[T] {
-    return slice_from_raw_parts_value(values.ptr, values.len)
+    return ptr.slice_from_raw_parts_value(values.ptr, values.len)
 }
 
 func view_mut<T>(values: &+Vec<T>): &+[T] {
-    return slice_from_raw_parts_value_mut(values.ptr, values.len)
+    return ptr.slice_from_raw_parts_value_mut(values.ptr, values.len)
 }
 
 func into_iter<T>(values: Vec<T>): VecIntoIter<T> {

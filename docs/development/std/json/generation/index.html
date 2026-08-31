@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-30">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/json/generation.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -174,10 +176,11 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>escaping<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>generation_failure<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem
 <span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">Writer</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>map<span class="token-operator">.</span><span class="token-type">Map</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> current_try_allocator<span class="token-operator">,</span> page_allocator<span class="token-operator">,</span> page_try_allocator<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem <span class="token-keyword">as</span> mem_module
 <span class="token-keyword">use</span> <span class="token-operator">/</span>json<span class="token-operator">/</span>output<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">ByteSink</span><span class="token-operator">,</span> <span class="token-type">StringSink</span><span class="token-operator">,</span> <span class="token-type">WriterSink</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
@@ -302,16 +305,16 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">stringify</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> mem_module<span class="token-operator">.</span><span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> output<span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_with_capacity</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">var</span> sink <span class="token-operator">=</span> <span class="token-type">StringSink</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>output<span class="token-operator">)</span>
     <span class="token-keyword">let</span> attempt <span class="token-operator">=</span> <span class="token-function">generate_core</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>sink<span class="token-operator">,</span> value<span class="token-operator">)</span>
     <span class="token-keyword">match</span> <span class="token-keyword">move</span> attempt <span class="token-operator">{</span>
         <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span>complete <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">move</span> output <span class="token-operator">}</span>
-        <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span><span class="token-function">sink</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
-        <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span><span class="token-function">sink</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
@@ -330,13 +333,13 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> write<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> mem_module<span class="token-operator">.</span><span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> sink <span class="token-operator">=</span> <span class="token-type">WriterSink</span><span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>destination<span class="token-operator">)</span>
     <span class="token-keyword">let</span> attempt <span class="token-operator">=</span> <span class="token-function">generate_core</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>allocator<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>sink<span class="token-operator">,</span> value<span class="token-operator">)</span>
     <span class="token-keyword">match</span> <span class="token-keyword">move</span> attempt <span class="token-operator">{</span>
         <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span>complete <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
         <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span><span class="token-function">sink</span><span class="token-operator">(</span>failure<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">move</span> failure <span class="token-operator">}</span>
-        <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">GenerationAttempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
@@ -420,8 +423,8 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">recoverable_stringify_inside_region</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> selected <span class="token-operator">=</span> <span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> backing <span class="token-operator">=</span> <span class="token-function">page_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> selected <span class="token-operator">=</span> mem_module<span class="token-operator">.</span><span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> backing <span class="token-operator">=</span> mem_module<span class="token-operator">.</span><span class="token-function">page_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">region</span> temporary <span class="token-keyword">using</span> backing <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">try_stringify</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>selected<span class="token-operator">,</span> value<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-operator">}</span>

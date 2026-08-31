@@ -3,7 +3,7 @@ see ./adapters.nct
 
 //! Zero- and one-element owning iterators.
 
-use /internal/ptr.replace_value
+use /internal/ptr
 
 /// Constructs an empty iterator.
 func empty<T>(): EmptyIter<T> {
@@ -41,7 +41,7 @@ instance OnceIter<T> {
         if self.remaining == 0 {
             return none
         }
-        let previous: T? = replace_value(&+self.item, none)
+        let previous: T? = ptr.replace_value(&+self.item, none)
         self.remaining = 0
         let item = move previous?
         return move item

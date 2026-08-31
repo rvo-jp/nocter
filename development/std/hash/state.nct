@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use /internal/hash.acquire_seed
+use /internal/hash
 use /num
 
 struct HashState {
@@ -18,7 +18,7 @@ struct HashState {
 
 construct HashState {
     func fresh(): Self {
-        return HashState.from_seed(acquire_seed())
+        return HashState.from_seed(hash.acquire_seed())
     }
 
     func from_seed(seed: u64): Self {

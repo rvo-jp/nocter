@@ -3,17 +3,19 @@
 see ./index.nct
 see ./filesystem.nct
 
-use /internal/io.io_error_from_os
+use /internal/io
 use /internal/os.OSErrorKind
-use /internal/os/darwin.{SyscallResult, errno_interrupted}
-use /internal/os/darwin.{stat_buffer_size, stat_mode_directory, stat_mode_offset}
-use /internal/os/darwin.{stat_mode_regular, stat_size_offset}
-use /internal/os/darwin.{sys_rename, sys_stat64, sys_unlink}
-use /internal/os/darwin.{errno, error_from_errno, syscall1, syscall2}
-use /internal/path.{target_path_address, target_path_argument}
-use /mem.{RawBuffer, page_try_allocator}
-use /ptr.addr
-use /internal/ptr.{from_addr, take_value_at_ptr}
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+
+
+
+
+use /internal/path as internal_path
+use /mem.RawBuffer
+use /mem
+use /ptr
+use /internal/ptr as internal_ptr
 
 #target: "arm64-darwin"
 struct DarwinStatQuery {
@@ -23,19 +25,19 @@ struct DarwinStatQuery {
 
 #target: "arm64-darwin"
 func stat_path(path: &str): DarwinStatQuery! {
-    let argument = target_path_argument(path)?
-    var allocator = page_try_allocator()
-    let storage = allocator.try_alloc(stat_buffer_size, 8)?
-    var result = syscall2(
-        sys_stat64,
-        target_path_address(&argument),
-        addr(storage.bytes().ptr()),
+    let argument = internal_path.target_path_argument(path)?
+    var allocator = mem.page_try_allocator()
+    let storage = allocator.try_alloc(darwin.STAT_BUFFER_SIZE, 8)?
+    var result = darwin.syscall2(
+        darwin.SYS_STAT64,
+        internal_path.target_path_address(&argument),
+        ptr.addr(storage.bytes().ptr()),
     )
-    while result.errno == errno_interrupted {
-        result = syscall2(
-            sys_stat64,
-            target_path_address(&argument),
-            addr(storage.bytes().ptr()),
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall2(
+            darwin.SYS_STAT64,
+            internal_path.target_path_address(&argument),
+            ptr.addr(storage.bytes().ptr()),
         )
     }
     return DarwinStatQuery { result: result, storage: move storage }
@@ -45,20 +47,20 @@ func stat_path(path: &str): DarwinStatQuery! {
 func metadata_target(path: &str): Metadata! {
     let query = stat_path(path)?
     if query.result.errno != 0 {
-        return io_error_from_os(error_from_errno(errno(query.result.errno)))
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(query.result.errno)))
     }
 
-    let address: usize = addr(query.storage.bytes().ptr())
-    let mode_pointer: *u16 = from_addr(address)
-    let size_pointer: *u64 = from_addr(address)
-    let mode: u16 = take_value_at_ptr(mode_pointer, stat_mode_offset)
+    let address: usize = ptr.addr(query.storage.bytes().ptr())
+    let mode_pointer: *u16 = internal_ptr.from_addr(address)
+    let size_pointer: *u64 = internal_ptr.from_addr(address)
+    let mode: u16 = internal_ptr.take_value_at_ptr(mode_pointer, darwin.STAT_MODE_OFFSET)
     var file_type = FileType.other
-    if mode >= stat_mode_regular && mode < stat_mode_regular + 4096 {
+    if mode >= darwin.STAT_MODE_REGULAR && mode < darwin.STAT_MODE_REGULAR + 4096 {
         file_type = FileType.regular
-    } else if mode >= stat_mode_directory && mode < stat_mode_directory + 4096 {
+    } else if mode >= darwin.STAT_MODE_DIRECTORY && mode < darwin.STAT_MODE_DIRECTORY + 4096 {
         file_type = FileType.directory
     }
-    let len: u64 = take_value_at_ptr(size_pointer, stat_size_offset)
+    let len: u64 = internal_ptr.take_value_at_ptr(size_pointer, darwin.STAT_SIZE_OFFSET)
     return Metadata { file_type: file_type, len: len }
 }
 
@@ -68,37 +70,37 @@ func exists_target(path: &str): bool! {
     if query.result.errno == 0 {
         return true
     }
-    let os_error = error_from_errno(errno(query.result.errno))
+    let os_error = darwin.error_from_errno(darwin.errno(query.result.errno))
     if os_error.kind is OSErrorKind.not_found {
         return false
     }
     if os_error.kind is OSErrorKind.not_directory {
         return false
     }
-    return io_error_from_os(os_error)
+    return io.io_error_from_os(os_error)
 }
 
 #target: "arm64-darwin"
 func remove_file_target(path: &str): void! {
-    let argument = target_path_argument(path)?
-    let result = syscall1(sys_unlink, target_path_address(&argument))
+    let argument = internal_path.target_path_argument(path)?
+    let result = darwin.syscall1(darwin.SYS_UNLINK, internal_path.target_path_address(&argument))
     if result.errno != 0 {
-        return io_error_from_os(error_from_errno(errno(result.errno)))
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
     return
 }
 
 #target: "arm64-darwin"
 func rename_target(source: &str, destination: &str): void! {
-    let source_argument = target_path_argument(source)?
-    let destination_argument = target_path_argument(destination)?
-    let result = syscall2(
-        sys_rename,
-        target_path_address(&source_argument),
-        target_path_address(&destination_argument),
+    let source_argument = internal_path.target_path_argument(source)?
+    let destination_argument = internal_path.target_path_argument(destination)?
+    let result = darwin.syscall2(
+        darwin.SYS_RENAME,
+        internal_path.target_path_address(&source_argument),
+        internal_path.target_path_address(&destination_argument),
     )
     if result.errno != 0 {
-        return io_error_from_os(error_from_errno(errno(result.errno)))
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
     return
 }

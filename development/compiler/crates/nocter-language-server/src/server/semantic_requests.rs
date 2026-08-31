@@ -513,8 +513,9 @@ mod tests {
         assert_eq!(
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
-            "{:?}",
-            snapshot.diagnostics()
+            "diagnostics={:?}, issue={:?}",
+            snapshot.diagnostics(),
+            opened.issue()
         );
 
         let definition = server.receive(&format!(
@@ -614,7 +615,7 @@ mod tests {
             temporary.path().display()
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let text = "pub const base: i32 = 40\npub const answer: i32 = base + 2\nfunc main(): i32 {\n    answer\n}\n";
+        let text = "pub const BASE: i32 = 40\npub const ANSWER: i32 = BASE + 2\nfunc main(): i32 {\n    ANSWER\n}\n";
         let mut text_json = String::new();
         nocter_json::write_string(&mut text_json, text);
         let opened = server.receive(&format!(
@@ -633,7 +634,7 @@ mod tests {
         ));
         let hover_response = hover.response().unwrap();
         assert!(
-            hover_response.contains("```nocter\\npub const answer: i32 = 42\\n```"),
+            hover_response.contains("```nocter\\npub const ANSWER: i32 = 42\\n```"),
             "{hover_response}"
         );
 
@@ -652,14 +653,14 @@ mod tests {
 
         let completion = request_completion(&mut server, &uri, 4, 3, 4);
         let response = completion.response().unwrap();
-        assert!(response.contains("\"label\":\"answer\""));
+        assert!(response.contains("\"label\":\"ANSWER\""));
         assert!(response.contains("\"kind\":21"));
 
         let rename = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":7}},\"newName\":\"result\"}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":7}},\"newName\":\"RESULT\"}}}}"
         ));
         let response = rename.response().unwrap();
-        assert!(response.contains("\"newText\":\"result\""), "{response}");
+        assert!(response.contains("\"newText\":\"RESULT\""), "{response}");
         assert!(response.matches("newText").count() >= 2);
 
         let initializer_reference = server.receive(&format!(
@@ -690,9 +691,9 @@ mod tests {
         let contract_body = concat!(
             "see ./limits.nct\n",
             "\n",
-            "pub const answer: i32\n",
+            "pub const ANSWER: i32\n",
             "func main(): i32 {\n",
-            "    answer\n",
+            "    ANSWER\n",
             "}\n",
         );
         let contract_text =
@@ -700,7 +701,7 @@ mod tests {
         std::fs::write(&contract, &contract_text).unwrap();
         std::fs::write(
             &implementation,
-            concat!("see ./index.nct\n", "\n", "const answer: i32 = 42\n",),
+            concat!("see ./index.nct\n", "\n", "const ANSWER: i32 = 42\n",),
         )
         .unwrap();
         let contract_uri = format!("file://{}", contract.display());
@@ -1820,10 +1821,11 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = concat!(
-            "use std/json.{Value, parse, stringify}\n",
+            "use std/json.Value\n",
+            "use std/json\n",
             "func main(): void! {\n",
-            "    let value = parse(\"[1]\")?\n",
-            "    let text = stringify(&value)\n",
+            "    let value = json.parse(\"[1]\")?\n",
+            "    let text = json.stringify(&value)\n",
             "    match move value {\n",
             "        Value.array(items) { let _ = items.len() }\n",
             "        _ { return }\n",
@@ -1853,7 +1855,7 @@ mod tests {
         assert!(value_hover.issue().is_none(), "{:?}", value_hover.issue());
 
         let parse_hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":22}}}}}}"
         ));
         let response = parse_hover.response().unwrap();
         assert!(
@@ -1863,7 +1865,7 @@ mod tests {
         assert!(parse_hover.issue().is_none(), "{:?}", parse_hover.issue());
 
         let stringify_hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":18}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":4,\"character\":22}}}}}}"
         ));
         let response = stringify_hover.response().unwrap();
         assert!(
@@ -1890,7 +1892,7 @@ mod tests {
             changed.analysis().unwrap().snapshot().unwrap().status(),
             nocter_analysis::AnalysisStatus::SyntaxFailed
         );
-        let completion = request_completion(&mut server, &uri, 4, 5, 14);
+        let completion = request_completion(&mut server, &uri, 4, 6, 14);
         let response = completion.response().unwrap();
         for variant in ["null", "boolean", "number", "string", "array", "object"] {
             assert!(
@@ -1909,9 +1911,9 @@ mod tests {
             (
                 "parse-argument",
                 concat!(
-                    "use std/json.parse\n",
+                    "use std/json\n",
                     "func main(): void! {\n",
-                    "    let value = parse(1)?\n",
+                    "    let value = json.parse(1)?\n",
                     "    return\n",
                     "}\n",
                 ),
@@ -1921,17 +1923,17 @@ mod tests {
             (
                 "writer-evidence",
                 concat!(
-                    "use std/json.{parse, write}\n",
+                    "use std/json\n",
                     "use std/string.String\n",
                     "func main(): void! {\n",
-                    "    let value = parse(\"null\")?\n",
+                    "    let value = json.parse(\"null\")?\n",
                     "    var destination = String.empty()\n",
-                    "    write(&+destination, &value)?\n",
+                    "    json.write(&+destination, &value)?\n",
                     "    return\n",
                     "}\n",
                 ),
                 "E0390",
-                "write(&+destination, &value)",
+                "json.write(&+destination, &value)",
             ),
         ] {
             let temporary = TemporaryDirectory::new();
@@ -1986,15 +1988,15 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = concat!(
-            "use std/json.{try_parse, try_stringify, try_write}\n",
-            "use std/mem.page_try_allocator\n",
-            "use std/io.stdout\n",
+            "use std/json\n",
+            "use std/mem\n",
+            "use std/io\n",
             "func main(): void! {\n",
-            "    var allocator = page_try_allocator()\n",
-            "    let value = try_parse(&+allocator, \"null\")?\n",
-            "    let text = try_stringify(&+allocator, &value)?\n",
-            "    var output = stdout()\n",
-            "    try_write(&+allocator, &+output, &value)?\n",
+            "    var allocator = mem.page_try_allocator()\n",
+            "    let value = json.try_parse(&+allocator, \"null\")?\n",
+            "    let text = json.try_stringify(&+allocator, &value)?\n",
+            "    var output = io.stdout()\n",
+            "    json.try_write(&+allocator, &+output, &value)?\n",
             "    return\n",
             "}\n",
         );
@@ -2008,7 +2010,7 @@ mod tests {
         );
 
         let hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":5,\"character\":18}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":5,\"character\":22}}}}}}"
         ));
         let response = hover.response().unwrap();
         assert!(
@@ -2498,15 +2500,13 @@ mod tests {
         let completion = request_completion(&mut server, &uri, 2, 3, 4);
         let response = completion.response().unwrap();
         assert!(
-            response.contains("\"label\":\"helper\",\"kind\":3"),
+            response.contains("\"label\":\"tools.helper\",\"kind\":3"),
             "{response}"
         );
         assert!(
             response.contains(concat!(
-                "\"additionalTextEdits\":[{\"range\":{",
-                "\"start\":{\"line\":0,\"character\":11},",
-                "\"end\":{\"line\":0,\"character\":11}},",
-                "\"newText\":\"\\nuse ./tools.helper\"}]"
+                "\"label\":\"tools.helper\",\"kind\":3,",
+                "\"detail\":\"pub func helper(): i32\"}"
             )),
             "{response}"
         );
@@ -2514,7 +2514,6 @@ mod tests {
 
         let imported = concat!(
             "use ./tools\n",
-            "use ./tools.helper\n",
             "\n",
             "func main(): void {\n",
             "    return\n",
@@ -2782,6 +2781,7 @@ mod tests {
         std::fs::write(
             dependency.join("api/index.nct"),
             concat!(
+                "pub struct PublicType {}\n",
                 "pub func public_helper(): i32 { return 1 }\n",
                 "func private_helper(): i32 { return 2 }\n",
             ),
@@ -2793,6 +2793,7 @@ mod tests {
             "func main(): void {\n",
             "    return\n",
             "}\n",
+            "func public_helper(): i32 { return 0 }\n",
         );
         let source_path = application.join("app.nct");
         std::fs::write(&source_path, source).unwrap();
@@ -2815,11 +2816,40 @@ mod tests {
         let completion = request_completion(&mut server, &uri, 2, 3, 4);
         let response = completion.response().unwrap();
         assert!(
-            response.contains("\"label\":\"public_helper\""),
+            response.contains("\"label\":\"api.public_helper\""),
             "{response}"
         );
-        assert!(response.contains("use dep/api.public_helper"), "{response}");
+        assert!(
+            response.contains(concat!(
+                "\"label\":\"api.public_helper\",\"kind\":3,",
+                "\"detail\":\"pub func public_helper(): i32\"}"
+            )),
+            "{response}"
+        );
         assert!(!response.contains("private_helper"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let conflicting = concat!(
+            "use dep/api.PublicType\n",
+            "\n",
+            "func api(): i32 { return 0 }\n",
+            "func public_helper(): i32 { return 0 }\n",
+            "func main(): void {\n",
+            "    return\n",
+            "}\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, conflicting, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+        let completion = request_completion(&mut server, &uri, 3, 5, 4);
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"dep_api.public_helper\""),
+            "{response}"
+        );
+        assert!(response.contains("use dep/api as dep_api"), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 
@@ -2914,7 +2944,7 @@ mod tests {
             completion
                 .response()
                 .unwrap()
-                .contains("\"label\":\"public_helper\""),
+                .contains("\"label\":\"api.public_helper\""),
             "{}",
             completion.response().unwrap()
         );
@@ -2922,11 +2952,12 @@ mod tests {
         let action = request_code_action(&mut server, &uri, 2, (0, 29), (0, 42));
         let response = action.response().unwrap();
         assert!(
-            response.contains("Import `public_helper` from `../api.public_helper`"),
+            response.contains("Use `api.public_helper` from `../api`"),
             "{response}"
         );
         assert!(response.contains("\"version\":1"), "{response}");
-        assert!(response.contains("use ../api.public_helper"), "{response}");
+        assert!(response.contains("use ../api"), "{response}");
+        assert!(response.contains("api.public_helper"), "{response}");
         assert!(response.contains("\"isPreferred\":true"), "{response}");
         assert!(action.issue().is_none(), "{:?}", action.issue());
 
@@ -2952,7 +2983,7 @@ mod tests {
             cursor_at_diagnostic
                 .response()
                 .unwrap()
-                .contains("Import `public_helper` from `../api.public_helper`")
+                .contains("Use `api.public_helper` from `../api`")
         );
         assert!(
             cursor_at_diagnostic.issue().is_none(),
@@ -3029,7 +3060,7 @@ mod tests {
             response.contains("Implement 2 required methods"),
             "{response}"
         );
-        assert!(response.contains("use std/process.abort"), "{response}");
+        assert!(response.contains("use std/process"), "{response}");
         assert!(
             response.contains("method &self.read<T>(fallback: T): i32 where copy T"),
             "{response}"
@@ -3105,7 +3136,7 @@ mod tests {
         );
         assert!(response.contains(&implementation_uri), "{response}");
         assert!(response.contains("method &self.read(): i32"), "{response}");
-        assert!(response.contains("use std/process.abort"), "{response}");
+        assert!(response.contains("use std/process"), "{response}");
         assert!(response.contains("\"version\":null"), "{response}");
         assert!(action.issue().is_none(), "{:?}", action.issue());
     }
@@ -3206,9 +3237,9 @@ mod tests {
         )
         .unwrap();
         let source = concat!(
-            "use /.root_value\n",
+            "use / as root\n",
             "\n",
-            "func main(): i32 { return root_value() }\n",
+            "func main(): i32 { return root.root_value() }\n",
         );
         let source_path = temporary.path().join("child/index.nct");
         std::fs::write(&source_path, source).unwrap();
@@ -3224,8 +3255,9 @@ mod tests {
         assert_eq!(
             snapshot.status(),
             nocter_analysis::AnalysisStatus::Complete,
-            "{:?}",
-            snapshot.diagnostics()
+            "diagnostics={:?}, issue={:?}",
+            snapshot.diagnostics(),
+            opened.issue()
         );
     }
 
@@ -3250,7 +3282,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.starts_with("use /internal/os/darwin."))
+            .find(|(_, line)| line.starts_with("use /internal/os/darwin"))
             .unwrap();
         let start = source_line.find("/internal/os/darwin").unwrap();
         let document_uri = format!("file://{}", standard.display());
@@ -3278,10 +3310,7 @@ mod tests {
             start + 1
         ));
         let response = hover.response().unwrap();
-        assert!(
-            response.contains("module std/internal/os/darwin"),
-            "{response}"
-        );
+        assert!(response.contains("module darwin"), "{response}");
         assert!(
             response
                 .contains("Darwin ARM64 ABI contract shared by standard-library target adapters."),

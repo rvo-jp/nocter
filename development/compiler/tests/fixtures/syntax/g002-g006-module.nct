@@ -1,3 +1,3 @@
-pub(../../) use /parser.{Parser, parse as parse_value,}
+pub(../../) use /parser.{Parser, Token as ParseToken,}
 #target: "arm64-darwin"
 pub func choose<T>(left: &T, right: &T): &T from left | right

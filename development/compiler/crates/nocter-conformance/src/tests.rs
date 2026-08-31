@@ -108,9 +108,9 @@ fn owned_error_context_and_borrowed_accessors_cross_the_native_pipeline() {
 #[test]
 fn static_allocation_failure_crosses_reporting_and_release_without_allocating() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/mem.allocation_failure_for_test\n\
+        "use std/mem\n\
          func main(): void! {\n\
-             return allocation_failure_for_test()\n\
+             return mem.allocation_failure_for_test()\n\
          }\n",
         &[&["mem"]],
     );
@@ -159,11 +159,11 @@ fn explicit_u64_mixing_crosses_the_complete_native_pipeline() {
 #[test]
 fn target_entropy_boundary_crosses_the_complete_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os/darwin.fill_seed_for_test\n\
-         use std/ptr.{addr, from_ref_mut}\n\
+        "use std/internal/os/darwin\n\
+         use std/ptr\n\
          func main(): i32 {\n\
              var seed: u64 = 0\n\
-             fill_seed_for_test(addr(from_ref_mut(&+seed)))\n\
+             darwin.fill_seed_for_test(ptr.addr(ptr.from_ref_mut(&+seed)))\n\
              return 42\n\
          }\n",
         &[&["internal", "os", "darwin"], &["ptr"]],
@@ -355,7 +355,7 @@ fn spread_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
-         use std/mem.allocation_context_state_for_test\n\
+         use std/mem\n\
          struct Iter {\n\
              next_value: i32\n\
              remaining: usize\n\
@@ -363,7 +363,7 @@ fn spread_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
          instance Iter {\n\
              impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? {\n\
-                 let _ = allocation_context_state_for_test()\n\
+                 let _ = mem.allocation_context_state_for_test()\n\
                  if self.remaining == 0 { return none }\n\
                  let value = self.next_value\n\
                  self.next_value += 1\n\
@@ -399,9 +399,9 @@ fn spread_argument_pack_and_fixed_input_cross_the_complete_native_pipeline() {
 #[test]
 fn fixed_sequence_argument_pack_residual_cleanup_uses_generated_destruction() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
+        "use std/process\n\
          struct ExitOnDrop { status: i32 }\n\
-         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         drop ExitOnDrop(&+self) { process.exit_for_test(self.status) }\n\
          struct Sink {}\n\
          construct Sink {\n\
              pub literal [](...items: ExitOnDrop): Self { return Self {} }\n\
@@ -425,7 +425,7 @@ fn spread_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() 
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
-         use std/mem.allocation_context_state_for_test\n\
+         use std/mem\n\
          struct Sum { value: i32 }\n\
          construct Sum {\n\
              pub literal [](...items: i32): Self {\n\
@@ -439,7 +439,7 @@ fn spread_sequence_argument_pack_callbacks_cross_the_complete_native_pipeline() 
          instance Iter {\n\
              impl Iterator { .Item = i32 }\n\
              method &+self.next(): i32? {\n\
-                 let _ = allocation_context_state_for_test()\n\
+                 let _ = mem.allocation_context_state_for_test()\n\
                  if self.remaining == 0 {\n\
                      return none\n\
                  }\n\
@@ -473,7 +473,7 @@ fn spread_sequence_argument_pack_residual_cleanup_destroys_the_iterator() {
     let fixture = CompilerFixture::with_app_iteration_standard_uses(
         "use std.Iterator\n\
          use std.ExactSizeIterator\n\
-         use std/process.exit_for_test\n\
+         use std/process\n\
          struct Sink {}\n\
          construct Sink {\n\
              pub literal [](...items: i32): Self { return Self {} }\n\
@@ -487,7 +487,7 @@ fn spread_sequence_argument_pack_residual_cleanup_destroys_the_iterator() {
              impl ExactSizeIterator\n\
              method &self.remaining_len(): usize { return 0 }\n\
          }\n\
-         drop Iter(&+self) { exit_for_test(42) }\n\
+         drop Iter(&+self) { process.exit_for_test(42) }\n\
          func main(): i32 {\n\
              let iterator = Iter {}\n\
              let value = Sink [...move iterator]\n\
@@ -802,17 +802,16 @@ fn indirect_aggregate_arguments_cross_the_outgoing_stack_boundary() {
 #[test]
 fn allocation_context_crosses_root_and_nested_call_boundaries() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/mem.allocation_context_state_for_test\n\
-         use std/mem.allocation_context_kind_for_test\n\
+        "use std/mem\n\
          func leaf(): usize {\n\
-             allocation_context_state_for_test() + allocation_context_kind_for_test()\n\
+             mem.allocation_context_state_for_test() + mem.allocation_context_kind_for_test()\n\
          }\n\
          func middle(): usize { leaf() }\n\
          func main(): i32 {\n\
              if middle() == 0 { return 42 }\n\
              return 1\n\
          }\n",
-        &[&["mem"], &["mem"]],
+        &[&["mem"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -825,26 +824,25 @@ fn allocation_context_crosses_root_and_nested_call_boundaries() {
 fn lexical_regions_select_and_restore_non_movable_contexts() {
     let fixture = CompilerFixture::with_app_allocation_standard_uses(
         "use std.Allocator\n\
-         use std/mem.allocation_context_state_for_test\n\
-         use std/mem.allocation_context_kind_for_test\n\
-         func current_state(): usize { allocation_context_state_for_test() }\n\
+         use std/mem\n\
+         func current_state(): usize { mem.allocation_context_state_for_test() }\n\
          func main(): i32 {\n\
              let allocator = Allocator { state: 0, kind: 0 }\n\
              region outer using allocator {\n\
                  let outer_state = current_state()\n\
                  if outer_state == 0 { return 1 }\n\
-                 if allocation_context_kind_for_test() != 1 { return 2 }\n\
+                 if mem.allocation_context_kind_for_test() != 1 { return 2 }\n\
                  region inner using outer {\n\
                      let inner_state = current_state()\n\
                      if inner_state == 0 { return 3 }\n\
                      if inner_state == outer_state { return 4 }\n\
-                     if allocation_context_kind_for_test() != 1 { return 5 }\n\
+                     if mem.allocation_context_kind_for_test() != 1 { return 5 }\n\
                  }\n\
                  if current_state() != outer_state { return 6 }\n\
                  return 42\n\
              }\n\
          }\n",
-        &[&[], &["mem"], &["mem"]],
+        &[&[], &["mem"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -857,12 +855,12 @@ fn lexical_regions_select_and_restore_non_movable_contexts() {
 fn lexical_region_context_reaches_authored_destruction() {
     let fixture = CompilerFixture::with_app_allocation_standard_uses(
         "use std.Allocator\n\
-         use std/mem.allocation_context_kind_for_test\n\
-         use std/process.exit_for_test\n\
+         use std/mem\n\
+         use std/process\n\
          struct Guard {}\n\
          drop Guard(&+self) {\n\
-             if allocation_context_kind_for_test() != 1 {\n\
-                 exit_for_test(7)\n\
+             if mem.allocation_context_kind_for_test() != 1 {\n\
+                 process.exit_for_test(7)\n\
              }\n\
              return\n\
          }\n\
@@ -885,24 +883,23 @@ fn lexical_region_context_reaches_authored_destruction() {
 #[test]
 fn pointer_and_view_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/ptr.{addr, from_ref}\n\
-         use std/internal/ptr.{pointee_size_for_test, pointee_align_for_test}\n\
-         use std/str.{str_len_for_test, str_ptr_addr_for_test}\n\
-         use std/slice.{slice_len_for_test, slice_ptr_addr_for_test}\n\
-         use std/str.{bytes_from_str_for_test, str_subview_unchecked_for_test}\n\
+        "use std/ptr\n\
+         use std/internal/ptr as internal_ptr\n\
+         use std/str as std_str\n\
+         use std/slice\n\
          func main(): i32 {\n\
              let byte: u8 = 65\n\
-             let pointer = from_ref(&byte)\n\
-             let address = addr(pointer)\n\
-             let middle = str_subview_unchecked_for_test(\"hello\", 1, 3)\n\
-             let static_bytes = bytes_from_str_for_test(\"hello\")\n\
-             if address == addr(pointer) {\n\
-                 if pointee_size_for_test(pointer) == 1 {\n\
-                     if pointee_align_for_test(pointer) == 1 {\n\
-                         if str_len_for_test(middle) == 3 {\n\
-                             if slice_len_for_test(static_bytes) == 5 {\n\
-                                 if slice_ptr_addr_for_test(static_bytes)\n\
-                                     == str_ptr_addr_for_test(\"hello\") {\n\
+             let pointer = ptr.from_ref(&byte)\n\
+             let address = ptr.addr(pointer)\n\
+             let middle = std_str.str_subview_unchecked_for_test(\"hello\", 1, 3)\n\
+             let static_bytes = std_str.bytes_from_str_for_test(\"hello\")\n\
+             if address == ptr.addr(pointer) {\n\
+                 if internal_ptr.pointee_size_for_test(pointer) == 1 {\n\
+                     if internal_ptr.pointee_align_for_test(pointer) == 1 {\n\
+                         if std_str.str_len_for_test(middle) == 3 {\n\
+                             if slice.slice_len_for_test(static_bytes) == 5 {\n\
+                                 if slice.slice_ptr_addr_for_test(static_bytes)\n\
+                                     == std_str.str_ptr_addr_for_test(\"hello\") {\n\
                                      return 42\n\
                                  }\n\
                              }\n\
@@ -912,13 +909,7 @@ fn pointer_and_view_primitives_cross_the_native_pipeline() {
              }\n\
              return 1\n\
          }\n",
-        &[
-            &["ptr"],
-            &["internal", "ptr"],
-            &["str"],
-            &["slice"],
-            &["str"],
-        ],
+        &[&["ptr"], &["internal", "ptr"], &["str"], &["slice"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
@@ -930,12 +921,8 @@ fn pointer_and_view_primitives_cross_the_native_pipeline() {
 #[test]
 fn memory_transfer_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/ptr.{\n\
-             copy_ptr_to_ptr_for_test, copy_str_to_ptr_for_test,\n\
-             store_u8_to_ptr_for_test, store_value_to_ptr_for_test,\n\
-             take_three_u64_at_ptr_for_test, take_u64_at_ptr_for_test,\n\
-         }\n\
-         use std/ptr.{from_ref, from_ref_mut}\n\
+        "use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct Bytes {\n\
              a: u8\n\
              b: u8\n\
@@ -954,26 +941,26 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
          }\n\
          func main(): i32 {\n\
              var bytes = Bytes { a: 0, b: 0, c: 0, d: 0, e: 0 }\n\
-             copy_str_to_ptr_for_test(from_ref_mut(&+bytes.a), 0, \"hello\")\n\
-             copy_str_to_ptr_for_test(from_ref_mut(&+bytes.a), 2, \"xy\")\n\
+             internal_ptr.copy_str_to_ptr_for_test(ptr.from_ref_mut(&+bytes.a), 0, \"hello\")\n\
+             internal_ptr.copy_str_to_ptr_for_test(ptr.from_ref_mut(&+bytes.a), 2, \"xy\")\n\
              var copied = Bytes { a: 0, b: 0, c: 0, d: 0, e: 0 }\n\
-             copy_ptr_to_ptr_for_test(\n\
-                 from_ref_mut(&+copied.a),\n\
-                 from_ref(&bytes.a),\n\
+             internal_ptr.copy_ptr_to_ptr_for_test(\n\
+                 ptr.from_ref_mut(&+copied.a),\n\
+                 ptr.from_ref(&bytes.a),\n\
                  5,\n\
              )\n\
-             store_u8_to_ptr_for_test(from_ref_mut(&+copied.a), 1, 97)\n\
+             internal_ptr.store_u8_to_ptr_for_test(ptr.from_ref_mut(&+copied.a), 1, 97)\n\
              var pair = LargePair {\n\
                  first: Large { first: 10, second: 20, third: 30 },\n\
                  second: Large { first: 0, second: 0, third: 0 },\n\
              }\n\
              let replacement = Large { first: 40, second: 41, third: 42 }\n\
-             let large_pointer = from_ref_mut(&+pair.first)\n\
-             store_value_to_ptr_for_test(large_pointer, 24, move replacement)\n\
-             let recovered = take_u64_at_ptr_for_test(from_ref(&pair.second.third), 0)\n\
+             let large_pointer = ptr.from_ref_mut(&+pair.first)\n\
+             internal_ptr.store_value_to_ptr_for_test(large_pointer, 24, move replacement)\n\
+             let recovered = internal_ptr.take_u64_at_ptr_for_test(ptr.from_ref(&pair.second.third), 0)\n\
              var arrays: [[u64; 3]; 2] = [[1, 2, 3], [40, 41, 42]]\n\
-             let recovered_array = take_three_u64_at_ptr_for_test(\n\
-                 from_ref_mut(&+arrays[0]),\n\
+             let recovered_array = internal_ptr.take_three_u64_at_ptr_for_test(\n\
+                 ptr.from_ref_mut(&+arrays[0]),\n\
                  24,\n\
              )\n\
              if bytes.a == 104 {\n\
@@ -1009,10 +996,10 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
 #[test]
 fn darwin_syscall_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os/darwin.{syscall0_succeeds_for_test, syscall1_fails_for_test}\n\
+        "use std/internal/os/darwin\n\
          func main(): i32 {\n\
-             if syscall0_succeeds_for_test(0x02000014) {\n\
-                 if syscall1_fails_for_test(0x02000006, 18446744073709551615) {\n\
+             if darwin.syscall0_succeeds_for_test(0x02000014) {\n\
+                 if darwin.syscall1_fails_for_test(0x02000006, 18446744073709551615) {\n\
                      return 42\n\
                  }\n\
              }\n\
@@ -1030,14 +1017,14 @@ fn darwin_syscall_primitives_cross_the_native_pipeline() {
 #[test]
 fn generic_syscall_write_is_the_native_io_boundary() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os/darwin.syscall3_value_for_test\n\
-         use std/str.str_ptr_addr_for_test\n\
+        "use std/internal/os/darwin\n\
+         use std/str as std_str\n\
          func main(): i32 {\n\
              let text: &str = \"hello\"\n\
-             let written = syscall3_value_for_test(\n\
+             let written = darwin.syscall3_value_for_test(\n\
                  0x02000004,\n\
                  2,\n\
-                 str_ptr_addr_for_test(text),\n\
+                 std_str.str_ptr_addr_for_test(text),\n\
                  5,\n\
              )\n\
              if written == 5 { return 42 }\n\
@@ -1055,27 +1042,27 @@ fn generic_syscall_write_is_the_native_io_boundary() {
 #[test]
 fn generic_syscalls_open_read_and_close_a_native_file() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os/darwin.{syscall1_fails_for_test, syscall3_value_for_test}\n\
-         use std/process.{arg_count_for_test, arg_for_test}\n\
-         use std/ptr.{addr, from_ref_mut}\n\
-         use std/str.str_ptr_addr_for_test\n\
+        "use std/internal/os/darwin\n\
+         use std/process\n\
+         use std/ptr\n\
+         use std/str as std_str\n\
          func inspect_file(): i32 {\n\
-             if !(arg_count_for_test() == 2) { return 2 }\n\
-             let fd = syscall3_value_for_test(\n\
+             if !(process.arg_count_for_test() == 2) { return 2 }\n\
+             let fd = darwin.syscall3_value_for_test(\n\
                  0x02000005,\n\
-                 str_ptr_addr_for_test(arg_for_test(1)),\n\
+                 std_str.str_ptr_addr_for_test(process.arg_for_test(1)),\n\
                  0,\n\
                  0,\n\
              )\n\
              if fd == 18446744073709551615 { return 3 }\n\
              var bytes: [u8; 5] = [0, 0, 0, 0, 0]\n\
-             let received = syscall3_value_for_test(\n\
+             let received = darwin.syscall3_value_for_test(\n\
                  0x02000003,\n\
                  fd,\n\
-                 addr(from_ref_mut(&+bytes)),\n\
+                 ptr.addr(ptr.from_ref_mut(&+bytes)),\n\
                  5,\n\
              )\n\
-             let close_failed = syscall1_fails_for_test(0x02000006, fd)\n\
+             let close_failed = darwin.syscall1_fails_for_test(0x02000006, fd)\n\
              if received == 18446744073709551615 { return 4 }\n\
              if !(received == 5) { return 5 }\n\
              if close_failed { return 6 }\n\
@@ -1104,8 +1091,8 @@ fn generic_syscalls_open_read_and_close_a_native_file() {
 #[test]
 fn process_exit_primitive_crosses_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
-         func main(): i32 { exit_for_test(42) }\n",
+        "use std/process\n\
+         func main(): i32 { process.exit_for_test(42) }\n",
         &[&["process"]],
     );
     let machine = lower_machine_fixture(&fixture);
@@ -1118,14 +1105,14 @@ fn process_exit_primitive_crosses_the_native_pipeline() {
 #[test]
 fn process_entry_state_crosses_calls_and_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.{arg_count_for_test, arg_for_test, env_count_for_test, env_name_for_test, env_value_for_test}\n\
-         use std/str.str_len_for_test\n\
+        "use std/process\n\
+         use std/str as std_str\n\
          func inspect_process(): i32 {\n\
-             if !(arg_count_for_test() == 2) { return 2 }\n\
-             if !(str_len_for_test(arg_for_test(1)) == 6) { return 3 }\n\
-             if !(env_count_for_test() == 1) { return 4 }\n\
-             if !(str_len_for_test(env_name_for_test(0)) == 1) { return 5 }\n\
-             if !(str_len_for_test(env_value_for_test(0)) == 5) { return 6 }\n\
+             if !(process.arg_count_for_test() == 2) { return 2 }\n\
+             if !(std_str.str_len_for_test(process.arg_for_test(1)) == 6) { return 3 }\n\
+             if !(process.env_count_for_test() == 1) { return 4 }\n\
+             if !(std_str.str_len_for_test(process.env_name_for_test(0)) == 1) { return 5 }\n\
+             if !(std_str.str_len_for_test(process.env_value_for_test(0)) == 5) { return 6 }\n\
              return 42\n\
          }\n\
          func main(): i32 { inspect_process() }\n",
@@ -1141,8 +1128,8 @@ fn process_entry_state_crosses_calls_and_the_native_pipeline() {
 #[test]
 fn trap_and_unreachable_primitives_materialize_without_fallbacks() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/os/darwin.terminate_for_test\n\
-         func main(): i32 { terminate_for_test(false) }\n",
+        "use std/internal/os/darwin\n\
+         func main(): i32 { darwin.terminate_for_test(false) }\n",
         &[&["internal", "os", "darwin"]],
     );
     let machine = lower_machine_fixture(&fixture);
@@ -1152,8 +1139,8 @@ fn trap_and_unreachable_primitives_materialize_without_fallbacks() {
 #[test]
 fn allocation_abort_primitive_materializes_without_a_runtime_dependency() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/mem.allocation_abort_for_test\n\
-         func main(): i32 { allocation_abort_for_test() }\n",
+        "use std/internal/mem as internal_mem\n\
+         func main(): i32 { internal_mem.allocation_abort_for_test() }\n",
         &[&["internal", "mem"]],
     );
     let machine = lower_machine_fixture(&fixture);
@@ -1163,9 +1150,9 @@ fn allocation_abort_primitive_materializes_without_a_runtime_dependency() {
 #[test]
 fn user_destruction_and_drop_flags_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
+        "use std/process\n\
          struct ExitOnDrop { status: i32 }\n\
-         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         drop ExitOnDrop(&+self) { process.exit_for_test(self.status) }\n\
          instance ExitOnDrop {\n\
              pub operator (&self == other: &Self): bool { true }\n\
          }\n\
@@ -1186,9 +1173,9 @@ fn user_destruction_and_drop_flags_cross_the_native_pipeline() {
     execute_and_assert_status(&image, 42);
 
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
+        "use std/process\n\
          struct ExitOnDrop { status: i32 }\n\
-         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         drop ExitOnDrop(&+self) { process.exit_for_test(self.status) }\n\
          instance ExitOnDrop {\n\
              pub operator (&self == other: &Self): bool { true }\n\
          }\n\
@@ -1212,17 +1199,17 @@ fn user_destruction_and_drop_flags_cross_the_native_pipeline() {
 #[test]
 fn compiler_generated_pointer_destruction_crosses_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
-         use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/process\n\
+         use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct ExitOnDrop { status: i32 }\n\
-         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         drop ExitOnDrop(&+self) { process.exit_for_test(self.status) }\n\
          struct Container { values: [ExitOnDrop; 2] }\n\
          func main(): i32 {\n\
              var value = Container {\n\
                  values: [ExitOnDrop { status: 41 }, ExitOnDrop { status: 42 }],\n\
              }\n\
-             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             internal_ptr.drop_value_at_ptr_for_test(ptr.from_ref_mut(&+value), 0)\n\
              return 1\n\
          }\n",
         &[&["process"], &["internal", "ptr"], &["ptr"]],
@@ -1237,11 +1224,11 @@ fn compiler_generated_pointer_destruction_crosses_the_native_pipeline() {
 #[test]
 fn copy_pointer_destruction_is_an_explicit_native_noop() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          func main(): i32 {\n\
              var value: i32 = 41\n\
-             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             internal_ptr.drop_value_at_ptr_for_test(ptr.from_ref_mut(&+value), 0)\n\
              return value + 1\n\
          }\n",
         &[&["internal", "ptr"], &["ptr"]],
@@ -1271,18 +1258,18 @@ fn copy_pointer_destruction_is_an_explicit_native_noop() {
 #[test]
 fn generated_enum_pointer_destruction_selects_only_the_active_payload() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
-         use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/process\n\
+         use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct ExitOnDrop { status: i32 }\n\
-         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         drop ExitOnDrop(&+self) { process.exit_for_test(self.status) }\n\
          enum Choice {\n\
              first(value: ExitOnDrop)\n\
              second(value: ExitOnDrop)\n\
          }\n\
          func main(): i32 {\n\
              var value = Choice.second(ExitOnDrop { status: 42 })\n\
-             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             internal_ptr.drop_value_at_ptr_for_test(ptr.from_ref_mut(&+value), 0)\n\
              return 1\n\
          }\n",
         &[&["process"], &["internal", "ptr"], &["ptr"]],
@@ -1297,14 +1284,14 @@ fn generated_enum_pointer_destruction_selects_only_the_active_payload() {
 #[test]
 fn generated_optional_pointer_destruction_selects_present_payload() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
-         use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/process\n\
+         use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct ExitOnDrop { status: i32 }\n\
-         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         drop ExitOnDrop(&+self) { process.exit_for_test(self.status) }\n\
          func main(): i32 {\n\
              var value: ExitOnDrop? = ExitOnDrop { status: 42 }\n\
-             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             internal_ptr.drop_value_at_ptr_for_test(ptr.from_ref_mut(&+value), 0)\n\
              return 1\n\
          }\n",
         &[&["process"], &["internal", "ptr"], &["ptr"]],
@@ -1319,15 +1306,15 @@ fn generated_optional_pointer_destruction_selects_present_payload() {
 #[test]
 fn generated_closure_pointer_destruction_visits_owned_captures() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/process.exit_for_test\n\
-         use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/process\n\
+         use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct ExitOnDrop { status: i32 }\n\
-         drop ExitOnDrop(&+self) { exit_for_test(self.status) }\n\
+         drop ExitOnDrop(&+self) { process.exit_for_test(self.status) }\n\
          func main(): i32 {\n\
              let resource = ExitOnDrop { status: 42 }\n\
              var callback = (move resource;): void { return }\n\
-             drop_value_at_ptr_for_test(from_ref_mut(&+callback), 0)\n\
+             internal_ptr.drop_value_at_ptr_for_test(ptr.from_ref_mut(&+callback), 0)\n\
              return 1\n\
          }\n",
         &[&["process"], &["internal", "ptr"], &["ptr"]],

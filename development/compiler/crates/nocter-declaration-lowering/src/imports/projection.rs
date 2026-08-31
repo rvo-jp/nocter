@@ -34,23 +34,37 @@ pub(super) fn project_import(
         SourceOrigin::from_node(tree, path)
             .map_err(|_| ImportError::InconsistentSource(declaration.source()))?,
     );
-    if let ResolvedImport::Selected(names) = resolved {
-        for name in names {
-            project_reference(
-                &mut generics.headers.reserved.source_index,
-                tree,
-                name.target,
-                name.exported_token,
-            )?;
-            if name.local_token != name.exported_token {
+    match resolved {
+        ResolvedImport::Namespace {
+            local_token,
+            aliased: true,
+            target,
+            ..
+        } => project_reference(
+            &mut generics.headers.reserved.source_index,
+            tree,
+            *target,
+            *local_token,
+        )?,
+        ResolvedImport::Selected(names) => {
+            for name in names {
                 project_reference(
                     &mut generics.headers.reserved.source_index,
                     tree,
                     name.target,
-                    name.local_token,
+                    name.exported_token,
                 )?;
+                if name.local_token != name.exported_token {
+                    project_reference(
+                        &mut generics.headers.reserved.source_index,
+                        tree,
+                        name.target,
+                        name.local_token,
+                    )?;
+                }
             }
         }
+        ResolvedImport::Namespace { .. } => {}
     }
     Ok(())
 }

@@ -2,18 +2,18 @@
 
 see ./index.nct
 
-use /internal/ptr.{pointee_size, store_value_to_ptr, take_value_at_ptr}
+use /internal/ptr
 
 func swap_elements<T>(values: &+[T], left: usize, right: usize): void {
     if left == right {
         return
     }
     let pointer = values.ptr()
-    let element_size = pointee_size(pointer)
-    let left_value: T = take_value_at_ptr(pointer, left * element_size)
-    let right_value: T = take_value_at_ptr(pointer, right * element_size)
-    store_value_to_ptr(pointer, left * element_size, move right_value)
-    store_value_to_ptr(pointer, right * element_size, move left_value)
+    let element_size = ptr.pointee_size(pointer)
+    let left_value: T = ptr.take_value_at_ptr(pointer, left * element_size)
+    let right_value: T = ptr.take_value_at_ptr(pointer, right * element_size)
+    ptr.store_value_to_ptr(pointer, left * element_size, move right_value)
+    ptr.store_value_to_ptr(pointer, right * element_size, move left_value)
     return
 }
 

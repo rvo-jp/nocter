@@ -38,7 +38,7 @@ those results.
 | G001 | `SourceFile`, `PackageDirective`, directive records and fields | `#package: { name: "p", version: "0.0.0" }` | `#package: true` | duplicate `#package` directives |
 | G002 | `SourceFile`, see/use/item sequencing | `see ./helper.nct` before `func run(): void {}` | a `see` after the function | a public item in an implementation source |
 | G003 | visibility scopes | `pub(../../) func run(): void {}` | `pub(parser) func run(): void {}` | visibility wider than the declaration can expose |
-| G004 | module paths, selections, aliases, and re-exports | `use /parser.{Parser, parse as parse_value,}` | `use ./parser.{}` | an unresolved imported name |
+| G004 | module paths, type selections, namespace aliases, and re-exports | `use /parser as syntax` and `use /parser.{Parser, Token,}` | `use ./parser.{}` | a selected value import or unresolved imported name |
 | G005 | target attachment and targetable items | `#target: "arm64-darwin"` followed by a function | `#target: "arm64-darwin"` before `test smoke {}` | an unsupported target name |
 | G006 | functions, primitives, aliases, parameters, callable tails, provenance | `func choose<T>(left: &T, right: &T): &T from left | right` | a function without `: Result` | an ineligible bodyless private function |
 | G007 | structs, fields, enums, variants, payloads | `enum Maybe<T> { some(value: T) missing }` with newline-separated variants | comma-separated struct fields | an empty enum body |
@@ -53,7 +53,7 @@ those results.
 | G016 | opaque callable results and bindings | `func values(): some Source { .Item = u8 }? { ... }` | `func values(): some { ... }` | opaque syntax in a bodyless requirement |
 | G017 | generic parameters, nested arguments, and split closers | `Outer<Inner<T>>` | an empty generic parameter list | duplicate binders in `struct Pair<T, T> {}` |
 | G018 | all requirement predicates | one clause containing interface, callable, copy, binder-refinement, operator, coercion, and expansion predicates | a newline used instead of a predicate comma | equality outside a declaration-pattern binder refinement |
-| G019 | blocks, block imports, executable sequences, and body results | `{ use std/io.print` then a blank line then `value }` | a block import after an executable | a non-final non-`void` expression statement |
+| G019 | blocks, block imports, executable sequences, and body results | `{ use std/io` then a blank line then `io.print(value) }` | a block import after an executable | a non-final non-`void` expression statement |
 | G020 | bindings, annotations, assignment, and compound assignment | `var value: i32 = 1` followed by `value += 2` | `var value: i32` without an initializer | assignment through an immutable place |
 | G021 | return, break, continue, and explicit drop statements | `return value`, `break`, `continue`, and `drop value` in their legal containers | `drop owner.field` | `break` outside a loop |
 | G022 | while, loop, for-range, for-collection, region, and allocator places | `for index in 0..<count {}` and `region temp using allocators.arena {}` | a call as the allocator place | iteration over a value without expansion capability |

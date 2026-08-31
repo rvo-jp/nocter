@@ -12,6 +12,7 @@ pub(super) struct SelectedNameSyntax {
 pub(super) struct ImportSyntax {
     pub(super) visibility: Option<NodeId>,
     pub(super) path: NodeId,
+    pub(super) namespace_alias: Option<SyntaxToken>,
     pub(super) selected: Option<Vec<SelectedNameSyntax>>,
 }
 
@@ -23,12 +24,15 @@ pub(super) fn read(tree: &SyntaxTree, declaration: NodeId) -> Result<ImportSynta
     let visibility = direct_node(tree, declaration, NodeKind::Visibility);
     let path = direct_node(tree, declaration, NodeKind::ModulePath)
         .ok_or(ImportError::InvalidSyntax(declaration))?;
+    let namespace_alias = direct_node(tree, declaration, NodeKind::ModuleAlias)
+        .and_then(|alias| descendant_identifiers(tree, alias).into_iter().next());
     let selected = direct_node(tree, declaration, NodeKind::ImportSelection)
         .map(|selection| selected_names(tree, declaration, selection))
         .transpose()?;
     Ok(ImportSyntax {
         visibility,
         path,
+        namespace_alias,
         selected,
     })
 }

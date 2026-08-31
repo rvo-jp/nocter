@@ -2,23 +2,25 @@
 
 see ./index.nct
 
-use /internal/io.io_error_from_os
-use /internal/os/darwin.{SyscallResult, errno_interrupted}
-use /internal/os/darwin.{dirent_inode_offset, dirent_name_length_offset, dirent_name_offset}
-use /internal/os/darwin.{dirent_record_length_offset, dirent_type_offset}
-use /internal/os/darwin.{dirent_type_directory, dirent_type_regular, dirent_type_symlink}
-use /internal/os/darwin.{open_directory_only, sys_close, sys_open}
-use /internal/os/darwin.{errno, error_from_errno, read_directory_entries}
-use /internal/os/darwin.{syscall1, syscall3}
-use /internal/path.{target_path_address, target_path_argument}
-use /internal/ptr.{from_addr, slice_from_raw_parts, take_value_at_ptr}
-use /mem.{RawBuffer, page_try_allocator}
+use /internal/io
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+
+
+
+
+
+
+use /internal/path as internal_path
+use /internal/ptr as internal_ptr
+use /mem.RawBuffer
+use /mem
 use /path.Utf8Path
-use /ptr.addr
+use /ptr
 use /string.String
 
 #target: "arm64-darwin"
-const directory_buffer_size: usize = 16384
+const DIRECTORY_BUFFER_SIZE: usize = 16384
 
 struct DirEntry {
     file_name: String
@@ -63,8 +65,8 @@ instance ReadDir {
 
 func read_dir(path: &str): ReadDir! {
     let base = Utf8Path.new(path)?
-    var allocator = page_try_allocator()
-    let buffer = allocator.try_alloc(directory_buffer_size, 8)?
+    var allocator = mem.page_try_allocator()
+    let buffer = allocator.try_alloc(DIRECTORY_BUFFER_SIZE, 8)?
     let fd = open_directory(path)?
     return ReadDir {
         fd: fd,
@@ -79,23 +81,23 @@ func read_dir(path: &str): ReadDir! {
 
 #target: "arm64-darwin"
 func open_directory(path: &str): usize! {
-    let argument = target_path_argument(path)?
-    var result: SyscallResult = syscall3(
-        sys_open,
-        target_path_address(&argument),
-        open_directory_only,
+    let argument = internal_path.target_path_argument(path)?
+    var result: SyscallResult = darwin.syscall3(
+        darwin.SYS_OPEN,
+        internal_path.target_path_address(&argument),
+        darwin.OPEN_DIRECTORY_ONLY,
         0,
     )
-    while result.errno == errno_interrupted {
-        result = syscall3(
-            sys_open,
-            target_path_address(&argument),
-            open_directory_only,
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(
+            darwin.SYS_OPEN,
+            internal_path.target_path_address(&argument),
+            darwin.OPEN_DIRECTORY_ONLY,
             0,
         )
     }
     if result.errno != 0 {
-        return io_error_from_os(error_from_errno(errno(result.errno)))
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
     return result.value
 }
@@ -104,12 +106,12 @@ func open_directory(path: &str): usize! {
 func refill_directory(reader: &+ReadDir): usize! {
     var position: u64 = 0
     let buffer = reader.buffer.bytes_mut()
-    var result: SyscallResult = read_directory_entries(reader.fd, buffer, &+position)
-    while result.errno == errno_interrupted {
-        result = read_directory_entries(reader.fd, buffer, &+position)
+    var result: SyscallResult = darwin.read_directory_entries(reader.fd, buffer, &+position)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.read_directory_entries(reader.fd, buffer, &+position)
     }
     if result.errno != 0 {
-        return io_error_from_os(error_from_errno(errno(result.errno)))
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
     if result.value > buffer.len() {
         return invalid_directory_record()
@@ -138,35 +140,35 @@ func next_directory_entry(reader: &+ReadDir): DirEntry?! {
 
         let record_start = reader.buffer_offset
         let remaining = reader.buffer_len - record_start
-        if remaining <= dirent_name_offset {
+        if remaining <= darwin.DIRENT_NAME_OFFSET {
             return fail_directory(reader, invalid_directory_record())
         }
 
-        let record_address = addr(reader.buffer.bytes().ptr()) + record_start
-        let inode_pointer: *u64 = from_addr(record_address)
-        let length_pointer: *u16 = from_addr(record_address)
-        let type_pointer: *u8 = from_addr(record_address)
-        let inode: u64 = take_value_at_ptr(inode_pointer, dirent_inode_offset)
-        let record_len: usize = take_value_at_ptr(
+        let record_address = ptr.addr(reader.buffer.bytes().ptr()) + record_start
+        let inode_pointer: *u64 = internal_ptr.from_addr(record_address)
+        let length_pointer: *u16 = internal_ptr.from_addr(record_address)
+        let type_pointer: *u8 = internal_ptr.from_addr(record_address)
+        let inode: u64 = internal_ptr.take_value_at_ptr(inode_pointer, darwin.DIRENT_INODE_OFFSET)
+        let record_len: usize = internal_ptr.take_value_at_ptr(
             length_pointer,
-            dirent_record_length_offset,
+            darwin.DIRENT_RECORD_LENGTH_OFFSET,
         ) as usize
-        let name_len: usize = take_value_at_ptr(
+        let name_len: usize = internal_ptr.take_value_at_ptr(
             length_pointer,
-            dirent_name_length_offset,
+            darwin.DIRENT_NAME_LENGTH_OFFSET,
         ) as usize
-        let entry_type: u8 = take_value_at_ptr(type_pointer, dirent_type_offset)
+        let entry_type: u8 = internal_ptr.take_value_at_ptr(type_pointer, darwin.DIRENT_TYPE_OFFSET)
 
-        if record_len <= dirent_name_offset || record_len > remaining {
+        if record_len <= darwin.DIRENT_NAME_OFFSET || record_len > remaining {
             return fail_directory(reader, invalid_directory_record())
         }
-        if name_len == 0 || name_len >= record_len - dirent_name_offset {
+        if name_len == 0 || name_len >= record_len - darwin.DIRENT_NAME_OFFSET {
             return fail_directory(reader, invalid_directory_record())
         }
 
-        let name_address = record_address + dirent_name_offset
-        let name_pointer: *u8 = from_addr(name_address)
-        let terminator: u8 = take_value_at_ptr(name_pointer, name_len)
+        let name_address = record_address + darwin.DIRENT_NAME_OFFSET
+        let name_pointer: *u8 = internal_ptr.from_addr(name_address)
+        let terminator: u8 = internal_ptr.take_value_at_ptr(name_pointer, name_len)
         if terminator != 0 {
             return fail_directory(reader, invalid_directory_record())
         }
@@ -176,7 +178,7 @@ func next_directory_entry(reader: &+ReadDir): DirEntry?! {
             continue
         }
 
-        let name_bytes = slice_from_raw_parts(name_pointer, name_len)
+        let name_bytes = internal_ptr.slice_from_raw_parts(name_pointer, name_len)
         let name = String.from_utf8(name_bytes) catch _ {
             return fail_directory(reader, invalid_utf8_name())
         }
@@ -198,13 +200,13 @@ func next_directory_entry(reader: &+ReadDir): DirEntry?! {
 }
 
 func file_type_from_dirent(value: u8): FileType {
-    if value == dirent_type_regular {
+    if value == darwin.DIRENT_TYPE_REGULAR {
         return FileType.regular
     }
-    if value == dirent_type_directory {
+    if value == darwin.DIRENT_TYPE_DIRECTORY {
         return FileType.directory
     }
-    if value == dirent_type_symlink {
+    if value == darwin.DIRENT_TYPE_SYMLINK {
         return FileType.symlink
     }
     return FileType.other
@@ -217,7 +219,7 @@ func fail_directory(reader: &+ReadDir, failure: error): error {
 
 func close_directory(reader: &+ReadDir): void {
     if reader.is_open {
-        let _ = syscall1(sys_close, reader.fd)
+        let _ = darwin.syscall1(darwin.SYS_CLOSE, reader.fd)
         reader.is_open = false
     }
     reader.is_finished = true

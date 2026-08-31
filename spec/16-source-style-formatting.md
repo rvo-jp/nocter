@@ -16,6 +16,10 @@ Rules:
 - Specification snippets, root documentation examples, `spec/guides/ai.md`, and packages under
   `examples/` should use formatter output as the canonical presentation.
 - The formatter belongs in the compiler toolchain, not in editor extensions.
+- Constant declarations use `UPPER_SNAKE_CASE`; ordinary functions, parameters, and local
+  bindings use `lower_snake_case`.
+- External functions and constants retain their imported module as the call-site subject, such as
+  `io.print(...)` and `limits.MAX_SIZE`. Selected imports are reserved for type names.
 
 This keeps the language pleasant to write by hand while avoiding multiple competing styles in documentation, generated examples, diagnostics, AI-generated code, and future editor tooling.
 

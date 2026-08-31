@@ -4,20 +4,20 @@ see ./index.nct
 see ./layout.nct
 see ./storage.nct
 
-use /internal/mem.{allocation_abort, checked_add}
-use /internal/os/darwin.{mmap_no_file, mmap_private_anonymous, mmap_read_write}
-use /internal/os/darwin.{sys_mmap, sys_munmap, syscall2, syscall6}
-use /internal/ptr.{copy_ptr_to_ptr, from_addr, slice_from_raw_parts_value, store_value_to_ptr}
+use /internal/mem
+use /internal/os/darwin
+
+use /internal/ptr
 
 #target: "arm64-darwin"
 func alloc_pages(size: usize): usize! {
-    let result = syscall6(
-        sys_mmap,
+    let result = darwin.syscall6(
+        darwin.SYS_MMAP,
         0,
         size,
-        mmap_read_write,
-        mmap_private_anonymous,
-        mmap_no_file,
+        darwin.MMAP_READ_WRITE,
+        darwin.MMAP_PRIVATE_ANONYMOUS,
+        darwin.MMAP_NO_FILE,
         0,
     )
     if result.errno != 0 {
@@ -28,7 +28,7 @@ func alloc_pages(size: usize): usize! {
 
 #target: "arm64-darwin"
 func free_pages(address: usize, size: usize): void {
-    let result = syscall2(sys_munmap, address, size)
+    let result = darwin.syscall2(darwin.SYS_MUNMAP, address, size)
     return
 }
 
@@ -41,10 +41,10 @@ func region_alloc_pages(
     // within the mapping, so region release can walk mappings without storing
     // metadata beside or inside user-visible bytes.
     let header_size: usize = 16
-    let header_and_payload: usize = checked_add(header_size, size) otherwise {
+    let header_and_payload: usize = mem.checked_add(header_size, size) otherwise {
         return invalid_argument()
     }
-    let mapping_size: usize = checked_add(header_and_payload, align) otherwise {
+    let mapping_size: usize = mem.checked_add(header_and_payload, align) otherwise {
         return invalid_argument()
     }
     let mapping = alloc_pages(mapping_size)?
@@ -55,13 +55,13 @@ func region_alloc_pages(
         padding = align - remainder
     }
 
-    let state_pointer: *usize = from_addr(state)
-    let state_words: &[usize] = slice_from_raw_parts_value(state_pointer, 1)
+    let state_pointer: *usize = ptr.from_addr(state)
+    let state_words: &[usize] = ptr.slice_from_raw_parts_value(state_pointer, 1)
     let previous: usize = state_words[0]
-    let header: *usize = from_addr(mapping)
-    store_value_to_ptr(header, 0, previous)
-    store_value_to_ptr(header, 8, mapping_size)
-    store_value_to_ptr(state_pointer, 0, mapping)
+    let header: *usize = ptr.from_addr(mapping)
+    ptr.store_value_to_ptr(header, 0, previous)
+    ptr.store_value_to_ptr(header, 8, mapping_size)
+    ptr.store_value_to_ptr(state_pointer, 0, mapping)
     return payload_start + padding
 }
 
@@ -80,7 +80,7 @@ func try_alloc_layout(
 ): RawBuffer! {
     if requested.size == 0 {
         return RawBuffer {
-            ptr: from_addr(1),
+            ptr: ptr.from_addr(1),
             len: 0,
             align: requested.align,
             allocator_state: allocator.state,
@@ -97,7 +97,7 @@ func try_alloc_layout(
         return invalid_argument()
     }
     return RawBuffer {
-        ptr: from_addr(address),
+        ptr: ptr.from_addr(address),
         len: requested.size,
         align: requested.align,
         allocator_state: allocator.state,
@@ -112,7 +112,7 @@ func alloc(
 ): RawBuffer {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     return try_alloc(&+fallible, size, align) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
 }
 
@@ -122,7 +122,7 @@ func alloc_layout(
 ): RawBuffer {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     return try_alloc_layout(&+fallible, requested) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
 }
 
@@ -148,7 +148,7 @@ func try_grow(
 
     var replacement = try_alloc(allocator, new_size, buffer.align)?
     if buffer.len != 0 {
-        copy_ptr_to_ptr(replacement.ptr, buffer.ptr, buffer.len)
+        ptr.copy_ptr_to_ptr(replacement.ptr, buffer.ptr, buffer.len)
     }
 
     var previous = RawBuffer {
@@ -165,7 +165,7 @@ func try_grow(
     buffer.allocator_state = replacement.allocator_state
     buffer.allocator_kind = replacement.allocator_kind
 
-    replacement.ptr = from_addr(1)
+    replacement.ptr = ptr.from_addr(1)
     replacement.len = 0
     return
 }
@@ -186,7 +186,7 @@ func try_grow_owned(buffer: &+RawBuffer, new_size: usize): void! {
 func grow(allocator: &+Allocator, buffer: &+RawBuffer, new_size: usize): void {
     var fallible = TryAllocator { state: allocator.state, kind: allocator.kind }
     try_grow(&+fallible, buffer, new_size) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }

@@ -7,29 +7,33 @@
     name: "text-report",
 }
 
-use ./report.{Report, analyze}
+use ./report.Report
 
-use std/io.{File, Reader, print}
+use ./report as report_module
+
+use std/io.{File, Reader}
+
+use std/io
 
 use std/path.Utf8Path
 
-use std/process.arg
+use std/process
 
 use std/string.String
 
 func main(): i32! {
-    let requested: &str = arg(1)? otherwise {
-        print("usage: text-report PATH NEEDLE\n")?
+    let requested: &str = process.arg(1)? otherwise {
+        io.print("usage: text-report PATH NEEDLE\n")?
         return 2
     }
-    let needle: &str = arg(2)? otherwise {
-        print("usage: text-report PATH NEEDLE\n")?
+    let needle: &str = process.arg(2)? otherwise {
+        io.print("usage: text-report PATH NEEDLE\n")?
         return 2
     }
     let path = Utf8Path.new(requested)?
     var file = File.open(&path)?
     let text = file.read_to_string()?
-    let report = analyze(&text, needle)
+    let report = report_module.analyze(&text, needle)
     print_report(&report)?
     return 0
 }
@@ -44,6 +48,6 @@ func print_report(report: &Report): void! {
         &matching,
         "\n",
     )
-    print(&output)?
+    io.print(&output)?
     return
 }

@@ -2,9 +2,9 @@
 
 see ./index.nct
 
-use /internal/ptr.slice_from_raw_parts_value
+use /internal/ptr
 use /json/output.ByteSink
-use /ptr.from_ref
+use /ptr as ptr_module
 
 struct EscapeBuffer {
     storage: [u8; 16]
@@ -22,7 +22,7 @@ construct EscapeBuffer {
 
 instance EscapeBuffer {
     method &self.bytes(): &[u8] {
-        return slice_from_raw_parts_value(from_ref(&self.storage[0]), self.len)
+        return ptr.slice_from_raw_parts_value(ptr_module.from_ref(&self.storage[0]), self.len)
     }
 
     method &+self.flush<S>(sink: &+S): void! where S impl ByteSink {

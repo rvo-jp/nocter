@@ -76,10 +76,10 @@ rm -rf "$HOME/.nocter"
 Create `hello.nct`:
 
 ```nct
-use std/io.print
+use std/io
 
 func main(): i32! {
-    print("Hello from Nocter\n")?
+    io.print("Hello from Nocter\n")?
     return 0
 }
 ```

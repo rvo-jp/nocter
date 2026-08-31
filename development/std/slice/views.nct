@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use /internal/ptr.from_addr
+use /internal/ptr
 
 primitive func slice_len_raw<T>(value: &[T]): usize
 
@@ -26,7 +26,7 @@ instance [T] {
     }
 
     method &self.ptr(): *T {
-        return from_addr(slice_ptr_addr_raw(self))
+        return ptr.from_addr(slice_ptr_addr_raw(self))
     }
 
     method &self.get(index: usize): &T? {

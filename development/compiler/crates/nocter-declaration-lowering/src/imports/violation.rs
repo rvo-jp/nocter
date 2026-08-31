@@ -7,6 +7,8 @@ pub enum ImportRule {
     InaccessibleImportedName,
     WideningReexport,
     CompilerManagedPreludeImport,
+    NonTypeSelection,
+    NamespaceAliasReexport,
 }
 
 impl ImportRule {
@@ -17,6 +19,8 @@ impl ImportRule {
             Self::InaccessibleImportedName => "E0412",
             Self::WideningReexport => "E0261",
             Self::CompilerManagedPreludeImport => "E0262",
+            Self::NonTypeSelection => "E0264",
+            Self::NamespaceAliasReexport => "E0265",
         }
     }
 
@@ -33,6 +37,8 @@ impl ImportRule {
             Self::CompilerManagedPreludeImport => {
                 "source code imports the compiler-managed standard prelude"
             }
+            Self::NonTypeSelection => "selected imports can introduce only types and interfaces",
+            Self::NamespaceAliasReexport => "a module namespace alias cannot be re-exported",
         }
     }
 
@@ -51,6 +57,12 @@ impl ImportRule {
             Self::CompilerManagedPreludeImport => {
                 "remove the import; the standard prelude is available implicitly"
             }
+            Self::NonTypeSelection => {
+                "import the owning module namespace and access this name through that namespace"
+            }
+            Self::NamespaceAliasReexport => {
+                "remove pub or re-export the module under its canonical name"
+            }
         }
     }
 
@@ -60,7 +72,10 @@ impl ImportRule {
             Self::InaccessibleImportedName | Self::WideningReexport => {
                 Some("the selected name is declared here")
             }
-            Self::MissingImportedName | Self::CompilerManagedPreludeImport => None,
+            Self::MissingImportedName
+            | Self::CompilerManagedPreludeImport
+            | Self::NonTypeSelection
+            | Self::NamespaceAliasReexport => None,
         }
     }
 }
@@ -111,6 +126,24 @@ impl ImportViolation {
     }
 
     #[must_use]
+    pub const fn non_type_selection(name: SyntaxOrigin) -> Self {
+        Self {
+            rule: ImportRule::NonTypeSelection,
+            primary: name,
+            related: None,
+        }
+    }
+
+    #[must_use]
+    pub const fn namespace_alias_reexport(alias: SyntaxOrigin) -> Self {
+        Self {
+            rule: ImportRule::NamespaceAliasReexport,
+            primary: alias,
+            related: None,
+        }
+    }
+
+    #[must_use]
     pub const fn rule(self) -> ImportRule {
         self.rule
     }
@@ -123,5 +156,29 @@ impl ImportViolation {
     #[must_use]
     pub const fn related(self) -> Option<SyntaxOrigin> {
         self.related
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use super::ImportRule;
+
+    #[test]
+    fn import_rules_own_distinct_diagnostic_codes() {
+        let rules = [
+            ImportRule::MissingImportedName,
+            ImportRule::InaccessibleImportedName,
+            ImportRule::WideningReexport,
+            ImportRule::CompilerManagedPreludeImport,
+            ImportRule::NonTypeSelection,
+            ImportRule::NamespaceAliasReexport,
+        ];
+        let codes = rules
+            .into_iter()
+            .map(ImportRule::code)
+            .collect::<HashSet<_>>();
+        assert_eq!(codes.len(), rules.len());
     }
 }

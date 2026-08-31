@@ -236,6 +236,13 @@ fn resolve_authored_imports(
                 authored.visibility,
             )
             .map_err(|error| import_visibility_error(import.node(), error))?;
+            if authored.visibility.is_some()
+                && let Some(alias) = authored.namespace_alias
+            {
+                return Err(
+                    ImportViolation::namespace_alias_reexport(SyntaxOrigin::Token(alias)).into(),
+                );
+            }
             let importing_module = generics.headers.reserved.module_ids[module_index];
             let source_index = import.source().index();
             let resolved = if let Some(selected) = authored.selected {
@@ -252,12 +259,16 @@ fn resolve_authored_imports(
                     selected,
                 )?
             } else {
-                let token = syntax::final_path_name(tree, import.node(), authored.path)?;
+                let token = match authored.namespace_alias {
+                    Some(alias) => alias,
+                    None => syntax::final_path_name(tree, import.node(), authored.path)?,
+                };
                 let name = symbol(generics, import.node(), token)?;
                 validate_local_name(generics, import.node(), name, token)?;
                 ResolvedImport::Namespace {
                     local_name: name,
                     local_token: token,
+                    aliased: authored.namespace_alias.is_some(),
                     target: ExportedEntity::Module(target_module),
                 }
             };
@@ -331,6 +342,7 @@ enum ResolvedImport {
     Namespace {
         local_name: Symbol,
         local_token: SyntaxToken,
+        aliased: bool,
         target: ExportedEntity,
     },
     Selected(Vec<ResolvedSelected>),
@@ -359,6 +371,7 @@ impl ResolvedImport {
             Self::Namespace {
                 local_name,
                 local_token,
+                aliased: _,
                 target,
             } => vec![(*local_name, *target, *local_token)],
             Self::Selected(names) => names
@@ -593,6 +606,12 @@ fn resolve_selected(
                 SyntaxOrigin::Token(selected.exported),
                 binding.origin,
             )
+            .into());
+        }
+        if !binding.entity.is_selectable_type() {
+            return Err(ImportViolation::non_type_selection(SyntaxOrigin::Token(
+                selected.exported,
+            ))
             .into());
         }
         if access.visibility != Visibility::Private

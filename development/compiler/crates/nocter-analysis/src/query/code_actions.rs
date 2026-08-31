@@ -178,23 +178,34 @@ impl AnalysisSnapshot {
                 let Some(import) = completion.automatic_import() else {
                     continue;
                 };
-                if completion.label() != name {
+                let label = completion.label();
+                if label != name
+                    && label
+                        .rsplit_once('.')
+                        .is_none_or(|(_, member)| member != name)
+                {
                     continue;
                 }
-                let edits = completion
+                let mut edits = completion
                     .additional_edits()
                     .iter()
                     .map(|edit| SemanticSourceEdit::new(source, edit.range(), edit.new_text()))
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice();
+                    .collect::<Vec<_>>();
+                if label != name {
+                    edits.push(SemanticSourceEdit::new(source, range, label));
+                }
                 if edits.is_empty() {
                     continue;
                 }
                 actions.push(SemanticCodeAction {
-                    title: format!("Import `{name}` from `{import}`").into(),
+                    title: if label == name {
+                        format!("Import `{name}` from `{import}`").into()
+                    } else {
+                        format!("Use `{label}` from `{import}`").into()
+                    },
                     diagnostic_code: diagnostic.code().into(),
                     diagnostic_range: range,
-                    edits,
+                    edits: edits.into_boxed_slice(),
                 });
             }
         }

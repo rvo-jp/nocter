@@ -7,14 +7,14 @@ use crate::{MachineContextRequirement, MachineOperationKind, MachineProgram, Mac
 #[test]
 fn primitive_destruction_becomes_one_generated_machine_function() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct Resource {}\n\
          drop Resource(&+self) { return }\n\
          func main(): i32 {\n\
              var value = Resource {}\n\
-             let pointer = from_ref_mut(&+value)\n\
-             drop_value_at_ptr_for_test(pointer, 0)\n\
+             let pointer = ptr.from_ref_mut(&+value)\n\
+             internal_ptr.drop_value_at_ptr_for_test(pointer, 0)\n\
              return 0\n\
          }\n",
         &[&["internal", "ptr"], &["ptr"]],
@@ -57,14 +57,14 @@ fn primitive_destruction_becomes_one_generated_machine_function() {
 #[test]
 fn generated_fixed_array_destruction_uses_a_reverse_loop() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct Resource {}\n\
          drop Resource(&+self) { return }\n\
          struct Container { values: [Resource; 2] }\n\
          func main(): i32 {\n\
              var value = Container { values: [Resource {}, Resource {}] }\n\
-             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             internal_ptr.drop_value_at_ptr_for_test(ptr.from_ref_mut(&+value), 0)\n\
              return 0\n\
          }\n",
         &[&["internal", "ptr"], &["ptr"]],
@@ -103,17 +103,17 @@ fn generated_fixed_array_destruction_uses_a_reverse_loop() {
 #[test]
 fn generated_destruction_propagates_user_drop_allocation_context() {
     let fixture = CompilerFixture::with_app_standard_uses(
-        "use std/mem.allocation_context_state_for_test\n\
-         use std/internal/ptr.drop_value_at_ptr_for_test\n\
-         use std/ptr.from_ref_mut\n\
+        "use std/mem\n\
+         use std/internal/ptr as internal_ptr\n\
+         use std/ptr\n\
          struct Resource {}\n\
          drop Resource(&+self) {\n\
-             let _ = allocation_context_state_for_test()\n\
+             let _ = mem.allocation_context_state_for_test()\n\
              return\n\
          }\n\
          func main(): i32 {\n\
              var value = Resource {}\n\
-             drop_value_at_ptr_for_test(from_ref_mut(&+value), 0)\n\
+             internal_ptr.drop_value_at_ptr_for_test(ptr.from_ref_mut(&+value), 0)\n\
              return 0\n\
          }\n",
         &[&["mem"], &["internal", "ptr"], &["ptr"]],

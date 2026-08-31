@@ -6,8 +6,8 @@ see ./probing.nct
 see ./growth.nct
 
 use /hash.Hash
-use /internal/mem.allocation_abort
-use /internal/ptr.replace_value
+use /internal/mem
+use /internal/ptr
 
 func place_new<K, V>(
     table: &+Table<K, V>,
@@ -22,7 +22,7 @@ func place_new<K, V>(
     let entry_index = table.keys.len()
     table.keys.push(move key)
     table.values.push(move value)
-    let _ = replace_value(
+    let _ = ptr.replace_value(
         &+table.buckets[bucket_index],
         Bucket.occupied(entry_index),
     )
@@ -36,7 +36,7 @@ func try_insert_value<K, V>(table: &+Table<K, V>, key: K, value: V): V?! where K
     let located = probe(table, &key)
     match located {
         Probe.found(_, entry_index, _) {
-            return replace_value(&+table.values[entry_index], move value)
+            return ptr.replace_value(&+table.values[entry_index], move value)
         }
         Probe.vacant(_, hash) {
             cleanup_sparse(table)
@@ -51,7 +51,7 @@ func try_insert_value<K, V>(table: &+Table<K, V>, key: K, value: V): V?! where K
 instance Table<K, V> where K impl Hash {
     method &+self.insert(key: K, value: V): V? {
         return try_insert_value(self, move key, move value) catch _ {
-            return allocation_abort()
+            return mem.allocation_abort()
         }
     }
 
@@ -88,10 +88,10 @@ instance Table<K, V> where K impl Hash {
 
         let removed_key = self.keys.swap_remove(entry_index) otherwise { return none }
         let removed_value = self.values.swap_remove(entry_index) otherwise { return none }
-        let _ = replace_value(&+self.buckets[bucket_index], Bucket.deleted)
+        let _ = ptr.replace_value(&+self.buckets[bucket_index], Bucket.deleted)
         self.tombstones += 1
         if entry_index != last_index {
-            let _ = replace_value(
+            let _ = ptr.replace_value(
                 &+self.buckets[moved_bucket],
                 Bucket.occupied(entry_index),
             )
@@ -106,7 +106,7 @@ instance Table<K, V> where K impl Hash {
         self.values.clear()
         var bucket_index: usize = 0
         while bucket_index < self.buckets.len() {
-            let _ = replace_value(&+self.buckets[bucket_index], Bucket.empty)
+            let _ = ptr.replace_value(&+self.buckets[bucket_index], Bucket.empty)
             bucket_index += 1
         }
         self.tombstones = 0

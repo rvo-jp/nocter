@@ -8,7 +8,10 @@ shared collection failure policy, standard dependency audit, and public contract
 complete. The exact source, artifact, publication, and public re-download evidence is frozen. The
 `v0.22.0` tag and release asset must not be replaced.
 
-The active compiler is under `development/compiler/`. Current architecture belongs to
+The active compiler is under `development/compiler/`. The v0.24.0 explicit-value-subject migration
+is complete and reviewed: selected imports are type-only, external functions and constants retain
+a module subject, namespace aliases are first-class, and constants require `UPPER_SNAKE_CASE`.
+Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 milestone, release, and review records rather than this handoff.
 
@@ -18,11 +21,8 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Prepare the qualified [v0.23.0](milestones/v0.23.0.md) candidate for release only when publication
-is requested. Phases 0 through 3 are complete: every built-in integer owns the same text API,
-signed and unsigned input cross one-pass decimal authorities, output crosses the existing shared
-formatter, and boundary, allocator, native, editor, example, full-workspace, and
-cross-responsibility qualification has passed.
+Prepare the qualified [v0.24.0](milestones/v0.24.0.md) candidate for release only when publication
+is requested.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

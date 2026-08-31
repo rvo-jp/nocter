@@ -2,11 +2,12 @@
 
 see ./index.nct
 
-use /mem.{RawBuffer, page_try_allocator}
-use /internal/mem.checked_add
-use /path.validate
-use /ptr.addr
-use /internal/ptr.{copy_str_to_ptr, store_u8_to_ptr}
+use /mem.RawBuffer
+use /mem as mem_module
+use /internal/mem
+use /path
+use /ptr
+use /internal/ptr as internal_ptr
 
 #target: "arm64-darwin"
 struct TargetPathArgument {
@@ -15,18 +16,18 @@ struct TargetPathArgument {
 
 #target: "arm64-darwin"
 func target_path_argument(value: &str): TargetPathArgument! {
-    validate(value)?
-    let allocation_size: usize = checked_add(value.len(), 1) otherwise {
+    path.validate(value)?
+    let allocation_size: usize = mem.checked_add(value.len(), 1) otherwise {
         return error.new("std.io.invalid_input", "path length cannot be represented")
     }
-    var allocator = page_try_allocator()
+    var allocator = mem_module.page_try_allocator()
     let storage = allocator.try_alloc(allocation_size, 1)?
-    copy_str_to_ptr(storage.bytes().ptr(), 0, value)
-    store_u8_to_ptr(storage.bytes().ptr(), allocation_size - 1, 0)
+    internal_ptr.copy_str_to_ptr(storage.bytes().ptr(), 0, value)
+    internal_ptr.store_u8_to_ptr(storage.bytes().ptr(), allocation_size - 1, 0)
     return TargetPathArgument { storage: move storage }
 }
 
 #target: "arm64-darwin"
 func target_path_address(value: &TargetPathArgument): usize {
-    return addr(value.storage.bytes().ptr())
+    return ptr.addr(value.storage.bytes().ptr())
 }

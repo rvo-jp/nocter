@@ -786,6 +786,39 @@ mod tests {
     }
 
     #[test]
+    fn production_pipeline_rejects_noncanonical_constant_names() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            "const retry_limit: usize = 4\n",
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let input = CompileUnitInput::new(
+            nocter_model::CompilationTarget::Arm64Darwin,
+            &sources,
+            vec![package("workspace:app", "app", "/app/index.nct", &manifest)],
+            vec![module("workspace:app", &[], "/app/index.nct", &root)],
+            Vec::new(),
+        )
+        .with_toolchain(crate::test_support::empty_toolchain(ModuleIdentity::new(
+            PackageIdentity::new("workspace:app"),
+            Vec::<&str>::new(),
+        )));
+
+        let error = lower_compile_unit_declarations(&input).unwrap_err();
+        let DeclarationLoweringError::Namespace(diagnostic) = error else {
+            panic!("invalid constant name did not produce a namespace diagnostic");
+        };
+        assert_eq!(diagnostic.rule(), NamespaceRule::InvalidConstantName);
+        assert_eq!(diagnostic.source().code(), "E0243");
+        assert_eq!(diagnostic.source().primary().source(), root_id);
+        assert!(diagnostic.source().primary().token().is_some());
+    }
+
+    #[test]
     fn production_pipeline_projects_visibility_above_the_package_root() {
         let mut sources = SourceMap::new();
         let manifest_id = add_source(&mut sources, "/app/index.nct", "");

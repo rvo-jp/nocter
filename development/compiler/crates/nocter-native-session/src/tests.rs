@@ -40,8 +40,8 @@ instance RecordingWriter {
 "#;
 
 const JSON_WRITER_IMPLEMENTATION_TEST_SOURCE: &str = r#"see ./index.nct
-use std/json.{parse, try_write, write}
-use std/mem.page_try_allocator
+use std/json
+use std/mem
 use std/string.String
 struct RecordingWriter {
     output: String
@@ -68,28 +68,28 @@ instance RecordingWriter {
     method &self.text(): &str { return &self.output as &str }
 }
 test write_streams_the_shared_compact_spelling {
-    let value = parse("{\"items\":[1,\"é\"]}")?
+    let value = json.parse("{\"items\":[1,\"é\"]}")?
     var writer = RecordingWriter.accepting()
-    write(&+writer, &value)?
+    json.write(&+writer, &value)?
     if writer.text() != "{\"items\":[1,\"é\"]}" {
         return error.new("test.output", "Writer spelling diverged from String generation")
     }
     return
 }
 test try_write_uses_the_selected_traversal_allocator {
-    let value = parse("[null,true,-0]")?
-    var allocator = page_try_allocator()
+    let value = json.parse("[null,true,-0]")?
+    var allocator = mem.page_try_allocator()
     var writer = RecordingWriter.accepting()
-    try_write(&+allocator, &+writer, &value)?
+    json.try_write(&+allocator, &+writer, &value)?
     if writer.text() != "[null,true,-0]" {
         return error.new("test.output", "recoverable Writer spelling changed")
     }
     return
 }
 test write_returns_destination_failure_after_partial_output {
-    let value = parse("[1,2]")?
+    let value = json.parse("[1,2]")?
     var writer = RecordingWriter.failing_after(2)
-    write(&+writer, &value) catch failure {
+    json.write(&+writer, &value) catch failure {
         if !failure.has_code("test.destination") || writer.text() == "[1,2]" {
             return error.new("test.failure", "destination failure identity or partial output changed")
         }
@@ -102,7 +102,7 @@ test write_returns_destination_failure_after_partial_output {
 const MAP_PHASE3_TEST_SOURCE: &str = r#"see ./index.nct
 
 use std/hash.HashState
-use std/mem.page_try_allocator
+use std/mem
 use std/string.String
 use std/vec.Vec
 
@@ -232,7 +232,7 @@ test collisions_growth_and_swap_removal_preserve_lookup {
 }
 
 test recoverable_capacity_overflow_is_semantically_atomic {
-    var allocator = page_try_allocator()
+    var allocator = mem.page_try_allocator()
     var built: Map<i32, i32> = Map.try_from_entries(&+allocator, 1: 10, 2: 20)?
     let built_key: i32 = 2
     if built[&built_key] != 20 {
@@ -259,7 +259,7 @@ test recoverable_capacity_overflow_is_semantically_atomic {
 }
 
 test shared_collection_capacity_and_bounds_errors_are_stable {
-    var allocator = page_try_allocator()
+    var allocator = mem.page_try_allocator()
     let maximum: usize = 18446744073709551615
 
     var values: Vec<i32> = Vec.try_with_capacity(&+allocator, 1)?
@@ -409,13 +409,11 @@ fn compile_for_test(unit: TestDiscoveredUnit) -> CompiledTarget {
 
 const DIRECTORY_RECORD_TEST_SOURCE: &[u8] = br#"see ./directory.nct
 
-use /internal/os/darwin.{dirent_inode_offset, dirent_name_length_offset}
-use /internal/os/darwin.{dirent_name_offset, dirent_record_length_offset}
-use /internal/os/darwin.{dirent_type_offset, dirent_type_regular}
-use /internal/ptr.{from_addr, store_u8_to_ptr}
-use /mem.page_try_allocator
+use /internal/os/darwin
+use /internal/ptr as internal_ptr
+use /mem
 use /path.Utf8Path
-use /ptr.addr
+use /ptr
 
 func test_reader(
     record_len: u8,
@@ -423,18 +421,18 @@ func test_reader(
     name_byte: u8,
     terminator: u8,
 ): ReadDir! {
-    var allocator = page_try_allocator()
+    var allocator = mem.page_try_allocator()
     var buffer = allocator.try_alloc(64, 8)?
-    let address = addr(buffer.bytes_mut().ptr())
-    let type_pointer: *u8 = from_addr(address)
-    store_u8_to_ptr(type_pointer, dirent_inode_offset, 1)
-    store_u8_to_ptr(type_pointer, dirent_record_length_offset, record_len)
-    store_u8_to_ptr(type_pointer, dirent_record_length_offset + 1, 0)
-    store_u8_to_ptr(type_pointer, dirent_name_length_offset, name_len)
-    store_u8_to_ptr(type_pointer, dirent_name_length_offset + 1, 0)
-    store_u8_to_ptr(type_pointer, dirent_type_offset, dirent_type_regular)
-    store_u8_to_ptr(type_pointer, dirent_name_offset, name_byte)
-    store_u8_to_ptr(type_pointer, dirent_name_offset + name_len as usize, terminator)
+    let address = ptr.addr(buffer.bytes_mut().ptr())
+    let type_pointer: *u8 = internal_ptr.from_addr(address)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_INODE_OFFSET, 1)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_RECORD_LENGTH_OFFSET, record_len)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_RECORD_LENGTH_OFFSET + 1, 0)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_NAME_LENGTH_OFFSET, name_len)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_NAME_LENGTH_OFFSET + 1, 0)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_TYPE_OFFSET, darwin.DIRENT_TYPE_REGULAR)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_NAME_OFFSET, name_byte)
+    internal_ptr.store_u8_to_ptr(type_pointer, darwin.DIRENT_NAME_OFFSET + name_len as usize, terminator)
     let base = Utf8Path.new(".")?
     return ReadDir {
         fd: 999999,
@@ -720,22 +718,23 @@ fn standard_directory_stream_crosses_the_complete_native_session() {
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        r#"use std/fs.{FileType, read_dir}
+        r#"use std/fs.FileType
+use std/fs
 
 func open_and_drop(): void! {
-    let stream = read_dir(".")?
+    let stream = fs.read_dir(".")?
     return
 }
 
 func open_fails_with(path: &str, code: &str): bool {
-    let _stream = read_dir(path) catch failure {
+    let _stream = fs.read_dir(path) catch failure {
         return failure.has_code(code)
     }
     return false
 }
 
 func inspect_directory(): i32! {
-    var stream = read_dir(".")?
+    var stream = fs.read_dir(".")?
     var saw_file = false
     var saw_directory = false
     var saw_symlink = false
@@ -770,7 +769,7 @@ func inspect_directory(): i32! {
         attempts += 1
     }
 
-    var closed = read_dir(".")?
+    var closed = fs.read_dir(".")?
     closed.close()
     let _after_close = closed.next()? otherwise { return 42 }
     return 11
@@ -1086,9 +1085,9 @@ fn integer_text_propagates_recoverable_allocator_failure() {
     );
     let num_failure_tests = concat!(
         "see ./index.nct\n",
-        "use /mem.failing_try_allocator_for_test\n",
+        "use /mem\n",
         "test recoverable_integer_text_propagates_allocator_failure {\n",
-        "    var allocator = failing_try_allocator_for_test()\n",
+        "    var allocator = mem.failing_try_allocator_for_test()\n",
         "    let value: i64 = -9223372036854775808\n",
         "    let _text = value.try_to_string(&+allocator) catch failure {\n",
         "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
@@ -1239,7 +1238,7 @@ fn standard_map_contract_crosses_native_tests() {
         ),
     );
     let contract_source = "use std/hash.{Hash, HashState}\n\
-         use std/mem.page_try_allocator\n\
+         use std/mem\n\
          use std/string.String\n\
          see ./implementation.nct\n\
          pub struct CollisionKey { pub id: i32 }\n\
@@ -1295,12 +1294,12 @@ fn constants_cross_fixed_array_checking_and_native_lowering() {
     package_root.source(
         "main.nct",
         concat!(
-            "const width: usize = 1 + 1\n",
-            "const answer: i32 = 40 + 2\n",
-            "const label: &str = \"Nocter\"\n",
+            "const WIDTH: usize = 1 + 1\n",
+            "const ANSWER: i32 = 40 + 2\n",
+            "const LABEL: &str = \"Nocter\"\n",
             "func main(): i32 {\n",
-            "    let values: [i32; width] = [answer, answer]\n",
-            "    if label == \"Nocter\" { return values[0] }\n",
+            "    let values: [i32; WIDTH] = [ANSWER, ANSWER]\n",
+            "    if LABEL == \"Nocter\" { return values[0] }\n",
             "    return 1\n",
             "}\n",
         ),

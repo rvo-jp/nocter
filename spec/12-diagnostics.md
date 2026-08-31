@@ -116,6 +116,7 @@ Source-backed namespace diagnostics:
 - `E0241`: declarations or imports introduce the same name more than once in one namespace.
 - `E0242`: an authored visibility boundary uses more `../` components than its declaring module
   has ancestors.
+- `E0243`: a constant declaration name does not use ASCII `UPPER_SNAKE_CASE`.
 
 Source-backed import diagnostics:
 
@@ -125,6 +126,8 @@ Source-backed import diagnostics:
   is the authored module path; ordinary source modules receive that prelude implicitly.
 - `E0263`: an authored `use` path cannot resolve to exactly one directory module within its package
   and dependency boundaries.
+- `E0264`: a top-level selected import does not name a type-namespace declaration.
+- `E0265`: a namespace alias is attached to a public module re-export.
 - `E0412`: a selected import name is outside its declared visibility boundary from the importing
   module.
 
@@ -239,6 +242,7 @@ Source-backed body-name diagnostics:
 - `E0347`: a member name selected through a module namespace is not exported by that module.
 - `E0348`: a member selected through a module namespace is outside the current module's visibility
   boundary.
+- `E0349`: a block-scope selected import does not name a type-namespace declaration.
 
 These diagnostics are selected by the body-owned lexical resolver. The resolver retains the exact
 declaration or reference token that selected the rule and never scans rendered source text to
@@ -768,7 +772,7 @@ Visibility:
 error[E0412]: import `std/internal/ptr` cannot access `pub(/)` name `from_addr`
   --> app.nct:3:31
    |
-3 | use std/internal/ptr.from_addr
+3 | use std/internal/ptr
    |                               ^^^^^^^^^
    |
 note: `from_addr` is declared as `pub(/)` in the implicit `std` package

@@ -1,6 +1,6 @@
 use std/fmt.Format
 
-use std/io.print
+use std/io
 
 struct Point {
     x: i32
@@ -22,6 +22,6 @@ instance Point {
 func main(): i32! {
     let point = Point { x: 3, y: 4 }
     let message = "point = ${point}\n"
-    print(&message)?
+    io.print(&message)?
     return 0
 }

@@ -2,17 +2,17 @@
 
 see ./index.nct
 
-use /internal/os/darwin.{sys_getentropy, syscall2, trap}
-use /ptr.{addr, from_ref_mut}
+use /internal/os/darwin
+use /ptr
 
 #target: "arm64-darwin"
 /// Returns a fresh process-local seed or terminates when target entropy is unavailable.
 func acquire_seed(): u64 {
     var value: u64 = 0
-    let pointer = from_ref_mut(&+value)
-    let result = syscall2(sys_getentropy, addr(pointer), 8)
+    let pointer = ptr.from_ref_mut(&+value)
+    let result = darwin.syscall2(darwin.SYS_GETENTROPY, ptr.addr(pointer), 8)
     if result.errno != 0 {
-        return trap()
+        return darwin.trap()
     }
     return value
 }

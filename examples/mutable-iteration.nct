@@ -1,4 +1,4 @@
-use std/io.print
+use std/io
 
 use std/vec.Vec
 
@@ -30,6 +30,6 @@ func main(): i32! {
     if owned_total != 36 {
         return 1
     }
-    print("mutable iteration updated every element\n")?
+    io.print("mutable iteration updated every element\n")?
     return 0
 }

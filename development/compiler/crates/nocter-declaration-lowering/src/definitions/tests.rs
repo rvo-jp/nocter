@@ -7,14 +7,14 @@ use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 use crate::test_support::source_see;
 
 const FULL_HEADER_SOURCE: &str = r#"
-pub const base: usize = 40
-const answer: usize = base + 2
-const stable: bool = false && (1 / 0 == 0)
-const wide: u64 = 1
-const equal: bool = 1 == wide
-const minimum: i8 = -128
-const label: &str = "nocter"
-type Bytes = [u8; answer]
+pub const BASE: usize = 40
+const ANSWER: usize = BASE + 2
+const STABLE: bool = false && (1 / 0 == 0)
+const WIDE: u64 = 1
+const EQUAL: bool = 1 == WIDE
+const MINIMUM: i8 = -128
+const LABEL: &str = "nocter"
+type Bytes = [u8; ANSWER]
 
 #target: "arm64-darwin"
 pub struct Box<T> where copy T {
@@ -538,31 +538,31 @@ fn rejects_argument_packs_outside_the_single_final_callable_position() {
 fn rejects_invalid_constant_contracts_without_runtime_fallback() {
     let cases = [
         (
-            "const invalid: str = \"value\"\n",
+            "const INVALID: str = \"value\"\n",
             DefinitionRule::InvalidConstantType,
         ),
         (
-            "func make(): i32 { return 1 }\nconst invalid: i32 = make()\n",
+            "func make(): i32 { return 1 }\nconst INVALID: i32 = make()\n",
             DefinitionRule::NonConstantExpression,
         ),
         (
-            "const invalid: bool = 1\n",
+            "const INVALID: bool = 1\n",
             DefinitionRule::ConstantTypeMismatch,
         ),
         (
-            "const first: i32 = second\nconst second: i32 = first\n",
+            "const FIRST: i32 = SECOND\nconst SECOND: i32 = FIRST\n",
             DefinitionRule::ConstantCycle,
         ),
         (
-            "const invalid: bool = false && 1\n",
+            "const INVALID: bool = false && 1\n",
             DefinitionRule::ConstantTypeMismatch,
         ),
         (
-            "const invalid: bool = false && invalid\n",
+            "const INVALID: bool = false && INVALID\n",
             DefinitionRule::ConstantCycle,
         ),
         (
-            "const invalid: u8 = 255 + 1\n",
+            "const INVALID: u8 = 255 + 1\n",
             DefinitionRule::ConstantArithmeticFailure,
         ),
     ];

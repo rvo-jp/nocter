@@ -5,30 +5,30 @@ see ./allocation.nct
 see ./layout.nct
 see ./storage.nct
 
-use /internal/mem.allocation_abort
-use /internal/ptr.{from_addr, slice_from_raw_parts, slice_from_raw_parts_mut}
-use /ptr.addr
+use /internal/mem
+use /internal/ptr as internal_ptr
+use /ptr
 
 func bytes(buffer: &RawBuffer): &[u8] {
-    return slice_from_raw_parts(buffer.ptr, buffer.len)
+    return internal_ptr.slice_from_raw_parts(buffer.ptr, buffer.len)
 }
 
 func bytes_mut(buffer: &+RawBuffer): &+[u8] {
-    return slice_from_raw_parts_mut(buffer.ptr, buffer.len)
+    return internal_ptr.slice_from_raw_parts_mut(buffer.ptr, buffer.len)
 }
 
 func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }
-    return slice_from_raw_parts(buffer.ptr, len)
+    return internal_ptr.slice_from_raw_parts(buffer.ptr, len)
 }
 
 func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }
-    return slice_from_raw_parts_mut(buffer.ptr, len)
+    return internal_ptr.slice_from_raw_parts_mut(buffer.ptr, len)
 }
 
 instance RawBuffer {
@@ -52,11 +52,11 @@ instance RawBuffer {
 drop RawBuffer(&+self) {
     if self.len != 0 {
         if allocator_kind_is_page(self.allocator_kind) {
-            free_pages(addr(self.ptr), self.len)
+            free_pages(ptr.addr(self.ptr), self.len)
         } else if !allocator_kind_is_region(self.allocator_kind) {
-            return allocation_abort()
+            return mem.allocation_abort()
         }
-        self.ptr = from_addr(1)
+        self.ptr = internal_ptr.from_addr(1)
         self.len = 0
     }
     return

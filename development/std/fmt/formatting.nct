@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use /internal/mem.allocation_abort
+use /internal/mem
 use /string.String
 
 func try_append_str(out: &+String, value: &str): void! {
@@ -12,7 +12,7 @@ func try_append_str(out: &+String, value: &str): void! {
 
 func append_str(out: &+String, value: &str): void {
     try_append_str(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -24,7 +24,7 @@ func try_append_string(out: &+String, value: &String): void! {
 
 func append_string(out: &+String, value: &String): void {
     try_append_string(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -36,7 +36,7 @@ func try_append_i32(out: &+String, value: i32): void! {
 
 func append_i32(out: &+String, value: i32): void {
     try_append_i32(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -48,7 +48,7 @@ func try_append_i8(out: &+String, value: i8): void! {
 
 func append_i8(out: &+String, value: i8): void {
     try_append_i8(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -60,7 +60,7 @@ func try_append_i16(out: &+String, value: i16): void! {
 
 func append_i16(out: &+String, value: i16): void {
     try_append_i16(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -81,7 +81,7 @@ func try_append_i64(out: &+String, value: i64): void! {
 
 func append_i64(out: &+String, value: i64): void {
     try_append_i64(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -93,7 +93,7 @@ func try_append_isize(out: &+String, value: isize): void! {
 
 func append_isize(out: &+String, value: isize): void {
     try_append_isize(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -105,7 +105,7 @@ func try_append_u8(out: &+String, value: u8): void! {
 
 func append_u8(out: &+String, value: u8): void {
     try_append_u8(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -117,7 +117,7 @@ func try_append_u16(out: &+String, value: u16): void! {
 
 func append_u16(out: &+String, value: u16): void {
     try_append_u16(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -129,7 +129,7 @@ func try_append_u32(out: &+String, value: u32): void! {
 
 func append_u32(out: &+String, value: u32): void {
     try_append_u32(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -141,7 +141,7 @@ func try_append_u64(out: &+String, value: u64): void! {
 
 func append_u64(out: &+String, value: u64): void {
     try_append_u64(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -153,7 +153,7 @@ func try_append_usize(out: &+String, value: usize): void! {
 
 func append_usize(out: &+String, value: usize): void {
     try_append_usize(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }
@@ -169,7 +169,7 @@ func try_append_bool(out: &+String, value: bool): void! {
 
 func append_bool(out: &+String, value: bool): void {
     try_append_bool(out, value) catch allocation_error {
-        return allocation_abort()
+        return mem.allocation_abort()
     }
     return
 }

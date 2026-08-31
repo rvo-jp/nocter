@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/vec/storage.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -173,7 +175,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>into_iter<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_addr<span class="token-operator">,</span> slice_from_raw_parts_value<span class="token-operator">,</span> slice_from_raw_parts_value_mut<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr
 <span class="token-keyword">use</span> <span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">MutableViewIter</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
 
@@ -192,11 +194,11 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> view<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> values<span class="token-operator">.</span>len<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> values<span class="token-operator">.</span>len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> view_mut<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">slice_from_raw_parts_value_mut</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> values<span class="token-operator">.</span>len<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts_value_mut</span><span class="token-operator">(</span>values<span class="token-operator">.</span>ptr<span class="token-operator">,</span> values<span class="token-operator">.</span>len<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> into_iter<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">VecIntoIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>

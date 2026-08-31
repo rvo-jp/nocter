@@ -646,6 +646,13 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                     )
                     .into());
                 }
+                if !entry.target().is_selectable_type() {
+                    return Err(diagnostic::non_type_selection(
+                        self.spelling(exported_name)?,
+                        self.origin(exported)?,
+                    )
+                    .into());
+                }
                 let target = NameTarget::Exported(entry.target());
                 self.insert_authored_name(local_name, local, target, false)?;
                 self.project_use(exported, target)?;
@@ -654,9 +661,15 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 }
             }
         } else {
-            let token = *descendant_identifiers(self.tree(), path)
-                .last()
-                .ok_or(NameResolutionInternalError::InvalidSyntaxNode(path))?;
+            let token = if let Some(alias) = direct_node(self.tree(), node, NodeKind::ModuleAlias) {
+                *descendant_identifiers(self.tree(), alias)
+                    .first()
+                    .ok_or(NameResolutionInternalError::InvalidSyntaxNode(alias))?
+            } else {
+                *descendant_identifiers(self.tree(), path)
+                    .last()
+                    .ok_or(NameResolutionInternalError::InvalidSyntaxNode(path))?
+            };
             let name = self.symbol(token)?;
             let target = NameTarget::Exported(ExportedEntity::Module(target_module));
             self.insert_authored_name(name, token, target, false)?;

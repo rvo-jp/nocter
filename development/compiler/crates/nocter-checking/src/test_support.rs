@@ -225,10 +225,15 @@ impl Fixture {
         }
         let prelude = ModuleIdentity::new(PackageIdentity::new("toolchain:std"), ["prelude"]);
         let resolutions = self.child.as_ref().map_or_else(Vec::new, |_| {
-            vec![UseResolutionInput::new(
-                use_declaration(&self.app),
-                ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["child"]),
-            )]
+            use_declarations(&self.app)
+                .into_iter()
+                .map(|declaration| {
+                    UseResolutionInput::new(
+                        declaration,
+                        ModuleIdentity::new(PackageIdentity::new("workspace:app"), ["child"]),
+                    )
+                })
+                .collect()
         });
         CompileUnitInput::new(
             nocter_model::CompilationTarget::Arm64Darwin,
@@ -313,8 +318,9 @@ fn declaration_token(
     panic!("fixture declaration {kind:?} named {name:?} does not exist");
 }
 
-fn use_declaration(tree: &SyntaxTree) -> nocter_syntax::NodeId {
+fn use_declarations(tree: &SyntaxTree) -> Vec<nocter_syntax::NodeId> {
     let mut pending = vec![tree.root_id()];
+    let mut declarations = Vec::new();
     while let Some(node) = pending.pop() {
         if tree.node(node).is_some_and(|node| {
             matches!(
@@ -322,7 +328,7 @@ fn use_declaration(tree: &SyntaxTree) -> nocter_syntax::NodeId {
                 NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
             )
         }) {
-            return node;
+            declarations.push(node);
         }
         for child in tree.children(node).iter().rev() {
             if let SyntaxElement::Node(child) = child {
@@ -330,7 +336,11 @@ fn use_declaration(tree: &SyntaxTree) -> nocter_syntax::NodeId {
             }
         }
     }
-    panic!("child-module fixture requires one module use declaration");
+    assert!(
+        !declarations.is_empty(),
+        "child-module fixture requires at least one module use declaration"
+    );
+    declarations
 }
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {

@@ -1,10 +1,14 @@
-use std/fs.{FileType, read_dir}
+use std/fs.FileType
 
-use std/io.{File, Writer, stderr, stdout}
+use std/fs
+
+use std/io.{File, Writer}
+
+use std/io
 
 use std/io/buffer.{BufReader, BufWriter}
 
-use std/process.{arg, arg_count}
+use std/process
 
 use std/string.String
 
@@ -22,18 +26,18 @@ instance SearchPath {
 }
 
 func run(): i32 {
-    if arg_count() != 3 {
+    if process.arg_count() != 3 {
         report_usage() catch _ { return 2 }
         return 2
     }
-    let needle = arg(1) catch failure {
+    let needle = process.arg(1) catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
     } otherwise {
         report_usage() catch _ { return 2 }
         return 2
     }
-    let root = arg(2) catch failure {
+    let root = process.arg(2) catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
     } otherwise {
@@ -55,7 +59,7 @@ func search_tree(needle: &str, root: &str): bool! {
     collect_directory(root, "", &+paths)?
     paths.sort()
 
-    var output = BufWriter.new(stdout())
+    var output = BufWriter.new(io.stdout())
     var matched = false
     for path in &paths {
         if search_file(&+output, needle, path)? {
@@ -71,7 +75,7 @@ func collect_directory(
     display_directory: &str,
     files: &+Vec<SearchPath>,
 ): void! {
-    var stream = read_dir(full_directory) catch failure {
+    var stream = fs.read_dir(full_directory) catch failure {
         let context = String.concat("cannot read directory ", full_directory)
         return failure.context(&context)
     }
@@ -162,13 +166,13 @@ func write_match(
 }
 
 func report_usage(): void! {
-    var output = stderr()
+    var output = io.stderr()
     output.write_text("usage: text-search NEEDLE ROOT\n")?
     return
 }
 
 func report_failure(failure: &error): void! {
-    var output = stderr()
+    var output = io.stderr()
     output.write_text("text-search: ")?
     output.write_text(failure.code())?
     output.write_text(": ")?

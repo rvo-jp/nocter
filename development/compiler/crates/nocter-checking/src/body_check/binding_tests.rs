@@ -74,11 +74,11 @@ fn annotations_supply_context_for_absence_and_empty_aggregate_literals() {
 #[test]
 fn constants_share_values_between_expressions_and_body_array_annotations() {
     let output = check(
-        "const width: usize = 2\n\
-         const answer: i32 = 40 + 2\n\
+        "const WIDTH: usize = 2\n\
+         const ANSWER: i32 = 40 + 2\n\
          func value(): i32 {\n\
-             let values: [i32; width * 2] = [answer, answer, answer, answer]\n\
-             answer\n\
+             let values: [i32; WIDTH * 2] = [ANSWER, ANSWER, ANSWER, ANSWER]\n\
+             ANSWER\n\
          }\n",
     )
     .unwrap();
@@ -103,12 +103,12 @@ fn constants_share_values_between_expressions_and_body_array_annotations() {
 #[test]
 fn body_array_types_use_the_same_block_import_scope_as_value_expressions() {
     for body in [
-        "use ./child.{Value, width}\n\n    let values: [Value; width] = []",
-        "use ./child\n\n    let values: [child.Value; child.width] = []",
+        "use ./child.Value\n    use ./child\n\n    let values: [Value; child.WIDTH] = []",
+        "use ./child\n\n    let values: [child.Value; child.WIDTH] = []",
     ] {
         let source = format!("func value(): void {{\n    {body}\n    return\n}}\n");
         let fixture =
-            Fixture::with_child(&source, "pub const width: usize = 0\npub struct Value {}\n");
+            Fixture::with_child(&source, "pub const WIDTH: usize = 0\npub struct Value {}\n");
         for reverse in [false, true] {
             let output = check_fixture(&fixture, reverse).unwrap();
             assert!(
@@ -174,15 +174,15 @@ fn body_array_length_conversions_share_normal_type_resolution() {
 fn constants_remain_values_in_place_only_contexts() {
     let cases = [
         (
-            "const answer: i32 = 42\nfunc invalid(): void {\n    let value = &answer\n    return\n}\n",
+            "const ANSWER: i32 = 42\nfunc invalid(): void {\n    let value = &ANSWER\n    return\n}\n",
             BodyRule::InvalidBorrowSource,
         ),
         (
-            "const answer: i32 = 42\nfunc invalid(): void {\n    let value = move answer\n    return\n}\n",
+            "const ANSWER: i32 = 42\nfunc invalid(): void {\n    let value = move ANSWER\n    return\n}\n",
             BodyRule::InvalidMoveSource,
         ),
         (
-            "const answer: i32 = 42\nfunc invalid(): void {\n    answer = 1\n    return\n}\n",
+            "const ANSWER: i32 = 42\nfunc invalid(): void {\n    ANSWER = 1\n    return\n}\n",
             BodyRule::InvalidAssignmentTarget,
         ),
     ];

@@ -19,16 +19,16 @@ This chapter specifies native source-test declarations, visibility, execution, a
 ## Declarations
 
 ```nct
-use std/testing.{assert, assert_eq}
+use std/testing
 use std/vec.Vec
 
 test vec_pushes_in_order {
     var values = Vec []
     values.push(1)
-    assert(values[0] == 1)?
+    testing.assert(values[0] == 1)?
     let actual: usize = values.len()
     let expected: usize = 1
-    assert_eq(&actual, &expected)?
+    testing.assert_eq(&actual, &expected)?
 }
 ```
 

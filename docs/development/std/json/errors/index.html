@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-30">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/json/errors.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -172,7 +174,7 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>failure<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>fmt<span class="token-operator">.</span>try_append_usize
+<span class="token-keyword">use</span> <span class="token-operator">/</span>fmt
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
@@ -185,7 +187,7 @@
     <span class="token-keyword">var</span> message <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_copy</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> message_prefix<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span><span class="token-keyword">move</span> failure<span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-function">try_append_usize</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>message<span class="token-operator">,</span> offset<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+    fmt<span class="token-operator">.</span><span class="token-function">try_append_usize</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>message<span class="token-operator">,</span> offset<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span><span class="token-keyword">move</span> failure<span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span>error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>code<span class="token-operator">,</span> <span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">)</span>

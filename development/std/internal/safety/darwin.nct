@@ -2,9 +2,9 @@
 
 see ./index.nct
 
-use /internal/os/darwin.trap
+use /internal/os/darwin
 
 #target: "arm64-darwin"
 func bounds_abort(): never {
-    return trap()
+    return darwin.trap()
 }

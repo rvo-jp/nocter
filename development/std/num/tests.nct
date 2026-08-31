@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use /mem.page_try_allocator
+use /mem
 use /string.String
 
 func require(condition: bool, message: &str): void! {
@@ -216,7 +216,7 @@ test every_integer_round_trips_through_its_owned_text {
 }
 
 test recoverable_integer_text_uses_the_supplied_allocator {
-    var allocator = page_try_allocator()
+    var allocator = mem.page_try_allocator()
     let signed8: i8 = -128
     let signed16: i16 = -32768
     let signed32: i32 = -2147483648

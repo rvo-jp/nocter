@@ -45,12 +45,36 @@ fn resolve_name(
     if spelling == "Self" {
         return Err(NamespaceViolation::reserved_name(SyntaxOrigin::Token(token)).into());
     }
+    if declaration.kind() == SurfaceDeclarationKind::Constant && !is_upper_snake_case(spelling) {
+        return Err(NamespaceViolation::invalid_constant_name(SyntaxOrigin::Token(token)).into());
+    }
     reserved
         .program
         .symbols()
         .get(spelling)
         .map(Some)
         .ok_or(HeaderError::MissingName(id))
+}
+
+fn is_upper_snake_case(spelling: &str) -> bool {
+    let bytes = spelling.as_bytes();
+    if bytes.first().is_none_or(|byte| !byte.is_ascii_uppercase()) {
+        return false;
+    }
+    let mut previous_underscore = false;
+    for byte in bytes {
+        if *byte == b'_' {
+            if previous_underscore {
+                return false;
+            }
+            previous_underscore = true;
+        } else if byte.is_ascii_uppercase() || byte.is_ascii_digit() {
+            previous_underscore = false;
+        } else {
+            return false;
+        }
+    }
+    !previous_underscore
 }
 
 fn validate_joined_names(

@@ -3,7 +3,7 @@
 see ./index.nct
 
 use /hash.{Hash, HashState}
-use /internal/mem.{allocation_abort, capacity_overflow, checked_add}
+use /internal/mem
 use /mem.TryAllocator
 use /vec.Vec
 
@@ -32,7 +32,7 @@ func bucket_count_for(minimum: usize, bind_empty: bool): usize! {
     }
     var bucket_count: usize = 8
     while usable_capacity(bucket_count) < minimum {
-        let next = checked_add(bucket_count, bucket_count) otherwise { return capacity_overflow() }
+        let next = mem.checked_add(bucket_count, bucket_count) otherwise { return mem.capacity_overflow() }
         bucket_count = next
     }
     return bucket_count
@@ -80,7 +80,7 @@ construct Table<K, V> {
 
     func with_capacity(minimum: usize): Self where K impl Hash {
         let bucket_count = bucket_count_for(minimum, false) catch _ {
-            return allocation_abort()
+            return mem.allocation_abort()
         }
         var keys: Vec<K> = Vec.with_capacity(minimum)
         var values: Vec<V> = Vec.with_capacity(minimum)

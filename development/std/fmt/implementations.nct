@@ -1,6 +1,6 @@
 see ./index.nct
 see ./formatting.nct
-use /internal/ptr.copy_value
+use /internal/ptr
 use /string.String
 
 //! Standard Format implementations for compiler built-in and owned text types.
@@ -21,77 +21,77 @@ instance String {
 
 instance bool {
     method &self.format_into(output: &+String): void {
-        append_bool(output, copy_value(self))
+        append_bool(output, ptr.copy_value(self))
         return
     }
 }
 
 instance i8 {
     method &self.format_into(output: &+String): void {
-        append_i8(output, copy_value(self))
+        append_i8(output, ptr.copy_value(self))
         return
     }
 }
 
 instance i16 {
     method &self.format_into(output: &+String): void {
-        append_i16(output, copy_value(self))
+        append_i16(output, ptr.copy_value(self))
         return
     }
 }
 
 instance i32 {
     method &self.format_into(output: &+String): void {
-        append_i32(output, copy_value(self))
+        append_i32(output, ptr.copy_value(self))
         return
     }
 }
 
 instance i64 {
     method &self.format_into(output: &+String): void {
-        append_i64(output, copy_value(self))
+        append_i64(output, ptr.copy_value(self))
         return
     }
 }
 
 instance isize {
     method &self.format_into(output: &+String): void {
-        append_isize(output, copy_value(self))
+        append_isize(output, ptr.copy_value(self))
         return
     }
 }
 
 instance u8 {
     method &self.format_into(output: &+String): void {
-        append_u8(output, copy_value(self))
+        append_u8(output, ptr.copy_value(self))
         return
     }
 }
 
 instance u16 {
     method &self.format_into(output: &+String): void {
-        append_u16(output, copy_value(self))
+        append_u16(output, ptr.copy_value(self))
         return
     }
 }
 
 instance u32 {
     method &self.format_into(output: &+String): void {
-        append_u32(output, copy_value(self))
+        append_u32(output, ptr.copy_value(self))
         return
     }
 }
 
 instance u64 {
     method &self.format_into(output: &+String): void {
-        append_u64(output, copy_value(self))
+        append_u64(output, ptr.copy_value(self))
         return
     }
 }
 
 instance usize {
     method &self.format_into(output: &+String): void {
-        append_usize(output, copy_value(self))
+        append_usize(output, ptr.copy_value(self))
         return
     }
 }

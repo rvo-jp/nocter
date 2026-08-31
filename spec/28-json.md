@@ -87,12 +87,12 @@ declarations.
 Parse one complete text and return its compact spelling:
 
 ```nct
-use std/json.{parse, stringify}
+use std/json
 use std/string.String
 
 func normalize(text: &str): String! {
-    let value = parse(text)?
-    return stringify(&value)
+    let value = json.parse(text)?
+    return json.stringify(&value)
 }
 ```
 
@@ -101,11 +101,11 @@ output String:
 
 ```nct
 use std/io.Writer
-use std/json.{parse, write}
+use std/json
 
 func normalize_into<W>(destination: &+W, text: &str): void! where W impl Writer {
-    let value = parse(text)?
-    write(destination, &value)?
+    let value = json.parse(text)?
+    json.write(destination, &value)?
     return
 }
 ```
@@ -113,13 +113,13 @@ func normalize_into<W>(destination: &+W, text: &str): void! where W impl Writer 
 Use one explicit recoverable allocator for both the owning value and returned text:
 
 ```nct
-use std/json.{try_parse, try_stringify}
+use std/json
 use std/mem.TryAllocator
 use std/string.String
 
 func try_normalize(allocator: &+TryAllocator, text: &str): String! from allocator {
-    let value = try_parse(allocator, text)?
-    return try_stringify(allocator, &value)?
+    let value = json.try_parse(allocator, text)?
+    return json.try_stringify(allocator, &value)?
 }
 ```
 

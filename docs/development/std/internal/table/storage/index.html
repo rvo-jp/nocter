@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-30">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/internal/table/storage.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -173,7 +175,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Hash</span><span class="token-operator">,</span> <span class="token-type">HashState</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span>allocation_abort<span class="token-operator">,</span> capacity_overflow<span class="token-operator">,</span> checked_add<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
@@ -202,7 +204,7 @@
     <span class="token-operator">}</span>
     <span class="token-keyword">var</span> bucket_count<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">8</span>
     <span class="token-keyword">while</span> <span class="token-function">usable_capacity</span><span class="token-operator">(</span>bucket_count<span class="token-operator">)</span> <span class="token-operator">&lt;</span> minimum <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> next <span class="token-operator">=</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>bucket_count<span class="token-operator">,</span> bucket_count<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> next <span class="token-operator">=</span> mem<span class="token-operator">.</span><span class="token-function">checked_add</span><span class="token-operator">(</span>bucket_count<span class="token-operator">,</span> bucket_count<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
         bucket_count <span class="token-operator">=</span> next
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> bucket_count
@@ -250,7 +252,7 @@
 
     <span class="token-keyword">func</span> <span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> bucket_count <span class="token-operator">=</span> <span class="token-function">bucket_count_for</span><span class="token-operator">(</span>minimum<span class="token-operator">,</span> <span class="token-keyword">false</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+            <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">var</span> keys<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">)</span>
         <span class="token-keyword">var</span> values<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">V</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">with_capacity</span><span class="token-operator">(</span>minimum<span class="token-operator">)</span>

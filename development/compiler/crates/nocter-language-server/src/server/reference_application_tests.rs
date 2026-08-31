@@ -23,7 +23,7 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let opened = server.receive(&did_open);
     assert!(opened.issue().is_none(), "{:?}", opened.issue());
 
-    let (read_dir_line, read_dir_source) = source_line(&text, "var stream = read_dir");
+    let (read_dir_line, read_dir_source) = source_line(&text, "var stream = fs.read_dir");
     let read_dir_character = read_dir_source.find("read_dir").unwrap();
     let hover = server.receive(&position_request(
         2,
@@ -119,7 +119,7 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
         snapshot.diagnostics()
     );
 
-    let (parse_line, parse_source) = source_line(&text, "let value = parse");
+    let (parse_line, parse_source) = source_line(&text, "let value = json.parse");
     let parse_character = parse_source.find("parse").unwrap();
     let hover = server.receive(&position_request(
         2,
@@ -150,7 +150,7 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
     assert!(!response.contains("parsing.nct"), "{response}");
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
-    let (write_line, write_source) = source_line(&text, "write(&+output, &value)");
+    let (write_line, write_source) = source_line(&text, "json.write(&+output, &value)");
     let write_argument = write_source.find("&value").unwrap() + 2;
     let signature = server.receive(&position_request(
         4,

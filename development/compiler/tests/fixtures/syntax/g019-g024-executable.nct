@@ -1,5 +1,5 @@
 func execute(input: State, source: Values, arena: Allocator): i32 {
-    use std/io.print
+    use std/io
 
     let initial: i32 = 1
     let _ = inspect(input)
@@ -13,13 +13,13 @@ func execute(input: State, source: Values, arena: Allocator): i32 {
         continue
     }
     for index in 0..<count {
-        print(index)
+        io.print(index)
     }
     for item in &source {
-        print(item)
+        io.print(item)
     }
     region temporary using arena.child {
-        print(total)
+        io.print(total)
     }
     let selected = if input is State.value(value, _) {
         value

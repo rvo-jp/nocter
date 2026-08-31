@@ -206,7 +206,7 @@ mod tests {
         let source = sources
             .add_bytes(
                 SourceName::new("gated.nct"),
-                b"#target: \"x64-linux\"\nfunc inactive(): void {\n    use std/io.print\n    return\n}\nfunc active(): void {\n    use std/io.print\n    return\n}\n",
+                b"#target: \"x64-linux\"\nfunc inactive(): void {\n    use std/io\n    return\n}\nfunc active(): void {\n    use std/io\n    return\n}\n",
             )
             .unwrap();
         let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);

@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-30">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/internal/table/mutation.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -176,8 +178,8 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>growth<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-type">Hash</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem<span class="token-operator">.</span>allocation_abort
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span>replace_value
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr
 
 <span class="token-keyword">func</span> place_new<span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
     table<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Table</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span><span class="token-operator">,</span>
@@ -192,7 +194,7 @@
     <span class="token-keyword">let</span> entry_index <span class="token-operator">=</span> table<span class="token-operator">.</span>keys<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
     table<span class="token-operator">.</span>keys<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> key<span class="token-operator">)</span>
     table<span class="token-operator">.</span>values<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-keyword">move</span> value<span class="token-operator">)</span>
-    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">replace_value</span><span class="token-operator">(</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">replace_value</span><span class="token-operator">(</span>
         <span class="token-operator">&amp;+</span>table<span class="token-operator">.</span>buckets<span class="token-operator">[</span>bucket_index<span class="token-operator">]</span><span class="token-operator">,</span>
         <span class="token-type">Bucket</span><span class="token-operator">.</span><span class="token-function">occupied</span><span class="token-operator">(</span>entry_index<span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
@@ -206,7 +208,7 @@
     <span class="token-keyword">let</span> located <span class="token-operator">=</span> <span class="token-function">probe</span><span class="token-operator">(</span>table<span class="token-operator">,</span> <span class="token-operator">&amp;</span>key<span class="token-operator">)</span>
     <span class="token-keyword">match</span> located <span class="token-operator">{</span>
         <span class="token-type">Probe</span><span class="token-operator">.</span><span class="token-function">found</span><span class="token-operator">(</span>_<span class="token-operator">,</span> entry_index<span class="token-operator">,</span> _<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">replace_value</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>table<span class="token-operator">.</span>values<span class="token-operator">[</span>entry_index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span>
+            <span class="token-keyword">return</span> ptr<span class="token-operator">.</span><span class="token-function">replace_value</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>table<span class="token-operator">.</span>values<span class="token-operator">[</span>entry_index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span>
         <span class="token-operator">}</span>
         <span class="token-type">Probe</span><span class="token-operator">.</span><span class="token-function">vacant</span><span class="token-operator">(</span>_<span class="token-operator">,</span> hash<span class="token-operator">)</span> <span class="token-operator">{</span>
             <span class="token-function">cleanup_sparse</span><span class="token-operator">(</span>table<span class="token-operator">)</span>
@@ -221,7 +223,7 @@
 <span class="token-keyword">instance</span> <span class="token-type">Table</span><span class="token-operator">&lt;</span><span class="token-type">K</span><span class="token-operator">,</span> <span class="token-type">V</span><span class="token-operator">&gt;</span> where <span class="token-type">K</span> <span class="token-keyword">impl</span> <span class="token-type">Hash</span> <span class="token-operator">{</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">insert</span><span class="token-operator">(</span>key<span class="token-operator">:</span> <span class="token-type">K</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">V</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">try_insert_value</span><span class="token-operator">(</span>self<span class="token-operator">,</span> <span class="token-keyword">move</span> key<span class="token-operator">,</span> <span class="token-keyword">move</span> value<span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
+            <span class="token-keyword">return</span> mem<span class="token-operator">.</span><span class="token-function">allocation_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 
@@ -258,10 +260,10 @@
 
         <span class="token-keyword">let</span> removed_key <span class="token-operator">=</span> self<span class="token-operator">.</span>keys<span class="token-operator">.</span><span class="token-function">swap_remove</span><span class="token-operator">(</span>entry_index<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
         <span class="token-keyword">let</span> removed_value <span class="token-operator">=</span> self<span class="token-operator">.</span>values<span class="token-operator">.</span><span class="token-function">swap_remove</span><span class="token-operator">(</span>entry_index<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
-        <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">replace_value</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>buckets<span class="token-operator">[</span>bucket_index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-type">Bucket</span><span class="token-operator">.</span>deleted<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> _ <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">replace_value</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>buckets<span class="token-operator">[</span>bucket_index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-type">Bucket</span><span class="token-operator">.</span>deleted<span class="token-operator">)</span>
         self<span class="token-operator">.</span>tombstones <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-keyword">if</span> entry_index <span class="token-operator">!</span><span class="token-operator">=</span> last_index <span class="token-operator">{</span>
-            <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">replace_value</span><span class="token-operator">(</span>
+            <span class="token-keyword">let</span> _ <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">replace_value</span><span class="token-operator">(</span>
                 <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>buckets<span class="token-operator">[</span>moved_bucket<span class="token-operator">]</span><span class="token-operator">,</span>
                 <span class="token-type">Bucket</span><span class="token-operator">.</span><span class="token-function">occupied</span><span class="token-operator">(</span>entry_index<span class="token-operator">)</span><span class="token-operator">,</span>
             <span class="token-operator">)</span>
@@ -276,7 +278,7 @@
         self<span class="token-operator">.</span>values<span class="token-operator">.</span><span class="token-function">clear</span><span class="token-operator">(</span><span class="token-operator">)</span>
         <span class="token-keyword">var</span> bucket_index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
         <span class="token-keyword">while</span> bucket_index <span class="token-operator">&lt;</span> self<span class="token-operator">.</span>buckets<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">replace_value</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>buckets<span class="token-operator">[</span>bucket_index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-type">Bucket</span><span class="token-operator">.</span>empty<span class="token-operator">)</span>
+            <span class="token-keyword">let</span> _ <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">replace_value</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>buckets<span class="token-operator">[</span>bucket_index<span class="token-operator">]</span><span class="token-operator">,</span> <span class="token-type">Bucket</span><span class="token-operator">.</span>empty<span class="token-operator">)</span>
             bucket_index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
         <span class="token-operator">}</span>
         self<span class="token-operator">.</span>tombstones <span class="token-operator">=</span> <span class="token-number">0</span>

@@ -13,6 +13,7 @@ pub enum NameRule {
     ImplicitCapture,
     MissingModuleMember,
     InaccessibleModuleMember,
+    NonTypeSelection,
 }
 
 impl NameRule {
@@ -28,6 +29,7 @@ impl NameRule {
             Self::ImplicitCapture => "E0346",
             Self::MissingModuleMember => "E0347",
             Self::InaccessibleModuleMember => "E0348",
+            Self::NonTypeSelection => "E0349",
         }
     }
 }
@@ -73,6 +75,16 @@ pub(super) fn inaccessible_block_import(name: &str, primary: SourceOrigin) -> So
         primary,
         [],
         Some("use a name whose visibility includes the importing module"),
+    )
+}
+
+pub(super) fn non_type_selection(name: &str, primary: SourceOrigin) -> SourceDiagnostic {
+    SourceDiagnostic::new(
+        NameRule::NonTypeSelection.code(),
+        format!("selected import `{name}` does not name a type or interface"),
+        primary,
+        [],
+        Some("import the owning module namespace and access this name through that namespace"),
     )
 }
 
@@ -160,6 +172,7 @@ mod tests {
             NameRule::ImplicitCapture,
             NameRule::MissingModuleMember,
             NameRule::InaccessibleModuleMember,
+            NameRule::NonTypeSelection,
         ];
         let codes: HashSet<_> = rules.into_iter().map(NameRule::code).collect();
         assert_eq!(codes.len(), rules.len());

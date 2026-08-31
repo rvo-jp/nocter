@@ -338,6 +338,7 @@ impl AnalysisSnapshot {
         }
         let mut candidates = BTreeMap::new();
         add_module_candidates(program.graph(), module, &mut candidates);
+        add_source_candidates(program.graph(), index, source, &mut candidates);
         if let Some((body, scope)) = containing_scope(index, source, offset) {
             add_scope_candidates(program, index, source, offset, body, scope, &mut candidates)?;
         }
@@ -586,6 +587,22 @@ fn add_module_candidates(
     }
 }
 
+fn add_source_candidates(
+    graph: &DeclarationGraph,
+    index: &SourceIndex,
+    source: SourceId,
+    candidates: &mut BTreeMap<Symbol, Candidate>,
+) {
+    for (name, entity) in index.visible_names_in(source) {
+        let Some(exported) = exported_entity(entity) else {
+            continue;
+        };
+        if let Some(candidate) = exported_candidate(graph, exported) {
+            candidates.insert(name, candidate);
+        }
+    }
+}
+
 fn add_scope_candidates(
     program: SemanticQueryContext<'_>,
     index: &SourceIndex,
@@ -694,4 +711,17 @@ fn exported_candidate(graph: &DeclarationGraph, exported: ExportedEntity) -> Opt
         ),
     };
     Some(Candidate { entity, kind })
+}
+
+const fn exported_entity(entity: SemanticEntity) -> Option<ExportedEntity> {
+    match entity {
+        SemanticEntity::Module(id) => Some(ExportedEntity::Module(id)),
+        SemanticEntity::BuiltinType(id) => Some(ExportedEntity::BuiltinType(id)),
+        SemanticEntity::NominalType(id) => Some(ExportedEntity::NominalType(id)),
+        SemanticEntity::TypeAlias(id) => Some(ExportedEntity::TypeAlias(id)),
+        SemanticEntity::Interface(id) => Some(ExportedEntity::Interface(id)),
+        SemanticEntity::Constant(id) => Some(ExportedEntity::Constant(id)),
+        SemanticEntity::Callable(id) => Some(ExportedEntity::Callable(id)),
+        _ => None,
+    }
 }

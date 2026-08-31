@@ -1,4 +1,4 @@
-use std/io.print
+use std/io
 
 use std/string.String
 
@@ -43,6 +43,6 @@ func main(): i32! {
     if !(first_view < second_view) {
         return 3
     }
-    print("strict ordering selected source declarations\n")?
+    io.print("strict ordering selected source declarations\n")?
     return 0
 }

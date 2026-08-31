@@ -18,7 +18,7 @@
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="development/std/fs/directory.nct - Nocter">
@@ -123,6 +123,8 @@
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/v0.24.0/index.html#content">Active v0.24.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 explicit value subjects review</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
                 <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
@@ -172,23 +174,25 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>io<span class="token-operator">.</span>io_error_from_os
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">SyscallResult</span><span class="token-operator">,</span> errno_interrupted<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>dirent_inode_offset<span class="token-operator">,</span> dirent_name_length_offset<span class="token-operator">,</span> dirent_name_offset<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>dirent_record_length_offset<span class="token-operator">,</span> dirent_type_offset<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>dirent_type_directory<span class="token-operator">,</span> dirent_type_regular<span class="token-operator">,</span> dirent_type_symlink<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>open_directory_only<span class="token-operator">,</span> sys_close<span class="token-operator">,</span> sys_open<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>errno<span class="token-operator">,</span> error_from_errno<span class="token-operator">,</span> read_directory_entries<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-operator">{</span>syscall1<span class="token-operator">,</span> syscall3<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-operator">{</span>target_path_address<span class="token-operator">,</span> target_path_argument<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr<span class="token-operator">.</span><span class="token-operator">{</span>from_addr<span class="token-operator">,</span> slice_from_raw_parts<span class="token-operator">,</span> take_value_at_ptr<span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span> page_try_allocator<span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-type">SyscallResult</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
+
+
+
+
+
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>path <span class="token-keyword">as</span> internal_path
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr <span class="token-keyword">as</span> internal_ptr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem
 <span class="token-keyword">use</span> <span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-type">Utf8Path</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr<span class="token-operator">.</span>addr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> directory_buffer_size<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">16384</span>
+<span class="token-keyword">const</span> <span class="token-type">DIRECTORY_BUFFER_SIZE</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">16384</span>
 
 <span class="token-keyword">struct</span> <span class="token-type">DirEntry</span> <span class="token-operator">{</span>
     file_name<span class="token-operator">:</span> <span class="token-type">String</span>
@@ -233,8 +237,8 @@
 
 <span class="token-keyword">func</span> <span class="token-function">read_dir</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ReadDir</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> base <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> <span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">let</span> buffer <span class="token-operator">=</span> allocator<span class="token-operator">.</span><span class="token-function">try_alloc</span><span class="token-operator">(</span>directory_buffer_size<span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> mem<span class="token-operator">.</span><span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">let</span> buffer <span class="token-operator">=</span> allocator<span class="token-operator">.</span><span class="token-function">try_alloc</span><span class="token-operator">(</span><span class="token-type">DIRECTORY_BUFFER_SIZE</span><span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">let</span> fd <span class="token-operator">=</span> <span class="token-function">open_directory</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-type">ReadDir</span> <span class="token-operator">{</span>
         fd<span class="token-operator">:</span> fd<span class="token-operator">,</span>
@@ -249,23 +253,23 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">open_directory</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> argument <span class="token-operator">=</span> <span class="token-function">target_path_argument</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
-        sys_open<span class="token-operator">,</span>
-        <span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
-        open_directory_only<span class="token-operator">,</span>
+    <span class="token-keyword">let</span> argument <span class="token-operator">=</span> internal_path<span class="token-operator">.</span><span class="token-function">target_path_argument</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_OPEN</span><span class="token-operator">,</span>
+        internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">OPEN_DIRECTORY_ONLY</span><span class="token-operator">,</span>
         <span class="token-number">0</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
-    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> errno_interrupted <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> <span class="token-function">syscall3</span><span class="token-operator">(</span>
-            sys_open<span class="token-operator">,</span>
-            <span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
-            open_directory_only<span class="token-operator">,</span>
+    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_OPEN</span><span class="token-operator">,</span>
+            internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
+            darwin<span class="token-operator">.</span><span class="token-type">OPEN_DIRECTORY_ONLY</span><span class="token-operator">,</span>
             <span class="token-number">0</span><span class="token-operator">,</span>
         <span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> result<span class="token-operator">.</span>value
 <span class="token-operator">}</span>
@@ -274,12 +278,12 @@
 <span class="token-keyword">func</span> <span class="token-function">refill_directory</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">ReadDir</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> position<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">let</span> buffer <span class="token-operator">=</span> reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">bytes_mut</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> <span class="token-function">read_directory_entries</span><span class="token-operator">(</span>reader<span class="token-operator">.</span>fd<span class="token-operator">,</span> buffer<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>position<span class="token-operator">)</span>
-    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> errno_interrupted <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> <span class="token-function">read_directory_entries</span><span class="token-operator">(</span>reader<span class="token-operator">.</span>fd<span class="token-operator">,</span> buffer<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>position<span class="token-operator">)</span>
+    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">read_directory_entries</span><span class="token-operator">(</span>reader<span class="token-operator">.</span>fd<span class="token-operator">,</span> buffer<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>position<span class="token-operator">)</span>
+    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">read_directory_entries</span><span class="token-operator">(</span>reader<span class="token-operator">.</span>fd<span class="token-operator">,</span> buffer<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>position<span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_directory_record</span><span class="token-operator">(</span><span class="token-operator">)</span>
@@ -308,35 +312,35 @@
 
         <span class="token-keyword">let</span> record_start <span class="token-operator">=</span> reader<span class="token-operator">.</span>buffer_offset
         <span class="token-keyword">let</span> remaining <span class="token-operator">=</span> reader<span class="token-operator">.</span>buffer_len - record_start
-        <span class="token-keyword">if</span> remaining <span class="token-operator">&lt;</span><span class="token-operator">=</span> dirent_name_offset <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> remaining <span class="token-operator">&lt;</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_NAME_OFFSET</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">fail_directory</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> <span class="token-function">invalid_directory_record</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
 
-        <span class="token-keyword">let</span> record_address <span class="token-operator">=</span> <span class="token-function">addr</span><span class="token-operator">(</span>reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">+</span> record_start
-        <span class="token-keyword">let</span> inode_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>record_address<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> length_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>record_address<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> type_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>record_address<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> inode<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>inode_pointer<span class="token-operator">,</span> dirent_inode_offset<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> record_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>
+        <span class="token-keyword">let</span> record_address <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>reader<span class="token-operator">.</span>buffer<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">+</span> record_start
+        <span class="token-keyword">let</span> inode_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u64</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>record_address<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> length_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u16</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>record_address<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> type_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u8</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>record_address<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> inode<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>inode_pointer<span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_INODE_OFFSET</span><span class="token-operator">)</span>
+        <span class="token-keyword">let</span> record_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>
             length_pointer<span class="token-operator">,</span>
-            dirent_record_length_offset<span class="token-operator">,</span>
+            darwin<span class="token-operator">.</span><span class="token-type">DIRENT_RECORD_LENGTH_OFFSET</span><span class="token-operator">,</span>
         <span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-type">usize</span>
-        <span class="token-keyword">let</span> name_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>
+        <span class="token-keyword">let</span> name_len<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>
             length_pointer<span class="token-operator">,</span>
-            dirent_name_length_offset<span class="token-operator">,</span>
+            darwin<span class="token-operator">.</span><span class="token-type">DIRENT_NAME_LENGTH_OFFSET</span><span class="token-operator">,</span>
         <span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-type">usize</span>
-        <span class="token-keyword">let</span> entry_type<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>type_pointer<span class="token-operator">,</span> dirent_type_offset<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> entry_type<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>type_pointer<span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_TYPE_OFFSET</span><span class="token-operator">)</span>
 
-        <span class="token-keyword">if</span> record_len <span class="token-operator">&lt;</span><span class="token-operator">=</span> dirent_name_offset || record_len <span class="token-operator">&gt;</span> remaining <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> record_len <span class="token-operator">&lt;</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_NAME_OFFSET</span> || record_len <span class="token-operator">&gt;</span> remaining <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">fail_directory</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> <span class="token-function">invalid_directory_record</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
-        <span class="token-keyword">if</span> name_len <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> || name_len <span class="token-operator">&gt;</span><span class="token-operator">=</span> record_len - dirent_name_offset <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> name_len <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> || name_len <span class="token-operator">&gt;</span><span class="token-operator">=</span> record_len - darwin<span class="token-operator">.</span><span class="token-type">DIRENT_NAME_OFFSET</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">fail_directory</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> <span class="token-function">invalid_directory_record</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
 
-        <span class="token-keyword">let</span> name_address <span class="token-operator">=</span> record_address <span class="token-operator">+</span> dirent_name_offset
-        <span class="token-keyword">let</span> name_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-function">from_addr</span><span class="token-operator">(</span>name_address<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> terminator<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>name_pointer<span class="token-operator">,</span> name_len<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> name_address <span class="token-operator">=</span> record_address <span class="token-operator">+</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_NAME_OFFSET</span>
+        <span class="token-keyword">let</span> name_pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u8</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>name_address<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> terminator<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>name_pointer<span class="token-operator">,</span> name_len<span class="token-operator">)</span>
         <span class="token-keyword">if</span> terminator <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">fail_directory</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> <span class="token-function">invalid_directory_record</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
@@ -346,7 +350,7 @@
             <span class="token-keyword">continue</span>
         <span class="token-operator">}</span>
 
-        <span class="token-keyword">let</span> name_bytes <span class="token-operator">=</span> <span class="token-function">slice_from_raw_parts</span><span class="token-operator">(</span>name_pointer<span class="token-operator">,</span> name_len<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> name_bytes <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts</span><span class="token-operator">(</span>name_pointer<span class="token-operator">,</span> name_len<span class="token-operator">)</span>
         <span class="token-keyword">let</span> name <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">from_utf8</span><span class="token-operator">(</span>name_bytes<span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span>
             <span class="token-keyword">return</span> <span class="token-function">fail_directory</span><span class="token-operator">(</span>reader<span class="token-operator">,</span> <span class="token-function">invalid_utf8_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
@@ -368,13 +372,13 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">file_type_from_dirent</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">FileType</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> dirent_type_regular <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_TYPE_REGULAR</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">FileType</span><span class="token-operator">.</span>regular
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> dirent_type_directory <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_TYPE_DIRECTORY</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">FileType</span><span class="token-operator">.</span>directory
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> dirent_type_symlink <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">DIRENT_TYPE_SYMLINK</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">FileType</span><span class="token-operator">.</span>symlink
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-type">FileType</span><span class="token-operator">.</span>other
@@ -387,7 +391,7 @@
 
 <span class="token-keyword">func</span> <span class="token-function">close_directory</span><span class="token-operator">(</span>reader<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">ReadDir</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> reader<span class="token-operator">.</span>is_open <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">syscall1</span><span class="token-operator">(</span>sys_close<span class="token-operator">,</span> reader<span class="token-operator">.</span>fd<span class="token-operator">)</span>
+        <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> reader<span class="token-operator">.</span>fd<span class="token-operator">)</span>
         reader<span class="token-operator">.</span>is_open <span class="token-operator">=</span> <span class="token-keyword">false</span>
     <span class="token-operator">}</span>
     reader<span class="token-operator">.</span>is_finished <span class="token-operator">=</span> <span class="token-keyword">true</span>

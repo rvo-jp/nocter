@@ -3,7 +3,7 @@
 see ./index.nct
 
 use /mem.RawBuffer
-use /internal/ptr.str_from_raw_parts
+use /internal/ptr
 
 struct String {
     storage: RawBuffer
@@ -11,7 +11,7 @@ struct String {
 }
 
 func view(text: &String): &str {
-    return str_from_raw_parts(text.storage.bytes().ptr(), text.len)
+    return ptr.str_from_raw_parts(text.storage.bytes().ptr(), text.len)
 }
 
 instance String {

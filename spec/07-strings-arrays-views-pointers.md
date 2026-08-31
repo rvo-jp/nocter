@@ -126,14 +126,14 @@ weakening. `ptr()` returns a raw pointer and does not grant dereference permissi
 Trusted standard-library implementation example:
 
 ```nct
-use std/ptr.addr
-use std/internal/os/darwin.syscall3
+use std/ptr
+use std/internal/os/darwin
 
 let bytes = text.bytes()
-let result = syscall3(
+let result = darwin.syscall3(
     SYS_write,
     fd as usize,
-    addr(bytes.ptr()),
+    ptr.addr(bytes.ptr()),
     bytes.len(),
 )
 ```

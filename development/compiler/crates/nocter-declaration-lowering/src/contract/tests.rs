@@ -104,12 +104,12 @@ fn constant_contract_joins_exactly_one_reciprocal_private_initializer() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "see ./limits.nct\npub const buffer_size: usize\n",
+        "see ./limits.nct\npub const BUFFER_SIZE: usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/limits.nct",
-        "see ./index.nct\nconst buffer_size: usize = 4096\n",
+        "see ./index.nct\nconst BUFFER_SIZE: usize = 4096\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
@@ -145,12 +145,12 @@ fn constant_contract_rejects_a_different_initializer_header() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "see ./limits.nct\npub const buffer_size: usize\n",
+        "see ./limits.nct\npub const BUFFER_SIZE: usize\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/limits.nct",
-        "see ./index.nct\nconst buffer_size: u32 = 4096\n",
+        "see ./index.nct\nconst BUFFER_SIZE: u32 = 4096\n",
     );
     let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
     let root = parse_source(&sources, root_id, ParseGoal::SourceFile);

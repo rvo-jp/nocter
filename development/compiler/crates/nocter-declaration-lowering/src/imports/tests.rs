@@ -158,7 +158,7 @@ fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_name
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use dep.Value as Item\nuse dep\n\nfunc consume(value: Item): void {}\n",
+        "use dep.Value as Item\nuse dep as dependency\n\nfunc consume(value: Item): void {}\n",
     );
     let dep_id = add_source(
         &mut sources,
@@ -216,7 +216,7 @@ fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_name
         Some(ExportedEntity::NominalType(_))
     ));
     assert_eq!(
-        imports.lookup_local(app_source, symbols.get("dep").unwrap()),
+        imports.lookup_local(app_source, symbols.get("dependency").unwrap()),
         Some(ExportedEntity::Module(dep_module))
     );
     assert!(matches!(
@@ -229,6 +229,123 @@ fn resolves_selected_aliases_and_namespace_imports_without_exposing_private_name
     );
     assert!(imports.import_id(0).is_some());
     assert!(imports.import_id(1).is_some());
+}
+
+#[test]
+fn selected_imports_reject_functions_and_constants() {
+    for (declaration, selected) in [
+        ("pub func make(): i32 { return 1 }\n", "make"),
+        ("pub const LIMIT: i32 = 1\n", "LIMIT"),
+    ] {
+        let mut sources = SourceMap::new();
+        let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let dep_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
+        let app_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            &format!("use dep.{selected}\n"),
+        );
+        let dep_id = add_source(&mut sources, "/dep/index.nct", declaration);
+        let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+        let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
+        let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+        let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
+        let dep_identity =
+            ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new());
+
+        let error = prepare(
+            &sources,
+            vec![
+                package("workspace:app", "app", "/app/index.nct", &app_manifest),
+                package("resolved:dep", "dep", "/dep/index.nct", &dep_manifest),
+            ],
+            vec![
+                module(
+                    "workspace:app",
+                    &[],
+                    vec![ModuleSourceInput::new(
+                        "/app/index.nct",
+                        ModuleSourceKind::Root,
+                        &app,
+                    )],
+                ),
+                module(
+                    "resolved:dep",
+                    &[],
+                    vec![ModuleSourceInput::new(
+                        "/dep/index.nct",
+                        ModuleSourceKind::Root,
+                        &dep,
+                    )],
+                ),
+            ],
+            vec![module_use(&app, 0, dep_identity)],
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            ImportError::Rule(violation)
+                if violation.rule() == crate::ImportRule::NonTypeSelection
+        ));
+    }
+}
+
+#[test]
+fn namespace_aliases_cannot_reexport_a_module_under_another_name() {
+    let mut sources = SourceMap::new();
+    let app_manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let dep_manifest_id = add_source(&mut sources, "/dep/index.nct", "");
+    let app_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "pub use dep as dependency\n",
+    );
+    let dep_id = add_source(&mut sources, "/dep/index.nct", "");
+    let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
+    let dep_manifest = parse_source(&sources, dep_manifest_id, ParseGoal::SourceFile);
+    let app = parse_source(&sources, app_id, ParseGoal::SourceFile);
+    let dep = parse_source(&sources, dep_id, ParseGoal::SourceFile);
+
+    let error = prepare(
+        &sources,
+        vec![
+            package("workspace:app", "app", "/app/index.nct", &app_manifest),
+            package("resolved:dep", "dep", "/dep/index.nct", &dep_manifest),
+        ],
+        vec![
+            module(
+                "workspace:app",
+                &[],
+                vec![ModuleSourceInput::new(
+                    "/app/index.nct",
+                    ModuleSourceKind::Root,
+                    &app,
+                )],
+            ),
+            module(
+                "resolved:dep",
+                &[],
+                vec![ModuleSourceInput::new(
+                    "/dep/index.nct",
+                    ModuleSourceKind::Root,
+                    &dep,
+                )],
+            ),
+        ],
+        vec![module_use(
+            &app,
+            0,
+            ModuleIdentity::new(PackageIdentity::new("resolved:dep"), Vec::<&str>::new()),
+        )],
+    )
+    .unwrap_err();
+
+    assert!(matches!(
+        error,
+        ImportError::Rule(violation)
+            if violation.rule() == crate::ImportRule::NamespaceAliasReexport
+    ));
 }
 
 #[test]

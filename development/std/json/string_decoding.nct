@@ -4,8 +4,9 @@ see ./cursor.nct
 see ./errors.nct
 see ./failure.nct
 
-use /internal/utf8.encode_scalar
-use /mem.{TryAllocator, page_try_allocator}
+use /internal/utf8
+use /mem.TryAllocator
+use /mem
 use /string.String
 
 func hex_value(byte: u8): u32? {
@@ -129,7 +130,7 @@ func decode_string(
             let scalar = decoded_scalar(cursor) otherwise {
                 return invalid_syntax(allocator, cursor.offset())
             }
-            let encoded = encode_scalar(scalar) otherwise {
+            let encoded = utf8.encode_scalar(scalar) otherwise {
                 return invalid_syntax(allocator, cursor.offset())
             }
             output.try_push_utf8(encoded.bytes()) catch failure {
@@ -139,7 +140,7 @@ func decode_string(
             let scalar = escaped_ascii(escape) otherwise {
                 return invalid_syntax(allocator, cursor.offset() - 1)
             }
-            let encoded = encode_scalar(scalar as u32) otherwise {
+            let encoded = utf8.encode_scalar(scalar as u32) otherwise {
                 return invalid_syntax(allocator, cursor.offset() - 1)
             }
             output.try_push_utf8(encoded.bytes()) catch failure {
@@ -152,7 +153,7 @@ func decode_string(
 }
 
 func decoded_string(text: &str): String! {
-    var allocator = page_try_allocator()
+    var allocator = mem.page_try_allocator()
     var cursor = Cursor.new(text)
     let attempt = decode_string(&+allocator, &+cursor)
     match move attempt {

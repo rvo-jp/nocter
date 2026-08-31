@@ -2,10 +2,10 @@
 
 see ./index.nct
 
-const maximum_usize: usize = 18446744073709551615
+const MAXIMUM_USIZE: usize = 18446744073709551615
 
 func checked_add(left: usize, right: usize): usize? {
-    if right > maximum_usize - left {
+    if right > MAXIMUM_USIZE - left {
         return none
     }
     return left + right
@@ -15,7 +15,7 @@ func checked_multiply(left: usize, right: usize): usize? {
     if left == 0 || right == 0 {
         return 0
     }
-    if left > maximum_usize / right {
+    if left > MAXIMUM_USIZE / right {
         return none
     }
     return left * right
@@ -26,7 +26,7 @@ func growth_capacity(current: usize, required: usize): usize {
         return current
     }
     let doubled: usize = checked_add(current, current) otherwise {
-        return maximum_usize
+        return MAXIMUM_USIZE
     }
     if doubled < required {
         return required

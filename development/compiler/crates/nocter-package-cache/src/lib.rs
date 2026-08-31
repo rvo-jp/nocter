@@ -392,7 +392,7 @@ mod tests {
             )
             .unwrap();
             fs::create_dir(path.join("source")).unwrap();
-            fs::write(path.join("source/value.nct"), b"pub const value: i32 = 1\n").unwrap();
+            fs::write(path.join("source/value.nct"), b"pub const VALUE: i32 = 1\n").unwrap();
             Self(path)
         }
 
@@ -427,7 +427,7 @@ mod tests {
         );
         fs::write(
             tree.root().join("source/value.nct"),
-            b"pub const value: i32 = 2\n",
+            b"pub const VALUE: i32 = 2\n",
         )
         .unwrap();
         assert!(verify_exact_package(tree.root(), identity).is_err());

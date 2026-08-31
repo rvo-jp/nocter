@@ -2,8 +2,8 @@
 
 see ./index.nct
 
-use /internal/utf8.is_valid_utf8 as validate_utf8
+use /internal/utf8
 
 func is_valid_utf8(candidate: &[u8]): bool {
-    return validate_utf8(candidate)
+    return utf8.is_valid_utf8(candidate)
 }
