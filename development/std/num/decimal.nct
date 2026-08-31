@@ -77,19 +77,72 @@ func narrow_i32(value: i64): i32? {
     return i32_truncate_raw(value)
 }
 
-func parse_usize(text: &str): usize? {
-    let value = parse_unsigned_decimal(text) otherwise { return none }
-    return value as usize
+construct i8 {
+    func parse(text: &str): Self? {
+        let value = parse_signed_decimal(text) otherwise { return none }
+        return narrow_i8(value)
+    }
 }
 
-func parse_u8(text: &str): u8? {
-    let value = parse_unsigned_decimal(text) otherwise { return none }
-    return u8.checked(value)
+construct i16 {
+    func parse(text: &str): Self? {
+        let value = parse_signed_decimal(text) otherwise { return none }
+        return narrow_i16(value)
+    }
 }
 
-func parse_i32(text: &str): i32? {
-    let value = parse_signed_decimal(text) otherwise { return none }
-    return narrow_i32(value)
+construct i32 {
+    func parse(text: &str): Self? {
+        let value = parse_signed_decimal(text) otherwise { return none }
+        return narrow_i32(value)
+    }
+}
+
+construct i64 {
+    func parse(text: &str): Self? {
+        return parse_signed_decimal(text)
+    }
+}
+
+construct isize {
+    func parse(text: &str): Self? {
+        let value = parse_signed_decimal(text) otherwise { return none }
+        return value as isize
+    }
+}
+
+construct u8 {
+    func parse(text: &str): Self? {
+        let value = parse_unsigned_decimal(text) otherwise { return none }
+        return u8.checked(value)
+    }
+}
+
+construct u16 {
+    func parse(text: &str): Self? {
+        let value = parse_unsigned_decimal(text) otherwise { return none }
+        return narrow_u16(value)
+    }
+}
+
+construct u32 {
+    func parse(text: &str): Self? {
+        let value = parse_unsigned_decimal(text) otherwise { return none }
+        return narrow_u32(value)
+    }
+}
+
+construct u64 {
+    func parse(text: &str): Self? {
+        return parse_unsigned_decimal(text)
+    }
+}
+
+construct usize {
+    func parse(text: &str): Self? {
+        let value = parse_unsigned_decimal(text) otherwise { return none }
+        return value as usize
+    }
 }
 
 test shared_decimal_parsers_cover_full_width_boundaries {

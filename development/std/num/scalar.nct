@@ -2,11 +2,6 @@
 
 see ./index.nct
 
-use /fmt.{try_append_i32, try_append_u8, try_append_usize}
-use /mem.TryAllocator
-use /internal/mem.allocation_abort
-use /string.String
-
 primitive func u8_truncate_raw(value: u64): u8
 primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
 primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
@@ -40,57 +35,6 @@ instance u64 {
     method self.rotate_right(amount: u64): u64 {
         return u64_rotate_right_raw(self, amount)
     }
-}
-
-func usize_to_string(value: usize): String {
-    var result = String.empty()
-    try_append_usize(&+result, value) catch allocation_error {
-        return allocation_abort()
-    }
-    return move result
-}
-
-func i32_to_string(value: i32): String {
-    var result = String.empty()
-    try_append_i32(&+result, value) catch allocation_error {
-        return allocation_abort()
-    }
-    return move result
-}
-
-func u8_to_string(value: u8): String {
-    var result = String.empty()
-    try_append_u8(&+result, value) catch allocation_error {
-        return allocation_abort()
-    }
-    return move result
-}
-
-func try_usize_to_string(
-    allocator: &+TryAllocator,
-    value: usize,
-): String! {
-    var result = String.try_with_capacity(allocator, 20)?
-    try_append_usize(&+result, value)?
-    return move result
-}
-
-func try_i32_to_string(
-    allocator: &+TryAllocator,
-    value: i32,
-): String! {
-    var result = String.try_with_capacity(allocator, 11)?
-    try_append_i32(&+result, value)?
-    return move result
-}
-
-func try_u8_to_string(
-    allocator: &+TryAllocator,
-    value: u8,
-): String! {
-    var result = String.try_with_capacity(allocator, 3)?
-    try_append_u8(&+result, value)?
-    return move result
 }
 
 test checked_and_truncating_u8_conversions_are_explicit {

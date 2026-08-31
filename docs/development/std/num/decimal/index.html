@@ -124,6 +124,8 @@
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
+                <li><a href="../../../reviews/v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 decimal authority review</a></li>
                 <li><a href="../../../milestones/v0.22.0/index.html#content">Completed v0.22.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.22.0-release-preparation/index.html#content">v0.22.0 release preparation</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
@@ -244,19 +246,72 @@
     <span class="token-keyword">return</span> <span class="token-function">i32_truncate_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">parse_usize</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> value <span class="token-keyword">as</span> <span class="token-type">usize</span>
+<span class="token-keyword">construct</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-function">narrow_i8</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">parse_u8</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-keyword">construct</span> <span class="token-type">i16</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-function">narrow_i16</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">parse_i32</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> <span class="token-function">narrow_i32</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+<span class="token-keyword">construct</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-function">narrow_i32</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">i64</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">isize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_signed_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> value <span class="token-keyword">as</span> <span class="token-type">isize</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u16</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-function">narrow_u16</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> <span class="token-function">narrow_u32</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">parse_unsigned_decimal</span><span class="token-operator">(</span>text<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> value <span class="token-keyword">as</span> <span class="token-type">usize</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">test</span> shared_decimal_parsers_cover_full_width_boundaries <span class="token-operator">{</span>

@@ -10,6 +10,8 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.23.0 milestone](milestones/v0.23.0.md)
+- [v0.23.0 Phase 2 type-owned API review](reviews/v0.23.0-phase-2.md)
+- [v0.23.0 Phase 1 decimal authority review](reviews/v0.23.0-phase-1.md)
 - [Completed v0.22.0 milestone](milestones/v0.22.0.md)
 - [v0.22.0 release preparation](milestones/v0.22.0-release-preparation.md)
 - [v0.22.0 Phase 0 JSON design review](reviews/v0.22.0-phase-0.md)

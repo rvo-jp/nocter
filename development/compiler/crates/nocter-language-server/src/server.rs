@@ -1360,6 +1360,40 @@ mod tests {
                 .contains("pub interface ExactSizeIterator where Self impl Iterator")
         );
 
+        let num_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/num/index.nct");
+        let num_text = fs::read_to_string(&num_source).unwrap();
+        let (line, source_line) = num_text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub method self.to_string(): String"))
+            .unwrap();
+        let character = source_line.find("to_string").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            num_source.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub method i8.to_string(): String\\n```"),
+            "{response}"
+        );
+
+        let (line, source_line) = num_text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub func parse(text: &str): Self?"))
+            .unwrap();
+        let character = source_line.find("parse").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            num_source.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub func i8.parse(text: &str): i8?\\n```"),
+            "{response}"
+        );
+
         let vec_text = fs::read_to_string(&vec_source).unwrap();
         let (line, source_line) = vec_text
             .lines()

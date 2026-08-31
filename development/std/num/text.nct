@@ -1,0 +1,159 @@
+//! Type-owned adapters from the shared decimal formatter into owned storage.
+
+see ./index.nct
+
+use /fmt.{
+    try_append_i8,
+    try_append_i16,
+    try_append_i32,
+    try_append_i64,
+    try_append_isize,
+    try_append_u8,
+    try_append_u16,
+    try_append_u32,
+    try_append_u64,
+    try_append_usize,
+}
+use /internal/mem.allocation_abort
+use /mem.TryAllocator
+use /string.String
+
+instance i8 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_i8(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 4)?
+        try_append_i8(&+result, self)?
+        return move result
+    }
+}
+
+instance i16 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_i16(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 6)?
+        try_append_i16(&+result, self)?
+        return move result
+    }
+}
+
+instance i32 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_i32(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 11)?
+        try_append_i32(&+result, self)?
+        return move result
+    }
+}
+
+instance i64 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_i64(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 20)?
+        try_append_i64(&+result, self)?
+        return move result
+    }
+}
+
+instance isize {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_isize(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 20)?
+        try_append_isize(&+result, self)?
+        return move result
+    }
+}
+
+instance u8 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_u8(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 3)?
+        try_append_u8(&+result, self)?
+        return move result
+    }
+}
+
+instance u16 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_u16(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 5)?
+        try_append_u16(&+result, self)?
+        return move result
+    }
+}
+
+instance u32 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_u32(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 10)?
+        try_append_u32(&+result, self)?
+        return move result
+    }
+}
+
+instance u64 {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_u64(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 20)?
+        try_append_u64(&+result, self)?
+        return move result
+    }
+}
+
+instance usize {
+    method self.to_string(): String {
+        var result = String.empty()
+        try_append_usize(&+result, self) catch allocation_error { return allocation_abort() }
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 20)?
+        try_append_usize(&+result, self)?
+        return move result
+    }
+}

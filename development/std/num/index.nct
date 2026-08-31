@@ -4,6 +4,8 @@ use /mem.TryAllocator
 use /string.String
 see ./decimal.nct
 see ./scalar.nct
+see ./tests.nct
+see ./text.nct
 
 /// Boolean truth value.
 pub primitive type bool
@@ -38,12 +40,100 @@ pub primitive type usize
 /// Pointer-sized signed integer.
 pub primitive type isize
 
+construct i8 {
+    /// Parses one complete signed decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct i16 {
+    /// Parses one complete signed decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct i32 {
+    /// Parses one complete signed decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct i64 {
+    /// Parses one complete signed decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct isize {
+    /// Parses one complete signed decimal integer.
+    pub func parse(text: &str): Self?
+}
+
 construct u8 {
     /// Converts a value when it is representable as `u8`.
     pub func checked(value: u64): Self?
 
     /// Keeps the low eight bits of a value.
     pub func truncate(value: u64): Self
+
+    /// Parses one complete unsigned decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct u16 {
+    /// Parses one complete unsigned decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct u32 {
+    /// Parses one complete unsigned decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct u64 {
+    /// Parses one complete unsigned decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+construct usize {
+    /// Parses one complete unsigned decimal integer.
+    pub func parse(text: &str): Self?
+}
+
+instance i8 {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
+
+instance i16 {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
+
+instance i32 {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
+
+instance i64 {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
+
+instance isize {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
 }
 
 instance u64 {
@@ -58,31 +148,42 @@ instance u64 {
 
     /// Rotates the bits right; only the low six bits of amount are significant.
     pub method self.rotate_right(amount: u64): u64
+
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
 }
 
-pub func parse_usize(text: &str): usize?
+instance u8 {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
 
-pub func parse_u8(text: &str): u8?
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
 
-pub func parse_i32(text: &str): i32?
+instance u16 {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
 
-pub func usize_to_string(value: usize): String
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
 
-pub func i32_to_string(value: i32): String
+instance u32 {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
 
-pub func u8_to_string(value: u8): String
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
 
-pub func try_usize_to_string(
-    allocator: &+TryAllocator,
-    value: usize,
-): String!
+instance usize {
+    /// Returns the shortest ordinary decimal spelling.
+    pub method self.to_string(): String
 
-pub func try_i32_to_string(
-    allocator: &+TryAllocator,
-    value: i32,
-): String!
-
-pub func try_u8_to_string(
-    allocator: &+TryAllocator,
-    value: u8,
-): String!
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}

@@ -11,8 +11,6 @@ use std/fs.read_to_string
 
 use std/io.print
 
-use std/num.usize_to_string
-
 use std/path.Utf8Path
 
 use std/process.arg
@@ -27,7 +25,7 @@ func main(): i32! {
     let path = Utf8Path.new(requested)?
     let text = read_to_string(&path)?
     let lines = count_lines(&text)
-    let result = usize_to_string(lines)
+    let result = lines.to_string()
     print(&result)?
     print("\n")?
     return 0

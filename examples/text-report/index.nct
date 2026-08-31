@@ -11,8 +11,6 @@ use ./report.{Report, analyze}
 
 use std/io.{File, Reader, print}
 
-use std/num.usize_to_string
-
 use std/path.Utf8Path
 
 use std/process.arg
@@ -37,8 +35,8 @@ func main(): i32! {
 }
 
 func print_report(report: &Report): void! {
-    let lines = usize_to_string(report.lines())
-    let matching = usize_to_string(report.matching())
+    let lines = report.lines().to_string()
+    let matching = report.matching().to_string()
     let output = String.concat(
         "lines: ",
         &lines,

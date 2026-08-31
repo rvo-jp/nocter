@@ -1,7 +1,5 @@
 use std/io.{File, Reader, print}
 
-use std/num.usize_to_string
-
 use std/path.Utf8Path
 
 use std/process.arg
@@ -43,9 +41,9 @@ func run(): i32! {
     } else {
         0
     }
-    let lines_text = usize_to_string(line_count)
-    let unique_text = usize_to_string(unique.len())
-    let matching_text = usize_to_string(matching)
+    let lines_text = line_count.to_string()
+    let unique_text = unique.len().to_string()
+    let matching_text = matching.to_string()
     let output = String.concat(
         "lines: ",
         &lines_text,

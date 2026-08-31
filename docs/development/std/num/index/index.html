@@ -124,6 +124,8 @@
             <ul class="directory-toc-list">
                 <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
+                <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
+                <li><a href="../../../reviews/v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 decimal authority review</a></li>
                 <li><a href="../../../milestones/v0.22.0/index.html#content">Completed v0.22.0 milestone</a></li>
                 <li><a href="../../../milestones/v0.22.0-release-preparation/index.html#content">v0.22.0 release preparation</a></li>
                 <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
@@ -171,6 +173,8 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>decimal<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>scalar<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>text<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// Boolean truth value.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">bool</span>
@@ -205,12 +209,100 @@
 <span class="token-comment">/// Pointer-sized signed integer.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">isize</span>
 
+<span class="token-keyword">construct</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete signed decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">i16</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete signed decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete signed decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">i64</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete signed decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">isize</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete signed decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">construct</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Converts a value when it is representable as `u8`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 
     <span class="token-comment">/// Keeps the low eight bits of a value.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">truncate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u16</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">i16</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">i64</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">isize</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
@@ -225,34 +317,45 @@
 
     <span class="token-comment">/// Rotates the bits right; only the low six bits of amount are significant.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">rotate_right</span><span class="token-operator">(</span>amount<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
 <span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse_usize</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span>
+<span class="token-keyword">instance</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse_u8</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">?</span>
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse_i32</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span>
+<span class="token-keyword">instance</span> <span class="token-type">u16</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">usize_to_string</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">i32_to_string</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+<span class="token-keyword">instance</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">u8_to_string</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_usize_to_string</span><span class="token-operator">(</span>
-    allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
-    value<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
+<span class="token-keyword">instance</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
 
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_i32_to_string</span><span class="token-operator">(</span>
-    allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
-    value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_u8_to_string</span><span class="token-operator">(</span>
-    allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
-    value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
 </code></pre>
             </div>
         </main>

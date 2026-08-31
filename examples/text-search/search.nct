@@ -4,8 +4,6 @@ use std/io.{File, Writer, stderr, stdout}
 
 use std/io/buffer.{BufReader, BufWriter}
 
-use std/num.usize_to_string
-
 use std/process.{arg, arg_count}
 
 use std/string.String
@@ -153,7 +151,7 @@ func write_match(
     line_number: usize,
     line: &str,
 ): void! {
-    let number = usize_to_string(line_number)
+    let number = line_number.to_string()
     output.write_text(path)?
     output.write_text(":")?
     output.write_text(&number)?

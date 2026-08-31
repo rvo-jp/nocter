@@ -1,0 +1,57 @@
+//! Public-surface numeric text contract tests.
+
+see ./index.nct
+
+use /string.String
+
+func require_text(actual: String, expected: &str): void! {
+    if ((&actual) as &str) != expected {
+        return error.new("std.num.text", "decimal spelling changed")
+    }
+    return
+}
+
+test every_integer_type_owns_the_same_decimal_surface {
+    let signed8 = i8.parse("-128") otherwise {
+        return error.new("std.num.parse", "i8 parse failed")
+    }
+    let signed16 = i16.parse("-32768") otherwise {
+        return error.new("std.num.parse", "i16 parse failed")
+    }
+    let signed32 = i32.parse("-2147483648") otherwise {
+        return error.new("std.num.parse", "i32 parse failed")
+    }
+    let signed64 = i64.parse("-9223372036854775808") otherwise {
+        return error.new("std.num.parse", "i64 parse failed")
+    }
+    let signed_size = isize.parse("-9223372036854775808") otherwise {
+        return error.new("std.num.parse", "isize parse failed")
+    }
+    let unsigned8 = u8.parse("255") otherwise {
+        return error.new("std.num.parse", "u8 parse failed")
+    }
+    let unsigned16 = u16.parse("65535") otherwise {
+        return error.new("std.num.parse", "u16 parse failed")
+    }
+    let unsigned32 = u32.parse("4294967295") otherwise {
+        return error.new("std.num.parse", "u32 parse failed")
+    }
+    let unsigned64 = u64.parse("18446744073709551615") otherwise {
+        return error.new("std.num.parse", "u64 parse failed")
+    }
+    let unsigned_size = usize.parse("18446744073709551615") otherwise {
+        return error.new("std.num.parse", "usize parse failed")
+    }
+
+    require_text(signed8.to_string(), "-128")?
+    require_text(signed16.to_string(), "-32768")?
+    require_text(signed32.to_string(), "-2147483648")?
+    require_text(signed64.to_string(), "-9223372036854775808")?
+    require_text(signed_size.to_string(), "-9223372036854775808")?
+    require_text(unsigned8.to_string(), "255")?
+    require_text(unsigned16.to_string(), "65535")?
+    require_text(unsigned32.to_string(), "4294967295")?
+    require_text(unsigned64.to_string(), "18446744073709551615")?
+    require_text(unsigned_size.to_string(), "18446744073709551615")?
+    return
+}
