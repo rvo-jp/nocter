@@ -26,7 +26,7 @@ Errors use stable error codes and source spans.
 Minimum source diagnostic shape:
 
 ```text
-error[E0001]: cannot move `file` while it is borrowed
+error[E0396]: cannot move `file` while it is borrowed
   --> app.nct:12:18
    |
 12 |     close(move file)
@@ -401,6 +401,7 @@ Source-backed declaration-header diagnostics:
 - `E0210`: an interface implementation target is neither a nominal type nor an authorized built-in type.
 - `E0211`: an interface implementation does not bind every associated type declared by its interface.
 - `E0212`: an opaque result appears on an unsupported callable or a callable without a source body.
+- `E0213`: a literal member does not match the language-defined signature for its literal shape.
 
 These diagnostics are selected by syntax-independent declaration rules. Each rule records a primary
 declaration-site identity and, when useful, one related declaration-site identity. The diagnostic
@@ -500,7 +501,7 @@ Diagnostic object:
 
 ```json
 {
-  "code": "E0001",
+  "code": "E0396",
   "severity": "error",
   "message": "cannot move `file` while it is borrowed",
   "primary_span": {
@@ -782,7 +783,7 @@ help: use a public safe API instead
 Fallible propagation outside a fallible function:
 
 ```text
-error[E0331]: postfix `?` would fail with `error`, but function `load` is not fallible
+error[E0392]: postfix `?` would fail with `error`, but function `load` is not fallible
   --> app.nct:8:16
    |
 8 |     let file = File.open(path)?
@@ -795,7 +796,7 @@ help: change the return type to `String!` or handle the failure with `catch`
 Maybe initialized binding:
 
 ```text
-error[E0220]: `file` may be uninitialized on this path
+error[E0378]: `file` may be uninitialized on this path
   --> app.nct:11:9
    |
 11 |     file.read()?

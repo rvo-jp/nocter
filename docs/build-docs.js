@@ -59,6 +59,7 @@ const sourceFiles = collectSourceFiles(PROJECT_ROOT);
 const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
 
 validateNocterLexicon();
+validateDiagnosticCatalog();
 validateCrateDocumentation();
 validateOutputPaths(sourceFiles);
 validateSourceLinks(collectDocumentationLinkSources(PROJECT_ROOT));
@@ -91,6 +92,52 @@ function validateNocterLexicon() {
     if (missing.length > 0 || extra.length > 0) {
         throw new Error(`Nocter highlighter keyword drift (missing: ${missing.join(", ") || "none"}; extra: ${extra.join(", ") || "none"})`);
     }
+}
+
+function validateDiagnosticCatalog() {
+    const specificationPath = path.join(PROJECT_ROOT, "spec/12-diagnostics.md");
+    const specification = fs.readFileSync(specificationPath, "utf8");
+    const entries = [...specification.matchAll(/^- `(E\d{4})`:/gm)].map(match => match[1]);
+    const catalog = new Set(entries);
+    const duplicates = [...new Set(entries.filter((code, index) => entries.indexOf(code) !== index))];
+
+    if (duplicates.length > 0) {
+        throw new Error(`Duplicate diagnostic catalog entries: ${duplicates.join(", ")}`);
+    }
+
+    const referenced = new Set(specification.match(/E\d{4}/g) || []);
+    referenced.delete("E0000");
+    const uncataloguedReferences = [...referenced].filter(code => !catalog.has(code)).sort();
+    if (uncataloguedReferences.length > 0) {
+        throw new Error(`Diagnostic examples use uncatalogued codes: ${uncataloguedReferences.join(", ")}`);
+    }
+
+    const compilerCodes = new Set();
+    for (const file of collectFilesWithExtension(path.join(PROJECT_ROOT, "development/compiler/crates"), ".rs")) {
+        for (const code of fs.readFileSync(file, "utf8").match(/E\d{4}/g) || []) {
+            if (code !== "E9998" && code !== "E9999") {
+                compilerCodes.add(code);
+            }
+        }
+    }
+    const undocumented = [...compilerCodes].filter(code => !catalog.has(code)).sort();
+    const unimplemented = [...catalog].filter(code => !compilerCodes.has(code)).sort();
+    if (undocumented.length > 0 || unimplemented.length > 0) {
+        throw new Error(`Diagnostic catalog drift (undocumented: ${undocumented.join(", ") || "none"}; unimplemented: ${unimplemented.join(", ") || "none"})`);
+    }
+}
+
+function collectFilesWithExtension(directory, extension) {
+    const files = [];
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const fullPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...collectFilesWithExtension(fullPath, extension));
+        } else if (entry.isFile() && entry.name.endsWith(extension)) {
+            files.push(fullPath);
+        }
+    }
+    return files;
 }
 
 function validateCrateDocumentation() {
