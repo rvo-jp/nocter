@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use nocter_diagnostics::{SourceDiagnostic, syntax_diagnostics};
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic, syntax_diagnostics};
 use nocter_source::{SourceFile, SourceMap, SourceName};
 use nocter_syntax::{
     Keyword, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
@@ -22,7 +22,7 @@ pub(super) fn format(source: &SourceFile, syntax: &SyntaxTree) -> Result<String,
     }
     if let Some(comment) = syntax.lexed().comments().first().copied() {
         return Err(FormatError::Diagnostics(vec![SourceDiagnostic::new(
-            "E0601",
+            DiagnosticCode::E0601,
             "formatting source with comments is not supported yet",
             comment.span(),
             [],

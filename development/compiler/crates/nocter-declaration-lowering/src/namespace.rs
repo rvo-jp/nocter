@@ -1,3 +1,4 @@
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule for names and authored visibility boundaries.
@@ -11,12 +12,12 @@ pub enum NamespaceRule {
 
 impl NamespaceRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::ReservedName => "E0240",
-            Self::NameCollision => "E0241",
-            Self::VisibilityAbovePackageRoot => "E0242",
-            Self::InvalidConstantName => "E0243",
+            Self::ReservedName => DiagnosticCode::E0240,
+            Self::NameCollision => DiagnosticCode::E0241,
+            Self::VisibilityAbovePackageRoot => DiagnosticCode::E0242,
+            Self::InvalidConstantName => DiagnosticCode::E0243,
         }
     }
 

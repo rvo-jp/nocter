@@ -151,7 +151,10 @@ fn body_array_lengths_report_shared_constant_expression_rules() {
         );
         let error = check(&source).unwrap_err();
         assert_eq!(error.constant_expression_rule(), Some(expected));
-        assert_eq!(error.source_diagnostic().unwrap().code(), expected.code());
+        assert_eq!(
+            error.source_diagnostic().unwrap().code(),
+            expected.code().as_str()
+        );
     }
 }
 
@@ -298,7 +301,10 @@ fn annotation_reuses_normalized_data_position_validity() {
         ))
         .unwrap_err();
         assert_eq!(error.type_validity_rule(), Some(rule));
-        assert_eq!(error.source_diagnostic().unwrap().code(), rule.code());
+        assert_eq!(
+            error.source_diagnostic().unwrap().code(),
+            rule.code().as_str()
+        );
     }
 }
 

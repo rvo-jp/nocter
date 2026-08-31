@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_diagnostics::SourceDiagnostic;
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 
 /// A failure at one owned compilation-session boundary.
 #[derive(Debug)]
@@ -40,9 +40,9 @@ impl CompileSessionError {
 
     /// Returns a spanless public code for a user-selectable target failure.
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
-            Self::TargetUnavailable(_) => Some("E0701"),
+            Self::TargetUnavailable(_) => Some(DiagnosticCode::E0701),
             Self::SyntaxErrorsPresent
             | Self::CompileInput(_)
             | Self::Declaration(_)

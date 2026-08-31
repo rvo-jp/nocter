@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_model::CompilationTarget;
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::CompiledTarget;
@@ -161,7 +162,7 @@ impl CheckCommandExecutionError {
 
     /// Returns a spanless code when checking failed outside authored source diagnostics.
     #[must_use]
-    pub fn diagnostic_code(&self) -> Option<&'static str> {
+    pub fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Source { error, .. } => error.diagnostic_code(),
             Self::Check { failure, .. } if failure.diagnostics().is_empty() => {

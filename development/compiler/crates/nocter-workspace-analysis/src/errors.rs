@@ -2,6 +2,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_package::{PackageGraphError, PackageResolutionFailure};
 
 pub(crate) fn preparation_diagnostics(
@@ -36,7 +37,7 @@ pub(crate) fn preparation_diagnostics(
         WorkspaceDiagnosticError::missing_syntax_subject(subject.source().index(), subject.index())
     })?;
     Ok(Box::new([nocter_diagnostics::SourceDiagnostic::new(
-        "E0800",
+        nocter_diagnostics::DiagnosticCode::E0800,
         error.to_string(),
         source.span(node.range()),
         [],
@@ -174,17 +175,17 @@ impl WorkspaceAnalysisError {
     }
 
     #[must_use]
-    pub const fn diagnostic_code(&self) -> &'static str {
+    pub const fn diagnostic_code(&self) -> DiagnosticCode {
         match &self.kind {
             WorkspaceAnalysisErrorKind::OutsideWorkspace(_)
             | WorkspaceAnalysisErrorKind::UnsupportedSource(_)
-            | WorkspaceAnalysisErrorKind::ModuleOwner(_) => "E0702",
+            | WorkspaceAnalysisErrorKind::ModuleOwner(_) => DiagnosticCode::E0702,
             WorkspaceAnalysisErrorKind::Package(_)
-            | WorkspaceAnalysisErrorKind::PackageRootProbe(_) => "E0800",
-            WorkspaceAnalysisErrorKind::StandardPackage(_) => "E0703",
+            | WorkspaceAnalysisErrorKind::PackageRootProbe(_) => DiagnosticCode::E0800,
+            WorkspaceAnalysisErrorKind::StandardPackage(_) => DiagnosticCode::E0703,
             WorkspaceAnalysisErrorKind::MissingRootPackage(_)
             | WorkspaceAnalysisErrorKind::CompilerComputation(_)
-            | WorkspaceAnalysisErrorKind::SemanticAnalysis(_) => "E0900",
+            | WorkspaceAnalysisErrorKind::SemanticAnalysis(_) => DiagnosticCode::E0900,
         }
     }
 }

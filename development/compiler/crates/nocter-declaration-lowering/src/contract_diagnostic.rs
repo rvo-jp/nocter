@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::NodeId;
 
@@ -46,22 +47,22 @@ impl DeclarationContractRule {
     ];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::MissingConstantInitializer => "E0272",
-            Self::MismatchedConstantInitializer => "E0273",
-            Self::DuplicateConstantInitializer => "E0274",
-            Self::InvalidConstantOmission => "E0275",
-            Self::MissingBody => "E0250",
-            Self::MismatchedBody => "E0251",
-            Self::DuplicateBody => "E0252",
-            Self::InvalidBodyOmission => "E0253",
-            Self::InterfaceImplementationOutsideRoot => "E0254",
-            Self::UncontractedInterfaceDefault => "E0259",
-            Self::MissingRepresentation => "E0255",
-            Self::MismatchedRepresentation => "E0256",
-            Self::DuplicateRepresentation => "E0257",
-            Self::RepresentationCompletedAgain => "E0258",
+            Self::MissingConstantInitializer => DiagnosticCode::E0272,
+            Self::MismatchedConstantInitializer => DiagnosticCode::E0273,
+            Self::DuplicateConstantInitializer => DiagnosticCode::E0274,
+            Self::InvalidConstantOmission => DiagnosticCode::E0275,
+            Self::MissingBody => DiagnosticCode::E0250,
+            Self::MismatchedBody => DiagnosticCode::E0251,
+            Self::DuplicateBody => DiagnosticCode::E0252,
+            Self::InvalidBodyOmission => DiagnosticCode::E0253,
+            Self::InterfaceImplementationOutsideRoot => DiagnosticCode::E0254,
+            Self::UncontractedInterfaceDefault => DiagnosticCode::E0259,
+            Self::MissingRepresentation => DiagnosticCode::E0255,
+            Self::MismatchedRepresentation => DiagnosticCode::E0256,
+            Self::DuplicateRepresentation => DiagnosticCode::E0257,
+            Self::RepresentationCompletedAgain => DiagnosticCode::E0258,
         }
     }
 

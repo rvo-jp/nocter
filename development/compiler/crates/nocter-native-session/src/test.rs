@@ -2,6 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use nocter_arm64::Arm64TestSuite;
+use nocter_language::DiagnosticCode;
 use nocter_machine::MachineProgram;
 use nocter_macho::MachOImage;
 use nocter_mir::lower_executable;
@@ -343,9 +344,9 @@ pub enum NativeTestSessionError {
 
 impl NativeTestSessionError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
-            Self::Selection(_) => Some("E0800"),
+            Self::Selection(_) => Some(DiagnosticCode::E0800),
             Self::Integrity(_) => None,
         }
     }

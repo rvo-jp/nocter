@@ -1,6 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_model::PackageTargetKind;
 use nocter_model::{PackageIdentity, PackageTargetId};
 use nocter_target_program::{ExecutableProgram, ExecutableProgramError, TargetProgram};
@@ -255,9 +256,9 @@ pub enum ExecutableSessionError {
 
 impl ExecutableSessionError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
-            Self::Selection(_) => Some("E0800"),
+            Self::Selection(_) => Some(DiagnosticCode::E0800),
             Self::Executable(_) => None,
         }
     }

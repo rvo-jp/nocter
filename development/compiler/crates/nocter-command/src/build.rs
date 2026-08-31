@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::Path;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_native_session::{
     NativeImageSetCompileRequest, NativeImageSetError, NativeSessionError, compile_native_image,
     compile_native_images,
@@ -162,11 +163,11 @@ pub enum BuildSetCommandError {
 
 impl BuildSetCommandError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Compile(error) => error.diagnostic_code(),
-            Self::Plan(_) => Some("E0800"),
-            Self::Artifact { .. } => Some("E0702"),
+            Self::Plan(_) => Some(DiagnosticCode::E0800),
+            Self::Artifact { .. } => Some(DiagnosticCode::E0702),
         }
     }
 }
@@ -217,11 +218,11 @@ pub enum BuildCommandError {
 
 impl BuildCommandError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Compile(error) => error.diagnostic_code(),
-            Self::Plan(_) => Some("E0800"),
-            Self::Artifact(_) => Some("E0702"),
+            Self::Plan(_) => Some(DiagnosticCode::E0800),
+            Self::Artifact(_) => Some(DiagnosticCode::E0702),
         }
     }
 }

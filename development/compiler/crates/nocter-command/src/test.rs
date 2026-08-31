@@ -2,7 +2,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use nocter_diagnostics::SourceDiagnostic;
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_discovery::DiscoveryFailure;
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_native_session::{
@@ -77,7 +77,7 @@ impl TestRunOutcome {
 /// One diagnostic owned by an individual test run rather than the shared source session.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TestRunDiagnostic {
-    code: &'static str,
+    code: DiagnosticCode,
     message: Box<str>,
 }
 
@@ -105,7 +105,7 @@ impl TestRunTarget {
 }
 
 impl TestRunDiagnostic {
-    fn new(code: &'static str, message: impl Into<Box<str>>) -> Self {
+    fn new(code: DiagnosticCode, message: impl Into<Box<str>>) -> Self {
         Self {
             code,
             message: message.into(),
@@ -113,7 +113,7 @@ impl TestRunDiagnostic {
     }
 
     #[must_use]
-    pub const fn code(&self) -> &'static str {
+    pub const fn code(&self) -> DiagnosticCode {
         self.code
     }
 
@@ -297,7 +297,7 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
             Ok(unit) => unit,
             Err(failure) => {
                 let wrapped = CommandSourceError::Discovery(failure);
-                let diagnostic_code = wrapped.diagnostic_code().unwrap_or("E0900");
+                let diagnostic_code = wrapped.diagnostic_code().unwrap_or(DiagnosticCode::E0900);
                 let CommandSourceError::Discovery(failure) = wrapped else {
                     unreachable!("constructed discovery error retains its variant")
                 };
@@ -308,7 +308,10 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
         let target_program = match compiler.compile(&unit) {
             Ok(target_program) => target_program,
             Err(failure) => {
-                let code = failure.error().diagnostic_code().unwrap_or("E0900");
+                let code = failure
+                    .error()
+                    .diagnostic_code()
+                    .unwrap_or(DiagnosticCode::E0900);
                 let message = failure.to_string();
                 let (_, sources, diagnostics) = failure.into_parts();
                 runs.push(compile_failure(target, code, message, diagnostics, sources));
@@ -332,7 +335,7 @@ pub fn execute_prepared_test<A: PackageAcquisitionAuthority>(
                 });
             }
             Err(error) => {
-                let code = error.diagnostic_code().unwrap_or("E0900");
+                let code = error.diagnostic_code().unwrap_or(DiagnosticCode::E0900);
                 let message = error.to_string();
                 let (_, sources, diagnostics) =
                     command_compilation_failure(error, unit.unit()).into_parts();
@@ -381,7 +384,10 @@ fn run_compiled_target(
                 signal: None,
                 stdout: Box::new([]),
                 stderr: Box::new([]),
-                diagnostics: Box::new([TestRunDiagnostic::new("E0900", error.to_string())]),
+                diagnostics: Box::new([TestRunDiagnostic::new(
+                    DiagnosticCode::E0900,
+                    error.to_string(),
+                )]),
                 source_diagnostics: Box::new([]),
                 sources: None,
             }),
@@ -393,7 +399,7 @@ fn run_compiled_target(
 fn discovery_failure(
     target: TestRunTarget,
     failure: &DiscoveryFailure,
-    code: &'static str,
+    code: DiagnosticCode,
 ) -> TestRunResult {
     let message = failure.to_string();
     let source_diagnostics = failure.diagnostics().to_vec().into_boxed_slice();
@@ -419,7 +425,7 @@ fn discovery_failure(
 
 fn compile_failure(
     target: TestRunTarget,
-    code: &'static str,
+    code: DiagnosticCode,
     message: String,
     source_diagnostics: Box<[SourceDiagnostic]>,
     sources: SourceMap,
@@ -516,7 +522,7 @@ fn run_test_case(
             stdout: output.stdout.into_boxed_slice(),
             stderr: output.stderr.into_boxed_slice(),
             diagnostics: Box::new([TestRunDiagnostic::new(
-                "E0704",
+                DiagnosticCode::E0704,
                 format!("temporary executable cleanup failed: {cleanup}"),
             )]),
             source_diagnostics: Box::new([]),
@@ -546,7 +552,7 @@ fn runner_failure(
         signal: None,
         stdout: Box::new([]),
         stderr: Box::new([]),
-        diagnostics: Box::new([TestRunDiagnostic::new("E0704", message)]),
+        diagnostics: Box::new([TestRunDiagnostic::new(DiagnosticCode::E0704, message)]),
         source_diagnostics: Box::new([]),
         sources: None,
     }
@@ -597,7 +603,7 @@ impl TestCommandExecutionError {
     }
 
     #[must_use]
-    pub fn diagnostic_code(&self) -> Option<&'static str> {
+    pub fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Source { error, .. } => error.diagnostic_code(),
             Self::Compile { failure, .. } if failure.diagnostics().is_empty() => {

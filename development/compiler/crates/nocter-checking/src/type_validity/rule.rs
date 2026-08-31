@@ -1,4 +1,4 @@
-use nocter_diagnostics::SourceDiagnostic;
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -26,16 +26,16 @@ impl TypeValidityRule {
     ];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::InvalidOutcomeShape => "E0360",
-            Self::OptionalVoid => "E0361",
-            Self::OutcomeNever => "E0362",
-            Self::NeverData => "E0363",
-            Self::VoidData => "E0364",
-            Self::UnsizedData => "E0365",
-            Self::UnavailableAssociatedProjection => "E0367",
-            Self::AmbiguousAssociatedProjection => "E0368",
+            Self::InvalidOutcomeShape => DiagnosticCode::E0360,
+            Self::OptionalVoid => DiagnosticCode::E0361,
+            Self::OutcomeNever => DiagnosticCode::E0362,
+            Self::NeverData => DiagnosticCode::E0363,
+            Self::VoidData => DiagnosticCode::E0364,
+            Self::UnsizedData => DiagnosticCode::E0365,
+            Self::UnavailableAssociatedProjection => DiagnosticCode::E0367,
+            Self::AmbiguousAssociatedProjection => DiagnosticCode::E0368,
         }
     }
 

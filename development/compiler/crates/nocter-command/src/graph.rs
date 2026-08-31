@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_json::{Member, Value, write_value};
 use nocter_package::{
     DependencySource, PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
@@ -322,14 +323,14 @@ pub enum GraphCommandError {
 
 impl GraphCommandError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> &'static str {
+    pub const fn diagnostic_code(&self) -> DiagnosticCode {
         match self {
             Self::Resolution(
                 PackageResolutionError::Filesystem { .. }
                 | PackageResolutionError::ExactPackageCache(_),
             )
-            | Self::NonUnicodeRoot(_) => "E0702",
-            Self::Computation(_) | Self::Resolution(_) => "E0800",
+            | Self::NonUnicodeRoot(_) => DiagnosticCode::E0702,
+            Self::Computation(_) | Self::Resolution(_) => DiagnosticCode::E0800,
         }
     }
 }

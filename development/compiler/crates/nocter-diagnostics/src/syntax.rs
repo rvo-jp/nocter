@@ -3,7 +3,7 @@ use nocter_syntax::{
     SyntaxTree, TokenKind,
 };
 
-use crate::SourceDiagnostic;
+use crate::{DiagnosticCode, SourceDiagnostic};
 
 /// Projects every lexer and parser failure in immutable source order.
 #[must_use]
@@ -42,73 +42,77 @@ pub fn syntax_diagnostics(trees: &[SyntaxTree]) -> Box<[SourceDiagnostic]> {
 pub fn lexical_diagnostic(diagnostic: LexDiagnostic) -> SourceDiagnostic {
     let (code, message, help) = match diagnostic.kind() {
         LexDiagnosticKind::UnexpectedCharacter => (
-            "E0100",
+            DiagnosticCode::E0100,
             "unexpected character",
             Some("remove the character or replace it with valid Nocter syntax"),
         ),
         LexDiagnosticKind::UnterminatedBlockComment => (
-            "E0101",
+            DiagnosticCode::E0101,
             "unterminated block comment",
             Some("close the comment with `*/`"),
         ),
         LexDiagnosticKind::InvalidIntegerLiteral => (
-            "E0102",
+            DiagnosticCode::E0102,
             "invalid integer literal",
             Some("use decimal digits with separators only between digits"),
         ),
-        LexDiagnosticKind::UnsupportedFloatLiteral => {
-            ("E0103", "floating-point literals are not supported", None)
-        }
+        LexDiagnosticKind::UnsupportedFloatLiteral => (
+            DiagnosticCode::E0103,
+            "floating-point literals are not supported",
+            None,
+        ),
         LexDiagnosticKind::UnterminatedString => (
-            "E0104",
+            DiagnosticCode::E0104,
             "unterminated string literal",
             Some("close the string with `\"`"),
         ),
         LexDiagnosticKind::SingleLineStringNewline => (
-            "E0105",
+            DiagnosticCode::E0105,
             "single-line string contains a newline",
             Some("close the string before the newline or use a multiline string"),
         ),
         LexDiagnosticKind::MultilineStringOpeningNewline => (
-            "E0106",
+            DiagnosticCode::E0106,
             "multiline string content must begin on the next line",
             Some("insert a newline after the opening delimiter"),
         ),
         LexDiagnosticKind::InvalidEscape => (
-            "E0107",
+            DiagnosticCode::E0107,
             "invalid escape sequence",
             Some("use a supported Nocter escape sequence"),
         ),
         LexDiagnosticKind::InvalidStringUtf8 => (
-            "E0108",
+            DiagnosticCode::E0108,
             "string escape does not encode valid UTF-8",
             Some("encode a valid Unicode scalar value"),
         ),
         LexDiagnosticKind::MultilineStringIndentation => (
-            "E0109",
+            DiagnosticCode::E0109,
             "multiline string indentation is inconsistent",
             Some("indent each content line at least as far as the closing delimiter"),
         ),
         LexDiagnosticKind::UnterminatedByteLiteral => (
-            "E0110",
+            DiagnosticCode::E0110,
             "unterminated byte literal",
             Some("close the byte literal with `'`"),
         ),
         LexDiagnosticKind::ByteLiteralNewline => (
-            "E0111",
+            DiagnosticCode::E0111,
             "byte literal contains a newline",
             Some("write exactly one byte before the closing `'`"),
         ),
-        LexDiagnosticKind::InvalidByteLength => {
-            ("E0112", "byte literal must contain exactly one byte", None)
-        }
+        LexDiagnosticKind::InvalidByteLength => (
+            DiagnosticCode::E0112,
+            "byte literal must contain exactly one byte",
+            None,
+        ),
         LexDiagnosticKind::PlainSingleQuote => (
-            "E0113",
+            DiagnosticCode::E0113,
             "plain single-quoted literals are not part of Nocter",
             Some("use a string literal or a `b'…'` byte literal"),
         ),
         LexDiagnosticKind::UnterminatedInterpolation => (
-            "E0114",
+            DiagnosticCode::E0114,
             "unterminated string interpolation",
             Some("close the interpolation with `}`"),
         ),
@@ -120,14 +124,16 @@ pub fn lexical_diagnostic(diagnostic: LexDiagnostic) -> SourceDiagnostic {
 #[must_use]
 pub fn parse_diagnostic(diagnostic: ParseDiagnostic) -> SourceDiagnostic {
     let (code, message, help) = match diagnostic.kind() {
-        ParseDiagnosticKind::Expected(expected) => ("E0120", expected_message(expected), None),
+        ParseDiagnosticKind::Expected(expected) => {
+            (DiagnosticCode::E0120, expected_message(expected), None)
+        }
         ParseDiagnosticKind::LateDependencyDeclaration => (
-            "E0121",
+            DiagnosticCode::E0121,
             "top-level `see` and `use` declarations must precede items".into(),
             Some("move this dependency declaration before the first item"),
         ),
         ParseDiagnosticKind::NestingLimit => (
-            "E0122",
+            DiagnosticCode::E0122,
             "source nesting exceeds the compiler limit".into(),
             Some("split the nested expression or type into named intermediate declarations"),
         ),
@@ -136,7 +142,7 @@ pub fn parse_diagnostic(diagnostic: ParseDiagnostic) -> SourceDiagnostic {
 }
 
 fn source_diagnostic(
-    code: &'static str,
+    code: DiagnosticCode,
     message: impl Into<Box<str>>,
     primary: nocter_source::Span,
     help: Option<&'static str>,

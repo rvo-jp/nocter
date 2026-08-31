@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_diagnostics::SourceDiagnostic;
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 use super::CopyabilityError;
@@ -14,9 +14,9 @@ impl CopyabilityRule {
     pub const ALL: &'static [Self] = &[Self::UnconditionallyMoveOnlyField];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::UnconditionallyMoveOnlyField => "E0366",
+            Self::UnconditionallyMoveOnlyField => DiagnosticCode::E0366,
         }
     }
 

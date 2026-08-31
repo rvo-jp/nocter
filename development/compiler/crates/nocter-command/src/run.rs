@@ -3,6 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus};
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_native_session::{NativeSessionError, compile_native_image};
 use nocter_session::ExecutableCompileRequest;
 use nocter_source_index::SourceIndex;
@@ -88,13 +89,13 @@ pub enum RunCommandError {
 
 impl RunCommandError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Compile(error) => error.diagnostic_code(),
             Self::Artifact(_)
             | Self::Launch { .. }
             | Self::Cleanup(_)
-            | Self::LaunchAndCleanup { .. } => Some("E0704"),
+            | Self::LaunchAndCleanup { .. } => Some(DiagnosticCode::E0704),
         }
     }
 }

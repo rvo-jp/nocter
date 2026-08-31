@@ -1,5 +1,7 @@
 //! Source-independent vocabulary shared by Nocter's syntax and semantic layers.
 
+include!(concat!(env!("OUT_DIR"), "/diagnostic_code.rs"));
+
 /// Closed set of primitive type names defined by the language.
 ///
 /// Keeping this identity below both syntax and semantic modeling makes the set, ordering, and

@@ -1,3 +1,4 @@
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule selected while binding declaration-header type syntax.
@@ -42,24 +43,24 @@ impl TypeBindingRule {
     ];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::UnknownTypeContextName => "E0290",
-            Self::InvalidTypeEntity => "E0291",
-            Self::InvalidTypeArguments => "E0292",
-            Self::InvalidSelfType => "E0293",
-            Self::DuplicateCallableParameter => "E0295",
-            Self::UnknownProvenanceOrigin => "E0296",
-            Self::DuplicateProvenanceOrigin => "E0297",
-            Self::UnknownOpaqueBinding => "E0298",
-            Self::DuplicateOpaqueBinding => "E0299",
-            Self::OpaqueArgumentOrder => "E0300",
-            Self::InvalidRequirement => "E0301",
-            Self::RecursiveBinderRefinement => "E0302",
-            Self::DuplicateAssociatedRequirementBinding => "E0303",
-            Self::DuplicateCopyRequirement => "E0304",
-            Self::DuplicateInterfaceRequirement => "E0305",
-            Self::DuplicateBinderRefinement => "E0306",
+            Self::UnknownTypeContextName => DiagnosticCode::E0290,
+            Self::InvalidTypeEntity => DiagnosticCode::E0291,
+            Self::InvalidTypeArguments => DiagnosticCode::E0292,
+            Self::InvalidSelfType => DiagnosticCode::E0293,
+            Self::DuplicateCallableParameter => DiagnosticCode::E0295,
+            Self::UnknownProvenanceOrigin => DiagnosticCode::E0296,
+            Self::DuplicateProvenanceOrigin => DiagnosticCode::E0297,
+            Self::UnknownOpaqueBinding => DiagnosticCode::E0298,
+            Self::DuplicateOpaqueBinding => DiagnosticCode::E0299,
+            Self::OpaqueArgumentOrder => DiagnosticCode::E0300,
+            Self::InvalidRequirement => DiagnosticCode::E0301,
+            Self::RecursiveBinderRefinement => DiagnosticCode::E0302,
+            Self::DuplicateAssociatedRequirementBinding => DiagnosticCode::E0303,
+            Self::DuplicateCopyRequirement => DiagnosticCode::E0304,
+            Self::DuplicateInterfaceRequirement => DiagnosticCode::E0305,
+            Self::DuplicateBinderRefinement => DiagnosticCode::E0306,
         }
     }
 
@@ -167,6 +168,7 @@ mod tests {
             .collect();
         assert_eq!(codes.len(), TypeBindingRule::ALL.len());
         assert!(codes.iter().all(|code| {
+            let code = code.as_str();
             code.len() == 5
                 && code.starts_with('E')
                 && code[1..].bytes().all(|byte| byte.is_ascii_digit())

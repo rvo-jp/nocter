@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_model::PackageIdentity;
 use nocter_package_state::PackageAcquisitionAuthority;
 
@@ -50,7 +51,7 @@ pub enum FetchCommandExecutionError {
 
 impl FetchCommandExecutionError {
     #[must_use]
-    pub const fn diagnostic_code(&self) -> &'static str {
+    pub const fn diagnostic_code(&self) -> DiagnosticCode {
         match self {
             Self::Package(error) => error.diagnostic_code(),
         }

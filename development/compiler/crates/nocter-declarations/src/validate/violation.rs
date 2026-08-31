@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_language::DiagnosticCode;
 use nocter_model::DeclarationSiteId;
 
 use super::ProgramIntegrityError;
@@ -27,24 +28,24 @@ pub enum DeclarationRule {
 
 impl DeclarationRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::EmptyEnum => "E0200",
-            Self::InvalidInherentAttachment => "E0201",
-            Self::DuplicateConstruction => "E0202",
-            Self::InvalidConstructionResult => "E0203",
-            Self::InvalidDropTarget => "E0204",
-            Self::DuplicateDrop => "E0205",
-            Self::CopyDrop => "E0206",
-            Self::PayloadlessEnumDrop => "E0207",
-            Self::PrimitiveAuthority => "E0208",
-            Self::BuiltinInterfaceImplementationAuthority => "E0209",
-            Self::InvalidInterfaceImplementationTarget => "E0210",
-            Self::IncompleteAssociatedTypes => "E0211",
-            Self::InvalidOpaqueResult => "E0212",
-            Self::InvalidLiteralSignature => "E0213",
-            Self::InterfacePrerequisiteCycle => "E0327",
-            Self::EffectiveInterfaceMemberCollision => "E0328",
+            Self::EmptyEnum => DiagnosticCode::E0200,
+            Self::InvalidInherentAttachment => DiagnosticCode::E0201,
+            Self::DuplicateConstruction => DiagnosticCode::E0202,
+            Self::InvalidConstructionResult => DiagnosticCode::E0203,
+            Self::InvalidDropTarget => DiagnosticCode::E0204,
+            Self::DuplicateDrop => DiagnosticCode::E0205,
+            Self::CopyDrop => DiagnosticCode::E0206,
+            Self::PayloadlessEnumDrop => DiagnosticCode::E0207,
+            Self::PrimitiveAuthority => DiagnosticCode::E0208,
+            Self::BuiltinInterfaceImplementationAuthority => DiagnosticCode::E0209,
+            Self::InvalidInterfaceImplementationTarget => DiagnosticCode::E0210,
+            Self::IncompleteAssociatedTypes => DiagnosticCode::E0211,
+            Self::InvalidOpaqueResult => DiagnosticCode::E0212,
+            Self::InvalidLiteralSignature => DiagnosticCode::E0213,
+            Self::InterfacePrerequisiteCycle => DiagnosticCode::E0327,
+            Self::EffectiveInterfaceMemberCollision => DiagnosticCode::E0328,
         }
     }
 
@@ -322,6 +323,7 @@ mod tests {
 
         assert_eq!(codes.len(), rules.len());
         assert!(codes.iter().all(|code| {
+            let code = code.as_str();
             code.len() == 5
                 && code.starts_with('E')
                 && code[1..].bytes().all(|byte| byte.is_ascii_digit())

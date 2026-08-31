@@ -2,6 +2,7 @@ use nocter_compiler_computation::{
     CompilerComputation, CompilerComputationError, CompilerDiscoveredUnit, CompilerDiscoveryError,
     CompilerSourceRevision,
 };
+use nocter_diagnostics::DiagnosticCode;
 use nocter_session::{CompileSessionError, CompiledTarget, SemanticAnalysisDomainError};
 
 use crate::failure::command_compilation_failure;
@@ -165,7 +166,7 @@ impl CommandAnalysisError {
     }
 
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Compilation(error) => error.diagnostic_code(),
             Self::Computation(_) | Self::Session(_) => None,

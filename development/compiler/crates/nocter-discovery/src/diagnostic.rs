@@ -1,4 +1,4 @@
-use nocter_diagnostics::SourceDiagnostic;
+use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::SyntaxTree;
 
@@ -18,7 +18,7 @@ pub(crate) fn discovery_diagnostics(
         } => (
             *declaration,
             nocter_syntax::NodeKind::ModulePath,
-            "E0263",
+            DiagnosticCode::E0263,
             format!(
                 "cannot resolve module path `{path}`: {}",
                 use_failure_message(failure)
@@ -32,7 +32,7 @@ pub(crate) fn discovery_diagnostics(
         } => (
             *declaration,
             nocter_syntax::NodeKind::SourceVisibilityPath,
-            "E0270",
+            DiagnosticCode::E0270,
             format!(
                 "cannot resolve visible source `{path}`: {}",
                 source_visibility_failure_message(failure)

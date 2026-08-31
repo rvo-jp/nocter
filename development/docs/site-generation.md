@@ -8,6 +8,10 @@ Markdown and Nocter source files outside `docs/` are the sole authored sources. 
 `sitemap.xml`, and navigation are reproducible publication artifacts and never become a second
 documentation authority.
 
+Generation depends only on authored file contents and paths. Filesystem timestamps are not source
+metadata and must not enter HTML structured data or `sitemap.xml`. If publication dates become a
+user requirement, they require explicit authored metadata rather than checkout timestamps.
+
 ## Files
 
 - `docs/build-docs.js` generates static HTML from Markdown documents and Nocter source files in the
@@ -35,6 +39,10 @@ within the website. Deliberately invalid compiler fixtures under
 navigation discovers descendant `.nct` files, so a newly added public example remains reachable
 from the website even before its overview gains a dedicated section.
 
+The public diagnostic catalog is compared with the compiler's explicit registered-code inventory
+in `nocter-language/diagnostic-codes.txt`. The generator does not infer implementation state by
+searching Rust comments, tests, or string literals.
+
 Generation fails when two sources claim one output path, a local Markdown link or heading anchor is
 unresolved, a local link escapes the repository, or the syntax highlighter's keyword set differs
 from the lexical specification. It also requires one colocated `README.md` for every compiler
@@ -42,6 +50,16 @@ workspace member and rejects a crate manifest under `development/compiler/crates
 from the workspace manifest. Each crate README must carry its exact crate heading plus
 `Responsibility`, `Contract`, and `Invariants` sections. Links inside fenced and inline code remain
 example text rather than navigation and are excluded from link validation.
+
+Run the adversarial generation test after changing generator inputs or validation boundaries:
+
+```sh
+node docs/test-generation.js
+```
+
+It builds two copied source trees with different timestamps, compares every documentation output
+byte, proves unrelated Rust diagnostic-like text has no authority, and proves catalog drift is
+rejected.
 
 ## Editing Rule
 

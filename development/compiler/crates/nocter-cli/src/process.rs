@@ -2,7 +2,7 @@ use std::env;
 use std::fmt;
 use std::io;
 
-use nocter_diagnostics::DiagnosticRenderError;
+use nocter_diagnostics::{DiagnosticCode, DiagnosticRenderError};
 
 use crate::{Invocation, InvocationError, InvocationOutcome, build_host, execute_invocation};
 
@@ -36,10 +36,10 @@ pub enum CurrentProcessError {
 
 impl CurrentProcessError {
     #[must_use]
-    pub fn diagnostic_code(&self) -> Option<&'static str> {
+    pub fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
-            Self::CurrentDirectory(_) => Some("E0702"),
-            Self::CurrentExecutable(_) | Self::UnsupportedBuildHost => Some("E0703"),
+            Self::CurrentDirectory(_) => Some(DiagnosticCode::E0702),
+            Self::CurrentExecutable(_) | Self::UnsupportedBuildHost => Some(DiagnosticCode::E0703),
             Self::Invocation(error) => error.diagnostic_code(),
         }
     }

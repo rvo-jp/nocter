@@ -1621,7 +1621,7 @@ mod tests {
             let diagnostic = &projected[0];
             assert_eq!(
                 diagnostic.source().code(),
-                expected_rule.code(),
+                expected_rule.code().as_str(),
                 "production diagnostic code changed"
             );
             assert_eq!(diagnostic.rule(), expected_rule);

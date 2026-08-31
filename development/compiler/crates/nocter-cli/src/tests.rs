@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_content_integrity::{TreeHashOptions, sha256_file, sha256_regular_tree};
+use nocter_diagnostics::DiagnosticCode;
 use nocter_package_acquisition::PackageAcquisitionError;
 
 use super::*;
@@ -136,7 +137,7 @@ fn argument_structure_precedes_installation_filesystem_access() {
     .unwrap_err();
 
     assert!(matches!(error.kind(), InvocationErrorKind::Arguments(_)));
-    assert_eq!(error.diagnostic_code(), Some("E0700"));
+    assert_eq!(error.diagnostic_code(), Some(DiagnosticCode::E0700));
 }
 
 #[test]
@@ -350,7 +351,7 @@ fn format_check_and_rewrite_bypass_installation_and_publish_only_on_success() {
     ))
     .unwrap_err();
 
-    assert_eq!(error.diagnostic_code(), Some("E0602"));
+    assert_eq!(error.diagnostic_code(), Some(DiagnosticCode::E0602));
     assert_eq!(error.exit_code(), 1);
     assert_eq!(
         fs::read_to_string(&source).unwrap(),
@@ -425,7 +426,7 @@ fn compiler_host_is_checked_before_user_source_preparation() {
         error.kind(),
         InvocationErrorKind::InstallationCompatibility(_)
     ));
-    assert_eq!(error.diagnostic_code(), Some("E0703"));
+    assert_eq!(error.diagnostic_code(), Some(DiagnosticCode::E0703));
 }
 
 #[test]
@@ -522,7 +523,7 @@ fn every_command_rejects_a_non_native_default_target_profile() {
             nocter_installation::InstallationCompatibilityError::NativeDefaultTargetMismatch { .. }
         )
     ));
-    assert_eq!(error.diagnostic_code(), Some("E0703"));
+    assert_eq!(error.diagnostic_code(), Some(DiagnosticCode::E0703));
     assert_eq!(error.exit_code(), 2);
 }
 

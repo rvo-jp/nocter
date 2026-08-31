@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_source::SourceMap;
 
 use crate::ParsedFormatCommand;
@@ -144,13 +145,13 @@ impl FormatCommandError {
     }
 
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
-            Self::WouldChange(_) => Some("E0602"),
+            Self::WouldChange(_) => Some(DiagnosticCode::E0602),
             Self::Source(_)
             | Self::NonUnicodePath(_)
             | Self::InvalidPath(_)
-            | Self::Publication { .. } => Some("E0702"),
+            | Self::Publication { .. } => Some(DiagnosticCode::E0702),
             Self::Diagnostics { .. } | Self::ChangedSyntax => None,
         }
     }

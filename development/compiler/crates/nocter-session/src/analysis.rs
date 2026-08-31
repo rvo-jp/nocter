@@ -101,36 +101,36 @@ pub(crate) fn target_from_finalized_program(
 
 pub(crate) fn failure_from_finalization(
     failure: &nocter_checking::BodyCheckFailure,
-) -> Box<CompileTargetFailure> {
+) -> CompileTargetFailure {
     let (error, recovery) = failure.current_branch().into_parts();
-    Box::new(CompileTargetFailure::new(
+    CompileTargetFailure::new(
         error.into(),
         recovery.map(SemanticEvidenceBundle::from_bodies),
-    ))
+    )
 }
 
 pub(crate) fn failure_from_name_resolution(
     failure: &nocter_checking::QueriedNameResolutionFailure,
-) -> Box<CompileTargetFailure> {
+) -> CompileTargetFailure {
     let error = nocter_checking::PreparationError::NameResolution(
         nocter_checking::NameResolutionError::Rule(failure.diagnostic().clone()),
     );
     let evidence =
         nocter_checking::PreparationFailureEvidence::Names(Box::new(failure.current_recovery()));
-    Box::new(CompileTargetFailure::new(
+    CompileTargetFailure::new(
         error.into(),
         Some(SemanticEvidenceBundle::from_preparation_failure(evidence)),
-    ))
+    )
 }
 
 pub(crate) fn failure_from_preparation(
     rejection: &nocter_checking::QueriedProgramPreparationRejection,
-) -> Box<CompileTargetFailure> {
+) -> CompileTargetFailure {
     let (error, evidence) = rejection.current_branch().into_parts();
-    Box::new(CompileTargetFailure::new(
+    CompileTargetFailure::new(
         error.into(),
         evidence.map(SemanticEvidenceBundle::from_preparation_failure),
-    ))
+    )
 }
 
 pub(crate) fn incomplete_syntax_analysis(
@@ -145,9 +145,9 @@ pub(crate) fn incomplete_syntax_analysis(
 
 pub(crate) fn failure_from_incomplete_semantics(
     failure: &nocter_semantic_product::IncompleteSemanticFailure,
-) -> Box<CompileTargetFailure> {
+) -> CompileTargetFailure {
     let (error, evidence) = semantic_failure_parts(failure);
-    Box::new(CompileTargetFailure::new(error, evidence))
+    CompileTargetFailure::new(error, evidence)
 }
 
 fn semantic_failure_parts(

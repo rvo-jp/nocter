@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use nocter_compile_input::ModuleIdentity;
 use nocter_compiler_computation::CompilerDiscoveredUnit;
+use nocter_diagnostics::DiagnosticCode;
 use nocter_discovery::{DiscoveryError, DiscoveryFailure, DiscoveryRequest};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{PackageGraphError, ResolvedPackageSelection, StandardPackage};
@@ -362,20 +363,20 @@ impl CommandSourceError {
     /// Authored import failures and internal graph inconsistencies remain unclassified until their
     /// source-backed diagnostic boundary selects an exact rule.
     #[must_use]
-    pub const fn diagnostic_code(&self) -> Option<&'static str> {
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Package(error) => Some(error.diagnostic_code()),
-            Self::StandardPackage(_) => Some("E0703"),
+            Self::StandardPackage(_) => Some(DiagnosticCode::E0703),
             Self::Discovery(failure) if matches!(failure.error(), DiscoveryError::Toolchain(_)) => {
-                Some("E0703")
+                Some(DiagnosticCode::E0703)
             }
             Self::MissingCommandExecutable { .. }
             | Self::MissingCommandTest { .. }
-            | Self::MissingCommandTests(_) => Some("E0800"),
+            | Self::MissingCommandTests(_) => Some(DiagnosticCode::E0800),
             Self::Discovery(failure)
                 if matches!(failure.error(), DiscoveryError::TargetSelection(_)) =>
             {
-                Some("E0701")
+                Some(DiagnosticCode::E0701)
             }
             Self::Discovery(failure)
                 if matches!(
@@ -389,7 +390,7 @@ impl CommandSourceError {
                         | DiscoveryError::Source { .. }
                 ) =>
             {
-                Some("E0702")
+                Some(DiagnosticCode::E0702)
             }
             Self::Computation(_) | Self::MissingCommandRoot(_) | Self::Discovery(_) => None,
         }

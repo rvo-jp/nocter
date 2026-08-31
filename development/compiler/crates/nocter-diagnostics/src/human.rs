@@ -265,7 +265,7 @@ mod tests {
         let name = find_token(&tree, tree.root_id(), &sources, "value").unwrap();
         let note = SourceOrigin::from_token(&tree, name).unwrap();
         let diagnostic = SourceDiagnostic::new(
-            "E9999",
+            crate::DiagnosticCode::E0900,
             "example failure",
             primary,
             [DiagnosticNote::new("value declared here", note)],
@@ -273,7 +273,7 @@ mod tests {
         );
 
         let rendered = render_source_diagnostic(&diagnostic, &sources).unwrap();
-        assert!(rendered.starts_with("error[E9999]: example failure\n"));
+        assert!(rendered.starts_with("error[E0900]: example failure\n"));
         assert!(rendered.contains("  --> src/app.nct:2:18\n"));
         assert!(rendered.contains("3 |     let value = 1\n"));
         assert!(rendered.contains("  | ^^^^^^^^^^^^^^^^^\n"));
@@ -292,11 +292,17 @@ mod tests {
         let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let token = find_token(&tree, tree.root_id(), &sources, "value").unwrap();
         let origin = SourceOrigin::from_token(&tree, token).unwrap();
-        let diagnostic = SourceDiagnostic::new("E9998", "tabbed", origin, [], None::<&str>);
+        let diagnostic = SourceDiagnostic::new(
+            crate::DiagnosticCode::E0900,
+            "tabbed",
+            origin,
+            [],
+            None::<&str>,
+        );
 
         assert_eq!(
             render_source_diagnostic(&diagnostic, &sources).unwrap(),
-            "error[E9998]: tabbed\n  --> tabbed.nct:1:5\n  |\n1 |     value\n  |     ^^^^^\n"
+            "error[E0900]: tabbed\n  --> tabbed.nct:1:5\n  |\n1 |     value\n  |     ^^^^^\n"
         );
     }
 

@@ -1,3 +1,4 @@
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule for authored module imports and re-exports.
@@ -13,14 +14,14 @@ pub enum ImportRule {
 
 impl ImportRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::MissingImportedName => "E0260",
-            Self::InaccessibleImportedName => "E0412",
-            Self::WideningReexport => "E0261",
-            Self::CompilerManagedPreludeImport => "E0262",
-            Self::NonTypeSelection => "E0264",
-            Self::NamespaceAliasReexport => "E0265",
+            Self::MissingImportedName => DiagnosticCode::E0260,
+            Self::InaccessibleImportedName => DiagnosticCode::E0412,
+            Self::WideningReexport => DiagnosticCode::E0261,
+            Self::CompilerManagedPreludeImport => DiagnosticCode::E0262,
+            Self::NonTypeSelection => DiagnosticCode::E0264,
+            Self::NamespaceAliasReexport => DiagnosticCode::E0265,
         }
     }
 

@@ -2,8 +2,8 @@ use std::fmt::Write;
 
 use nocter_command::{DiagnosticFormat, TestCommandResult, TestRunOutcome, TestRunResult};
 use nocter_diagnostics::{
-    DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic, write_json_string,
-    write_source_diagnostic_items_json, write_spanless_diagnostic_json,
+    DiagnosticCode, DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
+    write_json_string, write_source_diagnostic_items_json, write_spanless_diagnostic_json,
 };
 
 pub(crate) fn render_test_human(result: &TestCommandResult) -> Option<String> {
@@ -119,7 +119,7 @@ pub(crate) fn render_test_source_failure_json(
 
 pub(crate) fn render_test_spanless_failure_json(
     target: Option<&str>,
-    code: &str,
+    code: DiagnosticCode,
     message: &str,
 ) -> String {
     let mut output = String::new();
@@ -167,7 +167,7 @@ fn write_run(output: &mut String, run: &TestRunResult) -> Result<(), DiagnosticR
             write_spanless_diagnostic_json(
                 output,
                 SpanlessDiagnostic::new(
-                    "E0900",
+                    DiagnosticCode::E0900,
                     "test run lost its diagnostic source snapshot",
                     None,
                 ),

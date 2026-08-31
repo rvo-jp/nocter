@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::NodeId;
 
 use crate::{
@@ -20,14 +21,14 @@ pub enum SurfaceRule {
 
 impl SurfaceRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::ImplementationVisibility => "E0230",
-            Self::InvalidNominalContract => "E0231",
-            Self::MissingConstructionContractVisibility => "E0232",
-            Self::UnknownTargetGate => "E0233",
-            Self::MissingInterfaceContractVisibility => "E0234",
-            Self::UnauthorizedPrimitiveType => "E0235",
+            Self::ImplementationVisibility => DiagnosticCode::E0230,
+            Self::InvalidNominalContract => DiagnosticCode::E0231,
+            Self::MissingConstructionContractVisibility => DiagnosticCode::E0232,
+            Self::UnknownTargetGate => DiagnosticCode::E0233,
+            Self::MissingInterfaceContractVisibility => DiagnosticCode::E0234,
+            Self::UnauthorizedPrimitiveType => DiagnosticCode::E0235,
         }
     }
 

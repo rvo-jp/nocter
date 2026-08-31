@@ -1,4 +1,5 @@
 use nocter_constant_evaluation::ConstantExpressionRule;
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule selected while completing declaration definitions.
@@ -33,19 +34,19 @@ impl DefinitionRule {
     ];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::InvalidConstantType => "E0321",
+            Self::InvalidConstantType => DiagnosticCode::E0321,
             Self::NonConstantExpression => ConstantExpressionRule::NonConstantExpression.code(),
             Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.code(),
             Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.code(),
             Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.code(),
-            Self::UnknownResultProvenanceOrigin => "E0315",
-            Self::DuplicateResultProvenanceOrigin => "E0316",
-            Self::AmbiguousBodylessResultProvenance => "E0317",
-            Self::UnknownAssociatedTypeBinding => "E0318",
-            Self::DuplicateAssociatedTypeBinding => "E0319",
-            Self::InvalidArgumentPackParameter => "E0326",
+            Self::UnknownResultProvenanceOrigin => DiagnosticCode::E0315,
+            Self::DuplicateResultProvenanceOrigin => DiagnosticCode::E0316,
+            Self::AmbiguousBodylessResultProvenance => DiagnosticCode::E0317,
+            Self::UnknownAssociatedTypeBinding => DiagnosticCode::E0318,
+            Self::DuplicateAssociatedTypeBinding => DiagnosticCode::E0319,
+            Self::InvalidArgumentPackParameter => DiagnosticCode::E0326,
         }
     }
 
@@ -184,6 +185,7 @@ mod tests {
             .collect();
         assert_eq!(codes.len(), DefinitionRule::ALL.len());
         assert!(codes.iter().all(|code| {
+            let code = code.as_str();
             code.len() == 5
                 && code.starts_with('E')
                 && code[1..].bytes().all(|byte| byte.is_ascii_digit())

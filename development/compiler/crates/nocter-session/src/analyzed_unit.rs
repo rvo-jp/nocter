@@ -179,16 +179,16 @@ fn analyzed_complete_unit(
             }
         }
         nocter_semantic_product::ProgramAnalysisOutcome::NamesRejected(failed) => {
-            analyzed_compilation_failure(unit, *failure_from_name_resolution(failed.failure()))
+            analyzed_compilation_failure(unit, failure_from_name_resolution(failed.failure()))
         }
         nocter_semantic_product::ProgramAnalysisOutcome::BodiesRejected(failed) => {
-            analyzed_compilation_failure(unit, *failure_from_finalization(failed.failure()))
+            analyzed_compilation_failure(unit, failure_from_finalization(failed.failure()))
         }
         nocter_semantic_product::ProgramAnalysisOutcome::PreparationRejected(rejected) => {
-            analyzed_compilation_failure(unit, *failure_from_preparation(rejected.rejection()))
+            analyzed_compilation_failure(unit, failure_from_preparation(rejected.rejection()))
         }
         nocter_semantic_product::ProgramAnalysisOutcome::DeclarationsRejected(failed) => {
-            analyzed_compilation_failure(unit, *failure_from_incomplete_semantics(failed.failure()))
+            analyzed_compilation_failure(unit, failure_from_incomplete_semantics(failed.failure()))
         }
         nocter_semantic_product::ProgramAnalysisOutcome::Unavailable(authority) => {
             return Err(SemanticAnalysisDomainError::UnavailableProgramAnalysis(
@@ -263,7 +263,7 @@ fn extend_unique_diagnostics(
 
 #[cfg(test)]
 mod tests {
-    use nocter_diagnostics::SourceDiagnostic;
+    use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic};
     use nocter_source::{ByteOffset, SourceMap, SourceName, TextRange};
 
     use super::extend_unique_diagnostics;
@@ -278,9 +278,11 @@ mod tests {
             .get(source)
             .unwrap()
             .span(TextRange::new(ByteOffset::new(4), ByteOffset::new(7)));
-        let syntax = SourceDiagnostic::new("E0120", "syntax", span, [], None::<&str>);
-        let semantic = SourceDiagnostic::new("E0120", "syntax", span, [], None::<&str>);
-        let distinct = SourceDiagnostic::new("E0120", "syntax", span, [], Some("detail"));
+        let syntax = SourceDiagnostic::new(DiagnosticCode::E0120, "syntax", span, [], None::<&str>);
+        let semantic =
+            SourceDiagnostic::new(DiagnosticCode::E0120, "syntax", span, [], None::<&str>);
+        let distinct =
+            SourceDiagnostic::new(DiagnosticCode::E0120, "syntax", span, [], Some("detail"));
         let mut diagnostics = vec![syntax.clone()];
 
         extend_unique_diagnostics(&mut diagnostics, &[semantic, distinct.clone()]);

@@ -1,4 +1,4 @@
-use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
+use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -16,11 +16,11 @@ impl InstanceOperationRule {
     ];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::OverlappingInstance => "E0355",
-            Self::DuplicateCoercion => "E0356",
-            Self::InvalidSignature => "E0357",
+            Self::OverlappingInstance => DiagnosticCode::E0355,
+            Self::DuplicateCoercion => DiagnosticCode::E0356,
+            Self::InvalidSignature => DiagnosticCode::E0357,
         }
     }
 }

@@ -1,4 +1,4 @@
-use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
+use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 /// Closed body-name rule family.
@@ -18,18 +18,18 @@ pub enum NameRule {
 
 impl NameRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::UnknownName => "E0340",
-            Self::NameCollision => "E0341",
-            Self::MissingBlockImport => "E0342",
-            Self::InaccessibleBlockImport => "E0343",
-            Self::InvalidCaptureTarget => "E0344",
-            Self::CaptureCollision => "E0345",
-            Self::ImplicitCapture => "E0346",
-            Self::MissingModuleMember => "E0347",
-            Self::InaccessibleModuleMember => "E0348",
-            Self::NonTypeSelection => "E0349",
+            Self::UnknownName => DiagnosticCode::E0340,
+            Self::NameCollision => DiagnosticCode::E0341,
+            Self::MissingBlockImport => DiagnosticCode::E0342,
+            Self::InaccessibleBlockImport => DiagnosticCode::E0343,
+            Self::InvalidCaptureTarget => DiagnosticCode::E0344,
+            Self::CaptureCollision => DiagnosticCode::E0345,
+            Self::ImplicitCapture => DiagnosticCode::E0346,
+            Self::MissingModuleMember => DiagnosticCode::E0347,
+            Self::InaccessibleModuleMember => DiagnosticCode::E0348,
+            Self::NonTypeSelection => DiagnosticCode::E0349,
         }
     }
 }
@@ -177,6 +177,6 @@ mod tests {
         ];
         let codes: HashSet<_> = rules.into_iter().map(NameRule::code).collect();
         assert_eq!(codes.len(), rules.len());
-        assert!(codes.iter().all(|code| code.starts_with('E')));
+        assert!(codes.iter().all(|code| code.as_str().starts_with('E')));
     }
 }

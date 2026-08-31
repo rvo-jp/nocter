@@ -4,7 +4,7 @@ pub use nocter_json::write_string as write_json_string;
 use nocter_source::SourceMap;
 
 use crate::projection::{absolute_source_name, project_origin};
-use crate::{DiagnosticOrigin, DiagnosticRenderError, SourceDiagnostic};
+use crate::{DiagnosticCode, DiagnosticOrigin, DiagnosticRenderError, SourceDiagnostic};
 
 /// Stable top-level facts for one machine-readable diagnostic response.
 #[derive(Clone, Copy, Debug)]
@@ -35,14 +35,14 @@ impl<'a> DiagnosticJsonContext<'a> {
 /// One diagnostic whose failure boundary has no useful source location.
 #[derive(Clone, Copy, Debug)]
 pub struct SpanlessDiagnostic<'a> {
-    code: &'a str,
+    code: DiagnosticCode,
     message: &'a str,
     help: Option<&'a str>,
 }
 
 impl<'a> SpanlessDiagnostic<'a> {
     #[must_use]
-    pub const fn new(code: &'a str, message: &'a str, help: Option<&'a str>) -> Self {
+    pub const fn new(code: DiagnosticCode, message: &'a str, help: Option<&'a str>) -> Self {
         Self {
             code,
             message,
@@ -107,7 +107,7 @@ pub fn render_spanless_diagnostic_json(
 /// Appends one spanless diagnostic object for a domain-specific versioned envelope.
 pub fn write_spanless_diagnostic_json(output: &mut String, diagnostic: SpanlessDiagnostic<'_>) {
     output.push_str("{\"code\":");
-    write_json_string(output, diagnostic.code);
+    write_json_string(output, diagnostic.code.as_str());
     output.push_str(",\"severity\":\"error\",\"message\":");
     write_json_string(output, diagnostic.message);
     output.push_str(",\"primary_span\":null,\"notes\":[],\"help\":");
@@ -214,7 +214,7 @@ mod tests {
         let primary = file.span(TextRange::new(ByteOffset::new(1), ByteOffset::new(3)));
         let note = file.span(TextRange::new(ByteOffset::new(0), ByteOffset::new(1)));
         let diagnostic = SourceDiagnostic::new(
-            "E9999",
+            DiagnosticCode::E0900,
             "bad \"value\"\nnext",
             primary,
             [DiagnosticNote::new("before\\after", note)],
@@ -233,7 +233,7 @@ mod tests {
             concat!(
                 "{\"schema\":\"nocter.diagnostics\",\"version\":1,\"ok\":false,",
                 "\"command\":\"check\",\"target\":\"arm64-darwin\",\"root\":\"root.nct\",",
-                "\"root_absolute_path\":null,\"diagnostics\":[{\"code\":\"E9999\",",
+                "\"root_absolute_path\":null,\"diagnostics\":[{\"code\":\"E0900\",",
                 "\"severity\":\"error\",\"message\":\"bad \\\"value\\\"\\nnext\",",
                 "\"primary_span\":{\"file\":\"src/β.nct\",\"absolute_path\":null,",
                 "\"start_byte\":1,\"end_byte\":3,\"start_line\":1,\"start_column_byte\":2,",
@@ -264,7 +264,7 @@ mod tests {
         assert_eq!(
             render_spanless_diagnostic_json(
                 DiagnosticJsonContext::new("check", None, Some("missing.nct"), None),
-                SpanlessDiagnostic::new("E0702", "cannot read missing.nct", None),
+                SpanlessDiagnostic::new(DiagnosticCode::E0702, "cannot read missing.nct", None,),
             )
             .unwrap(),
             concat!(

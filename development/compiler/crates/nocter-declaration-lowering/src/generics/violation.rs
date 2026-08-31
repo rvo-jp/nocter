@@ -1,3 +1,4 @@
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::SyntaxToken;
 
@@ -11,11 +12,11 @@ pub enum GenericRule {
 
 impl GenericRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::ReservedBinder => "E0280",
-            Self::DuplicateBinder => "E0281",
-            Self::ShadowingBinder => "E0282",
+            Self::ReservedBinder => DiagnosticCode::E0280,
+            Self::DuplicateBinder => DiagnosticCode::E0281,
+            Self::ShadowingBinder => DiagnosticCode::E0282,
         }
     }
 

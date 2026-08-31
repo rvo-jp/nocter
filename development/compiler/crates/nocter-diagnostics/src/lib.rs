@@ -19,6 +19,7 @@ pub use json::{
     render_spanless_diagnostic_json, write_json_string, write_source_diagnostic_items_json,
     write_spanless_diagnostic_json,
 };
+pub use nocter_language::DiagnosticCode;
 pub use syntax::{lexical_diagnostic, parse_diagnostic, syntax_diagnostics};
 
 /// Exact source subject selected by the phase that owns a diagnostic rule.
@@ -116,7 +117,7 @@ impl DiagnosticNote {
 /// Common source diagnostic envelope shared by compiler phases.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceDiagnostic {
-    code: Box<str>,
+    code: DiagnosticCode,
     message: Box<str>,
     primary: DiagnosticOrigin,
     notes: Box<[DiagnosticNote]>,
@@ -144,14 +145,14 @@ pub enum DiagnosticRepair {
 impl SourceDiagnostic {
     #[must_use]
     pub fn new(
-        code: impl Into<Box<str>>,
+        code: DiagnosticCode,
         message: impl Into<Box<str>>,
         primary: impl Into<DiagnosticOrigin>,
         notes: impl Into<Box<[DiagnosticNote]>>,
         help: Option<impl Into<Box<str>>>,
     ) -> Self {
         Self {
-            code: code.into(),
+            code,
             message: message.into(),
             primary: primary.into(),
             notes: notes.into(),
@@ -179,7 +180,7 @@ impl SourceDiagnostic {
 
     #[must_use]
     pub const fn code(&self) -> &str {
-        &self.code
+        self.code.as_str()
     }
 
     #[must_use]
@@ -229,7 +230,7 @@ mod tests {
         let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
         let origin = SourceOrigin::from_node(&tree, tree.root_id()).unwrap();
         let diagnostic = SourceDiagnostic::new(
-            "E0200",
+            crate::DiagnosticCode::E0200,
             "enum must declare at least one variant",
             origin,
             [DiagnosticNote::new("related", origin)],

@@ -1,4 +1,4 @@
-use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
+use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxTree};
 
@@ -41,7 +41,7 @@ pub(crate) fn project_syntax_diagnostic(
     input: &CompileUnitInput<'_>,
     primary: SyntaxOrigin,
     related: impl IntoIterator<Item = SyntaxOrigin>,
-    code: &'static str,
+    code: DiagnosticCode,
     message: &'static str,
     related_message: Option<&'static str>,
     help: &'static str,

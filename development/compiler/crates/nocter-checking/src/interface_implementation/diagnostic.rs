@@ -1,4 +1,4 @@
-use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
+use nocter_diagnostics::{DiagnosticCode, DiagnosticNote, DiagnosticRepair, SourceDiagnostic};
 use nocter_source_index::SourceOrigin;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -13,14 +13,14 @@ pub enum InterfaceImplementationRule {
 
 impl InterfaceImplementationRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::MissingMethod => "E0350",
-            Self::ExtraMethod => "E0351",
-            Self::IncompatibleMethod => "E0352",
-            Self::OverlappingInterfaceImplementation => "E0353",
-            Self::UnsatisfiedAssociatedBound => "E0354",
-            Self::UnsatisfiedPrerequisite => "E0358",
+            Self::MissingMethod => DiagnosticCode::E0350,
+            Self::ExtraMethod => DiagnosticCode::E0351,
+            Self::IncompatibleMethod => DiagnosticCode::E0352,
+            Self::OverlappingInterfaceImplementation => DiagnosticCode::E0353,
+            Self::UnsatisfiedAssociatedBound => DiagnosticCode::E0354,
+            Self::UnsatisfiedPrerequisite => DiagnosticCode::E0358,
         }
     }
 }

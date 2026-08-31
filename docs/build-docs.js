@@ -112,36 +112,23 @@ function validateDiagnosticCatalog() {
         throw new Error(`Diagnostic examples use uncatalogued codes: ${uncataloguedReferences.join(", ")}`);
     }
 
-    const compilerCodes = new Set();
-    for (const file of collectFilesWithExtension(path.join(PROJECT_ROOT, "development/compiler/crates"), ".rs")) {
-        // Diagnostic codes are exact Rust string literals. Searching arbitrary substrings makes
-        // unrelated data such as hexadecimal hash vectors part of the public diagnostic catalog.
-        const source = fs.readFileSync(file, "utf8");
-        for (const match of source.matchAll(/"(E\d{4})"/g)) {
-            const code = match[1];
-            if (code !== "E9998" && code !== "E9999") {
-                compilerCodes.add(code);
-            }
-        }
+    const compilerCatalogPath = path.join(
+        PROJECT_ROOT,
+        "development/compiler/crates/nocter-language/diagnostic-codes.txt"
+    );
+    const compilerEntries = fs.readFileSync(compilerCatalogPath, "utf8").trimEnd().split("\n");
+    const compilerCodes = new Set(compilerEntries);
+    const invalidCompilerCodes = compilerEntries.filter(code => !/^E\d{4}$/.test(code));
+    const duplicateCompilerCodes = [...new Set(compilerEntries.filter((code, index) => compilerEntries.indexOf(code) !== index))];
+    const sortedCompilerCodes = [...compilerEntries].sort();
+    if (invalidCompilerCodes.length > 0 || duplicateCompilerCodes.length > 0 || compilerEntries.some((code, index) => code !== sortedCompilerCodes[index])) {
+        throw new Error("Compiler diagnostic catalog must contain unique E0000 codes in lexical order");
     }
     const undocumented = [...compilerCodes].filter(code => !catalog.has(code)).sort();
-    const unimplemented = [...catalog].filter(code => !compilerCodes.has(code)).sort();
-    if (undocumented.length > 0 || unimplemented.length > 0) {
-        throw new Error(`Diagnostic catalog drift (undocumented: ${undocumented.join(", ") || "none"}; unimplemented: ${unimplemented.join(", ") || "none"})`);
+    const unregistered = [...catalog].filter(code => !compilerCodes.has(code)).sort();
+    if (undocumented.length > 0 || unregistered.length > 0) {
+        throw new Error(`Diagnostic catalog drift (undocumented: ${undocumented.join(", ") || "none"}; unregistered: ${unregistered.join(", ") || "none"})`);
     }
-}
-
-function collectFilesWithExtension(directory, extension) {
-    const files = [];
-    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-        const fullPath = path.join(directory, entry.name);
-        if (entry.isDirectory()) {
-            files.push(...collectFilesWithExtension(fullPath, extension));
-        } else if (entry.isFile() && entry.name.endsWith(extension)) {
-            files.push(fullPath);
-        }
-    }
-    return files;
 }
 
 function validateCrateDocumentation() {
@@ -388,8 +375,6 @@ function renderPage(sourcePath) {
     const isHomePage = relativeSourcePath === "README.md";
 
     const pageTitle = pageMeta.title || (title === "Nocter" ? "Nocter - Self-contained systems language" : `${title} - Nocter`);
-    const lastModified = fileLastModifiedDate(sourcePath);
-
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -409,15 +394,14 @@ function renderPage(sourcePath) {
     <meta property="og:url" content="${canonical}">
     <meta property="og:image" content="${SITE_ORIGIN}/assets/og-image.png">
     <meta property="og:image:width" content="${OG_IMAGE_WIDTH}">
-    <meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">${isHomePage ? "" : `
-    <meta property="article:modified_time" content="${lastModified}">`}
+    <meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="${escapeAttribute(pageTitle)}">
     <meta name="twitter:description" content="${escapeAttribute(description)}">
     <meta name="twitter:image" content="${SITE_ORIGIN}/assets/og-image.png">
 
-    <script type="application/ld+json">${structuredData(pageTitle, description, canonical, outputPath, lastModified, isNocterSource)}</script>
+    <script type="application/ld+json">${structuredData(pageTitle, description, canonical, outputPath, isNocterSource)}</script>
 
     <link rel="stylesheet" href="${styleHref}">
 </head>
@@ -811,7 +795,7 @@ function stripMarkdown(text) {
         .replace(/\s+/g, " ");
 }
 
-function structuredData(title, description, canonical, outputPath, lastModified, isNocterSource) {
+function structuredData(title, description, canonical, outputPath, isNocterSource) {
     const isHome = normalizePath(path.relative(OUTPUT_ROOT, outputPath)) === "index.html";
     const schemas = [breadcrumbStructuredData(outputPath)];
 
@@ -820,7 +804,7 @@ function structuredData(title, description, canonical, outputPath, lastModified,
     } else if (isHome) {
         schemas.unshift(softwareSourceCodeStructuredData(title, description, canonical));
     } else {
-        schemas.unshift(techArticleStructuredData(title, description, canonical, lastModified));
+        schemas.unshift(techArticleStructuredData(title, description, canonical));
     }
 
     return JSON.stringify(schemas);
@@ -885,7 +869,7 @@ function breadcrumbStructuredData(outputPath) {
     };
 }
 
-function techArticleStructuredData(title, description, canonical, lastModified) {
+function techArticleStructuredData(title, description, canonical) {
     return {
         "@context": "https://schema.org",
         "@type": "TechArticle",
@@ -893,7 +877,6 @@ function techArticleStructuredData(title, description, canonical, lastModified) 
         description,
         url: canonical,
         mainEntityOfPage: canonical,
-        dateModified: lastModified,
         author: siteOrganization(),
         publisher: siteOrganization()
     };
@@ -923,12 +906,8 @@ function writeRobots() {
 }
 
 function writeSitemap(files) {
-    const urls = files.map(file => `  <url>\n    <loc>${SITE_ORIGIN}${publicPathForOutput(outputPathForSource(file))}</loc>\n    <lastmod>${fileLastModifiedDate(file)}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${normalizePath(path.relative(PROJECT_ROOT, file)) === "README.md" ? "1.0" : "0.7"}</priority>\n  </url>`);
+    const urls = files.map(file => `  <url>\n    <loc>${SITE_ORIGIN}${publicPathForOutput(outputPathForSource(file))}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>${normalizePath(path.relative(PROJECT_ROOT, file)) === "README.md" ? "1.0" : "0.7"}</priority>\n  </url>`);
     fs.writeFileSync(path.join(OUTPUT_ROOT, "sitemap.xml"), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>\n`);
-}
-
-function fileLastModifiedDate(file) {
-    return fs.statSync(file).mtime.toISOString().slice(0, 10);
 }
 
 function escapeHtml(text) {

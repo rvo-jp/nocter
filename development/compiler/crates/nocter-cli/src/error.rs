@@ -7,7 +7,7 @@ use nocter_command::{
     SourceInspectionCommandError, TestCommandExecutionError,
 };
 use nocter_diagnostics::{
-    DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
+    DiagnosticCode, DiagnosticRenderError, SpanlessDiagnostic, render_source_diagnostic,
     render_source_diagnostics_json, render_spanless_diagnostic_json,
 };
 use nocter_installation::{InstallationCompatibilityError, NocterHomeError};
@@ -76,13 +76,14 @@ impl InvocationError {
 
     /// Returns the public code selected independently from process status.
     #[must_use]
-    pub fn diagnostic_code(&self) -> Option<&'static str> {
+    pub fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         self.user_diagnostic_code().or_else(|| {
-            (self.failure_class() == InvocationFailureClass::Internal).then_some("E0900")
+            (self.failure_class() == InvocationFailureClass::Internal)
+                .then_some(DiagnosticCode::E0900)
         })
     }
 
-    fn user_diagnostic_code(&self) -> Option<&'static str> {
+    fn user_diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self.kind.as_ref() {
             InvocationErrorKind::Arguments(_)
             | InvocationErrorKind::Preparation(
@@ -92,20 +93,20 @@ impl InvocationError {
                     | ProgramInputError::RootWithFile
                     | ProgramInputError::InvalidSourceExtension(_),
                 ),
-            ) => Some("E0700"),
+            ) => Some(DiagnosticCode::E0700),
             InvocationErrorKind::Installation(_)
-            | InvocationErrorKind::InstallationCompatibility(_) => Some("E0703"),
+            | InvocationErrorKind::InstallationCompatibility(_) => Some(DiagnosticCode::E0703),
             InvocationErrorKind::Graph(error) => Some(error.diagnostic_code()),
             InvocationErrorKind::Preparation(PreparedCommandError::Input(
                 ProgramInputError::PackageRootNotDirectory(_)
                 | ProgramInputError::MissingPackageDeclaration(_)
                 | ProgramInputError::PackageDeclarationNotFile(_),
-            )) => Some("E0800"),
+            )) => Some(DiagnosticCode::E0800),
             InvocationErrorKind::Preparation(PreparedCommandError::Input(
                 ProgramInputError::SourceNotFile(_) | ProgramInputError::Filesystem { .. },
             ))
             | InvocationErrorKind::Init(_)
-            | InvocationErrorKind::SourceInspection(_) => Some("E0702"),
+            | InvocationErrorKind::SourceInspection(_) => Some(DiagnosticCode::E0702),
             InvocationErrorKind::Check(error) => error.diagnostic_code(),
             InvocationErrorKind::Fetch(error) => Some(error.diagnostic_code()),
             InvocationErrorKind::Build(error) => error.diagnostic_code(),
@@ -155,7 +156,7 @@ impl InvocationError {
                 )
                 .map(Some);
             }
-            let code = self.diagnostic_code().unwrap_or("E0900");
+            let code = self.diagnostic_code().unwrap_or(DiagnosticCode::E0900);
             return Ok(Some(crate::test_report::render_test_spanless_failure_json(
                 presentation.target,
                 code,

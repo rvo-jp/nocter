@@ -1,5 +1,6 @@
 use std::fmt;
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_native_session::NativeImageSetCompileRequest;
 use nocter_package_state::PackageAcquisitionAuthority;
 use nocter_session::ExecutableCompileRequest;
@@ -136,7 +137,7 @@ impl BuildCommandExecutionError {
     }
 
     #[must_use]
-    pub fn diagnostic_code(&self) -> Option<&'static str> {
+    pub fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Source(error) => error.diagnostic_code(),
             Self::Analysis(failure) if failure.diagnostics().is_empty() => {
@@ -208,7 +209,7 @@ impl RunCommandExecutionError {
     }
 
     #[must_use]
-    pub fn diagnostic_code(&self) -> Option<&'static str> {
+    pub fn diagnostic_code(&self) -> Option<DiagnosticCode> {
         match self {
             Self::Source(error) => error.diagnostic_code(),
             Self::Analysis(failure) if failure.diagnostics().is_empty() => {

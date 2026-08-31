@@ -11,6 +11,8 @@ mod support;
 #[cfg(test)]
 mod tests;
 
+use nocter_language::DiagnosticCode;
+
 pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_constant_plans,
     evaluate_expression_plan,
@@ -32,12 +34,12 @@ pub enum ConstantExpressionRule {
 
 impl ConstantExpressionRule {
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::NonConstantExpression => "E0322",
-            Self::TypeMismatch => "E0323",
-            Self::DependencyCycle => "E0324",
-            Self::ArithmeticFailure => "E0325",
+            Self::NonConstantExpression => DiagnosticCode::E0322,
+            Self::TypeMismatch => DiagnosticCode::E0323,
+            Self::DependencyCycle => DiagnosticCode::E0324,
+            Self::ArithmeticFailure => DiagnosticCode::E0325,
         }
     }
 

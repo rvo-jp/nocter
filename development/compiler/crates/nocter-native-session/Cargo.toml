@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+nocter-language = { path = "../nocter-language" }
 nocter-arm64 = { path = "../nocter-arm64" }
 nocter-machine = { path = "../nocter-machine" }
 nocter-macho = { path = "../nocter-macho" }

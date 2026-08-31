@@ -1,3 +1,4 @@
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
@@ -17,11 +18,11 @@ impl TopologyRule {
     ];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::InvalidSourceVisibility => "E0270",
-            Self::ModuleImportCycle => "E0271",
-            Self::PackageDirectiveOutsideRoot => "E0276",
+            Self::InvalidSourceVisibility => DiagnosticCode::E0270,
+            Self::ModuleImportCycle => DiagnosticCode::E0271,
+            Self::PackageDirectiveOutsideRoot => DiagnosticCode::E0276,
         }
     }
 

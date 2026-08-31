@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use nocter_diagnostics::DiagnosticCode;
 use nocter_package::{
     PackageResolutionError, PackageResolutionPolicy, PackageResolutionRequest,
     ResolvedPackageSelection,
@@ -101,13 +102,13 @@ impl std::error::Error for CommandPackageStateError {
 impl CommandPackageStateError {
     /// Returns the public spanless diagnostic family owned by package-state orchestration.
     #[must_use]
-    pub const fn diagnostic_code(&self) -> &'static str {
+    pub const fn diagnostic_code(&self) -> DiagnosticCode {
         match self {
             Self::Resolution(
                 PackageResolutionError::Filesystem { .. }
                 | PackageResolutionError::ExactPackageCache(_),
-            ) => "E0702",
-            Self::Resolution(_) | Self::Transaction(_) => "E0800",
+            ) => DiagnosticCode::E0702,
+            Self::Resolution(_) | Self::Transaction(_) => DiagnosticCode::E0800,
         }
     }
 }

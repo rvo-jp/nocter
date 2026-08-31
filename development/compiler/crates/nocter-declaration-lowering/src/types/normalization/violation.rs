@@ -1,3 +1,4 @@
+use nocter_diagnostics::DiagnosticCode;
 use nocter_syntax::SyntaxOrigin;
 
 /// Stable source-level rule selected while canonicalizing declaration-header types.
@@ -20,13 +21,13 @@ impl TypeNormalizationRule {
     ];
 
     #[must_use]
-    pub const fn code(self) -> &'static str {
+    pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::RecursiveAlias => "E0310",
-            Self::UnknownAssociatedType => "E0311",
-            Self::AmbiguousAssociatedType => "E0312",
-            Self::AmbiguousCallableProvenance => "E0313",
-            Self::InvalidCallableRequirement => "E0314",
+            Self::RecursiveAlias => DiagnosticCode::E0310,
+            Self::UnknownAssociatedType => DiagnosticCode::E0311,
+            Self::AmbiguousAssociatedType => DiagnosticCode::E0312,
+            Self::AmbiguousCallableProvenance => DiagnosticCode::E0313,
+            Self::InvalidCallableRequirement => DiagnosticCode::E0314,
         }
     }
 
