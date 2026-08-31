@@ -120,6 +120,11 @@ pub struct SourceDiagnostic {
     message: Box<str>,
     primary: DiagnosticOrigin,
     notes: Box<[DiagnosticNote]>,
+    details: Option<Box<DiagnosticDetails>>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct DiagnosticDetails {
     help: Option<Box<str>>,
     repair: Option<DiagnosticRepair>,
 }
@@ -150,14 +155,25 @@ impl SourceDiagnostic {
             message: message.into(),
             primary: primary.into(),
             notes: notes.into(),
-            help: help.map(Into::into),
-            repair: None,
+            details: help.map(|help| {
+                Box::new(DiagnosticDetails {
+                    help: Some(help.into()),
+                    repair: None,
+                })
+            }),
         }
     }
 
     #[must_use]
     pub fn with_repair(mut self, repair: DiagnosticRepair) -> Self {
-        self.repair = Some(repair);
+        self.details
+            .get_or_insert_with(|| {
+                Box::new(DiagnosticDetails {
+                    help: None,
+                    repair: None,
+                })
+            })
+            .repair = Some(repair);
         self
     }
 
@@ -183,12 +199,16 @@ impl SourceDiagnostic {
 
     #[must_use]
     pub fn help(&self) -> Option<&str> {
-        self.help.as_deref()
+        self.details
+            .as_deref()
+            .and_then(|details| details.help.as_deref())
     }
 
     #[must_use]
-    pub const fn repair(&self) -> Option<&DiagnosticRepair> {
-        self.repair.as_ref()
+    pub fn repair(&self) -> Option<&DiagnosticRepair> {
+        self.details
+            .as_deref()
+            .and_then(|details| details.repair.as_ref())
     }
 }
 
