@@ -1699,7 +1699,6 @@ dependencies = [
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
- "nocter-toolchain-contract",
  "nocter-workspace-revision",
 ]
 
@@ -1873,7 +1872,6 @@ dependencies = [
  "nocter-source",
  "nocter-source-index",
  "nocter-syntax",
- "nocter-target-program",
  "nocter-target-selection",
  "nocter-test-support",
  "nocter-toolchain-contract",
@@ -2144,7 +2142,6 @@ name = "nocter-test-support"
 version = "0.0.0"
 dependencies = [
  "nocter-compile-input",
- "nocter-declarations",
  "nocter-model",
  "nocter-package",
  "nocter-runtime-contract",

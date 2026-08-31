@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-compile-input = { path = "../nocter-compile-input" }
-nocter-declarations = { path = "../nocter-declarations" }
 nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-model = { path = "../nocter-model" }
