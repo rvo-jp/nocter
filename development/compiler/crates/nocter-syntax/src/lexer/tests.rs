@@ -65,6 +65,31 @@ fn invalid_escape_reports_once() {
 }
 
 #[test]
+fn invalid_unicode_escapes_preserve_source_character_boundaries() {
+    for source in [
+        "\"bad \\β escape\" name",
+        "\"bad \\x界 escape\" name",
+        "b'\\β' name",
+    ] {
+        let lexed = lex_text(source);
+
+        assert_eq!(
+            lexed
+                .diagnostics
+                .iter()
+                .filter(|diagnostic| diagnostic.kind == LexDiagnosticKind::InvalidEscape)
+                .count(),
+            1,
+            "{source:?}"
+        );
+        assert!(lexed.tokens.iter().any(|token| {
+            token.kind() == TokenKind::Identifier
+                && token.span().range().end() == offset(source.len())
+        }));
+    }
+}
+
+#[test]
 fn uses_longest_match_for_punctuation() {
     assert_eq!(
         kinds("&+ ..< ... == != <= >= && || << >> += -= *= /= %="),

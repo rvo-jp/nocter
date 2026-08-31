@@ -44,11 +44,8 @@ pub(super) fn valid_integer(text: &str) -> bool {
     })
 }
 
-pub(super) fn decode_escape(
-    bytes: &[u8],
-    start: usize,
-    limit: usize,
-) -> Result<(u8, usize), usize> {
+pub(super) fn decode_escape(text: &str, start: usize, limit: usize) -> Result<(u8, usize), usize> {
+    let bytes = text.as_bytes();
     let Some(next) = bytes.get(start + 1).copied().filter(|_| start + 1 < limit) else {
         return Err(1);
     };
@@ -75,10 +72,23 @@ pub(super) fn decode_escape(
                 return Ok(((high << 4) | low, 4));
             }
         }
-        return Err((limit - start).min(4));
+        return Err(source_character_prefix_len(text, start, limit, 4));
     }
 
-    Err((limit - start).min(2))
+    Err(source_character_prefix_len(text, start, limit, 2))
+}
+
+fn source_character_prefix_len(
+    text: &str,
+    start: usize,
+    limit: usize,
+    character_count: usize,
+) -> usize {
+    text[start..limit]
+        .chars()
+        .take(character_count)
+        .map(char::len_utf8)
+        .sum()
 }
 
 const fn hex_value(byte: u8) -> Option<u8> {
@@ -216,7 +226,7 @@ pub fn decode_string_text(text: &str) -> Option<Box<str>> {
             cursor += 1;
             continue;
         }
-        let (decoded, width) = decode_escape(bytes, cursor, bytes.len()).ok()?;
+        let (decoded, width) = decode_escape(text, cursor, bytes.len()).ok()?;
         result.push(decoded);
         cursor += width;
     }

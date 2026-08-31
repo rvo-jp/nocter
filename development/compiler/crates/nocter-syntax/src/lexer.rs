@@ -500,7 +500,7 @@ impl<'source> Lexer<'source> {
                 continue;
             }
 
-            match decode_escape(self.bytes, cursor, end) {
+            match decode_escape(self.text, cursor, end) {
                 Ok((byte, length)) => {
                     decoded.push(byte);
                     cursor += length;
@@ -548,11 +548,8 @@ impl<'source> Lexer<'source> {
     }
 
     fn escape_source_len(&self) -> usize {
-        let remaining = self.bytes.len() - self.cursor;
-        if self.bytes.get(self.cursor + 1) == Some(&b'x') {
-            remaining.min(4)
-        } else {
-            remaining.min(2)
+        match decode_escape(self.text, self.cursor, self.bytes.len()) {
+            Ok((_, length)) | Err(length) => length,
         }
     }
 
@@ -596,7 +593,7 @@ impl<'source> Lexer<'source> {
         let mut valid = true;
         while cursor < end {
             if self.bytes[cursor] == b'\\' {
-                match decode_escape(self.bytes, cursor, end) {
+                match decode_escape(self.text, cursor, end) {
                     Ok((_, length)) => {
                         count += 1;
                         cursor += length;
