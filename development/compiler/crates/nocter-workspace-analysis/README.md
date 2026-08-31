@@ -11,7 +11,8 @@ The crate consumes canonical workspace roots, installation facts, and linear
 `WorkspaceSourceRevision` values. It prepares package, toolchain-standard, or single-file scopes,
 retains the shared compiler-computation owner across revisions, supplies its reusable source syntax
 to discovery, invokes one closed analysis demand per affected scope, and publishes normalized
-workspace outcomes to the language server.
+workspace outcomes to the language server. Each accepted transition exposes both the generations
+it recomputed and one complete immutable view of every active generation after the transition.
 
 ## Internal Responsibilities
 
@@ -19,6 +20,7 @@ workspace outcomes to the language server.
 - package-root catalog construction and topology freeze
 - complete module-root compilation input construction
 - scope caching, invalidation, and generation publication
+- atomic publication of the complete post-transition scope set
 - accepted workspace revision publication into the shared compiler-computation owner
 - source declaration-surface and module-surface query composition
 - discovery through the shared computed syntax provider
@@ -33,6 +35,8 @@ workspace outcomes to the language server.
 - Ambiguous shared-source contexts are rejected rather than ordered.
 - Changed/closed files may invalidate demand but cannot create demand.
 - Foreign, cloned, or non-increasing revisions cannot mutate latest state.
+- Consumers of URI-global state receive the complete post-transition generation set; they never
+  reconstruct current ownership by replaying scope invalidation instructions.
 - Overlay membership, each open source's bytes, and the filesystem epoch are separate inputs;
   editing one open source cannot dirty unrelated source-text queries.
 - Reused parse products are rebound through the syntax-owned text/identity contract; workspace code

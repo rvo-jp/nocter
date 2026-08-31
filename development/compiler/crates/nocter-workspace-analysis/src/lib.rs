@@ -328,7 +328,7 @@ impl WorkspaceAnalyses {
             &transition,
             &computation_revision,
         );
-        let mut related =
+        let mut updated =
             self.refresh_unscoped(&document, generation, &source_overlay, &mut transition);
         self.document_scopes = transition.active_selected.clone();
         let primary = match transition.primary_scope {
@@ -341,7 +341,7 @@ impl WorkspaceAnalyses {
                 .cloned()
                 .expect("primary unscoped generation"),
         };
-        related.extend(scoped_results.into_values());
+        updated.extend(scoped_results.into_values());
         let active_scopes = transition
             .active_selected
             .values()
@@ -354,9 +354,17 @@ impl WorkspaceAnalyses {
         self.revision_sequence = Some(revision_sequence);
         self.latest_generation = Some(generation);
         self.filesystem_epoch = filesystem_epoch;
+        let current = self
+            .latest
+            .values()
+            .chain(self.unscoped.values())
+            .cloned()
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
         Ok(WorkspaceAnalysisBatch::new(
             primary,
-            related.into_boxed_slice(),
+            updated.into_boxed_slice(),
+            current,
         ))
     }
 
@@ -478,7 +486,6 @@ impl WorkspaceAnalyses {
                     .iter()
                     .filter(|(_, selected)| *selected == scope)
                     .map(|(source, _)| source.clone());
-                let primary = transition.primary_scope.as_ref() == Some(scope);
                 let input = ScopeCompilationInput::new(scope, scope_members);
                 let active = transition
                     .active_selected
@@ -486,11 +493,6 @@ impl WorkspaceAnalyses {
                     .any(|selected| selected == scope);
                 let result = Arc::new(WorkspaceAnalysisGeneration::new(
                     active.then(|| scope.clone()),
-                    if primary {
-                        transition.invalidated.clone().into_boxed_slice()
-                    } else {
-                        Box::new([])
-                    },
                     generation,
                     if active {
                         compile_scope(
@@ -522,7 +524,7 @@ impl WorkspaceAnalyses {
         source_overlay: &SourceOverlay,
         transition: &mut ScopeTransition,
     ) -> Vec<Arc<WorkspaceAnalysisGeneration>> {
-        let mut related = Vec::new();
+        let mut updated = Vec::new();
         for (candidate, selection) in std::mem::take(&mut transition.selections) {
             let DocumentScopeSelection::Rejected(error) = selection else {
                 self.unscoped.remove(&candidate);
@@ -534,11 +536,6 @@ impl WorkspaceAnalyses {
             }
             let result = Arc::new(WorkspaceAnalysisGeneration::new(
                 None,
-                if candidate == document {
-                    transition.invalidated.clone().into_boxed_slice()
-                } else {
-                    Box::new([])
-                },
                 generation,
                 WorkspaceAnalysisState::PreparationFailed {
                     source_overlay: source_overlay.clone(),
@@ -548,10 +545,10 @@ impl WorkspaceAnalyses {
             ));
             self.unscoped.insert(candidate.clone(), Arc::clone(&result));
             if candidate != document {
-                related.push(result);
+                updated.push(result);
             }
         }
-        related
+        updated
     }
 
     /// Compiles a speculative overlay without publishing or replacing an accepted generation.
@@ -1565,8 +1562,12 @@ mod tests {
             batch.primary().scope(),
             Some(&AnalysisScope::SingleFile(canonical_index.clone()))
         );
-        assert_eq!(batch.primary().invalidated_scopes(), &[package_scope]);
-        assert!(batch.publication_order().any(|generation| {
+        assert!(
+            batch
+                .current_generations()
+                .all(|generation| generation.scope() != Some(&package_scope))
+        );
+        assert!(batch.updated_generations().any(|generation| {
             generation.scope() == Some(&AnalysisScope::SingleFile(canonical_helper.clone()))
         }));
         assert_eq!(
@@ -1606,7 +1607,11 @@ mod tests {
 
         assert!(invalidation.primary().scope().is_none());
         assert!(invalidation.primary().snapshot().is_none());
-        assert_eq!(invalidation.primary().invalidated_scopes(), &[active_scope]);
+        assert!(
+            invalidation
+                .current_generations()
+                .all(|generation| generation.scope() != Some(&active_scope))
+        );
         assert!(analyses.latest_for_document(&canonical).unwrap().is_none());
     }
 

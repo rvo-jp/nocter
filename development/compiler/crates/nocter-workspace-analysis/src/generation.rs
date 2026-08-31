@@ -28,7 +28,6 @@ impl AnalysisScope {
 #[derive(Debug)]
 pub struct WorkspaceAnalysisGeneration {
     scope: Option<AnalysisScope>,
-    invalidated: Box<[AnalysisScope]>,
     generation: GenerationId,
     state: WorkspaceAnalysisState,
 }
@@ -36,13 +35,11 @@ pub struct WorkspaceAnalysisGeneration {
 impl WorkspaceAnalysisGeneration {
     pub(crate) fn new(
         scope: Option<AnalysisScope>,
-        invalidated: Box<[AnalysisScope]>,
         generation: GenerationId,
         state: WorkspaceAnalysisState,
     ) -> Self {
         Self {
             scope,
-            invalidated,
             generation,
             state,
         }
@@ -51,11 +48,6 @@ impl WorkspaceAnalysisGeneration {
     #[must_use]
     pub const fn scope(&self) -> Option<&AnalysisScope> {
         self.scope.as_ref()
-    }
-
-    #[must_use]
-    pub const fn invalidated_scopes(&self) -> &[AnalysisScope] {
-        &self.invalidated
     }
 
     #[must_use]
@@ -124,15 +116,21 @@ impl WorkspaceAnalysisGeneration {
 #[derive(Debug)]
 pub struct WorkspaceAnalysisBatch {
     primary: Arc<WorkspaceAnalysisGeneration>,
-    related: Box<[Arc<WorkspaceAnalysisGeneration>]>,
+    updated: Box<[Arc<WorkspaceAnalysisGeneration>]>,
+    current: Box<[Arc<WorkspaceAnalysisGeneration>]>,
 }
 
 impl WorkspaceAnalysisBatch {
     pub(crate) fn new(
         primary: Arc<WorkspaceAnalysisGeneration>,
-        related: Box<[Arc<WorkspaceAnalysisGeneration>]>,
+        updated: Box<[Arc<WorkspaceAnalysisGeneration>]>,
+        current: Box<[Arc<WorkspaceAnalysisGeneration>]>,
     ) -> Self {
-        Self { primary, related }
+        Self {
+            primary,
+            updated,
+            current,
+        }
     }
 
     #[must_use]
@@ -140,11 +138,21 @@ impl WorkspaceAnalysisBatch {
         self.primary.as_ref()
     }
 
-    pub fn publication_order(&self) -> impl Iterator<Item = &WorkspaceAnalysisGeneration> {
-        self.related
+    /// Iterates every non-primary generation recomputed by this transition, followed by the
+    /// primary generation that admitted it.
+    pub fn updated_generations(&self) -> impl Iterator<Item = &WorkspaceAnalysisGeneration> {
+        self.updated
             .iter()
             .map(Arc::as_ref)
             .chain(std::iter::once(self.primary.as_ref()))
+    }
+
+    /// Iterates the complete active analysis state after this atomic transition.
+    ///
+    /// Consumers that publish URI-global state must use this complete view rather than replaying
+    /// [`Self::updated_generations`] as independent partial states.
+    pub fn current_generations(&self) -> impl Iterator<Item = &WorkspaceAnalysisGeneration> {
+        self.current.iter().map(Arc::as_ref)
     }
 }
 

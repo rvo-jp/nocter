@@ -65,7 +65,7 @@ impl ServerStep {
     pub fn analyses(&self) -> impl Iterator<Item = &WorkspaceAnalysisGeneration> {
         self.analysis
             .iter()
-            .flat_map(WorkspaceAnalysisBatch::publication_order)
+            .flat_map(WorkspaceAnalysisBatch::updated_generations)
     }
 
     #[must_use]
@@ -434,16 +434,15 @@ impl LanguageServer {
                 };
             }
         };
-        let mut outbound = Vec::new();
-        let mut issues = Vec::new();
-        for analysis in batch.publication_order() {
-            match self.diagnostics.publish(analysis) {
-                Ok(messages) => outbound.extend(messages.into_vec()),
-                Err(error) => issues.push(ServerIssue::Diagnostics(error)),
-            }
-        }
+        let (outbound, issues) = match self.diagnostics.publish(&batch) {
+            Ok(messages) => (messages, Vec::new()),
+            Err(error) => (
+                Vec::new().into_boxed_slice(),
+                vec![ServerIssue::Diagnostics(error)],
+            ),
+        };
         ServerStep {
-            outbound: outbound.into_boxed_slice(),
+            outbound,
             #[cfg(test)]
             analysis: Some(batch),
             issues: issues.into_boxed_slice(),

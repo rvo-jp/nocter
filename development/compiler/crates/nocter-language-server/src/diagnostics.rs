@@ -7,12 +7,12 @@ use nocter_json::{Member, Value};
 use nocter_lsp::{DocumentUri, DocumentUriError, render_notification};
 use nocter_source::{CoordinateError, SourceMap, Utf16Range};
 
-use crate::{AnalysisScope, WorkspaceAnalysisGeneration};
+use crate::{WorkspaceAnalysisBatch, WorkspaceAnalysisGeneration};
 
-/// Stateful projection that publishes complete diagnostic sets and clears superseded documents.
+/// Stateful projection of one complete workspace diagnostic snapshot into URI-global LSP state.
 #[derive(Debug, Default)]
 pub struct DiagnosticPublisher {
-    published: BTreeMap<AnalysisScope, BTreeSet<DocumentUri>>,
+    published: BTreeMap<DocumentUri, ProjectedDocument>,
 }
 
 impl DiagnosticPublisher {
@@ -21,71 +21,108 @@ impl DiagnosticPublisher {
         Self::default()
     }
 
-    /// Projects one analysis generation into complete `textDocument/publishDiagnostics`
-    /// notifications. Previously published documents absent from this generation receive an empty
-    /// set before the new scope becomes visible.
+    /// Atomically projects the complete active state after one workspace transition.
+    ///
+    /// A physical source may contribute diagnostics to several package scopes. Equal diagnostics
+    /// are deduplicated and distinct diagnostics are merged in canonical order before the URI is
+    /// compared with its previously published state. A scope leaving the workspace therefore
+    /// cannot clear a diagnostic still owned by another active scope.
     ///
     /// # Errors
     ///
     /// Returns a source identity, UTF-16 coordinate, or local URI projection failure.
     pub fn publish(
         &mut self,
-        analysis: &WorkspaceAnalysisGeneration,
+        batch: &WorkspaceAnalysisBatch,
     ) -> Result<Box<[String]>, DiagnosticPublicationError> {
-        let current = project_analysis(analysis)?;
-        let has_source_diagnostics = !current.is_empty();
-        let mut clear = BTreeSet::new();
-        for scope in analysis.invalidated_scopes() {
-            if let Some(uris) = self.published.remove(scope) {
-                clear.extend(uris);
+        let current = project_workspace(batch.current_generations())?;
+        let mut notifications = Vec::new();
+        for uri in self.published.keys() {
+            if current.contains_key(uri) {
+                continue;
             }
-        }
-        let current_uris = current.keys().cloned().collect::<BTreeSet<_>>();
-        if let Some(scope) = analysis.scope() {
-            if let Some(previous) = self.published.remove(scope) {
-                clear.extend(previous.difference(&current_uris).cloned());
-            }
-            self.published.insert(scope.clone(), current_uris.clone());
-        }
-        for uri in &current_uris {
-            clear.remove(uri);
-        }
-
-        let mut notifications = Vec::with_capacity(clear.len() + current.len());
-        for uri in clear {
             let path = uri.file_path().map_err(DiagnosticPublicationError::Uri)?;
-            let version = analysis
+            let version = batch
+                .primary()
                 .source_overlay()
                 .document(&path)
                 .map(|document| document.version().get());
-            notifications.push(publication(&uri, version, Vec::new()));
+            notifications.push(publication(uri, version, Vec::new()));
         }
-        for (uri, document) in current {
-            notifications.push(publication(&uri, document.version, document.diagnostics));
+        for (uri, document) in &current {
+            if self.published.get(uri) != Some(document) {
+                notifications.push(publication(
+                    uri,
+                    document.version,
+                    document.diagnostics.clone(),
+                ));
+            }
         }
-        if let Some(error) = analysis.preparation_failure()
-            && !has_source_diagnostics
-        {
-            notifications.push(render_notification(
-                "window/showMessage",
-                &object([
-                    ("type", Value::Number("1".into())),
-                    (
-                        "message",
-                        Value::String(
-                            format!("error[{}]: {error}", error.diagnostic_code()).into_boxed_str(),
-                        ),
-                    ),
-                ]),
-            ));
+
+        let mut shown = BTreeSet::new();
+        for analysis in batch.updated_generations() {
+            if let Some(error) = analysis.preparation_failure()
+                && analysis
+                    .diagnostics()
+                    .map_err(DiagnosticPublicationError::Workspace)?
+                    .is_empty()
+            {
+                let message = format!("error[{}]: {error}", error.diagnostic_code());
+                if shown.insert(message.clone()) {
+                    notifications.push(render_notification(
+                        "window/showMessage",
+                        &object([
+                            ("type", Value::Number("1".into())),
+                            ("message", Value::String(message.into_boxed_str())),
+                        ]),
+                    ));
+                }
+            }
         }
+        self.published = current;
         Ok(notifications.into_boxed_slice())
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 struct ProjectedDocument {
     version: Option<i32>,
     diagnostics: Vec<Value>,
+}
+
+fn project_workspace<'a>(
+    analyses: impl IntoIterator<Item = &'a WorkspaceAnalysisGeneration>,
+) -> Result<BTreeMap<DocumentUri, ProjectedDocument>, DiagnosticPublicationError> {
+    let mut workspace = BTreeMap::<DocumentUri, ProjectedDocument>::new();
+    for analysis in analyses {
+        for (uri, incoming) in project_analysis(analysis)? {
+            let path = uri.file_path().map_err(DiagnosticPublicationError::Uri)?;
+            let document = workspace.entry(uri).or_insert_with(|| ProjectedDocument {
+                version: incoming.version,
+                diagnostics: Vec::new(),
+            });
+            if document.version != incoming.version {
+                return Err(DiagnosticPublicationError::InconsistentDocumentVersion(
+                    path,
+                ));
+            }
+            for diagnostic in incoming.diagnostics {
+                if !document.diagnostics.contains(&diagnostic) {
+                    document.diagnostics.push(diagnostic);
+                }
+            }
+        }
+    }
+    for document in workspace.values_mut() {
+        document.diagnostics.sort_by_cached_key(rendered_value);
+    }
+    Ok(workspace)
+}
+
+fn rendered_value(value: &Value) -> String {
+    let mut rendered = String::new();
+    nocter_json::write_value(&mut rendered, value);
+    rendered
 }
 
 fn project_analysis(
@@ -269,7 +306,7 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     use nocter_json::parse;
-    use nocter_lsp::{DidChangeParams, DidOpenParams, InitializeParams};
+    use nocter_lsp::{DidChangeParams, DidCloseParams, DidOpenParams, InitializeParams};
     use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_package::StandardPackage;
 
@@ -297,7 +334,7 @@ mod tests {
         let failed = analyses.analyze(accepted).unwrap();
         let mut publisher = DiagnosticPublisher::new();
 
-        let emitted = publisher.publish(failed.primary()).unwrap();
+        let emitted = publisher.publish(&failed).unwrap();
 
         assert_eq!(emitted.len(), 1);
         assert!(emitted[0].contains("file:///"));
@@ -312,11 +349,68 @@ mod tests {
             panic!("newer document version must be accepted")
         };
         let complete = analyses.analyze(changed).unwrap();
-        let cleared = publisher.publish(complete.primary()).unwrap();
+        let cleared = publisher.publish(&complete).unwrap();
 
         assert_eq!(cleared.len(), 1);
         assert!(cleared[0].contains("\"diagnostics\":[]"));
         assert!(cleared[0].contains("\"version\":2"));
+    }
+
+    #[test]
+    fn shared_diagnostics_survive_one_scope_leaving_and_publish_once_per_uri() {
+        let temporary = TemporaryDirectory::new();
+        let first_root = temporary.path().join("first");
+        let second_root = temporary.path().join("second");
+        fs::create_dir_all(&first_root).unwrap();
+        fs::create_dir_all(&second_root).unwrap();
+        let first = first_root.join("index.nct");
+        let second = second_root.join("index.nct");
+        let first_text = "#package: { name: \"first\", version: \"0.0.0\", }\nuse std/fs\n";
+        let second_text = "#package: { name: \"second\", version: \"0.0.0\", }\nuse std/fs\n";
+        fs::write(&first, first_text).unwrap();
+        fs::write(&second, second_text).unwrap();
+
+        let standard_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std");
+        let shared = fs::canonicalize(standard_root.join("fs/index.nct")).unwrap();
+        let shared_uri = DocumentUri::from_file_path(&shared).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let mut publisher = DiagnosticPublisher::new();
+
+        for (source, text) in [(&first, first_text), (&second, second_text)] {
+            let revision = documents.open(&open_params(source, 1, text)).unwrap();
+            let batch = analyses.analyze(revision).unwrap();
+            publisher.publish(&batch).unwrap();
+        }
+        let revision = documents
+            .open(&open_params(&shared, 1, "func broken(: void\n"))
+            .unwrap();
+        let batch = analyses.analyze(revision).unwrap();
+        let diagnostic_messages = publisher.publish(&batch).unwrap();
+        assert_eq!(
+            publications_for(&diagnostic_messages, &shared_uri, false),
+            1,
+            "one URI-global diagnostic set must merge every active scope"
+        );
+
+        let revision = documents.close(&close_params(&first)).unwrap();
+        let batch = analyses.analyze(revision).unwrap();
+        let after_first_close = publisher.publish(&batch).unwrap();
+        assert_eq!(publications_for(&after_first_close, &shared_uri, false), 0);
+        assert_eq!(
+            publications_for(&after_first_close, &shared_uri, true),
+            0,
+            "a leaving scope cannot clear another active scope's diagnostic"
+        );
+
+        let revision = documents.close(&close_params(&shared)).unwrap();
+        let batch = analyses.analyze(revision).unwrap();
+        let after_shared_close = publisher.publish(&batch).unwrap();
+        assert_eq!(
+            publications_for(&after_shared_close, &shared_uri, true),
+            1,
+            "the URI is cleared once after the final diagnostic contribution disappears"
+        );
     }
 
     #[test]
@@ -337,9 +431,7 @@ mod tests {
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
         let failed = analyses.analyze(accepted).unwrap();
 
-        let emitted = DiagnosticPublisher::new()
-            .publish(failed.primary())
-            .unwrap();
+        let emitted = DiagnosticPublisher::new().publish(&failed).unwrap();
 
         assert_eq!(emitted.len(), 1);
         assert!(emitted[0].contains("textDocument/publishDiagnostics"));
@@ -386,6 +478,29 @@ mod tests {
             parse(&document_json(path, version, text, false)).unwrap(),
         ))
         .unwrap()
+    }
+
+    fn close_params(path: &Path) -> DidCloseParams {
+        DidCloseParams::decode(Some(
+            parse(&format!(
+                "{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}",
+                path.display()
+            ))
+            .unwrap(),
+        ))
+        .unwrap()
+    }
+
+    fn publications_for(messages: &[String], uri: &DocumentUri, empty: bool) -> usize {
+        let diagnostic_shape = if empty {
+            "\"diagnostics\":[]"
+        } else {
+            "\"diagnostics\":[{"
+        };
+        messages
+            .iter()
+            .filter(|message| message.contains(uri.as_str()) && message.contains(diagnostic_shape))
+            .count()
     }
 
     fn document_json(path: &Path, version: i32, text: &str, open: bool) -> String {
