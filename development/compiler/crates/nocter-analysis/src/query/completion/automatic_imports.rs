@@ -199,10 +199,10 @@ fn value_namespace(
         .rev()
         .find(|segment| !segment.is_empty() && *segment != "." && *segment != "..")
         .unwrap_or("root");
-    if let Some(existing) = visible_candidate(graph, visible, default) {
-        if existing.entity == SemanticEntity::Module(module) {
-            return Ok((default.into(), None));
-        }
+    if let Some(existing) = visible_candidate(graph, visible, default)
+        && existing.entity == SemanticEntity::Module(module)
+    {
+        return Ok((default.into(), None));
     }
     if let Some(namespace) = visible_module_namespace(graph, visible, module)? {
         return Ok((namespace, None));
@@ -255,7 +255,7 @@ fn visible_module_namespace(
             .symbols()
             .spelling(*name)
             .ok_or(AutomaticImportError::UnknownSymbol(*name))?;
-        if namespace.is_none() || namespace.is_some_and(|current| spelling < current) {
+        if namespace.is_none_or(|current| spelling < current) {
             namespace = Some(spelling);
         }
     }

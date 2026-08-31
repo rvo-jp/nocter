@@ -2757,9 +2757,9 @@ mod tests {
         assert!(hints.issue().is_none(), "{:?}", hints.issue());
     }
 
-    #[test]
-    fn automatic_imports_respect_direct_dependency_visibility() {
-        let temporary = TemporaryDirectory::new();
+    fn automatic_import_dependency_server(
+        temporary: &TemporaryDirectory,
+    ) -> (String, LanguageServer) {
         let application = temporary.path().join("app");
         let dependency = temporary.path().join("dependency");
         std::fs::create_dir(&application).unwrap();
@@ -2787,6 +2787,22 @@ mod tests {
             ),
         )
         .unwrap();
+        let source_path = application.join("app.nct");
+        std::fs::write(&source_path, "").unwrap();
+        let uri = format!("file://{}", source_path.display());
+        let mut server = semantic_server(&application);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            application.display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        (uri, server)
+    }
+
+    #[test]
+    fn automatic_imports_respect_direct_dependency_visibility() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = automatic_import_dependency_server(&temporary);
         let source = concat!(
             "use dep/api\n",
             "\n",
@@ -2795,15 +2811,6 @@ mod tests {
             "}\n",
             "func public_helper(): i32 { return 0 }\n",
         );
-        let source_path = application.join("app.nct");
-        std::fs::write(&source_path, source).unwrap();
-        let uri = format!("file://{}", source_path.display());
-        let mut server = semantic_server(&application);
-        server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
-            application.display()
-        ));
-        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let opened = set_completion_document(&mut server, &uri, source, 1);
         let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
@@ -2851,8 +2858,13 @@ mod tests {
         );
         assert!(response.contains("use dep/api as dep_api"), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
 
-        let aliased = concat!(
+    #[test]
+    fn automatic_imports_reuse_an_existing_module_alias() {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = automatic_import_dependency_server(&temporary);
+        let source = concat!(
             "use dep/api as service\n",
             "\n",
             "func public_helper(): i32 { return 0 }\n",
@@ -2860,12 +2872,12 @@ mod tests {
             "    return\n",
             "}\n",
         );
-        let changed = set_completion_document(&mut server, &uri, aliased, 3);
+        let changed = set_completion_document(&mut server, &uri, source, 1);
         assert_eq!(
             changed.analysis().unwrap().snapshot().unwrap().status(),
             nocter_analysis::AnalysisStatus::Complete
         );
-        let completion = request_completion(&mut server, &uri, 4, 4, 4);
+        let completion = request_completion(&mut server, &uri, 2, 4, 4);
         let response = completion.response().unwrap();
         assert!(
             response.contains(concat!(
