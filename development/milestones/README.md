@@ -12,11 +12,13 @@ use sites, reserves selected imports for type names, and requires `UPPER_SNAKE_C
 Implementation, source migration, qualification, and final review are complete; release preparation
 has not started.
 
-The [v0.23.0 milestone](v0.23.0.md) completes type-owned decimal parsing and owned text conversion
-for every built-in integer. Phases 0 through 3 and the full design review are complete; release
-preparation has not started.
+## Completed Unpublished Milestone
 
-## Latest Completed Milestone
+The [v0.23.0 milestone](v0.23.0.md) completed type-owned decimal parsing and owned text conversion
+for every built-in integer. Its implementation and full design review are complete; v0.24.0
+superseded it before separate release preparation began.
+
+## Latest Published Milestones
 
 The [v0.22.0 milestone](v0.22.0.md) adds an owning JSON DOM, exact decimal tokens, strict parsing,
 compact generation, practical application integration, and standard-library stabilization. Phases
@@ -31,11 +33,11 @@ through Phase 5 and release qualification are complete; its
 qualification evidence. The release is published and externally audited in the
 [v0.21.0 publication record](../releases/v0.21.0.md).
 
+## Earlier Milestones
+
 The [v0.20.0 milestone](v0.20.0.md) completed interface prerequisites, incremental semantic
 computation, unified CLI/LSP query entry, and dependency-local exact selections. It remains an
 unpublished compiler-foundation record rather than the active work plan.
-
-## Earlier Milestones
 
 The [v0.19.0 milestone](v0.19.0.md) and its
 [release preparation](v0.19.0-release-preparation.md) are complete, and v0.19.0 is published.

@@ -42,61 +42,18 @@ const PAGE_META = {
     }
 };
 
-const codeExamples = {
-    greet: `use std/io.print
-
-func greet(user: User): void! {
-    let name = user.display.name() otherwise { "guest" }
-
-    let tone = match user.presence {
-        Presence.online { "hello" }
-        Presence.away { "welcome back" }
-    }
-
-    print("\${tone}, \${name}\\n")?
-}`,
-    writer: `interface Writer {
-    pub method &+self.write(bytes: &[u8]): void!
-}
-
-func save_log<W>(output: &+W, events: &[Event]): void! where W impl Writer {
-    for event in events {
-        output.write(event.message().bytes())?
-        output.write("\\n".bytes())?
-    }
-}`,
-    session: `pub struct Session {
-    id: SessionId
-    user: User
-    expires_at: Time
-}
-
-construct Session {
-    pub func start(user: User, clock: &Clock): Self {
-        return Self {
-            id: SessionId.new(),
-            user: move user,
-            expires_at: clock.now().plus_minutes(30),
-        }
-    }
-}`,
-    ownership: `func consume(values: Vec<String>): void! {
-    for value in move values {
-        print(&value as &str)?
-    }
-}`,
-construction: `construct NonEmptyList<T> {
-    pub literal [](...items: T): Self from items {
-        var list = Self.new()
-
-        for item in items {
-            list.push(move item)
-        }
-
-        return move list
-    }
-}`
-};
+// Hero panels consume complete runnable examples instead of maintaining a second set of Nocter
+// snippets inside the documentation generator. Release qualification checks these same sources.
+const codeExamples = Object.fromEntries(Object.entries({
+    hello: "examples/hello.nct",
+    recovery: "examples/recovery.nct",
+    format: "examples/custom-format.nct",
+    equality: "examples/equality.nct",
+    indexing: "examples/indexing.nct"
+}).map(([name, relative]) => [
+    name,
+    fs.readFileSync(path.join(PROJECT_ROOT, relative), "utf8").trimEnd()
+]));
 
 const sourceFiles = collectSourceFiles(PROJECT_ROOT);
 const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));

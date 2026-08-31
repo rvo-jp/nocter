@@ -93,7 +93,7 @@ use std/io.File
 use std/io
 
 func write_message(file: &+File): void! {
-    io.write(file, "ready\n")?
+    file.write_text("ready\n")?
     return
 }
 ```
