@@ -6,7 +6,7 @@
 use std::ffi::OsString;
 use std::fmt;
 use std::fs;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 use nocter_model::PackageIdentity;
@@ -65,15 +65,14 @@ impl NocterHome {
     /// Returns the exact invalid selection, filesystem operation, required entry, or VERSION
     /// format failure.
     pub fn resolve(request: NocterHomeRequest) -> Result<Self, NocterHomeError> {
+        let executable = canonicalize("canonicalize compiler executable", &request.executable)?;
+        if !executable.is_file() {
+            return Err(NocterHomeError::ExecutableNotFile(executable));
+        }
         let (selected, origin) = match request.configured_home {
             Some(path) if path.is_empty() => return Err(NocterHomeError::EmptyConfiguredHome),
             Some(path) => (PathBuf::from(path), NocterHomeOrigin::Configured),
             None => {
-                let executable =
-                    canonicalize("canonicalize compiler executable", &request.executable)?;
-                if !executable.is_file() {
-                    return Err(NocterHomeError::ExecutableNotFile(executable));
-                }
                 let root = executable
                     .parent()
                     .ok_or_else(|| NocterHomeError::ExecutableWithoutParent(executable.clone()))?;
@@ -87,6 +86,12 @@ impl NocterHome {
         let version = required_file(&root, "VERSION")?;
         let manifest_path = required_file(&root, "MANIFEST.json")?;
         let compiler = required_file(&root, "nocter")?;
+        if !files_have_equal_contents(&executable, &compiler)? {
+            return Err(NocterHomeError::CompilerMismatch {
+                running: executable,
+                installed: compiler,
+            });
+        }
         let standard_root = required_directory(&root, "std")?;
         required_file(&standard_root, "index.nct")?;
         let release = read_release(&version)?;
@@ -183,6 +188,62 @@ impl NocterHome {
             self.standard_root.clone(),
         )
     }
+}
+
+fn files_have_equal_contents(left: &Path, right: &Path) -> Result<bool, NocterHomeError> {
+    if left == right {
+        return Ok(true);
+    }
+    let left_length = file_length(left)?;
+    if left_length != file_length(right)? {
+        return Ok(false);
+    }
+    let mut left_file = open_comparison_file(left)?;
+    let mut right_file = open_comparison_file(right)?;
+    let mut left_bytes = [0_u8; 64 * 1024];
+    let mut right_bytes = [0_u8; 64 * 1024];
+    let mut remaining = left_length;
+    while remaining > 0 {
+        let width = remaining.min(left_bytes.len() as u64) as usize;
+        read_comparison_bytes(&mut left_file, left, &mut left_bytes[..width])?;
+        read_comparison_bytes(&mut right_file, right, &mut right_bytes[..width])?;
+        if left_bytes[..width] != right_bytes[..width] {
+            return Ok(false);
+        }
+        remaining -= width as u64;
+    }
+    Ok(true)
+}
+
+fn file_length(path: &Path) -> Result<u64, NocterHomeError> {
+    fs::metadata(path)
+        .map(|metadata| metadata.len())
+        .map_err(|error| NocterHomeError::Filesystem {
+            operation: "inspect compiler executable",
+            path: path.into(),
+            error,
+        })
+}
+
+fn open_comparison_file(path: &Path) -> Result<fs::File, NocterHomeError> {
+    fs::File::open(path).map_err(|error| NocterHomeError::Filesystem {
+        operation: "open compiler executable",
+        path: path.into(),
+        error,
+    })
+}
+
+fn read_comparison_bytes(
+    file: &mut fs::File,
+    path: &Path,
+    buffer: &mut [u8],
+) -> Result<(), NocterHomeError> {
+    file.read_exact(buffer)
+        .map_err(|error| NocterHomeError::Filesystem {
+            operation: "read compiler executable",
+            path: path.into(),
+            error,
+        })
 }
 
 fn required_relative_file(
@@ -299,6 +360,10 @@ pub enum NocterHomeError {
         path: PathBuf,
         target: PathBuf,
     },
+    CompilerMismatch {
+        running: PathBuf,
+        installed: PathBuf,
+    },
     InvalidVersion {
         path: PathBuf,
     },
@@ -357,6 +422,12 @@ impl fmt::Display for NocterHomeError {
                 path.display(),
                 target.display()
             ),
+            Self::CompilerMismatch { running, installed } => write!(
+                formatter,
+                "running compiler {} does not match the compiler in the selected Nocter home {}",
+                running.display(),
+                installed.display()
+            ),
             Self::InvalidVersion { path } => write!(
                 formatter,
                 "Nocter home VERSION is not one non-empty UTF-8 line: {}",
@@ -391,6 +462,7 @@ impl std::error::Error for NocterHomeError {
             | Self::RequiredEntryNotFile { .. }
             | Self::RequiredEntryNotDirectory { .. }
             | Self::RequiredEntryEscapesHome { .. }
+            | Self::CompilerMismatch { .. }
             | Self::InvalidVersion { .. } => None,
         }
     }
@@ -497,12 +569,28 @@ mod tests {
     }
 
     #[test]
+    fn configured_home_requires_the_running_compiler_to_match_its_bundled_compiler() {
+        let tree = TempTree::new();
+        let configured = tree.installation("configured", b"0.14.0\n");
+        let other = tree.installation("other", b"9.9.9\n");
+        fs::write(other.join("nocter"), b"another compiler").unwrap();
+
+        let error = NocterHome::resolve(NocterHomeRequest::new(
+            Some(configured.clone().into_os_string()),
+            other.join("nocter"),
+        ))
+        .unwrap_err();
+
+        assert!(matches!(error, NocterHomeError::CompilerMismatch { .. }));
+    }
+
+    #[test]
     fn compiler_compatibility_closes_host_and_native_target_identity() {
         let tree = TempTree::new();
         let compatible = tree.installation("compatible", b"0.14.0\n");
         let installation = NocterHome::resolve(NocterHomeRequest::new(
-            Some(compatible.into_os_string()),
-            "unused",
+            Some(compatible.clone().into_os_string()),
+            compatible.join("nocter"),
         ))
         .unwrap()
         .for_compiler("arm64-darwin")
@@ -511,8 +599,8 @@ mod tests {
 
         let wrong_host = tree.installation("wrong-host", b"0.14.0\n");
         let error = NocterHome::resolve(NocterHomeRequest::new(
-            Some(wrong_host.into_os_string()),
-            "unused",
+            Some(wrong_host.clone().into_os_string()),
+            wrong_host.join("nocter"),
         ))
         .unwrap()
         .for_compiler("x64-linux")
@@ -533,8 +621,8 @@ mod tests {
             .replace("\"name\": \"arm64-darwin\"", "\"name\": \"x64-linux\"");
         fs::write(manifest_path, manifest).unwrap();
         let error = NocterHome::resolve(NocterHomeRequest::new(
-            Some(wrong_target.into_os_string()),
-            "unused",
+            Some(wrong_target.clone().into_os_string()),
+            wrong_target.join("nocter"),
         ))
         .unwrap()
         .for_compiler("arm64-darwin")
@@ -562,8 +650,8 @@ mod tests {
         let invalid = tree.installation("invalid", b"0.14.0\nextra\n");
         assert!(matches!(
             NocterHome::resolve(NocterHomeRequest::new(
-                Some(invalid.into_os_string()),
-                "unused"
+                Some(invalid.clone().into_os_string()),
+                invalid.join("nocter")
             )),
             Err(NocterHomeError::InvalidVersion { .. })
         ));
@@ -572,8 +660,8 @@ mod tests {
         fs::remove_file(missing.join("MANIFEST.json")).unwrap();
         assert!(matches!(
             NocterHome::resolve(NocterHomeRequest::new(
-                Some(missing.into_os_string()),
-                "unused"
+                Some(missing.clone().into_os_string()),
+                missing.join("nocter")
             )),
             Err(NocterHomeError::MissingRequiredEntry {
                 name: "MANIFEST.json",
@@ -589,8 +677,8 @@ mod tests {
         fs::write(invalid.join("MANIFEST.json"), b"{}").unwrap();
         assert!(matches!(
             NocterHome::resolve(NocterHomeRequest::new(
-                Some(invalid.into_os_string()),
-                "unused"
+                Some(invalid.clone().into_os_string()),
+                invalid.join("nocter")
             )),
             Err(NocterHomeError::Manifest { .. })
         ));
@@ -599,8 +687,8 @@ mod tests {
         fs::remove_file(missing_license.join("LICENSE")).unwrap();
         assert!(matches!(
             NocterHome::resolve(NocterHomeRequest::new(
-                Some(missing_license.into_os_string()),
-                "unused"
+                Some(missing_license.clone().into_os_string()),
+                missing_license.join("nocter")
             )),
             Err(NocterHomeError::MissingRequiredEntry {
                 name: "license.path",
@@ -623,8 +711,8 @@ mod tests {
 
         assert!(matches!(
             NocterHome::resolve(NocterHomeRequest::new(
-                Some(installation.into_os_string()),
-                "unused"
+                Some(installation.clone().into_os_string()),
+                installation.join("nocter")
             )),
             Err(NocterHomeError::RequiredEntryEscapesHome {
                 name: "MANIFEST.json",

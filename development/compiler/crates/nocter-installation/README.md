@@ -21,5 +21,7 @@ environment or installation layout themselves.
 ## Invariants
 
 - Installation identity comes from validated content, not directory spelling alone.
+- A configured home accepts the running compiler only when it is the bundled executable or an
+  exact byte-for-byte copy of that executable.
 - Environment and executable-path reads occur at the outer boundary.
 - Invalid or mixed-version homes cannot supply a toolchain snapshot.

@@ -205,6 +205,10 @@ Rules:
 - `~/.nocter` is not searched automatically.
 - A symlink such as `/usr/local/bin/nocter -> ~/.nocter/nocter` works naturally because the resolved real executable path still points inside Nocter home.
 - Copying `nocter` outside Nocter home is not a normal installation method. If executable-path resolution no longer points into Nocter home, the user must set `NOCTER_HOME`.
+- When `NOCTER_HOME` selects a directory other than the executable's parent, the running compiler
+  must have exactly the same contents as that home's `compiler.path`. This permits an unchanged
+  copied compiler while preventing one compiler release from consuming another release's standard
+  library and metadata.
 - The selected Nocter home must contain `VERSION`, `MANIFEST.json`, and `std/`.
 - The compiler should report a command-line or Nocter-home error if the selected home is missing required files.
 

@@ -601,9 +601,9 @@ Required diagnostic families:
 
 - Root file path missing, not found, or not a `.nct` file.
 - Nocter home missing, not a directory, or missing required entries such as `VERSION`, `MANIFEST.json`, or `std/`.
-- Malformed `MANIFEST.json`, release mismatch between `VERSION` and manifest, compiler/installation
-  host mismatch, native host/default-target mismatch, or default target missing from the implemented
-  target list.
+- Malformed `MANIFEST.json`, release mismatch between `VERSION` and manifest, running/bundled
+  compiler mismatch, compiler/installation host mismatch, native host/default-target mismatch, or
+  default target missing from the implemented target list.
 - Source file is not valid UTF-8.
 - Unsupported source line ending, such as a bare carriage return.
 - Unterminated block comment, string literal, or byte literal.
