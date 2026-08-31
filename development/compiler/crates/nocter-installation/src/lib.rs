@@ -194,35 +194,20 @@ fn files_have_equal_contents(left: &Path, right: &Path) -> Result<bool, NocterHo
     if left == right {
         return Ok(true);
     }
-    let left_length = file_length(left)?;
-    if left_length != file_length(right)? {
-        return Ok(false);
-    }
     let mut left_file = open_comparison_file(left)?;
     let mut right_file = open_comparison_file(right)?;
-    let mut left_bytes = [0_u8; 64 * 1024];
-    let mut right_bytes = [0_u8; 64 * 1024];
-    let mut remaining = left_length;
-    while remaining > 0 {
-        let width = remaining.min(left_bytes.len() as u64) as usize;
-        read_comparison_bytes(&mut left_file, left, &mut left_bytes[..width])?;
-        read_comparison_bytes(&mut right_file, right, &mut right_bytes[..width])?;
-        if left_bytes[..width] != right_bytes[..width] {
+    let mut left_bytes = [0_u8; 8 * 1024];
+    let mut right_bytes = [0_u8; 8 * 1024];
+    loop {
+        let left_read = read_comparison_chunk(&mut left_file, left, &mut left_bytes)?;
+        let right_read = read_comparison_chunk(&mut right_file, right, &mut right_bytes)?;
+        if left_read != right_read || left_bytes[..left_read] != right_bytes[..right_read] {
             return Ok(false);
         }
-        remaining -= width as u64;
+        if left_read == 0 {
+            return Ok(true);
+        }
     }
-    Ok(true)
-}
-
-fn file_length(path: &Path) -> Result<u64, NocterHomeError> {
-    fs::metadata(path)
-        .map(|metadata| metadata.len())
-        .map_err(|error| NocterHomeError::Filesystem {
-            operation: "inspect compiler executable",
-            path: path.into(),
-            error,
-        })
 }
 
 fn open_comparison_file(path: &Path) -> Result<fs::File, NocterHomeError> {
@@ -233,17 +218,26 @@ fn open_comparison_file(path: &Path) -> Result<fs::File, NocterHomeError> {
     })
 }
 
-fn read_comparison_bytes(
+fn read_comparison_chunk(
     file: &mut fs::File,
     path: &Path,
     buffer: &mut [u8],
-) -> Result<(), NocterHomeError> {
-    file.read_exact(buffer)
-        .map_err(|error| NocterHomeError::Filesystem {
-            operation: "read compiler executable",
-            path: path.into(),
-            error,
-        })
+) -> Result<usize, NocterHomeError> {
+    let mut filled = 0;
+    while filled < buffer.len() {
+        let read =
+            file.read(&mut buffer[filled..])
+                .map_err(|error| NocterHomeError::Filesystem {
+                    operation: "read compiler executable",
+                    path: path.into(),
+                    error,
+                })?;
+        if read == 0 {
+            break;
+        }
+        filled += read;
+    }
+    Ok(filled)
 }
 
 fn required_relative_file(
