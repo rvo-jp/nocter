@@ -7,8 +7,9 @@ in [`development/releases/`](../releases/README.md).
 
 ## Active Milestone
 
-No later milestone has been adopted. New product work requires an explicit milestone and acceptance
-criteria rather than extending a completed release record.
+The [v0.23.0 milestone](v0.23.0.md) completes type-owned decimal parsing and owned text conversion
+for every built-in integer. Phase 0 fixes the public contract and the one-pass parser, shared
+formatter, and private narrowing boundaries before implementation.
 
 ## Latest Completed Milestone
 

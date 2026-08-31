@@ -18,8 +18,10 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Define the next milestone and its acceptance criteria before making further product changes. Do
-not infer scope from unfinished ideas or historical milestone plans.
+Complete [v0.23.0](milestones/v0.23.0.md) through Phase 3. The milestone replaces asymmetric
+type-named integer text functions with one type-owned API for all ten built-in integers, one-pass
+signed and unsigned decimal parsing authorities, and the existing shared formatting authority.
+Stop after boundary, allocator, native, editor, full-workspace, and cross-responsibility review.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

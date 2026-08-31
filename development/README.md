@@ -9,6 +9,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 ## Current Work
 
 - [Current handoff](TODO.md)
+- [Active v0.23.0 milestone](milestones/v0.23.0.md)
 - [Completed v0.22.0 milestone](milestones/v0.22.0.md)
 - [v0.22.0 release preparation](milestones/v0.22.0-release-preparation.md)
 - [v0.22.0 Phase 0 JSON design review](reviews/v0.22.0-phase-0.md)

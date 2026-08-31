@@ -289,6 +289,46 @@ functions use an explicit recoverable allocator.
 storage without allocating. Out-of-range indexed queries return `none`; invalid process encoding
 returns `error`. `args` remains the allocating convenience that collects all arguments.
 
+## Future Direction: v0.23.0 Integer Text APIs
+
+v0.23.0 will replace the type-named `std/num` free functions with one type-owned decimal surface on
+every built-in integer. The intended declarations are:
+
+```nct
+construct i8 { pub func parse(text: &str): Self? }
+construct i16 { pub func parse(text: &str): Self? }
+construct i32 { pub func parse(text: &str): Self? }
+construct i64 { pub func parse(text: &str): Self? }
+construct isize { pub func parse(text: &str): Self? }
+construct u8 { pub func parse(text: &str): Self? }
+construct u16 { pub func parse(text: &str): Self? }
+construct u32 { pub func parse(text: &str): Self? }
+construct u64 { pub func parse(text: &str): Self? }
+construct usize { pub func parse(text: &str): Self? }
+
+instance i8 {
+    pub method self.to_string(): String
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+}
+```
+
+The `i8` instance shape above applies identically to the other nine integer types. Decimal parsing
+is allocation-free and consumes the complete input. Unsigned types accept one or more ASCII digits.
+Signed types additionally accept exactly one leading `-`. Empty input, a leading `+`, whitespace,
+non-ASCII digits, another character, and a mathematical value outside the destination range return
+`none`. Leading zeroes are valid, and negative zero produces zero.
+
+`to_string` produces the shortest ordinary base-ten spelling, with `0` as the sole zero spelling
+and a leading `-` only for a negative signed value. It uses the current allocation context and
+aborts on allocation failure. `try_to_string` uses the supplied recoverable allocator and returns
+its allocation failure. These operations and `Format` must use one decimal-generation authority;
+parsing must scan an input once through one signed or unsigned decimal authority.
+
+The old `parse_usize`, `parse_u8`, `parse_i32`, `usize_to_string`, `u8_to_string`,
+`i32_to_string`, and paired `try_*_to_string` declarations will be removed without aliases or
+compatibility wrappers. v0.23.0 does not add floating-point values, arbitrary radix parsing, locale
+rules, or a matrix of public integer-to-integer conversions.
+
 ## Allocation and Failure
 
 Normal `String`, `Vec`, path, split, buffered-I/O, and formatting construction uses the current
