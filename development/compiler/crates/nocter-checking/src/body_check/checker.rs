@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::DeclarationGraph;
-use nocter_diagnostics::DiagnosticNote;
+use nocter_diagnostics::{DiagnosticNote, DiagnosticRepair};
 use nocter_frontend_bindings::SourceNamespaceTable;
 use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, CaptureId, LocalBindingId, NominalTypeId, PlaceId,
@@ -1067,6 +1067,20 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let origin = SourceOrigin::from_node(self.tree(), node)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
         Ok(BodyCheckError::from_rule(rule, rule.diagnostic(origin)))
+    }
+
+    fn rule_with_repair(
+        &self,
+        rule: BodyRule,
+        node: NodeId,
+        repair: DiagnosticRepair,
+    ) -> Result<BodyCheckError, BodyCheckInternalError> {
+        let origin = SourceOrigin::from_node(self.tree(), node)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
+        Ok(BodyCheckError::from_rule(
+            rule,
+            rule.diagnostic(origin).with_repair(repair),
+        ))
     }
 
     fn token_rule(

@@ -1,3 +1,4 @@
+use nocter_diagnostics::DiagnosticRepair;
 use nocter_model::{BodyNodeId, BuiltinType, TypeId, TypeKind};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
@@ -47,7 +48,11 @@ impl BodyChecker<'_, '_> {
                     let Ok(plan) = plan_expected_type(self.types, self.result_type, evidence)
                     else {
                         self.record_outcome_contract_interruption(node, layer)?;
-                        return Err(self.rule(BodyRule::InvalidOutcomeOperation, node)?);
+                        return Err(self.rule_with_repair(
+                            BodyRule::InvalidOutcomeOperation,
+                            node,
+                            DiagnosticRepair::AddCallableOutcomeContract,
+                        )?);
                     };
                     let (base, outer) = plan.into_parts();
                     if !matches!(

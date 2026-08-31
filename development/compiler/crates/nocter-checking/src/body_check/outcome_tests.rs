@@ -1,4 +1,5 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_diagnostics::DiagnosticRepair;
 use nocter_model::{BuiltinType, TypeKind};
 
 use super::{check_prepared_program, check_prepared_program_recovering};
@@ -169,14 +170,25 @@ fn catch_and_otherwise_bind_only_the_matching_branch() {
 
 #[test]
 fn mismatched_or_unreturnable_outcome_operations_have_one_rule() {
-    for source in [
-        "func invalid(input: i32?): i32 { input? }\n",
-        "func invalid(input: i32?): i32 { input catch _ { 0 } }\n",
-        "func invalid(input: i32!): i32 { input otherwise { 0 } }\n",
-        "func invalid(input: i32): i32 { input! }\n",
+    for (source, repair) in [
+        (
+            "func invalid(input: i32?): i32 { input? }\n",
+            Some(DiagnosticRepair::AddCallableOutcomeContract),
+        ),
+        (
+            "func invalid(input: i32?): i32 { input catch _ { 0 } }\n",
+            None,
+        ),
+        (
+            "func invalid(input: i32!): i32 { input otherwise { 0 } }\n",
+            None,
+        ),
+        ("func invalid(input: i32): i32 { input! }\n", None),
     ] {
         let error = check(source).unwrap_err();
-        assert_eq!(error.source_diagnostic().unwrap().code(), "E0392");
+        let diagnostic = error.source_diagnostic().unwrap();
+        assert_eq!(diagnostic.code(), "E0392");
+        assert_eq!(diagnostic.repair(), repair.as_ref());
     }
 }
 
