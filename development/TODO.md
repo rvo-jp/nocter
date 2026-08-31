@@ -18,10 +18,11 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Complete [v0.23.0](milestones/v0.23.0.md) through Phase 3. The milestone replaces asymmetric
-type-named integer text functions with one type-owned API for all ten built-in integers, one-pass
-signed and unsigned decimal parsing authorities, and the existing shared formatting authority.
-Stop after boundary, allocator, native, editor, full-workspace, and cross-responsibility review.
+Prepare the qualified [v0.23.0](milestones/v0.23.0.md) candidate for release only when publication
+is requested. Phases 0 through 3 are complete: every built-in integer owns the same text API,
+signed and unsigned input cross one-pass decimal authorities, output crosses the existing shared
+formatter, and boundary, allocator, native, editor, example, full-workspace, and
+cross-responsibility qualification has passed.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

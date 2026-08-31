@@ -1360,40 +1360,6 @@ mod tests {
                 .contains("pub interface ExactSizeIterator where Self impl Iterator")
         );
 
-        let num_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/num/index.nct");
-        let num_text = fs::read_to_string(&num_source).unwrap();
-        let (line, source_line) = num_text
-            .lines()
-            .enumerate()
-            .find(|(_, line)| line.contains("pub method self.to_string(): String"))
-            .unwrap();
-        let character = source_line.find("to_string").unwrap();
-        let hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
-            num_source.display()
-        ));
-        let response = hover.response().unwrap();
-        assert!(
-            response.contains("```nocter\\npub method i8.to_string(): String\\n```"),
-            "{response}"
-        );
-
-        let (line, source_line) = num_text
-            .lines()
-            .enumerate()
-            .find(|(_, line)| line.contains("pub func parse(text: &str): Self?"))
-            .unwrap();
-        let character = source_line.find("parse").unwrap();
-        let hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
-            num_source.display()
-        ));
-        let response = hover.response().unwrap();
-        assert!(
-            response.contains("```nocter\\npub func i8.parse(text: &str): i8?\\n```"),
-            "{response}"
-        );
-
         let vec_text = fs::read_to_string(&vec_source).unwrap();
         let (line, source_line) = vec_text
             .lines()
@@ -1407,6 +1373,87 @@ mod tests {
         ));
         let response = definition.response().unwrap();
         assert!(response.contains("/std/iter/index.nct"), "{response}");
+    }
+
+    #[test]
+    fn integer_text_queries_use_the_type_owned_standard_contract() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let source_uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"func inspect(signed: i16, unsigned: u64): void {{\\n    let _parsed = i16.parse(\\\"-1\\\")\\n    let _left = signed.to_string()\\n    let _right = unsigned.to_string()\\n    return\\n}}\\n\"}}}}}}"
+        ));
+
+        let constructors = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":1,\"character\":22}}}}}}"
+        ));
+        let response = constructors.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"parse\",\"kind\":4"),
+            "{response}"
+        );
+        assert!(!response.contains("parse_i16"), "{response}");
+        assert!(constructors.issue().is_none(), "{:?}", constructors.issue());
+
+        for (id, line, completion_character, name_character) in [(3, 2, 23, 25), (4, 3, 26, 28)] {
+            let completion = server.receive(&format!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":{id},\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{line},\"character\":{completion_character}}}}}}}"
+            ));
+            let response = completion.response().unwrap();
+            assert!(
+                response.contains("\"label\":\"to_string\",\"kind\":2"),
+                "{response}"
+            );
+            assert!(
+                response.contains("\"label\":\"try_to_string\",\"kind\":2"),
+                "{response}"
+            );
+            assert!(!response.contains("i32_to_string"), "{response}");
+            assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+            let definition = server.receive(&format!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":{},\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{line},\"character\":{name_character}}}}}}}",
+                id + 10
+            ));
+            let response = definition.response().unwrap();
+            assert!(response.contains("/std/num/index.nct"), "{response}");
+            assert!(definition.issue().is_none(), "{:?}", definition.issue());
+        }
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":2,\"character\":25}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub method i16.to_string(): String\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let num_source = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/num/index.nct");
+        let num_text = fs::read_to_string(&num_source).unwrap();
+        let (line, source_line) = num_text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("pub func parse(text: &str): Self?"))
+            .unwrap();
+        let character = source_line.find("parse").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":21,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            num_source.display()
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub func i8.parse(text: &str): i8?\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
     }
 
     #[test]

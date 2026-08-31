@@ -8,8 +8,8 @@ in [`development/releases/`](../releases/README.md).
 ## Active Milestone
 
 The [v0.23.0 milestone](v0.23.0.md) completes type-owned decimal parsing and owned text conversion
-for every built-in integer. Phase 0 fixes the public contract and the one-pass parser, shared
-formatter, and private narrowing boundaries before implementation.
+for every built-in integer. Phases 0 through 3 and the full design review are complete; release
+preparation has not started.
 
 ## Latest Completed Milestone
 

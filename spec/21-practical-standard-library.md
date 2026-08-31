@@ -279,20 +279,9 @@ capacity. A requested read-buffer capacity of zero is normalized to one byte so 
 makes progress. Underlying interrupted reads retain the ordinary `File` retry behavior before a
 line operation observes failure.
 
-## Numeric Text and Process State
+## Integer Text and Process State
 
-`std/num` parses decimal `usize`, `i32`, and `u8` values without allocation. Invalid syntax and
-overflow return `none`. Formatting functions return owned decimal `String` values; paired `try_*`
-functions use an explicit recoverable allocator.
-
-`std/process.arg_count`, `arg`, `environment_count`, and `environment` query process-lifetime
-storage without allocating. Out-of-range indexed queries return `none`; invalid process encoding
-returns `error`. `args` remains the allocating convenience that collects all arguments.
-
-## Future Direction: v0.23.0 Integer Text APIs
-
-v0.23.0 will replace the type-named `std/num` free functions with one type-owned decimal surface on
-every built-in integer. The intended declarations are:
+Every built-in integer owns the same decimal text surface:
 
 ```nct
 construct i8 { pub func parse(text: &str): Self? }
@@ -312,8 +301,8 @@ instance i8 {
 }
 ```
 
-The `i8` instance shape above applies identically to the other nine integer types. Decimal parsing
-is allocation-free and consumes the complete input. Unsigned types accept one or more ASCII digits.
+The `i8` instance shape above applies identically to the other nine integer types. `parse` is
+allocation-free and consumes the complete input. Unsigned types accept one or more ASCII digits.
 Signed types additionally accept exactly one leading `-`. Empty input, a leading `+`, whitespace,
 non-ASCII digits, another character, and a mathematical value outside the destination range return
 `none`. Leading zeroes are valid, and negative zero produces zero.
@@ -324,10 +313,12 @@ aborts on allocation failure. `try_to_string` uses the supplied recoverable allo
 its allocation failure. These operations and `Format` must use one decimal-generation authority;
 parsing must scan an input once through one signed or unsigned decimal authority.
 
-The old `parse_usize`, `parse_u8`, `parse_i32`, `usize_to_string`, `u8_to_string`,
-`i32_to_string`, and paired `try_*_to_string` declarations will be removed without aliases or
-compatibility wrappers. v0.23.0 does not add floating-point values, arbitrary radix parsing, locale
-rules, or a matrix of public integer-to-integer conversions.
+There are no type-named free-function aliases. This contract does not add floating-point values,
+arbitrary radix parsing, locale rules, or a matrix of public integer-to-integer conversions.
+
+`std/process.arg_count`, `arg`, `environment_count`, and `environment` query process-lifetime
+storage without allocating. Out-of-range indexed queries return `none`; invalid process encoding
+returns `error`. `args` remains the allocating convenience that collects all arguments.
 
 ## Allocation and Failure
 

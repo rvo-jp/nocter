@@ -2122,11 +2122,14 @@ mod tests {
             changed.analysis().unwrap().snapshot().unwrap().status(),
             nocter_analysis::AnalysisStatus::SyntaxFailed
         );
-        let empty = request_completion(&mut server, &uri, 3, 0, 24);
-        let response = empty.response().unwrap();
+        let integer = request_completion(&mut server, &uri, 3, 0, 24);
+        let response = integer.response().unwrap();
         assert!(response.contains("\"isIncomplete\":true"), "{response}");
-        assert!(response.contains("\"items\":[]"), "{response}");
-        assert!(empty.issue().is_none(), "{:?}", empty.issue());
+        assert!(
+            response.contains("\"label\":\"parse\",\"kind\":4"),
+            "{response}"
+        );
+        assert!(integer.issue().is_none(), "{:?}", integer.issue());
     }
 
     #[test]

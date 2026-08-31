@@ -2,7 +2,18 @@
 
 see ./index.nct
 
+use /mem.page_try_allocator
 use /string.String
+
+func require(condition: bool, message: &str): void! {
+    if !condition { return error.new("std.num.contract", message) }
+    return
+}
+
+func is_none<T>(value: T?): bool {
+    let _present = move value otherwise { return true }
+    return false
+}
 
 func require_text(actual: String, expected: &str): void! {
     if ((&actual) as &str) != expected {
@@ -53,5 +64,191 @@ test every_integer_type_owns_the_same_decimal_surface {
     require_text(unsigned32.to_string(), "4294967295")?
     require_text(unsigned64.to_string(), "18446744073709551615")?
     require_text(unsigned_size.to_string(), "18446744073709551615")?
+    return
+}
+
+test decimal_grammar_is_exact_and_complete_input {
+    let leading_zeroes = u64.parse("00012") otherwise {
+        return error.new("std.num.grammar", "leading zeroes were rejected")
+    }
+    let negative_zero = i64.parse("-0") otherwise {
+        return error.new("std.num.grammar", "negative zero was rejected")
+    }
+    let zero: i64 = 0
+    require(leading_zeroes == 12, "leading zero value changed")?
+    require(negative_zero == 0, "negative zero value changed")?
+    require_text(zero.to_string(), "0")?
+    require(is_none(u64.parse("")), "empty unsigned input was accepted")?
+    require(is_none(i64.parse("")), "empty signed input was accepted")?
+    require(is_none(i64.parse("-")), "bare minus was accepted")?
+    require(is_none(i64.parse("+1")), "leading plus was accepted")?
+    require(is_none(u64.parse("-1")), "unsigned minus was accepted")?
+    require(is_none(i64.parse("--1")), "repeated minus was accepted")?
+    require(is_none(i64.parse(" 1")), "leading space was accepted")?
+    require(is_none(i64.parse("1 ")), "trailing space was accepted")?
+    require(is_none(i64.parse("1a")), "trailing character was accepted")?
+    require(is_none(i64.parse("١")), "non-ASCII digit was accepted")?
+    return
+}
+
+test every_integer_range_rejects_adjacent_values {
+    require(is_none(i8.parse("-129")), "i8 lower overflow was accepted")?
+    require(is_none(i8.parse("128")), "i8 upper overflow was accepted")?
+    require(is_none(i16.parse("-32769")), "i16 lower overflow was accepted")?
+    require(is_none(i16.parse("32768")), "i16 upper overflow was accepted")?
+    require(is_none(i32.parse("-2147483649")), "i32 lower overflow was accepted")?
+    require(is_none(i32.parse("2147483648")), "i32 upper overflow was accepted")?
+    require(
+        is_none(i64.parse("-9223372036854775809")),
+        "i64 lower overflow was accepted",
+    )?
+    require(
+        is_none(i64.parse("9223372036854775808")),
+        "i64 upper overflow was accepted",
+    )?
+    require(
+        is_none(isize.parse("-9223372036854775809")),
+        "isize lower overflow was accepted",
+    )?
+    require(
+        is_none(isize.parse("9223372036854775808")),
+        "isize upper overflow was accepted",
+    )?
+    require(is_none(u8.parse("256")), "u8 overflow was accepted")?
+    require(is_none(u16.parse("65536")), "u16 overflow was accepted")?
+    require(is_none(u32.parse("4294967296")), "u32 overflow was accepted")?
+    require(
+        is_none(u64.parse("18446744073709551616")),
+        "u64 overflow was accepted",
+    )?
+    require(
+        is_none(usize.parse("18446744073709551616")),
+        "usize overflow was accepted",
+    )?
+
+    let signed8 = i8.parse("127") otherwise {
+        return error.new("std.num.range", "i8 maximum was rejected")
+    }
+    let signed16 = i16.parse("32767") otherwise {
+        return error.new("std.num.range", "i16 maximum was rejected")
+    }
+    let signed32 = i32.parse("2147483647") otherwise {
+        return error.new("std.num.range", "i32 maximum was rejected")
+    }
+    let signed64 = i64.parse("9223372036854775807") otherwise {
+        return error.new("std.num.range", "i64 maximum was rejected")
+    }
+    let signed_size = isize.parse("9223372036854775807") otherwise {
+        return error.new("std.num.range", "isize maximum was rejected")
+    }
+    require(signed8 == 127, "i8 maximum changed")?
+    require(signed16 == 32767, "i16 maximum changed")?
+    require(signed32 == 2147483647, "i32 maximum changed")?
+    require(signed64 == 9223372036854775807, "i64 maximum changed")?
+    require(signed_size == 9223372036854775807, "isize maximum changed")?
+    return
+}
+
+test every_integer_round_trips_through_its_owned_text {
+    let signed8: i8 = -128
+    let signed16: i16 = -32768
+    let signed32: i32 = -2147483648
+    let signed64: i64 = -9223372036854775808
+    let signed_size: isize = -9223372036854775808
+    let unsigned8: u8 = 255
+    let unsigned16: u16 = 65535
+    let unsigned32: u32 = 4294967295
+    let unsigned64: u64 = 18446744073709551615
+    let unsigned_size: usize = 18446744073709551615
+
+    let signed8_text = signed8.to_string()
+    let signed16_text = signed16.to_string()
+    let signed32_text = signed32.to_string()
+    let signed64_text = signed64.to_string()
+    let signed_size_text = signed_size.to_string()
+    let unsigned8_text = unsigned8.to_string()
+    let unsigned16_text = unsigned16.to_string()
+    let unsigned32_text = unsigned32.to_string()
+    let unsigned64_text = unsigned64.to_string()
+    let unsigned_size_text = unsigned_size.to_string()
+
+    let reparsed_i8 = i8.parse(&signed8_text) otherwise {
+        return error.new("std.num.round_trip", "i8 text was rejected")
+    }
+    let reparsed_i16 = i16.parse(&signed16_text) otherwise {
+        return error.new("std.num.round_trip", "i16 text was rejected")
+    }
+    let reparsed_i32 = i32.parse(&signed32_text) otherwise {
+        return error.new("std.num.round_trip", "i32 text was rejected")
+    }
+    let reparsed_i64 = i64.parse(&signed64_text) otherwise {
+        return error.new("std.num.round_trip", "i64 text was rejected")
+    }
+    let reparsed_isize = isize.parse(&signed_size_text) otherwise {
+        return error.new("std.num.round_trip", "isize text was rejected")
+    }
+    let reparsed_u8 = u8.parse(&unsigned8_text) otherwise {
+        return error.new("std.num.round_trip", "u8 text was rejected")
+    }
+    let reparsed_u16 = u16.parse(&unsigned16_text) otherwise {
+        return error.new("std.num.round_trip", "u16 text was rejected")
+    }
+    let reparsed_u32 = u32.parse(&unsigned32_text) otherwise {
+        return error.new("std.num.round_trip", "u32 text was rejected")
+    }
+    let reparsed_u64 = u64.parse(&unsigned64_text) otherwise {
+        return error.new("std.num.round_trip", "u64 text was rejected")
+    }
+    let reparsed_usize = usize.parse(&unsigned_size_text) otherwise {
+        return error.new("std.num.round_trip", "usize text was rejected")
+    }
+    require(reparsed_i8 == signed8, "i8 round trip failed")?
+    require(reparsed_i16 == signed16, "i16 round trip failed")?
+    require(reparsed_i32 == signed32, "i32 round trip failed")?
+    require(reparsed_i64 == signed64, "i64 round trip failed")?
+    require(reparsed_isize == signed_size, "isize round trip failed")?
+    require(reparsed_u8 == unsigned8, "u8 round trip failed")?
+    require(reparsed_u16 == unsigned16, "u16 round trip failed")?
+    require(reparsed_u32 == unsigned32, "u32 round trip failed")?
+    require(reparsed_u64 == unsigned64, "u64 round trip failed")?
+    require(reparsed_usize == unsigned_size, "usize round trip failed")?
+    return
+}
+
+test recoverable_integer_text_uses_the_supplied_allocator {
+    var allocator = page_try_allocator()
+    let signed8: i8 = -128
+    let signed16: i16 = -32768
+    let signed32: i32 = -2147483648
+    let signed64: i64 = -9223372036854775808
+    let signed_size: isize = -9223372036854775808
+    let unsigned8: u8 = 255
+    let unsigned16: u16 = 65535
+    let unsigned32: u32 = 4294967295
+    let unsigned64: u64 = 18446744073709551615
+    let unsigned_size: usize = 18446744073709551615
+
+    require_text(signed8.try_to_string(&+allocator)?, "-128")?
+    require_text(signed16.try_to_string(&+allocator)?, "-32768")?
+    require_text(signed32.try_to_string(&+allocator)?, "-2147483648")?
+    require_text(
+        signed64.try_to_string(&+allocator)?,
+        "-9223372036854775808",
+    )?
+    require_text(
+        signed_size.try_to_string(&+allocator)?,
+        "-9223372036854775808",
+    )?
+    require_text(unsigned8.try_to_string(&+allocator)?, "255")?
+    require_text(unsigned16.try_to_string(&+allocator)?, "65535")?
+    require_text(unsigned32.try_to_string(&+allocator)?, "4294967295")?
+    require_text(
+        unsigned64.try_to_string(&+allocator)?,
+        "18446744073709551615",
+    )?
+    require_text(
+        unsigned_size.try_to_string(&+allocator)?,
+        "18446744073709551615",
+    )?
     return
 }

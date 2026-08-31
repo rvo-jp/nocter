@@ -53,10 +53,11 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the published v0.22.0 language, including the v0.20.0
-interface-prerequisite foundation, v0.21.0 associative collections, and v0.22.0 JSON standard
-module. Implementation phases and qualification evidence belong only to contributor records and
-are intentionally not restated in the public specification. The
+This working tree specifies the qualified v0.23.0 candidate, including the v0.20.0
+interface-prerequisite foundation, v0.21.0 associative collections, v0.22.0 JSON standard module,
+and the complete type-owned integer text surface. The latest published release remains v0.22.0.
+Implementation phases and qualification evidence belong only to contributor records and are
+intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
 

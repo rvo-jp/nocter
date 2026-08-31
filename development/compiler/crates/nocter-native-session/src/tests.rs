@@ -1054,7 +1054,87 @@ fn standard_num_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard numeric tests failed native compilation")
     };
-    assert_eq!(cases.len(), 4);
+    assert_eq!(cases.len(), 8);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+#[test]
+fn integer_text_propagates_recoverable_allocator_failure() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"numeric\", module: \"./num\" }\n");
+
+    let mut mem_contract = fs::read_to_string(standard_root.join("mem/index.nct")).unwrap();
+    mem_contract.push_str("\npub(/) func failing_try_allocator_for_test(): TryAllocator\n");
+
+    let mut mem_storage = fs::read_to_string(standard_root.join("mem/storage.nct")).unwrap();
+    mem_storage.push_str(concat!(
+        "\nfunc failing_try_allocator_for_test(): TryAllocator {\n",
+        "    return TryAllocator { state: 0, kind: 99 }\n",
+        "}\n",
+    ));
+
+    let num_contract = format!(
+        "see ./allocator_failure_tests.nct\n{}",
+        fs::read_to_string(standard_root.join("num/index.nct")).unwrap()
+    );
+    let num_failure_tests = concat!(
+        "see ./index.nct\n",
+        "use /mem.failing_try_allocator_for_test\n",
+        "test recoverable_integer_text_propagates_allocator_failure {\n",
+        "    var allocator = failing_try_allocator_for_test()\n",
+        "    let value: i64 = -9223372036854775808\n",
+        "    let _text = value.try_to_string(&+allocator) catch failure {\n",
+        "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+        "        return error.new(\"std.num.allocator\", \"wrong allocator failure\")\n",
+        "    }\n",
+        "    return error.new(\"std.num.allocator\", \"invalid allocator succeeded\")\n",
+        "}\n",
+    );
+
+    let mut overlay = SourceOverlay::builder();
+    for (path, source) in [
+        (standard_root.join("index.nct"), root_source),
+        (standard_root.join("mem/index.nct"), mem_contract),
+        (standard_root.join("mem/storage.nct"), mem_storage),
+        (standard_root.join("num/index.nct"), num_contract),
+        (
+            standard_root.join("num/allocator_failure_tests.nct"),
+            num_failure_tests.to_string(),
+        ),
+    ] {
+        overlay
+            .insert_source(path, SourceOverride::new(source.into_bytes()))
+            .unwrap();
+    }
+
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["num"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("allocator failure numeric tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 9);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

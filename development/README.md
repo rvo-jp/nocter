@@ -1,7 +1,8 @@
 # Contributor Documentation
 
-Nocter has published and externally audited v0.22.0 with a compiler built from the language
-specification. The v0.13.0 compiler implementation was not an input to the rewrite.
+Nocter has published and externally audited v0.22.0. The working tree is a qualified v0.23.0
+candidate with a compiler built from the language specification. The v0.13.0 compiler
+implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
 corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
@@ -10,6 +11,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.23.0 milestone](milestones/v0.23.0.md)
+- [v0.23.0 Phase 3 qualification and full review](reviews/v0.23.0-phase-3.md)
 - [v0.23.0 Phase 2 type-owned API review](reviews/v0.23.0-phase-2.md)
 - [v0.23.0 Phase 1 decimal authority review](reviews/v0.23.0-phase-1.md)
 - [Completed v0.22.0 milestone](milestones/v0.22.0.md)

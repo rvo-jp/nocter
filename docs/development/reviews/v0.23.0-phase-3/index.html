@@ -3,38 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/iter/mutable.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/iter/mutable.nct.">
+    <title>v0.23.0 Phase 3 Qualification and Full Review - Nocter</title>
+    <meta name="description" content="Status: complete (2026-08-31). Phases 0 through 3 are qualified. Release preparation and publication are outside this review.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/iter/mutable/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.23.0-phase-3/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/iter/mutable.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/iter/mutable.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/iter/mutable/">
+    <meta property="og:title" content="v0.23.0 Phase 3 Qualification and Full Review - Nocter">
+    <meta property="og:description" content="Status: complete (2026-08-31). Phases 0 through 3 are qualified. Release preparation and publication are outside this review.">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.23.0-phase-3/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="article:modified_time" content="2026-08-28">
+    <meta property="article:modified_time" content="2026-08-31">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/iter/mutable.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/iter/mutable.nct.">
+    <meta name="twitter:title" content="v0.23.0 Phase 3 Qualification and Full Review - Nocter">
+    <meta name="twitter:description" content="Status: complete (2026-08-31). Phases 0 through 3 are qualified. Release preparation and publication are outside this review.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/iter/mutable.nct - Nocter","description":"Nocter source code for development/std/iter/mutable.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/iter/mutable/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Iter","item":"https://nocter.dev/development/std/iter/"},{"@type":"ListItem","position":5,"name":"Mutable","item":"https://nocter.dev/development/std/iter/mutable/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.23.0 Phase 3 Qualification and Full Review - Nocter","description":"Status: complete (2026-08-31). Phases 0 through 3 are qualified. Release preparation and publication are outside this review.","url":"https://nocter.dev/development/reviews/v0.23.0-phase-3/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.23.0-phase-3/","dateModified":"2026-08-31","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.23.0 Phase 3","item":"https://nocter.dev/development/reviews/v0.23.0-phase-3/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -45,7 +45,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -120,84 +120,58 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/v0.23.0/index.html#content">Active v0.23.0 milestone</a></li>
-                <li><a href="../../../reviews/v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 qualification and full review</a></li>
-                <li><a href="../../../reviews/v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
-                <li><a href="../../../reviews/v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 decimal authority review</a></li>
-                <li><a href="../../../milestones/v0.22.0/index.html#content">Completed v0.22.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.22.0-release-preparation/index.html#content">v0.22.0 release preparation</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
-                <li><a href="../../../reviews/v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
-                <li><a href="../../../docs/json-implementation/index.html#content">JSON implementation boundary</a></li>
-                <li><a href="../../../milestones/v0.21.0/index.html#content">Completed v0.21.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.21.0-release-preparation/index.html#content">v0.21.0 release preparation</a></li>
-                <li><a href="../../../reviews/v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 practical qualification review</a></li>
-                <li><a href="../../../reviews/v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 iteration and Set review</a></li>
-                <li><a href="../../../reviews/v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
-                <li><a href="../../../docs/associative-collection-implementation/index.html#content">Associative collection implementation boundary</a></li>
-                <li><a href="../../../milestones/v0.20.0/index.html#content">Completed v0.20.0 compiler-foundation milestone</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query-entry review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic-computation review</a></li>
-                <li><a href="../../../reviews/v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
-                <li><a href="../../../milestones/v0.19.0/index.html#content">Completed v0.19.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.19.0-release-preparation/index.html#content">v0.19.0 release preparation</a></li>
-                <li><a href="../../../milestones/v0.18.0/index.html#content">Completed v0.18.0 milestone</a></li>
-                <li><a href="../../../milestones/v0.18.0-release-preparation/index.html#content">v0.18.0 release preparation</a></li>
-                <li><a href="../../../reviews/index.html#content">Design reviews</a></li>
-                <li><a href="../../../releases/v0.22.0/index.html#content">Latest published release qualification</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
-                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.23.0 Phase 3 qualification and full review</a></li>
+                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 type-owned API review</a></li>
+                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 decimal authority review</a></li>
+                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON design review</a></li>
+                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 lexical and Unicode review</a></li>
+                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 owning DOM parser review</a></li>
+                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 shared generator review</a></li>
+                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 practical integration review</a></li>
+                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 standard-library stabilization review</a></li>
+                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 practical qualification review</a></li>
+                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 iteration and Set review</a></li>
+                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 private-table and Map review</a></li>
+                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 hash-foundation review</a></li>
+                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review</a></li>
+                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 associative-collection design review</a></li>
+                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 dependency-local exact-selection review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 unified query entry review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 incremental semantic computation review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 interface-prerequisite review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 stabilization review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 filesystem traversal review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 streaming text input review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 collection ordering review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 recursive text-search review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 construction review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 builtin declaration review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 interface implementation review</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 persistent authority review</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 persistent semantic authority record</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 semantic tooling reconstruction record</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 analysis authority reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 final design review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 grammar closure audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/iter/mutable.nct</span>
+                <span class="markdown-path-text">/development/reviews/v0.23.0-phase-3.md</span>
             </div>
             <div class="markdown-body">
-                <h1>mutable.nct</h1><pre><code class="language-nocter"><span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>adapters<span class="token-operator">.</span>nct
-
-<span class="token-comment">//! Allocation-free mutable iteration over contiguous views.</span>
-
-<span class="token-keyword">construct</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">func</span> <span class="token-function">from_view</span><span class="token-operator">(</span>view<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">T</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-            view<span class="token-operator">:</span> view<span class="token-operator">,</span>
-            next_index<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
-        <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">MutableViewIter</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">remaining_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> self<span class="token-operator">.</span>view<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - self<span class="token-operator">.</span>next_index
-    <span class="token-operator">}</span>
-
-    <span class="token-comment">/// Advances and returns an exclusive element borrow, or `none` at exhaustion.</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">T</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-        <span class="token-keyword">if</span> self<span class="token-operator">.</span>next_index <span class="token-operator">&gt;</span><span class="token-operator">=</span> self<span class="token-operator">.</span>view<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> <span class="token-keyword">none</span>
-        <span class="token-operator">}</span>
-        <span class="token-keyword">let</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>next_index
-        self<span class="token-operator">.</span>next_index <span class="token-operator">=</span> index <span class="token-operator">+</span> <span class="token-number">1</span>
-        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>view<span class="token-operator">[</span>index<span class="token-operator">]</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="v0-23-0-phase-3-qualification-and-full-review">v0.23.0 Phase 3 Qualification and Full Review</h1><p><strong>Status: complete (2026-08-31).</strong> Phases 0 through 3 are qualified. Release preparation and publication are outside this review.</p><h2 id="behavioral-qualification">Behavioral Qualification</h2><p>The native <code>std/num</code> target executes eight ordinary standard tests. They cover every integer surface, exact signed and unsigned grammar, all destination extrema, the adjacent rejected values, canonical text, parse/format round trips, and successful explicit allocation. A separate source overlay supplies a deliberately failing allocator through the <code>std/mem</code> contract and proves that <code>try_to_string</code> returns the allocator failure instead of aborting or reporting success.</p><p>Every runnable example checks against an isolated current compiler home. The four applications migrated to receiver-owned integer formatting also build and run natively. Dedicated language server requests verify constructor and member completion, normalized hover text, and definition navigation to <code>std/num/index.nct</code> for representative signed and unsigned types.</p><h2 id="responsibility-review">Responsibility Review</h2><ul><li><code>std/num/index.nct</code> is the sole public integer-text contract. No type-named free-function alias
+  remains in standard source, compiler fixtures, or examples.</li><li><code>std/num/decimal.nct</code> owns the only signed and unsigned lexical scans. Narrow destinations perform
+  range checks but do not rescan or reproduce decimal grammar.</li><li>Private primitive roles have exact source and result types. The runtime contract, selected
+  standard declaration, semantic primitive contract, and arm64 lowering agree; no generic
+  unchecked narrowing operation exists.</li><li><code>std/fmt</code> remains the sole decimal digit generator. <code>std/num/text.nct</code> owns only allocation policy
+  and destination construction, and depends on public formatter append contracts. <code>std/fmt</code> does
+  not depend on <code>std/num</code>.</li><li>Native tests consume discovered standard contracts and compiled test cases. Editor tests query
+  the same semantic standard declarations; neither reconstructs an API from source spelling.</li></ul><h2 id="residue-and-contract-audit">Residue and Contract Audit</h2><p>The full review searched for old declarations, duplicate scans, copied digit generation, dependency reversal, unchecked conversion exposure, and caller-discipline assumptions. It found and removed three concrete residues during qualification:</p><ol><li>1. an older completion test still required <code>i32</code> to have an empty construction surface;</li><li>the allocator-failure test initially rewrote an import by exact source text;</li><li>integer hover assertions had been added to a generic method-normalization test until that test
+   mixed unrelated editor responsibilities.</li></ol><p>The first now checks the real <code>i32.parse</code> semantic result. The second now adds an independent virtual test source through an explicit <code>see</code> edge, so it does not depend on the spelling or formatting of <code>num/tests.nct</code>. The third moved integer queries into their dedicated end-to-end test instead of suppressing the workspace line-count rule. No remaining finding has current user impact or an evident near-term failure mode. Mechanical per-type allocation adapters remain intentional: they publish distinct static method contracts while delegating all spelling decisions to <code>std/fmt</code>.</p><h2 id="repository-gates">Repository Gates</h2><p>Qualification includes locked workspace tests, warnings-denied Clippy, formatter verification, generated documentation, package-manifest validation, whitespace integrity, isolated-home example checks, and representative native example execution. The working tree specifies a qualified v0.23.0 candidate; v0.22.0 remains the latest published release.</p>
             </div>
         </main>
     </div>
@@ -213,6 +187,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>
