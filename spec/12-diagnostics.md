@@ -358,6 +358,9 @@ Source-backed checked-body diagnostics:
   consuming `for item in items`, and sole tail forwarding as `target(...items)`.
 - `E0410`: a readonly borrow does not target an addressable place. Constants and produced values
   must be used directly.
+- `E0411`: a `noalloc` callable can reach an allocation operation, a callable without an
+  allocation-free contract or body proof, a primitive whose registry effect is not
+  allocation-free, or destruction whose allocation effect cannot be proven absent.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

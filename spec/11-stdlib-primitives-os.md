@@ -41,6 +41,12 @@ itself require a new compiler primitive. A primitive is justified only when ordi
 cannot express the operation, such as issuing a target syscall, converting a borrow to an address,
 or constructing a view from trusted raw parts.
 
+A primitive function may publish `noalloc` only when the closed compiler primitive registry
+certifies that exact declaration role as allocation-free. Source spelling cannot upgrade an
+unknown primitive effect. The checker consumes the registry fact through declaration identity and
+uses the same callable-effect authority as ordinary bodies; the backend does not reinterpret the
+modifier.
+
 Every named built-in type has one `primitive type` declaration selected by exact source identity.
 That declaration's module owns ordinary source-defined instances and construction for the type:
 `str` is declared and owned by `std/str`, `error` by `std/error`, and boolean and integer types by

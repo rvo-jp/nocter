@@ -85,7 +85,8 @@ remain legal for unambiguous APIs, although canonical source omits them.
 For `T!`, the clause describes only the successful `T` value. Error storage remains part of
 compiler-owned escape analysis and does not force a `from` clause onto every fallible API. Omitting
 `from` does not promise allocation-free execution or storage independence from the active lexical
-region; future `noalloc` and `realtime` guarantees are outside the current language.
+region. The independent `noalloc` callable contract below provides the allocation guarantee;
+`realtime` is not part of the current language.
 
 Body-backed summaries infer fresh storage and exact path-sensitive origins from implementations.
 Bodyless abstract callables use their written clause or the shared zero/one-origin elision rule.
@@ -320,7 +321,97 @@ Result provenance applies both to source-level borrows and to pointer-backed own
 Raw pointers remain outside borrow checking, but an owning `String`, `Vec<T>`, or user-defined
 buffer still carries the allocation context responsible for its storage.
 
-The execution allocation requirement remains inferred and has no source annotation.
+The execution allocation-context requirement remains compiler-owned and inferred. It is distinct
+from the source-visible `noalloc` guarantee: a callable may need the current context only to destroy
+existing storage without allocating new storage.
+
+## No-allocation Callable Contracts
+
+`noalloc` is an optional callable guarantee. It asserts that no execution path of the callable can
+request new storage from a Nocter allocator:
+
+```nct
+pub noalloc func byte_count(text: &str): usize {
+    return text.len()
+}
+
+instance str {
+    pub noalloc method &self.len(): usize
+}
+
+noalloc drop Handle(&+self) {
+    release_without_allocation(self)
+}
+```
+
+An unqualified callable does not promise that allocation occurs. It simply exports no
+allocation-free guarantee. Removing an allocation from an unqualified implementation does not
+change its source contract; adding an allocation to a `noalloc` implementation is a contract
+error.
+
+The guarantee covers ordinary current-context allocation, explicit `Allocator` allocation, and
+recoverable `TryAllocator` allocation. Recoverable failure does not make an allocation operation
+allocation-free. It also covers allocation reached transitively through direct calls, selected
+methods, operators, coercions, typed literals, callbacks, closure bodies, interface defaults,
+implicit destruction, and compiler-registered primitives.
+
+The following operations do not by themselves violate `noalloc`:
+
+- stack-frame and local-value storage selected by the target ABI;
+- moving, borrowing, reading, or mutating already existing storage;
+- releasing existing storage without requesting replacement storage;
+- a target or operating-system operation that does not request storage through a Nocter allocator;
+- returning an owning value whose existing storage is moved from an input;
+- returning a static view or a storage-free value.
+
+`noalloc` therefore does not imply absence of deallocation, system calls, blocking, traps,
+recoverable failures, external side effects, or a hidden allocation-context ABI lane. Those facts
+must not be inferred from this guarantee.
+
+The compiler proves callable effects over semantic declaration identities and checked operations.
+It computes one program-wide least fixed point seeded by direct allocation operations and trusted
+primitive effects. A recursive component with no allocation seed is allocation-free. An unknown
+bodyless callable without a `noalloc` contract may allocate. Reachability follows checked control
+flow and does not depend on target optimization or dead-code elimination.
+
+A `noalloc` body may call an unqualified source-backed helper when the complete checked program
+proves that helper allocation-free. An abstract interface method, bodyless primitive, or callable
+value has no implementation proof at that boundary and must carry `noalloc` explicitly before a
+`noalloc` caller can rely on it. A primitive may declare the guarantee only when its closed
+compiler registry entry certifies the same effect.
+
+Callable types carry the guarantee before their invocation capability:
+
+```nct
+noalloc func(i32): bool
+noalloc &func(&T): bool
+noalloc &+func(&T): bool
+```
+
+A proven `noalloc` closure or callable is compatible with an otherwise identical unqualified
+callable contract; this erases the guarantee. The reverse conversion is invalid. Once erased by an
+unqualified callable binding, a later use cannot reconstruct the guarantee from a hidden witness.
+Generic code that invokes a callback from a `noalloc` body therefore requires a `noalloc` callable
+parameter contract.
+
+An interface method marked `noalloc` may be implemented only by an inherent method carrying the
+same guarantee. A `noalloc default method` is checked against its body and may rely only on
+allocation-free operations. Public contract/private body matching requires the modifier on both
+declarations; neither side may silently strengthen or weaken the other.
+
+Implicit destruction participates in the same proof. A generic `noalloc` body may destroy a type
+parameter only when its requirements establish allocation-free destruction, including the trivial
+case of `copy T`, or when ownership leaves the body without destruction. The current language does
+not add a separate authored drop-effect requirement; an otherwise unknown generic destructor is
+conservatively treated as possibly allocating.
+
+Result provenance remains independent. A `noalloc` callable may return caller-owned storage, and an
+allocating callable may return a result derived only from an input:
+
+```nct
+noalloc func identity(value: String): String { return move value }
+func view_after_work(text: &String): &str from text
+```
 
 ## Typed Literal Allocation
 

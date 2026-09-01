@@ -117,6 +117,11 @@ intrinsic `copy` requirements, callable `where` clauses, and source-visible resu
 supplied by analysis. Compiler-owned execution allocation and
 fresh-result storage do not appear as signature prose.
 
+An authored `noalloc` contract is source-visible and remains in normalized declaration, hover,
+signature-help, completion, and callable-type presentation. Tools do not synthesize `noalloc` for
+an unqualified callable merely because its current body is inferred allocation-free. Internal
+effect summaries are proof evidence, not additional source syntax.
+
 Declaration owners are shown when they disambiguate a member. Type hover presents the nominal type
 declaration and its documentation; it does not append the type's construction functions or typed
 literals. A struct body is shown only when the complete representation and every field are visible

@@ -17,8 +17,10 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Define the next milestone and its acceptance criteria before making further product changes. Do
-not infer scope from unfinished ideas or historical milestone plans.
+Implement [v0.25.0](milestones/v0.25.0.md) from the adopted `noalloc` specification. Phase 1 adds
+syntax and declaration identity without effect inference. Phase 2 then introduces the sole checked
+effect authority; later phases connect indirect behavior, standard contracts, and tooling without
+letting Machine context propagation become a second semantic producer.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

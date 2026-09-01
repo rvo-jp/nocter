@@ -137,6 +137,7 @@ match
 method
 move
 never
+noalloc
 none
 otherwise
 operator

@@ -60,6 +60,22 @@ Only methods without the `default` modifier are interface implementation require
 interface generic scope, with `Self` constrained by that exact interface declaration. It may use
 the interface's required methods, other unambiguous default methods, and ordinary visible APIs.
 
+`noalloc` is an independent callable guarantee. A required interface method may publish it, and a
+default method may publish it only when its complete body satisfies the transitive allocation proof:
+
+```nct
+pub interface Cursor {
+    pub noalloc method &self.position(): usize
+    pub noalloc default method &self.is_start(): bool {
+        return self.position() == 0
+    }
+}
+```
+
+The inherent method selected for a `noalloc` requirement carries the same guarantee. An unqualified
+interface method is conservatively allocation-capable at abstract call sites even when one current
+implementation happens not to allocate.
+
 Methods may declare generic parameters after the method name:
 
 ```nct
@@ -286,6 +302,12 @@ that keyword is reserved for nominal interface implementation.
 Fresh result storage and execution allocation are inferred behind callable boundaries. They do not
 change callable capability or structural callable compatibility. A callable `from` clause remains
 part of the structural contract because it names caller-managed origins retained by the result.
+
+The `noalloc` guarantee, when present, is also part of the structural callable contract. It appears
+before the capability as `noalloc func`, `noalloc &func`, or `noalloc &+func`. A proven
+allocation-free closure may satisfy either the guaranteed contract or an otherwise identical
+unqualified contract. Erasing the guarantee is one-way; an unqualified callable value cannot be
+used where `noalloc` is required merely because its hidden witness once had that property.
 
 The invocation surface is identical for all three capabilities: `callback(arguments)`. There are
 no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are statically specialized

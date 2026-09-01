@@ -240,8 +240,10 @@ parameter. Other declaration forms reject the modifier.
 ## Functions, Primitive Types, and Aliases
 
 ```text
-FunctionDeclaration = Visibility? "primitive"? "func" Name GenericParameters? Parameters
+FunctionDeclaration = Visibility? NoAllocModifier? "primitive"? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
+
+NoAllocModifier = "noalloc"
 
 PrimitiveTypeDeclaration = Visibility? "primitive" "type" PrimitiveTypeName
 
@@ -298,8 +300,8 @@ InterfaceMember = AssociatedTypeDeclaration
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
 InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 
-PublicInterfaceMethod = "pub" "default"? MethodSignature CallableBody
-ImplementationInterfaceMethod = "default" MethodSignature Block
+PublicInterfaceMethod = "pub" NoAllocModifier? "default"? MethodSignature CallableBody
+ImplementationInterfaceMethod = NoAllocModifier? "default" MethodSignature Block
 ```
 
 An interface contract member always writes bare `pub`; it cannot narrow its visibility
@@ -319,8 +321,8 @@ ConstructDeclaration = "construct" DeclarationTypePattern
 ConstructBody = "{" newline* ConstructMember
                 (newline+ ConstructMember)* newline* "}"
 
-ConstructMember = Visibility? ConstructionFunction
-                | Visibility? LiteralDeclaration
+ConstructMember = Visibility? NoAllocModifier? ConstructionFunction
+                | Visibility? NoAllocModifier? LiteralDeclaration
 
 ConstructionFunction = "func" Name GenericParameters? Parameters
                        CallableTail CallableBody
@@ -355,7 +357,7 @@ InstanceMember = InherentMethod
                | IndexOperator
                | ExpansionOperator
 
-InherentMethod = Visibility? MethodSignature CallableBody
+InherentMethod = Visibility? NoAllocModifier? MethodSignature CallableBody
 
 InterfaceImplementation = "impl" InterfaceApplication
 
@@ -367,22 +369,22 @@ AssociatedTypeBinding = "." Name "=" Type
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
 Receiver = "&" "self" | "&+" "self" | "self"
 
-CoercionDeclaration = Visibility? "coerce" BorrowReceiver "as" Type
+CoercionDeclaration = Visibility? NoAllocModifier? "coerce" BorrowReceiver "as" Type
                       CoercionProvenance? CallableBody
 BorrowReceiver = "&" "self" | "&+" "self"
 CoercionProvenance = "from" "self"
 
-EqualityOperator = Visibility? "operator" "(" "&" "self" "==" Name ":" "&" "Self" ")"
+EqualityOperator = Visibility? NoAllocModifier? "operator" "(" "&" "self" "==" Name ":" "&" "Self" ")"
                    ":" "bool" WhereClause? CallableBody
 
-OrderingOperator = Visibility? "operator" "(" "&" "self" "<" Name ":" "&" "Self" ")"
+OrderingOperator = Visibility? NoAllocModifier? "operator" "(" "&" "self" "<" Name ":" "&" "Self" ")"
                    ":" "bool" WhereClause? CallableBody
 
-IndexOperator = Visibility? "operator" "(" IndexReceiver "[" Parameter "]" ")"
+IndexOperator = Visibility? NoAllocModifier? "operator" "(" IndexReceiver "[" Parameter "]" ")"
                 ":" BorrowType ProvenanceClause? WhereClause? CallableBody
 IndexReceiver = "&" "self" | "&+" "self"
 
-ExpansionOperator = Visibility? "operator" "(" "..." ExpansionReceiver ")"
+ExpansionOperator = Visibility? NoAllocModifier? "operator" "(" "..." ExpansionReceiver ")"
                     ":" Type ProvenanceClause? WhereClause? CallableBody
 ExpansionReceiver = "&" "self" | "&+" "self" | "self"
 ```
@@ -420,7 +422,7 @@ target kind is legal for `construct`, `instance`, or `drop`.
 ## Drop and Test Declarations
 
 ```text
-DropDeclaration = "drop" DeclarationTypePattern "(" "&+" "self" ")" Block
+DropDeclaration = NoAllocModifier? "drop" DeclarationTypePattern "(" "&+" "self" ")" Block
 TestDeclaration = "test" Name Block
 ```
 
@@ -503,7 +505,7 @@ SliceType = "[" Type "]"
 FixedArrayType = "[" Type ";" Expression "]"
 GroupedType = "(" Type ")"
 
-CallableType = CallableCapability "func" "(" List(CallableParameter) ")"
+CallableType = NoAllocModifier? CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
 CallableCapability = ("&" | "&+")?
 CallableParameter = "..."? (Type | Name ":" Type)
@@ -532,6 +534,11 @@ type are part of structural callable identity.
 Because `&func` and `&+func` begin callable annotations, they are not parsed as an ordinary borrow
 prefix followed by a separate `func` type. Their leading capability describes how the statically
 selected witness may be invoked; it is not storage for an erased function object.
+
+`NoAllocModifier` is accepted only on callable declarations, drop declarations, and callable
+types. Its canonical position follows visibility and precedes `primitive`, `default`, the callable
+kind, or the callable capability. Repeating it or placing it on a nominal type, constant,
+interface, instance, test, parameter, or ordinary type has no production.
 
 A dotted named type has one syntax-tree shape. Resolution walks it from left to right: a module
 namespace prefix selects one exported type member, while a type prefix selects an associated type.

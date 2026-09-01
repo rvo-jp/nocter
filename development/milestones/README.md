@@ -7,8 +7,9 @@ in [`development/releases/`](../releases/README.md).
 
 ## Active Milestone
 
-No later milestone has been adopted. New product work requires an explicit milestone and acceptance
-criteria rather than extending a completed release record.
+The [v0.25.0 milestone](v0.25.0.md) adds the `noalloc` callable guarantee over one checker-owned
+positive effect summary. Phase 0 has fixed the public contract and architecture boundary;
+implementation is in progress.
 
 ## Completed Unpublished Milestone
 
