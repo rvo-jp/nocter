@@ -191,12 +191,10 @@ fn finish_checked_target(
             return Err(Box::new(failure_with_checked(error.into(), checked)));
         }
     };
-    let (program, source_index) = checked.into_parts();
-    let program = match TargetProgram::build_retaining_checked(program, snapshot) {
-        Ok(program) => program,
+    let (program, source_index) = match TargetProgram::build_checked_output(checked, snapshot) {
+        Ok(output) => output,
         Err(failure) => {
-            let (error, program) = (*failure).into_parts();
-            let checked = CheckedProgramOutput::new(program, source_index);
+            let (error, checked) = (*failure).into_parts();
             return Err(Box::new(CompileTargetFailure::new(
                 error.into(),
                 Some(SemanticEvidenceBundle::from_checked(checked)),

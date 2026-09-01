@@ -11,26 +11,6 @@ use super::{
 
 struct ProgramAnalysisQuery;
 
-/// Required semantic authority that was absent from an otherwise valid computation revision.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProgramAnalysisUnavailable {
-    Declarations,
-    DeclarationRecovery,
-    Preparation,
-    Finalization,
-}
-
-impl std::fmt::Display for ProgramAnalysisUnavailable {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self {
-            Self::Declarations => "declaration",
-            Self::DeclarationRecovery => "declaration-recovery",
-            Self::Preparation => "program-preparation",
-            Self::Finalization => "whole-program finalization",
-        })
-    }
-}
-
 /// Exact-current declaration rejection after its editor recovery continuation has completed.
 #[derive(Debug)]
 pub struct FailedDeclarationAnalysis {
@@ -52,7 +32,7 @@ pub enum ProgramAnalysisOutcome {
     BodiesRejected(super::FailedProgramFinalization),
     PreparationRejected(super::RejectedProgramPreparation),
     DeclarationsRejected(FailedDeclarationAnalysis),
-    Unavailable(ProgramAnalysisUnavailable),
+    Failed(Arc<super::SemanticQueryFailure>),
 }
 
 /// One source-complete semantic outcome inseparably paired with its exact discovery snapshot.
@@ -81,26 +61,31 @@ impl Query for ProgramAnalysisQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
+        if current.unit.has_syntax_errors() {
+            return Ok(ProgramAnalysisProduct {
+                outcome: ProgramAnalysisOutcome::Failed(Arc::new(
+                    super::SemanticQueryFailure::InvalidStageTransition(
+                        "complete-program query demanded for incomplete syntax",
+                    ),
+                )),
+                fingerprint: current.fingerprint,
+            });
+        }
         let declarations = super::declarations(database, key.clone())?;
         let outcome = match declarations.outcome() {
-            DeclarationQueryOutcome::Rejected(rejection) => {
-                let failure =
-                    current.unit.compile_input().ok().map(|input| {
-                        super::analyze_declaration_failure(&input, rejection.failure())
-                    });
-                failure.map_or(
-                    ProgramAnalysisOutcome::Unavailable(
-                        ProgramAnalysisUnavailable::DeclarationRecovery,
-                    ),
-                    |failure| {
-                        ProgramAnalysisOutcome::DeclarationsRejected(FailedDeclarationAnalysis {
-                            failure: Arc::new(failure),
-                        })
-                    },
-                )
-            }
-            DeclarationQueryOutcome::Unavailable => {
-                ProgramAnalysisOutcome::Unavailable(ProgramAnalysisUnavailable::Declarations)
+            DeclarationQueryOutcome::Rejected(rejection) => match current.unit.compile_input() {
+                Ok(input) => {
+                    ProgramAnalysisOutcome::DeclarationsRejected(FailedDeclarationAnalysis {
+                        failure: Arc::new(super::analyze_declaration_failure(
+                            &input,
+                            rejection.failure(),
+                        )),
+                    })
+                }
+                Err(error) => ProgramAnalysisOutcome::Failed(Arc::new(error.into())),
+            },
+            DeclarationQueryOutcome::Failed(failure) => {
+                ProgramAnalysisOutcome::Failed(Arc::clone(failure))
             }
             DeclarationQueryOutcome::Accepted(_) => {
                 let preparation = super::prepared_program(database, key.clone())?;
@@ -108,8 +93,8 @@ impl Query for ProgramAnalysisQuery {
                     ProgramPreparationOutcome::Rejected(rejection) => {
                         ProgramAnalysisOutcome::PreparationRejected(rejection.clone())
                     }
-                    ProgramPreparationOutcome::Unavailable => {
-                        ProgramAnalysisOutcome::Unavailable(ProgramAnalysisUnavailable::Preparation)
+                    ProgramPreparationOutcome::Failed(failure) => {
+                        ProgramAnalysisOutcome::Failed(Arc::clone(failure))
                     }
                     ProgramPreparationOutcome::Prepared(_) => {
                         let finalization = super::finalized_program(database, key.clone())?;
@@ -123,10 +108,8 @@ impl Query for ProgramAnalysisQuery {
                             ProgramFinalizationOutcome::Failed(rejection) => {
                                 ProgramAnalysisOutcome::BodiesRejected(rejection.clone())
                             }
-                            ProgramFinalizationOutcome::Unavailable => {
-                                ProgramAnalysisOutcome::Unavailable(
-                                    ProgramAnalysisUnavailable::Finalization,
-                                )
+                            ProgramFinalizationOutcome::QueryFailed(failure) => {
+                                ProgramAnalysisOutcome::Failed(Arc::clone(failure))
                             }
                         }
                     }

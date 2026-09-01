@@ -36,6 +36,15 @@ requests.
   source token; source authority and internal query revisions are separate identities.
 - One discovered unit supplies both semantic and exact-current fingerprints atomically.
 - Callers cannot access the raw computation database or demand an intermediate semantic query.
+- Authored rejection and compiler-domain integrity failure are separate outcomes. A rejected stage
+  prevents its downstream query from being demanded; projection or checking failure retains its
+  typed cause through session.
+- Complete, incomplete-syntax, declaration, preparation, body, and finalization queries validate
+  their own input capability. Correctness does not rely on an upstream caller remembering the
+  scheduler order.
+- The exact-current checking join is constructed only inside this crate. Workspace, session, and
+  protocol layers cannot independently pair reusable semantics, bindings, spellings, or source
+  projection.
 - Old overlay bytes, semantic inputs, and query products cannot accumulate beyond the retained
   source-revision window.
 - The crate owns no filesystem topology, package acquisition, session, target, native, or protocol

@@ -17,5 +17,7 @@ disallowed-methods = [
     { path = "nocter_checking::prepare_analysis_program_checking_recovering", reason = "incomplete editor traversal is private to nocter-compiler-computation" },
     { path = "nocter_checking::check_prepared_program_recovering", reason = "semantic query composition is private to nocter-compiler-computation" },
     { path = "nocter_checking::analyze_prepared_program_bodies", reason = "incomplete editor traversal is private to nocter-compiler-computation" },
+    { path = "nocter_checking::prepare_reusable_program_for_query", reason = "reusable preparation scheduling is private to nocter-compiler-computation" },
+    { path = "nocter_checking::ProgramBodyCheckingContext::new", reason = "the exact-current checking join is private to nocter-compiler-computation" },
     { path = "nocter_source_index::SourceIndex::issues", reason = "source projection integrity is consumed only by the analysis evidence kernel" },
 ]

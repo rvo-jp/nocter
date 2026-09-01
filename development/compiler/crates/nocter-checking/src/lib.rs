@@ -156,23 +156,20 @@ pub use names::{
     BodyScope, Capture, CaptureMode, LocalBinding, LocalBindingKind, NameResolution,
     NameResolutionError, NameRule, NameTarget, ResolvedBodyNames, ResolvedNameUse,
     ReusableBodyNameCatalogError, ReusableBodyNames, ReusableBodyNamesError,
-    ReusableBodyResolutionError, ScopeBinding, materialize_reusable_body_names, resolve_body_names,
-    resolve_reusable_body_names,
+    ReusableBodyResolutionError, ScopeBinding,
 };
 pub use nocter_constant_evaluation::ConstantExpressionRule;
 pub use nocter_frontend_bindings::{SourceOwnershipError, SourceOwnershipTable};
 pub use ownership::{DropTable, DropTableError};
-#[cfg(any(test, feature = "test-api"))]
-pub use preparation::prepare_program_checking;
 pub use preparation::{
     PreparationError, PreparationFailure, PreparationFailureEvidence, PreparationRepairEvidence,
     PreparedBodyAnalysis, PreparedChecking, PreparedSemanticProgram,
     QueriedProgramPreparationRejection, ReusablePreparedProgram,
     ReusableProgramPreparationQueryOutcome, prepare_analysis_program_checking_recovering,
-    prepare_program_checking_from_queried_names, prepare_program_checking_from_reusable_recovering,
-    prepare_program_checking_recovering, prepare_reusable_program,
-    prepare_reusable_program_for_query,
+    prepare_program_checking_recovering, prepare_reusable_program_for_query,
 };
+#[cfg(any(test, feature = "test-api"))]
+pub use preparation::{prepare_program_checking, prepare_reusable_program};
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, InterruptionEvidenceError};
 pub use source_visibility::{SourceAccessContext, SourceVisibilityError};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};

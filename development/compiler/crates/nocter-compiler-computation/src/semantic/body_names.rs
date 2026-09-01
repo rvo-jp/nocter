@@ -56,7 +56,7 @@ struct BodyNameQuery;
 pub enum BodyNameQueryOutcome {
     Resolved(Arc<nocter_checking::ReusableBodyNames>),
     Rejected(Arc<nocter_checking::QueriedBodyNameRejection>),
-    Unavailable,
+    Failed(Arc<super::SemanticQueryFailure>),
 }
 
 #[derive(Debug)]
@@ -108,39 +108,57 @@ impl Query for BodyNameQuery {
         let declarations = database.query::<DeclarationQuery>(key.scope.clone())?;
         let declaration_fingerprint = declarations.fingerprint();
         let DeclarationQueryOutcome::Accepted(declarations) = declarations.outcome() else {
-            return unavailable(database, key);
+            return failed(
+                database,
+                key,
+                match declarations.outcome() {
+                    DeclarationQueryOutcome::Failed(failure) => Arc::clone(failure),
+                    DeclarationQueryOutcome::Rejected(_) => {
+                        Arc::new(super::SemanticQueryFailure::InvalidStageTransition(
+                            "body-name query demanded after declaration rejection",
+                        ))
+                    }
+                    DeclarationQueryOutcome::Accepted(_) => {
+                        Arc::new(super::SemanticQueryFailure::InvalidStageTransition(
+                            "accepted declaration branch was not selected",
+                        ))
+                    }
+                },
+            );
         };
         let Some(identity) = declarations.body_identity(&key.source.path, key.source.locator)
         else {
-            return unavailable(database, key);
+            return failed(
+                database,
+                key,
+                Arc::new(super::SemanticQueryFailure::MissingBodyIdentity {
+                    path: key.source.path.clone(),
+                    locator: key.source.locator,
+                }),
+            );
         };
         let body = database.input::<BodySourceInput>(&key.source)?;
         let context =
             database.query::<super::body_context::BodySemanticContextQuery>(key.scope.clone())?;
-        let outcome = context.resolve_names(&body, identity);
-        let Some(outcome) = outcome else {
-            return unavailable(database, key);
+        let outcome = match context.resolve_names(&body, identity) {
+            Ok(outcome) => outcome,
+            Err(failure) => return failed(database, key, failure),
         };
-        let outcome = match outcome {
+        let (outcome, fingerprint) = match outcome {
             nocter_checking::ReusableBodyNameQueryOutcome::Resolved(resolved) => {
-                BodyNameQueryOutcome::Resolved(Arc::new(resolved))
-            }
-            nocter_checking::ReusableBodyNameQueryOutcome::Rejected(rejection) => {
-                BodyNameQueryOutcome::Rejected(Arc::new(rejection))
-            }
-        };
-        let fingerprint = match &outcome {
-            BodyNameQueryOutcome::Resolved(_) => {
                 let mut fingerprint = declaration_fingerprint.digest().to_vec();
                 fingerprint.extend_from_slice(&body.fingerprint.digest());
-                Fingerprint::from_bytes(&fingerprint)
+                (
+                    BodyNameQueryOutcome::Resolved(Arc::new(resolved)),
+                    Fingerprint::from_bytes(&fingerprint),
+                )
             }
-            BodyNameQueryOutcome::Rejected(_) => {
+            nocter_checking::ReusableBodyNameQueryOutcome::Rejected(rejection) => (
+                BodyNameQueryOutcome::Rejected(Arc::new(rejection)),
                 database
                     .input::<CurrentSourceScopeInput>(&key.scope)?
-                    .fingerprint
-            }
-            BodyNameQueryOutcome::Unavailable => unreachable!("constructed outcome"),
+                    .fingerprint,
+            ),
         };
         Ok(BodyNameQueryProduct {
             outcome,
@@ -149,13 +167,14 @@ impl Query for BodyNameQuery {
     }
 }
 
-fn unavailable(
+fn failed(
     database: &Database,
     key: &SemanticBodyKey,
+    failure: Arc<super::SemanticQueryFailure>,
 ) -> Result<BodyNameQueryProduct, ComputationError> {
     let current = database.input::<CurrentSourceScopeInput>(&key.scope)?;
     Ok(BodyNameQueryProduct {
-        outcome: BodyNameQueryOutcome::Unavailable,
+        outcome: BodyNameQueryOutcome::Failed(failure),
         fingerprint: current.fingerprint,
     })
 }
@@ -165,7 +184,7 @@ fn unavailable(
 /// # Errors
 ///
 /// Returns only computation-kernel failures. Authored rejection is a first-class exact-current
-/// query outcome; unavailable is reserved for an earlier missing authority or internal failure.
+/// query outcome; an earlier rejection and an integrity failure remain distinct products.
 pub(super) fn resolve_body_name(
     database: &Database,
     key: SemanticBodyKey,
@@ -175,9 +194,9 @@ pub(super) fn resolve_body_name(
 
 /// Demands the canonical body-name authority for every body declared by a program.
 ///
-/// The set is unavailable as a whole when any body cannot publish a reusable lexical result.
-/// This keeps fallback selection outside individual body queries while keeping query scheduling
-/// out of workspace orchestration.
+/// An authored body rejection remains in the complete set. An integrity failure aborts set
+/// assembly with its typed cause. This keeps branch selection outside individual body queries
+/// while keeping query scheduling out of workspace orchestration.
 ///
 /// # Errors
 ///
@@ -185,10 +204,23 @@ pub(super) fn resolve_body_name(
 pub(super) fn resolved_body_names(
     database: &Database,
     scope: &SemanticScopeKey,
-) -> Result<Option<BodyNameSet>, ComputationError> {
+) -> Result<super::SemanticStage<BodyNameSet>, ComputationError> {
     let declarations = database.query::<DeclarationQuery>(scope.clone())?;
     let DeclarationQueryOutcome::Accepted(declarations) = declarations.outcome() else {
-        return Ok(None);
+        let failure = match declarations.outcome() {
+            DeclarationQueryOutcome::Failed(failure) => Arc::clone(failure),
+            DeclarationQueryOutcome::Rejected(_) => {
+                Arc::new(super::SemanticQueryFailure::InvalidStageTransition(
+                    "body-name set demanded after declaration rejection",
+                ))
+            }
+            DeclarationQueryOutcome::Accepted(_) => {
+                Arc::new(super::SemanticQueryFailure::InvalidStageTransition(
+                    "accepted declaration branch was not selected",
+                ))
+            }
+        };
+        return Ok(Err(failure));
     };
     let mut entries = Vec::with_capacity(declarations.body_identities().len());
     let mut rejections = Vec::new();
@@ -202,12 +234,14 @@ pub(super) fn resolved_body_names(
             BodyNameQueryOutcome::Rejected(rejection) => {
                 rejections.push(Arc::clone(rejection));
             }
-            BodyNameQueryOutcome::Unavailable => return Ok(None),
+            BodyNameQueryOutcome::Failed(failure) => {
+                return Ok(Err(Arc::clone(failure)));
+            }
         }
     }
     entries.sort_unstable_by_key(|names| names.body());
     rejections.sort_unstable_by_key(|rejection| rejection.body());
-    Ok(Some(BodyNameSet {
+    Ok(Ok(BodyNameSet {
         entries: entries.into_boxed_slice(),
         rejections: rejections.into_boxed_slice(),
     }))

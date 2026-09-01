@@ -50,6 +50,10 @@ protocol values.
 - Declaration-only evidence retains the originating lowering or checking recovery product intact;
   session never reconstructs an authority from independently supplied graph, type, ownership, and
   source-index values.
+- Target rejection retains the checking-owned output intact; session cannot reconstruct checked
+  semantics from a returned program and a separately retained source projection.
+- Compiler-domain query failure retains its typed originating cause rather than being translated
+  into a generic missing-authority state.
 - Lexical rejection opens the finalization query's exact-current recovery branch.
   Session translates its typed diagnostic and recovery evidence without invoking name resolution,
   checking preparation, or body checking.

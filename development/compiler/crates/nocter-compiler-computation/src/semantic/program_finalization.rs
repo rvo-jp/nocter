@@ -61,7 +61,7 @@ pub enum ProgramFinalizationOutcome {
     Checked(Arc<FinalizedProgram>),
     NamesRejected(FailedProgramNameResolution),
     Failed(FailedProgramFinalization),
-    Unavailable,
+    QueryFailed(Arc<super::SemanticQueryFailure>),
 }
 
 #[derive(Debug)]
@@ -89,22 +89,44 @@ impl Query for ProgramFinalizationQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let declarations = database.query::<DeclarationQuery>(key.clone())?;
-        let DeclarationQueryOutcome::Accepted(declarations) = declarations.outcome() else {
-            return unavailable(database, key);
+        let declarations = match declarations.outcome() {
+            DeclarationQueryOutcome::Accepted(declarations) => declarations,
+            DeclarationQueryOutcome::Failed(failure) => {
+                return query_failed(database, key, Arc::clone(failure));
+            }
+            DeclarationQueryOutcome::Rejected(_) => {
+                return invalid_transition(
+                    database,
+                    key,
+                    "program finalization demanded after declaration rejection",
+                );
+            }
         };
         let preparation = super::prepared_program(database, key.clone())?;
-        let ProgramPreparationOutcome::Prepared(_) = preparation.outcome() else {
-            return unavailable(database, key);
-        };
-        let Some(body_names) = super::resolved_body_names(database, key)? else {
-            return unavailable(database, key);
+        match preparation.outcome() {
+            ProgramPreparationOutcome::Prepared(_) => {}
+            ProgramPreparationOutcome::Failed(failure) => {
+                return query_failed(database, key, Arc::clone(failure));
+            }
+            ProgramPreparationOutcome::Rejected(_) => {
+                return invalid_transition(
+                    database,
+                    key,
+                    "program finalization demanded after preparation rejection",
+                );
+            }
+        }
+        let body_names = match super::resolved_body_names(database, key)? {
+            Ok(body_names) => body_names,
+            Err(failure) => return query_failed(database, key, failure),
         };
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         let context =
             database.query::<super::body_context::BodySemanticContextQuery>(key.clone())?;
         if !body_names.rejections().is_empty() {
-            let Some(failure) = context.materialize_name_rejection(&body_names) else {
-                return unavailable(database, key);
+            let failure = match context.materialize_name_rejection(&body_names) {
+                Ok(failure) => failure,
+                Err(failure) => return query_failed(database, key, failure),
             };
             return Ok(ProgramFinalizationProduct {
                 outcome: ProgramFinalizationOutcome::NamesRejected(FailedProgramNameResolution {
@@ -113,11 +135,13 @@ impl Query for ProgramFinalizationQuery {
                 fingerprint: current.fingerprint,
             });
         }
-        let Some(typed_bodies) = super::typed_bodies(database, key)? else {
-            return unavailable(database, key);
+        let typed_bodies = match super::typed_bodies(database, key)? {
+            Ok(typed_bodies) => typed_bodies,
+            Err(failure) => return query_failed(database, key, failure),
         };
-        let Some(checked) = context.finalize(&body_names, &typed_bodies) else {
-            return unavailable(database, key);
+        let checked = match context.finalize(&body_names, &typed_bodies) {
+            Ok(checked) => checked,
+            Err(failure) => return query_failed(database, key, failure),
         };
         let outcome = match checked {
             nocter_checking::QueriedProgramFinalizationOutcome::Checked(checked) => {
@@ -139,13 +163,26 @@ impl Query for ProgramFinalizationQuery {
     }
 }
 
-fn unavailable(
+fn invalid_transition(
     database: &Database,
     key: &SemanticScopeKey,
+    message: &'static str,
+) -> Result<ProgramFinalizationProduct, ComputationError> {
+    query_failed(
+        database,
+        key,
+        Arc::new(super::SemanticQueryFailure::InvalidStageTransition(message)),
+    )
+}
+
+fn query_failed(
+    database: &Database,
+    key: &SemanticScopeKey,
+    failure: Arc<super::SemanticQueryFailure>,
 ) -> Result<ProgramFinalizationProduct, ComputationError> {
     let current = database.input::<CurrentSourceScopeInput>(key)?;
     Ok(ProgramFinalizationProduct {
-        outcome: ProgramFinalizationOutcome::Unavailable,
+        outcome: ProgramFinalizationOutcome::QueryFailed(failure),
         fingerprint: current.fingerprint,
     })
 }

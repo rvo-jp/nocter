@@ -15,7 +15,7 @@ struct TypedBodyQuery;
 pub enum TypedBodyQueryOutcome {
     Checked(Arc<nocter_checking::ReusableCheckedBody>),
     Rejected(Arc<nocter_checking::QueriedBodyRejection>),
-    Unavailable,
+    Failed(Arc<super::SemanticQueryFailure>),
 }
 
 #[derive(Debug)]
@@ -64,36 +64,41 @@ impl Query for TypedBodyQuery {
         let name_product = super::resolve_body_name(database, key.clone())?;
         let names = match name_product.outcome() {
             BodyNameQueryOutcome::Resolved(names) => names,
-            BodyNameQueryOutcome::Rejected(_) | BodyNameQueryOutcome::Unavailable => {
-                return unavailable(database, key);
+            BodyNameQueryOutcome::Rejected(_) => {
+                return failed(
+                    database,
+                    key,
+                    Arc::new(super::SemanticQueryFailure::InvalidStageTransition(
+                        "typed-body query demanded after body-name rejection",
+                    )),
+                );
+            }
+            BodyNameQueryOutcome::Failed(failure) => {
+                return failed(database, key, Arc::clone(failure));
             }
         };
         let body = database.input::<super::BodySourceInput>(key.source())?;
         let context =
             database.query::<super::body_context::BodySemanticContextQuery>(key.scope().clone())?;
-        let Some(outcome) = context.check_body(&body, names) else {
-            return unavailable(database, key);
+        let outcome = match context.check_body(&body, names) {
+            Ok(outcome) => outcome,
+            Err(failure) => return failed(database, key, failure),
         };
-        let outcome = match outcome {
+        let (outcome, fingerprint) = match outcome {
             nocter_checking::ReusableBodyQueryOutcome::Checked(checked) => {
-                TypedBodyQueryOutcome::Checked(Arc::new(checked))
-            }
-            nocter_checking::ReusableBodyQueryOutcome::Rejected(rejection) => {
-                TypedBodyQueryOutcome::Rejected(Arc::new(rejection))
-            }
-        };
-        let fingerprint = match &outcome {
-            TypedBodyQueryOutcome::Checked(_) => {
                 let mut fingerprint = name_product.fingerprint().digest().to_vec();
                 fingerprint.extend_from_slice(&body.fingerprint.digest());
-                Fingerprint::from_bytes(&fingerprint)
+                (
+                    TypedBodyQueryOutcome::Checked(Arc::new(checked)),
+                    Fingerprint::from_bytes(&fingerprint),
+                )
             }
-            TypedBodyQueryOutcome::Rejected(_) => {
+            nocter_checking::ReusableBodyQueryOutcome::Rejected(rejection) => (
+                TypedBodyQueryOutcome::Rejected(Arc::new(rejection)),
                 database
                     .input::<CurrentSourceScopeInput>(key.scope())?
-                    .fingerprint
-            }
-            TypedBodyQueryOutcome::Unavailable => unreachable!("constructed outcome"),
+                    .fingerprint,
+            ),
         };
         Ok(TypedBodyQueryProduct {
             outcome,
@@ -102,13 +107,14 @@ impl Query for TypedBodyQuery {
     }
 }
 
-fn unavailable(
+fn failed(
     database: &Database,
     key: &SemanticBodyKey,
+    failure: Arc<super::SemanticQueryFailure>,
 ) -> Result<TypedBodyQueryProduct, ComputationError> {
     let current = database.input::<CurrentSourceScopeInput>(key.scope())?;
     Ok(TypedBodyQueryProduct {
-        outcome: TypedBodyQueryOutcome::Unavailable,
+        outcome: TypedBodyQueryOutcome::Failed(failure),
         fingerprint: current.fingerprint,
     })
 }
@@ -118,7 +124,7 @@ fn unavailable(
 /// # Errors
 ///
 /// Returns only computation-kernel failures. Authored rejection is a first-class exact-current
-/// query outcome; unavailable is reserved for an earlier missing authority or internal failure.
+/// query outcome; an earlier rejection and an integrity failure remain distinct products.
 pub(super) fn typed_body(
     database: &Database,
     key: SemanticBodyKey,
@@ -134,10 +140,23 @@ pub(super) fn typed_body(
 pub(super) fn typed_bodies(
     database: &Database,
     scope: &SemanticScopeKey,
-) -> Result<Option<TypedBodySet>, ComputationError> {
+) -> Result<super::SemanticStage<TypedBodySet>, ComputationError> {
     let declarations = database.query::<DeclarationQuery>(scope.clone())?;
     let DeclarationQueryOutcome::Accepted(declarations) = declarations.outcome() else {
-        return Ok(None);
+        let failure = match declarations.outcome() {
+            DeclarationQueryOutcome::Failed(failure) => Arc::clone(failure),
+            DeclarationQueryOutcome::Rejected(_) => {
+                Arc::new(super::SemanticQueryFailure::InvalidStageTransition(
+                    "typed-body set demanded after declaration rejection",
+                ))
+            }
+            DeclarationQueryOutcome::Accepted(_) => {
+                Arc::new(super::SemanticQueryFailure::InvalidStageTransition(
+                    "accepted declaration branch was not selected",
+                ))
+            }
+        };
+        return Ok(Err(failure));
     };
     let mut entries = Vec::with_capacity(declarations.body_identities().len());
     let mut rejections = Vec::new();
@@ -151,12 +170,14 @@ pub(super) fn typed_bodies(
             TypedBodyQueryOutcome::Rejected(rejection) => {
                 rejections.push(Arc::clone(rejection));
             }
-            TypedBodyQueryOutcome::Unavailable => return Ok(None),
+            TypedBodyQueryOutcome::Failed(failure) => {
+                return Ok(Err(Arc::clone(failure)));
+            }
         }
     }
     entries.sort_unstable_by_key(|checked| checked.body());
     rejections.sort_unstable_by_key(|rejection| rejection.body());
-    Ok(Some(TypedBodySet {
+    Ok(Ok(TypedBodySet {
         entries: entries.into_boxed_slice(),
         rejections: rejections.into_boxed_slice(),
     }))

@@ -167,6 +167,7 @@ pub fn lower_compile_unit_declarations(
 ///
 /// Returns the exact production lowering error and optional editor recovery. Earlier-stage and
 /// internal-integrity failures never expose a recovery program.
+#[cfg(any(test, feature = "test-api"))]
 pub fn lower_compile_unit_declarations_recovering(
     input: &CompileUnitInput<'_>,
 ) -> Result<LoweredDeclarations, DeclarationLoweringFailure> {

@@ -1,5 +1,7 @@
 //! Current-generation context shared by body queries.
 
+#![allow(clippy::disallowed_methods)]
+
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
@@ -18,8 +20,13 @@ struct BodySemanticContext {
 }
 
 pub(super) struct BodySemanticContextProduct {
-    context: Option<BodySemanticContext>,
+    state: BodySemanticContextState,
     fingerprint: Fingerprint,
+}
+
+enum BodySemanticContextState {
+    Ready(Box<BodySemanticContext>),
+    Failed(Arc<super::SemanticQueryFailure>),
 }
 
 impl BodySemanticContextProduct {
@@ -40,9 +47,16 @@ impl BodySemanticContextProduct {
         &self,
         _exact_body: &super::BodySourceValue,
         identity: &nocter_declaration_lowering::ReusableBodyIdentity,
-    ) -> Option<nocter_checking::ReusableBodyNameQueryOutcome> {
-        let context = self.context.as_ref()?;
-        let input = context.unit.compile_input().ok()?;
+    ) -> Result<nocter_checking::ReusableBodyNameQueryOutcome, Arc<super::SemanticQueryFailure>>
+    {
+        let context = match &self.state {
+            BodySemanticContextState::Ready(context) => context,
+            BodySemanticContextState::Failed(failure) => return Err(Arc::clone(failure)),
+        };
+        let input = context
+            .unit
+            .compile_input()
+            .map_err(|error| Arc::new(error.into()))?;
         context
             .checking
             .resolve_names(
@@ -50,7 +64,7 @@ impl BodySemanticContextProduct {
                 context.projection.frontend_bindings(),
                 identity.body(),
             )
-            .ok()
+            .map_err(|error| Arc::new(error.into()))
     }
 
     /// Types only after the exact body and its source-neutral lexical result have been demanded.
@@ -58,22 +72,35 @@ impl BodySemanticContextProduct {
         &self,
         _exact_body: &super::BodySourceValue,
         names: &nocter_checking::ReusableBodyNames,
-    ) -> Option<nocter_checking::ReusableBodyQueryOutcome> {
-        let context = self.context.as_ref()?;
-        let input = context.unit.compile_input().ok()?;
+    ) -> Result<nocter_checking::ReusableBodyQueryOutcome, Arc<super::SemanticQueryFailure>> {
+        let context = match &self.state {
+            BodySemanticContextState::Ready(context) => context,
+            BodySemanticContextState::Failed(failure) => return Err(Arc::clone(failure)),
+        };
+        let input = context
+            .unit
+            .compile_input()
+            .map_err(|error| Arc::new(error.into()))?;
         context
             .checking
             .check(&input, context.projection.frontend_bindings(), names)
-            .ok()
+            .map_err(|error| Arc::new(error.into()))
     }
 
     pub(super) fn finalize(
         &self,
         body_names: &super::BodyNameSet,
         typed_bodies: &super::TypedBodySet,
-    ) -> Option<nocter_checking::QueriedProgramFinalizationOutcome> {
-        let context = self.context.as_ref()?;
-        let input = context.unit.compile_input().ok()?;
+    ) -> Result<nocter_checking::QueriedProgramFinalizationOutcome, Arc<super::SemanticQueryFailure>>
+    {
+        let context = match &self.state {
+            BodySemanticContextState::Ready(context) => context,
+            BodySemanticContextState::Failed(failure) => return Err(Arc::clone(failure)),
+        };
+        let input = context
+            .unit
+            .compile_input()
+            .map_err(|error| Arc::new(error.into()))?;
         let (names, name_rejections) = Self::queried_name_inputs(body_names);
         let bodies = typed_bodies
             .entries()
@@ -95,15 +122,22 @@ impl BodySemanticContextProduct {
                 &bodies,
                 &body_rejections,
             )
-            .ok()
+            .map_err(|error| Arc::new(super::SemanticQueryFailure::ProgramFinalization(error)))
     }
 
     pub(super) fn materialize_name_rejection(
         &self,
         body_names: &super::BodyNameSet,
-    ) -> Option<nocter_checking::QueriedNameResolutionFailure> {
-        let context = self.context.as_ref()?;
-        let input = context.unit.compile_input().ok()?;
+    ) -> Result<nocter_checking::QueriedNameResolutionFailure, Arc<super::SemanticQueryFailure>>
+    {
+        let context = match &self.state {
+            BodySemanticContextState::Ready(context) => context,
+            BodySemanticContextState::Failed(failure) => return Err(Arc::clone(failure)),
+        };
+        let input = context
+            .unit
+            .compile_input()
+            .map_err(|error| Arc::new(error.into()))?;
         let (names, rejections) = Self::queried_name_inputs(body_names);
         let failure = context
             .checking
@@ -113,8 +147,15 @@ impl BodySemanticContextProduct {
                 &names,
                 &rejections,
             )
-            .err()?;
-        nocter_checking::QueriedNameResolutionFailure::from_preparation_failure(failure).ok()
+            .err()
+            .ok_or_else(|| Arc::new(super::SemanticQueryFailure::UnexpectedAcceptedNameCatalog))?;
+        nocter_checking::QueriedNameResolutionFailure::from_preparation_failure(failure).map_err(
+            |failure| {
+                Arc::new(super::SemanticQueryFailure::NameRejectionMaterialization(
+                    failure,
+                ))
+            },
+        )
     }
 }
 
@@ -131,36 +172,70 @@ impl Query for BodySemanticContextQuery {
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let declarations = database.query::<DeclarationQuery>(key.clone())?;
         let declaration_fingerprint = declarations.fingerprint();
-        let preparation = super::prepared_program(database, key.clone())?;
         let current = database.input::<CurrentSourceScopeInput>(key)?;
-        let context = match (declarations.outcome(), preparation.outcome()) {
-            (
-                DeclarationQueryOutcome::Accepted(declarations),
-                ProgramPreparationOutcome::Prepared(prepared),
-            ) => current.unit.compile_input().ok().and_then(|input| {
-                let projection = declarations.materialize_projection(&input).ok()?;
-                let checking = nocter_checking::ProgramBodyCheckingContext::new(
-                    prepared,
-                    projection.checking_symbols().spellings(),
-                    projection.frontend_bindings(),
-                    projection.source_index().clone(),
-                );
-                Some(BodySemanticContext {
-                    unit: Arc::clone(&current.unit),
-                    projection,
-                    checking,
-                })
-            }),
-            _ => None,
+        let declarations = match declarations.outcome() {
+            DeclarationQueryOutcome::Accepted(declarations) => declarations,
+            DeclarationQueryOutcome::Failed(failure) => {
+                return Ok(BodySemanticContextProduct {
+                    state: BodySemanticContextState::Failed(Arc::clone(failure)),
+                    fingerprint: current.fingerprint,
+                });
+            }
+            DeclarationQueryOutcome::Rejected(_) => {
+                return Ok(BodySemanticContextProduct {
+                    state: BodySemanticContextState::Failed(Arc::new(
+                        super::SemanticQueryFailure::InvalidStageTransition(
+                            "body context demanded after declaration rejection",
+                        ),
+                    )),
+                    fingerprint: current.fingerprint,
+                });
+            }
         };
-        let fingerprint = if context.is_some() {
+        let preparation = super::prepared_program(database, key.clone())?;
+        let prepared = match preparation.outcome() {
+            ProgramPreparationOutcome::Prepared(prepared) => prepared,
+            ProgramPreparationOutcome::Failed(failure) => {
+                return Ok(BodySemanticContextProduct {
+                    state: BodySemanticContextState::Failed(Arc::clone(failure)),
+                    fingerprint: current.fingerprint,
+                });
+            }
+            ProgramPreparationOutcome::Rejected(_) => {
+                return Ok(BodySemanticContextProduct {
+                    state: BodySemanticContextState::Failed(Arc::new(
+                        super::SemanticQueryFailure::InvalidStageTransition(
+                            "body context demanded after preparation rejection",
+                        ),
+                    )),
+                    fingerprint: current.fingerprint,
+                });
+            }
+        };
+        let state = match current.unit.compile_input() {
+            Ok(input) => match declarations.materialize_projection(&input) {
+                Ok(projection) => {
+                    let checking = nocter_checking::ProgramBodyCheckingContext::new(
+                        prepared,
+                        projection.checking_symbols().spellings(),
+                        projection.frontend_bindings(),
+                        projection.source_index().clone(),
+                    );
+                    BodySemanticContextState::Ready(Box::new(BodySemanticContext {
+                        unit: Arc::clone(&current.unit),
+                        projection,
+                        checking,
+                    }))
+                }
+                Err(error) => BodySemanticContextState::Failed(Arc::new(error.into())),
+            },
+            Err(error) => BodySemanticContextState::Failed(Arc::new(error.into())),
+        };
+        let fingerprint = if matches!(state, BodySemanticContextState::Ready(_)) {
             declaration_fingerprint
         } else {
             current.fingerprint
         };
-        Ok(BodySemanticContextProduct {
-            context,
-            fingerprint,
-        })
+        Ok(BodySemanticContextProduct { state, fingerprint })
     }
 }

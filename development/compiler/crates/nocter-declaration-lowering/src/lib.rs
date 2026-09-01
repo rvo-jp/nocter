@@ -75,13 +75,12 @@ pub use imports::{
 };
 pub use namespace::{NamespaceRule, NamespaceViolation};
 pub use namespace_diagnostic::NamespaceDiagnostic;
-#[cfg(any(test, feature = "test-api"))]
-pub use pipeline::lower_compile_unit_declarations;
 pub use pipeline::{
     DeclarationLoweringError, DeclarationLoweringFailure,
-    lower_compile_unit_declarations_recovering, lower_incomplete_body_declarations_recovering,
-    lower_reusable_declarations,
+    lower_incomplete_body_declarations_recovering, lower_reusable_declarations,
 };
+#[cfg(any(test, feature = "test-api"))]
+pub use pipeline::{lower_compile_unit_declarations, lower_compile_unit_declarations_recovering};
 pub use projection_recipe::{
     FrontendProjectionRecipe, ProjectionRecipeError, ReusableBodyIdentity,
 };

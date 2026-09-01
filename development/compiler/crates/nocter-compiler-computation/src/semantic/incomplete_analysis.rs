@@ -66,14 +66,20 @@ impl IncompleteSemanticAnalysis {
 /// Exact-current query product paired with the discovery snapshot that justified it.
 #[derive(Debug)]
 pub struct IncompleteAnalysisProduct {
-    analysis: Option<IncompleteSemanticAnalysis>,
+    outcome: IncompleteAnalysisOutcome,
     fingerprint: Fingerprint,
+}
+
+#[derive(Debug)]
+pub enum IncompleteAnalysisOutcome {
+    Analyzed(IncompleteSemanticAnalysis),
+    Failed(Arc<super::SemanticQueryFailure>),
 }
 
 impl IncompleteAnalysisProduct {
     #[must_use]
-    pub const fn analysis(&self) -> Option<&IncompleteSemanticAnalysis> {
-        self.analysis.as_ref()
+    pub const fn outcome(&self) -> &IncompleteAnalysisOutcome {
+        &self.outcome
     }
 }
 
@@ -89,8 +95,17 @@ impl Query for IncompleteAnalysisQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
+        let outcome = if current.unit.has_syntax_errors() {
+            IncompleteAnalysisOutcome::Analyzed(analyze_incomplete_semantics(&current.unit))
+        } else {
+            IncompleteAnalysisOutcome::Failed(Arc::new(
+                super::SemanticQueryFailure::InvalidStageTransition(
+                    "incomplete-syntax query demanded for complete syntax",
+                ),
+            ))
+        };
         Ok(IncompleteAnalysisProduct {
-            analysis: analyze_incomplete_semantics(&current.unit),
+            outcome,
             fingerprint: current.fingerprint,
         })
     }
@@ -111,29 +126,26 @@ pub(super) fn incomplete_analysis(
 /// Runs the one compiler-domain incomplete-syntax traversal demanded by the incremental query
 /// graph.
 #[must_use]
-pub(super) fn analyze_incomplete_semantics(
+fn analyze_incomplete_semantics(
     unit: &nocter_discovery::DiscoveredUnit,
-) -> Option<IncompleteSemanticAnalysis> {
-    if !unit.has_syntax_errors() {
-        return None;
-    }
+) -> IncompleteSemanticAnalysis {
     let input = match unit.analysis_input() {
         Ok(input) => input,
         Err(error) => {
-            return Some(IncompleteSemanticAnalysis {
+            return IncompleteSemanticAnalysis {
                 failure: Some(IncompleteSemanticFailure {
                     error: IncompleteSemanticError::CompileInput(error),
                     evidence: None,
                 }),
-            });
+            };
         }
     };
     let lowered = match lower_incomplete_body_declarations_recovering(&input) {
         Ok(lowered) => lowered,
         Err(failure) => {
-            return Some(IncompleteSemanticAnalysis {
+            return IncompleteSemanticAnalysis {
                 failure: Some(continue_declaration_failure(&input, failure)),
-            });
+            };
         }
     };
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
@@ -146,14 +158,14 @@ pub(super) fn analyze_incomplete_semantics(
         Ok(prepared) => prepared,
         Err(failure) => {
             let (error, evidence) = failure.into_parts();
-            return Some(IncompleteSemanticAnalysis {
+            return IncompleteSemanticAnalysis {
                 failure: Some(IncompleteSemanticFailure {
                     error: IncompleteSemanticError::Preparation(error),
                     evidence: evidence
                         .map(Box::new)
                         .map(IncompleteSemanticEvidence::Preparation),
                 }),
-            });
+            };
         }
     };
     let failure = nocter_checking::check_prepared_program_recovering(&input, prepared)
@@ -167,7 +179,7 @@ pub(super) fn analyze_incomplete_semantics(
                     .map(IncompleteSemanticEvidence::Bodies),
             }
         });
-    Some(IncompleteSemanticAnalysis { failure })
+    IncompleteSemanticAnalysis { failure }
 }
 
 fn continue_declaration_failure(

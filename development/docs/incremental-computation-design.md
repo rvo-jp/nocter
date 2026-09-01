@@ -115,8 +115,15 @@ Incomplete syntax uses one exact-current child query. The top-level unit query s
 incomplete analysis before the result leaves compiler computation. Command, workspace, session,
 analysis, and LSP layers therefore cannot assign different meanings to the same syntax hole.
 
-`Unavailable` denotes a missing required authority or computation-integrity failure. It never
-authorizes an eager fallback from an earlier stage and never becomes an authored diagnostic.
+Authored rejection and compiler-domain integrity failure are distinct query outcomes. A rejected
+stage prevents its downstream query from being demanded, so "not reached" is control flow rather
+than a stored semantic state. Integrity failures retain their original typed cause through the unit
+product and session boundary; they never collapse into missing authority or become an authored
+diagnostic.
+
+Every semantic query also validates the capability required by its stage. The unit query remains
+the sole scheduler, but correctness does not depend on that caller selecting a valid complete,
+incomplete, declaration, preparation, body, or finalization transition.
 
 ## Source Projection
 

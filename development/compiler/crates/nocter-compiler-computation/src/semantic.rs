@@ -2,6 +2,7 @@
 
 mod body_context;
 mod body_names;
+mod failure;
 mod incomplete_analysis;
 mod program_analysis;
 mod program_finalization;
@@ -12,15 +13,14 @@ mod unit_analysis;
 use body_names::{
     BodyNameQueryOutcome, BodyNameSet, SemanticBodyKey, resolve_body_name, resolved_body_names,
 };
+pub use failure::SemanticQueryFailure;
 pub use incomplete_analysis::{
     IncompleteSemanticAnalysis, IncompleteSemanticError, IncompleteSemanticEvidence,
     IncompleteSemanticFailure,
 };
 use incomplete_analysis::{analyze_declaration_failure, incomplete_analysis};
 use program_analysis::analyzed_program;
-pub use program_analysis::{
-    ProgramAnalysisOutcome, ProgramAnalysisProduct, ProgramAnalysisUnavailable,
-};
+pub use program_analysis::{ProgramAnalysisOutcome, ProgramAnalysisProduct};
 pub use program_finalization::FinalizedProgram;
 use program_finalization::{
     FailedProgramFinalization, FailedProgramNameResolution, ProgramFinalizationOutcome,
@@ -30,7 +30,7 @@ use program_preparation::{
     ProgramPreparationOutcome, RejectedProgramPreparation, prepared_program,
 };
 use typed_bodies::{TypedBodySet, typed_bodies};
-pub use unit_analysis::{UnitAnalysisOutcome, UnitAnalysisProduct, UnitAnalysisUnavailable};
+pub use unit_analysis::{UnitAnalysisOutcome, UnitAnalysisProduct};
 
 use std::sync::Arc;
 
@@ -42,6 +42,8 @@ use nocter_declaration_lowering::{
     DeclarationLoweringFailure, ReusableDeclarations, lower_reusable_declarations,
 };
 use nocter_discovery::DiscoveredUnit;
+
+type SemanticStage<T> = Result<T, Arc<SemanticQueryFailure>>;
 
 /// Stable identity of one selected semantic compile scope.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -275,7 +277,7 @@ struct DeclarationQuery;
 pub enum DeclarationQueryOutcome {
     Accepted(Arc<ReusableDeclarations>),
     Rejected(RejectedDeclarations),
-    Unavailable,
+    Failed(Arc<SemanticQueryFailure>),
 }
 
 /// One declaration rejection stored only inside an exact-current query product.
@@ -321,6 +323,17 @@ impl Query for DeclarationQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let semantic = database.input::<DeclarationScopeInput>(key)?;
+        if semantic.unit.has_syntax_errors() {
+            let current = database.input::<CurrentSourceScopeInput>(key)?;
+            return Ok(DeclarationQueryProduct {
+                outcome: DeclarationQueryOutcome::Failed(Arc::new(
+                    SemanticQueryFailure::InvalidStageTransition(
+                        "complete declaration query demanded for incomplete syntax",
+                    ),
+                )),
+                fingerprint: current.fingerprint,
+            });
+        }
         let failure = match semantic.unit.compile_input() {
             Ok(input) => match lower_reusable_declarations(&input) {
                 Ok(lowered) => {
@@ -329,19 +342,22 @@ impl Query for DeclarationQuery {
                         fingerprint: semantic.fingerprint,
                     });
                 }
-                Err(failure) => Some(failure),
+                Err(failure) => failure,
             },
-            Err(_) => None,
+            Err(error) => {
+                let current = database.input::<CurrentSourceScopeInput>(key)?;
+                return Ok(DeclarationQueryProduct {
+                    outcome: DeclarationQueryOutcome::Failed(Arc::new(error.into())),
+                    fingerprint: current.fingerprint,
+                });
+            }
         };
 
         let current = database.input::<CurrentSourceScopeInput>(key)?;
-        let outcome = failure.map_or(DeclarationQueryOutcome::Unavailable, |failure| {
-            DeclarationQueryOutcome::Rejected(RejectedDeclarations {
-                failure: Arc::new(failure),
-            })
-        });
         Ok(DeclarationQueryProduct {
-            outcome,
+            outcome: DeclarationQueryOutcome::Rejected(RejectedDeclarations {
+                failure: Arc::new(failure),
+            }),
             fingerprint: current.fingerprint,
         })
     }

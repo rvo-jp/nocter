@@ -179,7 +179,7 @@ pub struct CheckedProgramOutput {
 
 impl CheckedProgramOutput {
     #[must_use]
-    pub const fn new(program: CheckedProgram, source_index: SourceIndex) -> Self {
+    pub(crate) const fn new(program: CheckedProgram, source_index: SourceIndex) -> Self {
         Self {
             program,
             source_index,

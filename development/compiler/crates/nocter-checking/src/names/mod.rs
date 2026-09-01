@@ -18,9 +18,11 @@ use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
 use nocter_syntax::NodeId;
 use nocter_syntax::SyntaxOrigin;
 
+#[cfg(test)]
+use crate::catalog_body_sources;
 use crate::{
     BodyNameEvidence, BodySourceCatalog, BodySourceError, NameRejection, QueriedBodyNameRejection,
-    ReusableBodyNameQueryOutcome, catalog_body_sources,
+    ReusableBodyNameQueryOutcome,
 };
 
 pub use diagnostic::NameRule;
@@ -211,7 +213,8 @@ impl From<BodySourceError> for NameResolutionInternalError {
 ///
 /// Returns an authored [`SourceDiagnostic`] for a body-name rule or an internal failure when the
 /// Phase 2 program, discovery input, syntax catalog, and source projection disagree.
-pub fn resolve_body_names<'syntax>(
+#[cfg(test)]
+pub(crate) fn resolve_body_names<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,
     bindings: &FrontendBindings,
@@ -228,7 +231,8 @@ pub fn resolve_body_names<'syntax>(
 ///
 /// Returns the body's authored or internal name-resolution failure, or an integrity failure while
 /// converting the accepted result into stable body-local locators and spellings.
-pub fn resolve_reusable_body_names(
+#[cfg(test)]
+pub(crate) fn resolve_reusable_body_names(
     input: &CompileUnitInput<'_>,
     graph: &DeclarationGraph,
     bindings: &FrontendBindings,
@@ -282,7 +286,8 @@ pub(crate) fn resolve_reusable_body_names_for_query(
 ///
 /// Returns an integrity failure when the current body shape, semantic identity, or symbol suffix
 /// differs from the reusable result's declared input domain.
-pub fn materialize_reusable_body_names(
+#[cfg(test)]
+pub(crate) fn materialize_reusable_body_names(
     reusable: &ReusableBodyNames,
     graph: &DeclarationGraph,
     source: crate::BodySource<'_>,
@@ -454,6 +459,7 @@ impl std::fmt::Display for ReusableBodyNameCatalogError {
 
 impl std::error::Error for ReusableBodyNameCatalogError {}
 
+#[cfg(test)]
 pub(crate) fn resolve_cataloged_body_names<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,

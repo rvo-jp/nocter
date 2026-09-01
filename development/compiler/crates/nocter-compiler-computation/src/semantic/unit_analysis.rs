@@ -8,28 +8,12 @@ use super::{CurrentSourceScopeInput, SemanticScopeKey};
 
 struct UnitAnalysisQuery;
 
-/// Required top-level authority absent from an otherwise valid computation revision.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum UnitAnalysisUnavailable {
-    Complete,
-    Incomplete,
-}
-
-impl std::fmt::Display for UnitAnalysisUnavailable {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(match self {
-            Self::Complete => "source-complete program analysis",
-            Self::Incomplete => "incomplete-syntax analysis",
-        })
-    }
-}
-
 /// Sole complete-or-incomplete semantic branch for one exact source revision.
 #[derive(Debug)]
 pub enum UnitAnalysisOutcome {
     Complete(Arc<super::ProgramAnalysisProduct>),
     Incomplete(super::IncompleteSemanticAnalysis),
-    Unavailable(UnitAnalysisUnavailable),
+    Failed(Arc<super::SemanticQueryFailure>),
 }
 
 /// One exact discovery snapshot paired inseparably with its closed semantic branch.
@@ -66,10 +50,14 @@ impl Query for UnitAnalysisQuery {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         let outcome = if current.unit.has_syntax_errors() {
             let incomplete = super::incomplete_analysis(database, key.clone())?;
-            incomplete.analysis().cloned().map_or(
-                UnitAnalysisOutcome::Unavailable(UnitAnalysisUnavailable::Incomplete),
-                UnitAnalysisOutcome::Incomplete,
-            )
+            match incomplete.outcome() {
+                super::incomplete_analysis::IncompleteAnalysisOutcome::Analyzed(analysis) => {
+                    UnitAnalysisOutcome::Incomplete(analysis.clone())
+                }
+                super::incomplete_analysis::IncompleteAnalysisOutcome::Failed(failure) => {
+                    UnitAnalysisOutcome::Failed(Arc::clone(failure))
+                }
+            }
         } else {
             let complete = super::analyzed_program(database, key.clone())?;
             UnitAnalysisOutcome::Complete(complete)
@@ -86,7 +74,8 @@ impl Query for UnitAnalysisQuery {
 ///
 /// # Errors
 ///
-/// Returns computation-kernel failures. Authored rejection remains inside the selected branch.
+/// Returns computation-kernel failures. Authored rejection and typed query-integrity failure
+/// remain inside the selected branch.
 pub(super) fn analyzed_unit(
     database: &Database,
     key: SemanticScopeKey,

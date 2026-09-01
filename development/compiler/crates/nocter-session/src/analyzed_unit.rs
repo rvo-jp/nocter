@@ -157,8 +157,8 @@ pub fn analyze_unit_from_query(
                 crate::analysis::incomplete_syntax_analysis(incomplete),
             ))
         }
-        nocter_semantic_product::UnitAnalysisOutcome::Unavailable(authority) => Err(
-            SemanticAnalysisDomainError::UnavailableUnitAnalysis(*authority),
+        nocter_semantic_product::UnitAnalysisOutcome::Failed(failure) => Err(
+            SemanticAnalysisDomainError::QueryFailure(Arc::clone(failure)),
         ),
     }
 }
@@ -190,10 +190,10 @@ fn analyzed_complete_unit(
         nocter_semantic_product::ProgramAnalysisOutcome::DeclarationsRejected(failed) => {
             analyzed_compilation_failure(unit, failure_from_incomplete_semantics(failed.failure()))
         }
-        nocter_semantic_product::ProgramAnalysisOutcome::Unavailable(authority) => {
-            return Err(SemanticAnalysisDomainError::UnavailableProgramAnalysis(
-                *authority,
-            ));
+        nocter_semantic_product::ProgramAnalysisOutcome::Failed(failure) => {
+            return Err(SemanticAnalysisDomainError::QueryFailure(Arc::clone(
+                failure,
+            )));
         }
     };
     Ok(analyzed)
@@ -228,27 +228,26 @@ fn analyzed_incomplete_unit(
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum SemanticAnalysisDomainError {
-    UnavailableUnitAnalysis(nocter_semantic_product::UnitAnalysisUnavailable),
-    UnavailableProgramAnalysis(nocter_semantic_product::ProgramAnalysisUnavailable),
+    QueryFailure(Arc<nocter_semantic_product::SemanticQueryFailure>),
 }
 
 impl std::fmt::Display for SemanticAnalysisDomainError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::UnavailableUnitAnalysis(authority) => {
-                write!(formatter, "unit analysis is missing {authority} authority")
-            }
-            Self::UnavailableProgramAnalysis(authority) => write!(
-                formatter,
-                "source-complete semantic analysis is missing {authority} authority"
-            ),
+            Self::QueryFailure(failure) => failure.fmt(formatter),
         }
     }
 }
 
-impl std::error::Error for SemanticAnalysisDomainError {}
+impl std::error::Error for SemanticAnalysisDomainError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::QueryFailure(failure) => Some(failure.as_ref()),
+        }
+    }
+}
 
 fn extend_unique_diagnostics(
     diagnostics: &mut Vec<nocter_diagnostics::SourceDiagnostic>,

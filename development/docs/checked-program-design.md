@@ -83,8 +83,8 @@ rejection retains its source diagnostic and only the recovery capability justifi
 
 A rejected branch cannot commit semantic mutations. Independently successful siblings may be
 replayed for editor evidence, but they cannot turn incomplete coverage into compilation success.
-An internal inconsistency is `Unavailable`; it cannot construct an authored diagnostic or trigger
-an eager fallback through session.
+An internal inconsistency is a typed `SemanticQueryFailure`; it cannot construct an authored
+diagnostic or trigger an eager fallback through session.
 
 ## Source Projection
 

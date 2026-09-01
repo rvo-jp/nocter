@@ -105,6 +105,74 @@ fn crate_names() -> Vec<String> {
     metadata_dependency_graph().keys().cloned().collect()
 }
 
+fn workspace_source(path: &str) -> String {
+    std::fs::read_to_string(workspace().join(path))
+        .unwrap_or_else(|error| panic!("read reviewed workspace source {path}: {error}"))
+}
+
+#[test]
+fn semantic_query_scheduler_and_checked_join_are_capability_closed() {
+    let checking_exports = workspace_source("crates/nocter-checking/src/lib.rs");
+    for removed in [
+        "prepare_program_checking_from_reusable_recovering",
+        "prepare_program_checking_from_queried_names",
+        "materialize_reusable_body_names",
+        "resolve_reusable_body_names",
+    ] {
+        assert!(
+            !checking_exports.contains(removed),
+            "obsolete checking scheduler {removed} remains publicly exported"
+        );
+    }
+
+    let lint_policy = workspace_source("clippy.toml");
+    for admitted_only_to_computation in [
+        "nocter_checking::prepare_reusable_program_for_query",
+        "nocter_checking::ProgramBodyCheckingContext::new",
+    ] {
+        assert!(
+            lint_policy.contains(admitted_only_to_computation),
+            "query capability {admitted_only_to_computation} is not workspace-restricted"
+        );
+    }
+
+    let checked_output = workspace_source("crates/nocter-checking/src/checked/program.rs");
+    assert!(
+        checked_output.contains("pub(crate) const fn new(program: CheckedProgram"),
+        "checked output must not expose a cross-crate parts constructor"
+    );
+    let session = workspace_source("crates/nocter-session/src/analysis.rs");
+    assert!(
+        !session.contains("CheckedProgramOutput::new"),
+        "session must not reconstruct checked semantic/source authority"
+    );
+
+    let target_program = workspace_source("crates/nocter-target-program/src/program.rs");
+    assert!(
+        !target_program.contains("    pub fn build(\n"),
+        "production target construction must consume the complete checked output"
+    );
+
+    for path in [
+        "crates/nocter-compiler-computation/src/semantic.rs",
+        "crates/nocter-compiler-computation/src/semantic/body_context.rs",
+        "crates/nocter-compiler-computation/src/semantic/body_names.rs",
+        "crates/nocter-compiler-computation/src/semantic/program_analysis.rs",
+        "crates/nocter-compiler-computation/src/semantic/program_finalization.rs",
+        "crates/nocter-compiler-computation/src/semantic/program_preparation.rs",
+        "crates/nocter-compiler-computation/src/semantic/typed_bodies.rs",
+        "crates/nocter-compiler-computation/src/semantic/unit_analysis.rs",
+    ] {
+        let source = workspace_source(path);
+        for erased_authority in [".ok()", "::NotReached", "Outcome::Unavailable"] {
+            assert!(
+                !source.contains(erased_authority),
+                "semantic authority in {path} is erased by {erased_authority}"
+            );
+        }
+    }
+}
+
 #[test]
 fn core_program_layers_keep_the_reviewed_dependency_direction() {
     let expected = [
@@ -129,6 +197,7 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
                 "nocter-declarations",
                 "nocter-model",
                 "nocter-runtime-contract",
+                "nocter-source-index",
                 "nocter-toolchain-contract",
             ][..],
         ),

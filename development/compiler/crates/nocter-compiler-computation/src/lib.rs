@@ -15,8 +15,8 @@ use nocter_filesystem::SourceOverlay;
 pub use semantic::{
     FinalizedProgram, IncompleteSemanticAnalysis, IncompleteSemanticError,
     IncompleteSemanticEvidence, IncompleteSemanticFailure, ProgramAnalysisOutcome,
-    ProgramAnalysisProduct, ProgramAnalysisUnavailable, SemanticInputError, UnitAnalysisOutcome,
-    UnitAnalysisProduct, UnitAnalysisUnavailable,
+    ProgramAnalysisProduct, SemanticInputError, SemanticQueryFailure, UnitAnalysisOutcome,
+    UnitAnalysisProduct,
 };
 
 const RETAINED_SOURCE_REVISIONS: usize = 32;

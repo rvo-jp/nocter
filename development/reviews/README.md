@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.25.0 Query Authority Closure Review](v0.25.0-query-authority-closure.md)
 - [v0.25.0 Architecture Follow-up Review](v0.25.0-architecture-follow-up.md)
 - [v0.25.0 No-allocation Contract Review](v0.25.0-noalloc-contracts.md)
 - [v0.24.0 Installation Image Identity Review](v0.24.0-installation-image-identity.md)

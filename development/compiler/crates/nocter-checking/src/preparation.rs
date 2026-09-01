@@ -728,6 +728,7 @@ struct ReusablePreparationFailure {
 ///
 /// Returns a program-wide declaration or authority failure. Editor recovery is composed only by
 /// the current-generation preparation endpoint, which owns the required source domain.
+#[cfg(any(test, feature = "test-api"))]
 pub fn prepare_reusable_program(
     input: &CompileUnitInput<'_>,
     program: AcceptedDeclarationProgram,
@@ -786,94 +787,6 @@ pub fn prepare_reusable_program_for_query(
             )))
         }
     }
-}
-
-/// Opens one current source generation from reusable program-wide authorities and resolves its
-/// body names without rebuilding those authorities.
-///
-/// # Errors
-///
-/// Returns current body-source or name-resolution failures. Source-backed name rejection retains
-/// the same typed recovery contract as ordinary preparation.
-pub fn prepare_program_checking_from_reusable_recovering<'syntax, S>(
-    input: &'syntax CompileUnitInput<'syntax>,
-    reusable: &ReusablePreparedProgram,
-    checking_spellings: impl IntoIterator<Item = S>,
-    bindings: &FrontendBindings,
-    source_index: SourceIndex,
-) -> Result<PreparedChecking<'syntax>, PreparationFailure>
-where
-    S: AsRef<str>,
-{
-    validate_preparation_target(input, reusable.graph())?;
-    let semantic = reusable.open_current(checking_spellings, bindings.source_access().clone());
-    let body_sources =
-        prepare_body_sources(input, semantic.graph(), bindings).map_err(PreparationFailure::new)?;
-    let resolution = resolve_cataloged_body_names_recovering(
-        input,
-        semantic.graph(),
-        bindings,
-        source_index,
-        body_sources,
-    );
-    let (body_sources, body_names, source_index) = match resolution {
-        Ok(resolution) => resolution.into_parts(),
-        Err(failure) => {
-            let recovery = failure.recovery.map(|partial| {
-                crate::NameAnalysisRecovery::new(
-                    semantic.graph().clone(),
-                    semantic.types().clone(),
-                    partial.bodies,
-                    bindings.source_ownership().clone(),
-                    partial.source_index,
-                )
-            });
-            let error = PreparationError::NameResolution(*failure.error);
-            return Err(match recovery {
-                Some(recovery) => PreparationFailure::with_name_recovery(error, Box::new(recovery)),
-                None => PreparationFailure::new(error),
-            });
-        }
-    };
-    Ok(PreparedChecking {
-        semantic,
-        body_sources,
-        body_names,
-        source_namespaces: bindings.source_namespaces().clone(),
-        source_index,
-    })
-}
-
-/// Opens one current source generation from reusable program and per-body lexical query outcomes.
-///
-/// This is the accepted query path: it catalogs current body syntax and rebinds stable body-local
-/// locators without running lexical resolution again.
-///
-/// # Errors
-///
-/// Returns a current source-domain or reusable-name integrity failure.
-pub fn prepare_program_checking_from_queried_names<'syntax, S>(
-    input: &'syntax CompileUnitInput<'syntax>,
-    reusable: &ReusablePreparedProgram,
-    checking_spellings: impl IntoIterator<Item = S>,
-    bindings: &FrontendBindings,
-    source_index: SourceIndex,
-    names: &[&crate::ReusableBodyNames],
-    rejections: &[&crate::QueriedBodyNameRejection],
-) -> Result<PreparedChecking<'syntax>, PreparationFailure>
-where
-    S: AsRef<str>,
-{
-    validate_preparation_target(input, reusable.graph())?;
-    let semantic = reusable.open_current(checking_spellings, bindings.source_access().clone());
-    prepare_program_checking_from_current_queried_names(
-        input,
-        semantic,
-        bindings,
-        source_index,
-        names,
-        rejections,
-    )
 }
 
 pub(crate) fn prepare_program_checking_from_current_queried_names<'syntax>(

@@ -26,13 +26,12 @@ fn complete_closed_registry_constructs_a_target_program() {
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
-    let (checked, _) = output.into_parts();
-    let standard_package = checked.graph().standard_package().unwrap();
-    let registry = registry_for(&checked);
+    let standard_package = output.program().graph().standard_package().unwrap();
+    let registry = registry_for(output.program());
     let snapshot =
         ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
             .unwrap();
-    let target = TargetProgram::build(checked, snapshot).unwrap();
+    let (target, _) = TargetProgram::build_checked_output(output, snapshot).unwrap();
     assert_eq!(
         target.checked().graph().target(),
         CompilationTarget::Arm64Darwin
@@ -52,16 +51,16 @@ fn target_rejection_returns_the_unchanged_checked_program() {
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
-    let (checked, _) = output.into_parts();
-    let standard_package = checked.graph().standard_package().unwrap();
-    let nonstandard_package = checked
+    let standard_package = output.program().graph().standard_package().unwrap();
+    let nonstandard_package = output
+        .program()
         .graph()
         .packages()
         .iter()
         .map(|(id, _)| id)
         .find(|id| *id != standard_package)
         .unwrap();
-    let registry = registry_for(&checked);
+    let registry = registry_for(output.program());
     let snapshot = ToolchainSnapshot::select(
         CompilationTarget::Arm64Darwin,
         nonstandard_package,
@@ -69,14 +68,17 @@ fn target_rejection_returns_the_unchanged_checked_program() {
     )
     .unwrap();
 
-    let failure = TargetProgram::build_retaining_checked(checked, snapshot).unwrap_err();
+    let failure = TargetProgram::build_checked_output(output, snapshot).unwrap_err();
     let (error, checked) = (*failure).into_parts();
     assert!(matches!(
         error,
         super::TargetProgramError::StandardPackageMismatch { .. }
     ));
-    assert_eq!(checked.graph().standard_package(), Some(standard_package));
-    assert!(!checked.bodies().is_empty());
+    assert_eq!(
+        checked.program().graph().standard_package(),
+        Some(standard_package)
+    );
+    assert!(!checked.program().bodies().is_empty());
 }
 
 #[test]
@@ -622,9 +624,8 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
-    let (checked, _) = output.into_parts();
-    let standard_package = checked.graph().standard_package().unwrap();
-    let registry = registry_for(&checked);
+    let standard_package = output.program().graph().standard_package().unwrap();
+    let registry = registry_for(output.program());
     let mut bindings = registry.bindings().to_vec();
     let left = bindings
         .iter()
@@ -644,7 +645,7 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
         PrimitiveRegistry::new(bindings).unwrap(),
     )
     .unwrap();
-    let target = TargetProgram::build(checked, snapshot).unwrap();
+    let (target, _) = TargetProgram::build_checked_output(output, snapshot).unwrap();
     assert_eq!(
         target
             .toolchain()
@@ -668,13 +669,14 @@ fn build_target_program(fixture: &Fixture) -> TargetProgram {
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     let output = check_prepared_program(&input, prepared).unwrap();
-    let (checked, _) = output.into_parts();
-    let standard_package = checked.graph().standard_package().unwrap();
-    let registry = registry_for(&checked);
+    let standard_package = output.program().graph().standard_package().unwrap();
+    let registry = registry_for(output.program());
     let snapshot =
         ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
             .unwrap();
-    TargetProgram::build(checked, snapshot).unwrap()
+    TargetProgram::build_checked_output(output, snapshot)
+        .unwrap()
+        .0
 }
 
 fn named_callable(target: &TargetProgram, expected: &str) -> nocter_model::CallableId {

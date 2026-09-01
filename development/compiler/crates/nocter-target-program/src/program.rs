@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_checking::CheckedProgram;
+use nocter_checking::{CheckedProgram, CheckedProgramOutput};
 use nocter_model::{CompilationTarget, PackageId};
 
 use crate::primitive_contracts::validate_primitive_registry;
@@ -17,34 +17,21 @@ pub struct TargetProgram {
 }
 
 impl TargetProgram {
-    /// Validates and freezes one checked program against one immutable toolchain snapshot.
+    /// Validates and freezes a closed checked output while retaining that exact output when only
+    /// the target boundary rejects it.
     ///
     /// # Errors
     ///
-    /// Returns a typed boundary failure when target capability, standard-package authority,
-    /// or primitive contracts are incomplete.
-    pub fn build(
-        checked: CheckedProgram,
+    /// Returns the target-program error together with the still-valid closed checked output.
+    pub fn build_checked_output(
+        checked: CheckedProgramOutput,
         toolchain: ToolchainSnapshot,
-    ) -> Result<Self, TargetProgramError> {
-        validate_target_program(&checked, &toolchain)?;
-        Ok(Self { checked, toolchain })
-    }
-
-    /// Validates and freezes a checked program while returning the unchanged semantic input when
-    /// only the target boundary rejects it.
-    ///
-    /// # Errors
-    ///
-    /// Returns the target-program error together with the still-valid checked semantic program.
-    pub fn build_retaining_checked(
-        checked: CheckedProgram,
-        toolchain: ToolchainSnapshot,
-    ) -> Result<Self, Box<TargetProgramFailure>> {
-        if let Err(error) = validate_target_program(&checked, &toolchain) {
+    ) -> Result<(Self, nocter_source_index::SourceIndex), Box<TargetProgramFailure>> {
+        if let Err(error) = validate_target_program(checked.program(), &toolchain) {
             return Err(Box::new(TargetProgramFailure { error, checked }));
         }
-        Ok(Self { checked, toolchain })
+        let (checked, source_index) = checked.into_parts();
+        Ok((Self { checked, toolchain }, source_index))
     }
 
     #[must_use]
@@ -92,12 +79,12 @@ fn validate_target_program(
 #[derive(Debug)]
 pub struct TargetProgramFailure {
     error: TargetProgramError,
-    checked: CheckedProgram,
+    checked: CheckedProgramOutput,
 }
 
 impl TargetProgramFailure {
     #[must_use]
-    pub fn into_parts(self) -> (TargetProgramError, CheckedProgram) {
+    pub fn into_parts(self) -> (TargetProgramError, CheckedProgramOutput) {
         (self.error, self.checked)
     }
 }
