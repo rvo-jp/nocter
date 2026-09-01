@@ -2,12 +2,12 @@ use nocter_checking::CheckedProgramOutput;
 use nocter_discovery::DiscoveredUnit;
 use nocter_target_program::{TargetProgram, ToolchainSnapshot};
 
-use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle};
+use crate::{CompileSessionError, CompileSessionFailure, CompiledTarget, SemanticEvidenceBundle};
 
 /// A failed target analysis and the exact current-generation semantic evidence that remains valid.
 #[derive(Debug)]
 pub(crate) struct CompileTargetFailure {
-    error: CompileSessionError,
+    failure: CompileSessionFailure,
     semantic: Option<Box<SemanticEvidenceBundle>>,
     diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
 }
@@ -18,6 +18,7 @@ pub(crate) struct CompileTargetFailure {
 /// exact evidence contract reached by that attempt.
 #[derive(Debug)]
 pub(crate) struct IncompleteSyntaxAnalysis {
+    failure: Option<CompileSessionFailure>,
     semantic: Option<Box<SemanticEvidenceBundle>>,
     diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
 }
@@ -25,14 +26,16 @@ pub(crate) struct IncompleteSyntaxAnalysis {
 impl IncompleteSyntaxAnalysis {
     pub(crate) fn empty() -> Self {
         Self {
+            failure: None,
             semantic: None,
             diagnostics: Box::new([]),
         }
     }
 
-    fn failed(error: &CompileSessionError, semantic: Option<SemanticEvidenceBundle>) -> Self {
-        let diagnostics = analysis_diagnostics(Some(error), semantic.as_ref());
+    fn failed(failure: CompileSessionFailure, semantic: Option<SemanticEvidenceBundle>) -> Self {
+        let diagnostics = analysis_diagnostics(Some(&failure), semantic.as_ref());
         Self {
+            failure: Some(failure),
             semantic: semantic.map(Box::new),
             diagnostics,
         }
@@ -42,18 +45,30 @@ impl IncompleteSyntaxAnalysis {
     pub fn into_analysis_parts(
         self,
     ) -> (
+        Option<CompileSessionFailure>,
         Option<SemanticEvidenceBundle>,
         Box<[nocter_diagnostics::SourceDiagnostic]>,
     ) {
-        (self.semantic.map(|semantic| *semantic), self.diagnostics)
+        (
+            self.failure,
+            self.semantic.map(|semantic| *semantic),
+            self.diagnostics,
+        )
     }
 }
 
 impl CompileTargetFailure {
     fn new(error: CompileSessionError, semantic: Option<SemanticEvidenceBundle>) -> Self {
-        let diagnostics = analysis_diagnostics(Some(&error), semantic.as_ref());
+        Self::from_failure(CompileSessionFailure::single(error), semantic)
+    }
+
+    fn from_failure(
+        failure: CompileSessionFailure,
+        semantic: Option<SemanticEvidenceBundle>,
+    ) -> Self {
+        let diagnostics = analysis_diagnostics(Some(&failure), semantic.as_ref());
         Self {
-            error,
+            failure,
             semantic: semantic.map(Box::new),
             diagnostics,
         }
@@ -63,12 +78,12 @@ impl CompileTargetFailure {
     pub fn into_analysis_parts(
         self,
     ) -> (
-        CompileSessionError,
+        CompileSessionFailure,
         Option<SemanticEvidenceBundle>,
         Box<[nocter_diagnostics::SourceDiagnostic]>,
     ) {
         (
-            self.error,
+            self.failure,
             self.semantic.map(|semantic| *semantic),
             self.diagnostics,
         )
@@ -76,12 +91,12 @@ impl CompileTargetFailure {
 }
 
 fn analysis_diagnostics(
-    error: Option<&CompileSessionError>,
+    failure: Option<&CompileSessionFailure>,
     semantic: Option<&SemanticEvidenceBundle>,
 ) -> Box<[nocter_diagnostics::SourceDiagnostic]> {
-    let mut diagnostics = error
+    let mut diagnostics = failure
         .into_iter()
-        .flat_map(CompileSessionError::source_diagnostics)
+        .flat_map(CompileSessionFailure::source_diagnostics)
         .cloned()
         .collect::<Vec<_>>();
     if let Some(semantic) = semantic {
@@ -112,14 +127,10 @@ pub(crate) fn failure_from_finalization(
 pub(crate) fn failure_from_name_resolution(
     failure: &nocter_checking::QueriedNameResolutionFailure,
 ) -> CompileTargetFailure {
-    let error = nocter_checking::PreparationError::NameResolution(
-        nocter_checking::NameResolutionError::Rule(failure.diagnostic().clone()),
-    );
-    let evidence =
-        nocter_checking::PreparationFailureEvidence::Names(Box::new(failure.current_recovery()));
+    let (error, evidence) = failure.current_branch().into_parts();
     CompileTargetFailure::new(
         error.into(),
-        Some(SemanticEvidenceBundle::from_preparation_failure(evidence)),
+        evidence.map(SemanticEvidenceBundle::from_preparation_failure),
     )
 }
 
@@ -139,23 +150,30 @@ pub(crate) fn incomplete_syntax_analysis(
     let Some(failure) = analysis.failure() else {
         return IncompleteSyntaxAnalysis::empty();
     };
-    let (error, evidence) = semantic_failure_parts(failure);
-    IncompleteSyntaxAnalysis::failed(&error, evidence)
+    let (failure, evidence) = semantic_failure_parts(failure);
+    IncompleteSyntaxAnalysis::failed(failure, evidence)
 }
 
 pub(crate) fn failure_from_incomplete_semantics(
     failure: &nocter_semantic_product::IncompleteSemanticFailure,
 ) -> CompileTargetFailure {
-    let (error, evidence) = semantic_failure_parts(failure);
-    CompileTargetFailure::new(error, evidence)
+    let (failure, evidence) = semantic_failure_parts(failure);
+    CompileTargetFailure::from_failure(failure, evidence)
 }
 
 fn semantic_failure_parts(
     failure: &nocter_semantic_product::IncompleteSemanticFailure,
-) -> (CompileSessionError, Option<SemanticEvidenceBundle>) {
-    let (error, evidence) = failure.current_branch().into_parts();
+) -> (CompileSessionFailure, Option<SemanticEvidenceBundle>) {
+    let (primary, continuation, evidence) = failure.current_branch().into_parts();
     (
-        error.into(),
+        CompileSessionFailure::new(
+            primary.into(),
+            continuation
+                .into_iter()
+                .map(CompileSessionError::from)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+        ),
         evidence.map(SemanticEvidenceBundle::from_incomplete),
     )
 }

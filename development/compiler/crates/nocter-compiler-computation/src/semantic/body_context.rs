@@ -39,8 +39,7 @@ impl BodySemanticContextProduct {
     /// Resolves only after the exact body input has been demanded by the calling body query.
     pub(super) fn resolve_names(
         &self,
-        _exact_body: &super::BodySourceValue,
-        identity: &nocter_declaration_lowering::ReusableBodyIdentity,
+        exact_body: super::ExactBodyIdentityInput<'_>,
     ) -> Result<nocter_checking::ReusableBodyNameQueryOutcome, Arc<super::SemanticQueryFailure>>
     {
         let context = match &self.state {
@@ -53,15 +52,14 @@ impl BodySemanticContextProduct {
             .map_err(|error| Arc::new(error.into()))?;
         context
             .checking
-            .resolve_names(&input, identity.body())
+            .resolve_names(&input, exact_body.body())
             .map_err(|error| Arc::new(error.into()))
     }
 
     /// Types only after the exact body and its source-neutral lexical result have been demanded.
     pub(super) fn check_body(
         &self,
-        _exact_body: &super::BodySourceValue,
-        names: &nocter_checking::ReusableBodyNames,
+        exact_body: super::ExactBodyNamesInput<'_>,
     ) -> Result<nocter_checking::ReusableBodyQueryOutcome, Arc<super::SemanticQueryFailure>> {
         let context = match &self.state {
             BodySemanticContextState::Ready(context) => context,
@@ -73,7 +71,7 @@ impl BodySemanticContextProduct {
             .map_err(|error| Arc::new(error.into()))?;
         context
             .checking
-            .check(&input, names)
+            .check(&input, exact_body.names())
             .map_err(|error| Arc::new(error.into()))
     }
 

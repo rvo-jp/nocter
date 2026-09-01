@@ -100,6 +100,8 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   `NameAnalysisRecovery`; callers cannot provide a body ID separately from the recipe that owns it.
   The complete lexical catalog is the only input accepted by this materialization contract, so a
   consumer cannot reconstruct recovery by rerunning one rejected body independently.
+- A queried lexical rejection can reproduce its exact `PreparationFailure` branch. Session never
+  reconstructs a name-resolution error variant from a diagnostic and separate recovery value.
 - `SourceIndex` cannot affect a semantic decision.
 
 The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared

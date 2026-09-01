@@ -18,7 +18,7 @@ pub use analyzed_unit::{
     AnalyzedCompilationFailure, AnalyzedUnit, AnalyzedUnitStatus, SemanticAnalysisDomainError,
     analyze_unit_from_query,
 };
-pub use error::CompileSessionError;
+pub use error::{CompileSessionError, CompileSessionFailure};
 pub use executable::{
     ExecutableCompileRequest, ExecutableIdentity, ExecutableSelectionError, ExecutableSelector,
     ExecutableSessionError, RootExecutableClosureError, RootExecutableProgram,

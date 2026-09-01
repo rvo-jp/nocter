@@ -18,6 +18,84 @@ pub enum CompileSessionError {
     Target(nocter_target_program::TargetProgramError),
 }
 
+/// A non-empty, ordered compiler failure trace selected by one closed semantic query.
+///
+/// The first error is the authoritative compilation rejection. Later errors were reached only
+/// while continuing that rejection for editor evidence; retaining them prevents session and
+/// command layers from reconstructing or silently dropping lower-stage causes.
+#[derive(Debug)]
+pub struct CompileSessionFailure {
+    primary: CompileSessionError,
+    continuations: Box<[CompileSessionError]>,
+    source_diagnostics: Box<[SourceDiagnostic]>,
+}
+
+impl CompileSessionFailure {
+    #[must_use]
+    pub(crate) fn single(error: CompileSessionError) -> Self {
+        Self::new(error, Box::new([]))
+    }
+
+    #[must_use]
+    pub(crate) fn new(
+        primary: CompileSessionError,
+        continuations: Box<[CompileSessionError]>,
+    ) -> Self {
+        let mut source_diagnostics = Vec::new();
+        for error in std::iter::once(&primary).chain(continuations.iter()) {
+            for diagnostic in error.source_diagnostics() {
+                if !source_diagnostics.contains(diagnostic) {
+                    source_diagnostics.push(diagnostic.clone());
+                }
+            }
+        }
+        Self {
+            primary,
+            continuations,
+            source_diagnostics: source_diagnostics.into_boxed_slice(),
+        }
+    }
+
+    #[must_use]
+    pub const fn primary(&self) -> &CompileSessionError {
+        &self.primary
+    }
+
+    pub fn errors(&self) -> impl Iterator<Item = &CompileSessionError> {
+        std::iter::once(&self.primary).chain(self.continuations.iter())
+    }
+
+    #[must_use]
+    pub(crate) fn into_errors(self) -> Box<[CompileSessionError]> {
+        let mut errors = Vec::with_capacity(1 + self.continuations.len());
+        errors.push(self.primary);
+        errors.extend(self.continuations);
+        errors.into_boxed_slice()
+    }
+
+    #[must_use]
+    pub const fn source_diagnostics(&self) -> &[SourceDiagnostic] {
+        &self.source_diagnostics
+    }
+
+    #[must_use]
+    pub const fn diagnostic_code(&self) -> Option<DiagnosticCode> {
+        self.primary.diagnostic_code()
+    }
+}
+
+impl fmt::Display for CompileSessionFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.primary.fmt(formatter)
+    }
+}
+
+impl std::error::Error for CompileSessionFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.primary)
+    }
+}
+
 impl CompileSessionError {
     /// Returns the diagnostic already selected by the phase that rejected authored source.
     /// Internal consistency, toolchain, and target failures deliberately return `None`.
@@ -164,5 +242,24 @@ impl From<nocter_target_program::TargetUnavailable> for CompileSessionError {
 impl From<nocter_target_program::TargetProgramError> for CompileSessionError {
     fn from(error: nocter_target_program::TargetProgramError) -> Self {
         Self::Target(error)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CompileSessionError, CompileSessionFailure};
+
+    #[test]
+    fn failure_trace_retains_primary_and_continuation_causes() {
+        let failure = CompileSessionFailure::new(
+            CompileSessionError::SyntaxErrorsPresent,
+            vec![CompileSessionError::MissingStandardPackage].into_boxed_slice(),
+        );
+
+        assert_eq!(failure.errors().count(), 2);
+        assert!(matches!(
+            failure.primary(),
+            CompileSessionError::SyntaxErrorsPresent
+        ));
     }
 }

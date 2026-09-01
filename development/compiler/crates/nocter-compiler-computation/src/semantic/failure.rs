@@ -21,6 +21,12 @@ pub enum SemanticQueryFailure {
         path: Box<str>,
         locator: nocter_syntax::DeclarationSyntaxLocator,
     },
+    BodySourceIdentityMismatch {
+        demanded_path: Box<str>,
+        demanded_locator: nocter_syntax::DeclarationSyntaxLocator,
+        semantic_path: Box<str>,
+        semantic_locator: nocter_syntax::DeclarationSyntaxLocator,
+    },
     UnexpectedAcceptedNameCatalog,
     InvalidStageTransition(&'static str),
 }
@@ -47,6 +53,15 @@ impl fmt::Display for SemanticQueryFailure {
                 formatter,
                 "semantic query has no declared body identity for {path} at {locator:?}"
             ),
+            Self::BodySourceIdentityMismatch {
+                demanded_path,
+                demanded_locator,
+                semantic_path,
+                semantic_locator,
+            } => write!(
+                formatter,
+                "body source {demanded_path} at {demanded_locator:?} was paired with semantic body {semantic_path} at {semantic_locator:?}"
+            ),
             Self::UnexpectedAcceptedNameCatalog => formatter.write_str(
                 "a rejected body-name set unexpectedly materialized as an accepted catalog",
             ),
@@ -68,6 +83,7 @@ impl std::error::Error for SemanticQueryFailure {
             Self::ProgramFinalization(_)
             | Self::NameRejectionMaterialization(_)
             | Self::MissingBodyIdentity { .. }
+            | Self::BodySourceIdentityMismatch { .. }
             | Self::UnexpectedAcceptedNameCatalog
             | Self::InvalidStageTransition(_) => None,
         }

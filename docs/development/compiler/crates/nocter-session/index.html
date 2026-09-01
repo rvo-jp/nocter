@@ -182,7 +182,9 @@
                 <h1 id="nocter-session">nocter-session</h1><h2 id="responsibility">Responsibility</h2><p>Translate one closed compiler-query outcome into target validation or explicit recovery evidence.</p><h2 id="contract">Contract</h2><p>The crate depends on <code>nocter-semantic-product</code> and accepts only the sole complete-or-incomplete unit outcome from the semantic query graph. It opens the supplied success or rejection branch and publishes one immutable session outcome with capability-oriented semantic views for complete programs, typed bodies, lexical names, typed interruptions, and exact repair authority. Recovery storage variants and phase order remain private. The crate does not implement stage rules, invoke semantic compiler stages, implement editor queries, generate native code, or project protocol values.</p><h2 id="internal-responsibilities">Internal Responsibilities</h2><ul><li>closed complete-or-incomplete outcome translation</li><li>complete diagnostic retention</li><li>target and executable request composition</li><li>semantic evidence handoff</li><li>inseparable discovery-snapshot and session-outcome publication</li><li>recovery-storage to query-capability projection</li><li>session profiling and test selection</li></ul><h2 id="invariants">Invariants</h2><ul><li>The crate cannot invoke declaration lowering, preparation, name resolution, body checking, or
   semantic finalization.</li><li>Successful and recovered evidence are exclusive variants.</li><li>A later failure cannot expose an older successful program.</li><li>Failure-specific repair evidence moves once into its typed recovery owner.</li><li>Consumers cannot select raw recovery phases or reconstruct phase fallback order.</li><li>An analyzed unit cannot pair semantic evidence with a different discovery snapshot.</li><li>Bulk executable closure retains the declaring target program with every selected identity; a
   consumer cannot combine identities and programs from separate compilations.</li><li>Consuming an analyzed unit for compilation returns either its target or one failure envelope that
-  retains the exact source snapshot and the complete query-selected diagnostic set.</li><li>The analyzed unit shares one immutable discovery snapshot with computation inputs; it never
+  retains the exact source snapshot, a non-empty ordered cause trace, and the complete
+  query-selected diagnostic set. The first cause remains authoritative; causes reached while
+  continuing editor recovery cannot be dropped or reconstructed downstream.</li><li>The analyzed unit shares one immutable discovery snapshot with computation inputs; it never
   clones, rebuilds, or substitutes the source graph after a semantic query has consumed it.</li><li>A checked query result has already crossed checking's paired exact-current transition. Session
   cannot materialize frontend bindings, reopen declaration preparation, or select a body-symbol
   generation.</li><li>Declaration rejection opens an owned branch of the query's exact-current recovery
@@ -193,8 +195,8 @@
   The output owner preserves the projection on success and reconstructs the exact original pair on
   rejection; target and session never manipulate a free <code>CheckedProgram + SourceIndex</code> pair.</li><li>Compiler-domain query failure retains its typed originating cause rather than being translated
   into a generic missing-authority state.</li><li>Lexical rejection opens the finalization query's exact-current recovery branch.
-  Session translates its typed diagnostic and recovery evidence without invoking name resolution,
-  checking preparation, or body checking.</li><li>No public query-continuation entry point accepts declarations, prepared programs, body-name sets,
+  Session opens the checking-owned failure branch without reconstructing its error variant or
+  invoking name resolution, checking preparation, or body checking.</li><li>No public query-continuation entry point accepts declarations, prepared programs, body-name sets,
   or typed-body sets. A source-complete query consumer must supply one closed final success or
   rejection branch.</li><li>Query-backed analysis has one public consumer accepting the exact-current unit product. It opens
   either the complete or incomplete compiler-domain branch; branch-specific translators remain

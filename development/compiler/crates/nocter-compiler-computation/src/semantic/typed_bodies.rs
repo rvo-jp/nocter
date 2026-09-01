@@ -5,8 +5,8 @@ use std::sync::Arc;
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
 
 use super::{
-    BodyNameQueryOutcome, CurrentSourceScopeInput, DeclarationQuery, DeclarationQueryOutcome,
-    SemanticBodyKey, SemanticScopeKey,
+    CurrentSourceScopeInput, DeclarationQuery, DeclarationQueryOutcome, SemanticBodyKey,
+    SemanticScopeKey,
 };
 
 struct TypedBodyQuery;
@@ -62,9 +62,10 @@ impl Query for TypedBodyQuery {
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let name_product = super::resolve_body_name(database, key.clone())?;
-        let names = match name_product.outcome() {
-            BodyNameQueryOutcome::Resolved(names) => names,
-            BodyNameQueryOutcome::Rejected(_) => {
+        let body = database.input::<super::BodySourceInput>(key.source())?;
+        let exact_body = match name_product.bind_exact_body(&body) {
+            Ok(super::body_names::ExactBodyNamesBinding::Ready(exact_body)) => exact_body,
+            Ok(super::body_names::ExactBodyNamesBinding::Rejected) => {
                 return failed(
                     database,
                     key,
@@ -73,21 +74,21 @@ impl Query for TypedBodyQuery {
                     )),
                 );
             }
-            BodyNameQueryOutcome::Failed(failure) => {
+            Ok(super::body_names::ExactBodyNamesBinding::Failed(failure)) => {
                 return failed(database, key, Arc::clone(failure));
             }
+            Err(failure) => return failed(database, key, Arc::new(failure)),
         };
-        let body = database.input::<super::BodySourceInput>(key.source())?;
         let context =
             database.query::<super::body_context::BodySemanticContextQuery>(key.scope().clone())?;
-        let outcome = match context.check_body(&body, names) {
+        let outcome = match context.check_body(exact_body) {
             Ok(outcome) => outcome,
             Err(failure) => return failed(database, key, failure),
         };
         let (outcome, fingerprint) = match outcome {
             nocter_checking::ReusableBodyQueryOutcome::Checked(checked) => {
                 let mut fingerprint = name_product.fingerprint().digest().to_vec();
-                fingerprint.extend_from_slice(&body.fingerprint.digest());
+                fingerprint.extend_from_slice(&exact_body.fingerprint().digest());
                 (
                     TypedBodyQueryOutcome::Checked(Arc::new(checked)),
                     Fingerprint::from_bytes(&fingerprint),

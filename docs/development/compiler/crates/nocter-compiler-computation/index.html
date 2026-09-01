@@ -185,7 +185,10 @@
   prevents its downstream query from being demanded; projection or checking failure retains its
   typed cause through session.</li><li>Complete, incomplete-syntax, declaration, preparation, body, and finalization queries validate
   their own input capability. Correctness does not rely on an upstream caller remembering the
-  scheduler order.</li><li>The crate schedules checking through <code>ReusableCheckingQuery</code>, but does not construct its internal
+  scheduler order.</li><li>A body query receives a sealed exact-body input that binds the demanded physical source identity
+  and fingerprint to the declaration identity or lexical product that consumes it. The checking
+  context cannot accept an unrelated source token as a procedural invalidation proof.</li><li>Incomplete declaration recovery retains both the authoritative declaration rejection and any
+  later preparation or body-check rejection reached while collecting editor evidence.</li><li>The crate schedules checking through <code>ReusableCheckingQuery</code>, but does not construct its internal
   join. Checking itself owns the paired declaration recipe and materializes the exact-current
   bindings, spellings, and source projection behind one safe transition.</li><li>Old overlay bytes, semantic inputs, and query products cannot accumulate beyond the retained
   source-revision window.</li><li>The crate owns no filesystem topology, package acquisition, session, target, native, or protocol

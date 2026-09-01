@@ -21,14 +21,7 @@ impl QueriedNameResolutionFailure {
     pub fn from_preparation_failure(
         failure: crate::PreparationFailure,
     ) -> Result<Self, crate::PreparationFailure> {
-        let (error, evidence) = failure.into_parts();
-        let diagnostic = match error.source_diagnostic() {
-            Some(diagnostic) => diagnostic.clone(),
-            None => return Err(error.into()),
-        };
-        let Some(crate::PreparationFailureEvidence::Names(recovery)) = evidence else {
-            return Err(error.into());
-        };
+        let (diagnostic, recovery) = failure.into_queried_name_parts()?;
         Ok(Self {
             diagnostic,
             recovery: *recovery,
@@ -36,13 +29,18 @@ impl QueriedNameResolutionFailure {
     }
 
     #[must_use]
-    pub const fn diagnostic(&self) -> &nocter_diagnostics::SourceDiagnostic {
-        &self.diagnostic
+    pub fn current_branch(&self) -> crate::PreparationFailure {
+        crate::PreparationFailure::with_name_recovery(
+            crate::PreparationError::NameResolution(crate::NameResolutionError::Rule(
+                self.diagnostic.clone(),
+            )),
+            Box::new(self.recovery.clone()),
+        )
     }
 
     #[must_use]
-    pub fn current_recovery(&self) -> NameAnalysisRecovery {
-        self.recovery.clone()
+    pub const fn diagnostic(&self) -> &nocter_diagnostics::SourceDiagnostic {
+        &self.diagnostic
     }
 }
 

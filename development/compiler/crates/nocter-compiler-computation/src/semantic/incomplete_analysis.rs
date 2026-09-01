@@ -32,20 +32,55 @@ pub enum IncompleteSemanticEvidence {
 /// One failure and the independently valid current-source evidence reached beneath it.
 #[derive(Clone, Debug)]
 pub struct IncompleteSemanticFailure {
-    error: IncompleteSemanticError,
+    primary: IncompleteSemanticError,
+    continuation: Option<IncompleteSemanticError>,
     evidence: Option<IncompleteSemanticEvidence>,
 }
 
 impl IncompleteSemanticFailure {
+    fn new(primary: IncompleteSemanticError, evidence: Option<IncompleteSemanticEvidence>) -> Self {
+        Self {
+            primary,
+            continuation: None,
+            evidence,
+        }
+    }
+
+    fn continued(
+        primary: IncompleteSemanticError,
+        continuation: IncompleteSemanticError,
+        evidence: Option<IncompleteSemanticEvidence>,
+    ) -> Self {
+        Self {
+            primary,
+            continuation: Some(continuation),
+            evidence,
+        }
+    }
+
     #[must_use]
     pub fn current_branch(&self) -> Self {
         self.clone()
     }
 
     #[must_use]
-    pub fn into_parts(self) -> (IncompleteSemanticError, Option<IncompleteSemanticEvidence>) {
-        (self.error, self.evidence)
+    pub fn into_parts(
+        self,
+    ) -> (
+        IncompleteSemanticError,
+        Option<IncompleteSemanticError>,
+        Option<IncompleteSemanticEvidence>,
+    ) {
+        (self.primary, self.continuation, self.evidence)
     }
+}
+
+enum DeclarationRecoveryOutcome {
+    Recovered(IncompleteSemanticEvidence),
+    Rejected {
+        error: IncompleteSemanticError,
+        evidence: Option<IncompleteSemanticEvidence>,
+    },
 }
 
 /// Result of the sole editor-only semantic traversal admitted beneath invalid syntax.
@@ -70,7 +105,7 @@ pub struct IncompleteAnalysisProduct {
 
 #[derive(Debug)]
 pub enum IncompleteAnalysisOutcome {
-    Analyzed(IncompleteSemanticAnalysis),
+    Analyzed(Arc<IncompleteSemanticAnalysis>),
     Failed(Arc<super::SemanticQueryFailure>),
 }
 
@@ -94,7 +129,9 @@ impl Query for IncompleteAnalysisQuery {
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
         let outcome = if current.unit.has_syntax_errors() {
-            IncompleteAnalysisOutcome::Analyzed(analyze_incomplete_semantics(&current.unit))
+            IncompleteAnalysisOutcome::Analyzed(Arc::new(analyze_incomplete_semantics(
+                &current.unit,
+            )))
         } else {
             IncompleteAnalysisOutcome::Failed(Arc::new(
                 super::SemanticQueryFailure::InvalidStageTransition(
@@ -131,10 +168,10 @@ fn analyze_incomplete_semantics(
         Ok(input) => input,
         Err(error) => {
             return IncompleteSemanticAnalysis {
-                failure: Some(IncompleteSemanticFailure {
-                    error: IncompleteSemanticError::CompileInput(error),
-                    evidence: None,
-                }),
+                failure: Some(IncompleteSemanticFailure::new(
+                    IncompleteSemanticError::CompileInput(error),
+                    None,
+                )),
             };
         }
     };
@@ -150,21 +187,21 @@ fn analyze_incomplete_semantics(
         Ok(_) => None,
         Err(nocter_checking::LoweredProgramCheckFailure::Preparation(failure)) => {
             let (error, evidence) = failure.into_parts();
-            Some(IncompleteSemanticFailure {
-                error: IncompleteSemanticError::Preparation(error),
-                evidence: evidence
+            Some(IncompleteSemanticFailure::new(
+                IncompleteSemanticError::Preparation(error),
+                evidence
                     .map(Box::new)
                     .map(IncompleteSemanticEvidence::Preparation),
-            })
+            ))
         }
         Err(nocter_checking::LoweredProgramCheckFailure::Checking(failure)) => {
             let (error, recovery) = failure.into_parts();
-            Some(IncompleteSemanticFailure {
-                error: IncompleteSemanticError::Checking(error),
-                evidence: recovery
+            Some(IncompleteSemanticFailure::new(
+                IncompleteSemanticError::Checking(error),
+                recovery
                     .map(Box::new)
                     .map(IncompleteSemanticEvidence::Bodies),
-            })
+            ))
         }
     };
     IncompleteSemanticAnalysis { failure }
@@ -175,10 +212,17 @@ fn continue_declaration_failure(
     failure: nocter_declaration_lowering::DeclarationLoweringFailure,
 ) -> IncompleteSemanticFailure {
     let (error, recovery) = failure.into_parts();
-    let evidence = recovery.and_then(|recovery| continue_declaration_recovery(input, recovery));
-    IncompleteSemanticFailure {
-        error: IncompleteSemanticError::Declaration(error),
-        evidence,
+    let primary = IncompleteSemanticError::Declaration(error);
+    let Some(recovery) = recovery else {
+        return IncompleteSemanticFailure::new(primary, None);
+    };
+    match continue_declaration_recovery(input, recovery) {
+        DeclarationRecoveryOutcome::Recovered(evidence) => {
+            IncompleteSemanticFailure::new(primary, Some(evidence))
+        }
+        DeclarationRecoveryOutcome::Rejected { error, evidence } => {
+            IncompleteSemanticFailure::continued(primary, error, evidence)
+        }
     }
 }
 
@@ -193,29 +237,39 @@ pub(super) fn analyze_declaration_failure(
 
 /// Continues one declaration recovery through its sole editor-analysis transition.
 #[must_use]
-pub(super) fn continue_declaration_recovery(
+fn continue_declaration_recovery(
     input: &nocter_compile_input::CompileUnitInput<'_>,
     recovery: DeclarationLoweringRecovery,
-) -> Option<IncompleteSemanticEvidence> {
+) -> DeclarationRecoveryOutcome {
     let admitted = match recovery.into_checking_transition() {
         DeclarationCheckingTransition::Bodies(input) => *input,
         DeclarationCheckingTransition::Declarations(recovery) => {
-            return Some(IncompleteSemanticEvidence::Declarations(recovery));
+            return DeclarationRecoveryOutcome::Recovered(
+                IncompleteSemanticEvidence::Declarations(recovery),
+            );
         }
     };
     match nocter_checking::analyze_declaration_bodies(input, admitted) {
-        Ok(analysis) => Some(IncompleteSemanticEvidence::Bodies(Box::new(analysis))),
+        Ok(analysis) => DeclarationRecoveryOutcome::Recovered(IncompleteSemanticEvidence::Bodies(
+            Box::new(analysis),
+        )),
         Err(nocter_checking::DeclarationBodyAnalysisFailure::Preparation(failure)) => {
-            let (_, evidence) = failure.into_parts();
-            evidence
-                .map(Box::new)
-                .map(IncompleteSemanticEvidence::Preparation)
+            let (error, evidence) = failure.into_parts();
+            DeclarationRecoveryOutcome::Rejected {
+                error: IncompleteSemanticError::Preparation(error),
+                evidence: evidence
+                    .map(Box::new)
+                    .map(IncompleteSemanticEvidence::Preparation),
+            }
         }
         Err(nocter_checking::DeclarationBodyAnalysisFailure::Checking(failure)) => {
-            let (_, recovery) = failure.into_parts();
-            recovery
-                .map(Box::new)
-                .map(IncompleteSemanticEvidence::Bodies)
+            let (error, recovery) = failure.into_parts();
+            DeclarationRecoveryOutcome::Rejected {
+                error: IncompleteSemanticError::Checking(error),
+                evidence: recovery
+                    .map(Box::new)
+                    .map(IncompleteSemanticEvidence::Bodies),
+            }
         }
     }
 }

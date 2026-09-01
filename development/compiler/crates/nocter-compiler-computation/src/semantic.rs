@@ -2,6 +2,7 @@
 
 mod body_context;
 mod body_names;
+mod body_source;
 mod failure;
 mod incomplete_analysis;
 mod program_analysis;
@@ -10,8 +11,10 @@ mod program_preparation;
 mod typed_bodies;
 mod unit_analysis;
 
-use body_names::{
-    BodyNameQueryOutcome, BodyNameSet, SemanticBodyKey, resolve_body_name, resolved_body_names,
+use body_names::{BodyNameSet, SemanticBodyKey, resolve_body_name, resolved_body_names};
+pub(crate) use body_source::BodySourcePublication;
+use body_source::{
+    BodySourceInput, BodySourceKey, BodySourceValue, ExactBodyIdentityInput, ExactBodyNamesInput,
 };
 pub use failure::SemanticQueryFailure;
 pub use incomplete_analysis::{
@@ -168,7 +171,6 @@ impl From<nocter_discovery::CurrentSourceSurfaceError> for SemanticInputError {
 
 struct DeclarationScopeInput;
 struct CurrentSourceScopeInput;
-pub(super) struct BodySourceInput;
 
 impl Input for DeclarationScopeInput {
     type Key = SemanticScopeKey;
@@ -182,81 +184,6 @@ impl Input for CurrentSourceScopeInput {
     type Value = ScopeInputValue;
 
     const RETENTION: InputRetention = InputRetention::RevisionDerived;
-}
-
-impl Input for BodySourceInput {
-    type Key = BodySourceKey;
-    type Value = BodySourceValue;
-
-    const RETENTION: InputRetention = InputRetention::RevisionDerived;
-}
-
-/// Stable physical identity of one executable body beneath a declaration surface.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(super) struct BodySourceKey {
-    path: Box<str>,
-    locator: nocter_syntax::DeclarationSyntaxLocator,
-    stable: Box<[u8]>,
-}
-
-impl BodySourceKey {
-    fn new(path: &str, locator: nocter_syntax::DeclarationSyntaxLocator) -> Self {
-        let mut stable = Vec::new();
-        encode(path.as_bytes(), &mut stable);
-        match locator {
-            nocter_syntax::DeclarationSyntaxLocator::Node(index) => {
-                stable.push(0);
-                stable.extend_from_slice(&index.to_be_bytes());
-            }
-            nocter_syntax::DeclarationSyntaxLocator::Token(index) => {
-                stable.push(1);
-                stable.extend_from_slice(&index.to_be_bytes());
-            }
-        }
-        Self {
-            path: path.into(),
-            locator,
-            stable: stable.into_boxed_slice(),
-        }
-    }
-}
-
-impl ComputationKey for BodySourceKey {
-    fn stable_bytes(&self) -> Box<[u8]> {
-        self.stable.clone()
-    }
-}
-
-pub(super) struct BodySourceValue {
-    fingerprint: Fingerprint,
-}
-
-impl QueryValue for BodySourceValue {
-    fn fingerprint(&self) -> Fingerprint {
-        self.fingerprint
-    }
-}
-
-/// One exact per-body input staged with its containing semantic scope revision.
-pub(super) struct BodySourcePublication {
-    key: BodySourceKey,
-    value: BodySourceValue,
-}
-
-impl BodySourcePublication {
-    #[must_use]
-    pub(super) fn new(path: &str, body: &nocter_syntax::BodySyntaxSurface) -> Self {
-        Self {
-            key: BodySourceKey::new(path, body.locator()),
-            value: BodySourceValue {
-                fingerprint: Fingerprint::from_bytes(body.canonical_bytes()),
-            },
-        }
-    }
-
-    fn publish(self, revision: &mut InputRevision<'_>) {
-        revision.set::<BodySourceInput>(&self.key, self.value);
-    }
 }
 
 struct ScopeInputValue {

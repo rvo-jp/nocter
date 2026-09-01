@@ -228,7 +228,8 @@
   recipe. Canonical catalog materialization produces either complete names or one
   <code>NameAnalysisRecovery</code>; callers cannot provide a body ID separately from the recipe that owns it.
   The complete lexical catalog is the only input accepted by this materialization contract, so a
-  consumer cannot reconstruct recovery by rerunning one rejected body independently.</li><li><code>SourceIndex</code> cannot affect a semantic decision.</li></ul><p>The <a href="../../../docs/checked-program-design/index.html#content">checked-program boundary</a> documents contracts shared with adjacent stages.</p>
+  consumer cannot reconstruct recovery by rerunning one rejected body independently.</li><li>A queried lexical rejection can reproduce its exact <code>PreparationFailure</code> branch. Session never
+  reconstructs a name-resolution error variant from a diagnostic and separate recovery value.</li><li><code>SourceIndex</code> cannot affect a semantic decision.</li></ul><p>The <a href="../../../docs/checked-program-design/index.html#content">checked-program boundary</a> documents contracts shared with adjacent stages.</p>
             </div>
         </main>
     </div>

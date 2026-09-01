@@ -469,6 +469,28 @@ fn declaration_failure_retains_the_diagnostics_of_rejected_body_evidence() {
 }
 
 #[test]
+fn declaration_failure_retains_a_later_preparation_rejection() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "primitive func rejected_primitive(): usize\n",
+        "pub interface Readable { pub method &self.read(): i32 }\n",
+        "struct Value {}\n",
+        "instance Value { impl Readable }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(56));
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert_eq!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .map(nocter_diagnostics::SourceDiagnostic::code)
+            .collect::<Vec<_>>(),
+        ["E0208", "E0350"]
+    );
+}
+
+#[test]
 fn name_recovery_retains_every_rejected_body_diagnostic() {
     let tree = TempTree::new();
     let source_text = concat!(

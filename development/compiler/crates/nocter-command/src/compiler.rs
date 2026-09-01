@@ -3,7 +3,7 @@ use nocter_compiler_computation::{
     CompilerSourceRevision,
 };
 use nocter_diagnostics::DiagnosticCode;
-use nocter_session::{CompileSessionError, CompiledTarget, SemanticAnalysisDomainError};
+use nocter_session::{CompileSessionFailure, CompiledTarget, SemanticAnalysisDomainError};
 
 use crate::failure::command_compilation_failure;
 use crate::{CommandCompilationFailure, CommandSourceError};
@@ -153,7 +153,7 @@ impl nocter_package_state::PackageResolutionDriver for CommandCompiler {
 pub enum CommandAnalysisError {
     Computation(CompilerComputationError),
     Session(SemanticAnalysisDomainError),
-    Compilation(CompileSessionError),
+    Compilation(CompileSessionFailure),
 }
 
 impl CommandAnalysisError {

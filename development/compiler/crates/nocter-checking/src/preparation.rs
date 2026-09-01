@@ -457,7 +457,7 @@ impl PreparationFailure {
         }
     }
 
-    fn with_name_recovery(
+    pub(crate) fn with_name_recovery(
         error: PreparationError,
         analysis: Box<crate::NameAnalysisRecovery>,
     ) -> Self {
@@ -470,6 +470,25 @@ impl PreparationFailure {
     #[must_use]
     pub const fn error(&self) -> &PreparationError {
         &self.error
+    }
+
+    pub(crate) fn into_queried_name_parts(
+        self,
+    ) -> Result<(SourceDiagnostic, Box<crate::NameAnalysisRecovery>), PreparationFailure> {
+        let Self { error, evidence } = self;
+        match (error, evidence) {
+            (
+                PreparationError::NameResolution(NameResolutionError::Rule(diagnostic)),
+                Some(evidence),
+            ) => match *evidence {
+                PreparationFailureEvidence::Names(recovery) => Ok((diagnostic, recovery)),
+                evidence @ PreparationFailureEvidence::Declarations { .. } => Err(Self {
+                    error: PreparationError::NameResolution(NameResolutionError::Rule(diagnostic)),
+                    evidence: Some(Box::new(evidence)),
+                }),
+            },
+            (error, evidence) => Err(Self { error, evidence }),
+        }
     }
 
     #[must_use]

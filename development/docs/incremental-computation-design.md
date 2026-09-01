@@ -124,6 +124,11 @@ than a stored semantic state. Integrity failures retain their original typed cau
 product and session boundary; they never collapse into missing authority or become an authored
 diagnostic.
 
+When a declaration rejection admits deeper editor analysis, the query result retains an ordered
+failure trace: the declaration rejection remains primary and a later preparation or body-check
+rejection remains a continuation cause. Session consumes that trace as a closed value and derives
+diagnostics from every retained cause; it cannot infer a lower-stage error from recovery evidence.
+
 Every semantic query also validates the capability required by its stage. The unit query remains
 the sole scheduler, but correctness does not depend on that caller selecting a valid complete,
 incomplete, declaration, preparation, body, or finalization transition.
@@ -144,6 +149,11 @@ fingerprint remains tied to source-neutral preparation. Each body query separate
 exact body source, and finalization separately depends on the exact-current scope. An unrelated
 source edit can therefore reuse unaffected body recipes without permitting a stale final source
 projection.
+
+The exact body source is not a free fingerprint token. A private query input binds its stable path
+and syntax locator to the declaration-owned body identity before name resolution, then binds the
+same source identity to the resulting lexical product before type checking. A checking operation
+cannot be called with the fingerprint of one body and the semantic identity of another.
 
 ## Current Execution Contract
 

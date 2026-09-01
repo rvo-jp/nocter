@@ -42,6 +42,11 @@ requests.
 - Complete, incomplete-syntax, declaration, preparation, body, and finalization queries validate
   their own input capability. Correctness does not rely on an upstream caller remembering the
   scheduler order.
+- A body query receives a sealed exact-body input that binds the demanded physical source identity
+  and fingerprint to the declaration identity or lexical product that consumes it. The checking
+  context cannot accept an unrelated source token as a procedural invalidation proof.
+- Incomplete declaration recovery retains both the authoritative declaration rejection and any
+  later preparation or body-check rejection reached while collecting editor evidence.
 - The crate schedules checking through `ReusableCheckingQuery`, but does not construct its internal
   join. Checking itself owns the paired declaration recipe and materializes the exact-current
   bindings, spellings, and source projection behind one safe transition.

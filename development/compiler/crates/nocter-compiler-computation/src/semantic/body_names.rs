@@ -61,8 +61,15 @@ pub enum BodyNameQueryOutcome {
 
 #[derive(Debug)]
 pub struct BodyNameQueryProduct {
+    source: BodySourceKey,
     outcome: BodyNameQueryOutcome,
     fingerprint: Fingerprint,
+}
+
+pub(super) enum ExactBodyNamesBinding<'a> {
+    Ready(super::ExactBodyNamesInput<'a>),
+    Rejected,
+    Failed(&'a Arc<super::SemanticQueryFailure>),
 }
 
 /// Complete, canonical set of source-neutral lexical results for one program.
@@ -91,6 +98,27 @@ impl BodyNameQueryProduct {
     #[must_use]
     pub const fn outcome(&self) -> &BodyNameQueryOutcome {
         &self.outcome
+    }
+
+    pub(super) fn bind_exact_body<'a>(
+        &'a self,
+        source: &'a super::BodySourceValue,
+    ) -> Result<ExactBodyNamesBinding<'a>, super::SemanticQueryFailure> {
+        if self.source != source.key {
+            return Err(super::SemanticQueryFailure::BodySourceIdentityMismatch {
+                demanded_path: source.key.path.clone(),
+                demanded_locator: source.key.locator,
+                semantic_path: self.source.path.clone(),
+                semantic_locator: self.source.locator,
+            });
+        }
+        Ok(match &self.outcome {
+            BodyNameQueryOutcome::Resolved(names) => {
+                ExactBodyNamesBinding::Ready(super::ExactBodyNamesInput::new(source, names))
+            }
+            BodyNameQueryOutcome::Rejected(_) => ExactBodyNamesBinding::Rejected,
+            BodyNameQueryOutcome::Failed(failure) => ExactBodyNamesBinding::Failed(failure),
+        })
     }
 }
 
@@ -138,16 +166,20 @@ impl Query for BodyNameQuery {
             );
         };
         let body = database.input::<BodySourceInput>(&key.source)?;
+        let exact_body = match body.bind_identity(identity) {
+            Ok(exact_body) => exact_body,
+            Err(failure) => return failed(database, key, Arc::new(failure)),
+        };
         let context =
             database.query::<super::body_context::BodySemanticContextQuery>(key.scope.clone())?;
-        let outcome = match context.resolve_names(&body, identity) {
+        let outcome = match context.resolve_names(exact_body) {
             Ok(outcome) => outcome,
             Err(failure) => return failed(database, key, failure),
         };
         let (outcome, fingerprint) = match outcome {
             nocter_checking::ReusableBodyNameQueryOutcome::Resolved(resolved) => {
                 let mut fingerprint = declaration_fingerprint.digest().to_vec();
-                fingerprint.extend_from_slice(&body.fingerprint.digest());
+                fingerprint.extend_from_slice(&exact_body.fingerprint().digest());
                 (
                     BodyNameQueryOutcome::Resolved(Arc::new(resolved)),
                     Fingerprint::from_bytes(&fingerprint),
@@ -161,6 +193,7 @@ impl Query for BodyNameQuery {
             ),
         };
         Ok(BodyNameQueryProduct {
+            source: key.source.clone(),
             outcome,
             fingerprint,
         })
@@ -174,6 +207,7 @@ fn failed(
 ) -> Result<BodyNameQueryProduct, ComputationError> {
     let current = database.input::<CurrentSourceScopeInput>(&key.scope)?;
     Ok(BodyNameQueryProduct {
+        source: key.source.clone(),
         outcome: BodyNameQueryOutcome::Failed(failure),
         fingerprint: current.fingerprint,
     })
@@ -255,4 +289,34 @@ pub(super) fn body_name_execution_count(database: &Database) -> u64 {
 #[must_use]
 pub(super) fn body_name_reuse_count(database: &Database) -> u64 {
     database.reuse_count::<BodyNameQuery>()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use nocter_computation::{Fingerprint, QueryValue};
+    use nocter_syntax::DeclarationSyntaxLocator;
+
+    use super::{BodyNameQueryOutcome, BodyNameQueryProduct};
+    use crate::semantic::{BodySourceKey, BodySourceValue, SemanticQueryFailure};
+
+    #[test]
+    fn exact_body_binding_rejects_a_different_source_identity() {
+        let product_key = BodySourceKey::new("/app/first.nct", DeclarationSyntaxLocator::Node(1));
+        let source_key = BodySourceKey::new("/app/second.nct", DeclarationSyntaxLocator::Node(1));
+        let source = BodySourceValue::for_test(source_key, Fingerprint::from_bytes(b"body"));
+        let product = BodyNameQueryProduct {
+            source: product_key,
+            outcome: BodyNameQueryOutcome::Failed(Arc::new(
+                SemanticQueryFailure::InvalidStageTransition("test rejection"),
+            )),
+            fingerprint: source.fingerprint(),
+        };
+
+        assert!(matches!(
+            product.bind_exact_body(&source),
+            Err(SemanticQueryFailure::BodySourceIdentityMismatch { .. })
+        ));
+    }
 }

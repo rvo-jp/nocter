@@ -7,14 +7,17 @@ use crate::analysis::{
     failure_from_incomplete_semantics, failure_from_name_resolution, failure_from_preparation,
     target_from_finalized_program,
 };
-use crate::{CompileSessionError, CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView};
+use crate::{CompileSessionFailure, CompiledTarget, SemanticEvidenceBundle, SemanticEvidenceView};
 
 /// The compiler authority retained for one source-complete or explicitly recovered analysis run.
 #[derive(Debug)]
 enum AnalyzedUnitState {
-    SyntaxFailed(Option<Box<SemanticEvidenceBundle>>),
+    SyntaxFailed {
+        recovery_failure: Option<CompileSessionFailure>,
+        semantic: Option<Box<SemanticEvidenceBundle>>,
+    },
     CompilationFailed {
-        error: CompileSessionError,
+        failure: CompileSessionFailure,
         semantic: Option<Box<SemanticEvidenceBundle>>,
     },
     Complete(Box<CompiledTarget>),
@@ -32,7 +35,7 @@ pub enum AnalyzedUnitStatus {
 /// the unit-analysis query.
 #[derive(Debug)]
 pub struct AnalyzedCompilationFailure {
-    error: CompileSessionError,
+    failure: CompileSessionFailure,
     sources: nocter_source::SourceMap,
     diagnostics: Box<[nocter_diagnostics::SourceDiagnostic]>,
 }
@@ -42,23 +45,23 @@ impl AnalyzedCompilationFailure {
     pub fn into_parts(
         self,
     ) -> (
-        CompileSessionError,
+        CompileSessionFailure,
         nocter_source::SourceMap,
         Box<[nocter_diagnostics::SourceDiagnostic]>,
     ) {
-        (self.error, self.sources, self.diagnostics)
+        (self.failure, self.sources, self.diagnostics)
     }
 }
 
 impl std::fmt::Display for AnalyzedCompilationFailure {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.error.fmt(formatter)
+        self.failure.fmt(formatter)
     }
 }
 
 impl std::error::Error for AnalyzedCompilationFailure {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.error)
+        Some(&self.failure)
     }
 }
 
@@ -78,7 +81,7 @@ impl AnalyzedUnit {
     #[must_use]
     pub const fn status(&self) -> AnalyzedUnitStatus {
         match self.state {
-            AnalyzedUnitState::SyntaxFailed(_) => AnalyzedUnitStatus::SyntaxFailed,
+            AnalyzedUnitState::SyntaxFailed { .. } => AnalyzedUnitStatus::SyntaxFailed,
             AnalyzedUnitState::CompilationFailed { .. } => AnalyzedUnitStatus::CompilationFailed,
             AnalyzedUnitState::Complete(_) => AnalyzedUnitStatus::Complete,
         }
@@ -97,10 +100,8 @@ impl AnalyzedUnit {
     #[must_use]
     pub fn semantic_evidence(&self) -> Option<SemanticEvidenceView<'_>> {
         match &self.state {
-            AnalyzedUnitState::SyntaxFailed(evidence) => {
-                evidence.as_deref().map(SemanticEvidenceBundle::view)
-            }
-            AnalyzedUnitState::CompilationFailed { semantic, .. } => {
+            AnalyzedUnitState::SyntaxFailed { semantic, .. }
+            | AnalyzedUnitState::CompilationFailed { semantic, .. } => {
                 semantic.as_deref().map(SemanticEvidenceBundle::view)
             }
             AnalyzedUnitState::Complete(target) => Some(target.semantic_evidence()),
@@ -122,14 +123,24 @@ impl AnalyzedUnit {
         } = self;
         match state {
             AnalyzedUnitState::Complete(target) => Ok(*target),
-            AnalyzedUnitState::SyntaxFailed(_) => Err(Box::new(AnalyzedCompilationFailure {
-                error: CompileSessionError::SyntaxErrorsPresent,
-                sources: unit.sources().clone(),
-                diagnostics,
-            })),
-            AnalyzedUnitState::CompilationFailed { error, .. } => {
+            AnalyzedUnitState::SyntaxFailed {
+                recovery_failure, ..
+            } => {
+                let continuations = recovery_failure
+                    .map(CompileSessionFailure::into_errors)
+                    .unwrap_or_default();
                 Err(Box::new(AnalyzedCompilationFailure {
-                    error,
+                    failure: CompileSessionFailure::new(
+                        crate::CompileSessionError::SyntaxErrorsPresent,
+                        continuations,
+                    ),
+                    sources: unit.sources().clone(),
+                    diagnostics,
+                }))
+            }
+            AnalyzedUnitState::CompilationFailed { failure, .. } => {
+                Err(Box::new(AnalyzedCompilationFailure {
+                    failure,
                     sources: unit.sources().clone(),
                     diagnostics,
                 }))
@@ -203,12 +214,12 @@ fn analyzed_compilation_failure(
     unit: Arc<DiscoveredUnit>,
     failure: CompileTargetFailure,
 ) -> AnalyzedUnit {
-    let (error, semantic, diagnostics) = failure.into_analysis_parts();
+    let (failure, semantic, diagnostics) = failure.into_analysis_parts();
     AnalyzedUnit {
         unit,
         diagnostics,
         state: AnalyzedUnitState::CompilationFailed {
-            error,
+            failure,
             semantic: semantic.map(Box::new),
         },
     }
@@ -218,13 +229,16 @@ fn analyzed_incomplete_unit(
     unit: Arc<DiscoveredUnit>,
     analysis: IncompleteSyntaxAnalysis,
 ) -> AnalyzedUnit {
-    let (semantic, semantic_diagnostics) = analysis.into_analysis_parts();
+    let (recovery_failure, semantic, semantic_diagnostics) = analysis.into_analysis_parts();
     let mut diagnostics = unit.syntax_diagnostics().into_vec();
     extend_unique_diagnostics(&mut diagnostics, &semantic_diagnostics);
     AnalyzedUnit {
         unit,
         diagnostics: diagnostics.into_boxed_slice(),
-        state: AnalyzedUnitState::SyntaxFailed(semantic.map(Box::new)),
+        state: AnalyzedUnitState::SyntaxFailed {
+            recovery_failure,
+            semantic: semantic.map(Box::new),
+        },
     }
 }
 

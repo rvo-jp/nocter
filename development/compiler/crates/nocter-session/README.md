@@ -37,7 +37,9 @@ protocol values.
 - Bulk executable closure retains the declaring target program with every selected identity; a
   consumer cannot combine identities and programs from separate compilations.
 - Consuming an analyzed unit for compilation returns either its target or one failure envelope that
-  retains the exact source snapshot and the complete query-selected diagnostic set.
+  retains the exact source snapshot, a non-empty ordered cause trace, and the complete
+  query-selected diagnostic set. The first cause remains authoritative; causes reached while
+  continuing editor recovery cannot be dropped or reconstructed downstream.
 - The analyzed unit shares one immutable discovery snapshot with computation inputs; it never
   clones, rebuilds, or substitutes the source graph after a semantic query has consumed it.
 - A checked query result has already crossed checking's paired exact-current transition. Session
@@ -55,8 +57,8 @@ protocol values.
 - Compiler-domain query failure retains its typed originating cause rather than being translated
   into a generic missing-authority state.
 - Lexical rejection opens the finalization query's exact-current recovery branch.
-  Session translates its typed diagnostic and recovery evidence without invoking name resolution,
-  checking preparation, or body checking.
+  Session opens the checking-owned failure branch without reconstructing its error variant or
+  invoking name resolution, checking preparation, or body checking.
 - No public query-continuation entry point accepts declarations, prepared programs, body-name sets,
   or typed-body sets. A source-complete query consumer must supply one closed final success or
   rejection branch.

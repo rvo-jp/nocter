@@ -12,7 +12,7 @@ struct UnitAnalysisQuery;
 #[derive(Debug)]
 pub enum UnitAnalysisOutcome {
     Complete(Arc<super::ProgramAnalysisProduct>),
-    Incomplete(super::IncompleteSemanticAnalysis),
+    Incomplete(Arc<super::IncompleteSemanticAnalysis>),
     Failed(Arc<super::SemanticQueryFailure>),
 }
 
@@ -52,7 +52,7 @@ impl Query for UnitAnalysisQuery {
             let incomplete = super::incomplete_analysis(database, key.clone())?;
             match incomplete.outcome() {
                 super::incomplete_analysis::IncompleteAnalysisOutcome::Analyzed(analysis) => {
-                    UnitAnalysisOutcome::Incomplete(analysis.clone())
+                    UnitAnalysisOutcome::Incomplete(Arc::clone(analysis))
                 }
                 super::incomplete_analysis::IncompleteAnalysisOutcome::Failed(failure) => {
                     UnitAnalysisOutcome::Failed(Arc::clone(failure))
