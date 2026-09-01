@@ -151,7 +151,6 @@ impl DeclarationLoweringFailure {
 /// Returns the exact failing stage. Source-backed module-surface, declaration-contract, namespace,
 /// and freeze-time declaration rules are already projected to common diagnostics;
 /// remaining stage errors stay typed until their diagnostic mappings are completed.
-#[allow(clippy::disallowed_methods)]
 #[cfg(any(test, feature = "test-api"))]
 pub fn lower_compile_unit_declarations(
     input: &CompileUnitInput<'_>,

@@ -13,6 +13,7 @@ test-api = []
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-compile-input = { path = "../nocter-compile-input" }
 nocter-constant-evaluation = { path = "../nocter-constant-evaluation" }
+nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-frontend-bindings = { path = "../nocter-frontend-bindings" }

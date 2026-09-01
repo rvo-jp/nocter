@@ -120,12 +120,20 @@ impl SourceIndex {
         crate::DiagnosticOrigins::new(self)
     }
 
-    /// Returns integrity issues discovered while building this editor projection.
+    /// Validates the complete editor projection without exposing its internal issue collection.
     ///
     /// These issues never change semantic compilation. The semantic-query authority rejects an
     /// inconsistent projection before exposing editor facts.
-    #[must_use]
-    pub const fn issues(&self) -> &[SourceProjectionIssue] {
+    ///
+    /// # Errors
+    ///
+    /// Returns the first canonical integrity issue retained during projection construction.
+    pub fn validate(&self) -> Result<(), SourceProjectionIssue> {
+        self.issues.first().copied().map_or(Ok(()), Err)
+    }
+
+    #[cfg(test)]
+    const fn issues(&self) -> &[SourceProjectionIssue] {
         &self.issues
     }
 
@@ -499,7 +507,6 @@ impl fmt::Display for SourceProjectionIssue {
 impl std::error::Error for SourceProjectionIssue {}
 
 #[cfg(test)]
-#[allow(clippy::disallowed_methods)]
 mod tests {
     use nocter_declarations::{DeclarationProgramBuilder, ModuleNamespace, ModulePath, Visibility};
     use nocter_model::{DeclarationSiteId, ModuleId, Symbol, SymbolTable};
@@ -550,6 +557,7 @@ mod tests {
         assert_eq!(index.bindings_at(source, ByteOffset::new(6)).count(), 2);
         assert_eq!(index.bindings_at(source, ByteOffset::new(31)).count(), 0);
         assert_eq!(index.bindings_in(source).count(), 2);
+        assert_eq!(index.validate(), Ok(()));
         assert_eq!(
             index.origins().collect::<std::collections::HashSet<_>>(),
             std::collections::HashSet::from([declaration_origin, module_origin])
@@ -575,6 +583,15 @@ mod tests {
         builder.insert(entity, SourceRole::Implementation, origin);
         builder.insert(entity, SourceRole::Declaration, origin);
         let index = builder.finish();
+        assert_eq!(
+            index.validate(),
+            Err(SourceProjectionIssue::DuplicateBinding(SourceBinding {
+                entity,
+                role: SourceRole::Declaration,
+                origin,
+                access: None,
+            }))
+        );
         assert_eq!(
             index.issues(),
             &[SourceProjectionIssue::DuplicateBinding(SourceBinding {

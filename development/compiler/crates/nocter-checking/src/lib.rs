@@ -39,6 +39,7 @@ mod pattern_requirements;
 mod preparation;
 mod program_environment;
 mod provenance;
+mod query_transition;
 mod recovery;
 pub(crate) use preparation::semantic_authority;
 mod source_visibility;
@@ -67,8 +68,6 @@ pub use body_check::{
     ProgramBodyCheckingContext, QueriedBodyRejection, QueriedProgramFinalizationOutcome,
     ReusableBodyQueryOutcome, ReusableCheckedBody, ReusableProgramBodyCheckError,
     ReusableProgramBodyNameError, TypedBodyInterruption, TypedBodyInterruptionKind,
-    analyze_prepared_program_bodies, check_prepared_program_recovering,
-    finalize_prepared_program_from_queried_bodies,
 };
 pub use body_evidence::{BodyEvidence, BodyRejection, BodyRejectionReason};
 pub use body_sources::{
@@ -88,20 +87,20 @@ pub use checked::{
     CheckedControl, CheckedInterpolation, CheckedIteratorAcquisition, CheckedLoan, CheckedLocal,
     CheckedLoop, CheckedNode, CheckedOpaqueWitness, CheckedOperation, CheckedOutcome,
     CheckedPackLiteral, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
-    CheckedPatternSlot, CheckedPatternSubject, CheckedPlace, CheckedProgram, CheckedProgramOutput,
-    CheckedReadonlyOperand, CheckedReceiver, CheckedReceiverCoercion, CheckedSemanticRebindError,
-    CleanupAction, CleanupCondition, CleanupFieldProjection, CleanupPath, CleanupSchedule,
-    CleanupTable, CleanupTarget, CleanupTiming, ClosureDefinition, ClosureEnvironmentField,
-    ClosureParameter, ClosureProvenanceTable, ClosureSignature, ClosureTable,
-    ClosureTableBuildError, CoercedReceiverPreparation, ComparisonImplementation,
-    ComparisonOperation, ConstantValue, DropSelection, DuplicateGenericArgument, GenericArgument,
-    GenericArguments, InterpolationPart, IterationAcquisition, LoanId, LoanPlace, LoanProjection,
-    LoanRoot, LoanTable, LogicalOperation, LoopKind, OpaqueWitnessTable,
-    OpaqueWitnessTableBuildError, PatternBindingMode, PatternRemainder, PatternSubjectPreparation,
-    PlaceAccess, PlaceProjection, PlaceRoot, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
-    ProvenanceProjection, ProvenanceSource, ProvenanceTable, ReadonlyOperandPreparation,
-    ReceiverPreparation, ReplayedBodyClosures, SpreadMode, StaticDispatch, StaticSelection,
-    TypedIteration, ValueProvenance,
+    CheckedPatternSlot, CheckedPatternSubject, CheckedPlace, CheckedProgram,
+    CheckedProgramMapFailure, CheckedProgramOutput, CheckedReadonlyOperand, CheckedReceiver,
+    CheckedReceiverCoercion, CheckedSemanticRebindError, CleanupAction, CleanupCondition,
+    CleanupFieldProjection, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
+    CleanupTiming, ClosureDefinition, ClosureEnvironmentField, ClosureParameter,
+    ClosureProvenanceTable, ClosureSignature, ClosureTable, ClosureTableBuildError,
+    CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation, ConstantValue,
+    DropSelection, DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
+    IterationAcquisition, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable, LogicalOperation,
+    LoopKind, OpaqueWitnessTable, OpaqueWitnessTableBuildError, PatternBindingMode,
+    PatternRemainder, PatternSubjectPreparation, PlaceAccess, PlaceProjection, PlaceRoot,
+    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary, ProvenanceProjection, ProvenanceSource,
+    ProvenanceTable, ReadonlyOperandPreparation, ReceiverPreparation, ReplayedBodyClosures,
+    SpreadMode, StaticDispatch, StaticSelection, TypedIteration, ValueProvenance,
 };
 pub use concrete_destruction::{
     ConcreteCaptureDestruction, ConcreteDestructionError, ConcreteDestructionKind,
@@ -161,15 +160,17 @@ pub use names::{
 pub use nocter_constant_evaluation::ConstantExpressionRule;
 pub use nocter_frontend_bindings::{SourceOwnershipError, SourceOwnershipTable};
 pub use ownership::{DropTable, DropTableError};
+#[cfg(any(test, feature = "test-api"))]
+pub use preparation::prepare_program_checking;
 pub use preparation::{
     PreparationError, PreparationFailure, PreparationFailureEvidence, PreparationRepairEvidence,
-    PreparedBodyAnalysis, PreparedChecking, PreparedSemanticProgram,
-    QueriedProgramPreparationRejection, ReusablePreparedProgram,
-    ReusableProgramPreparationQueryOutcome, prepare_analysis_program_checking_recovering,
-    prepare_program_checking_recovering, prepare_reusable_program_for_query,
+    PreparedChecking, PreparedSemanticProgram, QueriedProgramPreparationRejection,
 };
-#[cfg(any(test, feature = "test-api"))]
-pub use preparation::{prepare_program_checking, prepare_reusable_program};
+pub use query_transition::{
+    DeclarationBodyAnalysisFailure, LoweredProgramCheckFailure, ReusableCheckingQuery,
+    ReusableCheckingQueryError, ReusableCheckingQueryOutcome, analyze_declaration_bodies,
+    check_lowered_program_recovering,
+};
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, InterruptionEvidenceError};
 pub use source_visibility::{SourceAccessContext, SourceVisibilityError};
 pub use standard_semantics::{StandardSemanticError, StandardSemanticTable};

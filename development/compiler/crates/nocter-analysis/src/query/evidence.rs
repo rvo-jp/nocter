@@ -610,9 +610,9 @@ impl<'a> SemanticQueryContext<'a> {
         sources: &SourceMap,
         syntax_trees: &[SyntaxTree],
     ) -> Result<(), EvidenceIntegrityError> {
-        if let Some(issue) = self.source_index().issues().first() {
-            return Err(EvidenceIntegrityError::InvalidSourceProjection(*issue));
-        }
+        self.source_index()
+            .validate()
+            .map_err(EvidenceIntegrityError::InvalidSourceProjection)?;
         for source in sources.iter() {
             let source = source.id();
             let module = self

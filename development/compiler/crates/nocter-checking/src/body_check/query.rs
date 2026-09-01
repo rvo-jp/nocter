@@ -1,5 +1,5 @@
 use nocter_compile_input::CompileUnitInput;
-use nocter_frontend_bindings::{FrontendBindings, SourceNamespaceTable};
+use nocter_frontend_bindings::FrontendBindings;
 use nocter_source_index::SourceIndex;
 
 use super::checker::{BodyChecker, BodyUnitInput};
@@ -7,9 +7,10 @@ use super::context::BodyProgramFacts;
 use super::reusable_body::{ReusableCheckedBody, capture_checked_body};
 use super::semantic_transaction::BodySemanticAuthority;
 use crate::checked::ClosureAuthority;
+use crate::preparation::ReusablePreparedProgram;
 use crate::{
     BodySourceError, ReusableBodyNameQueryOutcome, ReusableBodyNames, ReusableBodyNamesError,
-    ReusableBodyResolutionError, ReusablePreparedProgram, catalog_body_source,
+    ReusableBodyResolutionError, catalog_body_source,
 };
 
 /// Exact-current projection required to produce independent source-neutral typed-body results.
@@ -20,7 +21,7 @@ use crate::{
 #[derive(Debug)]
 pub struct ProgramBodyCheckingContext {
     current: crate::PreparedSemanticProgram,
-    source_namespaces: SourceNamespaceTable,
+    frontend_bindings: FrontendBindings,
     source_index: SourceIndex,
 }
 
@@ -58,14 +59,13 @@ impl ProgramBodyCheckingContext {
     pub fn prepare_names<'syntax>(
         &self,
         input: &'syntax CompileUnitInput<'syntax>,
-        bindings: &FrontendBindings,
         names: &[&ReusableBodyNames],
         rejections: &[&crate::QueriedBodyNameRejection],
     ) -> Result<crate::PreparedChecking<'syntax>, crate::PreparationFailure> {
         crate::preparation::prepare_program_checking_from_current_queried_names(
             input,
             self.current.clone(),
-            bindings,
+            &self.frontend_bindings,
             self.source_index.clone(),
             names,
             rejections,
@@ -73,18 +73,17 @@ impl ProgramBodyCheckingContext {
     }
 
     #[must_use]
-    pub fn new<S>(
+    pub(crate) fn new(
         program: &ReusablePreparedProgram,
-        checking_spellings: impl IntoIterator<Item = S>,
-        bindings: &FrontendBindings,
-        source_index: SourceIndex,
-    ) -> Self
-    where
-        S: AsRef<str>,
-    {
+        projection: nocter_declaration_lowering::CurrentDeclarationProjection,
+    ) -> Self {
+        let (frontend_bindings, source_index, checking_symbols) = projection.into_parts();
         Self {
-            current: program.open_current(checking_spellings, bindings.source_access().clone()),
-            source_namespaces: bindings.source_namespaces().clone(),
+            current: program.open_current(
+                checking_symbols.spellings(),
+                frontend_bindings.source_access().clone(),
+            ),
+            frontend_bindings,
             source_index,
         }
     }
@@ -97,15 +96,15 @@ impl ProgramBodyCheckingContext {
     pub fn resolve_names(
         &self,
         input: &CompileUnitInput<'_>,
-        bindings: &FrontendBindings,
         body: nocter_model::BodyId,
     ) -> Result<ReusableBodyNameQueryOutcome, ReusableProgramBodyNameError> {
-        let source = catalog_body_source(input, self.current.graph(), bindings, body)
-            .map_err(ReusableProgramBodyNameError::BodySource)?;
+        let source =
+            catalog_body_source(input, self.current.graph(), &self.frontend_bindings, body)
+                .map_err(ReusableProgramBodyNameError::BodySource)?;
         crate::names::resolve_reusable_body_names_for_query(
             input,
             self.current.graph(),
-            bindings,
+            &self.frontend_bindings,
             source,
         )
         .map_err(ReusableProgramBodyNameError::Resolution)
@@ -119,18 +118,18 @@ impl ProgramBodyCheckingContext {
     pub fn check(
         &self,
         input: &CompileUnitInput<'_>,
-        bindings: &FrontendBindings,
         names: &ReusableBodyNames,
     ) -> Result<ReusableBodyQueryOutcome, ReusableProgramBodyCheckError> {
         let body = names.body();
-        let source = catalog_body_source(input, self.current.graph(), bindings, body)
-            .map_err(ReusableProgramBodyCheckError::BodySource)?;
+        let source =
+            catalog_body_source(input, self.current.graph(), &self.frontend_bindings, body)
+                .map_err(ReusableProgramBodyCheckError::BodySource)?;
         let (names, _) = names
             .materialize(self.current.graph(), source)
             .map_err(ReusableProgramBodyCheckError::Names)?;
         let facts = BodyProgramFacts::new(
             self.current.environment(),
-            &self.source_namespaces,
+            self.frontend_bindings.source_namespaces(),
             self.current.source_access(),
             self.source_index.diagnostic_origins(),
         );
@@ -189,13 +188,12 @@ impl ProgramBodyCheckingContext {
     pub fn finalize(
         &self,
         input: &CompileUnitInput<'_>,
-        bindings: &FrontendBindings,
         names: &[&ReusableBodyNames],
         name_rejections: &[&crate::QueriedBodyNameRejection],
         bodies: &[&ReusableCheckedBody],
         body_rejections: &[&QueriedBodyRejection],
     ) -> Result<super::QueriedProgramFinalizationOutcome, crate::PreparationFailure> {
-        let prepared = self.prepare_names(input, bindings, names, name_rejections)?;
+        let prepared = self.prepare_names(input, names, name_rejections)?;
         Ok(super::finalize_prepared_program_from_queried_bodies(
             prepared,
             bodies,

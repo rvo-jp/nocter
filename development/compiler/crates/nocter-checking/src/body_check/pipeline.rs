@@ -19,7 +19,7 @@ use crate::checked::{
 };
 use crate::effects::{EffectBodyInput, analyze_program_effects};
 use crate::loans::{LoanBodyInput, analyze_program_loans};
-use crate::preparation::BodyCheckingParts;
+use crate::preparation::{BodyCheckingParts, PreparedBodyAnalysis};
 use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
 use crate::{BodySource, BodySourceCatalog, CheckedBody, PreparedChecking, ResolvedBodyNames};
 
@@ -51,7 +51,7 @@ pub fn check_prepared_program<'syntax>(
 /// boundary, the current-generation [`crate::BodyAnalysisRecovery`]. Recovery always contains the
 /// completed preparation stage and may additionally contain independent phase-owned typed
 /// interruptions from every authored body failure.
-pub fn check_prepared_program_recovering<'syntax>(
+pub(crate) fn check_prepared_program_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     prepared: PreparedChecking<'syntax>,
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
@@ -109,7 +109,7 @@ pub enum QueriedProgramFinalizationOutcome {
 /// Replays every independently queried body and finalizes whole-program authorities once.
 ///
 #[must_use]
-pub fn finalize_prepared_program_from_queried_bodies(
+pub(crate) fn finalize_prepared_program_from_queried_bodies(
     prepared: PreparedChecking<'_>,
     reusable: &[&super::ReusableCheckedBody],
     rejected: &[&super::QueriedBodyRejection],
@@ -257,9 +257,9 @@ fn index_queried_bodies<'a>(
 /// # Errors
 ///
 /// Returns the first canonical body error together with any independently retained body evidence.
-pub fn analyze_prepared_program_bodies<'syntax>(
+pub(crate) fn analyze_prepared_program_bodies<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
-    prepared: crate::PreparedBodyAnalysis<'syntax>,
+    prepared: PreparedBodyAnalysis<'syntax>,
 ) -> Result<crate::BodyAnalysisRecovery, crate::BodyCheckFailure> {
     let (accepted_semantics, prepared) = prepared.into_parts().into_body_parts();
     let mut semantics = BodySemanticAuthority::new(accepted_semantics, ClosureAuthority::new());

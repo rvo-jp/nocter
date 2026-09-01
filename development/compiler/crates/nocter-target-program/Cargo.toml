@@ -12,7 +12,6 @@ nocter-checking = { path = "../nocter-checking" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-model = { path = "../nocter-model" }
 nocter-runtime-contract = { path = "../nocter-runtime-contract" }
-nocter-source-index = { path = "../nocter-source-index" }
 
 [dev-dependencies]
 nocter-checking = { path = "../nocter-checking", features = ["test-api"] }

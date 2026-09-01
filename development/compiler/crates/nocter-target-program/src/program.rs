@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_checking::{CheckedProgram, CheckedProgramOutput};
+use nocter_checking::CheckedProgram;
 use nocter_model::{CompilationTarget, PackageId};
 
 use crate::primitive_contracts::validate_primitive_registry;
@@ -17,21 +17,31 @@ pub struct TargetProgram {
 }
 
 impl TargetProgram {
-    /// Validates and freezes a closed checked output while retaining that exact output when only
-    /// the target boundary rejects it.
+    /// Validates and freezes a closed checked program.
     ///
     /// # Errors
     ///
-    /// Returns the target-program error together with the still-valid closed checked output.
-    pub fn build_checked_output(
-        checked: CheckedProgramOutput,
+    /// Returns the target-program error together with the still-valid checked semantic program.
+    pub fn build_retaining_checked(
+        checked: CheckedProgram,
         toolchain: ToolchainSnapshot,
-    ) -> Result<(Self, nocter_source_index::SourceIndex), Box<TargetProgramFailure>> {
-        if let Err(error) = validate_target_program(checked.program(), &toolchain) {
+    ) -> Result<Self, Box<TargetProgramFailure>> {
+        if let Err(error) = validate_target_program(&checked, &toolchain) {
             return Err(Box::new(TargetProgramFailure { error, checked }));
         }
-        let (checked, source_index) = checked.into_parts();
-        Ok((Self { checked, toolchain }, source_index))
+        Ok(Self { checked, toolchain })
+    }
+
+    /// Validates and freezes a checked program without retaining a rejected input.
+    ///
+    /// # Errors
+    ///
+    /// Returns the selected-target contract failure.
+    pub fn build(
+        checked: CheckedProgram,
+        toolchain: ToolchainSnapshot,
+    ) -> Result<Self, TargetProgramError> {
+        Self::build_retaining_checked(checked, toolchain).map_err(|failure| failure.error)
     }
 
     #[must_use]
@@ -79,12 +89,12 @@ fn validate_target_program(
 #[derive(Debug)]
 pub struct TargetProgramFailure {
     error: TargetProgramError,
-    checked: CheckedProgramOutput,
+    checked: CheckedProgram,
 }
 
 impl TargetProgramFailure {
     #[must_use]
-    pub fn into_parts(self) -> (TargetProgramError, CheckedProgramOutput) {
+    pub fn into_parts(self) -> (TargetProgramError, CheckedProgram) {
         (self.error, self.checked)
     }
 }

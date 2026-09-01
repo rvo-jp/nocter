@@ -177,6 +177,20 @@ pub struct CheckedProgramOutput {
     source_index: SourceIndex,
 }
 
+/// A rejected semantic-component transform with the exact checked output restored.
+#[derive(Clone, Debug)]
+pub struct CheckedProgramMapFailure<E> {
+    error: E,
+    checked: CheckedProgramOutput,
+}
+
+impl<E> CheckedProgramMapFailure<E> {
+    #[must_use]
+    pub fn into_parts(self) -> (E, CheckedProgramOutput) {
+        (self.error, self.checked)
+    }
+}
+
 impl CheckedProgramOutput {
     #[must_use]
     pub(crate) const fn new(program: CheckedProgram, source_index: SourceIndex) -> Self {
@@ -199,6 +213,37 @@ impl CheckedProgramOutput {
     #[must_use]
     pub fn into_parts(self) -> (CheckedProgram, SourceIndex) {
         (self.program, self.source_index)
+    }
+
+    /// Transforms only the semantic component while preserving its exact source projection.
+    ///
+    /// A rejecting transform must return the consumed semantic program with its error. This keeps
+    /// the pair recoverable without granting the transform access to presentation state.
+    ///
+    /// # Errors
+    ///
+    /// Returns the transform error with the exact restored checked output.
+    pub fn try_map_program<T, E>(
+        self,
+        transform: impl FnOnce(CheckedProgram) -> Result<T, Box<(E, CheckedProgram)>>,
+    ) -> Result<(T, SourceIndex), Box<CheckedProgramMapFailure<E>>> {
+        let Self {
+            program,
+            source_index,
+        } = self;
+        match transform(program) {
+            Ok(transformed) => Ok((transformed, source_index)),
+            Err(failure) => {
+                let (error, program) = *failure;
+                Err(Box::new(CheckedProgramMapFailure {
+                    error,
+                    checked: Self {
+                        program,
+                        source_index,
+                    },
+                }))
+            }
+        }
     }
 
     /// Opens an owned consumer branch from one immutable exact-current query result.

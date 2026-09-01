@@ -31,7 +31,8 @@ fn complete_closed_registry_constructs_a_target_program() {
     let snapshot =
         ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
             .unwrap();
-    let (target, _) = TargetProgram::build_checked_output(output, snapshot).unwrap();
+    let (checked, _) = output.into_parts();
+    let target = TargetProgram::build(checked, snapshot).unwrap();
     assert_eq!(
         target.checked().graph().target(),
         CompilationTarget::Arm64Darwin
@@ -68,7 +69,12 @@ fn target_rejection_returns_the_unchanged_checked_program() {
     )
     .unwrap();
 
-    let failure = TargetProgram::build_checked_output(output, snapshot).unwrap_err();
+    let failure = output
+        .try_map_program(|checked| {
+            TargetProgram::build_retaining_checked(checked, snapshot)
+                .map_err(|failure| Box::new((*failure).into_parts()))
+        })
+        .unwrap_err();
     let (error, checked) = (*failure).into_parts();
     assert!(matches!(
         error,
@@ -645,7 +651,8 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
         PrimitiveRegistry::new(bindings).unwrap(),
     )
     .unwrap();
-    let (target, _) = TargetProgram::build_checked_output(output, snapshot).unwrap();
+    let (checked, _) = output.into_parts();
+    let target = TargetProgram::build(checked, snapshot).unwrap();
     assert_eq!(
         target
             .toolchain()
@@ -674,9 +681,8 @@ fn build_target_program(fixture: &Fixture) -> TargetProgram {
     let snapshot =
         ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
             .unwrap();
-    TargetProgram::build_checked_output(output, snapshot)
-        .unwrap()
-        .0
+    let (checked, _) = output.into_parts();
+    TargetProgram::build(checked, snapshot).unwrap()
 }
 
 fn named_callable(target: &TargetProgram, expected: &str) -> nocter_model::CallableId {

@@ -28,7 +28,8 @@ fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
     let snapshot =
         ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
             .unwrap();
-    let (target, _) = TargetProgram::build_checked_output(checked, snapshot).unwrap();
+    let (checked, _) = checked.into_parts();
+    let target = TargetProgram::build(checked, snapshot).unwrap();
     let selected = target
         .checked()
         .graph()

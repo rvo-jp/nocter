@@ -2139,7 +2139,6 @@ dependencies = [
  "nocter-declarations",
  "nocter-model",
  "nocter-runtime-contract",
- "nocter-source-index",
  "nocter-test-support",
  "nocter-toolchain-contract",
 ]

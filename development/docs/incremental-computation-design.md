@@ -97,6 +97,9 @@ computation of the same final source in conformance tests.
 Program preparation freezes the declaration-owned semantic prefix before body work. Each lexical
 and typed-body query opens from that same prefix and an empty body-local extension domain, so one
 body cannot observe types, closures, symbols, or memoized facts allocated by a preceding sibling.
+Preparation and the declaration recipe needed to reopen it are one checking-owned query product.
+Compiler computation schedules its transition but cannot split the product and manually rejoin
+generation-local bindings or source projection.
 
 A successful body publishes source-neutral recipes for its lexical identities, inferred
 structural types, closures, checked operations, and source occurrences. Finalization replays all
@@ -135,6 +138,12 @@ trivia-only edit cannot retain stale presentation.
 Source projection travels beside semantics and cannot participate in lookup, typing, dispatch,
 ownership, reachability, ABI, or code generation. A failed semantic/source join is an integrity
 error rather than permission to guess a range or publish partial editor data.
+
+An exact-current body context owns current bindings and projection, but its successful equivalence
+fingerprint remains tied to source-neutral preparation. Each body query separately depends on its
+exact body source, and finalization separately depends on the exact-current scope. An unrelated
+source edit can therefore reuse unaffected body recipes without permitting a stale final source
+projection.
 
 ## Current Execution Contract
 

@@ -47,7 +47,7 @@ pub use node::{
 pub use opaque::{CheckedOpaqueWitness, OpaqueWitnessTable, OpaqueWitnessTableBuildError};
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};
 pub(crate) use program::CheckedProgramAuthorities;
-pub use program::{CheckedProgram, CheckedProgramOutput};
+pub use program::{CheckedProgram, CheckedProgramMapFailure, CheckedProgramOutput};
 pub use provenance::{
     AmbientStorageDependence, CallableProvenanceTable, CheckedBodyProvenance,
     CheckedCallableProvenance, CheckedClosureProvenance, ClosureProvenanceTable,

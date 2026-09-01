@@ -23,8 +23,9 @@ checking decisions.
 ## Invariants
 
 - Target validation runs once before executable specialization.
-- The checked success boundary is consumed atomically. Target rejection returns the unchanged
-  checked output, while success separates source projection only after validation has completed.
+- Target validation consumes only `CheckedProgram`; this crate has no source-projection dependency.
+  The checking-owned output maps that semantic component into `TargetProgram` and preserves or
+  restores the exact projection pair outside this layer.
 - Every concrete dispatch comes from checking's selected semantic authority.
 - Executable specialization owns key construction; a consumer cannot pair a semantic identity with
   an unrelated specialization type store.

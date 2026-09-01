@@ -36,9 +36,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   current-generation owners.
 - Eager prepare/check convenience entries exist only behind the `test-api` feature or the crate's
   own test build. Production orchestration consumes query contracts and cannot reopen the stage.
-- Reusable preparation and exact-current body-context construction are query capabilities admitted
-  only to `nocter-compiler-computation`; lower-stage convenience functions cannot become an
-  alternate production scheduler.
+- `ReusableCheckingQuery` owns source-neutral preparation together with the declaration projection
+  recipe that may reopen it. Its exact-current body context materializes bindings, spellings, and
+  source projection internally; callers cannot supply or pair those components independently.
 - Query-owned program preparation accepts only a closed set of authored rule variants. It retains
   declaration recovery and repair evidence as one exact-current rejection; opening a session
   branch clones that authority and cannot rerun preparation or publish an internal error as source.
@@ -87,9 +87,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Canonical replay and whole-program authorities are exposed only through one finalization
   contract. Recipes own their body IDs, exact-current checked/failure outputs open explicit owned
   branches, and no caller can pair a recipe with a separately supplied identity.
-- `CheckedProgramOutput` has no public parts constructor. Target validation consumes the complete
-  output and returns that same output intact on rejection, so session never reconstructs a checked
-  program/source-projection pair.
+- `CheckedProgramOutput` has no public parts constructor. Its component-preserving transform may
+  pass `CheckedProgram` to a semantic consumer while retaining `SourceIndex` beside it, and restores
+  the exact pair if that consumer rejects the program.
 - Authored typed-body rejection is an exact-current query value. Successful siblings replay into
   editor evidence while the rejecting body contributes its diagnostic and typed-interruption
   capability; session assembles `BodyAnalysisRecovery` without checking either body again.

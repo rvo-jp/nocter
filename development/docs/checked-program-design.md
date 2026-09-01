@@ -10,8 +10,11 @@ semantics. Public behavior remains in `spec/`; checking's private mechanisms bel
 ReusableDeclarations
         |
         v
-ReusablePreparedProgram
-  + current declaration/body projection
+ReusableCheckingQuery
+  (prepared authority + its declaration projection recipe)
+        |
+        v
+exact-current ProgramBodyCheckingContext
         |
         v
 independent lexical and typed-body query products
@@ -40,8 +43,10 @@ body-only symbol suffix from current syntax. It preserves the stable declaration
 semantic identity domain.
 
 Program-wide preparation contains no generation-local source access. A current body query pairs
-that immutable prefix with source access from its own admitted generation. Stable semantic
-authority and current syntax therefore cannot be mixed across revisions.
+that immutable prefix with source access from its own admitted generation. The checking-owned
+`ReusableCheckingQuery` retains the declaration recipe and performs this join itself; no caller can
+provide preparation, bindings, spellings, or source projection as independent arguments. Stable
+semantic authority and current syntax therefore cannot be mixed across revisions.
 
 ## Decisions Crossing the Boundary
 
@@ -91,6 +96,11 @@ diagnostic or trigger an eager fallback through session.
 Current materialization and body replay extend one source projection beside semantic output. The
 projection owns exact declaration, local, capture, checked-node, and reference occurrences. It is
 not an input to lookup, visibility, typing, dispatch, ownership, provenance, or capability proof.
+
+`CheckedProgramOutput` owns the final semantic/source pair. A component-preserving transform may
+consume `CheckedProgram` without exposing `SourceIndex` to that consumer. Success carries the
+projection forward beside the transformed value; rejection must return the consumed program and
+therefore restores the exact output pair.
 
 A missing or mismatched locator is an integrity failure for the joined generation. It does not
 permit a guessed range or a partial editor result.

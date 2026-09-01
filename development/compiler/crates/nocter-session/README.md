@@ -40,18 +40,18 @@ protocol values.
   retains the exact source snapshot and the complete query-selected diagnostic set.
 - The analyzed unit shares one immutable discovery snapshot with computation inputs; it never
   clones, rebuilds, or substitutes the source graph after a semantic query has consumed it.
-- A checked query result creates an owned branch of the accepted declaration authority and
-  materializes current frontend bindings plus source projection from its paired recipe. It then
-  appends a deterministic current-body symbol suffix while preserving every reusable declaration
-  symbol ID; it cannot invoke declaration lowering again.
+- A checked query result has already crossed checking's paired exact-current transition. Session
+  cannot materialize frontend bindings, reopen declaration preparation, or select a body-symbol
+  generation.
 - Declaration rejection opens an owned branch of the query's exact-current recovery
   product. Session composes its diagnostics and editor evidence without invoking declaration
   lowering a second time.
 - Declaration-only evidence retains the originating lowering or checking recovery product intact;
   session never reconstructs an authority from independently supplied graph, type, ownership, and
   source-index values.
-- Target rejection retains the checking-owned output intact; session cannot reconstruct checked
-  semantics from a returned program and a separately retained source projection.
+- Session maps only the semantic component of `CheckedProgramOutput` through target validation.
+  The output owner preserves the projection on success and reconstructs the exact original pair on
+  rejection; target and session never manipulate a free `CheckedProgram + SourceIndex` pair.
 - Compiler-domain query failure retains its typed originating cause rather than being translated
   into a generic missing-authority state.
 - Lexical rejection opens the finalization query's exact-current recovery branch.

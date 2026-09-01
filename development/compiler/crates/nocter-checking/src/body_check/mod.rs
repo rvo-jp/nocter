@@ -59,7 +59,6 @@ mod opaque_tests;
 #[cfg(test)]
 mod operator_tests;
 #[cfg(test)]
-#[allow(clippy::disallowed_methods)]
 mod outcome_tests;
 #[cfg(test)]
 mod pattern_tests;
@@ -76,11 +75,12 @@ pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
 pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
+pub use pipeline::QueriedProgramFinalizationOutcome;
 #[cfg(any(test, feature = "test-api"))]
 pub use pipeline::check_prepared_program;
-pub use pipeline::{
-    QueriedProgramFinalizationOutcome, analyze_prepared_program_bodies,
-    check_prepared_program_recovering, finalize_prepared_program_from_queried_bodies,
+pub(crate) use pipeline::{
+    analyze_prepared_program_bodies, check_prepared_program_recovering,
+    finalize_prepared_program_from_queried_bodies,
 };
 pub use query::{
     ProgramBodyCheckingContext, QueriedBodyRejection, ReusableBodyQueryOutcome,

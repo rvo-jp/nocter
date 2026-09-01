@@ -1,7 +1,5 @@
 //! Source-neutral program preparation query.
 
-#![allow(clippy::disallowed_methods)]
-
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
@@ -16,7 +14,7 @@ struct ProgramPreparationQuery;
 /// Reusable program-wide checking preparation or an explicitly uncached current failure.
 #[derive(Debug)]
 pub enum ProgramPreparationOutcome {
-    Prepared(Arc<nocter_checking::ReusablePreparedProgram>),
+    Prepared(Arc<nocter_checking::ReusableCheckingQuery>),
     Rejected(RejectedProgramPreparation),
     Failed(Arc<super::SemanticQueryFailure>),
 }
@@ -85,28 +83,25 @@ impl Query for ProgramPreparationQuery {
             Ok(input) => input,
             Err(error) => return failed(database, key, error.into()),
         };
-        let projection = match declarations.materialize_authority_projection(&input) {
-            Ok(projection) => projection,
-            Err(error) => return failed(database, key, error.into()),
-        };
-        let (bindings, source_index) = projection.into_parts();
-        let outcome = match nocter_checking::prepare_reusable_program_for_query(
-            &input,
-            declarations.checking_branch(),
-            &bindings,
-            source_index,
-        ) {
-            Ok(outcome) => outcome,
-            Err(error) => return failed(database, key, error.into()),
-        };
+        let outcome =
+            match nocter_checking::ReusableCheckingQuery::prepare(&input, Arc::clone(declarations))
+            {
+                Ok(outcome) => outcome,
+                Err(nocter_checking::ReusableCheckingQueryError::CurrentProjection(error)) => {
+                    return failed(database, key, error.into());
+                }
+                Err(nocter_checking::ReusableCheckingQueryError::Preparation(error)) => {
+                    return failed(database, key, error.into());
+                }
+            };
         match outcome {
-            nocter_checking::ReusableProgramPreparationQueryOutcome::Prepared(prepared) => {
+            nocter_checking::ReusableCheckingQueryOutcome::Prepared(prepared) => {
                 Ok(ProgramPreparationProduct {
                     outcome: ProgramPreparationOutcome::Prepared(Arc::from(prepared)),
                     fingerprint: declaration_fingerprint,
                 })
             }
-            nocter_checking::ReusableProgramPreparationQueryOutcome::Rejected(rejection) => {
+            nocter_checking::ReusableCheckingQueryOutcome::Rejected(rejection) => {
                 let current = database.input::<CurrentSourceScopeInput>(key)?;
                 Ok(ProgramPreparationProduct {
                     outcome: ProgramPreparationOutcome::Rejected(RejectedProgramPreparation {

@@ -23,6 +23,11 @@ The [v0.25.0 architecture follow-up](reviews/v0.25.0-architecture-follow-up.md) 
 recovery-product reconstruction, executable-specialization lineage, duplicate topology-builder,
 and development-catalog authority gaps found by the full-workspace review.
 
+The reopened [query authority review](reviews/v0.25.0-query-authority-closure.md) replaces
+policy-restricted checking friend APIs with checking-owned transition products and removes source
+projection from target validation. Query correctness now follows from ownership and crate
+dependencies rather than source-text assertions or Clippy method bans.
+
 ## Next Work
 
 Choose the next practical application/API milestone or begin v0.25.0 release preparation when

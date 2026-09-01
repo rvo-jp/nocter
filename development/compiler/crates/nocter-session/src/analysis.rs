@@ -191,7 +191,10 @@ fn finish_checked_target(
             return Err(Box::new(failure_with_checked(error.into(), checked)));
         }
     };
-    let (program, source_index) = match TargetProgram::build_checked_output(checked, snapshot) {
+    let (program, source_index) = match checked.try_map_program(|program| {
+        TargetProgram::build_retaining_checked(program, snapshot)
+            .map_err(|failure| Box::new((*failure).into_parts()))
+    }) {
         Ok(output) => output,
         Err(failure) => {
             let (error, checked) = (*failure).into_parts();

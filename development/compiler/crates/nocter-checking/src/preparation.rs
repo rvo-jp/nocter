@@ -44,7 +44,7 @@ pub struct PreparedChecking<'syntax> {
 /// graph. This type deliberately has no conversion into [`PreparedChecking`] and can only enter
 /// the analysis-body endpoint.
 #[derive(Debug)]
-pub struct PreparedBodyAnalysis<'syntax>(PreparedChecking<'syntax>);
+pub(crate) struct PreparedBodyAnalysis<'syntax>(PreparedChecking<'syntax>);
 
 impl<'syntax> PreparedBodyAnalysis<'syntax> {
     pub(crate) fn into_parts(self) -> PreparedCheckingParts<'syntax> {
@@ -70,7 +70,7 @@ pub struct PreparedSemanticProgram {
 /// generation appends body spellings to a graph branch and pairs source access with that branch;
 /// neither operation rebuilds these authorities.
 #[derive(Clone, Debug)]
-pub struct ReusablePreparedProgram {
+pub(crate) struct ReusablePreparedProgram {
     environment: crate::program_environment::ProgramEnvironment,
     semantics: crate::semantic_authority::SemanticAuthority,
 }
@@ -154,7 +154,7 @@ impl QueriedPreparationRule {
 }
 
 #[derive(Debug)]
-pub enum ReusableProgramPreparationQueryOutcome {
+pub(crate) enum ReusableProgramPreparationQueryOutcome {
     Prepared(Box<ReusablePreparedProgram>),
     Rejected(Box<QueriedProgramPreparationRejection>),
 }
@@ -634,7 +634,7 @@ pub fn prepare_program_checking<'syntax>(
 ///
 /// Returns the exact preparation failure and a recovery snapshot only when lexical resolution
 /// completed explicit scopes and bindings before rejecting authored source.
-pub fn prepare_program_checking_recovering<'syntax>(
+pub(crate) fn prepare_program_checking_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: AcceptedDeclarationProgram,
     bindings: &FrontendBindings,
@@ -658,7 +658,7 @@ pub fn prepare_program_checking_recovering<'syntax>(
 /// # Errors
 ///
 /// Returns the same preparation failures and explicit recovery contracts as ordinary checking.
-pub fn prepare_analysis_program_checking_recovering<'syntax>(
+pub(crate) fn prepare_analysis_program_checking_recovering<'syntax>(
     input: &'syntax CompileUnitInput<'syntax>,
     program: BodyAnalysisDeclarationProgram,
     bindings: &FrontendBindings,
@@ -728,8 +728,8 @@ struct ReusablePreparationFailure {
 ///
 /// Returns a program-wide declaration or authority failure. Editor recovery is composed only by
 /// the current-generation preparation endpoint, which owns the required source domain.
-#[cfg(any(test, feature = "test-api"))]
-pub fn prepare_reusable_program(
+#[cfg(test)]
+pub(crate) fn prepare_reusable_program(
     input: &CompileUnitInput<'_>,
     program: AcceptedDeclarationProgram,
     bindings: &FrontendBindings,
@@ -750,7 +750,7 @@ pub fn prepare_reusable_program(
 ///
 /// Returns internal or non-authored preparation failures. Authored rules are retained as an
 /// exact-current rejection with declaration-level recovery.
-pub fn prepare_reusable_program_for_query(
+pub(crate) fn prepare_reusable_program_for_query(
     input: &CompileUnitInput<'_>,
     program: AcceptedDeclarationProgram,
     bindings: &FrontendBindings,

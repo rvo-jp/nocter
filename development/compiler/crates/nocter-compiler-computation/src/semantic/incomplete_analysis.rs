@@ -1,7 +1,5 @@
 //! Exact-current incomplete-syntax analysis.
 
-#![allow(clippy::disallowed_methods)]
-
 use std::sync::Arc;
 
 use nocter_computation::{ComputationError, Database, Fingerprint, Query, QueryValue};
@@ -148,37 +146,27 @@ fn analyze_incomplete_semantics(
             };
         }
     };
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
-    let prepared = match nocter_checking::prepare_program_checking_recovering(
-        &input,
-        program,
-        &frontend_bindings,
-        source_index,
-    ) {
-        Ok(prepared) => prepared,
-        Err(failure) => {
+    let failure = match nocter_checking::check_lowered_program_recovering(&input, lowered) {
+        Ok(_) => None,
+        Err(nocter_checking::LoweredProgramCheckFailure::Preparation(failure)) => {
             let (error, evidence) = failure.into_parts();
-            return IncompleteSemanticAnalysis {
-                failure: Some(IncompleteSemanticFailure {
-                    error: IncompleteSemanticError::Preparation(error),
-                    evidence: evidence
-                        .map(Box::new)
-                        .map(IncompleteSemanticEvidence::Preparation),
-                }),
-            };
+            Some(IncompleteSemanticFailure {
+                error: IncompleteSemanticError::Preparation(error),
+                evidence: evidence
+                    .map(Box::new)
+                    .map(IncompleteSemanticEvidence::Preparation),
+            })
         }
-    };
-    let failure = nocter_checking::check_prepared_program_recovering(&input, prepared)
-        .err()
-        .map(|failure| {
+        Err(nocter_checking::LoweredProgramCheckFailure::Checking(failure)) => {
             let (error, recovery) = failure.into_parts();
-            IncompleteSemanticFailure {
+            Some(IncompleteSemanticFailure {
                 error: IncompleteSemanticError::Checking(error),
                 evidence: recovery
                     .map(Box::new)
                     .map(IncompleteSemanticEvidence::Bodies),
-            }
-        });
+            })
+        }
+    };
     IncompleteSemanticAnalysis { failure }
 }
 
@@ -209,29 +197,21 @@ pub(super) fn continue_declaration_recovery(
     input: &nocter_compile_input::CompileUnitInput<'_>,
     recovery: DeclarationLoweringRecovery,
 ) -> Option<IncompleteSemanticEvidence> {
-    let (program, frontend_bindings, source_index) = match recovery.into_checking_transition() {
-        DeclarationCheckingTransition::Bodies(input) => input.into_parts(),
+    let admitted = match recovery.into_checking_transition() {
+        DeclarationCheckingTransition::Bodies(input) => *input,
         DeclarationCheckingTransition::Declarations(recovery) => {
             return Some(IncompleteSemanticEvidence::Declarations(recovery));
         }
     };
-    let prepared = match nocter_checking::prepare_analysis_program_checking_recovering(
-        input,
-        program,
-        &frontend_bindings,
-        source_index,
-    ) {
-        Ok(prepared) => prepared,
-        Err(failure) => {
-            let (_, evidence) = failure.into_parts();
-            return evidence
-                .map(Box::new)
-                .map(IncompleteSemanticEvidence::Preparation);
-        }
-    };
-    match nocter_checking::analyze_prepared_program_bodies(input, prepared) {
+    match nocter_checking::analyze_declaration_bodies(input, admitted) {
         Ok(analysis) => Some(IncompleteSemanticEvidence::Bodies(Box::new(analysis))),
-        Err(failure) => {
+        Err(nocter_checking::DeclarationBodyAnalysisFailure::Preparation(failure)) => {
+            let (_, evidence) = failure.into_parts();
+            evidence
+                .map(Box::new)
+                .map(IncompleteSemanticEvidence::Preparation)
+        }
+        Err(nocter_checking::DeclarationBodyAnalysisFailure::Checking(failure)) => {
             let (_, recovery) = failure.into_parts();
             recovery
                 .map(Box::new)
