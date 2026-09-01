@@ -8,11 +8,11 @@ shared collection failure policy, standard dependency audit, and public contract
 complete. The exact source, artifact, publication, and public re-download evidence is frozen. The
 `v0.22.0` tag and release asset must not be replaced.
 
-The active compiler is under `development/compiler/`. The v0.24.0 explicit-value-subject migration
-and installation-image stabilization are complete and reviewed. Release preparation now owns the
-candidate version, independent source qualification, deterministic artifact, and installed-home
-evidence. The root download link and public release index remain on v0.22.0 until publication is
-explicitly authorized.
+The active compiler is under `development/compiler/`. The v0.24.0 explicit-value-subject migration,
+installation-image stabilization, independent source qualification, deterministic packaging, and
+fresh installed-home matrix are complete. The qualified candidate identity is frozen in the
+[release-preparation record](milestones/v0.24.0-release-preparation.md). The root download link and
+public release index remain on v0.22.0 until publication is explicitly authorized.
 Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 milestone, release, and review records rather than this handoff.
@@ -23,11 +23,10 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Complete the [v0.24.0 release preparation](milestones/v0.24.0-release-preparation.md): freeze one
-clean release-content commit, run duplicate independent source qualification, produce two identical
-optimized archives and installed homes, execute the fresh-home smoke and integrity matrix, and
-record the final candidate identity. Stop before tagging, pushing, uploading, or changing public
-latest-release links.
+Wait for explicit publication authorization. Publication must reuse the retained qualified archive
+without rebuilding it, update the root download link and public release index in a separate commit,
+create and push the annotated `v0.24.0` tag, upload exactly the qualified archive, and verify the
+public download byte for byte. Do not replace an existing tag or asset.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

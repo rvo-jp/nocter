@@ -11,7 +11,8 @@ The [v0.24.0 milestone](v0.24.0.md) makes imported value ownership explicit thro
 use sites, reserves selected imports for type names, and requires `UPPER_SNAKE_CASE` constants.
 Implementation, source migration, qualification, and final review are complete. Its
 [release preparation](v0.24.0-release-preparation.md) owns candidate identity, independent source
-qualification, deterministic packaging, and installed-home evidence.
+qualification, deterministic packaging, and installed-home evidence. The local candidate is
+qualified; publication has not been authorized.
 
 ## Completed Unpublished Milestone
 
