@@ -71,8 +71,8 @@ impl CheckedOperation {
             | Self::Primitive(_)
             | Self::Aggregate(_)
             | Self::Outcome(_)
-            | Self::ArgumentPackLength(_) => {}
-            Self::CallableGuaranteeErasure(_) => {}
+            | Self::ArgumentPackLength(_)
+            | Self::CallableGuaranteeErasure(_) => {}
         }
         Ok(())
     }

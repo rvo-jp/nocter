@@ -823,7 +823,7 @@ impl<'program> Collector<'program> {
                                     .variants()
                                     .get(*variant)
                                     .into_iter()
-                                    .flat_map(|variant| variant.payload())
+                                    .flat_map(nocter_declarations::VariantDeclaration::payload)
                             })
                             .map(|parameter| {
                                 self.graph
@@ -899,7 +899,7 @@ impl<'program> Collector<'program> {
                 match self
                     .capability_evidence
                     .get(evidence)
-                    .map(|evidence| evidence.predicate())
+                    .map(crate::body_check::CapabilityEvidence::predicate)
                 {
                     Some(crate::CheckedPredicate::Callable { contract, .. }) => {
                         contract.guarantees()

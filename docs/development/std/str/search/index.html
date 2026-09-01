@@ -232,7 +232,7 @@
 <span class="token-comment">//! Matching operates on bytes, but every successful match of a non-empty, well-formed UTF-8</span>
 <span class="token-comment">//! needle begins at a UTF-8 boundary in the haystack.</span>
 
-<span class="token-keyword">func</span> <span class="token-function">find_from_bytes</span><span class="token-operator">(</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">find_from_bytes</span><span class="token-operator">(</span>
     text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>

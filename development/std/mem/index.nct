@@ -45,9 +45,6 @@ pub(/) noalloc func empty_unbound_buffer(align: usize): RawBuffer
 
 pub(/) noalloc func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
 
-/// Compiler-selected positive effect root for one allocator backing-storage request.
-pub(/) func alloc_pages(size: usize): usize!
-
 construct Layout {
     /// Validates `size` and power-of-two `align` as one allocation request.
     pub noalloc func new(size: usize, align: usize): Self!

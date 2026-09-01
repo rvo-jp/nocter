@@ -1180,9 +1180,9 @@ mod tests {
         let receiver_start = document
             .source()
             .text()
-            .find("pub method &self.len(): usize")
+            .find("method &self.len(): usize")
             .unwrap()
-            + "pub method &".len();
+            + "method &".len();
         let receiver_start = u32::try_from(receiver_start).unwrap();
         let receiver = document
             .snapshot()
@@ -1296,7 +1296,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("pub method &self.len(): usize"))
+            .find(|(_, line)| line.contains("method &self.len(): usize"))
             .unwrap();
         let character = source_line.find("len").unwrap();
         let hover = server.receive(&format!(
@@ -1304,7 +1304,7 @@ mod tests {
             standard.display()
         ));
         let response = hover.response().unwrap();
-        assert!(response.contains("```nocter\\npub method &str.len(): usize\\n```"));
+        assert!(response.contains("```nocter\\npub noalloc method &str.len(): usize\\n```"));
         assert!(response.contains(&format!(
             "\"start\":{{\"line\":{line},\"character\":{character}}}"
         )));
@@ -1440,7 +1440,7 @@ mod tests {
         let (line, source_line) = num_text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("pub func parse(text: &str): Self?"))
+            .find(|(_, line)| line.contains("func parse(text: &str): Self?"))
             .unwrap();
         let character = source_line.find("parse").unwrap();
         let hover = server.receive(&format!(
@@ -1449,7 +1449,7 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("```nocter\\npub func i8.parse(text: &str): i8?\\n```"),
+            response.contains("```nocter\\npub noalloc func i8.parse(text: &str): i8?\\n```"),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());

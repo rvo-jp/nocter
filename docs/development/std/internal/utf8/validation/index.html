@@ -231,7 +231,7 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">func</span> <span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> candidate<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">let</span> leading<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> candidate<span class="token-operator">[</span>offset<span class="token-operator">]</span>
@@ -271,18 +271,18 @@
     <span class="token-keyword">return</span> <span class="token-keyword">true</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">validate_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">validate_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_utf8</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">is_continuation</span><span class="token-operator">(</span>byte<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">is_continuation</span><span class="token-operator">(</span>byte<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> byte <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-number">128</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> byte <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">191</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">invalid_utf8</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">invalid_utf8</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.string.invalid_utf8"</span><span class="token-operator">,</span> <span class="token-string">"invalid UTF-8"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>

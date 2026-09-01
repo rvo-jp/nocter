@@ -259,7 +259,9 @@ fn bundled_standard_allocation_reaches_an_application_noalloc_contract() {
         snapshot
             .diagnostics()
             .iter()
-            .any(|diagnostic| diagnostic.code() == "E0411")
+            .any(|diagnostic| diagnostic.code() == "E0411"),
+        "unexpected allocation diagnostics: {:#?}",
+        snapshot.diagnostics(),
     );
 }
 

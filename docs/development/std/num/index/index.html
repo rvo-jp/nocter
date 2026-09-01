@@ -271,58 +271,58 @@
 
 <span class="token-keyword">construct</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i16</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i64</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">isize</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Converts a value when it is representable as `u8`.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 
     <span class="token-comment">/// Keeps the low eight bits of a value.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">truncate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">truncate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u16</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
@@ -367,16 +367,16 @@
 
 <span class="token-keyword">instance</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Adds two values modulo 2^64.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_add</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_add</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
     <span class="token-comment">/// Multiplies two values modulo 2^64.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_mul</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_mul</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
     <span class="token-comment">/// Returns the bitwise exclusive OR of two values.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">bit_xor</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">bit_xor</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
     <span class="token-comment">/// Rotates the bits right; only the low six bits of amount are significant.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">rotate_right</span><span class="token-operator">(</span>amount<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">rotate_right</span><span class="token-operator">(</span>amount<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
     <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>

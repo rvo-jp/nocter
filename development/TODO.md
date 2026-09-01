@@ -2,10 +2,14 @@
 
 ## Current State
 
-Nocter v0.24.0 is [published and externally audited](releases/v0.24.0.md). Its explicit-value-subject
-migration, installation-image stabilization, independent source qualification, deterministic
-packaging, and fresh installed-home matrix are complete. The exact source, artifact, publication,
-and public re-download evidence is frozen. The `v0.24.0` tag and release asset must not be replaced.
+Nocter v0.24.0 is [published and externally audited](releases/v0.24.0.md). Its exact source,
+artifact, publication, and public re-download evidence is frozen. The `v0.24.0` tag and release
+asset must not be replaced.
+
+The [v0.25.0 implementation](milestones/v0.25.0.md) is complete and qualified. It adds the sole
+source-visible guarantee `noalloc`, backed by one checker-owned positive allocation-effect table,
+closed standard and primitive effect evidence, deliberate standard-library contracts, and shared
+tooling presentation. It has not been prepared or authorized for publication.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -17,10 +21,10 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Implement [v0.25.0](milestones/v0.25.0.md) from the adopted `noalloc` specification. Phase 1 adds
-syntax and declaration identity without effect inference. Phase 2 then introduces the sole checked
-effect authority; later phases connect indirect behavior, standard contracts, and tooling without
-letting Machine context propagation become a second semantic producer.
+Choose the next practical application/API milestone or begin v0.25.0 release preparation when
+explicitly requested. Do not add another source-visible guarantee merely because the internal
+effect representation can express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general
+effect list remain deferred until a concrete user-facing contract needs them.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

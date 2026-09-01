@@ -25,6 +25,15 @@ pub enum StandardDeclarationRole {
 }
 
 impl StandardDeclarationRole {
+    /// Whether this role must bind a source-visible standard declaration.
+    ///
+    /// Internal compiler boundaries may bind an implementation declaration without widening its
+    /// language visibility. The closed role, rather than a lowering caller, owns that policy.
+    #[must_use]
+    pub const fn requires_visible_declaration(self) -> bool {
+        !matches!(self, Self::AllocationRequest)
+    }
+
     /// Returns the stable compiler-contract name of this role.
     #[must_use]
     pub const fn name(self) -> &'static str {

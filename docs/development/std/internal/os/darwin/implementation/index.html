@@ -236,12 +236,12 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">errno</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Errno</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">errno</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Errno</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">Errno</span> <span class="token-operator">{</span> code<span class="token-operator">:</span> code <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">error_from_errno</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">error_from_errno</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">OSError</span> <span class="token-operator">{</span>
         platform<span class="token-operator">:</span> <span class="token-type">Platform</span><span class="token-operator">.</span>macos<span class="token-operator">,</span>
         code<span class="token-operator">:</span> value<span class="token-operator">.</span>code<span class="token-operator">,</span>
@@ -250,7 +250,7 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">kind_from_errno</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSErrorKind</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">kind_from_errno</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSErrorKind</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">4</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>interrupted
     <span class="token-operator">}</span>
@@ -398,7 +398,7 @@
 <span class="token-keyword">const</span> <span class="token-type">DIRENT_TYPE_SYMLINK</span><span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-number">10</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">read_directory_entries</span><span class="token-operator">(</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">read_directory_entries</span><span class="token-operator">(</span>
     fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">,</span>
     position<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">u64</span><span class="token-operator">,</span>

@@ -234,7 +234,7 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">bounds_abort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">bounds_abort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> darwin<span class="token-operator">.</span><span class="token-function">trap</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>

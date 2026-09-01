@@ -233,11 +233,11 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr
 
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">allocation_failure_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">allocation_failure_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 <span class="token-keyword">const</span> <span class="token-type">PAGE_ALLOCATOR_KIND</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
 
@@ -273,29 +273,29 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Layout</
     kind<span class="token-operator">:</span> <span class="token-type">usize</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">current_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">current_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
         state<span class="token-operator">:</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
         kind<span class="token-operator">:</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">current_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
         state<span class="token-operator">:</span> <span class="token-function">current_allocator_state</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
         kind<span class="token-operator">:</span> <span class="token-function">current_allocator_kind</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">page_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">page_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">Allocator</span> <span class="token-operator">{</span> state<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> kind<span class="token-operator">:</span> <span class="token-type">PAGE_ALLOCATOR_KIND</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">page_try_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-type">TryAllocator</span> <span class="token-operator">{</span> state<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> kind<span class="token-operator">:</span> <span class="token-type">PAGE_ALLOCATOR_KIND</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">empty_unbound_buffer</span><span class="token-operator">(</span>align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">empty_unbound_buffer</span><span class="token-operator">(</span>align<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
     <span class="token-comment">// An unbound empty sentinel owns no storage and therefore</span>
     <span class="token-comment">// carries no allocator origin. The first growth operation binds it to the</span>
     <span class="token-comment">// allocator selected at that operation.</span>
@@ -308,7 +308,7 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Layout</
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">take_raw_buffer</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">take_raw_buffer</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">RawBuffer</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-type">RawBuffer</span> <span class="token-operator">{</span>
         ptr<span class="token-operator">:</span> buffer<span class="token-operator">.</span>ptr<span class="token-operator">,</span>
         len<span class="token-operator">:</span> buffer<span class="token-operator">.</span>len<span class="token-operator">,</span>
@@ -324,15 +324,15 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Layout</
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> result
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">allocator_kind_is_page</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">allocator_kind_is_page</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> kind <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-type">PAGE_ALLOCATOR_KIND</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">allocator_kind_is_region</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">allocator_kind_is_region</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> kind <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-type">REGION_ALLOCATOR_KIND</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">allocator_kind_is_unbound</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">allocator_kind_is_unbound</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> kind <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-type">UNBOUND_ALLOCATOR_KIND</span>
 <span class="token-operator">}</span>
 </code></pre>

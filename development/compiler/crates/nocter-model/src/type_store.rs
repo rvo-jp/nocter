@@ -140,11 +140,11 @@ impl CallableGuarantees {
     /// while the inverse would make an unproved promise.
     #[must_use]
     pub const fn can_weaken_to(self, expected: Self) -> bool {
-        match (self.allocation, expected.allocation) {
-            (AllocationGuarantee::NoAllocation, AllocationGuarantee::Unspecified)
-            | (AllocationGuarantee::NoAllocation, AllocationGuarantee::NoAllocation)
-            | (AllocationGuarantee::Unspecified, AllocationGuarantee::Unspecified) => true,
-            (AllocationGuarantee::Unspecified, AllocationGuarantee::NoAllocation) => false,
+        match expected.allocation {
+            AllocationGuarantee::Unspecified => true,
+            AllocationGuarantee::NoAllocation => {
+                matches!(self.allocation, AllocationGuarantee::NoAllocation)
+            }
         }
     }
 }

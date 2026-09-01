@@ -1075,7 +1075,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("pub method &self.len(): usize"))
+            .find(|(_, line)| line.contains("method &self.len(): usize"))
             .unwrap();
         let character = source_line.find("len").unwrap();
         let rejected = server.receive(&format!(
@@ -2181,7 +2181,7 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("pub method &error.message(): &str from self"),
+            response.contains("pub noalloc method &error.message(): &str from self"),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());

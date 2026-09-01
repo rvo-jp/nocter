@@ -233,14 +233,14 @@
 
 <span class="token-keyword">const</span> <span class="token-type">MAXIMUM_USIZE</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">18446744073709551615</span>
 
-<span class="token-keyword">func</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">checked_add</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> right <span class="token-operator">&gt;</span> <span class="token-type">MAXIMUM_USIZE</span> - left <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-keyword">none</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> left <span class="token-operator">+</span> right
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">checked_multiply</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">checked_multiply</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> left <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> || right <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-number">0</span>
     <span class="token-operator">}</span>
@@ -250,7 +250,7 @@
     <span class="token-keyword">return</span> left <span class="token-operator">*</span> right
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">growth_capacity</span><span class="token-operator">(</span>current<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> required<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">growth_capacity</span><span class="token-operator">(</span>current<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> required<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> required <span class="token-operator">&lt;</span><span class="token-operator">=</span> current <span class="token-operator">{</span>
         <span class="token-keyword">return</span> current
     <span class="token-operator">}</span>
@@ -263,7 +263,7 @@
     <span class="token-keyword">return</span> doubled
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">capacity_overflow</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.mem.capacity_overflow"</span><span class="token-operator">,</span> <span class="token-string">"storage capacity overflow"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>

@@ -233,7 +233,7 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>utf8
 
-<span class="token-keyword">func</span> <span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> utf8<span class="token-operator">.</span><span class="token-function">is_valid_utf8</span><span class="token-operator">(</span>candidate<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>

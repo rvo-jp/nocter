@@ -226,7 +226,7 @@ pub(crate) fn resolve_toolchain_surface(
         .map(|locator| {
             let matches =
                 matching_declarations(surface, locator.module(), locator.name(), |item| {
-                    item.visibility().is_some()
+                    (!locator.role().requires_visible_declaration() || item.visibility().is_some())
                         && declaration_node_kind(surface, item) == Some(locator.kind())
                 });
             match matches.as_slice() {
