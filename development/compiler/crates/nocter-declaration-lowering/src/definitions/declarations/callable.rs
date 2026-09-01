@@ -8,7 +8,7 @@ use super::super::allocation::{
     AllocatedHeaders, entity, name, site, surface_kind, surface_node, surface_owner,
 };
 use super::super::{HeaderDefinitionError, projection, syntax};
-use super::{own_generics, provenance, target};
+use super::{callable_guarantees, own_generics, provenance, target};
 
 pub(super) fn define(
     types: &mut PreparedTypes<'_>,
@@ -49,6 +49,7 @@ pub(super) fn define(
         own_generics(types, declaration),
         allocated.parameters[declaration.index()].clone(),
         result,
+        callable_guarantees(types, declaration)?,
         contract,
         provenance_annotation,
         allocated.requirements[declaration.index()].clone(),

@@ -567,6 +567,18 @@ mod tests {
     }
 
     #[test]
+    fn preserves_canonical_noalloc_modifier_placement() {
+        let formatted = format(
+            "pub noalloc func apply(callback:noalloc &func(i32):i32):i32 { return callback(1) }\nnoalloc drop Value(&+self) {}\n",
+        );
+        assert_eq!(
+            formatted,
+            "pub noalloc func apply(callback: noalloc &func(i32): i32): i32 { return callback(1) }\n\nnoalloc drop Value(&+self) {}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn preserves_index_jointness_and_distinguishes_typed_sequence_spacing() {
         assert_eq!(
             format("func f(values:&[i32]):i32 { return values[0]+Vec [1,2][0] }\n"),

@@ -402,6 +402,42 @@ fn parses_the_complete_type_atom_and_prefix_surface() {
 }
 
 #[test]
+fn parses_noalloc_as_a_structural_callable_modifier() {
+    let tree = assert_syntax_ok(
+        "pub noalloc func read(callback: noalloc &func(i32): i32): i32 { return callback(1) }\n\
+         pub noalloc primitive func raw_len(value: &str): usize\n\
+         interface Source { pub noalloc method &self.read(): i32\n\
+         pub noalloc default method &self.cached(): i32 { return 0 } }\n\
+         construct Value { pub noalloc func empty(): Self\n\
+         pub noalloc literal \"\"(text: &str): Self }\n\
+         instance Value { pub noalloc method &self.len(): usize\n\
+         pub noalloc coerce &self as &str\n\
+         pub noalloc operator (&self == other: &Self): bool }\n\
+         noalloc drop Value(&+self) {}\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::NoAllocationModifier)
+            .count(),
+        11
+    );
+}
+
+#[test]
+fn rejects_noncanonical_noalloc_placement() {
+    for source in [
+        "noalloc pub func invalid(): void {}\n",
+        "primitive noalloc func invalid(): void\n",
+        "func noalloc invalid(): void {}\n",
+        "drop noalloc Value(&+self) {}\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
+    }
+}
+
+#[test]
 fn rejects_closed_type_shapes_without_semantic_assistance() {
     for source in [
         "type Reversed = i32!?\n",

@@ -98,6 +98,7 @@ where
         TypeKind::Callable(contract) => TypeKind::Callable(
             CallableContract::new(
                 contract.capability(),
+                contract.guarantees(),
                 contract
                     .parameters()
                     .iter()

@@ -161,6 +161,7 @@ pub struct CallableDeclaration {
     generic_parameters: Box<[GenericParameterId]>,
     parameters: Box<[ParameterId]>,
     result: TypeId,
+    guarantees: nocter_model::CallableGuarantees,
     provenance: CallableProvenanceContract,
     provenance_annotation: ProvenanceAnnotation,
     requirements: Box<[RequirementId]>,
@@ -180,6 +181,7 @@ impl CallableDeclaration {
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         parameters: impl Into<Box<[ParameterId]>>,
         result: TypeId,
+        guarantees: nocter_model::CallableGuarantees,
         provenance: CallableProvenanceContract,
         provenance_annotation: ProvenanceAnnotation,
         requirements: impl Into<Box<[RequirementId]>>,
@@ -195,6 +197,7 @@ impl CallableDeclaration {
             generic_parameters: generic_parameters.into(),
             parameters: parameters.into(),
             result,
+            guarantees,
             provenance,
             provenance_annotation,
             requirements: requirements.into(),
@@ -241,6 +244,11 @@ impl CallableDeclaration {
     #[must_use]
     pub const fn result(&self) -> TypeId {
         self.result
+    }
+
+    #[must_use]
+    pub const fn guarantees(&self) -> nocter_model::CallableGuarantees {
+        self.guarantees
     }
 
     #[must_use]

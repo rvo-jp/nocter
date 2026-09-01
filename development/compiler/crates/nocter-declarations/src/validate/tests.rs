@@ -361,6 +361,7 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
                 [],
                 [],
                 result,
+                nocter_model::CallableGuarantees::default(),
                 CallableProvenanceContract::declared(
                     CallableProvenance::from_origins([ProvenanceOrigin::Receiver]).unwrap(),
                 ),
@@ -575,6 +576,7 @@ fn define_nonempty_generic_construction(
                 [],
                 [],
                 target,
+                nocter_model::CallableGuarantees::default(),
                 CallableProvenanceContract::inferred(),
                 crate::ProvenanceAnnotation::Elided,
                 [],
@@ -658,7 +660,17 @@ fn copy_structs_and_payloadless_enums_cannot_own_drop_bodies() {
             .add_body(Body::new(BodyOwner::Drop(drop)));
         program
             .declarations_mut()
-            .define_drop(drop, DropDeclaration::new(site, target, [], receiver, body))
+            .define_drop(
+                drop,
+                DropDeclaration::new(
+                    site,
+                    target,
+                    [],
+                    receiver,
+                    nocter_model::CallableGuarantees::default(),
+                    body,
+                ),
+            )
             .unwrap();
 
         assert_eq!(

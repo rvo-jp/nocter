@@ -86,6 +86,12 @@ fn declaration_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
         TokenKind::Keyword(Keyword::Instance) => Some(DeclarationKind::Instance),
         TokenKind::Keyword(Keyword::Test) => Some(DeclarationKind::Test),
         TokenKind::Identifier if parser.current_text() == "drop" => Some(DeclarationKind::Drop),
+        TokenKind::Keyword(Keyword::NoAlloc)
+            if parser.nth_kind(1) == TokenKind::Identifier
+                && parser.nth_identifier_text(1, "drop") =>
+        {
+            Some(DeclarationKind::Drop)
+        }
         _ => None,
     })
 }
@@ -94,6 +100,9 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     let mut cursor = parser.cursor;
     if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Pub) {
         cursor = skip_visibility(parser, cursor);
+    }
+    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
+        cursor += 1;
     }
 
     if parser.tokens[cursor].kind() == TokenKind::Identifier
@@ -137,7 +146,7 @@ fn constant(parser: &mut Parser<'_>) {
     parser.complete(marker, NodeKind::ConstantDeclaration);
 }
 
-fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {
+pub(super) fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {
     cursor += 1;
     if parser.tokens[cursor].kind() != TokenKind::Punctuation(Punctuation::LeftParen) {
         return cursor;
@@ -158,6 +167,7 @@ fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {
 fn function(parser: &mut Parser<'_>, primitive: bool) {
     let marker = parser.start();
     optional_visibility(parser);
+    optional_noalloc(parser);
     if primitive {
         parser.expect_keyword(Keyword::Primitive);
     }
@@ -229,6 +239,14 @@ pub(super) fn optional_visibility(parser: &mut Parser<'_>) {
     }
 }
 
+pub(super) fn optional_noalloc(parser: &mut Parser<'_>) {
+    if parser.at_keyword(Keyword::NoAlloc) {
+        let modifier = parser.start();
+        parser.bump();
+        parser.complete(modifier, NodeKind::NoAllocationModifier);
+    }
+}
+
 pub(super) fn method_signature(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_keyword(Keyword::Method);
@@ -260,6 +278,7 @@ pub(super) fn receiver(parser: &mut Parser<'_>, allow_owned: bool) {
 
 fn drop_declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    optional_noalloc(parser);
     parser.expect_identifier_text("drop");
     types::declaration_type_pattern(parser);
     parser.expect_punctuation(Punctuation::LeftParen);

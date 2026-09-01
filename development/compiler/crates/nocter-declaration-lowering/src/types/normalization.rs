@@ -487,6 +487,7 @@ impl Evaluator<'_> {
                 TypeKind::Callable(
                     CallableContract::new(
                         callable.capability(),
+                        callable.guarantees(),
                         parameters,
                         pack,
                         result,

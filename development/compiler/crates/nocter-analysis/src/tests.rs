@@ -242,6 +242,40 @@ fn keyed_argument_pack_hover_retains_both_component_types() {
 }
 
 #[test]
+fn callable_hover_renders_only_the_authored_noalloc_guarantee() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "noalloc func identity(value: i32): i32 { return value }\n",
+        "func main(): i32 { return identity(1) }\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(60));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "noalloc fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let call = source_text.rfind("identity").unwrap();
+    let subject = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(call).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(
+        subject.presentation().code(),
+        "noalloc func identity(value: i32): i32"
+    );
+}
+
+#[test]
 fn repeated_recovery_member_queries_are_semantically_identical() {
     let tree = TempTree::new();
     let source_text = concat!(

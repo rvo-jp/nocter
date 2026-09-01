@@ -278,6 +278,46 @@ fn same_callable_label_with_a_different_header_is_a_mismatch() {
 }
 
 #[test]
+fn noalloc_is_part_of_the_public_private_callable_contract() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "see ./parse.nct\n\npub noalloc func parse(text: &str): usize\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/parse.nct",
+        "see ./index.nct\n\nfunc parse(text: &str): usize { return 0 }\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/parse.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_see(&root, 0, "/app/parse.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    assert!(matches!(
+        analyze_declaration_contracts(&surface),
+        Err(DeclarationContractError::MismatchedBody { .. })
+    ));
+}
+
+#[test]
 fn duplicate_matching_bodies_are_rejected_independent_of_source_order() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");

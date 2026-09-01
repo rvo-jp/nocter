@@ -637,6 +637,7 @@ pub struct DropDeclaration {
     target: TypeId,
     generic_parameters: Box<[GenericParameterId]>,
     receiver: ParameterId,
+    guarantees: nocter_model::CallableGuarantees,
     body: BodyId,
 }
 
@@ -647,6 +648,7 @@ impl DropDeclaration {
         target: TypeId,
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         receiver: ParameterId,
+        guarantees: nocter_model::CallableGuarantees,
         body: BodyId,
     ) -> Self {
         Self {
@@ -654,6 +656,7 @@ impl DropDeclaration {
             target,
             generic_parameters: generic_parameters.into(),
             receiver,
+            guarantees,
             body,
         }
     }
@@ -676,6 +679,11 @@ impl DropDeclaration {
     #[must_use]
     pub const fn receiver(&self) -> ParameterId {
         self.receiver
+    }
+
+    #[must_use]
+    pub const fn guarantees(&self) -> nocter_model::CallableGuarantees {
+        self.guarantees
     }
 
     #[must_use]

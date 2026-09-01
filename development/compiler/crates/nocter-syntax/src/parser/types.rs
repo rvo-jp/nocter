@@ -216,15 +216,17 @@ fn at_readonly_borrow(parser: &Parser<'_>) -> bool {
 }
 
 fn at_callable_type(parser: &Parser<'_>) -> bool {
-    parser.at_keyword(Keyword::Func)
-        || parser.at_punctuation(Punctuation::Ampersand)
-            && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func)
-        || parser.at_punctuation(Punctuation::ReadWrite)
-            && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Func)
+    let offset = usize::from(parser.at_keyword(Keyword::NoAlloc));
+    parser.nth_kind(offset) == TokenKind::Keyword(Keyword::Func)
+        || matches!(
+            parser.nth_kind(offset),
+            TokenKind::Punctuation(Punctuation::Ampersand | Punctuation::ReadWrite)
+        ) && parser.nth_kind(offset + 1) == TokenKind::Keyword(Keyword::Func)
 }
 
 fn callable_type(parser: &mut Parser<'_>) {
     let marker = parser.start();
+    super::declaration::optional_noalloc(parser);
     if parser.at_punctuation(Punctuation::Ampersand)
         || parser.at_punctuation(Punctuation::ReadWrite)
     {

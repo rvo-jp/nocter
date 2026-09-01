@@ -445,6 +445,7 @@ fn substitute_callable(
 ) -> Result<CallableContract, SubstitutionError> {
     CallableContract::new(
         contract.capability(),
+        contract.guarantees(),
         contract
             .parameters()
             .iter()

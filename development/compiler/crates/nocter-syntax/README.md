@@ -21,6 +21,7 @@ package or discovery code. It does not resolve names or apply semantic rules.
 
 - lexing and token subdivision
 - event-based parsing and flat tree construction
+- structural callable modifiers, including authored `noalloc`, without effect interpretation
 - syntax diagnostics and missing/error elements
 - structural navigation and documentation extraction
 - exact node-completeness queries for recovery consumers
@@ -34,6 +35,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
 
 - Every syntax token retains its lexical-token identity and exact normalized range.
 - Parser recovery preserves authored structure without inventing semantic success.
+- Callable modifiers have dedicated nodes; downstream stages never recover guarantees from token
+  text or declaration spelling.
 - A consumer never infers subtree completeness from file-wide diagnostic presence.
 - Bounded ambiguity is parsed once transactionally rather than reparsed after lookahead.
 - Reusing parse work rewrites every embedded source identity and rejects unequal normalized text.

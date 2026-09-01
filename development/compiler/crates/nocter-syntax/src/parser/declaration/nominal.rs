@@ -1,4 +1,6 @@
-use super::{Parser, block, optional_visibility, requirements, types};
+use super::{
+    Parser, block, optional_noalloc, optional_visibility, requirements, skip_visibility, types,
+};
 use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn struct_declaration(parser: &mut Parser<'_>) {
@@ -68,24 +70,30 @@ fn enum_variant(parser: &mut Parser<'_>) {
 }
 
 fn interface_member(parser: &mut Parser<'_>) {
-    if parser.at_keyword(Keyword::Pub) {
-        match parser.nth_kind(1) {
-            TokenKind::Keyword(Keyword::Type) => associated_type(parser),
-            TokenKind::Keyword(Keyword::Method) => interface_method(parser, false),
-            TokenKind::Identifier
-                if parser.nth_identifier_text(1, "default")
-                    && parser.nth_kind(2) == TokenKind::Keyword(Keyword::Method) =>
-            {
-                interface_method(parser, true);
-            }
-            _ => parser.error_token(ExpectedSyntax::DeclarationMember),
+    let mut cursor = parser.cursor;
+    let has_visibility = parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Pub);
+    let has_bare_public_visibility = has_visibility
+        && parser.tokens[cursor + 1].kind() != TokenKind::Punctuation(Punctuation::LeftParen);
+    if has_visibility {
+        cursor = skip_visibility(parser, cursor);
+    }
+    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
+        cursor += 1;
+    }
+    let is_default = parser.tokens[cursor].kind() == TokenKind::Identifier
+        && parser.source.text_at(parser.tokens[cursor].span().range()) == Some("default");
+    if is_default {
+        cursor += 1;
+    }
+
+    match parser.tokens[cursor].kind() {
+        TokenKind::Keyword(Keyword::Type) if has_bare_public_visibility && !is_default => {
+            associated_type(parser);
         }
-    } else if parser.at_identifier_text("default")
-        && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Method)
-    {
-        interface_method(parser, true);
-    } else {
-        parser.error_token(ExpectedSyntax::DeclarationMember);
+        TokenKind::Keyword(Keyword::Method) if has_bare_public_visibility || is_default => {
+            interface_method(parser, is_default);
+        }
+        _ => parser.error_token(ExpectedSyntax::DeclarationMember),
     }
 }
 
@@ -109,6 +117,7 @@ fn associated_type(parser: &mut Parser<'_>) {
 fn interface_method(parser: &mut Parser<'_>, is_default: bool) {
     let marker = parser.start();
     optional_visibility(parser);
+    optional_noalloc(parser);
     if is_default {
         let modifier = parser.start();
         parser.expect_identifier_text("default");

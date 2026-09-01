@@ -104,10 +104,41 @@ const fn callable_capability_rank(capability: CallableCapability) -> u8 {
     }
 }
 
+/// The authored allocation guarantee carried by a callable contract.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum AllocationGuarantee {
+    /// The contract makes no allocation guarantee.
+    #[default]
+    Unspecified,
+    /// Calling the value does not request new storage.
+    NoAllocation,
+}
+
+/// Source-level guarantees that participate in structural callable identity.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct CallableGuarantees {
+    allocation: AllocationGuarantee,
+}
+
+impl CallableGuarantees {
+    #[must_use]
+    pub const fn no_allocation() -> Self {
+        Self {
+            allocation: AllocationGuarantee::NoAllocation,
+        }
+    }
+
+    #[must_use]
+    pub const fn allocation(self) -> AllocationGuarantee {
+        self.allocation
+    }
+}
+
 /// A structural callable contract after parameter names have been resolved to positions.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CallableContract {
     capability: CallableCapability,
+    guarantees: CallableGuarantees,
     parameters: Box<[TypeId]>,
     pack: Option<ArgumentPackType>,
     result: TypeId,
@@ -123,6 +154,7 @@ impl CallableContract {
     /// parameter list.
     pub fn new(
         capability: CallableCapability,
+        guarantees: CallableGuarantees,
         parameters: impl Into<Box<[TypeId]>>,
         pack: Option<ArgumentPackType>,
         result: TypeId,
@@ -142,6 +174,7 @@ impl CallableContract {
         }
         Ok(Self {
             capability,
+            guarantees,
             parameters,
             pack,
             result,
@@ -152,6 +185,11 @@ impl CallableContract {
     #[must_use]
     pub const fn capability(&self) -> CallableCapability {
         self.capability
+    }
+
+    #[must_use]
+    pub const fn guarantees(&self) -> CallableGuarantees {
+        self.guarantees
     }
 
     #[must_use]
@@ -535,7 +573,7 @@ mod tests {
 
     use super::{
         ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
-        TypeKind, TypeStore,
+        CallableGuarantees, TypeKind, TypeStore,
     };
 
     #[test]
@@ -558,6 +596,36 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(types.type_count(), BuiltinType::ALL.len() + 1);
+    }
+
+    #[test]
+    fn callable_allocation_guarantee_participates_in_structural_identity() {
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let result = types.builtin(BuiltinType::Void);
+        let ordinary = CallableContract::new(
+            CallableCapability::Owned,
+            CallableGuarantees::default(),
+            [],
+            None,
+            result,
+            ResultProvenance::empty(),
+        )
+        .unwrap();
+        let noalloc = CallableContract::new(
+            CallableCapability::Owned,
+            CallableGuarantees::no_allocation(),
+            [],
+            None,
+            result,
+            ResultProvenance::empty(),
+        )
+        .unwrap();
+
+        assert_ne!(
+            types.intern(TypeKind::Callable(ordinary)).unwrap(),
+            types.intern(TypeKind::Callable(noalloc)).unwrap()
+        );
     }
 
     #[test]
@@ -607,6 +675,7 @@ mod tests {
         let provenance = ResultProvenance::from_origins([origin]).unwrap();
         let contract = CallableContract::new(
             CallableCapability::Readonly,
+            CallableGuarantees::default(),
             [borrowed],
             None,
             borrowed,
@@ -626,6 +695,7 @@ mod tests {
         let value = types.builtin(BuiltinType::I32);
         let ordinary = CallableContract::new(
             CallableCapability::Owned,
+            CallableGuarantees::default(),
             [value],
             None,
             value,
@@ -634,6 +704,7 @@ mod tests {
         .unwrap();
         let packed = CallableContract::new(
             CallableCapability::Owned,
+            CallableGuarantees::default(),
             [],
             Some(ArgumentPackType::Values(value)),
             value,
@@ -656,6 +727,7 @@ mod tests {
 
         CallableContract::new(
             CallableCapability::Owned,
+            CallableGuarantees::default(),
             [value],
             Some(ArgumentPackType::Values(value)),
             value,
@@ -684,6 +756,7 @@ mod tests {
         let provenance = ResultProvenance::from_origins([origin]).unwrap();
         let error = CallableContract::new(
             CallableCapability::Owned,
+            CallableGuarantees::default(),
             [result],
             None,
             result,

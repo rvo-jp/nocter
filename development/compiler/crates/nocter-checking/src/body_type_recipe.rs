@@ -79,6 +79,7 @@ enum BodyTypeKind {
     },
     Callable {
         capability: CallableCapability,
+        guarantees: nocter_model::CallableGuarantees,
         parameters: Box<[BodyTypeRef]>,
         pack: Option<ArgumentPack<BodyTypeRef>>,
         result: BodyTypeRef,
@@ -333,6 +334,7 @@ fn capture_kind(
         },
         TypeKind::Callable(contract) => BodyTypeKind::Callable {
             capability: contract.capability(),
+            guarantees: contract.guarantees(),
             parameters: capture_types(contract.parameters(), reference)?,
             pack: contract
                 .pack()
@@ -420,6 +422,7 @@ fn replay_kind(
         },
         BodyTypeKind::Callable {
             capability,
+            guarantees,
             parameters,
             pack,
             result,
@@ -427,6 +430,7 @@ fn replay_kind(
         } => TypeKind::Callable(
             CallableContract::new(
                 *capability,
+                *guarantees,
                 replay_types(parameters, &resolve)?,
                 pack.map(|pack| pack.try_map(resolve)).transpose()?,
                 resolve(*result)?,

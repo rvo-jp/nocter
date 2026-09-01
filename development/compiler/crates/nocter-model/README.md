@@ -17,12 +17,15 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
+- structural callable capabilities and authored guarantee identity
 - exact-lineage type transactions
 - persistent closure identity sequences
 
 ## Invariants
 
 - Type identity never depends on spelling, source order, or source location.
+- Callable guarantee differences participate in type identity and survive every projection and
+  transaction.
 - A read-only `TypeStore` cannot open a transaction.
 - Sibling or stale authorities cannot exchange or commit bare identities.
 - Storage implementation remains private to the semantic owner.

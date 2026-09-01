@@ -6,7 +6,7 @@ use nocter_declarations::{
     InterfaceImplementationDeclaration, NominalShape, NominalTypeDeclaration,
     OpaqueTypeDeclaration, TestDeclaration, TypeAliasDeclaration, VariantDeclaration,
 };
-use nocter_model::{AssociatedTypeId, CallableId, InterfaceId};
+use nocter_model::{AssociatedTypeId, CallableGuarantees, CallableId, InterfaceId};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{NodeKind, SyntaxOrigin, TokenKind};
 
@@ -136,6 +136,7 @@ fn define_drop(
         own_generics(types, declaration),
         allocated.receivers[declaration.index()]
             .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?,
+        callable_guarantees(types, declaration)?,
         allocated.bodies[declaration.index()]
             .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?,
     );
@@ -149,6 +150,21 @@ fn define_drop(
         .declarations_mut()
         .define_drop(id, definition)?;
     Ok(())
+}
+
+fn callable_guarantees(
+    types: &PreparedTypes<'_>,
+    declaration: SurfaceDeclarationId,
+) -> Result<CallableGuarantees, HeaderDefinitionError> {
+    let tree = projection::tree(types, declaration)?;
+    let root = surface_node(types, declaration)?;
+    Ok(
+        if syntax::direct_node(tree, root, NodeKind::NoAllocationModifier).is_some() {
+            CallableGuarantees::no_allocation()
+        } else {
+            CallableGuarantees::default()
+        },
+    )
 }
 
 fn define_test(

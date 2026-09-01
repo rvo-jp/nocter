@@ -25,6 +25,8 @@ results. Protocol crates receive result values only.
 - Feature modules cannot inspect session phase variants or raw `SourceIndex`.
 - Presentation and signature queries consume exclusive semantic inputs instead of optional evidence
   combinations.
+- Presentation renders authored callable guarantees from declaration or structural-type contracts;
+  it never infers source modifiers from checked effects.
 - Every semantic/source join uses one sealed generation.
 - Diagnostics are read from the sealed discovery or analyzed state and are not cloned into a
   parallel snapshot authority.

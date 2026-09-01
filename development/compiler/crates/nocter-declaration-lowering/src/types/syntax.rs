@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use nocter_declarations::ExportedEntity;
-use nocter_model::{BorrowCapability, CallableCapability, ParameterOrigin, Symbol};
+use nocter_model::{
+    BorrowCapability, CallableCapability, CallableGuarantees, ParameterOrigin, Symbol,
+};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
     NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
@@ -303,6 +305,11 @@ fn bind_callable(
         Some(Punctuation::ReadWrite) => CallableCapability::ReadWrite,
         _ => CallableCapability::Owned,
     };
+    let guarantees = if direct_node(tree, node, NodeKind::NoAllocationModifier).is_some() {
+        CallableGuarantees::no_allocation()
+    } else {
+        CallableGuarantees::default()
+    };
     let parameters_node = direct_node(tree, node, NodeKind::CallableParameters)
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let mut parameters = Vec::new();
@@ -351,6 +358,7 @@ fn bind_callable(
         kinds,
         BoundTypeKind::Callable(BoundCallableType {
             capability,
+            guarantees,
             parameters: parameters.into_boxed_slice(),
             pack,
             result,

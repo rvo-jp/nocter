@@ -455,6 +455,7 @@ impl<'a> Renderer<'a> {
         let declarations = self.graph.declarations();
         let callable = declarations.callables().get(id)?;
         self.visibility(callable.site())?;
+        self.callable_guarantees(callable.guarantees());
         if matches!(callable.owner(), CallableOwner::Interface(_)) && callable.body().is_some() {
             self.output.push_str("default ");
         }
@@ -519,6 +520,7 @@ impl<'a> Renderer<'a> {
     ) -> Option<()> {
         let declarations = self.graph.declarations();
         let callable = declarations.callables().get(required.interface_method())?;
+        self.callable_guarantees(callable.guarantees());
         self.output.push_str("method ");
         self.output.push_str(match required.receiver() {
             CallableCapability::Readonly => "&self.",
@@ -1178,6 +1180,7 @@ impl<'a> Renderer<'a> {
     }
 
     fn callable_contract(&mut self, contract: &nocter_model::CallableContract) -> Option<()> {
+        self.callable_guarantees(contract.guarantees());
         self.output.push_str(match contract.capability() {
             CallableCapability::Readonly => "&func",
             CallableCapability::ReadWrite => "&+func",
@@ -1224,6 +1227,12 @@ impl<'a> Renderer<'a> {
             }
         }
         Some(())
+    }
+
+    fn callable_guarantees(&mut self, guarantees: nocter_model::CallableGuarantees) {
+        if guarantees.allocation() == nocter_model::AllocationGuarantee::NoAllocation {
+            self.output.push_str("noalloc ");
+        }
     }
 
     fn record_parameter(&mut self, start: usize) {

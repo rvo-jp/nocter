@@ -409,6 +409,11 @@ impl BodyChecker<'_, '_> {
         };
         let contract = CallableContract::new(
             capability,
+            if direct_node(self.tree(), node, NodeKind::NoAllocationModifier).is_some() {
+                nocter_model::CallableGuarantees::no_allocation()
+            } else {
+                nocter_model::CallableGuarantees::default()
+            },
             parameters,
             pack.map(nocter_model::ArgumentPack::Values),
             result,

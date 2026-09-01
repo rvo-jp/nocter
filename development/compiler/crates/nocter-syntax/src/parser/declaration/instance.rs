@@ -1,4 +1,7 @@
-use super::{Parser, block, method_signature, optional_visibility, receiver, requirements, types};
+use super::{
+    Parser, block, method_signature, optional_noalloc, optional_visibility, receiver, requirements,
+    types,
+};
 use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn declaration(parser: &mut Parser<'_>) {
@@ -21,6 +24,7 @@ fn member(parser: &mut Parser<'_>) {
         return;
     }
     optional_visibility(parser);
+    optional_noalloc(parser);
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Method) => {
             method_signature(parser);

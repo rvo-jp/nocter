@@ -141,6 +141,7 @@ keywords! {
     Method => "method",
     Move => "move",
     Never => "never",
+    NoAlloc => "noalloc",
     None => "none",
     Operator => "operator",
     Otherwise => "otherwise",

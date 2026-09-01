@@ -151,6 +151,7 @@ fn project_type(
             let result = project_type(source, target, projected, contract.result())?;
             TypeKind::Callable(CallableContract::new(
                 contract.capability(),
+                contract.guarantees(),
                 parameters,
                 pack,
                 result,

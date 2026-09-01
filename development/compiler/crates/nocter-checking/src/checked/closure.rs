@@ -202,6 +202,7 @@ struct BodyClosureDefinition {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct BodyCallableContract {
     capability: CallableCapability,
+    guarantees: nocter_model::CallableGuarantees,
     parameters: Box<[BodyTypeRef]>,
     pack: Option<nocter_model::ArgumentPack<BodyTypeRef>>,
     result: BodyTypeRef,
@@ -349,6 +350,7 @@ impl BodyCallableContract {
     ) -> Result<Self, BodyClosureRecipeError> {
         Ok(Self {
             capability: contract.capability(),
+            guarantees: contract.guarantees(),
             parameters: contract
                 .parameters()
                 .iter()
@@ -371,6 +373,7 @@ impl BodyCallableContract {
     ) -> Result<CallableContract, BodyClosureRecipeError> {
         Ok(CallableContract::new(
             self.capability,
+            self.guarantees,
             self.parameters
                 .iter()
                 .copied()
@@ -829,6 +832,7 @@ mod tests {
             .unwrap();
         let contract = CallableContract::new(
             CallableCapability::Readonly,
+            nocter_model::CallableGuarantees::default(),
             [],
             None,
             types.builtin(BuiltinType::Void),
@@ -837,6 +841,7 @@ mod tests {
         .unwrap();
         let another_contract = CallableContract::new(
             CallableCapability::Owned,
+            nocter_model::CallableGuarantees::default(),
             [],
             None,
             types.builtin(BuiltinType::I32),
