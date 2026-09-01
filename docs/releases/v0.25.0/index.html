@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.17.0: Practical Application Foundations - Nocter</title>
-    <meta name="description" content="Status: published (2026-08-25). Phase 0 returned development to ordinary application APIs. Phase 1 reconstructed the authored standard library before that ">
+    <title>Nocter v0.25.0 Release Notes - Nocter</title>
+    <meta name="description" content="Download nocter-v0.25.0-arm64-darwin.tar.gz">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.17.0/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/releases/v0.25.0/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.17.0: Practical Application Foundations - Nocter">
-    <meta property="og:description" content="Status: published (2026-08-25). Phase 0 returned development to ordinary application APIs. Phase 1 reconstructed the authored standard library before that ">
-    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.17.0/">
+    <meta property="og:title" content="Nocter v0.25.0 Release Notes - Nocter">
+    <meta property="og:description" content="Download nocter-v0.25.0-arm64-darwin.tar.gz">
+    <meta property="og:url" content="https://nocter.dev/releases/v0.25.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.17.0: Practical Application Foundations - Nocter">
-    <meta name="twitter:description" content="Status: published (2026-08-25). Phase 0 returned development to ordinary application APIs. Phase 1 reconstructed the authored standard library before that ">
+    <meta name="twitter:title" content="Nocter v0.25.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Download nocter-v0.25.0-arm64-darwin.tar.gz">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.17.0: Practical Application Foundations - Nocter","description":"Status: published (2026-08-25). Phase 0 returned development to ordinary application APIs. Phase 1 reconstructed the authored standard library before that ","url":"https://nocter.dev/development/milestones/v0.17.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.17.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.17.0","item":"https://nocter.dev/development/milestones/v0.17.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.25.0 Release Notes - Nocter","description":"Download nocter-v0.25.0-arm64-darwin.tar.gz","url":"https://nocter.dev/releases/v0.25.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.25.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.25.0","item":"https://nocter.dev/releases/v0.25.0/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -174,110 +174,45 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/milestones/</p>
+            <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.25.0/index.html#content">v0.25.0: No-allocation Contracts</a></li>
-                <li><a href="../v0.25.0-release-preparation/index.html#content">v0.25.0 Release Preparation</a></li>
-                <li><a href="../v0.24.0/index.html#content">v0.24.0</a></li>
-                <li><a href="../v0.24.0-release-preparation/index.html#content">v0.24.0 Release Preparation</a></li>
-                <li><a href="../v0.23.0/index.html#content">v0.23.0</a></li>
-                <li><a href="../v0.22.0/index.html#content">v0.22.0</a></li>
-                <li><a href="../v0.22.0-release-preparation/index.html#content">v0.22.0 Release Preparation</a></li>
-                <li><a href="../v0.21.0/index.html#content">v0.21.0</a></li>
-                <li><a href="../v0.21.0-release-preparation/index.html#content">v0.21.0 Release Preparation</a></li>
-                <li><a href="../v0.20.0/index.html#content">v0.20.0</a></li>
-                <li><a href="../v0.19.0/index.html#content">v0.19.0</a></li>
-                <li><a href="../v0.19.0-release-preparation/index.html#content">v0.19.0 Release Preparation</a></li>
-                <li><a href="../v0.18.0/index.html#content">v0.18.0</a></li>
-                <li><a href="../v0.18.0-release-preparation/index.html#content">v0.18.0 Release Preparation</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.17.0</a></li>
-                <li><a href="../v0.17.0-release-preparation/index.html#content">v0.17.0 Release Preparation</a></li>
-                <li><a href="../v0.16.0/index.html#content">v0.16.0</a></li>
-                <li><a href="../v0.16.0-release-preparation/index.html#content">v0.16.0 Release Preparation</a></li>
-                <li><a href="../v0.15.0/index.html#content">v0.15.0</a></li>
-                <li><a href="../v0.15.0-release-preparation/index.html#content">v0.15.0 Release Preparation</a></li>
-                <li><a href="../v0.14.0/index.html#content">v0.14.0</a></li>
-                <li><a href="../v0.14.0-qualification/index.html#content">v0.14.0 Qualification</a></li>
-                <li><a href="../v0.14.0-release-preparation/index.html#content">v0.14.0 Release Preparation</a></li>
-                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
-                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="../v0.10.0-phase-1/index.html#content">v0.10.0 Phase 1</a></li>
-                <li><a href="../v0.10.0-phase-2/index.html#content">v0.10.0 Phase 2</a></li>
-                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
-                <li><a href="../v0.8.0/index.html#content">v0.8.0</a></li>
-                <li><a href="../v0.7.0/index.html#content">v0.7.0</a></li>
+                <li><a href="../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.24.0/index.html#content">Read the v0.24.0 release notes</a></li>
+                <li><a href="../v0.22.0/index.html#content">Nocter v0.22.0</a></li>
+                <li><a href="../v0.21.0/index.html#content">Nocter v0.21.0</a></li>
+                <li><a href="../v0.19.0/index.html#content">Nocter v0.19.0</a></li>
+                <li><a href="../v0.18.0/index.html#content">Nocter v0.18.0</a></li>
+                <li><a href="../v0.17.0/index.html#content">Nocter v0.17.0</a></li>
+                <li><a href="../v0.16.0/index.html#content">Nocter v0.16.0</a></li>
+                <li><a href="../v0.15.0/index.html#content">Nocter v0.15.0</a></li>
+                <li><a href="../v0.14.0/index.html#content">Nocter v0.14.0</a></li>
+                <li><a href="../v0.13.0/index.html#content">Nocter v0.13.0</a></li>
+                <li><a href="../v0.12.0/index.html#content">Nocter v0.12.0</a></li>
+                <li><a href="../v0.11.0/index.html#content">Nocter v0.11.0</a></li>
+                <li><a href="../v0.10.0/index.html#content">Nocter v0.10.0</a></li>
+                <li><a href="../v0.9.0/index.html#content">Nocter v0.9.0</a></li>
+                <li><a href="../v0.8.0/index.html#content">Nocter v0.8.0</a></li>
+                <li><a href="../v0.7.0/index.html#content">Nocter v0.7.0</a></li>
+                <li><a href="../v0.6.0/index.html#content">Nocter v0.6.0</a></li>
+                <li><a href="../v0.5.0/index.html#content">Nocter v0.5.0</a></li>
+                <li><a href="../v0.4.0/index.html#content">Nocter v0.4.0</a></li>
+                <li><a href="../v0.3.0/index.html#content">Nocter v0.3.0</a></li>
+                <li><a href="../v0.2.0/index.html#content">Nocter v0.2.0</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/milestones/v0.17.0.md</span>
+                <span class="markdown-path-text">/releases/v0.25.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-17-0-practical-application-foundations">v0.17.0: Practical Application Foundations</h1><p><strong>Status: published (2026-08-25).</strong> Phase 0 returned development to ordinary application APIs. Phase 1 reconstructed the authored standard library before that public surface grows further. No later v0.17.0 phase is active. Exact source, artifact, and fresh-install evidence is recorded in the <a href="../v0.17.0-release-preparation/index.html#content">release-preparation record</a>.</p><h2 id="goal">Goal</h2><p>Make common local applications expressible through small, composable standard contracts. Public modules must own portable meaning, target-specific standard internals must own raw OS facts, and compiler primitives must remain limited to operations that Nocter source cannot express safely.</p><h2 id="phase-0-practical-filesystem-operations">Phase 0: Practical Filesystem Operations</h2><p>Phase 0 introduces <code>std/fs</code> as the path-oriented filesystem module. It complements rather than duplicates the existing modules:</p><ul><li><code>std/io</code> owns open byte streams and the <code>File</code>, <code>Reader</code>, and <code>Writer</code> contracts;</li><li><code>std/path</code> owns validated UTF-8 path values and lexical path operations;</li><li><code>std/fs</code> owns one-shot path operations and portable metadata;</li><li><code>std/internal/os</code> owns dependency-free Darwin syscall numbers, errno classification, and native
-  metadata layout;</li><li><code>std/internal/io</code> owns the stable public-I/O error policy shared by stream and filesystem APIs;</li><li><code>std/internal/path</code> owns the allocator-backed target path argument shared by stream and
-  filesystem operations.</li></ul><p>The public surface is:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fs
-
-<span class="token-keyword">let</span> text <span class="token-operator">=</span> fs<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-string">"input.txt"</span><span class="token-operator">)</span><span class="token-operator">?</span>
-fs<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"copy.txt"</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>text<span class="token-operator">)</span><span class="token-operator">?</span>
-<span class="token-keyword">let</span> details <span class="token-operator">=</span> fs<span class="token-operator">.</span><span class="token-function">metadata</span><span class="token-operator">(</span><span class="token-string">"copy.txt"</span><span class="token-operator">)</span><span class="token-operator">?</span>
-<span class="token-keyword">if</span> details<span class="token-operator">.</span><span class="token-function">is_file</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> details<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-    fs<span class="token-operator">.</span><span class="token-function">rename</span><span class="token-operator">(</span><span class="token-string">"copy.txt"</span><span class="token-operator">,</span> <span class="token-string">"complete.txt"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+                <h1 id="nocter-v0-25-0-release-notes">Nocter v0.25.0 Release Notes</h1><p><a href="https://github.com/rvo-jp/nocter/releases/download/v0.25.0/nocter-v0.25.0-arm64-darwin.tar.gz">Download nocter-v0.25.0-arm64-darwin.tar.gz</a></p><p>Nocter v0.25.0 introduces source-visible no-allocation contracts and strengthens the compiler ownership boundaries that preserve semantic results for CLI and editor queries. The only implemented host and native target remains <code>arm64-darwin</code>.</p><h2 id="no-allocation-contracts">No-allocation Contracts</h2><p><code>noalloc</code> is an optional callable guarantee. It states that no execution path can request new storage from a Nocter allocator:</p><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">byte_count</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
-</code></pre><p><code>read</code> and <code>read_to_string</code> return independently owned values. <code>write</code> and <code>write_text</code> create or truncate their destination and complete the entire write before returning success. <code>metadata</code> follows symbolic links and reports a portable file kind plus a <code>u64</code> byte length. <code>exists</code> returns <code>false</code> only when the path is absent; permissions and every other OS failure remain recoverable errors. <code>remove_file</code> removes a non-directory entry, including a symbolic link itself. <code>rename</code> uses the target's single rename operation and does not simulate cross-device movement with a copy-and-delete fallback.</p><p>All borrowed paths reject embedded NUL before entering the target boundary. The same owned, temporary target path representation is shared by <code>std/process</code>, <code>std/io</code>, and <code>std/fs</code>; none may author a second UTF-8-to-C-path conversion. It lives above the dependency-free OS fact layer so the raw OS module never imports allocation policy. OS-originated failures use one package-internal I/O mapping to the stable <code>std.io.*</code> error classification already exposed by file streams.</p><h3 id="completion-gate">Completion Gate</h3><p>Phase 0 is complete only when all of the following hold:</p><ul><li>the public <code>std/fs</code> contract provides <code>read</code>, <code>read_to_string</code>, <code>write</code>, <code>write_text</code>, <code>metadata</code>,
-  <code>exists</code>, <code>remove_file</code>, and <code>rename</code> plus opaque portable <code>Metadata</code> and <code>FileType</code> APIs;</li><li>whole-file functions compose the existing <code>File</code>, <code>Reader</code>, and <code>Writer</code> contracts rather than
-  repeating descriptor read/write loops;</li><li>Darwin syscall numbers, stat buffer size and offsets, and file-mode values have exactly one
-  source owner under <code>std/internal/os</code> and do not appear in <code>std/fs</code>, compiler semantics, Machine,
-  or ARM64 lowering;</li><li><code>std/process</code>, <code>std/io</code>, and <code>std/fs</code> share one target path argument encoder, while <code>std/io</code> and
-  <code>std/fs</code> share one OS-error classifier; neither policy introduces an <code>internal/os</code> dependency on
-  allocation or public I/O behavior;</li><li>missing-path <code>exists</code> performs no built-in error construction and returns <code>false</code>, while every
-  non-missing failure remains a <code>T!</code> failure;</li><li>native acceptance through the physical bundled standard library covers text and byte writes,
-  reads, UTF-8 rejection, metadata, existence, rename, removal, missing-path classification, and
-  final cleanup;</li><li>ordinary discovery and editor analysis compile the complete bundled standard library with the
-  new module; no synthetic filesystem symbol or special editor lookup is added;</li><li>the complete workspace tests, warnings-denied Clippy, Rust formatting, generated documentation,
-  and repository whitespace gates pass;</li><li>a final responsibility review finds no duplicated syscall loop, path encoder, errno mapping,
-  metadata ABI table, or compiler dependency on a public filesystem declaration name.</li></ul><h3 id="non-goals">Non-goals</h3><p>Phase 0 does not add directory traversal, directory creation, recursive operations, permissions, timestamps, symbolic-link creation, canonicalization, memory mapping, asynchronous I/O, Windows or Linux backends, or atomic multi-file transactions. Those require separate contracts rather than optional flags on the Phase 0 functions.</p><h2 id="completion-evidence">Completion Evidence</h2><p>Completed on 2026-08-24:</p><ul><li><code>std/fs</code> exposes the complete Phase 0 contract and implements whole-file operations by composing
-  the existing stream interfaces.</li><li>A native fixture crosses the physical bundled standard library and Darwin boundary for text,
-  bytes, invalid UTF-8, metadata, existence, replacement rename, symbolic-link behavior, removal,
-  missing-path classification, and cleanup.</li><li><code>std/process</code>, <code>std/io</code>, and <code>std/fs</code> use the single target path representation in
-  <code>std/internal/path</code>; the Darwin representation is target-gated rather than assumed portable.</li><li><code>std/internal/io</code> is the sole OS-classification-to-<code>std.io.*</code> policy owner, while
-  <code>std/internal/os</code> remains the sole syscall, errno, and metadata-layout fact owner.</li><li>Namespace-qualified callable resolution now records one visibility-checked semantic identity in
-  name resolution. Checking consumes that identity without repeating module lookup, including for
-  callable re-exports and body type/constant module segments. Editor hover and navigation consume
-  the same source projection.</li><li>The final responsibility search found no second descriptor read/write loop, target path encoder,
-  I/O error mapper, metadata ABI table, or compiler dependency on a filesystem API name.</li><li><code>cargo test --workspace --quiet</code>, warnings-denied workspace Clippy, Rust formatting, generated
-  documentation, and <code>git diff --check</code> passed for the completed Phase 0 tree.</li></ul><h2 id="phase-1-standard-library-reconstruction">Phase 1: Standard-Library Reconstruction</h2><p>Phase 1 makes the authored standard library demonstrate the source and module architecture that Nocter asks package authors to use. It changes ownership and dependency structure rather than adding practical APIs.</p><p>The public root of a standard module is its user contract. Package-only declarations do not belong there merely because implementation sources need them. A representation-independent internal subsystem owns an explicit <code>std/internal/*</code> module. Because Nocter forbids implementation sources from adding restricted-visible declarations, a package contract inseparable from a public type's private representation may remain in that type's root only as a reviewed exception.</p><p>The intended dependency direction is from target and runtime facts, through pointer and allocation foundations, borrowed views and iteration contracts, owned values and streams, and finally adapters and application services. A higher layer must not become the implementation owner of a lower layer's algorithms. In particular, borrowed UTF-8 behavior belongs to <code>std/str</code>; <code>std/string</code> owns allocated <code>String</code> storage and mutation.</p><h3 id="completion-gate-2">Completion Gate</h3><p>Phase 1 is complete only when:</p><ul><li>every standard root contains the complete user-visible contract and no implementation body;</li><li>independent package-only contracts no longer obscure public roots and have an explicit internal
-  module owner; every representation-bound root exception is named and reviewed;</li><li>every compiler primitive has one reviewed domain owner, and public modules expose only the
-  primitives that are intentionally user-facing;</li><li>target ABI constants and syscalls live under a target-specific internal contract rather than a
-  target-neutral root;</li><li>borrowed string search, ranges, and iterators are owned by <code>std/str</code>, while <code>std/string</code> owns only
-  allocated string construction, storage, mutation, and UTF-8 validation needed for construction;</li><li>the standard dependency graph has no unreviewed reverse edge or duplicated implementation owner;</li><li>source navigation distinguishes public contracts, package contracts, and implementations without
-  synthetic editor behavior;</li><li>the authored standard-library checks, native acceptance, public examples, complete workspace
-  tests, warnings-denied Clippy, formatting, generated documentation, and whitespace gates pass;</li><li>a final responsibility review confirms that every source depends only on another responsibility's
-  declared contract, never its private representation.</li></ul><h3 id="non-goals-2">Non-goals</h3><p>Phase 1 does not add collection, text, filesystem, networking, concurrency, or asynchronous APIs. It does not preserve obsolete internal paths with aliases or compatibility declarations. Public API changes are limited to removing accidental or contradictory surface discovered by the ownership review; new application capabilities belong to a later phase.</p><h3 id="completion-evidence-2">Completion Evidence</h3><p>Completed on 2026-08-25:</p><ul><li><code>std/ptr</code> now contains only the three intentionally public address-observation primitives.
-  Address projection, memory copying, raw view construction, and typed value movement have the
-  single package-internal owner <code>std/internal/ptr</code>; allocation abort has the separate owner
-  <code>std/internal/mem</code>.</li><li>Target-neutral <code>std/internal/os</code> contains only portable OS facts. Darwin syscall declarations,
-  errno classification, file flags, mmap flags, path limits, and metadata layout live in the
-  target-specific <code>std/internal/os/darwin</code> module. No Darwin syscall number remains outside its
-  implementation source.</li><li>Borrowed search, ranges, byte projection, <code>SplitIter</code>, and <code>LinesIter</code> moved from <code>std/string</code> to
-  <code>std/str</code>. The owned <code>split</code> materialization edge is isolated in <code>std/str/owned.nct</code>, while
-  <code>std/string</code> is divided into storage, construction, UTF-8 validation, and mutation sources.</li><li><code>std/mem</code> and <code>std/vec</code> are likewise divided by stable responsibility. Their roots remain the
-  sole contract authority; implementation sources add no visible declarations. The only reviewed
-  restricted contracts in user-facing roots are the four <code>std/mem</code> operations inseparable from
-  private <code>RawBuffer</code> representation.</li><li><code>std/process</code> reuses the public UTF-8 validator instead of carrying a second implementation.
-  Upper modules consume allocator, buffer, string, reader, and writer methods through declared
-  contracts rather than package-visible function aliases.</li><li>The authored-standard test now rejects global public surface in <code>std/internal</code>, independent
-  package plumbing in user-facing roots, and any unreviewed resolved module dependency edge. Its
-  checks consume parsed declarations, resolved imports, and checked semantic references rather
-  than reparsing source spellings.</li><li>The source tree contains 65 responsibility-named files and 4,905 lines, down from 4,984 lines
-  before reconstruction despite the finer split. Standard roots contain 1,152 lines, down from
-  1,199, and no implementation source declares package visibility.</li><li>The complete workspace tests, all 61 language-server tests, warnings-denied workspace Clippy,
-  Rust formatting, generated documentation, and repository whitespace checks passed on the final
-  Phase 1 tree.</li></ul>
+
+<span class="token-keyword">instance</span> <span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-operator">}</span>
+</code></pre><p>The same modifier applies to construction functions, literals, methods, operators, coercions, interface requirements and defaults, primitive functions, callable types, and drop. An unqualified callable remains valid and exports no allocation guarantee; it does not assert that allocation occurs.</p><p>The guarantee is independent of result provenance and the hidden allocation-context ABI lane. It does not promise absence of deallocation, traps, blocking, system calls, recoverable failures, or other side effects.</p><h2 id="transitive-proof">Transitive Proof</h2><p>The compiler proves <code>noalloc</code> from checked semantic operations rather than names or target instructions. One program-wide least fixed point follows direct calls, callbacks, closures, interface selection, coercions, operators, literals, implicit destruction, recursive components, generic substitutions, and opaque witnesses. Trusted primitive metadata and one selected standard allocation-request role close operations whose implementations cross the language boundary.</p><p>Unknown abstract callees remain conservative. A callable value or interface requirement must carry <code>noalloc</code> before another public contract can rely on it. A proven no-allocation callable may erase its guarantee when converted to an unqualified callable type, but the guarantee cannot be reconstructed later from the hidden value.</p><h2 id="standard-library-and-tooling">Standard Library and Tooling</h2><p>Stable allocation-free standard APIs publish <code>noalloc</code> only where the guarantee is intended as a long-term contract. Generic APIs do not claim it when user-selected operators or destruction can allocate. Primitive declarations are accepted only when the compiler's closed registry certifies the same effect.</p><p>Formatting, hover, signature help, completion, navigation, code actions, and normalized declaration presentation retain authored guarantees. Tooling does not synthesize inferred <code>noalloc</code> syntax.</p><h2 id="compiler-and-editor-reliability">Compiler and Editor Reliability</h2><p>Semantic query products now preserve typed failures and exact source ownership across checking, session, projection, target, and workspace boundaries. Recovery does not replace an earlier cause with a generic missing-result error. Target validation consumes checked semantics without source projection, and exact body analysis receives one checking-owned source input rather than independently pairable source facts.</p><h2 id="compatibility">Compatibility</h2><p>Existing unqualified callables remain source-compatible. Adding <code>noalloc</code> creates an enforced API contract, so a declaration is rejected when direct or transitive behavior may allocate. Public contract and private implementation declarations must carry the same guarantee. No compatibility alias, inferred source modifier, or alternate <code>alloc</code> spelling is provided.</p><p>v0.25.0 retains the v0.24.0 module, ownership, standard-library, native ABI, package-integrity, and distribution boundaries. It does not add <code>alloc</code>, <code>notrap</code>, <code>noblock</code>, <code>nosuspend</code>, <code>realtime</code>, a general effect list, floating point, a second target, or persistent compiler caches.</p><h2 id="candidate-qualification">Candidate Qualification</h2><p>The exact release-content commit, independent source-test totals, reproducible archive identity, and isolated installed-home smoke evidence will be recorded here after candidate qualification.</p>
             </div>
         </main>
     </div>
@@ -293,6 +228,6 @@ fs<span class="token-operator">.</span><span class="token-function">write_text</
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

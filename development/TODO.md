@@ -9,7 +9,9 @@ asset must not be replaced.
 The [v0.25.0 implementation](milestones/v0.25.0.md) is complete and qualified. It adds the sole
 source-visible guarantee `noalloc`, backed by one checker-owned positive allocation-effect table,
 closed standard and primitive effect evidence, deliberate standard-library contracts, and shared
-tooling presentation. It has not been prepared or authorized for publication.
+tooling presentation. [Release preparation](milestones/v0.25.0-release-preparation.md) now owns the
+candidate version, independent source qualification, reproducible artifact, and installed-home
+evidence. Publication has not been authorized.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -26,14 +28,21 @@ and development-catalog authority gaps found by the full-workspace review.
 The reopened [query authority review](reviews/v0.25.0-query-authority-closure.md) replaces
 policy-restricted checking friend APIs with checking-owned transition products and removes source
 projection from target validation. Query correctness now follows from ownership and crate
-dependencies rather than source-text assertions or Clippy method bans.
+dependencies rather than source-text assertions or Clippy method bans. Its final closure also
+retains typed incomplete-declaration failures and seals exact body source input inside the
+checking-owned context.
 
 ## Next Work
 
-Choose the next practical application/API milestone or begin v0.25.0 release preparation when
-explicitly requested. Do not add another source-visible guarantee merely because the internal
-effect representation can express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general
-effect list remain deferred until a concrete user-facing contract needs them.
+Complete the [v0.25.0 release preparation](milestones/v0.25.0-release-preparation.md): freeze one
+clean release-content commit, run duplicate independent source qualification, produce two identical
+optimized archives and installed homes, execute the fresh-home smoke and integrity matrix, and
+record the final candidate identity. Stop before tagging, pushing, uploading, or changing public
+latest-release links.
+
+Do not add another source-visible guarantee merely because the internal effect representation can
+express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
+until a concrete user-facing contract needs them.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

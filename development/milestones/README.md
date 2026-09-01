@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Current Candidate
 
 - [v0.25.0: No-allocation Contracts](v0.25.0.md)
+- [v0.25.0 Release Preparation](v0.25.0-release-preparation.md)
 
 ## Recent Milestones
 
