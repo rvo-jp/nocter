@@ -3,7 +3,7 @@
 //! Matching operates on bytes, but every successful match of a non-empty, well-formed UTF-8
 //! needle begins at a UTF-8 boundary in the haystack.
 
-func find_from_bytes(
+noalloc func find_from_bytes(
     text: &str,
     needle: &str,
     start: usize,

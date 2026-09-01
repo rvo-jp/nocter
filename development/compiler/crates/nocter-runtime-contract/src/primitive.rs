@@ -9,13 +9,13 @@ use nocter_model::CallableId;
 /// their behavior here before an authored guarantee can rely on them.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct PrimitiveEffects {
-    requests_allocation: bool,
+    may_allocate: bool,
 }
 
 impl PrimitiveEffects {
     #[must_use]
-    pub const fn requests_allocation(self) -> bool {
-        self.requests_allocation
+    pub const fn may_allocate(self) -> bool {
+        self.may_allocate
     }
 }
 
@@ -206,12 +206,12 @@ impl PrimitiveRole {
     /// Returns compiler-owned effect evidence for this closed primitive role.
     #[must_use]
     pub const fn effects(self) -> PrimitiveEffects {
-        // The current primitive vocabulary manipulates existing storage, exposes runtime context,
-        // or terminates execution. None requests storage through a Nocter allocator. Keeping this
-        // decision on the closed role—not on source spelling—makes future allocating primitives
-        // opt into that fact explicitly.
+        // Most current roles manipulate existing storage, expose runtime context, or terminate
+        // execution. Generic destruction is conservative because its selected type-owned drop may
+        // request storage. Keeping this decision on the closed role—not on source spelling—makes
+        // future effectful primitives opt into the fact explicitly.
         PrimitiveEffects {
-            requests_allocation: false,
+            may_allocate: matches!(self, Self::DropValueAtPointer),
         }
     }
 
@@ -374,5 +374,15 @@ mod tests {
             PrimitiveRegistry::new(missing),
             Err(PrimitiveBindingError::MissingRole(removed.role()))
         );
+    }
+
+    #[test]
+    fn generic_destruction_is_the_only_conservative_allocation_effect() {
+        let effectful = PrimitiveRole::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.effects().may_allocate())
+            .collect::<Vec<_>>();
+        assert_eq!(effectful, vec![PrimitiveRole::DropValueAtPointer]);
     }
 }

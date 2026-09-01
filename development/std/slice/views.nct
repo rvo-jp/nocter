@@ -4,9 +4,9 @@ see ./index.nct
 
 use /internal/ptr
 
-primitive func slice_len_raw<T>(value: &[T]): usize
+noalloc primitive func slice_len_raw<T>(value: &[T]): usize
 
-primitive func slice_ptr_addr_raw<T>(value: &[T]): usize
+noalloc primitive func slice_ptr_addr_raw<T>(value: &[T]): usize
 
 func values_equal<T>(left: &T, right: &T): bool where (&T == &T): bool {
     return left == right
@@ -17,33 +17,33 @@ func value_is_less<T>(left: &T, right: &T): bool where (&T < &T): bool {
 }
 
 instance [T] {
-    method &self.len(): usize {
+    noalloc method &self.len(): usize {
         return slice_len_raw(self)
     }
 
-    method &self.is_empty(): bool {
+    noalloc method &self.is_empty(): bool {
         return slice_len_raw(self) == 0
     }
 
-    method &self.ptr(): *T {
+    noalloc method &self.ptr(): *T {
         return ptr.from_addr(slice_ptr_addr_raw(self))
     }
 
-    method &self.get(index: usize): &T? {
+    noalloc method &self.get(index: usize): &T? {
         if index >= self.len() {
             return none
         }
         return &self[index]
     }
 
-    method &+self.get_mut(index: usize): &+T? {
+    noalloc method &+self.get_mut(index: usize): &+T? {
         if index >= self.len() {
             return none
         }
         return &+self[index]
     }
 
-    method &self.first(): &T? {
+    noalloc method &self.first(): &T? {
         return self.get(0)?
     }
 

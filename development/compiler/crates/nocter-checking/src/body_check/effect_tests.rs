@@ -1,7 +1,9 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_syntax::NodeKind;
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::check_prepared_program;
-use crate::test_support::Fixture;
+use crate::test_support::{Fixture, StandardRoleInput, with_standard_roles};
 use crate::{BodyRule, prepare_program_checking};
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -84,5 +86,26 @@ fn implicit_destruction_participates_in_the_same_effect_graph() {
         "{TEXT_DECLARATIONS}\nstruct Owned {{}}\nnoalloc drop Owned(&+self) {{ let _ = Text \"drop\"\n return }}\n"
     ))
     .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::NoAllocationContractViolation));
+}
+
+#[test]
+fn compiler_selected_allocation_request_is_a_positive_effect_seed() {
+    let fixture = Fixture::with_standard(
+        "",
+        "pub func request(size: usize): usize { return size }\nnoalloc func invalid(): usize { return request(1) }\n",
+    );
+    let input = with_standard_roles(
+        fixture.input(false),
+        vec![StandardRoleInput::new(
+            StandardDeclarationRole::AllocationRequest,
+            fixture.standard_declaration_token(NodeKind::FunctionDeclaration, "request"),
+        )],
+    );
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    let error = check_prepared_program(&input, prepared).unwrap_err();
     assert_eq!(error.rule(), Some(BodyRule::NoAllocationContractViolation));
 }

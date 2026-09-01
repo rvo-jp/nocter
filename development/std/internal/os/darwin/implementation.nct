@@ -7,12 +7,12 @@ use /internal/os.{OSError, OSErrorKind, Platform}
 use /ptr
 
 #target: "arm64-darwin"
-func errno(code: i32): Errno {
+noalloc func errno(code: i32): Errno {
     return Errno { code: code }
 }
 
 #target: "arm64-darwin"
-func error_from_errno(value: Errno): OSError {
+noalloc func error_from_errno(value: Errno): OSError {
     return OSError {
         platform: Platform.macos,
         code: value.code,
@@ -21,7 +21,7 @@ func error_from_errno(value: Errno): OSError {
 }
 
 #target: "arm64-darwin"
-func kind_from_errno(value: Errno): OSErrorKind {
+noalloc func kind_from_errno(value: Errno): OSErrorKind {
     if value.code == 4 {
         return OSErrorKind.interrupted
     }
@@ -169,7 +169,7 @@ const DIRENT_TYPE_REGULAR: u8 = 8
 const DIRENT_TYPE_SYMLINK: u8 = 10
 
 #target: "arm64-darwin"
-func read_directory_entries(
+noalloc func read_directory_entries(
     fd: usize,
     buffer: &+[u8],
     position: &+u64,

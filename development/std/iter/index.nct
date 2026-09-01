@@ -46,22 +46,22 @@ pub interface Iterator {
     pub method &+self.next(): Self.Item?
 
     /// Lazily transforms every yielded item.
-    pub default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U
+    pub noalloc default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U
 
     /// Lazily retains items accepted by `predicate`.
-    pub default method self.filter<F>(predicate: F): FilterIter<Self, F> from self | predicate where F: &+func(&Self.Item): bool
+    pub noalloc default method self.filter<F>(predicate: F): FilterIter<Self, F> from self | predicate where F: &+func(&Self.Item): bool
 
     /// Lazily yields at most `limit` items.
-    pub default method self.take(limit: usize): TakeIter<Self>
+    pub noalloc default method self.take(limit: usize): TakeIter<Self>
 
     /// Lazily discards at most `count` items before yielding.
-    pub default method self.skip(amount: usize): SkipIter<Self>
+    pub noalloc default method self.skip(amount: usize): SkipIter<Self>
 
     /// Lazily yields this iterator followed by `right`.
-    pub default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { .Item = Self.Item }
+    pub noalloc default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { .Item = Self.Item }
 
     /// Lazily pairs every yielded item with its zero-based index.
-    pub default method self.enumerate(): EnumerateIter<Self>
+    pub noalloc default method self.enumerate(): EnumerateIter<Self>
 
     /// Consumes the iterator and returns the number of yielded items.
     pub default method self.count(): usize
@@ -152,9 +152,9 @@ instance OnceIter<T> {
     impl Iterator { .Item = T }
 }
 
-pub func empty<T>(): EmptyIter<T>
+pub noalloc func empty<T>(): EmptyIter<T>
 
-pub func once<T>(item: T): OnceIter<T>
+pub noalloc func once<T>(item: T): OnceIter<T>
 
 /// A forward cursor over readonly borrows into contiguous storage.
 pub struct ViewIter<T>
@@ -169,12 +169,12 @@ instance MutableViewIter<T> {
 
 construct MutableViewIter<T> {
     /// Creates an allocation-free mutable iterator over `view`.
-    pub func from_view(view: &+[T]): Self
+    pub noalloc func from_view(view: &+[T]): Self
 }
 
 construct ViewIter<T> {
     /// Creates an allocation-free readonly iterator over `view`.
-    pub func from_view(view: &[T]): Self
+    pub noalloc func from_view(view: &[T]): Self
 }
 
 instance ViewIter<T> {

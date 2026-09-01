@@ -51,7 +51,7 @@ struct MutableViewIter<T> {
 }
 
 construct ViewIter<T> {
-    func from_view(view: &[T]): Self {
+    noalloc func from_view(view: &[T]): Self {
         return ViewIter<T> {
             view: view,
             next_index: 0,
@@ -60,11 +60,11 @@ construct ViewIter<T> {
 }
 
 instance ViewIter<T> {
-    method &self.remaining_len(): usize {
+    noalloc method &self.remaining_len(): usize {
         return self.view.len() - self.next_index
     }
 
-    method &+self.next(): &T? {
+    noalloc method &+self.next(): &T? {
         if self.next_index >= self.view.len() {
             return none
         }

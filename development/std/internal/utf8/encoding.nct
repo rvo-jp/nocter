@@ -10,7 +10,7 @@ copy struct ScalarEncoding {
     initialized_len: usize
 }
 
-func encode_scalar(value: u32): ScalarEncoding? {
+noalloc func encode_scalar(value: u32): ScalarEncoding? {
     if value > 1114111 { return none }
     if value >= 55296 && value <= 57343 { return none }
     if value <= 127 {
@@ -62,7 +62,7 @@ func encode_scalar(value: u32): ScalarEncoding? {
 }
 
 instance ScalarEncoding {
-    method &self.bytes(): &[u8] {
+    noalloc method &self.bytes(): &[u8] {
         return ptr.slice_from_raw_parts_value(ptr_module.from_ref(&self.encoded_bytes[0]), self.initialized_len)
     }
 }

@@ -15,10 +15,10 @@ pub(/) copy struct Errno {
 }
 
 #target: "arm64-darwin"
-pub(/) func errno(code: i32): Errno
+pub(/) noalloc func errno(code: i32): Errno
 
 #target: "arm64-darwin"
-pub(/) func error_from_errno(value: Errno): OSError
+pub(/) noalloc func error_from_errno(value: Errno): OSError
 
 #target: "arm64-darwin"
 pub(/) const SYS_READ: usize
@@ -129,20 +129,20 @@ pub(/) const DIRENT_TYPE_REGULAR: u8
 pub(/) const DIRENT_TYPE_SYMLINK: u8
 
 #target: "arm64-darwin"
-pub(/) primitive func syscall1(
+pub(/) noalloc primitive func syscall1(
     number: usize,
     a0: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive func syscall2(
+pub(/) noalloc primitive func syscall2(
     number: usize,
     a0: usize,
     a1: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive func syscall3(
+pub(/) noalloc primitive func syscall3(
     number: usize,
     a0: usize,
     a1: usize,
@@ -150,14 +150,14 @@ pub(/) primitive func syscall3(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) func read_directory_entries(
+pub(/) noalloc func read_directory_entries(
     fd: usize,
     buffer: &+[u8],
     position: &+u64,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive func syscall6(
+pub(/) noalloc primitive func syscall6(
     number: usize,
     a0: usize,
     a1: usize,
@@ -168,4 +168,4 @@ pub(/) primitive func syscall6(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) primitive func trap(): never
+pub(/) noalloc primitive func trap(): never

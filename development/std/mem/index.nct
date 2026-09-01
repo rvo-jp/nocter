@@ -30,24 +30,27 @@ pub struct AllocationContext
 /// An allocator that reports storage failure through `T!`.
 pub struct TryAllocator
 
-pub(/) func current_allocator(): Allocator
+pub(/) noalloc func current_allocator(): Allocator
 
 /// Adapts the active context for package-internal recoverable implementation cores.
-pub(/) func current_try_allocator(): TryAllocator
+pub(/) noalloc func current_try_allocator(): TryAllocator
 
 /// Returns an ordinary page-backed allocator.
-pub func page_allocator(): Allocator
+pub noalloc func page_allocator(): Allocator
 
 /// Returns a recoverable page-backed allocator.
-pub func page_try_allocator(): TryAllocator
+pub noalloc func page_try_allocator(): TryAllocator
 
-pub(/) func empty_unbound_buffer(align: usize): RawBuffer
+pub(/) noalloc func empty_unbound_buffer(align: usize): RawBuffer
 
-pub(/) func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
+pub(/) noalloc func take_raw_buffer(buffer: &+RawBuffer): RawBuffer
+
+/// Compiler-selected positive effect root for one allocator backing-storage request.
+pub(/) func alloc_pages(size: usize): usize!
 
 construct Layout {
     /// Validates `size` and power-of-two `align` as one allocation request.
-    pub func new(size: usize, align: usize): Self!
+    pub noalloc func new(size: usize, align: usize): Self!
 }
 
 /// Allocates one validated layout with recoverable failure.
@@ -83,22 +86,22 @@ instance TryAllocator {
 
 instance RawBuffer {
     /// Exposes all owned bytes as a readonly view.
-    pub method &self.bytes(): &[u8]
+    pub noalloc method &self.bytes(): &[u8]
 
     /// Exposes all owned bytes as an exclusive view.
-    pub method &+self.bytes_mut(): &+[u8]
+    pub noalloc method &+self.bytes_mut(): &+[u8]
 
     /// Returns a readonly prefix or a bounds error.
-    pub method &self.prefix(len: usize): &[u8]!
+    pub noalloc method &self.prefix(len: usize): &[u8]!
 
     /// Returns an exclusive prefix or a bounds error.
-    pub method &+self.prefix_mut(len: usize): &+[u8]!
+    pub noalloc method &+self.prefix_mut(len: usize): &+[u8]!
 }
 
 instance Layout {
     /// Returns the validated byte size.
-    pub method &self.size(): usize
+    pub noalloc method &self.size(): usize
 
     /// Returns the validated alignment.
-    pub method &self.align(): usize
+    pub noalloc method &self.align(): usize
 }

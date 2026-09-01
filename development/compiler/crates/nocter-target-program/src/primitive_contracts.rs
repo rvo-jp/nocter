@@ -169,7 +169,7 @@ fn validate_identity(
     if matches!(
         declaration.guarantees().allocation(),
         nocter_model::AllocationGuarantee::NoAllocation
-    ) && role.effects().requests_allocation()
+    ) && role.effects().may_allocate()
     {
         return Err(PrimitiveContractRule::AllocationGuarantee);
     }

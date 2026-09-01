@@ -231,6 +231,7 @@ fn validate_role_domain(
             matches!(entity, StandardDeclaration::AssociatedType(_))
         }
         StandardDeclarationRole::FormatMethod
+        | StandardDeclarationRole::AllocationRequest
         | StandardDeclarationRole::InterpolationConstructor
         | StandardDeclarationRole::InterpolationTextAppender
         | StandardDeclarationRole::IteratorNextMethod

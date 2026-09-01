@@ -10,16 +10,16 @@ struct String {
     len: usize
 }
 
-func view(text: &String): &str {
+noalloc func view(text: &String): &str {
     return ptr.str_from_raw_parts(text.storage.bytes().ptr(), text.len)
 }
 
 instance String {
-    coerce &self as &str {
+    noalloc coerce &self as &str {
         return view(self)
     }
 
-    method &self.capacity(): usize {
+    noalloc method &self.capacity(): usize {
         return self.storage.bytes().len()
     }
 }

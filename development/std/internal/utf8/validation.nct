@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-func is_valid_utf8(candidate: &[u8]): bool {
+noalloc func is_valid_utf8(candidate: &[u8]): bool {
     var offset: usize = 0
     while offset < candidate.len() {
         let leading: u8 = candidate[offset]
@@ -42,17 +42,17 @@ func is_valid_utf8(candidate: &[u8]): bool {
     return true
 }
 
-func validate_utf8(candidate: &[u8]): void! {
+noalloc func validate_utf8(candidate: &[u8]): void! {
     if !is_valid_utf8(candidate) {
         return invalid_utf8()
     }
     return
 }
 
-func is_continuation(byte: u8): bool {
+noalloc func is_continuation(byte: u8): bool {
     return byte >= 128 && byte <= 191
 }
 
-func invalid_utf8(): error {
+noalloc func invalid_utf8(): error {
     return error.new("std.string.invalid_utf8", "invalid UTF-8")
 }

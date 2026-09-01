@@ -9,6 +9,8 @@
 pub enum StandardDeclarationRole {
     AbortingAllocator,
     AllocationContext,
+    /// Exact standard callable at which a Nocter allocator requests backing storage.
+    AllocationRequest,
     OwnedString,
     InterpolationConstructor,
     InterpolationTextAppender,
@@ -29,6 +31,7 @@ impl StandardDeclarationRole {
         match self {
             Self::AbortingAllocator => "aborting_allocator",
             Self::AllocationContext => "allocation_context",
+            Self::AllocationRequest => "allocation_request",
             Self::OwnedString => "owned_string",
             Self::InterpolationConstructor => "interpolation_constructor",
             Self::InterpolationTextAppender => "interpolation_text_appender",

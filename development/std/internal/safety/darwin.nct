@@ -5,6 +5,6 @@ see ./index.nct
 use /internal/os/darwin
 
 #target: "arm64-darwin"
-func bounds_abort(): never {
+noalloc func bounds_abort(): never {
     return darwin.trap()
 }

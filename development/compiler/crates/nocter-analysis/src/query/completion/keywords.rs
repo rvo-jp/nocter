@@ -46,7 +46,67 @@ pub(super) fn completions(
         )]);
     }
 
+    if noalloc_modifier_prefix(tree, source_file, offset)
+        .is_some_and(|prefix| "noalloc".starts_with(prefix))
+    {
+        return Box::new([SemanticCompletion::new(
+            "noalloc",
+            SemanticCompletionKind::Keyword,
+            Some("allocation-free callable guarantee".into()),
+        )]);
+    }
+
     Box::new([])
+}
+
+fn noalloc_modifier_prefix<'a>(
+    tree: &SyntaxTree,
+    source: &'a nocter_source::SourceFile,
+    offset: ByteOffset,
+) -> Option<&'a str> {
+    if tree
+        .nodes()
+        .any(|(_, node)| node.kind() == NodeKind::Block && node.range().contains_cursor(offset))
+    {
+        return None;
+    }
+    let container = tree
+        .nodes()
+        .filter(|(_, node)| {
+            declaration_container(node.kind()) && node.range().contains_cursor(offset)
+        })
+        .min_by_key(|(_, node)| node.range().len())
+        .map(|(_, node)| node.kind());
+    if container.is_some_and(|kind| {
+        !matches!(
+            kind,
+            NodeKind::InterfaceDeclaration
+                | NodeKind::ConstructDeclaration
+                | NodeKind::InstanceDeclaration
+        )
+    }) {
+        return None;
+    }
+    let end = usize::try_from(offset.get()).ok()?;
+    let line = source
+        .text()
+        .get(..end)?
+        .rsplit_once('\n')
+        .map_or_else(|| source.text().get(..end), |(_, line)| Some(line))?
+        .trim();
+    let mut words = line.split_ascii_whitespace();
+    let first = words.next().unwrap_or("");
+    let second = words.next();
+    if words.next().is_some() {
+        return None;
+    }
+    match second {
+        None => Some(first),
+        Some(prefix) if first == "pub" || (first.starts_with("pub(") && first.ends_with(')')) => {
+            Some(prefix)
+        }
+        Some(_) => None,
+    }
 }
 
 fn current_where_prefix<'a>(

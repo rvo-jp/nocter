@@ -5,8 +5,8 @@
 //! are target-independent core primitives. Operations that project or mutate
 //! memory through an address remain package-internal under `std/internal/ptr`.
 
-pub primitive func addr<T>(pointer: *T): usize
+pub noalloc primitive func addr<T>(pointer: *T): usize
 
-pub primitive func from_ref<T>(value: &T): *T
+pub noalloc primitive func from_ref<T>(value: &T): *T
 
-pub primitive func from_ref_mut<T>(value: &+T): *T
+pub noalloc primitive func from_ref_mut<T>(value: &+T): *T

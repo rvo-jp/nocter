@@ -21,11 +21,11 @@ struct Vec<T> {
     capacity: usize
 }
 
-func view<T>(values: &Vec<T>): &[T] {
+noalloc func view<T>(values: &Vec<T>): &[T] {
     return ptr.slice_from_raw_parts_value(values.ptr, values.len)
 }
 
-func view_mut<T>(values: &+Vec<T>): &+[T] {
+noalloc func view_mut<T>(values: &+Vec<T>): &+[T] {
     return ptr.slice_from_raw_parts_value_mut(values.ptr, values.len)
 }
 
@@ -39,19 +39,19 @@ func into_iter<T>(values: Vec<T>): VecIntoIter<T> {
 }
 
 instance Vec<T> {
-    coerce &self as &[T] {
+    noalloc coerce &self as &[T] {
         return view(self)
     }
 
-    coerce &+self as &+[T] {
+    noalloc coerce &+self as &+[T] {
         return view_mut(self)
     }
 
-    operator (...&self): ViewIter<T> {
+    noalloc operator (...&self): ViewIter<T> {
         return ViewIter.from_view(view(self))
     }
 
-    operator (...&+self): MutableViewIter<T> {
+    noalloc operator (...&+self): MutableViewIter<T> {
         return MutableViewIter.from_view(view_mut(self))
     }
 
@@ -59,11 +59,11 @@ instance Vec<T> {
         return into_iter(move self)
     }
 
-    method &self.iter(): ViewIter<T> {
+    noalloc method &self.iter(): ViewIter<T> {
         return ViewIter.from_view(view(self))
     }
 
-    method &+self.iter_mut(): MutableViewIter<T> {
+    noalloc method &+self.iter_mut(): MutableViewIter<T> {
         return MutableViewIter.from_view(view_mut(self))
     }
 
@@ -71,7 +71,7 @@ instance Vec<T> {
         return into_iter(move self)
     }
 
-    method &self.capacity(): usize {
+    noalloc method &self.capacity(): usize {
         return self.capacity
     }
 }

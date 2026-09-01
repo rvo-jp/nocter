@@ -5,6 +5,7 @@ use nocter_model::{
     AllocationGuarantee, ArenaBuilder, BodyNodeId, CallableGuarantees, CallableId, ClosureId,
     DropId, LoopId, PlaceId, TypeKind, TypeStore,
 };
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use super::{AllocationEffect, EffectBodyInput, EffectTable, input_for_body};
 use crate::{
@@ -80,6 +81,9 @@ fn collect_facts(
     inputs: &[EffectBodyInput<'_, '_>],
 ) -> Result<BTreeMap<Root, RootFacts>, BodyCheckError> {
     let graph = environment.graph();
+    let allocation_request = environment
+        .standard_semantics()
+        .callable(StandardDeclarationRole::AllocationRequest);
     let mut facts = BTreeMap::new();
     for (body, declaration) in graph.declarations().bodies().iter() {
         let input =
@@ -90,11 +94,12 @@ fn collect_facts(
             BodyOwner::Test(_) => None,
         };
         if let Some(root) = root {
-            facts.insert(
-                root,
-                Collector::new(environment, types, closures, input.body())
-                    .collect(input.body().root())?,
-            );
+            let mut root_facts = Collector::new(environment, types, closures, input.body())
+                .collect(input.body().root())?;
+            if matches!(root, Root::Callable(callable) if Some(callable) == allocation_request) {
+                root_facts.direct_allocation = Some(input.body().root());
+            }
+            facts.insert(root, root_facts);
         }
     }
     for (closure, definition) in closures.definitions().iter() {

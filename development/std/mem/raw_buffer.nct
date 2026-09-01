@@ -9,22 +9,22 @@ use /internal/mem
 use /internal/ptr as internal_ptr
 use /ptr
 
-func bytes(buffer: &RawBuffer): &[u8] {
+noalloc func bytes(buffer: &RawBuffer): &[u8] {
     return internal_ptr.slice_from_raw_parts(buffer.ptr, buffer.len)
 }
 
-func bytes_mut(buffer: &+RawBuffer): &+[u8] {
+noalloc func bytes_mut(buffer: &+RawBuffer): &+[u8] {
     return internal_ptr.slice_from_raw_parts_mut(buffer.ptr, buffer.len)
 }
 
-func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
+noalloc func prefix(buffer: &RawBuffer, len: usize): &[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }
     return internal_ptr.slice_from_raw_parts(buffer.ptr, len)
 }
 
-func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
+noalloc func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
     if len > buffer.len {
         return invalid_argument()
     }
@@ -32,24 +32,24 @@ func prefix_mut(buffer: &+RawBuffer, len: usize): &+[u8]! {
 }
 
 instance RawBuffer {
-    method &self.bytes(): &[u8] {
+    noalloc method &self.bytes(): &[u8] {
         return bytes(self)
     }
 
-    method &+self.bytes_mut(): &+[u8] {
+    noalloc method &+self.bytes_mut(): &+[u8] {
         return bytes_mut(self)
     }
 
-    method &self.prefix(len: usize): &[u8]! {
+    noalloc method &self.prefix(len: usize): &[u8]! {
         return prefix(self, len)?
     }
 
-    method &+self.prefix_mut(len: usize): &+[u8]! {
+    noalloc method &+self.prefix_mut(len: usize): &+[u8]! {
         return prefix_mut(self, len)?
     }
 }
 
-drop RawBuffer(&+self) {
+noalloc drop RawBuffer(&+self) {
     if self.len != 0 {
         if allocator_kind_is_page(self.allocator_kind) {
             free_pages(ptr.addr(self.ptr), self.len)

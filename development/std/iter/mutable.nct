@@ -4,7 +4,7 @@ see ./adapters.nct
 //! Allocation-free mutable iteration over contiguous views.
 
 construct MutableViewIter<T> {
-    func from_view(view: &+[T]): Self {
+    noalloc func from_view(view: &+[T]): Self {
         return MutableViewIter<T> {
             view: view,
             next_index: 0,
@@ -13,12 +13,12 @@ construct MutableViewIter<T> {
 }
 
 instance MutableViewIter<T> {
-    method &self.remaining_len(): usize {
+    noalloc method &self.remaining_len(): usize {
         return self.view.len() - self.next_index
     }
 
     /// Advances and returns an exclusive element borrow, or `none` at exhaustion.
-    method &+self.next(): &+T? {
+    noalloc method &+self.next(): &+T? {
         if self.next_index >= self.view.len() {
             return none
         }

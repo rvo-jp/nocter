@@ -5,9 +5,9 @@ see ./search.nct
 
 use /iter.Iterator
 
-primitive func bytes_from_str(value: &str): &[u8] from value
+noalloc primitive func bytes_from_str(value: &str): &[u8] from value
 
-primitive func str_subview_unchecked(
+noalloc primitive func str_subview_unchecked(
     text: &str,
     start: usize,
     len: usize,
@@ -26,14 +26,14 @@ struct LinesIter {
     finished: bool
 }
 
-func is_char_boundary(text: &str, index: usize): bool {
+noalloc func is_char_boundary(text: &str, index: usize): bool {
     if index > text.len() { return false }
     if index == 0 || index == text.len() { return true }
     let byte: u8 = text[index]
     return byte < 128 || byte >= 192
 }
 
-func get_range(text: &str, start: usize, end: usize): &str? {
+noalloc func get_range(text: &str, start: usize, end: usize): &str? {
     if start > end { return none }
     if !is_char_boundary(text, start) || !is_char_boundary(text, end) {
         return none
@@ -41,7 +41,7 @@ func get_range(text: &str, start: usize, end: usize): &str? {
     return str_subview_unchecked(text, start, end - start)
 }
 
-func strip_prefix(text: &str, prefix: &str): &str? from text {
+noalloc func strip_prefix(text: &str, prefix: &str): &str? from text {
     if prefix.len() > text.len() { return none }
     var index: usize = 0
     while index < prefix.len() {
@@ -51,7 +51,7 @@ func strip_prefix(text: &str, prefix: &str): &str? from text {
     return str_subview_unchecked(text, prefix.len(), text.len() - prefix.len())
 }
 
-func strip_suffix(text: &str, suffix: &str): &str? from text {
+noalloc func strip_suffix(text: &str, suffix: &str): &str? from text {
     if suffix.len() > text.len() { return none }
     let start: usize = text.len() - suffix.len()
     var index: usize = 0
@@ -62,25 +62,25 @@ func strip_suffix(text: &str, suffix: &str): &str? from text {
     return str_subview_unchecked(text, 0, start)
 }
 
-func find_from(text: &str, needle: &str, start: usize): usize? {
+noalloc func find_from(text: &str, needle: &str, start: usize): usize? {
     return find_from_bytes(text, needle, start)?
 }
 
-func find(text: &str, needle: &str): usize? {
+noalloc func find(text: &str, needle: &str): usize? {
     return find_from(text, needle, 0)?
 }
 
-func contains(text: &str, needle: &str): bool {
+noalloc func contains(text: &str, needle: &str): bool {
     let offset: usize = find(text, needle) otherwise { return false }
     return offset <= text.len()
 }
 
-func starts_with(text: &str, prefix: &str): bool {
+noalloc func starts_with(text: &str, prefix: &str): bool {
     let offset: usize = find_from(text, prefix, 0) otherwise { return false }
     return offset == 0
 }
 
-func ends_with(text: &str, suffix: &str): bool {
+noalloc func ends_with(text: &str, suffix: &str): bool {
     if suffix.len() > text.len() { return false }
     let start: usize = text.len() - suffix.len()
     let offset: usize = find_from(text, suffix, start) otherwise { return false }
@@ -88,7 +88,7 @@ func ends_with(text: &str, suffix: &str): bool {
 }
 
 construct SplitIter {
-    func new(
+    noalloc func new(
         text: &str,
         separator: &str,
     ): Self! from text | separator {
@@ -102,7 +102,7 @@ construct SplitIter {
     }
 }
 
-func split_views(
+noalloc func split_views(
     text: &str,
     separator: &str,
 ): SplitIter! from text | separator {
@@ -110,7 +110,7 @@ func split_views(
 }
 
 instance SplitIter {
-    method &+self.next(): &str? {
+    noalloc method &+self.next(): &str? {
         if self.finished { return none }
         let part_start: usize = self.next_start
         let separator_start: usize = find_from(self.text, self.separator, part_start) otherwise {
@@ -131,7 +131,7 @@ instance SplitIter {
 }
 
 construct LinesIter {
-    func new(text: &str): Self {
+    noalloc func new(text: &str): Self {
         return LinesIter {
             text: text,
             next_start: 0,
@@ -140,12 +140,12 @@ construct LinesIter {
     }
 }
 
-func lines(text: &str): LinesIter {
+noalloc func lines(text: &str): LinesIter {
     return LinesIter.new(text)
 }
 
 instance LinesIter {
-    method &+self.next(): &str? {
+    noalloc method &+self.next(): &str? {
         if self.finished { return none }
         let line_start: usize = self.next_start
         let newline: usize = find_byte(self.text, 10, line_start) otherwise {
@@ -172,7 +172,7 @@ instance LinesIter {
     }
 }
 
-func find_byte(text: &str, needle: u8, start: usize): usize? {
+noalloc func find_byte(text: &str, needle: u8, start: usize): usize? {
     var index: usize = start
     while index < text.len() {
         if text[index] == needle { return index }
@@ -181,7 +181,7 @@ func find_byte(text: &str, needle: u8, start: usize): usize? {
     return none
 }
 
-func empty_separator_error(): error {
+noalloc func empty_separator_error(): error {
     return error.new(
         "std.str.empty_separator",
         "string separator must not be empty",

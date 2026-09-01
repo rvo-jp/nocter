@@ -27,7 +27,7 @@ func alloc_pages(size: usize): usize! {
 }
 
 #target: "arm64-darwin"
-func free_pages(address: usize, size: usize): void {
+noalloc func free_pages(address: usize, size: usize): void {
     let result = darwin.syscall2(darwin.SYS_MUNMAP, address, size)
     return
 }

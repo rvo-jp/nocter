@@ -5,36 +5,36 @@
 
 see ./replacement.nct
 
-pub(/) primitive func from_addr<T>(address: usize): *T
+pub(/) noalloc primitive func from_addr<T>(address: usize): *T
 
-pub(/) primitive func pointee_size<T>(pointer: *T): usize
+pub(/) noalloc primitive func pointee_size<T>(pointer: *T): usize
 
-pub(/) primitive func pointee_align<T>(pointer: *T): usize
+pub(/) noalloc primitive func pointee_align<T>(pointer: *T): usize
 
-pub(/) primitive func copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
+pub(/) noalloc primitive func copy_str_to_ptr(destination: *u8, offset: usize, text: &str): void
 
-pub(/) primitive func copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
+pub(/) noalloc primitive func copy_ptr_to_ptr(destination: *u8, source: *u8, byte_count: usize): void
 
-pub(/) primitive func store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
+pub(/) noalloc primitive func store_u8_to_ptr(destination: *u8, offset: usize, value: u8): void
 
-pub(/) primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
+pub(/) noalloc primitive func store_value_to_ptr<T>(destination: *T, offset: usize, value: T): void
 
 pub(/) primitive func drop_value_at_ptr<T>(pointer: *T, offset: usize): void
 
-pub(/) primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
+pub(/) noalloc primitive func take_value_at_ptr<T>(pointer: *T, offset: usize): T
 
 /// Replaces one initialized value without exposing an uninitialized place to its caller.
-pub(/) func replace_value<T>(place: &+T, replacement: T): T
+pub(/) noalloc func replace_value<T>(place: &+T, replacement: T): T
 
 /// Copies one `copy` value through a readonly borrow without exposing its representation.
-pub(/) func copy_value<T>(value: &T): T where copy T
+pub(/) noalloc func copy_value<T>(value: &T): T where copy T
 
-pub(/) primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
+pub(/) noalloc primitive func str_from_raw_parts(pointer: *u8, len: usize): &str
 
-pub(/) primitive func slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
+pub(/) noalloc primitive func slice_from_raw_parts(pointer: *u8, len: usize): &[u8]
 
-pub(/) primitive func slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
+pub(/) noalloc primitive func slice_from_raw_parts_mut(pointer: *u8, len: usize): &+[u8]
 
-pub(/) primitive func slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
+pub(/) noalloc primitive func slice_from_raw_parts_value<T>(pointer: *T, len: usize): &[T]
 
-pub(/) primitive func slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]
+pub(/) noalloc primitive func slice_from_raw_parts_value_mut<T>(pointer: *T, len: usize): &+[T]

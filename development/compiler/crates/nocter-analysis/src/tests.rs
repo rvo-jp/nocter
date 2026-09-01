@@ -208,6 +208,62 @@ fn repeated_checked_member_queries_are_semantically_identical() {
 }
 
 #[test]
+fn noalloc_keyword_completion_is_available_at_callable_modifier_positions() {
+    let tree = TempTree::new();
+    let source_text = "pub noa";
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(61));
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let completions = snapshot
+        .semantic_completions(
+            source.id(),
+            ByteOffset::new(u32::try_from(source_text.len()).unwrap()),
+        )
+        .unwrap();
+    assert!(
+        completions
+            .iter()
+            .any(|completion| completion.label() == "noalloc")
+    );
+}
+
+#[test]
+fn bundled_standard_noalloc_contract_is_usable_from_an_application() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        "noalloc func length(text: &str): usize { text.len() }\n",
+        GenerationId::new(62),
+    );
+
+    assert_eq!(snapshot.status(), AnalysisStatus::Complete);
+}
+
+#[test]
+fn bundled_standard_allocation_reaches_an_application_noalloc_contract() {
+    let tree = TempTree::new();
+    let (_, snapshot) = bundled_snapshot(
+        &tree,
+        concat!(
+            "use std/string.String\n",
+            "noalloc func allocate(): String { String.with_capacity(1) }\n",
+        ),
+        GenerationId::new(63),
+    );
+
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0411")
+    );
+}
+
+#[test]
 fn keyed_argument_pack_hover_retains_both_component_types() {
     let tree = TempTree::new();
     let source_text = concat!(
@@ -522,7 +578,7 @@ fn program_fact_rejection_stops_at_the_declaration_capability() {
 fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
     let tree = TempTree::new();
     let source_text = concat!(
-        "pub interface Readable { pub method &self.read(): i32 }\n",
+        "pub interface Readable { pub noalloc method &self.read(): i32 }\n",
         "struct Value {}\n",
         "instance Value { impl Readable }\n",
         "func inspect(value: &Value): void {\n",
@@ -564,6 +620,12 @@ fn syntax_and_declaration_failure_share_the_current_declaration_authority() {
         )
         .unwrap();
     assert!(!actions.is_empty());
+    assert!(actions.iter().any(|action| {
+        action
+            .edits()
+            .iter()
+            .any(|edit| edit.new_text().contains("noalloc method &self.read(): i32"))
+    }));
 }
 
 #[test]

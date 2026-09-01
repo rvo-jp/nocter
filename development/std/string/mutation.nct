@@ -30,7 +30,7 @@ func reserve(text: &+String, additional: usize): void {
     return
 }
 
-func clear(text: &+String): void {
+noalloc func clear(text: &+String): void {
     text.len = 0
     return
 }
@@ -76,7 +76,7 @@ instance String {
         return
     }
 
-    method &+self.clear(): void {
+    noalloc method &+self.clear(): void {
         clear(self)
         return
     }

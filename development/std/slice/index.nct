@@ -7,20 +7,20 @@ see ./ordering.nct
 see ./views.nct
 
 instance [T] {
-    pub method &self.len(): usize
+    pub noalloc method &self.len(): usize
 
-    pub method &self.is_empty(): bool
+    pub noalloc method &self.is_empty(): bool
 
-    pub method &self.ptr(): *T
+    pub noalloc method &self.ptr(): *T
 
     /// Returns a readonly element borrow, or `none` when `index` is out of bounds.
-    pub method &self.get(index: usize): &T?
+    pub noalloc method &self.get(index: usize): &T?
 
     /// Returns a readwrite element borrow, or `none` when `index` is out of bounds.
-    pub method &+self.get_mut(index: usize): &+T?
+    pub noalloc method &+self.get_mut(index: usize): &+T?
 
     /// Returns the first element borrow, or `none` when the slice is empty.
-    pub method &self.first(): &T?
+    pub noalloc method &self.first(): &T?
 
     /// Compares elements from left to right without consuming either slice.
     pub operator (&self == other: &Self): bool where (&T == &T): bool

@@ -4,7 +4,7 @@ see ./index.nct
 see ./storage.nct
 
 construct Layout {
-    func new(size: usize, align: usize): Self! {
+    noalloc func new(size: usize, align: usize): Self! {
         if !valid_alignment(align) {
             return invalid_argument()
         }
@@ -13,16 +13,16 @@ construct Layout {
 }
 
 instance Layout {
-    method &self.size(): usize {
+    noalloc method &self.size(): usize {
         return self.size
     }
 
-    method &self.align(): usize {
+    noalloc method &self.align(): usize {
         return self.align
     }
 }
 
-func valid_alignment(align: usize): bool {
+noalloc func valid_alignment(align: usize): bool {
     if align == 0 {
         return false
     }
@@ -40,6 +40,6 @@ func valid_alignment(align: usize): bool {
     return true
 }
 
-func invalid_argument(): error {
+noalloc func invalid_argument(): error {
     return error.new("std.mem.invalid_argument", "invalid allocation request")
 }

@@ -61,31 +61,31 @@ construct Vec<T> {
 
 instance Vec<T> {
     /// Exposes the initialized element prefix as a readonly view.
-    pub coerce &self as &[T]
+    pub noalloc coerce &self as &[T]
 
     /// Exposes the initialized element prefix as a readwrite view.
-    pub coerce &+self as &+[T]
+    pub noalloc coerce &+self as &+[T]
 
     /// Creates an allocation-free iterator over readonly element borrows.
-    pub operator (...&self): ViewIter<T>
+    pub noalloc operator (...&self): ViewIter<T>
 
     /// Creates an allocation-free iterator over readwrite element borrows.
-    pub operator (...&+self): MutableViewIter<T>
+    pub noalloc operator (...&+self): MutableViewIter<T>
 
     /// Transfers the allocation and every element into an owning iterator.
     pub operator (...self): VecIntoIter<T>
 
     /// Returns the readonly iterator explicitly for method-chain construction.
-    pub method &self.iter(): ViewIter<T>
+    pub noalloc method &self.iter(): ViewIter<T>
 
     /// Returns the readwrite iterator explicitly for mutation algorithms.
-    pub method &+self.iter_mut(): MutableViewIter<T>
+    pub noalloc method &+self.iter_mut(): MutableViewIter<T>
 
     /// Returns the owning iterator explicitly for method-chain construction.
     pub method self.into_iter(): VecIntoIter<T>
 
     /// Returns how many elements fit without growth.
-    pub method &self.capacity(): usize
+    pub noalloc method &self.capacity(): usize
 
     /// Ensures capacity for at least `additional` more elements.
     pub method &+self.reserve(additional: usize): void

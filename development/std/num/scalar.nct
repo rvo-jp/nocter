@@ -2,37 +2,37 @@
 
 see ./index.nct
 
-primitive func u8_truncate_raw(value: u64): u8
-primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
-primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
-primitive func u64_bit_xor_raw(left: u64, right: u64): u64
-primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
+noalloc primitive func u8_truncate_raw(value: u64): u8
+noalloc primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
+noalloc primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
+noalloc primitive func u64_bit_xor_raw(left: u64, right: u64): u64
+noalloc primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
 
 construct u8 {
-    func checked(value: u64): Self? {
+    noalloc func checked(value: u64): Self? {
         if value > 255 { return none }
         return u8_truncate_raw(value)
     }
 
-    func truncate(value: u64): Self {
+    noalloc func truncate(value: u64): Self {
         return u8_truncate_raw(value)
     }
 }
 
 instance u64 {
-    method self.wrapping_add(other: u64): u64 {
+    noalloc method self.wrapping_add(other: u64): u64 {
         return u64_wrapping_add_raw(self, other)
     }
 
-    method self.wrapping_mul(other: u64): u64 {
+    noalloc method self.wrapping_mul(other: u64): u64 {
         return u64_wrapping_mul_raw(self, other)
     }
 
-    method self.bit_xor(other: u64): u64 {
+    noalloc method self.bit_xor(other: u64): u64 {
         return u64_bit_xor_raw(self, other)
     }
 
-    method self.rotate_right(amount: u64): u64 {
+    noalloc method self.rotate_right(amount: u64): u64 {
         return u64_rotate_right_raw(self, amount)
     }
 }

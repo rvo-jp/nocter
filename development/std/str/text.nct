@@ -10,12 +10,12 @@ use /internal/ptr
 use /string.String
 use /vec.Vec
 
-primitive func str_len_raw(value: &str): usize
+noalloc primitive func str_len_raw(value: &str): usize
 
-primitive func str_ptr_addr_raw(value: &str): usize
+noalloc primitive func str_ptr_addr_raw(value: &str): usize
 
 instance str {
-    operator (&self == other: &Self): bool {
+    noalloc operator (&self == other: &Self): bool {
         let left = bytes_from_str(self)
         let right = bytes_from_str(other)
         if left.len() != right.len() {
@@ -31,7 +31,7 @@ instance str {
         return true
     }
 
-    operator (&self < other: &Self): bool {
+    noalloc operator (&self < other: &Self): bool {
         let left = bytes_from_str(self)
         let right = bytes_from_str(other)
         let shared_len: usize = if left.len() < right.len() { left.len() } else { right.len() }
@@ -44,55 +44,55 @@ instance str {
         return left.len() < right.len()
     }
 
-    method &self.len(): usize {
+    noalloc method &self.len(): usize {
         return str_len_raw(self)
     }
 
-    method &self.is_empty(): bool {
+    noalloc method &self.is_empty(): bool {
         return str_len_raw(self) == 0
     }
 
-    method &self.ptr(): *u8 {
+    noalloc method &self.ptr(): *u8 {
         return ptr.from_addr(str_ptr_addr_raw(self))
     }
 
-    method &self.bytes(): &[u8] {
+    noalloc method &self.bytes(): &[u8] {
         return bytes_from_str(self)
     }
 
-    method &self.is_char_boundary(index: usize): bool {
+    noalloc method &self.is_char_boundary(index: usize): bool {
         return is_char_boundary(self, index)
     }
 
-    method &self.get_range(start: usize, end: usize): &str? {
+    noalloc method &self.get_range(start: usize, end: usize): &str? {
         return get_range(self, start, end)?
     }
 
-    method &self.find_from(needle: &str, start: usize): usize? {
+    noalloc method &self.find_from(needle: &str, start: usize): usize? {
         return find_from(self, needle, start)?
     }
 
-    method &self.find(needle: &str): usize? {
+    noalloc method &self.find(needle: &str): usize? {
         return find(self, needle)?
     }
 
-    method &self.contains(needle: &str): bool {
+    noalloc method &self.contains(needle: &str): bool {
         return contains(self, needle)
     }
 
-    method &self.starts_with(prefix: &str): bool {
+    noalloc method &self.starts_with(prefix: &str): bool {
         return starts_with(self, prefix)
     }
 
-    method &self.ends_with(suffix: &str): bool {
+    noalloc method &self.ends_with(suffix: &str): bool {
         return ends_with(self, suffix)
     }
 
-    method &self.strip_prefix(prefix: &str): &str? from self {
+    noalloc method &self.strip_prefix(prefix: &str): &str? from self {
         return strip_prefix(self, prefix)?
     }
 
-    method &self.strip_suffix(suffix: &str): &str? from self {
+    noalloc method &self.strip_suffix(suffix: &str): &str? from self {
         return strip_suffix(self, suffix)?
     }
 
@@ -100,15 +100,15 @@ instance str {
         return split(self, separator)?
     }
 
-    method &self.split_views(separator: &str): SplitIter! from self | separator {
+    noalloc method &self.split_views(separator: &str): SplitIter! from self | separator {
         return split_views(self, separator)?
     }
 
-    method &self.lines(): some Iterator { .Item = &str } {
+    noalloc method &self.lines(): some Iterator { .Item = &str } {
         return lines(self)
     }
 
-    method &self.bytes_iter(): ViewIter<u8> {
+    noalloc method &self.bytes_iter(): ViewIter<u8> {
         return ViewIter.from_view(bytes_from_str(self))
     }
 }

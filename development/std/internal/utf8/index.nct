@@ -7,15 +7,15 @@ see ./validation.nct
 pub(/) copy struct ScalarEncoding
 
 /// Encodes one Unicode scalar value, or returns none for a surrogate or out-of-range value.
-pub(/) func encode_scalar(value: u32): ScalarEncoding?
+pub(/) noalloc func encode_scalar(value: u32): ScalarEncoding?
 
 instance ScalarEncoding {
     /// Returns exactly the initialized UTF-8 encoding bytes.
-    pub(/) method &self.bytes(): &[u8]
+    pub(/) noalloc method &self.bytes(): &[u8]
 }
 
 /// Returns whether the complete byte view is well-formed UTF-8.
-pub(/) func is_valid_utf8(candidate: &[u8]): bool
+pub(/) noalloc func is_valid_utf8(candidate: &[u8]): bool
 
 /// Accepts well-formed UTF-8 or returns the stable string encoding error.
-pub(/) func validate_utf8(candidate: &[u8]): void!
+pub(/) noalloc func validate_utf8(candidate: &[u8]): void!

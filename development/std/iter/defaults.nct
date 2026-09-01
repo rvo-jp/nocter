@@ -4,35 +4,35 @@ see ./index.nct
 see ./adapters.nct
 
 interface Iterator {
-    default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U {
+    noalloc default method self.map<U, F>(transform: F): MapIter<U, Self, F> from self | transform where F: &+func(item: Self.Item): U {
         return MapIter<U, Self, F> {
             source: move self,
             transform: move transform,
         }
     }
 
-    default method self.filter<F>(predicate: F): FilterIter<Self, F> from self | predicate where F: &+func(&Self.Item): bool {
+    noalloc default method self.filter<F>(predicate: F): FilterIter<Self, F> from self | predicate where F: &+func(&Self.Item): bool {
         return FilterIter<Self, F> {
             source: move self,
             predicate: move predicate,
         }
     }
 
-    default method self.take(limit: usize): TakeIter<Self> {
+    noalloc default method self.take(limit: usize): TakeIter<Self> {
         return TakeIter<Self> {
             source: move self,
             remaining: limit,
         }
     }
 
-    default method self.skip(amount: usize): SkipIter<Self> {
+    noalloc default method self.skip(amount: usize): SkipIter<Self> {
         return SkipIter<Self> {
             source: move self,
             remaining_to_skip: amount,
         }
     }
 
-    default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { .Item = Self.Item } {
+    noalloc default method self.chain<R>(right: R): ChainIter<Self, R> from self | right where R impl Iterator { .Item = Self.Item } {
         return ChainIter<Self, R> {
             left: move self,
             right: move right,
@@ -40,7 +40,7 @@ interface Iterator {
         }
     }
 
-    default method self.enumerate(): EnumerateIter<Self> {
+    noalloc default method self.enumerate(): EnumerateIter<Self> {
         return EnumerateIter<Self> {
             source: move self,
             next_index: 0,

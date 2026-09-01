@@ -2,4 +2,4 @@
 
 see ./darwin.nct
 
-pub(/) func bounds_abort(): never
+pub(/) noalloc func bounds_abort(): never

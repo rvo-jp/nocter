@@ -72,6 +72,12 @@ fn standard_roles(package: &PackageIdentity) -> Vec<StandardRoleLocator> {
             "AllocationContext",
         ),
         (
+            Role::AllocationRequest,
+            &["mem"][..],
+            NodeKind::FunctionDeclaration,
+            "alloc_pages",
+        ),
+        (
             Role::OwnedString,
             &["string"][..],
             NodeKind::StructDeclaration,

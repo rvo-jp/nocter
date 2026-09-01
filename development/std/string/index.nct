@@ -26,7 +26,7 @@ construct String {
     pub literal ""(text: &str): Self
 
     /// Constructs an empty String without binding storage.
-    pub func empty(): Self
+    pub noalloc func empty(): Self
 
     /// Constructs an empty String with at least the requested byte capacity.
     pub func with_capacity(requested_capacity: usize): Self
@@ -57,14 +57,14 @@ construct String {
 }
 
 /// Returns whether `candidate` is a well-formed UTF-8 byte sequence.
-pub func is_valid_utf8(candidate: &[u8]): bool
+pub noalloc func is_valid_utf8(candidate: &[u8]): bool
 
 instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
-    pub coerce &self as &str
+    pub noalloc coerce &self as &str
 
     /// Returns the byte capacity available without growth.
-    pub method &self.capacity(): usize
+    pub noalloc method &self.capacity(): usize
 
     /// Ensures capacity for at least `additional` more UTF-8 bytes.
     pub method &+self.reserve(additional: usize): void
@@ -73,7 +73,7 @@ instance String {
     pub method &+self.try_reserve(additional: usize): void!
 
     /// Removes all text while retaining reusable storage.
-    pub method &+self.clear(): void
+    pub noalloc method &+self.clear(): void
 
     /// Appends borrowed UTF-8 text.
     pub method &+self.push_str(value: &str): void

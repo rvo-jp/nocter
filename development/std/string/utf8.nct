@@ -4,6 +4,6 @@ see ./index.nct
 
 use /internal/utf8
 
-func is_valid_utf8(candidate: &[u8]): bool {
+noalloc func is_valid_utf8(candidate: &[u8]): bool {
     return utf8.is_valid_utf8(candidate)
 }

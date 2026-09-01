@@ -22,14 +22,14 @@ pub struct SplitIter
 pub struct LinesIter
 
 construct SplitIter {
-    pub func new(
+    pub noalloc func new(
         text: &str,
         separator: &str,
     ): Self! from text | separator
 }
 
 construct LinesIter {
-    pub func new(text: &str): Self
+    pub noalloc func new(text: &str): Self
 }
 
 instance SplitIter {
@@ -42,43 +42,43 @@ instance LinesIter {
 
 instance str {
     /// Compares UTF-8 encoding bytes without allocation.
-    pub operator (&self == other: &Self): bool
+    pub noalloc operator (&self == other: &Self): bool
 
     /// Orders UTF-8 encoding bytes lexicographically without allocation.
-    pub operator (&self < other: &Self): bool
+    pub noalloc operator (&self < other: &Self): bool
 
-    pub method &self.len(): usize
+    pub noalloc method &self.len(): usize
 
-    pub method &self.is_empty(): bool
+    pub noalloc method &self.is_empty(): bool
 
-    pub method &self.ptr(): *u8
+    pub noalloc method &self.ptr(): *u8
 
-    pub method &self.bytes(): &[u8]
+    pub noalloc method &self.bytes(): &[u8]
 
-    pub method &self.is_char_boundary(index: usize): bool
+    pub noalloc method &self.is_char_boundary(index: usize): bool
 
-    pub method &self.get_range(start: usize, end: usize): &str?
+    pub noalloc method &self.get_range(start: usize, end: usize): &str?
 
-    pub method &self.find_from(needle: &str, start: usize): usize?
+    pub noalloc method &self.find_from(needle: &str, start: usize): usize?
 
-    pub method &self.find(needle: &str): usize?
+    pub noalloc method &self.find(needle: &str): usize?
 
-    pub method &self.contains(needle: &str): bool
+    pub noalloc method &self.contains(needle: &str): bool
 
-    pub method &self.starts_with(prefix: &str): bool
+    pub noalloc method &self.starts_with(prefix: &str): bool
 
-    pub method &self.ends_with(suffix: &str): bool
+    pub noalloc method &self.ends_with(suffix: &str): bool
 
-    pub method &self.strip_prefix(prefix: &str): &str? from self
+    pub noalloc method &self.strip_prefix(prefix: &str): &str? from self
 
-    pub method &self.strip_suffix(suffix: &str): &str? from self
+    pub noalloc method &self.strip_suffix(suffix: &str): &str? from self
 
     pub method &self.split(separator: &str): Vec<String>!
 
-    pub method &self.split_views(separator: &str): SplitIter! from self | separator
+    pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
 
-    pub method &self.lines(): some Iterator { .Item = &str }
+    pub noalloc method &self.lines(): some Iterator { .Item = &str }
 
     /// Iterates over the exact UTF-8 encoding bytes without allocation.
-    pub method &self.bytes_iter(): ViewIter<u8>
+    pub noalloc method &self.bytes_iter(): ViewIter<u8>
 }

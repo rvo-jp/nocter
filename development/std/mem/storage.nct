@@ -4,11 +4,11 @@ see ./index.nct
 
 use /internal/ptr
 
-primitive func current_allocator_state(): usize
+noalloc primitive func current_allocator_state(): usize
 
-primitive func current_allocator_kind(): usize
+noalloc primitive func current_allocator_kind(): usize
 
-primitive func allocation_failure_error(): error
+noalloc primitive func allocation_failure_error(): error
 
 const PAGE_ALLOCATOR_KIND: usize = 0
 
@@ -44,29 +44,29 @@ struct TryAllocator {
     kind: usize
 }
 
-func current_allocator(): Allocator {
+noalloc func current_allocator(): Allocator {
     return Allocator {
         state: current_allocator_state(),
         kind: current_allocator_kind(),
     }
 }
 
-func current_try_allocator(): TryAllocator {
+noalloc func current_try_allocator(): TryAllocator {
     return TryAllocator {
         state: current_allocator_state(),
         kind: current_allocator_kind(),
     }
 }
 
-func page_allocator(): Allocator {
+noalloc func page_allocator(): Allocator {
     return Allocator { state: 0, kind: PAGE_ALLOCATOR_KIND }
 }
 
-func page_try_allocator(): TryAllocator {
+noalloc func page_try_allocator(): TryAllocator {
     return TryAllocator { state: 0, kind: PAGE_ALLOCATOR_KIND }
 }
 
-func empty_unbound_buffer(align: usize): RawBuffer {
+noalloc func empty_unbound_buffer(align: usize): RawBuffer {
     // An unbound empty sentinel owns no storage and therefore
     // carries no allocator origin. The first growth operation binds it to the
     // allocator selected at that operation.
@@ -79,7 +79,7 @@ func empty_unbound_buffer(align: usize): RawBuffer {
     }
 }
 
-func take_raw_buffer(buffer: &+RawBuffer): RawBuffer {
+noalloc func take_raw_buffer(buffer: &+RawBuffer): RawBuffer {
     let result = RawBuffer {
         ptr: buffer.ptr,
         len: buffer.len,
@@ -95,14 +95,14 @@ func take_raw_buffer(buffer: &+RawBuffer): RawBuffer {
     return move result
 }
 
-func allocator_kind_is_page(kind: usize): bool {
+noalloc func allocator_kind_is_page(kind: usize): bool {
     return kind == PAGE_ALLOCATOR_KIND
 }
 
-func allocator_kind_is_region(kind: usize): bool {
+noalloc func allocator_kind_is_region(kind: usize): bool {
     return kind == REGION_ALLOCATOR_KIND
 }
 
-func allocator_kind_is_unbound(kind: usize): bool {
+noalloc func allocator_kind_is_unbound(kind: usize): bool {
     return kind == UNBOUND_ALLOCATOR_KIND
 }

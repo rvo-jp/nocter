@@ -4,14 +4,14 @@ see ./index.nct
 
 const MAXIMUM_USIZE: usize = 18446744073709551615
 
-func checked_add(left: usize, right: usize): usize? {
+noalloc func checked_add(left: usize, right: usize): usize? {
     if right > MAXIMUM_USIZE - left {
         return none
     }
     return left + right
 }
 
-func checked_multiply(left: usize, right: usize): usize? {
+noalloc func checked_multiply(left: usize, right: usize): usize? {
     if left == 0 || right == 0 {
         return 0
     }
@@ -21,7 +21,7 @@ func checked_multiply(left: usize, right: usize): usize? {
     return left * right
 }
 
-func growth_capacity(current: usize, required: usize): usize {
+noalloc func growth_capacity(current: usize, required: usize): usize {
     if required <= current {
         return current
     }
@@ -34,6 +34,6 @@ func growth_capacity(current: usize, required: usize): usize {
     return doubled
 }
 
-func capacity_overflow(): error {
+noalloc func capacity_overflow(): error {
     return error.new("std.mem.capacity_overflow", "storage capacity overflow")
 }

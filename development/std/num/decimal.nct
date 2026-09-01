@@ -2,13 +2,13 @@
 
 see ./index.nct
 
-primitive func u16_truncate_raw(value: u64): u16
-primitive func u32_truncate_raw(value: u64): u32
-primitive func i8_truncate_raw(value: i64): i8
-primitive func i16_truncate_raw(value: i64): i16
-primitive func i32_truncate_raw(value: i64): i32
+noalloc primitive func u16_truncate_raw(value: u64): u16
+noalloc primitive func u32_truncate_raw(value: u64): u32
+noalloc primitive func i8_truncate_raw(value: i64): i8
+noalloc primitive func i16_truncate_raw(value: i64): i16
+noalloc primitive func i32_truncate_raw(value: i64): i32
 
-func parse_unsigned_decimal(text: &str): u64? {
+noalloc func parse_unsigned_decimal(text: &str): u64? {
     let raw = text.bytes()
     if raw.len() == 0 { return none }
 
@@ -25,7 +25,7 @@ func parse_unsigned_decimal(text: &str): u64? {
     return value
 }
 
-func parse_signed_decimal(text: &str): i64? {
+noalloc func parse_signed_decimal(text: &str): i64? {
     let raw = text.bytes()
     if raw.len() == 0 { return none }
 
@@ -52,94 +52,94 @@ func parse_signed_decimal(text: &str): i64? {
     return 0 - negative_value
 }
 
-func narrow_u16(value: u64): u16? {
+noalloc func narrow_u16(value: u64): u16? {
     if value > 65535 { return none }
     return u16_truncate_raw(value)
 }
 
-func narrow_u32(value: u64): u32? {
+noalloc func narrow_u32(value: u64): u32? {
     if value > 4294967295 { return none }
     return u32_truncate_raw(value)
 }
 
-func narrow_i8(value: i64): i8? {
+noalloc func narrow_i8(value: i64): i8? {
     if value < -128 || value > 127 { return none }
     return i8_truncate_raw(value)
 }
 
-func narrow_i16(value: i64): i16? {
+noalloc func narrow_i16(value: i64): i16? {
     if value < -32768 || value > 32767 { return none }
     return i16_truncate_raw(value)
 }
 
-func narrow_i32(value: i64): i32? {
+noalloc func narrow_i32(value: i64): i32? {
     if value < -2147483648 || value > 2147483647 { return none }
     return i32_truncate_raw(value)
 }
 
 construct i8 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_signed_decimal(text) otherwise { return none }
         return narrow_i8(value)
     }
 }
 
 construct i16 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_signed_decimal(text) otherwise { return none }
         return narrow_i16(value)
     }
 }
 
 construct i32 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_signed_decimal(text) otherwise { return none }
         return narrow_i32(value)
     }
 }
 
 construct i64 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         return parse_signed_decimal(text)
     }
 }
 
 construct isize {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_signed_decimal(text) otherwise { return none }
         return value as isize
     }
 }
 
 construct u8 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_unsigned_decimal(text) otherwise { return none }
         return u8.checked(value)
     }
 }
 
 construct u16 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_unsigned_decimal(text) otherwise { return none }
         return narrow_u16(value)
     }
 }
 
 construct u32 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_unsigned_decimal(text) otherwise { return none }
         return narrow_u32(value)
     }
 }
 
 construct u64 {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         return parse_unsigned_decimal(text)
     }
 }
 
 construct usize {
-    func parse(text: &str): Self? {
+    noalloc func parse(text: &str): Self? {
         let value = parse_unsigned_decimal(text) otherwise { return none }
         return value as usize
     }

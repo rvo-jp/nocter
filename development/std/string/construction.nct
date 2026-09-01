@@ -14,7 +14,7 @@ construct String {
         return String.copy(text)
     }
 
-    func empty(): Self {
+    noalloc func empty(): Self {
         return String {
             storage: mem.empty_unbound_buffer(1),
             len: 0,

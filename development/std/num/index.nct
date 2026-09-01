@@ -42,58 +42,58 @@ pub primitive type isize
 
 construct i8 {
     /// Parses one complete signed decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct i16 {
     /// Parses one complete signed decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct i32 {
     /// Parses one complete signed decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct i64 {
     /// Parses one complete signed decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct isize {
     /// Parses one complete signed decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct u8 {
     /// Converts a value when it is representable as `u8`.
-    pub func checked(value: u64): Self?
+    pub noalloc func checked(value: u64): Self?
 
     /// Keeps the low eight bits of a value.
-    pub func truncate(value: u64): Self
+    pub noalloc func truncate(value: u64): Self
 
     /// Parses one complete unsigned decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct u16 {
     /// Parses one complete unsigned decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct u32 {
     /// Parses one complete unsigned decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct u64 {
     /// Parses one complete unsigned decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 construct usize {
     /// Parses one complete unsigned decimal integer.
-    pub func parse(text: &str): Self?
+    pub noalloc func parse(text: &str): Self?
 }
 
 instance i8 {
@@ -138,16 +138,16 @@ instance isize {
 
 instance u64 {
     /// Adds two values modulo 2^64.
-    pub method self.wrapping_add(other: u64): u64
+    pub noalloc method self.wrapping_add(other: u64): u64
 
     /// Multiplies two values modulo 2^64.
-    pub method self.wrapping_mul(other: u64): u64
+    pub noalloc method self.wrapping_mul(other: u64): u64
 
     /// Returns the bitwise exclusive OR of two values.
-    pub method self.bit_xor(other: u64): u64
+    pub noalloc method self.bit_xor(other: u64): u64
 
     /// Rotates the bits right; only the low six bits of amount are significant.
-    pub method self.rotate_right(amount: u64): u64
+    pub noalloc method self.rotate_right(amount: u64): u64
 
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String
