@@ -43,6 +43,7 @@ pub enum BodyRule {
     InvalidDiscardBinding,
     InvalidOpaqueWitness,
     InvalidArgumentPackUse,
+    NoAllocationContractViolation,
 }
 
 impl BodyRule {
@@ -87,6 +88,7 @@ impl BodyRule {
         Self::InvalidDiscardBinding,
         Self::InvalidOpaqueWitness,
         Self::InvalidArgumentPackUse,
+        Self::NoAllocationContractViolation,
     ];
 
     #[must_use]
@@ -132,6 +134,7 @@ impl BodyRule {
             Self::InvalidDiscardBinding => DiagnosticCode::E0407,
             Self::InvalidOpaqueWitness => DiagnosticCode::E0408,
             Self::InvalidArgumentPackUse => DiagnosticCode::E0409,
+            Self::NoAllocationContractViolation => DiagnosticCode::E0411,
         }
     }
 
@@ -170,6 +173,10 @@ impl BodyRule {
             Self::InvalidOpaqueWitness => (
                 "opaque result does not select one valid concrete witness",
                 "return one consistent type that implements the advertised interface and associated bindings",
+            ),
+            Self::NoAllocationContractViolation => (
+                "operation may allocate inside a `noalloc` contract",
+                "remove the allocation path or remove `noalloc` from the callable contract",
             ),
             _ => self.operation_message(),
         }

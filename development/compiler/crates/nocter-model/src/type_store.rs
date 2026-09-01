@@ -132,6 +132,21 @@ impl CallableGuarantees {
     pub const fn allocation(self) -> AllocationGuarantee {
         self.allocation
     }
+
+    /// Whether a value carrying these guarantees can be used through `expected`.
+    ///
+    /// Guarantees may be forgotten, but never synthesized. This relation is intentionally
+    /// directional: an authored `noalloc` callable may be viewed as an unqualified callable,
+    /// while the inverse would make an unproved promise.
+    #[must_use]
+    pub const fn can_weaken_to(self, expected: Self) -> bool {
+        match (self.allocation, expected.allocation) {
+            (AllocationGuarantee::NoAllocation, AllocationGuarantee::Unspecified)
+            | (AllocationGuarantee::NoAllocation, AllocationGuarantee::NoAllocation)
+            | (AllocationGuarantee::Unspecified, AllocationGuarantee::Unspecified) => true,
+            (AllocationGuarantee::Unspecified, AllocationGuarantee::NoAllocation) => false,
+        }
+    }
 }
 
 /// A structural callable contract after parameter names have been resolved to positions.
@@ -211,6 +226,17 @@ impl CallableContract {
     #[must_use]
     pub const fn provenance(&self) -> &ResultProvenance {
         &self.provenance
+    }
+
+    /// Whether this callable contract can be exposed as `expected` by forgetting guarantees.
+    #[must_use]
+    pub fn can_weaken_to(&self, expected: &Self) -> bool {
+        self.capability == expected.capability
+            && self.parameters == expected.parameters
+            && self.pack == expected.pack
+            && self.result == expected.result
+            && self.provenance == expected.provenance
+            && self.guarantees.can_weaken_to(expected.guarantees)
     }
 }
 

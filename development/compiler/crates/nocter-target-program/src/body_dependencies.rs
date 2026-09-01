@@ -291,6 +291,7 @@ impl<'program> DependencyCollector<'program> {
                     self.record_selection(selection);
                 }
             }
+            CheckedOperation::CallableGuaranteeErasure(value) => self.visit_node(*value)?,
             CheckedOperation::OpaqueWitness(witness) => {
                 self.visit_node(witness.value())?;
                 self.record_type(witness.witness())?;

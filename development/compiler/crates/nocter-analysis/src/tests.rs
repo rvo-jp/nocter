@@ -262,10 +262,7 @@ fn callable_hover_renders_only_the_authored_noalloc_guarantee() {
         .unwrap();
     let call = source_text.rfind("identity").unwrap();
     let subject = snapshot
-        .semantic_subject(
-            source.id(),
-            ByteOffset::new(u32::try_from(call).unwrap()),
-        )
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(call).unwrap()))
         .unwrap()
         .unwrap();
 

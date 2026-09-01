@@ -126,6 +126,7 @@ impl Analyzer<'_> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.operand(conversion.value(), live)?
             }
+            CheckedOperation::CallableGuaranteeErasure(value) => self.operand(value, live)?,
             CheckedOperation::OpaqueWitness(witness) => self.operand(witness.value(), live)?,
             CheckedOperation::Primitive(operation) => self.primitive(&operation, live)?,
             CheckedOperation::Comparison(comparison) => self.operands(

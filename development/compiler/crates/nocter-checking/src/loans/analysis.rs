@@ -362,6 +362,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.evaluate(conversion.value(), state, extra_active)?
             }
+            CheckedOperation::CallableGuaranteeErasure(value) => {
+                self.evaluate(value, state, extra_active)?
+            }
             CheckedOperation::OpaqueWitness(witness) => {
                 self.evaluate(witness.value(), state, extra_active)?
             }

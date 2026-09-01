@@ -25,7 +25,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - type checking, inference, operations, construction, and calls
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
-- ownership, loans, provenance, regions, cleanup, and destruction
+- ownership, cleanup, allocation effects, loans, provenance, regions, and destruction
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries
 
@@ -68,8 +68,14 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   sibling. Only a successful body recipe is replayed into the canonical program authority, and one
   closed rebinder rewrites every checked type, closure, dispatch substitution, place, and witness.
 - Successful body queries are replayed in canonical `BodyId` order before ownership, provenance,
-  and loans run once over the complete program. Session never invokes body checking again for a
-  complete query-owned body set.
+  allocation effects, and loans run once over the complete program. Session never invokes body
+  checking again for a complete query-owned body set.
+- Allocation effects consume the already-checked operation graph and ownership-owned cleanup
+  schedules. A positive `MayAllocate` fact reaches one least fixed point across callables,
+  closures, and drop bodies; it never reconstructs dispatch or destruction from source syntax.
+- Callable guarantees may be forgotten only through an explicit checked operation. An unqualified
+  callable value cannot acquire `noalloc`, and a downstream phase cannot recover a guarantee after
+  that operation erased it.
 - Canonical replay and whole-program authorities are exposed only through one finalization
   contract. Recipes own their body IDs, exact-current checked/failure outputs open explicit owned
   branches, and no caller can pair a recipe with a separately supplied identity.

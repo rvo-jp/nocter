@@ -691,6 +691,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.evaluate(conversion.value(), state)?
             }
+            CheckedOperation::CallableGuaranteeErasure(value) => self.evaluate(value, state)?,
             CheckedOperation::OpaqueWitness(witness) => self.evaluate(witness.value(), state)?,
             CheckedOperation::Comparison(comparison) => {
                 let (_, left) = self.evaluate(comparison.left().value(), state)?;

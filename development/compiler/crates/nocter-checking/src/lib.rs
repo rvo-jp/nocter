@@ -22,6 +22,7 @@ mod construction_completion;
 mod construction_surfaces;
 mod copyability;
 mod declaration_patterns;
+mod effects;
 mod enum_pattern_completion;
 mod expected;
 mod field_selection;
@@ -121,6 +122,7 @@ pub use copyability::{
     CopyCondition, Copyability, CopyabilityBuildError, CopyabilityError, CopyabilityRule,
     CopyabilityTable,
 };
+pub use effects::{AllocationEffect, EffectTable};
 pub use enum_pattern_completion::{EnumPatternCompletionCandidate, EnumPatternCompletionError};
 pub use expected::{
     ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, OutcomeLayer,

@@ -10,7 +10,9 @@ mod representation;
 mod target;
 
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
-pub use primitive::{PrimitiveBinding, PrimitiveBindingError, PrimitiveRegistry, PrimitiveRole};
+pub use primitive::{
+    PrimitiveBinding, PrimitiveBindingError, PrimitiveEffects, PrimitiveRegistry, PrimitiveRole,
+};
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,

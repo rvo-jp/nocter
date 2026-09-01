@@ -90,6 +90,7 @@ pub(super) fn infer(
                 ..
             }
             | CheckedOperation::BorrowConversion(_)
+            | CheckedOperation::CallableGuaranteeErasure(_)
             | CheckedOperation::OpaqueWitness(_)
             | CheckedOperation::Comparison(_)
             | CheckedOperation::Primitive(_)
@@ -175,6 +176,7 @@ fn append_operands(
         | CheckedOperation::ArgumentPackLength(_)
         | CheckedOperation::Outcome(CheckedOutcome::Absent) => {}
         CheckedOperation::BorrowConversion(conversion) => pending.push(conversion.value()),
+        CheckedOperation::CallableGuaranteeErasure(value) => pending.push(*value),
         CheckedOperation::OpaqueWitness(witness) => pending.push(witness.value()),
         CheckedOperation::Primitive(
             PrimitiveOperation::Unary { operand, .. }

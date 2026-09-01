@@ -590,6 +590,8 @@ fn compatible_signature(
     if expected.kind() != actual.kind()
         || expected.parameters().len() != actual.parameters().len()
         || expected.generic_parameters().len() != actual.generic_parameters().len()
+        || expected.guarantees().allocation() == nocter_model::AllocationGuarantee::NoAllocation
+            && actual.guarantees().allocation() != nocter_model::AllocationGuarantee::NoAllocation
     {
         return Ok(None);
     }

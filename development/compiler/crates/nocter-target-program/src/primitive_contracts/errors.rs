@@ -19,6 +19,7 @@ pub enum PrimitiveContractRule {
     TargetGate,
     Body,
     Requirements,
+    AllocationGuarantee,
     SupportingType,
 }
 

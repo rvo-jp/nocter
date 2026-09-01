@@ -60,6 +60,28 @@ fn callable_contract_is_an_ordinary_local_type_annotation() {
 }
 
 #[test]
+fn noalloc_callable_guarantees_can_only_be_erased() {
+    let output = check(
+        "func erase(callback: noalloc &func(i32): i32): &func(i32): i32 {\n    return move callback\n}\n",
+    )
+    .unwrap();
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.nodes().iter().any(|(_, node)| {
+            matches!(
+                node.operation(),
+                CheckedOperation::CallableGuaranteeErasure(_)
+            )
+        })
+    }));
+
+    let error = check(
+        "func invalid(callback: &func(i32): i32): noalloc &func(i32): i32 {\n    return move callback\n}\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0370");
+}
+
+#[test]
 fn callable_requirement_accepts_an_ordinary_type_alias() {
     check(
         "type Callback = &func(i32): i32\nfunc apply<F>(callback: F): i32 where F: Callback { callback(4) }\n",

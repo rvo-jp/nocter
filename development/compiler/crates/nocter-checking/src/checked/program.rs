@@ -19,6 +19,7 @@ pub struct CheckedProgram {
     source_access: SourceAccessTable,
     semantics: crate::body_check::CheckedSemanticAuthority,
     provenance: ProvenanceTable,
+    effects: crate::EffectTable,
     loans: LoanTable,
     opaque_witnesses: OpaqueWitnessTable,
     bodies: Arena<BodyId, CheckedBody>,
@@ -27,6 +28,7 @@ pub struct CheckedProgram {
 
 pub(crate) struct CheckedProgramAuthorities {
     pub(crate) provenance: ProvenanceTable,
+    pub(crate) effects: crate::EffectTable,
     pub(crate) loans: LoanTable,
     pub(crate) opaque_witnesses: OpaqueWitnessTable,
     pub(crate) associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
@@ -49,6 +51,7 @@ impl CheckedProgram {
             source_access,
             semantics,
             provenance: authorities.provenance,
+            effects: authorities.effects,
             loans: authorities.loans,
             opaque_witnesses: authorities.opaque_witnesses,
             bodies,
@@ -111,6 +114,11 @@ impl CheckedProgram {
     #[must_use]
     pub const fn provenance(&self) -> &ProvenanceTable {
         &self.provenance
+    }
+
+    #[must_use]
+    pub const fn effects(&self) -> &crate::EffectTable {
+        &self.effects
     }
 
     #[must_use]

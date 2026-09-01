@@ -17,6 +17,7 @@ use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureAuthority,
     ClosureTransaction,
 };
+use crate::effects::{EffectBodyInput, analyze_program_effects};
 use crate::loans::{LoanBodyInput, analyze_program_loans};
 use crate::preparation::BodyCheckingParts;
 use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
@@ -395,7 +396,7 @@ fn complete_checked_program(
     }
     checked_semantics.accept(cleanup);
 
-    let (provenance, loans) = match analyze_checked_body_relations(
+    let (provenance, effects, loans) = match analyze_checked_body_relations(
         &prepared.environment,
         checked_semantics.semantics().types(),
         checked_semantics.closures(),
@@ -432,6 +433,7 @@ fn complete_checked_program(
             associated_type_completion_contexts: associated_type_completion_contexts
                 .into_boxed_slice(),
             provenance,
+            effects,
             loans,
         },
     )
@@ -521,6 +523,7 @@ struct CheckedProgramCompletion {
     opaque_witnesses: crate::OpaqueWitnessTable,
     associated_type_completion_contexts: Box<[crate::AssociatedTypeCompletionContext]>,
     provenance: crate::ProvenanceTable,
+    effects: crate::EffectTable,
     loans: crate::LoanTable,
 }
 
@@ -535,6 +538,7 @@ fn finish_checked_program(
         opaque_witnesses,
         associated_type_completion_contexts,
         provenance,
+        effects,
         loans,
     } = completion;
     let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
@@ -573,6 +577,7 @@ fn finish_checked_program(
             semantics,
             CheckedProgramAuthorities {
                 provenance,
+                effects,
                 loans,
                 opaque_witnesses,
                 associated_type_completion_contexts,
@@ -1003,7 +1008,7 @@ fn analyze_checked_body_relations(
     closures: &crate::ClosureTable,
     body_sources: &BodySourceCatalog<'_>,
     checked_bodies: &[(BodyId, CheckedBodyState)],
-) -> Result<(crate::ProvenanceTable, crate::LoanTable), BodyCheckError> {
+) -> Result<(crate::ProvenanceTable, crate::EffectTable, crate::LoanTable), BodyCheckError> {
     let provenance_inputs = checked_bodies
         .iter()
         .map(|(body, checked)| {
@@ -1025,6 +1030,20 @@ fn analyze_checked_body_relations(
         closures,
         &provenance_inputs,
     )?;
+    let effect_inputs = checked_bodies
+        .iter()
+        .map(|(body, checked)| {
+            let source = body_sources
+                .get(*body)
+                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
+            Ok(EffectBodyInput::new(
+                source,
+                &checked.body,
+                &checked.node_origins,
+            ))
+        })
+        .collect::<Result<Vec<_>, BodyCheckError>>()?;
+    let effects = analyze_program_effects(environment, types, closures, &effect_inputs)?;
     let loan_inputs = checked_bodies
         .iter()
         .map(|(body, checked)| {
@@ -1047,5 +1066,5 @@ fn analyze_checked_body_relations(
         closures,
         &loan_inputs,
     )?;
-    Ok((provenance, loans))
+    Ok((provenance, effects, loans))
 }

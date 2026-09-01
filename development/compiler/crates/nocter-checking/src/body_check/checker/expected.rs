@@ -72,6 +72,10 @@ impl BodyChecker<'_, '_> {
         actual: TypeId,
         expected: TypeId,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        if let Some((target, outer)) = self.callable_guarantee_erasure_target(actual, expected)? {
+            let value = self.add_node(node, actual, CheckedOperation::Copy(place))?;
+            return self.materialize_callable_guarantee_erasure(node, value, target, outer);
+        }
         match plan_expected_type(self.types, expected, ExpectedEvidence::Typed(actual)) {
             Ok(plan) => {
                 let value = self.add_node(node, actual, CheckedOperation::Copy(place))?;
@@ -92,6 +96,9 @@ impl BodyChecker<'_, '_> {
         expected: TypeId,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let actual = self.node_type(value)?;
+        if let Some((target, outer)) = self.callable_guarantee_erasure_target(actual, expected)? {
+            return self.materialize_callable_guarantee_erasure(node, value, target, outer);
+        }
         match plan_expected_type(self.types, expected, ExpectedEvidence::Typed(actual)) {
             Ok(plan) => self.materialize_plan(node, plan, Some(value)),
             Err(ExpectedTypeError::Mismatch { .. }) => {
@@ -105,6 +112,54 @@ impl BodyChecker<'_, '_> {
             }
             Err(error) => Err(self.expected_error(node, error)),
         }
+    }
+
+    fn callable_guarantee_erasure_target(
+        &self,
+        actual: TypeId,
+        expected: TypeId,
+    ) -> Result<Option<(TypeId, Vec<OutcomeLayer>)>, BodyCheckError> {
+        let Some(TypeKind::Callable(actual_contract)) = self.types.get(actual) else {
+            return Ok(None);
+        };
+        let mut target = expected;
+        let mut outer = Vec::new();
+        loop {
+            match self.types.get(target) {
+                Some(TypeKind::Callable(expected_contract)) => {
+                    return Ok(actual_contract
+                        .can_weaken_to(expected_contract)
+                        .then_some((target, outer))
+                        .filter(|_| actual != target));
+                }
+                Some(TypeKind::Optional(payload)) => {
+                    outer.push(OutcomeLayer::Optional);
+                    target = *payload;
+                }
+                Some(TypeKind::Fallible(payload)) => {
+                    outer.push(OutcomeLayer::Fallible);
+                    target = *payload;
+                }
+                Some(_) => return Ok(None),
+                None => return Err(BodyCheckInternalError::UnknownType(target).into()),
+            }
+        }
+    }
+
+    fn materialize_callable_guarantee_erasure(
+        &mut self,
+        node: NodeId,
+        value: BodyNodeId,
+        target: TypeId,
+        mut outer: Vec<OutcomeLayer>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let erased = self.add_node(
+            node,
+            target,
+            CheckedOperation::CallableGuaranteeErasure(value),
+        )?;
+        outer.reverse();
+        self.materialize_injections(node, erased, &outer)
     }
 
     fn apply_borrow_conversion(

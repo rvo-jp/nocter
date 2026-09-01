@@ -119,7 +119,7 @@ fn validate_binding(
         .callables()
         .get(callable)
         .ok_or_else(|| contract_error(role, callable, PrimitiveContractRule::Authority))?;
-    validate_identity(graph, standard_package, declaration, &contract)
+    validate_identity(graph, standard_package, role, declaration, &contract)
         .and_then(|()| {
             validate_signature(
                 graph,
@@ -148,6 +148,7 @@ fn contract_error(
 fn validate_identity(
     graph: &DeclarationGraph,
     standard_package: PackageId,
+    role: PrimitiveRole,
     declaration: &nocter_declarations::CallableDeclaration,
     contract: &PrimitiveContract,
 ) -> Result<(), PrimitiveContractRule> {
@@ -164,6 +165,13 @@ fn validate_identity(
     declaration.name().ok_or(PrimitiveContractRule::Name)?;
     if declaration.kind() != CallableKind::Primitive || declaration.receiver().is_some() {
         return Err(PrimitiveContractRule::CallableKind);
+    }
+    if matches!(
+        declaration.guarantees().allocation(),
+        nocter_model::AllocationGuarantee::NoAllocation
+    ) && role.effects().requests_allocation()
+    {
+        return Err(PrimitiveContractRule::AllocationGuarantee);
     }
     let site = graph
         .declaration_sites()

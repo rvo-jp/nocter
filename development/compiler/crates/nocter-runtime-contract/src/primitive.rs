@@ -3,6 +3,22 @@ use std::fmt;
 
 use nocter_model::CallableId;
 
+/// Runtime effects certified by the compiler for one closed primitive role.
+///
+/// This is positive implementation evidence, not source syntax. New primitive roles must state
+/// their behavior here before an authored guarantee can rely on them.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct PrimitiveEffects {
+    requests_allocation: bool,
+}
+
+impl PrimitiveEffects {
+    #[must_use]
+    pub const fn requests_allocation(self) -> bool {
+        self.requests_allocation
+    }
+}
+
 /// Compiler-defined meaning assigned to one exact bodyless standard callable.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum PrimitiveRole {
@@ -184,6 +200,18 @@ impl PrimitiveRole {
             Self::Syscall6 => "syscall_6",
             Self::Trap => "trap",
             Self::Unreachable => "unreachable",
+        }
+    }
+
+    /// Returns compiler-owned effect evidence for this closed primitive role.
+    #[must_use]
+    pub const fn effects(self) -> PrimitiveEffects {
+        // The current primitive vocabulary manipulates existing storage, exposes runtime context,
+        // or terminates execution. None requests storage through a Nocter allocator. Keeping this
+        // decision on the closed role—not on source spelling—makes future allocating primitives
+        // opt into that fact explicitly.
+        PrimitiveEffects {
+            requests_allocation: false,
         }
     }
 

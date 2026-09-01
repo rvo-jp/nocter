@@ -72,6 +72,7 @@ impl CheckedOperation {
             | Self::Aggregate(_)
             | Self::Outcome(_)
             | Self::ArgumentPackLength(_) => {}
+            Self::CallableGuaranteeErasure(_) => {}
         }
         Ok(())
     }
@@ -90,6 +91,8 @@ pub enum CheckedOperation {
     },
     Call(CheckedCall),
     BorrowConversion(CheckedBorrowConversion),
+    /// A checked, one-way view that forgets source-level callable guarantees.
+    CallableGuaranteeErasure(BodyNodeId),
     Comparison(CheckedComparison),
     Primitive(PrimitiveOperation),
     Aggregate(AggregateConstruction),

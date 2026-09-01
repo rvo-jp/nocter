@@ -183,6 +183,9 @@ impl<'a> FunctionLowerer<'a> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.lower_borrow_conversion(node, conversion).map(Some)
             }
+            CheckedOperation::CallableGuaranteeErasure(value) => {
+                self.require_value(*value).map(Some)
+            }
             CheckedOperation::OpaqueWitness(witness) => {
                 self.lower_opaque_witness(node, ty, *witness).map(Some)
             }
