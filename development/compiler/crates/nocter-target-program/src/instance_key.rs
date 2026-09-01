@@ -33,30 +33,31 @@ impl CallableInstanceKey {
         callable: CallableId,
         generic_arguments: GenericArguments,
     ) -> Result<Self, CallableInstanceKeyError> {
-        Self::new_in(
+        Self::validate(
             program,
             program.checked().types(),
             callable,
             generic_arguments,
+            None,
         )
     }
 
-    /// Creates an identity in an executable specialization type-store fork.
-    ///
-    /// # Errors
-    ///
-    /// Returns the same closed validation failures as [`Self::new`]. `types` must preserve the
-    /// checked store's identity prefix and may contain additional concrete specialized types.
-    pub fn new_in(
-        program: &TargetProgram,
-        types: &TypeStore,
+    pub(crate) fn new_with_interface_self(
+        specialization: crate::executable::ExecutableSpecialization<'_>,
         callable: CallableId,
         generic_arguments: GenericArguments,
+        interface_self: Option<(InterfaceId, TypeId)>,
     ) -> Result<Self, CallableInstanceKeyError> {
-        Self::new_with_interface_self(program, types, callable, generic_arguments, None)
+        Self::validate(
+            specialization.target(),
+            specialization.types(),
+            callable,
+            generic_arguments,
+            interface_self,
+        )
     }
 
-    pub(crate) fn new_with_interface_self(
+    fn validate(
         program: &TargetProgram,
         types: &TypeStore,
         callable: CallableId,

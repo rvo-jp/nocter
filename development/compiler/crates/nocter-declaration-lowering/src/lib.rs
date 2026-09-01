@@ -99,8 +99,7 @@ pub use surface::{
 pub use surface_diagnostic::{SurfaceDiagnostic, SurfaceRule};
 pub use toolchain::ToolchainError;
 pub use topology::{
-    LoweredDeclarations, LoweredTopology, LoweringError, PackageTargetResolutionError,
-    ReusableDeclarations, lower_compile_unit_topology,
+    LoweredDeclarations, LoweringError, PackageTargetResolutionError, ReusableDeclarations,
 };
 pub use topology_diagnostic::TopologyDiagnostic;
 pub use topology_violation::{TopologyRule, TopologyViolation};

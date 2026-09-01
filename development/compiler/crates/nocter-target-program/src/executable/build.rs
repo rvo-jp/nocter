@@ -166,6 +166,10 @@ impl<'program> ExecutableClosureBuilder<'program> {
         }
     }
 
+    fn specialization(&self) -> super::ExecutableSpecialization<'_> {
+        super::ExecutableSpecialization::new(self.target, self.resolver.types())
+    }
+
     fn close(
         mut self,
         roots: impl IntoIterator<Item = ExecutableItemKey>,
@@ -218,8 +222,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
         let mut closures = Vec::new();
         for closure in dependencies.closures().iter().copied() {
             let key = ExecutableItemKey::Closure(ClosureInstanceKey::new_in(
-                self.target,
-                self.resolver.types(),
+                self.specialization(),
                 closure,
                 item_generic_arguments(key),
             )?);
@@ -427,8 +430,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
         match step {
             ResolvedDispatchStep::Direct(dispatch) => {
                 let callable_key = CallableInstanceKey::new_with_interface_self(
-                    self.target,
-                    self.resolver.types(),
+                    self.specialization(),
                     dispatch.callable(),
                     dispatch.generic_arguments().clone(),
                     dispatch.interface_self(),
@@ -526,12 +528,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
                 .map(|(parameter, ty)| GenericArgument::new(parameter, ty)),
         )
         .map_err(|duplicate| ExecutableProgramError::DuplicateGeneric(duplicate.parameter()))?;
-        let key = ClosureInstanceKey::new_in(
-            self.target,
-            self.resolver.types(),
-            closure,
-            generic_arguments,
-        )?;
+        let key = ClosureInstanceKey::new_in(self.specialization(), closure, generic_arguments)?;
         let substitution = key.substitution();
         let parameters = definition
             .signature()
@@ -606,8 +603,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             return Ok(());
         }
         let key = ExecutableItemKey::Drop(DropInstanceKey::new_in(
-            self.target,
-            self.resolver.types(),
+            self.specialization(),
             selection.declaration(),
             selection.generic_arguments().clone(),
         )?);

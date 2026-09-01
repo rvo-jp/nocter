@@ -32,6 +32,30 @@ mod semantic_environment;
 mod signature;
 mod type_representation;
 
+/// Borrowed proof that a target and type store come from one executable-specialization authority.
+///
+/// Only the executable closure builder can create this value. Instance-key constructors consume it
+/// instead of accepting independently pairable target and type-store references.
+#[derive(Clone, Copy)]
+pub(crate) struct ExecutableSpecialization<'a> {
+    target: &'a TargetProgram,
+    types: &'a TypeStore,
+}
+
+impl<'a> ExecutableSpecialization<'a> {
+    const fn new(target: &'a TargetProgram, types: &'a TypeStore) -> Self {
+        Self { target, types }
+    }
+
+    pub(crate) const fn target(self) -> &'a TargetProgram {
+        self.target
+    }
+
+    pub(crate) const fn types(self) -> &'a TypeStore {
+        self.types
+    }
+}
+
 pub(crate) use argument_pack::ExecutablePackIteration;
 pub use argument_pack::{ExecutableArgumentPackPlan, ExecutablePackSegment, ExecutablePackSpread};
 pub use callable_invocation::ExecutableCallableInvocation;

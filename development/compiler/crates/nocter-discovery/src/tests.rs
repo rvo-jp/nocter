@@ -518,7 +518,7 @@ fn closes_source_folder_module_and_dependency_edges_once() {
             .ends_with("/app/internal/search.nct")
     );
     assert_eq!(input.use_resolutions().len(), 2);
-    nocter_declaration_lowering::lower_compile_unit_topology(&input).unwrap();
+    nocter_declaration_lowering::collect_declaration_surface(&input).unwrap();
 }
 
 #[test]

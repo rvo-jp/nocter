@@ -25,13 +25,61 @@ pub struct SemanticEvidenceBundle {
 #[derive(Debug)]
 enum SemanticAuthority {
     Declarations {
-        analysis: Box<DeclarationAnalysisRecovery>,
+        analysis: DeclarationEvidence,
         missing_interface_methods:
             Option<Box<nocter_checking::MissingInterfaceImplementationMethods>>,
     },
     Names(Box<NameAnalysisRecovery>),
     Bodies(Box<BodyAnalysisRecovery>),
     Checked(Box<CheckedProgramOutput>),
+}
+
+/// One declaration-only recovery owner retained without decomposing its originating product.
+///
+/// Lowering and checking reject at different contracts, but both already own a closed graph, type
+/// authority, source-ownership table, and source projection. Keeping the products intact prevents
+/// session from manufacturing a combination that no compiler stage produced.
+#[derive(Debug)]
+enum DeclarationEvidence {
+    Lowering(Box<DeclarationLoweringRecovery>),
+    Checking(Box<DeclarationAnalysisRecovery>),
+}
+
+impl DeclarationEvidence {
+    fn graph(&self) -> &DeclarationGraph {
+        match self {
+            Self::Lowering(analysis) => analysis.graph(),
+            Self::Checking(analysis) => analysis.graph(),
+        }
+    }
+
+    fn types(&self) -> &TypeStore {
+        match self {
+            Self::Lowering(analysis) => analysis.types(),
+            Self::Checking(analysis) => analysis.types(),
+        }
+    }
+
+    fn source_ownership(&self) -> &SourceOwnershipTable {
+        match self {
+            Self::Lowering(analysis) => analysis.source_ownership(),
+            Self::Checking(analysis) => analysis.source_ownership(),
+        }
+    }
+
+    fn source_index(&self) -> &SourceIndex {
+        match self {
+            Self::Lowering(analysis) => analysis.source_index(),
+            Self::Checking(analysis) => analysis.source_index(),
+        }
+    }
+
+    const fn checking(&self) -> Option<&DeclarationAnalysisRecovery> {
+        match self {
+            Self::Checking(analysis) => Some(analysis),
+            Self::Lowering(_) => None,
+        }
+    }
 }
 
 /// A borrowed capability contract over one current-generation semantic result.
@@ -47,7 +95,7 @@ pub struct SemanticEvidenceView<'a> {
 #[derive(Clone, Copy)]
 enum SemanticAuthorityView<'a> {
     Declarations {
-        analysis: &'a DeclarationAnalysisRecovery,
+        analysis: &'a DeclarationEvidence,
         missing_interface_methods:
             Option<&'a nocter_checking::MissingInterfaceImplementationMethods>,
     },
@@ -243,14 +291,15 @@ impl<'a> SemanticEvidenceView<'a> {
     }
 
     #[must_use]
-    pub const fn interface_implementation_repair(
-        self,
-    ) -> Option<InterfaceImplementationRepairView<'a>> {
+    pub fn interface_implementation_repair(self) -> Option<InterfaceImplementationRepairView<'a>> {
         match self.authority {
             SemanticAuthorityView::Declarations {
                 analysis,
                 missing_interface_methods: Some(missing),
-            } => Some(InterfaceImplementationRepairView { analysis, missing }),
+            } => Some(InterfaceImplementationRepairView {
+                analysis: analysis.checking()?,
+                missing,
+            }),
             SemanticAuthorityView::Declarations {
                 missing_interface_methods: None,
                 ..
@@ -280,15 +329,9 @@ impl SemanticEvidenceBundle {
     }
 
     pub(crate) fn from_declaration_lowering(recovery: DeclarationLoweringRecovery) -> Self {
-        let (graph, types, source_ownership, source_index) = recovery.into_declaration_parts();
         Self {
             authority: SemanticAuthority::Declarations {
-                analysis: Box::new(DeclarationAnalysisRecovery::from_parts(
-                    graph,
-                    types,
-                    source_ownership,
-                    source_index,
-                )),
+                analysis: DeclarationEvidence::Lowering(Box::new(recovery)),
                 missing_interface_methods: None,
             },
         }
@@ -298,7 +341,7 @@ impl SemanticEvidenceBundle {
         match evidence {
             PreparationFailureEvidence::Declarations { analysis, repair } => Self {
                 authority: SemanticAuthority::Declarations {
-                    analysis,
+                    analysis: DeclarationEvidence::Checking(analysis),
                     missing_interface_methods: repair.map(|repair| match repair {
                         nocter_checking::PreparationRepairEvidence::MissingInterfaceMethods(
                             missing,

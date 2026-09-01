@@ -54,17 +54,6 @@ impl DeclarationAnalysisRecovery {
         }
     }
 
-    /// Creates declaration-only analysis from the exact facts retained by the rejecting phase.
-    #[must_use]
-    pub fn from_parts(
-        graph: DeclarationGraph,
-        types: TypeStore,
-        source_ownership: SourceOwnershipTable,
-        source_index: SourceIndex,
-    ) -> Self {
-        Self::new(graph, types, source_ownership, source_index, None)
-    }
-
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
         &self.graph

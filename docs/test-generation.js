@@ -24,6 +24,17 @@ try {
     fs.appendFileSync(unrelatedRust, '\n#[cfg(test)]\nconst UNRELATED_TEXT: &str = "E9999";\n');
     build(early);
 
+    const unindexedReview = path.join(early, "development/reviews/unindexed-review.md");
+    fs.writeFileSync(unindexedReview, "# Unindexed Review\n");
+    const unindexedReviewResult = runBuild(early);
+    if (
+        unindexedReviewResult.status === 0
+        || !combinedOutput(unindexedReviewResult).includes("does not catalog")
+    ) {
+        throw new Error("documentation generation accepted an unindexed development review");
+    }
+    fs.rmSync(unindexedReview);
+
     const catalog = path.join(
         early,
         "development/compiler/crates/nocter-language/diagnostic-codes.txt"
@@ -34,7 +45,7 @@ try {
         throw new Error("documentation generation accepted a compiler catalog absent from the specification");
     }
 
-    console.log("documentation generation is independent of source mtimes and unrelated Rust text");
+    console.log("documentation generation is deterministic and rejects catalog drift");
 } finally {
     fs.rmSync(TEMP_ROOT, { recursive: true, force: true });
 }

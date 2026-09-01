@@ -49,7 +49,9 @@ from the lexical specification. It also requires one colocated `README.md` for e
 workspace member and rejects a crate manifest under `development/compiler/crates/` that is absent
 from the workspace manifest. Each crate README must carry its exact crate heading plus
 `Responsibility`, `Contract`, and `Invariants` sections. Links inside fenced and inline code remain
-example text rather than navigation and are excluded from link validation.
+example text rather than navigation and are excluded from link validation. Every milestone and
+review record must be linked from its directory `README.md`; a new record cannot silently bypass
+the catalogs that define how contributors discover status and evidence.
 
 Run the adversarial generation test after changing generator inputs or validation boundaries:
 
@@ -58,8 +60,8 @@ node docs/test-generation.js
 ```
 
 It builds two copied source trees with different timestamps, compares every documentation output
-byte, proves unrelated Rust diagnostic-like text has no authority, and proves catalog drift is
-rejected.
+byte, proves unrelated Rust diagnostic-like text has no authority, and proves diagnostic and
+development-record catalog drift are rejected.
 
 ## Editing Rule
 

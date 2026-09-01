@@ -61,6 +61,7 @@ const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PR
 validateNocterLexicon();
 validateDiagnosticCatalog();
 validateCrateDocumentation();
+validateDevelopmentCatalogs();
 validateOutputPaths(sourceFiles);
 validateSourceLinks(collectDocumentationLinkSources(PROJECT_ROOT));
 cleanGeneratedHtml();
@@ -178,6 +179,28 @@ function validateCrateDocumentation() {
         const crateRoot = path.join(cratesRoot, entry.name);
         if (fs.existsSync(path.join(crateRoot, "Cargo.toml")) && !documentedMembers.has(crateRoot)) {
             throw new Error(`Documented compiler crate crates/${entry.name} is absent from the workspace manifest`);
+        }
+    }
+}
+
+function validateDevelopmentCatalogs() {
+    for (const relativeDirectory of ["development/milestones", "development/reviews"]) {
+        const directory = path.join(PROJECT_ROOT, relativeDirectory);
+        const indexPath = path.join(directory, "README.md");
+        const indexSource = fs.readFileSync(indexPath, "utf8");
+        const linked = new Set(
+            [...indexSource.matchAll(/\[[^\]]+\]\(([^)#]+\.md)(?:#[^)]+)?\)/g)]
+                .map(match => path.resolve(directory, match[1]))
+        );
+        const missing = fs.readdirSync(directory, { withFileTypes: true })
+            .filter(entry => entry.isFile() && entry.name.endsWith(".md") && entry.name !== "README.md")
+            .map(entry => path.join(directory, entry.name))
+            .filter(file => !linked.has(file))
+            .map(file => normalizePath(path.relative(PROJECT_ROOT, file)))
+            .sort();
+
+        if (missing.length > 0) {
+            throw new Error(`${relativeDirectory}/README.md does not catalog: ${missing.join(", ")}`);
         }
     }
 }

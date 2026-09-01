@@ -189,7 +189,9 @@
   current-generation owners.</li><li>Eager prepare/check convenience entries exist only behind the <code>test-api</code> feature or the crate's
   own test build. Production orchestration consumes query contracts and cannot reopen the stage.</li><li>Query-owned program preparation accepts only a closed set of authored rule variants. It retains
   declaration recovery and repair evidence as one exact-current rejection; opening a session
-  branch clones that authority and cannot rerun preparation or publish an internal error as source.</li><li>Declaration proof requirements cannot carry runtime evidence. Body requirements always carry
+  branch clones that authority and cannot rerun preparation or publish an internal error as source.</li><li>Declaration recovery is constructed only inside checking from one preparation transaction. Its
+  graph, type authority, source ownership, and source projection cannot be supplied independently
+  through the public contract.</li><li>Declaration proof requirements cannot carry runtime evidence. Body requirements always carry
   one evidence identity; no optional-evidence state exists.</li><li>One independent capability-evidence table owns each specialized predicate and every authored
   root/origin derivation that establishes it. Requirement order cannot select one derivation as
   the semantic authority.</li><li>Type and copyability authority cannot be paired across generations.</li><li>A body transaction commits all semantic mutations together or is discarded/frozen as one branch.</li><li>Checked dispatch is selected once; Target and MIR receive no lookup inputs.</li><li>Generic lookup, provenance, loans, concrete dispatch, and editor queries consume the same frozen

@@ -39,6 +39,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Query-owned program preparation accepts only a closed set of authored rule variants. It retains
   declaration recovery and repair evidence as one exact-current rejection; opening a session
   branch clones that authority and cannot rerun preparation or publish an internal error as source.
+- Declaration recovery is constructed only inside checking from one preparation transaction. Its
+  graph, type authority, source ownership, and source projection cannot be supplied independently
+  through the public contract.
 - Declaration proof requirements cannot carry runtime evidence. Body requirements always carry
   one evidence identity; no optional-evidence state exists.
 - One independent capability-evidence table owns each specialized predicate and every authored

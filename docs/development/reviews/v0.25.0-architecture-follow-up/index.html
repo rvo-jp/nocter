@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/testing/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/testing/index.nct.">
+    <title>v0.25.0 Architecture Follow-up Review - Nocter</title>
+    <meta name="description" content="Status: remediation and full-workspace follow-up complete (2026-09-01). This review records cross-cutting defects found after the no-allocation contract re">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/testing/index/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.25.0-architecture-follow-up/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/testing/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/testing/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/testing/index/">
+    <meta property="og:title" content="v0.25.0 Architecture Follow-up Review - Nocter">
+    <meta property="og:description" content="Status: remediation and full-workspace follow-up complete (2026-09-01). This review records cross-cutting defects found after the no-allocation contract re">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.25.0-architecture-follow-up/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/testing/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/testing/index.nct.">
+    <meta name="twitter:title" content="v0.25.0 Architecture Follow-up Review - Nocter">
+    <meta name="twitter:description" content="Status: remediation and full-workspace follow-up complete (2026-09-01). This review records cross-cutting defects found after the no-allocation contract re">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/testing/index.nct - Nocter","description":"Nocter source code for development/std/testing/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/testing/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Testing","item":"https://nocter.dev/development/std/testing/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/testing/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.25.0 Architecture Follow-up Review - Nocter","description":"Status: remediation and full-workspace follow-up complete (2026-09-01). This review records cross-cutting defects found after the no-allocation contract re","url":"https://nocter.dev/development/reviews/v0.25.0-architecture-follow-up/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.25.0-architecture-follow-up/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.25.0 Architecture Follow Up","item":"https://nocter.dev/development/reviews/v0.25.0-architecture-follow-up/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -174,39 +174,56 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
-                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
-                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
-                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.25.0 Architecture Follow-up Review</a></li>
+                <li><a href="../v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
+                <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
+                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
+                <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
+                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
+                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
+                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
+                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
+                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li>
+                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li>
+                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li>
+                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li>
+                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li>
+                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li>
+                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li>
+                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li>
+                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li>
+                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li>
+                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li>
+                <li><a href="../v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li>
+                <li><a href="../v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/testing/index.nct</span>
+                <span class="markdown-path-text">/development/reviews/v0.25.0-architecture-follow-up.md</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Assertions for native Nocter tests.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! These are ordinary fallible functions. Assertion failure therefore uses the same Error</span>
-<span class="token-comment">//! propagation, process cleanup, and reporting path as application failures.</span>
-
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>assertions<span class="token-operator">.</span>nct
-
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">assert</span><span class="token-operator">(</span>condition<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Fails unless two borrowed values satisfy their structural equality requirement.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> assert_eq<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-</code></pre>
+                <h1 id="v0-25-0-architecture-follow-up-review">v0.25.0 Architecture Follow-up Review</h1><p><strong>Status: remediation and full-workspace follow-up complete (2026-09-01).</strong> This review records cross-cutting defects found after the no-allocation contract review. The findings were not <code>noalloc</code> semantic defects; they were authority and documentation-boundary defects exposed by the same full-workspace review.</p><h2 id="reviewed-boundary">Reviewed Boundary</h2><p>The review traced declaration rejection through session recovery, executable specialization through instance-key construction, discovery topology through declaration reservation, and mutable development status through the generated documentation site. It then searched the complete compiler workspace for equivalent public reconstruction APIs, independent topology builders, and uncatalogued development records.</p><h2 id="findings-and-remediation">Findings and Remediation</h2><p>Declaration-lowering recovery previously exposed a consuming decomposition into a declaration graph, type store, source-ownership table, and source index. Session reconstructed a checking-owned recovery value from those independent parts. Although the values came from one product at the call site, the public contract allowed combinations that no compiler stage had produced. Session now retains either the lowering-owned or checking-owned recovery product intact behind one private <code>DeclarationEvidence</code> variant. Both products publish borrowed read capabilities; neither exposes a public constructor that can manufacture declaration evidence from unrelated parts.</p><p>Executable callable, closure, and drop specialization previously accepted a <code>TargetProgram</code> and a specialization <code>TypeStore</code> independently. Correctness depended on the caller preserving the checked store's identity prefix. Instance-key construction now consumes a sealed borrowed <code>ExecutableSpecialization</code> capability. Only the executable closure builder can construct that capability, directly from its target and its target-derived concrete dispatch resolver. External callers can still build ordinary checked-store callable keys, but cannot pair a semantic identity with an unrelated specialization store.</p><p>Focused topology tests previously called a second public topology lowering path. That path rebuilt an <code>AcceptedDeclarationProgram</code> and <code>SourceIndex</code> independently of the declaration surface and reservation path consumed by production. The duplicate builder and its output wrapper were removed. Discovery and topology tests now validate <code>collect_declaration_surface</code>, the same canonical surface consumed by declaration reservation. Production remains the only path that creates the accepted declaration program and source projection.</p><p>Contributor entry points duplicated mutable milestone and review status. Some records were absent from their directory indexes, so the generated site could silently hide them. The contributor entry point now links stable catalogs instead of repeating version status. Each milestone and review file owns its own status, and the documentation build rejects any milestone or review Markdown file missing from its catalog. The adversarial generation test proves that rejection.</p><h2 id="residue-review">Residue Review</h2><p>Workspace searches found no remaining <code>lower_compile_unit_topology</code> or <code>LoweredTopology</code> path, no public declaration-recovery parts constructor, and no instance-key API accepting an independently pairable specialization type store. Remaining consuming <code>into_parts</code> APIs either cross an explicit validated transition or separate source projection from semantic selection under a documented independence contract.</p><p>No compatibility wrapper or deprecated alias was retained. The new enums and capability token encode which combinations are legal; correctness no longer relies on a caller remembering a lineage comment.</p><h2 id="qualification">Qualification</h2><ul><li>complete compiler workspace tests pass;</li><li>complete workspace Clippy passes with warnings denied;</li><li>workspace formatting and repository diff checks pass;</li><li>generated documentation builds deterministically;</li><li>the adversarial documentation test rejects an unindexed review record.</li></ul><p>No current defect or near-term structural blocker remains in the reviewed boundaries.</p>
             </div>
         </main>
     </div>
@@ -222,6 +239,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

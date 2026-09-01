@@ -19,6 +19,10 @@ The documentation-authority migration is complete: all workspace crates own loca
 central design documents own cross-crate boundaries only, and generated documentation validates
 that every workspace member carries the required README contract sections.
 
+The [v0.25.0 architecture follow-up](reviews/v0.25.0-architecture-follow-up.md) closes the remaining
+recovery-product reconstruction, executable-specialization lineage, duplicate topology-builder,
+and development-catalog authority gaps found by the full-workspace review.
+
 ## Next Work
 
 Choose the next practical application/API milestone or begin v0.25.0 release preparation when

@@ -80,23 +80,24 @@ impl DeclarationLoweringRecovery {
     }
 
     #[must_use]
-    pub fn into_declaration_parts(
-        self,
-    ) -> (
-        DeclarationGraph,
-        TypeStore,
-        SourceOwnershipTable,
-        SourceIndex,
-    ) {
-        let ownership = self.frontend_bindings.source_ownership().clone();
-        let (graph, types) = match self.program {
-            DeclarationRecoveryProgram::Declarations(program) => program.into_parts(),
-            DeclarationRecoveryProgram::Bodies(program) => {
-                let (graph, types, _) = program.into_parts();
-                (graph, types)
-            }
-        };
-        (graph, types.into_store(), ownership, self.source_index)
+    pub const fn graph(&self) -> &DeclarationGraph {
+        match &self.program {
+            DeclarationRecoveryProgram::Declarations(program) => program.graph(),
+            DeclarationRecoveryProgram::Bodies(program) => program.graph(),
+        }
+    }
+
+    #[must_use]
+    pub const fn types(&self) -> &TypeStore {
+        match &self.program {
+            DeclarationRecoveryProgram::Declarations(program) => program.types(),
+            DeclarationRecoveryProgram::Bodies(program) => program.types(),
+        }
+    }
+
+    #[must_use]
+    pub const fn source_ownership(&self) -> &SourceOwnershipTable {
+        self.frontend_bindings.source_ownership()
     }
 
     /// Opens the editor-only declaration-to-body analysis boundary. The returned program cannot

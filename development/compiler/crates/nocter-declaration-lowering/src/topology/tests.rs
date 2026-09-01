@@ -1,11 +1,11 @@
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
-use super::{LoweringError, lower_compile_unit_topology};
+use super::LoweringError;
 use crate::test_support::{module_use, source_see};
 use crate::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageIdentity, PackageInput, PackageMode,
+    PackageIdentity, PackageInput, PackageMode, SurfaceError, collect_declaration_surface,
 };
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> nocter_source::SourceId {
@@ -50,6 +50,24 @@ fn child_module<'syntax>(
         ModuleIdentity::new(PackageIdentity::new(package), path.iter().copied()),
         sources,
     )
+}
+
+fn package_identities<'a>(surface: &'a crate::DeclarationSurface<'_>) -> Vec<&'a PackageIdentity> {
+    surface
+        .packages()
+        .iter()
+        .map(PackageInput::identity)
+        .collect()
+}
+
+fn source_topology<'a>(
+    surface: &'a crate::DeclarationSurface<'_>,
+) -> Vec<(&'a ModuleIdentity, &'a str, ModuleSourceKind)> {
+    surface
+        .sources()
+        .iter()
+        .map(|source| (source.module(), source.canonical_path(), source.kind()))
+        .collect()
 }
 
 #[test]
@@ -122,7 +140,7 @@ fn input_order_does_not_change_semantic_topology() {
         Vec::new(),
     )
     .with_source_visibility_resolutions(resolutions.clone());
-    let forward = lower_compile_unit_topology(&forward_input).unwrap();
+    let forward = collect_declaration_surface(&forward_input).unwrap();
     let reverse_input = CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
@@ -139,16 +157,16 @@ fn input_order_does_not_change_semantic_topology() {
         Vec::new(),
     )
     .with_source_visibility_resolutions(resolutions);
-    let reverse = lower_compile_unit_topology(&reverse_input).unwrap();
+    let reverse = collect_declaration_surface(&reverse_input).unwrap();
 
-    assert_eq!(forward.program().symbols(), reverse.program().symbols());
+    assert_eq!(forward.symbols(), reverse.symbols());
     assert_eq!(
-        forward.program().target(),
+        forward.target(),
         nocter_model::CompilationTarget::Arm64Darwin
     );
-    assert_eq!(forward.program().packages(), reverse.program().packages());
-    assert_eq!(forward.program().modules(), reverse.program().modules());
-    assert_eq!(forward.source_index(), reverse.source_index());
+    assert_eq!(package_identities(&forward), package_identities(&reverse));
+    assert_eq!(forward.modules(), reverse.modules());
+    assert_eq!(source_topology(&forward), source_topology(&reverse));
 }
 
 #[test]
@@ -170,7 +188,7 @@ fn package_declaration_and_root_module_share_one_physical_source() {
         )],
     );
 
-    let lowered = lower_compile_unit_topology(&CompileUnitInput::new(
+    let lowered = collect_declaration_surface(&CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
@@ -179,8 +197,8 @@ fn package_declaration_and_root_module_share_one_physical_source() {
     ))
     .unwrap();
 
-    assert_eq!(lowered.program().packages().len(), 1);
-    assert_eq!(lowered.program().modules().len(), 1);
+    assert_eq!(lowered.packages().len(), 1);
+    assert_eq!(lowered.modules().len(), 1);
 }
 
 #[test]
@@ -206,7 +224,7 @@ fn single_file_package_has_one_root_module_without_a_manifest() {
         )],
     );
 
-    let lowered = lower_compile_unit_topology(&CompileUnitInput::new(
+    let lowered = collect_declaration_surface(&CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
@@ -215,9 +233,9 @@ fn single_file_package_has_one_root_module_without_a_manifest() {
     ))
     .unwrap();
 
-    assert_eq!(lowered.program().packages().len(), 1);
-    assert_eq!(lowered.program().modules().len(), 1);
-    assert_eq!(lowered.source_index().len(), 1);
+    assert_eq!(lowered.packages().len(), 1);
+    assert_eq!(lowered.modules().len(), 1);
+    assert_eq!(lowered.sources().len(), 1);
 }
 
 #[test]
@@ -241,7 +259,7 @@ fn package_mode_cannot_be_smuggled_through_another_source_layout() {
         )],
     );
 
-    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+    let error = collect_declaration_surface(&CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
@@ -250,7 +268,10 @@ fn package_mode_cannot_be_smuggled_through_another_source_layout() {
     ))
     .unwrap_err();
 
-    assert!(matches!(error, LoweringError::InvalidModuleLayout(_)));
+    assert!(matches!(
+        error,
+        SurfaceError::Topology(LoweringError::InvalidModuleLayout(_))
+    ));
 }
 
 #[test]
@@ -283,7 +304,7 @@ fn every_authored_use_requires_one_discovery_owned_resolution() {
         ),
     ];
 
-    let error = lower_compile_unit_topology(&CompileUnitInput::new(
+    let error = collect_declaration_surface(&CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         vec![package],
@@ -292,7 +313,10 @@ fn every_authored_use_requires_one_discovery_owned_resolution() {
     ))
     .unwrap_err();
 
-    assert!(matches!(error, LoweringError::MissingUseResolution(_)));
+    assert!(matches!(
+        error,
+        SurfaceError::Topology(LoweringError::MissingUseResolution(_))
+    ));
 }
 
 #[test]
@@ -334,11 +358,11 @@ fn source_sees_cannot_cross_a_directory_module_boundary() {
         Vec::new(),
     )
     .with_source_visibility_resolutions(vec![source_see(&root, 0, "/app/search/index.nct")]);
-    let error = lower_compile_unit_topology(&input).unwrap_err();
+    let error = collect_declaration_surface(&input).unwrap_err();
 
     assert!(matches!(
         error,
-        LoweringError::Rule(violation)
+        SurfaceError::Topology(LoweringError::Rule(violation))
             if violation.rule() == crate::TopologyRule::InvalidSourceVisibility
     ));
 }
@@ -380,9 +404,9 @@ fn source_cycles_and_unseen_module_members_are_valid() {
         Vec::new(),
     )
     .with_source_visibility_resolutions(resolutions);
-    let lowered = lower_compile_unit_topology(&input).unwrap();
+    let lowered = collect_declaration_surface(&input).unwrap();
 
-    assert_eq!(lowered.program().modules().len(), 1);
+    assert_eq!(lowered.modules().len(), 1);
 }
 
 #[test]
@@ -439,7 +463,7 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
         module_use(&b, 0, a_identity.clone()),
     ];
 
-    let forward = lower_compile_unit_topology(&CompileUnitInput::new(
+    let forward = collect_declaration_surface(&CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.clone(),
@@ -447,7 +471,7 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
         resolutions.clone(),
     ))
     .unwrap_err();
-    let reverse = lower_compile_unit_topology(&CompileUnitInput::new(
+    let reverse = collect_declaration_surface(&CompileUnitInput::new(
         nocter_model::CompilationTarget::Arm64Darwin,
         &sources,
         packages.into_iter().rev().collect(),
@@ -457,7 +481,7 @@ fn resolved_module_graph_rejects_cycles_without_path_reinterpretation() {
     .unwrap_err();
 
     assert_eq!(forward, reverse);
-    let LoweringError::Rule(violation) = forward else {
+    let SurfaceError::Topology(LoweringError::Rule(violation)) = forward else {
         panic!("module cycle did not select a topology rule");
     };
     assert_eq!(violation.rule(), crate::TopologyRule::ModuleImportCycle);

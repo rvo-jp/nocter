@@ -182,8 +182,8 @@
                 <li><a href="../docs/target-program-design/index.html#content">target and executable program design</a></li>
                 <li><a href="../docs/machine-program-design/index.html#content">machine program design</a></li>
                 <li><a href="../docs/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
-                <li><a href="../milestones/v0.24.0/index.html#content">The latest completed implementation milestone</a></li>
-                <li><a href="../releases/v0.24.0/index.html#content">the latest publication record</a></li>
+                <li><a href="../milestones/index.html#content">The milestone catalog</a></li>
+                <li><a href="../releases/index.html#content">publication records</a></li>
                 <li><a href="./crates/nocter-session/index.html#content">`crates/nocter-session/README.md`</a></li>
                 <li><a href="./crates/nocter-checking/index.html#content">`crates/nocter-checking/README.md`</a></li>
                 <li><a href="./crates/nocter-analysis/index.html#content">`crates/nocter-analysis/README.md`</a></li>
@@ -203,10 +203,9 @@
   presentation boundary.</li><li><a href="https://github.com/rvo-jp/nocter/blob/main/development/compiler/Cargo.toml"><code>Cargo.toml</code></a> is the canonical workspace-member list. Crate manifests and public Rust
   APIs are the canonical dependency and implementation surface.</li><li>Each workspace crate's <code>README.md</code> owns that crate's responsibility, input/output contract,
   internal responsibility split, and local invariants. It may name another crate only through that
-  crate's exported contract.</li><li><a href="../milestones/v0.24.0/index.html#content">The latest completed implementation milestone</a> owns its scope and
-  completion gates; <a href="../releases/v0.24.0/index.html#content">the latest publication record</a> owns frozen release
-  evidence; <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">the
-  handoff</a> owns only the next concrete work and current blockers.</li></ul><p>The compiler derives behavior from the current specification. The implementation removed before v0.14.0 remains available through Git history only and is not a behavioral or architectural input.</p><h2 id="dependency-direction">Dependency Direction</h2><pre><code class="language-text">source and discovery
+  crate's exported contract.</li><li><a href="../milestones/index.html#content">The milestone catalog</a> links each scope and its completion gates;
+  <a href="../releases/index.html#content">publication records</a> own frozen release evidence; <a href="https://github.com/rvo-jp/nocter/blob/main/development/TODO.md">the handoff</a>
+  owns only the next concrete work and current blockers.</li></ul><p>The compiler derives behavior from the current specification. The implementation removed before v0.14.0 remains available through Git history only and is not a behavioral or architectural input.</p><h2 id="dependency-direction">Dependency Direction</h2><pre><code class="language-text">source and discovery
   -&gt; syntax and declarations
   -&gt; checking
   -&gt; target validation and executable specialization

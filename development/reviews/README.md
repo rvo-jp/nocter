@@ -1,49 +1,51 @@
 # Compiler Design Reviews
 
-This directory owns cross-cutting compiler review criteria, evidence, findings, and remediation
-status. It is non-normative: public behavior remains owned exclusively by [`spec/`](../../spec/README.md).
+Each review file owns its findings, remediation status, and evidence. This catalog intentionally
+does not duplicate those mutable facts. Reviews are non-normative: public behavior remains owned
+exclusively by [`spec/`](../../spec/README.md).
 
 An implementation qualification proves the recorded implementation against its specification and
-tests. A final design review asks a different question: whether each responsibility can be replaced
-internally without forcing consumers that use only its contract to change.
+tests. A final design review asks whether each responsibility can be replaced internally without
+forcing consumers that use only its contract to change.
 
-## Current Candidate Reviews
+## Review Catalog
 
-- [v0.24.0 installation image identity review](v0.24.0-installation-image-identity.md) — complete
-- [v0.24.0 explicit value subjects review](v0.24.0-explicit-value-subjects.md) — complete
-- [v0.23.0 Phase 3 qualification and full review](v0.23.0-phase-3.md) — complete
-- [v0.23.0 Phase 2 type-owned API review](v0.23.0-phase-2.md) — complete
-- [v0.23.0 Phase 1 decimal authority review](v0.23.0-phase-1.md) — complete
-- [v0.22.0 Phase 0 JSON design review](v0.22.0-phase-0.md) — complete
-- [v0.22.0 Phase 1 lexical and Unicode review](v0.22.0-phase-1.md) — complete
-- [v0.22.0 Phase 2 owning DOM parser review](v0.22.0-phase-2.md) — complete
-- [v0.22.0 Phase 3 shared generator review](v0.22.0-phase-3.md) — complete
-- [v0.22.0 Phase 4 practical integration review](v0.22.0-phase-4.md) — complete
-- [v0.22.0 Phase 5 standard-library stabilization review](v0.22.0-phase-5.md) — complete
-- [v0.21.0 Phase 5 practical qualification review](v0.21.0-phase-5.md) — complete
-- [v0.21.0 Phase 4 iteration and Set review](v0.21.0-phase-4.md) — complete
-- [v0.21.0 Phase 3 private-table and Map review](v0.21.0-phase-3.md) — complete
-- [v0.21.0 Phase 2 hash-foundation review](v0.21.0-phase-2.md) — complete
-- [v0.21.0 Phase 1 keyed-pack and hashing-prerequisite review](v0.21.0-phase-1.md) — complete
-- [v0.21.0 Phase 0 associative-collection design review](v0.21.0-phase-0.md) — complete
-- [v0.20.0 Phase 3 dependency-local exact-selection review](v0.20.0-phase-3.md) — complete
-- [v0.20.0 Phase 2 unified query entry review](v0.20.0-phase-2.md) — complete
-- [v0.20.0 Phase 1 incremental semantic computation review](v0.20.0-phase-1.md) — complete
-- [v0.20.0 Phase 0 interface-prerequisite review](v0.20.0-phase-0.md) — complete
-- [v0.19.0 Phase 4 stabilization review](v0.19.0-phase-4.md) — complete
-- [v0.19.0 Phase 0 filesystem traversal review](v0.19.0-phase-0.md) — complete
-- [v0.19.0 Phase 1 streaming text input review](v0.19.0-phase-1.md) — complete
-- [v0.19.0 Phase 2 collection ordering review](v0.19.0-phase-2.md) — complete
-- [v0.19.0 Phase 3 recursive text-search review](v0.19.0-phase-3.md) — complete
-- [v0.18.0 Phase 0 construction review](v0.18.0-phase-0.md) — complete
-- [v0.18.0 Phase 1 builtin declaration review](v0.18.0-phase-1.md) — complete
-- [v0.18.0 Phase 2 interface implementation review](v0.18.0-phase-2.md) — complete
-- [v0.18.0 Phase 3 persistent authority review](v0.18.0-phase-3.md) — complete
-- [v0.18.0 persistent semantic authority record](v0.18.0-persistent-semantic-authority.md) — complete
-- [v0.18.0 semantic tooling reconstruction record](v0.18.0-semantic-tooling-reconstruction.md) — complete
-
-## Historical Foundation Reviews
-
-- [v0.17.0 analysis authority reconstruction](v0.17.0-analysis-authority.md)
-- [v0.14.0 final design review](v0.14.0-final-design.md)
-- [v0.14.0 grammar closure audit](v0.14.0-grammar-audit.md)
+- [v0.25.0 Architecture Follow-up Review](v0.25.0-architecture-follow-up.md)
+- [v0.25.0 No-allocation Contract Review](v0.25.0-noalloc-contracts.md)
+- [v0.24.0 Installation Image Identity Review](v0.24.0-installation-image-identity.md)
+- [v0.24.0 Explicit Value Subjects Review](v0.24.0-explicit-value-subjects.md)
+- [v0.23.0 Phase 3 Qualification and Full Review](v0.23.0-phase-3.md)
+- [v0.23.0 Phase 2 Type-owned API Review](v0.23.0-phase-2.md)
+- [v0.23.0 Phase 1 Decimal Authority Review](v0.23.0-phase-1.md)
+- [v0.22.0 Phase 5 Standard-library Stabilization Review](v0.22.0-phase-5.md)
+- [v0.22.0 Phase 4 Practical Integration Review](v0.22.0-phase-4.md)
+- [v0.22.0 Phase 3 Shared Generator Review](v0.22.0-phase-3.md)
+- [v0.22.0 Phase 2 Owning DOM Parser Review](v0.22.0-phase-2.md)
+- [v0.22.0 Phase 1 Lexical and Unicode Review](v0.22.0-phase-1.md)
+- [v0.22.0 Phase 0 JSON Design Review](v0.22.0-phase-0.md)
+- [v0.21.0 Phase 5 Practical Qualification Review](v0.21.0-phase-5.md)
+- [v0.21.0 Phase 4 Iteration and Set Review](v0.21.0-phase-4.md)
+- [v0.21.0 Phase 3 Private-table and Map Review](v0.21.0-phase-3.md)
+- [v0.21.0 Phase 2 Hash-foundation Review](v0.21.0-phase-2.md)
+- [v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review](v0.21.0-phase-1.md)
+- [v0.21.0 Phase 0 Associative-collection Design Review](v0.21.0-phase-0.md)
+- [v0.20.0 Phase 3 Dependency-local Exact-selection Review](v0.20.0-phase-3.md)
+- [v0.20.0 Phase 2 Unified Query-entry Review](v0.20.0-phase-2.md)
+- [v0.20.0 Phase 1 Incremental Semantic-computation Review](v0.20.0-phase-1.md)
+- [v0.20.0 Phase 0 Interface-prerequisite Review](v0.20.0-phase-0.md)
+- [v0.19.0 Phase 4 Stabilization Review](v0.19.0-phase-4.md)
+- [v0.19.0 Phase 3 Recursive Text-search Review](v0.19.0-phase-3.md)
+- [v0.19.0 Phase 2 Collection Ordering Review](v0.19.0-phase-2.md)
+- [v0.19.0 Phase 1 Streaming Text-input Review](v0.19.0-phase-1.md)
+- [v0.19.0 Phase 0 Filesystem Traversal Review](v0.19.0-phase-0.md)
+- [v0.18.0 Semantic Tooling Reconstruction Record](v0.18.0-semantic-tooling-reconstruction.md)
+- [v0.18.0 Persistent Semantic Authority Record](v0.18.0-persistent-semantic-authority.md)
+- [v0.18.0 Phase 3 Persistent Authority Review](v0.18.0-phase-3.md)
+- [v0.18.0 Phase 2 Interface Implementation Review](v0.18.0-phase-2.md)
+- [v0.18.0 Phase 1 Builtin Declaration Review](v0.18.0-phase-1.md)
+- [v0.18.0 Phase 0 Construction Review](v0.18.0-phase-0.md)
+- [v0.17.0 Analysis Authority Reconstruction](v0.17.0-analysis-authority.md)
+- [v0.14.0 Final Design Review](v0.14.0-final-design.md)
+- [v0.14.0 Grammar Closure Audit](v0.14.0-grammar-audit.md)
+- [v0.14.0 Boundary Inventory](v0.14.0-boundary-inventory.md)
+- [v0.14.0 Findings](v0.14.0-findings.md)

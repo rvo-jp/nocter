@@ -1,51 +1,17 @@
 # Contributor Documentation
 
-Nocter has published and externally audited v0.24.0 with explicit value subjects, content-bound
-installation identity, and a compiler built from the language specification. The v0.13.0 compiler
-implementation was not an input to the rewrite.
-
-The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
-corresponding syntax, static semantics, dynamic semantics, target behavior, or tooling contract.
+Nocter development is specification-first. Public behavior belongs in [`spec/`](../spec/README.md);
+implementation milestones and reviews record how the compiler reached that behavior without
+becoming a second language authority. The compiler implementation removed before v0.14.0 is
+available through Git history only and is not a design input.
 
 ## Current Work
 
-- [Current handoff](TODO.md)
-- [Active v0.25.0 milestone](milestones/v0.25.0.md)
-- [Completed v0.24.0 milestone](milestones/v0.24.0.md)
-- [v0.24.0 release preparation](milestones/v0.24.0-release-preparation.md)
-- [v0.24.0 explicit value subjects review](reviews/v0.24.0-explicit-value-subjects.md)
-- [v0.24.0 installation image identity review](reviews/v0.24.0-installation-image-identity.md)
-- [Completed v0.23.0 implementation milestone](milestones/v0.23.0.md)
-- [v0.23.0 Phase 3 qualification and full review](reviews/v0.23.0-phase-3.md)
-- [v0.23.0 Phase 2 type-owned API review](reviews/v0.23.0-phase-2.md)
-- [v0.23.0 Phase 1 decimal authority review](reviews/v0.23.0-phase-1.md)
-- [Completed v0.22.0 milestone](milestones/v0.22.0.md)
-- [v0.22.0 release preparation](milestones/v0.22.0-release-preparation.md)
-- [v0.22.0 Phase 0 JSON design review](reviews/v0.22.0-phase-0.md)
-- [v0.22.0 Phase 1 lexical and Unicode review](reviews/v0.22.0-phase-1.md)
-- [v0.22.0 Phase 2 owning DOM parser review](reviews/v0.22.0-phase-2.md)
-- [v0.22.0 Phase 3 shared generator review](reviews/v0.22.0-phase-3.md)
-- [v0.22.0 Phase 4 practical integration review](reviews/v0.22.0-phase-4.md)
-- [v0.22.0 Phase 5 standard-library stabilization review](reviews/v0.22.0-phase-5.md)
-- [JSON implementation boundary](docs/json-implementation.md)
-- [Completed v0.21.0 milestone](milestones/v0.21.0.md)
-- [v0.21.0 release preparation](milestones/v0.21.0-release-preparation.md)
-- [v0.21.0 Phase 5 practical qualification review](reviews/v0.21.0-phase-5.md)
-- [v0.21.0 Phase 4 iteration and Set review](reviews/v0.21.0-phase-4.md)
-- [v0.21.0 Phase 0 associative-collection design review](reviews/v0.21.0-phase-0.md)
-- [Associative collection implementation boundary](docs/associative-collection-implementation.md)
-- [Completed v0.20.0 compiler-foundation milestone](milestones/v0.20.0.md)
-- [v0.20.0 Phase 3 dependency-local exact-selection review](reviews/v0.20.0-phase-3.md)
-- [v0.20.0 Phase 2 unified query-entry review](reviews/v0.20.0-phase-2.md)
-- [v0.20.0 Phase 1 incremental semantic-computation review](reviews/v0.20.0-phase-1.md)
-- [v0.20.0 Phase 0 interface-prerequisite review](reviews/v0.20.0-phase-0.md)
-- [Completed v0.19.0 milestone](milestones/v0.19.0.md)
-- [v0.19.0 release preparation](milestones/v0.19.0-release-preparation.md)
-- [Completed v0.18.0 milestone](milestones/v0.18.0.md)
-- [v0.18.0 release preparation](milestones/v0.18.0-release-preparation.md)
-- [Design reviews](reviews/README.md)
-- [Latest published release qualification](releases/v0.24.0.md)
-- [Compiler architecture](docs/architecture.md)
+- [Current handoff](TODO.md) — next concrete work and blockers only
+- [Milestone catalog](milestones/README.md) — scope and status owned by each milestone record
+- [Design review catalog](reviews/README.md) — findings and remediation evidence
+- [Publication catalog](releases/README.md) — immutable released-candidate evidence
+- [Compiler architecture](docs/architecture.md) — pipeline and cross-crate authority boundaries
 - [Architecture and maintenance documents](docs/README.md)
 - [Compiler workspace](compiler/README.md)
 

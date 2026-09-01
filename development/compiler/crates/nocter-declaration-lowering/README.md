@@ -17,6 +17,7 @@ check callable bodies.
 ## Internal Responsibilities
 
 - deterministic identity reservation and definition
+- one canonical `DeclarationSurface` topology consumed by both reservation and focused topology tests
 - define-once semantic projection recipes and current-generation materialization
 - declaration-only authority projection separated from current body imports and spellings
 - stable path-plus-block identities mapping body query keys to declaration-owned `BodyId` values
@@ -57,3 +58,5 @@ check callable bodies.
 - A derived associated binding resolves through bound prerequisite identities to the original
   declaration; lowering never creates an alias declaration for inheritance. The accepted
   declaration graph then freezes the effective identity so later stages do not repeat this binding.
+- Declaration recovery remains one closed product across the computation and session boundary;
+  consumers cannot recombine its graph, type authority, source ownership, and source projection.

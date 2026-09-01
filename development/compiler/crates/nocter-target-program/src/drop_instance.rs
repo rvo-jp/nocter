@@ -1,9 +1,7 @@
 use std::fmt;
 
 use nocter_checking::{GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_type};
-use nocter_model::{DropId, GenericParameterId, TypeId, TypeStore};
-
-use crate::TargetProgram;
+use nocter_model::{DropId, GenericParameterId, TypeId};
 
 /// The canonical identity of one specialized user-authored drop body.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -19,12 +17,13 @@ impl DropInstanceKey {
     ///
     /// Returns a typed failure when the drop declaration or its complete generic domain is
     /// invalid, or when an argument remains symbolic.
-    pub fn new_in(
-        program: &TargetProgram,
-        types: &TypeStore,
+    pub(crate) fn new_in(
+        specialization: crate::executable::ExecutableSpecialization<'_>,
         drop: DropId,
         generic_arguments: GenericArguments,
     ) -> Result<Self, DropInstanceKeyError> {
+        let program = specialization.target();
+        let types = specialization.types();
         let declaration = program
             .checked()
             .graph()

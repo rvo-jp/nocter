@@ -1,9 +1,7 @@
 use std::fmt;
 
 use nocter_checking::{GenericArguments, SubstitutionError, TypeSubstitution, is_concrete_type};
-use nocter_model::{BodyId, ClosureId, GenericParameterId, TypeId, TypeStore};
-
-use crate::TargetProgram;
+use nocter_model::{BodyId, ClosureId, GenericParameterId, TypeId};
 
 /// The canonical identity of one specialized anonymous closure body and environment.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -19,12 +17,13 @@ impl ClosureInstanceKey {
     ///
     /// Returns a typed failure when the closure, its owner body, or its complete generic domain is
     /// invalid, or when an argument remains symbolic.
-    pub fn new_in(
-        program: &TargetProgram,
-        types: &TypeStore,
+    pub(crate) fn new_in(
+        specialization: crate::executable::ExecutableSpecialization<'_>,
         closure: ClosureId,
         generic_arguments: GenericArguments,
     ) -> Result<Self, ClosureInstanceKeyError> {
+        let program = specialization.target();
+        let types = specialization.types();
         let definition = program
             .checked()
             .closures()

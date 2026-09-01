@@ -1,17 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_declarations::{
-    AcceptedDeclarationProgram, DeclarationProgram, DeclarationProgramBuilder, ModuleNamespace,
-    ModulePath, ProgramBuildError,
-};
+use nocter_declarations::{AcceptedDeclarationProgram, DeclarationProgram, ProgramBuildError};
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{ModuleId, SymbolTable};
 use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::SourceId;
-use nocter_source_index::{
-    SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin, SourceRole,
-};
+use nocter_source_index::SourceIndex;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, TokenKind};
 
 use crate::package_source::validate_package_directive_ownership;
@@ -71,13 +66,6 @@ pub struct ReusableDeclarations {
     module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
     projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
     body_identities: Box<[crate::ReusableBodyIdentity]>,
-}
-
-/// Topology-only output used by the focused topology pass.
-#[derive(Debug)]
-pub struct LoweredTopology {
-    program: AcceptedDeclarationProgram,
-    source_index: SourceIndex,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -243,25 +231,6 @@ impl ReusableDeclarations {
             .binary_search_by(|(candidate, _)| candidate.cmp(identity))
             .ok()
             .map(|index| self.module_bindings[index].1)
-    }
-}
-
-impl LoweredTopology {
-    const fn new(program: AcceptedDeclarationProgram, source_index: SourceIndex) -> Self {
-        Self {
-            program,
-            source_index,
-        }
-    }
-
-    #[must_use]
-    pub const fn program(&self) -> &DeclarationProgram {
-        self.program.program()
-    }
-
-    #[must_use]
-    pub const fn source_index(&self) -> &SourceIndex {
-        &self.source_index
     }
 }
 
@@ -440,77 +409,6 @@ impl From<TopologyViolation> for LoweringError {
     fn from(violation: TopologyViolation) -> Self {
         Self::Rule(violation)
     }
-}
-
-/// Lowers canonical package, module, and physical-source topology without resolving declarations.
-///
-/// # Errors
-///
-/// Returns [`LoweringError`] when the explicit compile-unit graph is incomplete, ambiguous, or
-/// inconsistent with its parsed source snapshots.
-pub fn lower_compile_unit_topology(
-    input: &CompileUnitInput<'_>,
-) -> Result<LoweredTopology, LoweringError> {
-    let prepared = prepare_compile_unit(input)?;
-    let mut program = DeclarationProgramBuilder::new(input.target(), prepared.symbols);
-    let mut source_index = SourceIndexBuilder::new();
-    let mut package_ids = BTreeMap::new();
-
-    for package in &prepared.packages {
-        let display_name = program
-            .symbols()
-            .get(package.display_name())
-            .ok_or_else(|| LoweringError::MissingCollectedSymbol(package.display_name().into()))?;
-        let id = program.add_package(package.identity().clone(), display_name)?;
-        package_ids.insert(package.identity().clone(), id);
-        if package.mode() == PackageMode::Declared {
-            let tree = package_root_source(package.identity(), &prepared.modules)
-                .ok_or_else(|| LoweringError::InvalidPackageModuleSet(package.identity().clone()))?
-                .syntax();
-            source_index.insert(
-                SemanticEntity::Package(id),
-                SourceRole::Declaration,
-                SourceOrigin::from_node(tree, tree.root_id())
-                    .map_err(|_| LoweringError::InconsistentSyntax(tree.source()))?,
-            );
-        }
-    }
-    let root_packages = input
-        .root_packages()
-        .iter()
-        .map(|identity| {
-            package_ids
-                .get(identity)
-                .copied()
-                .ok_or_else(|| LoweringError::UnknownPackage(identity.clone()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    program.set_root_packages(root_packages)?;
-
-    for module in &prepared.modules {
-        let package = *package_ids
-            .get(module.identity().package())
-            .ok_or_else(|| LoweringError::UnknownPackage(module.identity().package().clone()))?;
-        let path = module
-            .identity()
-            .path()
-            .iter()
-            .map(|segment| {
-                program
-                    .symbols()
-                    .get(segment)
-                    .ok_or_else(|| LoweringError::MissingCollectedSymbol(segment.clone()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let id = program.add_module(package, ModulePath::from_segments(path))?;
-        program.define_module_namespace(id, ModuleNamespace::default())?;
-        project_module_sources(&mut source_index, id, module)?;
-    }
-
-    Ok(LoweredTopology::new(
-        program.finish()?,
-        source_index.finish(),
-    ))
 }
 
 pub(crate) struct PreparedCompileUnit<'input, 'syntax> {
@@ -1150,28 +1048,6 @@ fn collect_tree_symbols(
             }
             SyntaxElement::Token(_) | SyntaxElement::Missing(_) => {}
         }
-    }
-    Ok(())
-}
-
-fn project_module_sources(
-    index: &mut SourceIndexBuilder,
-    module: ModuleId,
-    input: &ModuleInput<'_>,
-) -> Result<(), LoweringError> {
-    let mut sources: Vec<_> = input.sources().iter().collect();
-    sources.sort_unstable_by_key(|source| source.canonical_path());
-    for source in sources {
-        let role = match source.kind() {
-            ModuleSourceKind::Root | ModuleSourceKind::SingleFile => SourceRole::Declaration,
-            ModuleSourceKind::Implementation => SourceRole::Implementation,
-        };
-        index.insert(
-            SemanticEntity::Module(module),
-            role,
-            SourceOrigin::from_node(source.syntax(), source.syntax().root_id())
-                .map_err(|_| LoweringError::InconsistentSyntax(source.syntax().source()))?,
-        );
     }
     Ok(())
 }

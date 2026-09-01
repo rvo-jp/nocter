@@ -786,6 +786,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.25.0-architecture-follow-up/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/reviews/v0.25.0-noalloc-contracts/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

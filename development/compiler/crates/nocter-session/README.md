@@ -47,6 +47,9 @@ protocol values.
 - Declaration rejection opens an owned branch of the query's exact-current recovery
   product. Session composes its diagnostics and editor evidence without invoking declaration
   lowering a second time.
+- Declaration-only evidence retains the originating lowering or checking recovery product intact;
+  session never reconstructs an authority from independently supplied graph, type, ownership, and
+  source-index values.
 - Lexical rejection opens the finalization query's exact-current recovery branch.
   Session translates its typed diagnostic and recovery evidence without invoking name resolution,
   checking preparation, or body checking.

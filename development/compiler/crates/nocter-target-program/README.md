@@ -24,6 +24,8 @@ checking decisions.
 
 - Target validation runs once before executable specialization.
 - Every concrete dispatch comes from checking's selected semantic authority.
+- Executable specialization owns key construction; a consumer cannot pair a semantic identity with
+  an unrelated specialization type store.
 - Reachability uses semantic identities, never runtime symbol spelling.
 - MIR receives no unresolved requirement, interface implementation, or generic lookup.
 

@@ -910,6 +910,16 @@ pub struct DeclarationAnalysisProgram {
 
 impl DeclarationAnalysisProgram {
     #[must_use]
+    pub const fn graph(&self) -> &DeclarationGraph {
+        &self.graph
+    }
+
+    #[must_use]
+    pub const fn types(&self) -> &TypeStore {
+        self.types.store()
+    }
+
+    #[must_use]
     pub fn into_parts(self) -> (DeclarationGraph, TypeAuthority) {
         (self.graph, self.types)
     }
@@ -928,6 +938,11 @@ impl BodyAnalysisDeclarationProgram {
     #[must_use]
     pub const fn graph(&self) -> &DeclarationGraph {
         &self.graph
+    }
+
+    #[must_use]
+    pub const fn types(&self) -> &TypeStore {
+        self.types.store()
     }
 
     /// Appends the current body-only symbol domain while preserving declaration symbol IDs.
