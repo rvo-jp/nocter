@@ -20,19 +20,19 @@ pub copy struct EnvironmentEntry {
 pub func args(): Vec<&str>!
 
 /// Returns the number of process arguments, including the executable spelling.
-pub func arg_count(): usize
+pub noalloc func arg_count(): usize
 
 /// Returns one process argument, `none` out of range, or a decoding failure.
-pub func arg(index: usize): &str?!
+pub noalloc func arg(index: usize): &str?!
 
 /// Returns the number of environment entries.
-pub func environment_count(): usize
+pub noalloc func environment_count(): usize
 
 /// Returns one environment entry, `none` out of range, or a decoding failure.
-pub func environment(index: usize): EnvironmentEntry?!
+pub noalloc func environment(index: usize): EnvironmentEntry?!
 
 /// Returns the value of one environment variable, `none` when absent, or a decoding failure.
-pub func env(name: &str): &str?!
+pub noalloc func env(name: &str): &str?!
 
 /// Returns the current working directory in current-context storage.
 pub func cwd(): String!

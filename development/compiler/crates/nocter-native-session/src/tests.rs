@@ -108,12 +108,12 @@ use std/vec.Vec
 
 instance CollisionKey {
     operator (&self == other: &Self): bool { return self.id == other.id }
-    method &self.hash_into(state: &+HashState): void { return }
+    noalloc method &self.hash_into(state: &+HashState): void { return }
 }
 
 instance Marker {
     operator (&self == other: &Self): bool { return true }
-    method &self.hash_into(state: &+HashState): void { return }
+    noalloc method &self.hash_into(state: &+HashState): void { return }
 }
 
 struct Counter {
@@ -1246,12 +1246,12 @@ fn standard_map_contract_crosses_native_tests() {
          instance CollisionKey {\n\
              impl Hash\n\
              pub operator (&self == other: &Self): bool\n\
-             pub method &self.hash_into(state: &+HashState): void\n\
+             pub noalloc method &self.hash_into(state: &+HashState): void\n\
          }\n\
          instance Marker {\n\
              impl Hash\n\
              pub operator (&self == other: &Self): bool\n\
-             pub method &self.hash_into(state: &+HashState): void\n\
+             pub noalloc method &self.hash_into(state: &+HashState): void\n\
          }\n";
     package_root.source("tests/index.nct", contract_source);
     package_root.source("tests/implementation.nct", MAP_PHASE3_TEST_SOURCE);

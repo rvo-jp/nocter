@@ -14,7 +14,7 @@ A coercion is declared as a member of an `instance` block for its nominal source
 
 ```nct
 instance String {
-    pub coerce &self as &str {
+    pub noalloc coerce &self as &str {
         return view(self)
     }
 }
@@ -41,11 +41,11 @@ Generic source parameters follow the source type's declaration order:
 
 ```nct
 instance Vec<T> {
-    pub coerce &self as &[T] {
+    pub noalloc coerce &self as &[T] {
         return view(self)
     }
 
-    pub coerce &+self as &+[T] {
+    pub noalloc coerce &+self as &+[T] {
         return view_mut(self)
     }
 }
@@ -222,12 +222,12 @@ The current standard library provides these public entries:
 
 ```nct
 instance String {
-    pub coerce &self as &str { ... }
+    pub noalloc coerce &self as &str { ... }
 }
 
 instance Vec<T> {
-    pub coerce &self as &[T] { ... }
-    pub coerce &+self as &+[T] { ... }
+    pub noalloc coerce &self as &[T] { ... }
+    pub noalloc coerce &+self as &+[T] { ... }
 }
 ```
 

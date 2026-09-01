@@ -101,6 +101,91 @@ fn concrete_generic_aggregate_uses_its_substituted_destruction_effect() {
 }
 
 #[test]
+fn opaque_cleanup_uses_its_selected_witness_destruction_effect() {
+    check(
+        "pub interface Show { pub method &self.show(): i32 }\n\
+         struct Value {}\n\
+         noalloc drop Value(&+self) { return }\n\
+         instance Value {\n\
+             impl Show\n\
+             noalloc method &self.show(): i32 { return 1 }\n\
+         }\n\
+         noalloc func make(): some Show { return Value {} }\n\
+         noalloc func consume(): void {\n\
+             let value = make()\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn generic_opaque_cleanup_substitutes_witness_arguments() {
+    check(
+        "pub interface Show { pub method &self.show(): i32 }\n\
+         struct Value {}\n\
+         noalloc drop Value(&+self) { return }\n\
+         struct Wrapper<T> { value: T }\n\
+         instance Wrapper<T> {\n\
+             impl Show\n\
+             noalloc method &self.show(): i32 { return 1 }\n\
+         }\n\
+         noalloc func make<T>(value: T): some Show {\n\
+             return Wrapper { value: move value }\n\
+         }\n\
+         noalloc func consume(value: Value): void {\n\
+             let hidden = make(move value)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn optional_opaque_cleanup_reuses_the_same_witness_authority() {
+    check(
+        "pub interface Show { pub method &self.show(): i32 }\n\
+         struct Value {}\n\
+         noalloc drop Value(&+self) { return }\n\
+         instance Value {\n\
+             impl Show\n\
+             noalloc method &self.show(): i32 { return 1 }\n\
+         }\n\
+         noalloc func make(present: bool): some Show? {\n\
+             if present { return Value {} }\n\
+             return none\n\
+         }\n\
+         noalloc func consume(present: bool): void {\n\
+             let value = make(present)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn opaque_cleanup_retains_an_allocating_witness_drop_edge() {
+    let error = check(&format!(
+        "{TEXT_DECLARATIONS}\n\
+         pub interface Show {{ pub method &self.show(): i32 }}\n\
+         struct Value {{}}\n\
+         drop Value(&+self) {{ let _ = Text \"drop\"\n return }}\n\
+         instance Value {{\n\
+             impl Show\n\
+             noalloc method &self.show(): i32 {{ return 1 }}\n\
+         }}\n\
+         noalloc func make(): some Show {{ return Value {{}} }}\n\
+         noalloc func consume(): void {{\n\
+             let value = make()\n\
+             return\n\
+         }}\n"
+    ))
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::NoAllocationContractViolation));
+}
+
+#[test]
 fn enum_residual_effect_excludes_the_transferred_payload() {
     check(&format!(
         "{TEXT_DECLARATIONS}\n\

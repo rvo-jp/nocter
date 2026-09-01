@@ -20,18 +20,18 @@ construct HashState {
 /// Values whose equality classes can be used as associative-collection keys.
 pub interface Hash where (&Self == &Self): bool {
     /// Contributes the complete equality-relevant value without allocation.
-    pub method &self.hash_into(state: &+HashState): void
+    pub noalloc method &self.hash_into(state: &+HashState): void
 }
 
 instance HashState {
     /// Contributes an exact byte sequence to this state.
-    pub method &+self.write(bytes: &[u8]): void
+    pub noalloc method &+self.write(bytes: &[u8]): void
 
     /// Starts an independent hash with this state's retained seed.
-    pub(/) method &self.restart(): Self
+    pub(/) noalloc method &self.restart(): Self
 
     /// Finalizes the current contribution without exposing mutable state.
-    pub(/) method &self.finish(): u64
+    pub(/) noalloc method &self.finish(): u64
 }
 
 instance bool {

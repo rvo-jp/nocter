@@ -82,77 +82,77 @@ func write_usize(state: &+HashState, value: &usize): void {
 }
 
 instance bool {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_bool(state, self)
         return
     }
 }
 
 instance i8 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_i8(state, self)
         return
     }
 }
 
 instance i16 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_i16(state, self)
         return
     }
 }
 
 instance i32 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_i32(state, self)
         return
     }
 }
 
 instance i64 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_i64(state, self)
         return
     }
 }
 
 instance isize {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_isize(state, self)
         return
     }
 }
 
 instance u8 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_u8(state, self)
         return
     }
 }
 
 instance u16 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_u16(state, self)
         return
     }
 }
 
 instance u32 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_u32(state, self)
         return
     }
 }
 
 instance u64 {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_u64(state, self)
         return
     }
 }
 
 instance usize {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_usize(state, self)
         return
     }

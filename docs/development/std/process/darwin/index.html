@@ -247,19 +247,19 @@
 <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">exit_raw</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">arg_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">arg_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">arg_raw</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from static
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">arg_raw</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from static
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">env_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">env_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">env_name_raw</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from static
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">env_name_raw</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from static
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">env_value_raw</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from static
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">env_value_raw</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from static
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">func</span> <span class="token-function">open_current_directory</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
@@ -320,11 +320,11 @@
     <span class="token-keyword">return</span> <span class="token-keyword">move</span> values
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">arg_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">arg</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">arg</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">arg_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span><span class="token-operator">=</span> count <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">arg_raw</span><span class="token-operator">(</span>index<span class="token-operator">)</span>
@@ -332,11 +332,11 @@
     <span class="token-keyword">return</span> value
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">environment_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">environment_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">env_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">environment</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">EnvironmentEntry</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">environment</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">EnvironmentEntry</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-function">env_count_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">if</span> index <span class="token-operator">&gt;</span><span class="token-operator">=</span> count <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> name <span class="token-operator">=</span> <span class="token-function">env_name_raw</span><span class="token-operator">(</span>index<span class="token-operator">)</span>
@@ -345,7 +345,7 @@
     <span class="token-keyword">return</span> <span class="token-type">EnvironmentEntry</span> <span class="token-operator">{</span> name<span class="token-operator">:</span> name<span class="token-operator">,</span> value<span class="token-operator">:</span> value <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">env</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">env</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">valid_environment_name</span><span class="token-operator">(</span>name<span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_encoding</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>

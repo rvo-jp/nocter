@@ -79,7 +79,7 @@ implementation happens not to allocate.
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub default method self.map<U>(transform: &+func(Self.Item): U): some Iterator { .Item = U }
+pub noalloc default method self.map<U>(transform: &+func(Self.Item): U): some Iterator { .Item = U }
 from self | transform {
     return MapIter.new(move self, move transform)
 }

@@ -308,12 +308,12 @@ pub struct String
 construct String {
     /// Copies a static string view into owned storage.
     pub literal ""(text: &str): Self
-    pub func empty(): Self
+    pub noalloc func empty(): Self
 }
 
 instance String {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
-    pub coerce &self as &str
+    pub noalloc coerce &self as &str
 }
 ```
 
@@ -333,7 +333,7 @@ construct String {
         return String.copy(text)
     }
 
-    func empty(): Self {
+    noalloc func empty(): Self {
         return String {
             storage: empty_page_buffer(1),
             len: 0,
@@ -342,7 +342,7 @@ construct String {
 }
 
 instance String {
-    coerce &self as &str {
+    noalloc coerce &self as &str {
         return view(self)
     }
 }

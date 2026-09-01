@@ -311,77 +311,77 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_bool</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_i8</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">i16</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_i16</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_i32</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">i64</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_i64</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">isize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_isize</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_u8</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">u16</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_u16</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_u32</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_u64</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_usize</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>

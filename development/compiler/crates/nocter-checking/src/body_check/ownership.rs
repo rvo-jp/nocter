@@ -36,6 +36,7 @@ pub(super) fn analyze_body_ownership(
     copyabilities: &mut crate::copyability::CopyabilityTransaction,
     drops: &DropTable,
     closures: &ClosureTable,
+    opaque_witnesses: &crate::OpaqueWitnessTable,
     input: OwnershipBodyInput<'_>,
 ) -> Result<CleanupTable, BodyCheckError> {
     let OwnershipBodyInput {
@@ -58,6 +59,7 @@ pub(super) fn analyze_body_ownership(
         copyabilities,
         drops,
         closures,
+        opaque_witnesses,
         source,
         body,
         origins,
@@ -128,6 +130,7 @@ struct OwnershipAnalyzer<'program> {
     copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     drops: &'program DropTable,
     closures: &'program ClosureTable,
+    opaque_witnesses: &'program crate::OpaqueWitnessTable,
     source: BodySource<'program>,
     body: &'program CheckedBody,
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
@@ -165,6 +168,7 @@ impl OwnershipAnalyzer<'_> {
                 self.graph,
                 self.drops,
                 self.closures,
+                self.opaque_witnesses,
                 self.body,
                 self.source,
                 self.copy_proofs,

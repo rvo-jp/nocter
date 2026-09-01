@@ -20,6 +20,7 @@ pub(super) struct CleanupPlanner<'program> {
     copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     drops: &'program DropTable,
     closures: &'program ClosureTable,
+    opaque_witnesses: &'program crate::OpaqueWitnessTable,
     body: &'program CheckedBody,
     source: BodySource<'program>,
     copy_proofs: &'program CopyProofs,
@@ -30,6 +31,7 @@ pub(super) struct CleanupContext<'program> {
     graph: &'program DeclarationGraph,
     drops: &'program DropTable,
     closures: &'program ClosureTable,
+    opaque_witnesses: &'program crate::OpaqueWitnessTable,
     body: &'program CheckedBody,
     source: BodySource<'program>,
     copy_proofs: &'program CopyProofs,
@@ -40,6 +42,7 @@ impl<'program> CleanupContext<'program> {
         graph: &'program DeclarationGraph,
         drops: &'program DropTable,
         closures: &'program ClosureTable,
+        opaque_witnesses: &'program crate::OpaqueWitnessTable,
         body: &'program CheckedBody,
         source: BodySource<'program>,
         copy_proofs: &'program CopyProofs,
@@ -48,6 +51,7 @@ impl<'program> CleanupContext<'program> {
             graph,
             drops,
             closures,
+            opaque_witnesses,
             body,
             source,
             copy_proofs,
@@ -67,6 +71,7 @@ impl<'program> CleanupPlanner<'program> {
             copyabilities,
             drops: context.drops,
             closures: context.closures,
+            opaque_witnesses: context.opaque_witnesses,
             body: context.body,
             source: context.source,
             copy_proofs: context.copy_proofs,
@@ -293,6 +298,7 @@ impl<'program> CleanupPlanner<'program> {
             self.copyabilities,
             self.drops,
             self.closures,
+            self.opaque_witnesses,
             self.copy_proofs,
         )
         .resolve(ty)
@@ -310,6 +316,7 @@ impl<'program> CleanupPlanner<'program> {
             self.copyabilities,
             self.drops,
             self.closures,
+            self.opaque_witnesses,
             self.copy_proofs,
         )
         .resolve_enum_residual(ty, variant, payload)

@@ -51,7 +51,8 @@ implementation through its readonly slice coercion.
 `where (&T < &T): bool`. `String` and `Vec<T>` reach those declarations through the same readonly
 coercions; neither nominal container duplicates the algorithms.
 
-Readwrite slices define allocation-free in-place ordering:
+Readwrite slices define in-place ordering whose heap-sort implementation requests no auxiliary
+storage of its own:
 
 ```nct
 instance [T] {
@@ -61,22 +62,24 @@ instance [T] {
 
 After `sort`, no later element is strictly less than an earlier element. The operation relies on
 the strict total order promised by the selected `<` implementation; it does not call equality or
-accept a comparator callback. It performs no allocation, uses constant auxiliary storage, and has
+accept a comparator callback. The sorting machinery uses constant auxiliary storage and has
 `O(n log n)` worst-case comparisons and moves. It may reorder equivalent elements. Comparison
 borrows elements, while rearrangement transfers ownership without copying or destroying an
-element. The method reports no recoverable failure and introduces no allocation or bounds trap for
-a valid slice. If an authored `<` body traps, that termination remains behavior of the selected
-ordering operation; `sort` does not catch or reinterpret it.
+element. The method reports no recoverable failure and introduces no bounds trap for a valid slice.
+The selected `<` implementation may allocate or trap, so `sort` does not publish `noalloc` under the
+current operator-requirement contract and does not catch or reinterpret termination.
 
 `Vec<T>` reaches the same method through its declared `&+Vec<T> as &+[T]` coercion and does not
 declare a forwarding method. Empty, one-element, already ordered, reverse-ordered, duplicate, and
 move-only element sequences follow the same contract.
 
-The allocation-free iterator terminal operations `find`, `contains`, `position`, `any`, `all`, and
-`fold` remain default methods of `Iterator`. Their item type is `Self.Item`; they use static generic
-dispatch and do not require runtime interface objects. `contains` and `position` consume the
-iterator, borrow each yielded owner for equality, and destroy every yielded owner exactly once,
-including the item that causes early return.
+The iterator terminal operations `find`, `contains`, `position`, `any`, `all`, and `fold` remain
+default methods of `Iterator`. Their implementations allocate no collection of their own, but the
+selected `next`, callback, comparison, or item destruction may allocate. They therefore do not
+publish `noalloc` under the current requirement contracts. Their item type is `Self.Item`; they use
+static generic dispatch and do not require runtime interface objects. `contains` and `position`
+consume the iterator, borrow each yielded owner for equality, and destroy every yielded owner
+exactly once, including the item that causes early return.
 
 `ExactSizeIterator` declares `Self impl Iterator` as an interface prerequisite.
 `I impl ExactSizeIterator` therefore exposes `next`, `I.Item`, and iterator default methods without
@@ -284,16 +287,16 @@ line operation observes failure.
 Every built-in integer owns the same decimal text surface:
 
 ```nct
-construct i8 { pub func parse(text: &str): Self? }
-construct i16 { pub func parse(text: &str): Self? }
-construct i32 { pub func parse(text: &str): Self? }
-construct i64 { pub func parse(text: &str): Self? }
-construct isize { pub func parse(text: &str): Self? }
-construct u8 { pub func parse(text: &str): Self? }
-construct u16 { pub func parse(text: &str): Self? }
-construct u32 { pub func parse(text: &str): Self? }
-construct u64 { pub func parse(text: &str): Self? }
-construct usize { pub func parse(text: &str): Self? }
+construct i8 { pub noalloc func parse(text: &str): Self? }
+construct i16 { pub noalloc func parse(text: &str): Self? }
+construct i32 { pub noalloc func parse(text: &str): Self? }
+construct i64 { pub noalloc func parse(text: &str): Self? }
+construct isize { pub noalloc func parse(text: &str): Self? }
+construct u8 { pub noalloc func parse(text: &str): Self? }
+construct u16 { pub noalloc func parse(text: &str): Self? }
+construct u32 { pub noalloc func parse(text: &str): Self? }
+construct u64 { pub noalloc func parse(text: &str): Self? }
+construct usize { pub noalloc func parse(text: &str): Self? }
 
 instance i8 {
     pub method self.to_string(): String
@@ -316,9 +319,19 @@ parsing must scan an input once through one signed or unsigned decimal authority
 There are no type-named free-function aliases. This contract does not add floating-point values,
 arbitrary radix parsing, locale rules, or a matrix of public integer-to-integer conversions.
 
-`std/process.arg_count`, `arg`, `environment_count`, and `environment` query process-lifetime
-storage without allocating. Out-of-range indexed queries return `none`; invalid process encoding
-returns `error`. `args` remains the allocating convenience that collects all arguments.
+`std/process.arg_count`, `arg`, `environment_count`, `environment`, and `env` publish `noalloc`
+while querying process-lifetime storage:
+
+```nct
+pub noalloc func arg_count(): usize
+pub noalloc func arg(index: usize): &str?!
+pub noalloc func environment_count(): usize
+pub noalloc func environment(index: usize): EnvironmentEntry?!
+pub noalloc func env(name: &str): &str?!
+```
+
+Out-of-range indexed queries return `none`; invalid process encoding returns `error`. `args`
+remains the allocating convenience that collects all arguments.
 
 ## Allocation and Failure
 

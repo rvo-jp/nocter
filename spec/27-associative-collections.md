@@ -61,11 +61,11 @@ change, or standard-library update. Programs must not use it as serialized or us
 pub struct HashState
 
 pub interface Hash where (&Self == &Self): bool {
-    pub method &self.hash_into(state: &+HashState): void
+    pub noalloc method &self.hash_into(state: &+HashState): void
 }
 
 instance HashState {
-    pub method &+self.write(bytes: &[u8]): void
+    pub noalloc method &+self.write(bytes: &[u8]): void
 }
 ```
 
@@ -77,7 +77,7 @@ encoding. It does not select an algorithm or read the final hash:
 instance UserId {
     impl Hash
 
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         self.namespace.hash_into(state)
         self.value.hash_into(state)
         return
@@ -96,10 +96,10 @@ instance UserId {
   component's own `Hash` implementation;
 - hashing does not mutate the value, allocate, fail recoverably, or depend on its storage address.
 
-The compiler checks the declared equality prerequisite and method signatures. It cannot prove
-behavioral coherence between arbitrary authored equality and hashing bodies. Violating that
-coherence is a program contract violation: lookup may fail to find an equal key, but memory safety
-and once-only destruction must remain intact.
+The compiler checks the declared equality prerequisite, method signatures, and transitive
+`noalloc` guarantee. It cannot prove behavioral coherence between arbitrary authored equality and
+hashing bodies. Violating that coherence is a program contract violation: lookup may fail to find
+an equal key, but memory safety and once-only destruction must remain intact.
 
 The standard library implements `Hash` for `bool`, every built-in integer, `str`, `String`, and
 slices and `Vec<T>` where `T impl Hash`. Integer encodings have fixed width and string, slice, and

@@ -19,7 +19,7 @@ func write_values<T>(state: &+HashState, values: &[T]): void where T impl Hash {
 }
 
 instance str {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         let length: usize = self.len()
         write_usize(state, &length)
         state.write(self.bytes())
@@ -28,7 +28,7 @@ instance str {
 }
 
 instance String {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         let text: &str = self as &str
         text.hash_into(state)
         return
@@ -36,14 +36,14 @@ instance String {
 }
 
 instance [T] where T impl Hash {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         write_values(state, self)
         return
     }
 }
 
 instance Vec<T> where T impl Hash {
-    method &self.hash_into(state: &+HashState): void {
+    noalloc method &self.hash_into(state: &+HashState): void {
         let values: &[T] = self as &[T]
         write_values(state, values)
         return

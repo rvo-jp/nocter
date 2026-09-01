@@ -703,8 +703,8 @@ the active standard-library package. Their names have no special grammar meaning
 
 ```nct
 construct u8 {
-    pub func checked(value: u64): Self?
-    pub func truncate(value: u64): Self
+    pub noalloc func checked(value: u64): Self?
+    pub noalloc func truncate(value: u64): Self
 }
 ```
 

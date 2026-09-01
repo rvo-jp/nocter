@@ -34,7 +34,8 @@ instance [T] {
     /// Orders elements lexicographically without consuming either slice.
     pub operator (&self < other: &Self): bool where (&T < &T): bool
 
-    /// Orders elements in place without allocation.
+    /// Orders elements in place without requesting auxiliary storage itself.
+    /// The selected `<` implementation may allocate.
     /// Equivalent elements may move relative to one another.
     pub method &+self.sort(): void where (&T < &T): bool
 }

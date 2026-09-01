@@ -56,15 +56,15 @@ Pointer and address conversion APIs live in `std/ptr`.
 Public APIs:
 
 ```nct
-pub primitive func addr<T>(pointer: *T): usize
-pub primitive func from_ref<T>(value: &T): *T
-pub primitive func from_ref_mut<T>(value: &+T): *T
+pub noalloc primitive func addr<T>(pointer: *T): usize
+pub noalloc primitive func from_ref<T>(value: &T): *T
+pub noalloc primitive func from_ref_mut<T>(value: &+T): *T
 ```
 
 Restricted API:
 
 ```nct
-pub(/) primitive func from_addr<T>(address: usize): *T
+pub(/) noalloc primitive func from_addr<T>(address: usize): *T
 ```
 
 `from_addr` is package-visible within the implicit toolchain `std` package. User packages cannot
@@ -106,15 +106,15 @@ func address_of(value: &u8): usize {
 
 ```nct
 instance [T] {
-    pub method &self.ptr(): *T
-    pub method &self.len(): usize
-    pub method &self.is_empty(): bool
+    pub noalloc method &self.ptr(): *T
+    pub noalloc method &self.len(): usize
+    pub noalloc method &self.is_empty(): bool
 }
 
 instance str {
-    pub method &self.ptr(): *u8
-    pub method &self.len(): usize
-    pub method &self.is_empty(): bool
+    pub noalloc method &self.ptr(): *u8
+    pub noalloc method &self.len(): usize
+    pub noalloc method &self.is_empty(): bool
 }
 ```
 
@@ -446,25 +446,25 @@ Representative current method surface:
 
 ```nct
 instance str {
-    pub operator (&self == other: &Self): bool
-    pub method &self.len(): usize
-    pub method &self.is_empty(): bool
-    pub method &self.ptr(): *u8
-    pub method &self.bytes(): &[u8]
-    pub method &self.is_char_boundary(index: usize): bool
-    pub method &self.get_range(start: usize, end: usize): &str?
-    pub method &self.find(needle: &str): usize?
-    pub method &self.contains(needle: &str): bool
-    pub method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub method &self.lines(): some Iterator { .Item = &str }
-    pub method &self.bytes_iter(): ViewIter<u8>
+    pub noalloc operator (&self == other: &Self): bool
+    pub noalloc method &self.len(): usize
+    pub noalloc method &self.is_empty(): bool
+    pub noalloc method &self.ptr(): *u8
+    pub noalloc method &self.bytes(): &[u8]
+    pub noalloc method &self.is_char_boundary(index: usize): bool
+    pub noalloc method &self.get_range(start: usize, end: usize): &str?
+    pub noalloc method &self.find(needle: &str): usize?
+    pub noalloc method &self.contains(needle: &str): bool
+    pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
+    pub noalloc method &self.lines(): some Iterator { .Item = &str }
+    pub noalloc method &self.bytes_iter(): ViewIter<u8>
 }
 
 instance String {
-    pub method &self.capacity(): usize
+    pub noalloc method &self.capacity(): usize
     pub method &+self.reserve(additional: usize): void
     pub method &+self.try_reserve(additional: usize): void!
-    pub method &+self.clear(): void
+    pub noalloc method &+self.clear(): void
     pub method &+self.push_str(value: &str): void
     pub method &+self.try_push_str(value: &str): void!
     pub method &+self.try_push_utf8(value: &[u8]): void!
@@ -507,12 +507,12 @@ The built-in `str` instance exposes allocation-free borrowed text operations:
 
 ```nct
 instance str {
-    pub method &self.is_char_boundary(index: usize): bool
-    pub method &self.get_range(start: usize, end: usize): &str?
-    pub method &self.strip_prefix(prefix: &str): &str? from self
-    pub method &self.strip_suffix(suffix: &str): &str? from self
-    pub method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub method &self.lines(): some Iterator { .Item = &str }
+    pub noalloc method &self.is_char_boundary(index: usize): bool
+    pub noalloc method &self.get_range(start: usize, end: usize): &str?
+    pub noalloc method &self.strip_prefix(prefix: &str): &str? from self
+    pub noalloc method &self.strip_suffix(suffix: &str): &str? from self
+    pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
+    pub noalloc method &self.lines(): some Iterator { .Item = &str }
 }
 ```
 

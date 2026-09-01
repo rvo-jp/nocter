@@ -42,13 +42,13 @@ construct Number {
 
 instance Number {
     /// Returns the exact validated token spelling retained by this value.
-    pub method &self.text(): &str
+    pub noalloc method &self.text(): &str
 
     /// Returns the mathematical value when it is exactly representable as i64.
-    pub method &self.as_i64(): i64?
+    pub noalloc method &self.as_i64(): i64?
 
     /// Returns the mathematical value when it is exactly representable as u64.
-    pub method &self.as_u64(): u64?
+    pub noalloc method &self.as_u64(): u64?
 }
 
 /// Parses one complete JSON text using the current allocation context.

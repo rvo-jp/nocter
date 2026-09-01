@@ -266,11 +266,11 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">HashState</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">restart</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">restart</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">HashState</span><span class="token-operator">.</span><span class="token-function">from_seed</span><span class="token-operator">(</span>self<span class="token-operator">.</span>seed<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
         <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
             <span class="token-keyword">let</span> current_buffer<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> self<span class="token-operator">.</span>buffer
@@ -291,7 +291,7 @@
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">finish</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">finish</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
         <span class="token-keyword">var</span> final <span class="token-operator">=</span> <span class="token-type">HashState</span> <span class="token-operator">{</span>
             seed<span class="token-operator">:</span> self<span class="token-operator">.</span>seed<span class="token-operator">,</span>
             lane0<span class="token-operator">:</span> self<span class="token-operator">.</span>lane0<span class="token-operator">,</span>

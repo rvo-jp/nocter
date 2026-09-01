@@ -1,12 +1,12 @@
 use std::collections::{BTreeSet, HashSet};
 
 use nocter_declarations::{DeclarationGraph, NominalShape, ParameterOwner};
-use nocter_model::{ClosureId, DropId, ParameterId, TypeId, TypeKind, VariantId};
+use nocter_model::{ClosureId, DropId, OpaqueTypeId, ParameterId, TypeId, TypeKind, VariantId};
 
 use crate::checked::CleanupEffect;
 use crate::copyability::{CopyProofs, Copyability, CopyabilityTransaction};
 use crate::type_relations::TypeSubstitution;
-use crate::{BodyCheckInternalError, ClosureTable, DropTable};
+use crate::{BodyCheckInternalError, ClosureTable, DropTable, OpaqueWitnessTable};
 
 /// Resolves the allocation-effect contract of exactly the destruction selected by ownership.
 ///
@@ -19,6 +19,7 @@ pub(super) struct DestructionEffectResolver<'program> {
     copyabilities: &'program mut CopyabilityTransaction,
     drops: &'program DropTable,
     closures: &'program ClosureTable,
+    opaque_witnesses: &'program OpaqueWitnessTable,
     copy_proofs: &'program CopyProofs,
 }
 
@@ -29,6 +30,7 @@ impl<'program> DestructionEffectResolver<'program> {
         copyabilities: &'program mut CopyabilityTransaction,
         drops: &'program DropTable,
         closures: &'program ClosureTable,
+        opaque_witnesses: &'program OpaqueWitnessTable,
         copy_proofs: &'program CopyProofs,
     ) -> Self {
         Self {
@@ -37,6 +39,7 @@ impl<'program> DestructionEffectResolver<'program> {
             copyabilities,
             drops,
             closures,
+            opaque_witnesses,
             copy_proofs,
         }
     }
@@ -148,8 +151,11 @@ impl<'program> DestructionEffectResolver<'program> {
         match kind {
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
-            | TypeKind::AssociatedProjection { .. }
-            | TypeKind::Opaque { .. } => *unknown = true,
+            | TypeKind::AssociatedProjection { .. } => *unknown = true,
+            TypeKind::Opaque {
+                definition,
+                arguments,
+            } => self.visit_opaque(definition, &arguments, active, drops, unknown)?,
             TypeKind::Nominal {
                 definition,
                 arguments,
@@ -263,6 +269,32 @@ impl<'program> DestructionEffectResolver<'program> {
             self.visit_type(capture, active, drops, unknown)?;
         }
         Ok(())
+    }
+
+    fn visit_opaque(
+        &mut self,
+        definition: OpaqueTypeId,
+        arguments: &[TypeId],
+        active: &mut HashSet<TypeId>,
+        drops: &mut BTreeSet<DropId>,
+        unknown: &mut bool,
+    ) -> Result<(), BodyCheckInternalError> {
+        let opaque = self
+            .graph
+            .declarations()
+            .opaque_types()
+            .get(definition)
+            .cloned()
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+        let substitution = bind(opaque.generic_parameters(), arguments)?;
+        let witness = self
+            .opaque_witnesses
+            .get(definition)
+            .ok_or(BodyCheckInternalError::CleanupPlanning)?;
+        let witness = substitution
+            .apply_type(self.types, witness)
+            .map_err(|_| BodyCheckInternalError::CleanupPlanning)?;
+        self.visit_type(witness, active, drops, unknown)
     }
 }
 

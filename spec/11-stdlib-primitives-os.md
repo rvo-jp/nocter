@@ -97,16 +97,16 @@ construction surface:
 
 ```nct
 construct error {
-    pub func new(code: &str, message: &str): Self {
+    pub noalloc func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
 }
 
 instance error {
-    pub method self.context(message: &str): Self
-    pub method &self.code(): &str from self
-    pub method &self.message(): &str from self
-    pub method &self.has_code(code: &str): bool
+    pub noalloc method self.context(message: &str): Self
+    pub noalloc method &self.code(): &str from self
+    pub noalloc method &self.message(): &str from self
+    pub noalloc method &self.has_code(code: &str): bool
 }
 ```
 
@@ -219,9 +219,9 @@ primitives.
 Three target-independent pointer primitives are intentionally public:
 
 ```nct
-pub primitive func addr<T>(pointer: *T): usize
-pub primitive func from_ref<T>(value: &T): *T
-pub primitive func from_ref_mut<T>(value: &+T): *T
+pub noalloc primitive func addr<T>(pointer: *T): usize
+pub noalloc primitive func from_ref<T>(value: &T): *T
+pub noalloc primitive func from_ref_mut<T>(value: &+T): *T
 ```
 
 They convert an existing pointer or borrow without granting dereference permission. Operations

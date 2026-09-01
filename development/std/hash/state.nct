@@ -37,11 +37,11 @@ construct HashState {
 }
 
 instance HashState {
-    method &self.restart(): Self {
+    noalloc method &self.restart(): Self {
         return HashState.from_seed(self.seed)
     }
 
-    method &+self.write(bytes: &[u8]): void {
+    noalloc method &+self.write(bytes: &[u8]): void {
         var index: usize = 0
         while index < bytes.len() {
             let current_buffer: u64 = self.buffer
@@ -62,7 +62,7 @@ instance HashState {
         return
     }
 
-    method &self.finish(): u64 {
+    noalloc method &self.finish(): u64 {
         var final = HashState {
             seed: self.seed,
             lane0: self.lane0,

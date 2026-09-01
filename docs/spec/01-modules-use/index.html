@@ -336,12 +336,12 @@
 <span class="token-keyword">construct</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Copies a static string view into owned storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-string">""</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">String</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Exposes the initialized UTF-8 prefix without transferring ownership.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
 <span class="token-operator">}</span>
 </code></pre><p>One directly seen source completes the representation and callable bodies:</p><pre><code class="language-nct"><span class="token-comment">// string.nct</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
@@ -356,7 +356,7 @@
         <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">String</span> <span class="token-operator">{</span>
             storage<span class="token-operator">:</span> <span class="token-function">empty_page_buffer</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
             len<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
@@ -365,7 +365,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">String</span> <span class="token-operator">{</span>
-    coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">view</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>

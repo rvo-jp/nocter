@@ -374,6 +374,7 @@ fn complete_checked_program(
         cleanup_types,
         cleanup_copyabilities,
         checked_semantics.closures(),
+        &opaque_witnesses,
         &prepared.body_sources,
         &mut checked_bodies,
     ) {
@@ -641,6 +642,7 @@ fn attach_body_cleanups(
     types: &mut nocter_model::TypeTransaction,
     copyabilities: &mut crate::copyability::CopyabilityTransaction,
     closures: &crate::ClosureTable,
+    opaque_witnesses: &crate::OpaqueWitnessTable,
     body_sources: &BodySourceCatalog<'_>,
     checked_bodies: &mut [(BodyId, CheckedBodyState)],
 ) -> Result<(), BodyCheckError> {
@@ -654,6 +656,7 @@ fn attach_body_cleanups(
             copyabilities,
             facts.drops(),
             closures,
+            opaque_witnesses,
             OwnershipBodyInput::new(
                 source,
                 &checked.body,

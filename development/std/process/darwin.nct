@@ -18,19 +18,19 @@ use /vec.Vec
 primitive func exit_raw(code: i32): never
 
 #target: "arm64-darwin"
-primitive func arg_count_raw(): usize
+noalloc primitive func arg_count_raw(): usize
 
 #target: "arm64-darwin"
-primitive func arg_raw(index: usize): &str from static
+noalloc primitive func arg_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
-primitive func env_count_raw(): usize
+noalloc primitive func env_count_raw(): usize
 
 #target: "arm64-darwin"
-primitive func env_name_raw(index: usize): &str from static
+noalloc primitive func env_name_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
-primitive func env_value_raw(index: usize): &str from static
+noalloc primitive func env_value_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
 func open_current_directory(): usize! {
@@ -91,11 +91,11 @@ func args(): Vec<&str>! {
     return move values
 }
 
-func arg_count(): usize {
+noalloc func arg_count(): usize {
     return arg_count_raw()
 }
 
-func arg(index: usize): &str?! {
+noalloc func arg(index: usize): &str?! {
     let count: usize = arg_count_raw()
     if index >= count { return none }
     let value = arg_raw(index)
@@ -103,11 +103,11 @@ func arg(index: usize): &str?! {
     return value
 }
 
-func environment_count(): usize {
+noalloc func environment_count(): usize {
     return env_count_raw()
 }
 
-func environment(index: usize): EnvironmentEntry?! {
+noalloc func environment(index: usize): EnvironmentEntry?! {
     let count: usize = env_count_raw()
     if index >= count { return none }
     let name = env_name_raw(index)
@@ -116,7 +116,7 @@ func environment(index: usize): EnvironmentEntry?! {
     return EnvironmentEntry { name: name, value: value }
 }
 
-func env(name: &str): &str?! {
+noalloc func env(name: &str): &str?! {
     if !valid_environment_name(name) {
         return invalid_encoding()
     }

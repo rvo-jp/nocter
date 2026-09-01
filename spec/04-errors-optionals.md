@@ -66,16 +66,16 @@ The constructor is declared in ordinary Nocter source:
 
 ```nct
 construct error {
-    pub func new(code: &str, message: &str): Self {
+    pub noalloc func new(code: &str, message: &str): Self {
         return new_error(code, message)
     }
 }
 
 instance error {
-    pub method self.context(message: &str): Self
-    pub method &self.code(): &str from self
-    pub method &self.message(): &str from self
-    pub method &self.has_code(code: &str): bool
+    pub noalloc method self.context(message: &str): Self
+    pub noalloc method &self.code(): &str from self
+    pub noalloc method &self.message(): &str from self
+    pub noalloc method &self.has_code(code: &str): bool
 }
 ```
 
@@ -83,7 +83,7 @@ Its source-private representation primitive is authored with the implementation 
 the same two inputs but returns an owned error with no input provenance:
 
 ```nct
-primitive func new_error(
+noalloc primitive func new_error(
     code: &str,
     message: &str,
 ): error

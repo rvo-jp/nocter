@@ -326,15 +326,15 @@ construct Number {
 }
 
 instance Number {
-    method &self.text(): &str {
+    noalloc method &self.text(): &str {
         return &self.source
     }
 
-    method &self.as_i64(): i64? {
+    noalloc method &self.as_i64(): i64? {
         return number_as_i64(self)?
     }
 
-    method &self.as_u64(): u64? {
+    noalloc method &self.as_u64(): u64? {
         return number_as_u64(self)?
     }
 }

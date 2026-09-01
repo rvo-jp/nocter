@@ -102,7 +102,7 @@ pub interface ExactSizeIterator where Self impl Iterator {
 }
 
 pub interface Hash where (&Self == &Self): bool {
-    pub method &self.hash_into(state: &+Hasher): void
+    pub noalloc method &self.hash_into(state: &+Hasher): void
 }
 ```
 
@@ -380,7 +380,7 @@ where L impl Iterator, R impl Iterator { .Item = L.Item } {
 result type out of the API:
 
 ```nct
-pub func lines(text: &str): some Iterator { .Item = &str } from text {
+pub noalloc func lines(text: &str): some Iterator { .Item = &str } from text {
     return LinesIter.new(text)
 }
 ```
