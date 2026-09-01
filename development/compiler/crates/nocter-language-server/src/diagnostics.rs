@@ -451,7 +451,7 @@ mod tests {
                 StandardPackage::new(
                     PackageIdentity::new("toolchain:std"),
                     standard_root,
-                    "0.22.0",
+                    nocter_test_support::repository_release_version(),
                 ),
             ),
         );

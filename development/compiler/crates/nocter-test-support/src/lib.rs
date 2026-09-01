@@ -7,6 +7,15 @@ pub use public_examples::{
     PublicPackageExample,
 };
 
+/// Returns the release identity from the repository's sole authored packaging input.
+///
+/// Tests that consume the physical standard package use this value instead of copying a release
+/// number that must be updated separately during release preparation.
+#[must_use]
+pub fn repository_release_version() -> &'static str {
+    include_str!("../../../../packaging/VERSION").trim_ascii_end()
+}
+
 use nocter_compile_input::{
     BuiltinTypeLocator, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput, StandardRoleLocator,

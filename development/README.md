@@ -13,7 +13,9 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 
 - [Current handoff](TODO.md)
 - [Active v0.24.0 milestone](milestones/v0.24.0.md)
+- [v0.24.0 release preparation](milestones/v0.24.0-release-preparation.md)
 - [v0.24.0 explicit value subjects review](reviews/v0.24.0-explicit-value-subjects.md)
+- [v0.24.0 installation image identity review](reviews/v0.24.0-installation-image-identity.md)
 - [Completed v0.23.0 implementation milestone](milestones/v0.23.0.md)
 - [v0.23.0 Phase 3 qualification and full review](reviews/v0.23.0-phase-3.md)
 - [v0.23.0 Phase 2 type-owned API review](reviews/v0.23.0-phase-2.md)

@@ -37,9 +37,13 @@ impl TempTree {
             let compiler = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
             copy_directory(&compiler.join("../std"), &standard);
             let root_source = standard.join("index.nct");
-            let source = fs::read_to_string(&root_source)
-                .unwrap()
-                .replace("version: \"0.22.0\"", "version: \"0.14.0\"");
+            let source = fs::read_to_string(&root_source).unwrap().replace(
+                &format!(
+                    "version: \"{}\"",
+                    nocter_test_support::repository_release_version()
+                ),
+                "version: \"0.14.0\"",
+            );
             fs::write(root_source, source).unwrap();
         } else {
             fs::create_dir(&standard).unwrap();

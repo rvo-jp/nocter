@@ -19,6 +19,7 @@ nocter-workspace-revision = { path = "../nocter-workspace-revision" }
 [dev-dependencies]
 nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
+nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]
 workspace = true

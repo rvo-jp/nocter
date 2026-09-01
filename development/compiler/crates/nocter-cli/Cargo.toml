@@ -23,6 +23,7 @@ nocter-source = { path = "../nocter-source" }
 
 [dev-dependencies]
 nocter-content-integrity = { path = "../nocter-content-integrity" }
+nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]
 workspace = true

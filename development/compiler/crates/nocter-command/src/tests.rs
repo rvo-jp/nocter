@@ -18,6 +18,7 @@ use nocter_package_state::{
 use nocter_session::{ExecutableCompileRequest, ExecutableSelector, bundled_standard_toolchain};
 use nocter_test_support::{
     PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture, PublicPackageExample,
+    repository_release_version,
 };
 
 use super::artifact::persist_bytes;
@@ -1183,7 +1184,7 @@ fn command_toolchain() -> super::CommandToolchain {
         StandardPackage::new(
             PackageIdentity::new("toolchain:std"),
             compiler_root.join("../std"),
-            "0.22.0",
+            repository_release_version(),
         ),
     )
 }

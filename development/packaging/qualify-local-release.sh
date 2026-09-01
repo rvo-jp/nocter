@@ -90,6 +90,15 @@ fi
 "${environment[@]}" "$home/nocter" check --root "$package" --locked --offline
 "${environment[@]}" "$home/nocter" test --root "$package" --locked --offline
 
+for source in "$repository_root"/examples/*.nct; do
+  "${environment[@]}" "$home/nocter" check --file "$source" --offline
+done
+for example in "$repository_root"/examples/*; do
+  if [[ -d "$example" && -f "$example/index.nct" ]]; then
+    "${environment[@]}" "$home/nocter" check --root "$example" --locked --offline
+  fi
+done
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"
@@ -106,6 +115,22 @@ node "$script_directory/verify-lsp.js" "$home/nocter" "$package" "$version"
 if ! diff -r "$before_smoke" "$home" >/dev/null; then
   echo "packaged commands mutated the installed Nocter home" >&2
   diff -r "$before_smoke" "$home" >&2 || true
+  exit 1
+fi
+
+tampered_compiler_home="$temporary_root/tampered-compiler-home"
+cp -R "$home" "$tampered_compiler_home"
+printf '\0' >> "$tampered_compiler_home/nocter"
+if env NOCTER_HOME="$tampered_compiler_home" "$home/nocter" doctor >/dev/null 2>&1; then
+  echo "installed compiler content changed without invalidating the home" >&2
+  exit 1
+fi
+
+tampered_standard_home="$temporary_root/tampered-standard-home"
+cp -R "$home" "$tampered_standard_home"
+printf '\n' >> "$tampered_standard_home/std/index.nct"
+if env NOCTER_HOME="$tampered_standard_home" "$home/nocter" doctor >/dev/null 2>&1; then
+  echo "installed standard-library content changed without invalidating the home" >&2
   exit 1
 fi
 

@@ -1681,6 +1681,7 @@ dependencies = [
  "nocter-language-server",
  "nocter-package-acquisition",
  "nocter-source",
+ "nocter-test-support",
 ]
 
 [[package]]
@@ -1936,6 +1937,7 @@ dependencies = [
  "nocter-model",
  "nocter-package",
  "nocter-source",
+ "nocter-test-support",
  "nocter-workspace-analysis",
  "nocter-workspace-revision",
 ]
@@ -2182,6 +2184,7 @@ dependencies = [
  "nocter-session",
  "nocter-source",
  "nocter-syntax",
+ "nocter-test-support",
  "nocter-workspace-revision",
 ]
 
