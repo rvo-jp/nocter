@@ -7,12 +7,8 @@ in [`development/releases/`](../releases/README.md).
 
 ## Active Milestone
 
-The [v0.24.0 milestone](v0.24.0.md) makes imported value ownership explicit through module-qualified
-use sites, reserves selected imports for type names, and requires `UPPER_SNAKE_CASE` constants.
-Implementation, source migration, qualification, and final review are complete. Its
-[release preparation](v0.24.0-release-preparation.md) owns candidate identity, independent source
-qualification, deterministic packaging, and installed-home evidence. The local candidate is
-qualified; publication has not been authorized.
+No later milestone has been adopted. New product work requires an explicit milestone and acceptance
+criteria rather than extending a completed release record.
 
 ## Completed Unpublished Milestone
 
@@ -21,6 +17,13 @@ for every built-in integer. Its implementation and full design review are comple
 superseded it before separate release preparation began.
 
 ## Latest Published Milestones
+
+The [v0.24.0 milestone](v0.24.0.md) makes imported value ownership explicit through module-qualified
+use sites, reserves selected imports for type names, requires `UPPER_SNAKE_CASE` constants, and
+binds installed compiler and standard-library identity by content. Implementation, source
+migration, qualification, final review, and release preparation are complete. The release is
+published and externally audited in the
+[v0.24.0 publication record](../releases/v0.24.0.md).
 
 The [v0.22.0 milestone](v0.22.0.md) adds an owning JSON DOM, exact decimal tokens, strict parsing,
 compact generation, practical application integration, and standard-library stabilization. Phases
@@ -57,6 +60,6 @@ The [v0.17.0 milestone](v0.17.0.md) and its
 refactoring was superseded before publication by a specification-first compiler rewrite. The
 [release preparation](v0.14.0-release-preparation.md) is complete.
 
-Every milestone before v0.22.0 records past work only. Historical records are not normative
+Every milestone before v0.24.0 records past work only. Historical records are not normative
 language sources and must not be used to reconstruct behavior missing from the current
 specification.

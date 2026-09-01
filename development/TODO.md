@@ -2,18 +2,12 @@
 
 ## Current State
 
-Nocter v0.22.0 is [published and externally audited](releases/v0.22.0.md). Its strict owning JSON
-DOM, exact number tokens, parsing, generation, practical integration, adversarial qualification,
-shared collection failure policy, standard dependency audit, and public contract documentation are
-complete. The exact source, artifact, publication, and public re-download evidence is frozen. The
-`v0.22.0` tag and release asset must not be replaced.
+Nocter v0.24.0 is [published and externally audited](releases/v0.24.0.md). Its explicit-value-subject
+migration, installation-image stabilization, independent source qualification, deterministic
+packaging, and fresh installed-home matrix are complete. The exact source, artifact, publication,
+and public re-download evidence is frozen. The `v0.24.0` tag and release asset must not be replaced.
 
-The active compiler is under `development/compiler/`. The v0.24.0 explicit-value-subject migration,
-installation-image stabilization, independent source qualification, deterministic packaging, and
-fresh installed-home matrix are complete. The qualified candidate identity is frozen in the
-[release-preparation record](milestones/v0.24.0-release-preparation.md). The root download link and
-public release index remain on v0.22.0 until publication is explicitly authorized.
-Current architecture belongs to
+The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 milestone, release, and review records rather than this handoff.
 
@@ -23,10 +17,8 @@ that every workspace member carries the required README contract sections.
 
 ## Next Work
 
-Wait for explicit publication authorization. Publication must reuse the retained qualified archive
-without rebuilding it, update the root download link and public release index in a separate commit,
-create and push the annotated `v0.24.0` tag, upload exactly the qualified archive, and verify the
-public download byte for byte. Do not replace an existing tag or asset.
+Define the next milestone and its acceptance criteria before making further product changes. Do
+not infer scope from unfinished ideas or historical milestone plans.
 
 Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
 semantic programs. Stable declaration identities, module-local semantic queries, feature-demand

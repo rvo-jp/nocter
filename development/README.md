@@ -1,9 +1,7 @@
 # Contributor Documentation
 
-Nocter has published and externally audited v0.22.0. The working tree is a qualified and
-installation-identity-stabilized v0.24.0 candidate with explicit value subjects and a compiler
-built from the language specification. The
-v0.13.0 compiler
+Nocter has published and externally audited v0.24.0 with explicit value subjects, content-bound
+installation identity, and a compiler built from the language specification. The v0.13.0 compiler
 implementation was not an input to the rewrite.
 
 The rewrite closed each normative gap in [`spec/`](../spec/README.md) before implementing the
@@ -12,7 +10,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 ## Current Work
 
 - [Current handoff](TODO.md)
-- [Active v0.24.0 milestone](milestones/v0.24.0.md)
+- [Completed v0.24.0 milestone](milestones/v0.24.0.md)
 - [v0.24.0 release preparation](milestones/v0.24.0-release-preparation.md)
 - [v0.24.0 explicit value subjects review](reviews/v0.24.0-explicit-value-subjects.md)
 - [v0.24.0 installation image identity review](reviews/v0.24.0-installation-image-identity.md)
@@ -45,7 +43,7 @@ corresponding syntax, static semantics, dynamic semantics, target behavior, or t
 - [Completed v0.18.0 milestone](milestones/v0.18.0.md)
 - [v0.18.0 release preparation](milestones/v0.18.0-release-preparation.md)
 - [Design reviews](reviews/README.md)
-- [Latest published release qualification](releases/v0.22.0.md)
+- [Latest published release qualification](releases/v0.24.0.md)
 - [Compiler architecture](docs/architecture.md)
 - [Architecture and maintenance documents](docs/README.md)
 - [Compiler workspace](compiler/README.md)

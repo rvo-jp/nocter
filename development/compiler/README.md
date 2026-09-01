@@ -23,7 +23,7 @@ contracts, or milestone status.
   internal responsibility split, and local invariants. It may name another crate only through that
   crate's exported contract.
 - [The latest completed implementation milestone](../milestones/v0.24.0.md) owns its scope and
-  completion gates; [the latest publication record](../releases/v0.22.0.md) owns frozen release
+  completion gates; [the latest publication record](../releases/v0.24.0.md) owns frozen release
   evidence; [the
   handoff](../TODO.md) owns only the next concrete work and current blockers.
 
