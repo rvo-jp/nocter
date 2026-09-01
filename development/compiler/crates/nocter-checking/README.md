@@ -71,8 +71,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   allocation effects, and loans run once over the complete program. Session never invokes body
   checking again for a complete query-owned body set.
 - Allocation effects consume the already-checked operation graph and ownership-owned cleanup
-  schedules. A positive `MayAllocate` fact reaches one least fixed point across callables,
-  closures, and drop bodies; it never reconstructs dispatch or destruction from source syntax.
+  schedules. Ownership freezes each cleanup's exact drop dependencies after generic substitution
+  and residual-payload selection. A positive `MayAllocate` fact reaches one least fixed point
+  across callables, closures, and drop bodies; the effect pass has no type-store input and cannot
+  reconstruct dispatch or destruction.
 - Callable guarantees may be forgotten only through an explicit checked operation. An unqualified
   callable value cannot acquire `noalloc`, and a downstream phase cannot recover a guarantee after
   that operation erased it.

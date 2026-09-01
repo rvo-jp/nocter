@@ -44,11 +44,10 @@ impl<'program, 'syntax> EffectBodyInput<'program, 'syntax> {
 
 pub(crate) fn analyze_program_effects(
     environment: &crate::program_environment::ProgramEnvironment,
-    types: &nocter_model::TypeStore,
     closures: &ClosureTable,
     inputs: &[EffectBodyInput<'_, '_>],
 ) -> Result<EffectTable, BodyCheckError> {
-    analysis::analyze_program(environment, types, closures, inputs)
+    analysis::analyze_program(environment, closures, inputs)
 }
 
 fn input_for_body<'a, 'syntax>(

@@ -90,6 +90,36 @@ fn implicit_destruction_participates_in_the_same_effect_graph() {
 }
 
 #[test]
+fn concrete_generic_aggregate_uses_its_substituted_destruction_effect() {
+    check(
+        "struct Owned {}\n\
+         noalloc drop Owned(&+self) { return }\n\
+         struct Wrapper<T> { value: T }\n\
+         noalloc func consume(value: Wrapper<Owned>): void { return }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn enum_residual_effect_excludes_the_transferred_payload() {
+    check(&format!(
+        "{TEXT_DECLARATIONS}\n\
+         struct Transferred {{}}\n\
+         drop Transferred(&+self) {{ let _ = Text \"drop\"\n return }}\n\
+         struct Retained {{}}\n\
+         noalloc drop Retained(&+self) {{ return }}\n\
+         enum Pair {{ values(first: Transferred, second: Retained) }}\n\
+         noalloc drop Pair(&+self) {{ return }}\n\
+         noalloc func take(first: Transferred, second: Retained): Transferred {{\n\
+             return match Pair.values(move first, move second) {{\n\
+                 Pair.values(item, _) {{ move item }}\n\
+             }}\n\
+         }}\n"
+    ))
+    .unwrap();
+}
+
+#[test]
 fn compiler_selected_allocation_request_is_a_positive_effect_seed() {
     let fixture = Fixture::with_standard(
         "",

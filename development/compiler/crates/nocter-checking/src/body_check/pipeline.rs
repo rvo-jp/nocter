@@ -1043,7 +1043,7 @@ fn analyze_checked_body_relations(
             ))
         })
         .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let effects = analyze_program_effects(environment, types, closures, &effect_inputs)?;
+    let effects = analyze_program_effects(environment, closures, &effect_inputs)?;
     let loan_inputs = checked_bodies
         .iter()
         .map(|(body, checked)| {

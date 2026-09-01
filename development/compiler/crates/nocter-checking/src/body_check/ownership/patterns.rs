@@ -142,16 +142,8 @@ impl OwnershipAnalyzer<'_> {
         ty: TypeId,
         pattern: &CheckedPattern,
     ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
-        super::CleanupPlanner::new(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.body,
-            self.source,
-            self.copy_proofs,
-        )
-        .enum_residual_action(subject, ty, pattern)
+        self.cleanup_planner()
+            .enum_residual_action(subject, ty, pattern)
     }
 
     fn visit_nonruntime_pattern_body(

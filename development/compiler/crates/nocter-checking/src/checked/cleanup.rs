@@ -1,5 +1,5 @@
 use nocter_model::{
-    Arena, BodyNodeId, FieldId, LocalBindingId, ParameterId, PlaceId, TypeId, VariantId,
+    Arena, BodyNodeId, DropId, FieldId, LocalBindingId, ParameterId, PlaceId, TypeId, VariantId,
 };
 
 use super::PlaceRoot;
@@ -100,10 +100,44 @@ pub enum CleanupTarget {
     },
 }
 
+/// Allocation-effect dependencies selected together with one checked cleanup action.
+///
+/// Ownership is the sole authority that decides whether and what a cleanup destroys. Effect
+/// analysis consumes this frozen contract and never reconstructs a value's recursive shape.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CleanupEffect {
+    drops: Box<[DropId]>,
+    unknown_destruction: bool,
+}
+
+impl CleanupEffect {
+    pub(crate) fn new(drops: impl Into<Box<[DropId]>>, unknown_destruction: bool) -> Self {
+        Self {
+            drops: drops.into(),
+            unknown_destruction,
+        }
+    }
+
+    pub(crate) fn allocation_free() -> Self {
+        Self::new([], false)
+    }
+
+    #[must_use]
+    pub(crate) const fn drops(&self) -> &[DropId] {
+        &self.drops
+    }
+
+    #[must_use]
+    pub(crate) const fn has_unknown_destruction(&self) -> bool {
+        self.unknown_destruction
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CleanupAction {
     target: CleanupTarget,
     condition: CleanupCondition,
+    effect: CleanupEffect,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -147,8 +181,16 @@ impl CleanupSchedule {
 }
 
 impl CleanupAction {
-    pub(crate) const fn new(target: CleanupTarget, condition: CleanupCondition) -> Self {
-        Self { target, condition }
+    pub(crate) const fn new(
+        target: CleanupTarget,
+        condition: CleanupCondition,
+        effect: CleanupEffect,
+    ) -> Self {
+        Self {
+            target,
+            condition,
+            effect,
+        }
     }
 
     #[must_use]
@@ -161,10 +203,16 @@ impl CleanupAction {
         self.condition
     }
 
+    #[must_use]
+    pub(crate) const fn effect(&self) -> &CleanupEffect {
+        &self.effect
+    }
+
     pub(crate) fn with_condition(&self, condition: CleanupCondition) -> Self {
         Self {
             target: self.target.clone(),
             condition,
+            effect: self.effect.clone(),
         }
     }
 }

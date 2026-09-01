@@ -1,9 +1,9 @@
 use std::collections::{BTreeMap, HashSet};
 
-use nocter_declarations::{BodyOwner, DeclarationGraph, NominalShape};
+use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
     AllocationGuarantee, ArenaBuilder, BodyNodeId, CallableGuarantees, CallableId, ClosureId,
-    DropId, LoopId, PlaceId, TypeKind, TypeStore,
+    DropId, LoopId, PlaceId,
 };
 use nocter_toolchain_contract::StandardDeclarationRole;
 
@@ -12,9 +12,9 @@ use crate::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckError,
     BodyCheckInternalError, BodyRule, BorrowConversionImplementation, CallTarget,
     CheckedArgumentPack, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome,
-    CheckedReadonlyOperand, CheckedReceiver, CleanupTarget, ClosureTable, ComparisonImplementation,
-    InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot,
-    PrimitiveOperation, StaticDispatch, StaticSelection, TypedIteration,
+    CheckedReadonlyOperand, CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable,
+    ComparisonImplementation, InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection,
+    PlaceRoot, PrimitiveOperation, StaticDispatch, StaticSelection, TypedIteration,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -46,12 +46,11 @@ struct Summaries {
 
 pub(super) fn analyze_program(
     environment: &crate::program_environment::ProgramEnvironment,
-    types: &TypeStore,
     closures: &ClosureTable,
     inputs: &[EffectBodyInput<'_, '_>],
 ) -> Result<EffectTable, BodyCheckError> {
     let graph = environment.graph();
-    let facts = collect_facts(environment, types, closures, inputs)?;
+    let facts = collect_facts(environment, closures, inputs)?;
     let mut summaries = initial_summaries(graph, closures);
     loop {
         let mut changed = false;
@@ -76,7 +75,6 @@ pub(super) fn analyze_program(
 
 fn collect_facts(
     environment: &crate::program_environment::ProgramEnvironment,
-    types: &TypeStore,
     closures: &ClosureTable,
     inputs: &[EffectBodyInput<'_, '_>],
 ) -> Result<BTreeMap<Root, RootFacts>, BodyCheckError> {
@@ -94,8 +92,8 @@ fn collect_facts(
             BodyOwner::Test(_) => None,
         };
         if let Some(root) = root {
-            let mut root_facts = Collector::new(environment, types, closures, input.body())
-                .collect(input.body().root())?;
+            let mut root_facts =
+                Collector::new(environment, input.body()).collect(input.body().root())?;
             if matches!(root, Root::Callable(callable) if Some(callable) == allocation_request) {
                 root_facts.direct_allocation = Some(input.body().root());
             }
@@ -108,8 +106,7 @@ fn collect_facts(
         )?;
         facts.insert(
             Root::Closure(closure),
-            Collector::new(environment, types, closures, input.body())
-                .collect(definition.body())?,
+            Collector::new(environment, input.body()).collect(definition.body())?,
         );
     }
     Ok(facts)
@@ -324,36 +321,26 @@ const fn guaranteed_noalloc(guarantees: CallableGuarantees) -> bool {
 
 struct Collector<'program> {
     graph: &'program DeclarationGraph,
-    types: &'program TypeStore,
     capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
-    drops: &'program crate::DropTable,
-    closures: &'program ClosureTable,
     body: &'program CheckedBody,
     visited_nodes: HashSet<BodyNodeId>,
     visited_places: HashSet<PlaceId>,
     visited_loops: HashSet<LoopId>,
-    visited_destruction_types: HashSet<nocter_model::TypeId>,
     facts: RootFacts,
 }
 
 impl<'program> Collector<'program> {
     fn new(
         environment: &'program crate::program_environment::ProgramEnvironment,
-        types: &'program TypeStore,
-        closures: &'program ClosureTable,
         body: &'program CheckedBody,
     ) -> Self {
         Self {
             graph: environment.graph(),
-            types,
             capability_evidence: environment.capability_evidence(),
-            drops: environment.drops(),
-            closures,
             body,
             visited_nodes: HashSet::new(),
             visited_places: HashSet::new(),
             visited_loops: HashSet::new(),
-            visited_destruction_types: HashSet::new(),
             facts: RootFacts::default(),
         }
     }
@@ -383,7 +370,7 @@ impl<'program> Collector<'program> {
         if let Some(schedules) = self.body.cleanups().schedules(node).map(<[_]>::to_vec) {
             for schedule in schedules {
                 for action in schedule.actions() {
-                    self.visit_cleanup(node, action.target())?;
+                    self.visit_cleanup(node, action)?;
                 }
             }
         }
@@ -740,131 +727,28 @@ impl<'program> Collector<'program> {
     fn visit_cleanup(
         &mut self,
         site: BodyNodeId,
-        target: &CleanupTarget,
+        action: &CleanupAction,
     ) -> Result<(), BodyCheckError> {
-        match target {
-            CleanupTarget::Path(path) => self.record_destruction(site, path.ty())?,
-            CleanupTarget::Place { place, ty } => {
+        match action.target() {
+            CleanupTarget::Path(_) => {}
+            CleanupTarget::Place { place, .. } => {
                 self.visit_place(*place)?;
-                self.record_destruction(site, *ty)?;
             }
-            CleanupTarget::Value { node, ty } => {
+            CleanupTarget::Value { node, .. } => {
                 self.visit_node(*node)?;
-                self.record_destruction(site, *ty)?;
             }
-            CleanupTarget::EnumResidual { subject, ty, .. } => {
+            CleanupTarget::EnumResidual { subject, .. } => {
                 self.visit_node(*subject)?;
-                self.record_destruction(site, *ty)?;
             }
             CleanupTarget::Region { parent, .. } => self.visit_node(*parent)?,
         }
-        Ok(())
-    }
-
-    /// Records every callable drop edge reachable from one owned value shape.
-    ///
-    /// Generic parameters deliberately remain conservative. Effect summaries belong to generic
-    /// bodies rather than monomorphized call sites, so specializing this traversal from a caller
-    /// would make the same body acquire different, non-canonical answers.
-    fn record_destruction(
-        &mut self,
-        site: BodyNodeId,
-        ty: nocter_model::TypeId,
-    ) -> Result<(), BodyCheckError> {
-        if !self.visited_destruction_types.insert(ty) {
-            return Ok(());
+        for drop in action.effect().drops() {
+            self.facts.calls.push((site, EffectTarget::Drop(*drop)));
         }
-        let kind = self
-            .types
-            .get(ty)
-            .cloned()
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
-        match kind {
-            TypeKind::GenericParameter(_)
-            | TypeKind::InterfaceSelf(_)
-            | TypeKind::AssociatedProjection { .. }
-            | TypeKind::Opaque { .. } => self
-                .facts
+        if action.effect().has_unknown_destruction() {
+            self.facts
                 .calls
-                .push((site, EffectTarget::Contract(CallableGuarantees::default()))),
-            TypeKind::Nominal { definition, .. } => {
-                if let Some(drop) = self.drops.get(definition) {
-                    self.facts.calls.push((site, EffectTarget::Drop(drop)));
-                }
-                let declaration = self
-                    .graph
-                    .declarations()
-                    .nominal_types()
-                    .get(definition)
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?;
-                match declaration.shape() {
-                    NominalShape::Struct { fields, .. } => {
-                        let field_types = fields
-                            .iter()
-                            .map(|field| {
-                                self.graph
-                                    .declarations()
-                                    .fields()
-                                    .get(*field)
-                                    .map(|field| field.ty())
-                                    .ok_or(BodyCheckInternalError::EffectAnalysis)
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        for field_ty in field_types {
-                            self.record_destruction(site, field_ty)?;
-                        }
-                    }
-                    NominalShape::Enum { variants } => {
-                        let payload_types = variants
-                            .iter()
-                            .flat_map(|variant| {
-                                self.graph
-                                    .declarations()
-                                    .variants()
-                                    .get(*variant)
-                                    .into_iter()
-                                    .flat_map(nocter_declarations::VariantDeclaration::payload)
-                            })
-                            .map(|parameter| {
-                                self.graph
-                                    .declarations()
-                                    .parameters()
-                                    .get(*parameter)
-                                    .map(|parameter| parameter.ty())
-                                    .ok_or(BodyCheckInternalError::EffectAnalysis)
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        for payload_ty in payload_types {
-                            self.record_destruction(site, payload_ty)?;
-                        }
-                    }
-                }
-            }
-            TypeKind::Closure { definition, .. } => {
-                let capture_types = self
-                    .closures
-                    .get(definition)
-                    .ok_or(BodyCheckInternalError::EffectAnalysis)?
-                    .environment()
-                    .iter()
-                    .map(|capture| capture.ty())
-                    .collect::<Vec<_>>();
-                for capture_ty in capture_types {
-                    self.record_destruction(site, capture_ty)?;
-                }
-            }
-            TypeKind::FixedArray { element, .. }
-            | TypeKind::Optional(element)
-            | TypeKind::Fallible(element) => self.record_destruction(site, element)?,
-            TypeKind::PackEntry { key, value } => {
-                self.record_destruction(site, key)?;
-                self.record_destruction(site, value)?;
-            }
-            TypeKind::Builtin(_)
-            | TypeKind::Pointer(_)
-            | TypeKind::Borrow { .. }
-            | TypeKind::Slice(_)
-            | TypeKind::Callable(_) => {}
+                .push((site, EffectTarget::Contract(CallableGuarantees::default())));
         }
         Ok(())
     }

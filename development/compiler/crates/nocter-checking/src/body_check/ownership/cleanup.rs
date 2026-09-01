@@ -2,43 +2,74 @@ use nocter_declarations::{DeclarationGraph, NominalShape};
 use nocter_model::{BodyNodeId, BodyScopeId, PlaceId, TypeId, TypeKind};
 
 use super::super::error::BodyCheckInternalError;
+use crate::checked::CleanupEffect;
 use crate::copyability::{CopyProofs, Copyability};
 use crate::ownership::{InitializationState, MovePath, OwnershipState, owned_body_roots};
 use crate::type_relations::TypeSubstitution;
 use crate::{
     BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition,
-    CleanupFieldProjection, CleanupPath, CleanupTarget, DropTable, LocalBindingKind,
+    CleanupFieldProjection, CleanupPath, CleanupTarget, ClosureTable, DropTable, LocalBindingKind,
     PatternRemainder, PlaceRoot,
 };
+
+use super::destruction_effect::DestructionEffectResolver;
 
 pub(super) struct CleanupPlanner<'program> {
     graph: &'program DeclarationGraph,
     types: &'program mut nocter_model::TypeTransaction,
     copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     drops: &'program DropTable,
+    closures: &'program ClosureTable,
     body: &'program CheckedBody,
     source: BodySource<'program>,
     copy_proofs: &'program CopyProofs,
 }
 
-impl<'program> CleanupPlanner<'program> {
-    pub(super) fn new(
+#[derive(Clone, Copy)]
+pub(super) struct CleanupContext<'program> {
+    graph: &'program DeclarationGraph,
+    drops: &'program DropTable,
+    closures: &'program ClosureTable,
+    body: &'program CheckedBody,
+    source: BodySource<'program>,
+    copy_proofs: &'program CopyProofs,
+}
+
+impl<'program> CleanupContext<'program> {
+    pub(super) const fn new(
         graph: &'program DeclarationGraph,
-        types: &'program mut nocter_model::TypeTransaction,
-        copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
         drops: &'program DropTable,
+        closures: &'program ClosureTable,
         body: &'program CheckedBody,
         source: BodySource<'program>,
         copy_proofs: &'program CopyProofs,
     ) -> Self {
         Self {
             graph,
-            types,
-            copyabilities,
             drops,
+            closures,
             body,
             source,
             copy_proofs,
+        }
+    }
+}
+
+impl<'program> CleanupPlanner<'program> {
+    pub(super) fn new(
+        types: &'program mut nocter_model::TypeTransaction,
+        copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
+        context: CleanupContext<'program>,
+    ) -> Self {
+        Self {
+            graph: context.graph,
+            types,
+            copyabilities,
+            drops: context.drops,
+            closures: context.closures,
+            body: context.body,
+            source: context.source,
+            copy_proofs: context.copy_proofs,
         }
     }
 
@@ -113,9 +144,15 @@ impl<'program> CleanupPlanner<'program> {
         node: nocter_model::BodyNodeId,
         ty: TypeId,
     ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
-        Ok(self.needs_cleanup(ty)?.then(|| {
-            CleanupAction::new(CleanupTarget::Value { node, ty }, CleanupCondition::Always)
-        }))
+        if !self.needs_cleanup(ty)? {
+            return Ok(None);
+        }
+        let effect = self.destruction_effect(ty)?;
+        Ok(Some(CleanupAction::new(
+            CleanupTarget::Value { node, ty },
+            CleanupCondition::Always,
+            effect,
+        )))
     }
 
     pub(super) fn enum_residual_action(
@@ -127,15 +164,19 @@ impl<'program> CleanupPlanner<'program> {
         match pattern.remainder() {
             PatternRemainder::NoCleanup => Ok(None),
             PatternRemainder::Complete => self.value_action(subject, ty),
-            PatternRemainder::Residual(payload) => Ok(Some(CleanupAction::new(
-                CleanupTarget::EnumResidual {
-                    subject,
-                    variant: pattern.variant(),
-                    payload: payload.clone(),
-                    ty,
-                },
-                CleanupCondition::Always,
-            ))),
+            PatternRemainder::Residual(payload) => {
+                let effect = self.enum_residual_effect(ty, pattern.variant(), payload)?;
+                Ok(Some(CleanupAction::new(
+                    CleanupTarget::EnumResidual {
+                        subject,
+                        variant: pattern.variant(),
+                        payload: payload.clone(),
+                        ty,
+                    },
+                    CleanupCondition::Always,
+                    effect,
+                )))
+            }
         }
     }
 
@@ -150,6 +191,7 @@ impl<'program> CleanupPlanner<'program> {
         Ok(CleanupAction::new(
             CleanupTarget::Path(self.checked_cleanup_path(path, ty)?),
             CleanupCondition::Always,
+            self.destruction_effect(ty)?,
         ))
     }
 
@@ -169,9 +211,15 @@ impl<'program> CleanupPlanner<'program> {
         place: PlaceId,
         ty: TypeId,
     ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
-        Ok(self.needs_cleanup(ty)?.then(|| {
-            CleanupAction::new(CleanupTarget::Place { place, ty }, CleanupCondition::Always)
-        }))
+        if !self.needs_cleanup(ty)? {
+            return Ok(None);
+        }
+        let effect = self.destruction_effect(ty)?;
+        Ok(Some(CleanupAction::new(
+            CleanupTarget::Place { place, ty },
+            CleanupCondition::Always,
+            effect,
+        )))
     }
 
     fn plan_path(
@@ -199,10 +247,9 @@ impl<'program> CleanupPlanner<'program> {
             InitializationState::MaybeInitialized => CleanupCondition::IfInitialized,
             InitializationState::Uninitialized => return Ok(()),
         };
-        actions.push(CleanupAction::new(
-            CleanupTarget::Path(self.checked_cleanup_path(path, ty)?),
-            condition,
-        ));
+        let target = CleanupTarget::Path(self.checked_cleanup_path(path, ty)?);
+        let effect = self.destruction_effect(ty)?;
+        actions.push(CleanupAction::new(target, condition, effect));
         Ok(())
     }
 
@@ -237,6 +284,35 @@ impl<'program> CleanupPlanner<'program> {
             .classify_with_proofs(self.graph, self.types, ty, self.copy_proofs)
             .map(|copyability| copyability == Copyability::MoveOnly)
             .map_err(BodyCheckInternalError::Copyability)
+    }
+
+    fn destruction_effect(&mut self, ty: TypeId) -> Result<CleanupEffect, BodyCheckInternalError> {
+        DestructionEffectResolver::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.closures,
+            self.copy_proofs,
+        )
+        .resolve(ty)
+    }
+
+    fn enum_residual_effect(
+        &mut self,
+        ty: TypeId,
+        variant: nocter_model::VariantId,
+        payload: &[nocter_model::ParameterId],
+    ) -> Result<CleanupEffect, BodyCheckInternalError> {
+        DestructionEffectResolver::new(
+            self.graph,
+            self.types,
+            self.copyabilities,
+            self.drops,
+            self.closures,
+            self.copy_proofs,
+        )
+        .resolve_enum_residual(ty, variant, payload)
     }
 
     fn root_type(&self, root: PlaceRoot) -> Result<TypeId, BodyCheckInternalError> {

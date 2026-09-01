@@ -17,6 +17,7 @@ pub(crate) use body::CheckedBodyRecipe;
 pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
 pub use builder::BuildCheckedBodyError;
 pub(crate) use builder::CheckedBodyBuilder;
+pub(crate) use cleanup::CleanupEffect;
 pub use cleanup::{
     CleanupAction, CleanupCondition, CleanupFieldProjection, CleanupPath, CleanupSchedule,
     CleanupTable, CleanupTarget, CleanupTiming,

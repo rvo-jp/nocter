@@ -7,6 +7,7 @@ use nocter_model::{
 use nocter_source_index::SourceOrigin;
 
 mod cleanup;
+mod destruction_effect;
 mod interpolation;
 mod outcomes;
 mod patterns;
@@ -25,7 +26,7 @@ use crate::{
     CleanupTiming, ClosureDefinition, ClosureTable, DropTable, LoopKind, PlaceAccess,
     PrimitiveOperation, ReadonlyOperandPreparation,
 };
-use cleanup::CleanupPlanner;
+use cleanup::{CleanupContext, CleanupPlanner};
 use temporaries::TemporaryPlanner;
 
 /// Validates flow-dependent ownership after typed HIR construction.
@@ -56,6 +57,7 @@ pub(super) fn analyze_body_ownership(
         types,
         copyabilities,
         drops,
+        closures,
         source,
         body,
         origins,
@@ -125,6 +127,7 @@ struct OwnershipAnalyzer<'program> {
     types: &'program mut nocter_model::TypeTransaction,
     copyabilities: &'program mut crate::copyability::CopyabilityTransaction,
     drops: &'program DropTable,
+    closures: &'program ClosureTable,
     source: BodySource<'program>,
     body: &'program CheckedBody,
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
@@ -154,6 +157,21 @@ struct RegionFlow {
 }
 
 impl OwnershipAnalyzer<'_> {
+    fn cleanup_planner(&mut self) -> CleanupPlanner<'_> {
+        CleanupPlanner::new(
+            self.types,
+            self.copyabilities,
+            CleanupContext::new(
+                self.graph,
+                self.drops,
+                self.closures,
+                self.body,
+                self.source,
+                self.copy_proofs,
+            ),
+        )
+    }
+
     fn finish_cleanups(mut self) -> Result<CleanupTable, BodyCheckInternalError> {
         if !self.scopes.is_empty() || !self.loops.is_empty() || !self.regions.is_empty() {
             return Err(BodyCheckInternalError::CleanupPlanning);
@@ -854,16 +872,7 @@ impl OwnershipAnalyzer<'_> {
         scope: BodyScopeId,
         state: &mut OwnershipState,
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
-        CleanupPlanner::new(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.body,
-            self.source,
-            self.copy_proofs,
-        )
-        .scope_actions(scope, state)
+        self.cleanup_planner().scope_actions(scope, state)
     }
 
     /// Cleans ordinary owned values in a lexical scope, then releases the child allocation
@@ -894,6 +903,7 @@ impl OwnershipAnalyzer<'_> {
                 parent: region.parent,
             },
             CleanupCondition::Always,
+            crate::checked::CleanupEffect::allocation_free(),
         ));
         Ok(actions)
     }
@@ -902,16 +912,9 @@ impl OwnershipAnalyzer<'_> {
         &mut self,
         state: &mut OwnershipState,
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
-        let mut planner = CleanupPlanner::new(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.body,
-            self.source,
-            self.copy_proofs,
-        );
-        match self.closure {
+        let closure = self.closure;
+        let mut planner = self.cleanup_planner();
+        match closure {
             Some(closure) if closure.signature().capability() == CallableCapability::Owned => {
                 planner.closure_capture_actions(closure, state)
             }
@@ -925,16 +928,7 @@ impl OwnershipAnalyzer<'_> {
         node: BodyNodeId,
         ty: nocter_model::TypeId,
     ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
-        CleanupPlanner::new(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.body,
-            self.source,
-            self.copy_proofs,
-        )
-        .value_action(node, ty)
+        self.cleanup_planner().value_action(node, ty)
     }
 
     fn explicit_path_cleanup(
@@ -942,16 +936,7 @@ impl OwnershipAnalyzer<'_> {
         path: &MovePath,
         ty: nocter_model::TypeId,
     ) -> Result<CleanupAction, BodyCheckInternalError> {
-        CleanupPlanner::new(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.body,
-            self.source,
-            self.copy_proofs,
-        )
-        .explicit_path_action(path, ty)
+        self.cleanup_planner().explicit_path_action(path, ty)
     }
 
     fn replacement_path_cleanup(
@@ -960,16 +945,8 @@ impl OwnershipAnalyzer<'_> {
         ty: nocter_model::TypeId,
         state: &OwnershipState,
     ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
-        CleanupPlanner::new(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.body,
-            self.source,
-            self.copy_proofs,
-        )
-        .replacement_path_actions(path, ty, state)
+        self.cleanup_planner()
+            .replacement_path_actions(path, ty, state)
     }
 
     fn replacement_place_cleanup(
@@ -977,16 +954,7 @@ impl OwnershipAnalyzer<'_> {
         place: nocter_model::PlaceId,
         ty: nocter_model::TypeId,
     ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
-        CleanupPlanner::new(
-            self.graph,
-            self.types,
-            self.copyabilities,
-            self.drops,
-            self.body,
-            self.source,
-            self.copy_proofs,
-        )
-        .replacement_place_action(place, ty)
+        self.cleanup_planner().replacement_place_action(place, ty)
     }
 
     pub(super) fn transfer_cleanup(
