@@ -33,11 +33,11 @@ no open finding.
 
 ## Next Work
 
-Commit the prepared [v0.28.0 release content](milestones/v0.28.0-release-preparation.md), then
-qualify that exact clean commit through two independent workspace targets, reproducible archive
-generation, and an isolated installed home. Record the exact source commit, test count, archive
-identity, compiler and standard-tree digests, and installed-home evidence before requesting
-publication authority.
+The [v0.28.0 release candidate](milestones/v0.28.0-release-preparation.md) is qualified from exact
+release-content commit `c246a9d1e9fe4a6792b7282a553d02d195fe2e0e`. Preserve the retained local
+archive byte for byte. Publication is the next release operation, but requires a separate user
+instruction; root download links and the public release index remain on v0.27.0 until that
+operation succeeds and is externally audited.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
