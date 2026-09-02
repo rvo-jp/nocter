@@ -25,17 +25,18 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
-The [v0.27.0 filesystem and path milestone](milestones/v0.27.0.md) is implementation-complete.
-Allocation-free lexical path views and explicit directory lifecycle operations pass native,
-editor, formatter, architecture, and complete-workspace qualification. Its
+The [v0.27.0 filesystem and path milestone](milestones/v0.27.0.md) is implementation-complete and
+its exact release candidate is qualified. Allocation-free lexical path views and explicit
+directory lifecycle operations pass native, editor, formatter, architecture, complete-workspace,
+reproducible-package, and installed-home qualification. Its
 [final review](reviews/v0.27.0-phase-4.md) has no open finding.
 
 ## Next Work
 
-Complete [v0.27.0 release preparation](milestones/v0.27.0-release-preparation.md). Commit the exact
-release content, run both independent external-target source qualifications and the explicit HTTPS
-test, produce and qualify the archive twice, and record exact artifact evidence before creating a
-tag or GitHub release. Do not add new feature scope during stabilization.
+Publish the already qualified v0.27.0 archive described by
+[the release-preparation record](milestones/v0.27.0-release-preparation.md). Advance public latest
+links in a separate commit, tag that publication state once, upload exactly the retained archive,
+and audit its public bytes. Do not rebuild, replace, or add feature scope during publication.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
