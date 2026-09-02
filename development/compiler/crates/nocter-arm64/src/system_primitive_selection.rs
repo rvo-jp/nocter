@@ -4,7 +4,9 @@ use nocter_machine::{
 };
 use nocter_runtime_contract::PrimitiveRole;
 
-use crate::{Arm64SelectedInstruction, Arm64SelectionError};
+use crate::{
+    Arm64DataSize, Arm64SelectedBinaryOperation, Arm64SelectedInstruction, Arm64SelectionError,
+};
 
 pub(super) fn select(
     operation: MachineOperationId,
@@ -14,6 +16,13 @@ pub(super) fn select(
     match target.role() {
         PrimitiveRole::AllocationAbort => select_break(operation, target, selected),
         PrimitiveRole::ProcessExit => select_exit(operation, target, selected),
+        PrimitiveRole::MonotonicCounterRead => {
+            select_counter_read(operation, target, selected, false)
+        }
+        PrimitiveRole::MonotonicCounterFrequency => {
+            select_counter_read(operation, target, selected, true)
+        }
+        PrimitiveRole::MonotonicCounterDelta => select_counter_delta(operation, target, selected),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
@@ -26,6 +35,39 @@ pub(super) fn select(
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
+}
+
+fn select_counter_read(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+    frequency: bool,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 0)?;
+    validate_direct_result(operation, target, 1)?;
+    selected.push(if frequency {
+        Arm64SelectedInstruction::ReadMonotonicCounterFrequency
+    } else {
+        Arm64SelectedInstruction::ReadMonotonicCounter
+    });
+    Ok(())
+}
+
+fn select_counter_delta(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 2)?;
+    validate_direct_result(operation, target, 1)?;
+    selected.push(Arm64SelectedInstruction::Binary {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64SelectedBinaryOperation::Subtract,
+        destination: super::primitive_selection::fixed_register(0)?,
+        left: super::primitive_selection::fixed_register(1)?,
+        right: super::primitive_selection::fixed_register(0)?,
+    });
+    Ok(())
 }
 
 fn select_exit(
@@ -121,6 +163,26 @@ fn validate_diverging(
     } else {
         Err(Arm64SelectionError::PrimitiveCall(operation))
     }
+}
+
+fn validate_direct_result(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    words: u8,
+) -> Result<(), Arm64SelectionError> {
+    let MachineResultAbi::Value(result) = target.abi().result() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    let MachineResultLocation::Registers(registers) = result.location() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    if result.class() != (MachineValueClass::Direct { words })
+        || registers.first() != 0
+        || registers.words() != words
+    {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    Ok(())
 }
 
 fn syscall_argument_count(role: PrimitiveRole) -> Option<u8> {

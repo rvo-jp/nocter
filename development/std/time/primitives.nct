@@ -1,0 +1,12 @@
+//! Compiler-owned monotonic counter primitives.
+
+see ./index.nct
+
+#target: "arm64-darwin"
+noalloc primitive func monotonic_counter_raw(): u64
+
+#target: "arm64-darwin"
+noalloc primitive func monotonic_frequency_raw(): u64
+
+#target: "arm64-darwin"
+noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64

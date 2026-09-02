@@ -1,7 +1,7 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64DataRegister, Arm64DataSize, Arm64EncodingError, Arm64Instruction, Arm64LoadStoreSize,
-    Arm64MoveWide, Arm64Register, Arm64Shift,
+    Arm64MoveWide, Arm64Register, Arm64Shift, Arm64SystemRegister,
 };
 
 fn x(number: u8) -> Arm64Register {
@@ -72,6 +72,24 @@ fn encodes_integer_arithmetic_without_untyped_register_31() {
             right: data(2),
         }),
         0x8b02_0020
+    );
+}
+
+#[test]
+fn encodes_closed_monotonic_counter_register_reads() {
+    assert_eq!(
+        word(Arm64Instruction::ReadSystemRegister {
+            destination: x(0),
+            register: Arm64SystemRegister::CounterVirtual,
+        }),
+        0xd53b_e040
+    );
+    assert_eq!(
+        word(Arm64Instruction::ReadSystemRegister {
+            destination: x(3),
+            register: Arm64SystemRegister::CounterFrequency,
+        }),
+        0xd53b_e003
     );
 }
 

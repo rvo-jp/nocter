@@ -665,6 +665,12 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         | PrimitiveRole::ProcessEnvironmentValue => {
             make(0, vec![usize()], str_ref(), private, arm64_darwin, vec![])
         }
+        PrimitiveRole::MonotonicCounterRead | PrimitiveRole::MonotonicCounterFrequency => {
+            make(0, vec![], u64(), private, arm64_darwin, vec![])
+        }
+        PrimitiveRole::MonotonicCounterDelta => {
+            make(0, vec![u64(), u64()], u64(), private, arm64_darwin, vec![])
+        }
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2

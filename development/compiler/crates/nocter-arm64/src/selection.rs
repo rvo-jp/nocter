@@ -165,6 +165,8 @@ pub enum Arm64SelectedInstruction {
     DarwinSystemCall {
         argument_count: u8,
     },
+    ReadMonotonicCounter,
+    ReadMonotonicCounterFrequency,
     ExitProcess {
         status: Arm64SelectedRegister,
     },

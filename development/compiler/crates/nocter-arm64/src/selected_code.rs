@@ -9,7 +9,7 @@ use crate::{
     Arm64Register, Arm64SelectedBinaryOperation, Arm64SelectedComparisonOperation,
     Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
     Arm64SelectedRegister, Arm64SelectedStackAddress, Arm64SelectedTerminator,
-    Arm64SelectedUnaryOperation, Arm64Shift,
+    Arm64SelectedUnaryOperation, Arm64Shift, Arm64SystemRegister,
 };
 
 impl Arm64SelectedFunction {
@@ -204,6 +204,22 @@ fn emit_instruction(
         }
         Arm64SelectedInstruction::DarwinSystemCall { argument_count } => {
             crate::system_primitive_code::emit_system_call(argument_count, code)
+        }
+        Arm64SelectedInstruction::ReadMonotonicCounter => {
+            code.append(Arm64Instruction::ReadSystemRegister {
+                destination: Arm64NocterAbi::argument_register(0)
+                    .expect("one-word primitive result fits the Nocter ABI"),
+                register: Arm64SystemRegister::CounterVirtual,
+            });
+            Ok(())
+        }
+        Arm64SelectedInstruction::ReadMonotonicCounterFrequency => {
+            code.append(Arm64Instruction::ReadSystemRegister {
+                destination: Arm64NocterAbi::argument_register(0)
+                    .expect("one-word primitive result fits the Nocter ABI"),
+                register: Arm64SystemRegister::CounterFrequency,
+            });
+            Ok(())
         }
         Arm64SelectedInstruction::ExitProcess { status } => {
             crate::system_primitive_code::emit_exit(function, Some(status), code)

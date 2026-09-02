@@ -63,6 +63,13 @@ pub enum Arm64BranchCondition {
     SignedLessOrEqual,
 }
 
+/// System registers that are part of Nocter's closed ARM64 runtime contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64SystemRegister {
+    CounterFrequency,
+    CounterVirtual,
+}
+
 impl Arm64BranchCondition {
     #[must_use]
     pub const fn invert(self) -> Self {
@@ -229,6 +236,10 @@ pub enum Arm64Instruction {
     },
     SupervisorCall {
         immediate: u16,
+    },
+    ReadSystemRegister {
+        destination: Arm64Register,
+        register: Arm64SystemRegister,
     },
 }
 

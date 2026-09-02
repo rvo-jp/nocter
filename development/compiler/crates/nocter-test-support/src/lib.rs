@@ -119,6 +119,9 @@ pub fn primitive_source_location(
         Role::ProcessEnvironmentCount => (&["process"], "env_count_raw"),
         Role::ProcessEnvironmentName => (&["process"], "env_name_raw"),
         Role::ProcessEnvironmentValue => (&["process"], "env_value_raw"),
+        Role::MonotonicCounterRead => (&["time"], "monotonic_counter_raw"),
+        Role::MonotonicCounterFrequency => (&["time"], "monotonic_frequency_raw"),
+        Role::MonotonicCounterDelta => (&["time"], "monotonic_delta_raw"),
         Role::Syscall0 => (&["internal", "os", "darwin"], "syscall0"),
         Role::Syscall1 => (&["internal", "os", "darwin"], "syscall1"),
         Role::Syscall2 => (&["internal", "os", "darwin"], "syscall2"),
@@ -330,6 +333,14 @@ pub func env_name_for_test(index: usize): &str { return env_name_raw(index) }
 pub func env_value_for_test(index: usize): &str { return env_value_raw(index) }
 ";
 const IO_SOURCE: &str = "pub func answer_for_test(): i32 { return 42 }\n";
+const TIME_SOURCE: &str = "\
+#target: \"arm64-darwin\"
+noalloc primitive func monotonic_counter_raw(): u64
+#target: \"arm64-darwin\"
+noalloc primitive func monotonic_frequency_raw(): u64
+#target: \"arm64-darwin\"
+noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64
+";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
 pub(/) copy struct SyscallResult {
@@ -606,6 +617,7 @@ impl CompilerFixture {
             (&["str"][..], STR_SOURCE),
             (&["process"][..], PROCESS_SOURCE),
             (&["io"][..], IO_SOURCE),
+            (&["time"][..], TIME_SOURCE),
             (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),
         ]
         .into_iter()

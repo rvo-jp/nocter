@@ -1,6 +1,7 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BranchCondition, Arm64DataSize,
     Arm64Instruction, Arm64LoadStoreSize, Arm64Logical, Arm64MoveWide, Arm64Shift,
+    Arm64SystemRegister,
 };
 
 pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {
@@ -25,7 +26,8 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::BranchRegister { .. }
         | Arm64Instruction::Return { .. }
         | Arm64Instruction::Break { .. }
-        | Arm64Instruction::SupervisorCall { .. }) => encode_control(instruction),
+        | Arm64Instruction::SupervisorCall { .. }
+        | Arm64Instruction::ReadSystemRegister { .. }) => encode_control(instruction),
     }
 }
 
@@ -267,6 +269,13 @@ fn encode_control(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErr
         Arm64Instruction::SupervisorCall { immediate } => {
             Ok(0xd400_0001 | u32::from(immediate) << 5)
         }
+        Arm64Instruction::ReadSystemRegister {
+            destination,
+            register,
+        } => Ok(match register {
+            Arm64SystemRegister::CounterFrequency => 0xd53b_e000,
+            Arm64SystemRegister::CounterVirtual => 0xd53b_e040,
+        } | u32::from(destination.number())),
         _ => {
             unreachable!("instruction category is closed by encode")
         }

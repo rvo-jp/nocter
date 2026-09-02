@@ -125,6 +125,9 @@ pub(crate) fn select(
         | PrimitiveRole::U64RotateRight => select_u64_mixing(operation, target, selected),
         PrimitiveRole::AllocationAbort
         | PrimitiveRole::ProcessExit
+        | PrimitiveRole::MonotonicCounterRead
+        | PrimitiveRole::MonotonicCounterFrequency
+        | PrimitiveRole::MonotonicCounterDelta
         | PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
