@@ -2,9 +2,9 @@
 
 ## Current State
 
-Nocter v0.25.0 is [published and externally audited](releases/v0.25.0.md). Its `noalloc` contract,
-semantic query ownership closure, exact source, reproducible artifact, publication, and public
-re-download evidence are frozen. The `v0.25.0` tag and release asset must not be replaced.
+Nocter v0.26.0 is [published and externally audited](releases/v0.26.0.md). Its monotonic-time
+contract, exact source, reproducible artifact, publication, and public re-download evidence are
+frozen. The `v0.26.0` tag and release asset must not be replaced.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -25,25 +25,10 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
-The [v0.26.0 milestone](milestones/v0.26.0.md) is complete and reviewed. Its public contract, closed
-target primitive roles, normalized values, monotonic measurement, blocking sleep, editor surface,
-and native application path passed the complete workspace gates. The
-[Phase 5 review](reviews/v0.26.0-phase-5.md) records the final ABI, authority, dependency, and
-runtime evidence. Its whole-workspace follow-up also closes the speculative ARM64 counter read and
-the duplicated bundled-standard declaration profile. Wall-clock fallback and external time-runtime
-calls remain prohibited.
-
-[v0.26.0 release preparation](milestones/v0.26.0-release-preparation.md) owns the candidate version,
-independent source qualification, reproducible archive, and installed-home evidence. The exact
-release-content commit and retained local archive are qualified. Publication has not been
-authorized.
-
 ## Next Work
 
-Wait for explicit authorization to publish v0.26.0. Publication must reuse the qualified archive
-without rebuilding it, verify its recorded digest immediately before upload, and then perform the
-tag, asset, release-page, public latest-link, immutable publication-record, and external re-download
-audit sequence. Do not perform any of those mutations during preparation.
+Define the next milestone and its acceptance criteria before making further product changes. Do
+not infer scope from unfinished ideas or historical milestone plans.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

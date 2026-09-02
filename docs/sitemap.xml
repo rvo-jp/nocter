@@ -586,6 +586,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/releases/v0.26.0/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/releases/v0.3.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
