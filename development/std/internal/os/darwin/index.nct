@@ -156,6 +156,10 @@ pub(/) noalloc func read_directory_entries(
     position: &+u64,
 ): SyscallResult
 
+/// Performs one descriptor-free timeout wait. The caller owns retry and remaining-time policy.
+#target: "arm64-darwin"
+pub(/) noalloc func wait_timeout_once(seconds: u64, microseconds: u64): SyscallResult
+
 #target: "arm64-darwin"
 pub(/) noalloc primitive func syscall6(
     number: usize,

@@ -1,0 +1,69 @@
+//! Target-independent sleep policy over one Darwin timeout attempt.
+
+see ./index.nct
+see ./duration.nct
+see ./instant.nct
+
+use /internal/os/darwin
+
+const WAIT_NANOSECONDS_PER_MICROSECOND: u64 = 1000
+const WAIT_MICROSECONDS_PER_SECOND: u64 = 1000000
+const MAX_WAIT_SECONDS: u64 = 9223372036854775807
+
+copy struct WaitRequest {
+    seconds: u64
+    microseconds: u64
+}
+
+noalloc func wait_request(remaining: &Duration): WaitRequest {
+    let seconds = remaining.whole_seconds()
+    let nanoseconds = remaining.subsecond_nanoseconds()
+    if seconds >= MAX_WAIT_SECONDS {
+        return WaitRequest { seconds: MAX_WAIT_SECONDS, microseconds: 0 }
+    }
+    var microseconds = nanoseconds / WAIT_NANOSECONDS_PER_MICROSECOND
+    if nanoseconds % WAIT_NANOSECONDS_PER_MICROSECOND != 0 {
+        microseconds += 1
+    }
+    if microseconds == WAIT_MICROSECONDS_PER_SECOND {
+        return WaitRequest { seconds: seconds + 1, microseconds: 0 }
+    }
+    return WaitRequest { seconds: seconds, microseconds: microseconds }
+}
+
+noalloc func sleep(duration: &Duration): void! {
+    if duration.is_zero() { return }
+    let start = Instant.now()
+    while true {
+        let elapsed = start.elapsed()
+        let remaining = duration.checked_sub(&elapsed) otherwise { return }
+        if remaining.is_zero() { return }
+        let request = wait_request(&remaining)
+        let result = darwin.wait_timeout_once(request.seconds, request.microseconds)
+        if result.errno == 0 || result.errno == darwin.ERRNO_INTERRUPTED {
+            continue
+        }
+        return error.new("std.time.sleep_failed", "sleep failed")
+    }
+}
+
+test wait_request_rounds_up_and_normalizes_target_resolution {
+    let one_nanosecond = Duration.from_nanoseconds(1)
+    let smallest = wait_request(&one_nanosecond)
+    if smallest.seconds != 0 || smallest.microseconds != 1 {
+        return error.new("std.time.test", "positive duration became a zero wait")
+    }
+
+    let boundary = Duration.from_nanoseconds(999999999)
+    let rounded = wait_request(&boundary)
+    if rounded.seconds != 1 || rounded.microseconds != 0 {
+        return error.new("std.time.test", "microsecond rounding was not normalized")
+    }
+
+    let maximum = Duration.from_seconds(18446744073709551615)
+    let chunk = wait_request(&maximum)
+    if chunk.seconds != MAX_WAIT_SECONDS || chunk.microseconds != 0 {
+        return error.new("std.time.test", "large wait was not chunked")
+    }
+    return
+}

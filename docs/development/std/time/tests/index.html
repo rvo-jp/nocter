@@ -268,6 +268,19 @@
     testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span>elapsed<span class="token-operator">.</span><span class="token-function">subsecond_nanoseconds</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> <span class="token-number">1000000000</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
+
+<span class="token-keyword">test</span> sleep_zero_returns_and_positive_wait_does_not_finish_early <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> zero <span class="token-operator">=</span> <span class="token-type">Duration</span><span class="token-operator">.</span><span class="token-function">from_seconds</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span>
+    <span class="token-function">sleep</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>zero<span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">let</span> requested <span class="token-operator">=</span> <span class="token-type">Duration</span><span class="token-operator">.</span><span class="token-function">from_milliseconds</span><span class="token-operator">(</span><span class="token-number">2</span><span class="token-operator">)</span>
+    <span class="token-keyword">let</span> start <span class="token-operator">=</span> <span class="token-type">Instant</span><span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-function">sleep</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>requested<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> start<span class="token-operator">.</span><span class="token-function">elapsed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> requested <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.time.test"</span><span class="token-operator">,</span> <span class="token-string">"sleep returned before its requested duration"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
 </code></pre>
             </div>
         </main>

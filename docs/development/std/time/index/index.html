@@ -200,6 +200,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>duration<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>instant<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>primitives<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>sleep<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// A normalized, non-negative span of time.</span>
@@ -252,6 +253,9 @@
     <span class="token-comment">/// Measures the non-negative duration from this observation to now.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">elapsed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Duration</span>
 <span class="token-operator">}</span>
+
+<span class="token-comment">/// Blocks the current thread until at least `duration` has elapsed.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">sleep</span><span class="token-operator">(</span>duration<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 </code></pre>
             </div>
         </main>

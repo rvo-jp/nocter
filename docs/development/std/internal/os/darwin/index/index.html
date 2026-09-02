@@ -353,6 +353,10 @@
     position<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">u64</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
 
+<span class="token-comment">/// Performs one descriptor-free timeout wait. The caller owns retry and remaining-time policy.</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">wait_timeout_once</span><span class="token-operator">(</span>seconds<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> microseconds<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
+
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">syscall6</span><span class="token-operator">(</span>
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>

@@ -71,3 +71,16 @@ test instant_elapsed_stays_in_the_normalized_duration_domain {
     testing.assert(elapsed.subsecond_nanoseconds() < 1000000000)?
     return
 }
+
+test sleep_zero_returns_and_positive_wait_does_not_finish_early {
+    let zero = Duration.from_seconds(0)
+    sleep(&zero)?
+
+    let requested = Duration.from_milliseconds(2)
+    let start = Instant.now()
+    sleep(&requested)?
+    if start.elapsed() < requested {
+        return error.new("std.time.test", "sleep returned before its requested duration")
+    }
+    return
+}

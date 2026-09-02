@@ -3,6 +3,7 @@
 see ./duration.nct
 see ./instant.nct
 see ./primitives.nct
+see ./sleep.nct
 see ./tests.nct
 
 /// A normalized, non-negative span of time.
@@ -55,3 +56,6 @@ instance Instant {
     /// Measures the non-negative duration from this observation to now.
     pub noalloc method &self.elapsed(): Duration
 }
+
+/// Blocks the current thread until at least `duration` has elapsed.
+pub noalloc func sleep(duration: &Duration): void!

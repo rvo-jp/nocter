@@ -89,6 +89,9 @@ const SYS_GETDIRENTRIES64: usize = 0x02000158
 const SYS_GETENTROPY: usize = 0x020001f4
 
 #target: "arm64-darwin"
+const SYS_SELECT: usize = 0x0200005d
+
+#target: "arm64-darwin"
 const OPEN_READ_ONLY: usize = 0
 
 #target: "arm64-darwin"
@@ -169,6 +172,12 @@ const DIRENT_TYPE_REGULAR: u8 = 8
 const DIRENT_TYPE_SYMLINK: u8 = 10
 
 #target: "arm64-darwin"
+copy struct Timeval {
+    seconds: u64
+    microseconds: u64
+}
+
+#target: "arm64-darwin"
 noalloc func read_directory_entries(
     fd: usize,
     buffer: &+[u8],
@@ -180,5 +189,18 @@ noalloc func read_directory_entries(
         ptr.addr(buffer.ptr()),
         buffer.len(),
         ptr.addr(ptr.from_ref_mut(position)),
+    )
+}
+
+#target: "arm64-darwin"
+noalloc func wait_timeout_once(seconds: u64, microseconds: u64): SyscallResult {
+    var timeout = Timeval { seconds: seconds, microseconds: microseconds }
+    return syscall5(
+        SYS_SELECT,
+        0,
+        0,
+        0,
+        0,
+        ptr.addr(ptr.from_ref_mut(&+timeout)),
     )
 }
