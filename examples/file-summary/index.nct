@@ -8,11 +8,8 @@
 }
 
 use std/fs
-
 use std/io
-
 use std/path.Utf8Path
-
 use std/process
 
 see ./summary.nct

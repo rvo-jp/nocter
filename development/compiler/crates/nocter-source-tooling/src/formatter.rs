@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use nocter_diagnostics::{DiagnosticCode, SourceDiagnostic, syntax_diagnostics};
 use nocter_source::{SourceFile, SourceMap, SourceName};
@@ -99,7 +99,7 @@ struct Formatter<'syntax> {
     source: &'syntax SourceFile,
     tokens: Vec<SyntaxToken>,
     parent_kinds: HashMap<SyntaxToken, NodeKind>,
-    top_level_items: HashSet<u32>,
+    top_level_items: HashMap<u32, TopLevelItemKind>,
     layout: LayoutPlan,
     output: String,
     delimiter_depth: usize,
@@ -107,6 +107,13 @@ struct Formatter<'syntax> {
     pending_newlines: u8,
     previous: Option<SyntaxToken>,
     previous_parent: Option<NodeKind>,
+    previous_top_level: Option<TopLevelItemKind>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TopLevelItemKind {
+    Import,
+    Separated,
 }
 
 impl<'syntax> Formatter<'syntax> {
@@ -130,13 +137,14 @@ impl<'syntax> Formatter<'syntax> {
                 let node = syntax
                     .node(*id)
                     .expect("root child belongs to the same syntax tree");
-                matches!(
-                    node.kind(),
-                    NodeKind::Item
-                        | NodeKind::SourceVisibilityDeclaration
-                        | NodeKind::UseDeclaration
-                )
-                .then_some(node.range().start().get())
+                let kind = match node.kind() {
+                    NodeKind::UseDeclaration => TopLevelItemKind::Import,
+                    NodeKind::Item | NodeKind::SourceVisibilityDeclaration => {
+                        TopLevelItemKind::Separated
+                    }
+                    _ => return None,
+                };
+                Some((node.range().start().get(), kind))
             })
             .collect();
         Self {
@@ -151,6 +159,7 @@ impl<'syntax> Formatter<'syntax> {
             pending_newlines: 0,
             previous: None,
             previous_parent: None,
+            previous_top_level: None,
         }
     }
 
@@ -176,6 +185,10 @@ impl<'syntax> Formatter<'syntax> {
     }
 
     fn write_token(&mut self, token: SyntaxToken) {
+        let current_top_level = self
+            .top_level_items
+            .get(&token.range().start().get())
+            .copied();
         let forced_break = self.layout.breaks_before(token);
         if self.layout.joins_before(token) {
             self.pending_newlines = 0;
@@ -200,10 +213,10 @@ impl<'syntax> Formatter<'syntax> {
                     self.output.push(' ');
                 }
             } else if !self.output.is_empty() {
-                let line_count = if self.top_level_items.contains(&token.range().start().get()) {
-                    2
-                } else {
-                    self.pending_newlines
+                let line_count = match (self.previous_top_level, current_top_level) {
+                    (Some(TopLevelItemKind::Import), Some(TopLevelItemKind::Import)) => 1,
+                    (_, Some(_)) => 2,
+                    _ => self.pending_newlines,
                 };
                 self.output.push_str(&"\n".repeat(usize::from(line_count)));
                 self.at_line_start = true;
@@ -248,6 +261,9 @@ impl<'syntax> Formatter<'syntax> {
             .saturating_sub(self.layout.structural_closes(token));
         self.previous = Some(token);
         self.previous_parent = self.parent(token);
+        if let Some(kind) = current_top_level {
+            self.previous_top_level = Some(kind);
+        }
     }
 
     fn joins_previous_line(&self, token: SyntaxToken) -> bool {
@@ -661,6 +677,18 @@ mod tests {
             ),
             "use ./values.{First, Second}\n\nfunc f(): void { let value = Pair { left: 1, right: 2 }\n    return\n}\n"
         );
+    }
+
+    #[test]
+    fn keeps_consecutive_module_imports_in_one_top_level_block() {
+        let formatted = format(
+            "use std/io\nuse std/time\nuse std/time.{Duration,Instant}\nfunc main():void { return }\n",
+        );
+        assert_eq!(
+            formatted,
+            "use std/io\nuse std/time\nuse std/time.{Duration, Instant}\n\nfunc main(): void { return }\n"
+        );
+        assert_eq!(format(&formatted), formatted);
     }
 
     #[test]

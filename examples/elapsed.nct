@@ -1,7 +1,5 @@
 use std/io
-
 use std/time
-
 use std/time.{Duration, Instant}
 
 func main(): i32! {

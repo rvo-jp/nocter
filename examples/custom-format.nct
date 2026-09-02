@@ -1,5 +1,4 @@
 use std/fmt.Format
-
 use std/io
 
 struct Point {

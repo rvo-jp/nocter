@@ -103,6 +103,8 @@ Rules:
 - Formatter output does not use tabs for indentation.
 - Opening braces stay on the same line as the construct that owns the block.
 - `else` stays on the same line as the previous closing brace.
+- Consecutive top-level `use` declarations form one import block without blank lines between them.
+- One blank line separates an import block from an adjacent non-import top-level item.
 - Top-level declarations are separated by one blank line.
 - Empty blocks may stay as `{}` only when the construct is intentionally empty and readability is not harmed.
 - An explicit discard initializer is formatted as `let _ = expression`.
