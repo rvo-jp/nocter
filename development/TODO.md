@@ -33,12 +33,11 @@ no open finding.
 
 ## Next Work
 
-Continue [v0.28.0](milestones/v0.28.0.md) from its completed tooling and practical-integration
-phase. Phase 5 qualifies the complete release boundary through the workspace, warnings-denied
-Clippy, formatter, documentation, native, reproducible-package, installed-home, and repository
-gates. Its review must check for duplicate UTF-8 and scalar-formatting authorities, public internal
-helpers, failure-policy conflation, hidden allocation or buffering, target leakage, obsolete
-wrappers, and caller-discipline assumptions.
+Prepare the completed and [reviewed v0.28.0 milestone](milestones/v0.28.0.md) as a release
+candidate. Advance the sole authored release version, standard package declaration, English
+release notes, and generated documentation in one release-content commit. Then qualify that clean
+commit through independent workspace targets, reproducible archive generation, and an isolated
+installed home before requesting publication authority.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
