@@ -455,9 +455,14 @@ instance str {
     pub noalloc method &self.get_range(start: usize, end: usize): &str?
     pub noalloc method &self.find(needle: &str): usize?
     pub noalloc method &self.contains(needle: &str): bool
+    pub noalloc method &self.trim_ascii_start(): &str from self
+    pub noalloc method &self.trim_ascii_end(): &str from self
+    pub noalloc method &self.trim_ascii(): &str from self
     pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
     pub noalloc method &self.lines(): some Iterator { .Item = &str }
     pub noalloc method &self.bytes_iter(): ViewIter<u8>
+    pub method &self.repeat(count: usize): String
+    pub method &self.replace_all(pattern: &str, replacement: &str): String!
 }
 
 instance String {
@@ -511,6 +516,9 @@ instance str {
     pub noalloc method &self.get_range(start: usize, end: usize): &str?
     pub noalloc method &self.strip_prefix(prefix: &str): &str? from self
     pub noalloc method &self.strip_suffix(suffix: &str): &str? from self
+    pub noalloc method &self.trim_ascii_start(): &str from self
+    pub noalloc method &self.trim_ascii_end(): &str from self
+    pub noalloc method &self.trim_ascii(): &str from self
     pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
     pub noalloc method &self.lines(): some Iterator { .Item = &str }
 }
@@ -523,6 +531,13 @@ are valid. The result borrows `text`; it never reconstructs provenance from an i
 `strip_prefix` and `strip_suffix` compare exact UTF-8 bytes and return a view into `text`. The
 affix is an input to the comparison, not a storage origin of the returned view. An empty affix
 matches and returns the complete input.
+
+ASCII whitespace is exactly space (`0x20`), horizontal tab (`0x09`), line feed (`0x0A`), vertical
+tab (`0x0B`), form feed (`0x0C`), and carriage return (`0x0D`). `trim_ascii_start` and
+`trim_ascii_end` remove matching bytes only from the named edge; `trim_ascii` removes them from both
+edges. Each operation returns the largest remaining borrowed subslice, performs no allocation, and
+does not apply Unicode property tables or normalization. An all-whitespace input returns the empty
+view positioned at the end of the input and still borrows that input.
 
 `split_views` rejects an empty separator with `std.str.empty_separator`. Otherwise it yields the
 same component boundaries as the owned `split` operation, including empty components for empty
@@ -537,6 +552,28 @@ an empty item after a final terminator. `LinesIter` retains its input text and a
 
 These operations are byte-oriented. They do not define Unicode scalar, grapheme, normalization,
 or range-syntax behavior.
+
+### Owned Text Transformations
+
+Borrowed text owns two common transformations whose results require independent storage:
+
+```nct
+instance str {
+    pub method &self.repeat(count: usize): String
+    pub method &self.replace_all(pattern: &str, replacement: &str): String!
+}
+```
+
+`repeat` concatenates the complete input `count` times. A zero count or empty input returns an empty
+owned string. The operation checks the complete required byte capacity before mutating the result;
+an unrepresentable capacity follows the ordinary aborting allocation policy and never wraps.
+
+`replace_all` rejects an empty pattern with `std.str.empty_pattern`. It scans the original input
+from left to right, replaces non-overlapping matches, and resumes after the complete matched
+pattern. Replacement text is copied verbatim and is not searched recursively. A pattern that does
+not occur produces an independent copy of the original input. The result is always well-formed
+owned UTF-8. Allocation follows the ordinary aborting allocation policy; the fallible layer
+represents the invalid empty-pattern input rather than allocation exhaustion.
 
 `&[u8]` represents arbitrary borrowed bytes and is not necessarily valid UTF-8. Converting `&str` to `&[u8]` is allowed. Converting `&[u8]` to `&str` requires UTF-8 validation.
 
@@ -624,8 +661,8 @@ Rules:
   cleanup. The partial `String` is not dropped on that path.
 - A bare fallible call does not propagate. Its complete outcome value must itself be legally
   formattable or the interpolation is a type error; use `?` to interpolate only its success value.
-- Unsupported interpolation values are rejected statically. Recoverable allocation
-  uses explicit `try_*` formatting APIs rather than changing interpolation to `String!`.
+- Unsupported interpolation values are rejected statically. Recoverable allocation uses
+  `Format.try_format_into` rather than changing interpolation to `String!`.
 - `String` remains an ordinary standard-library type. The compiler must not make the identifier `String` a built-in type name.
 - The compiler must not treat user-defined names such as `to_string`, `format`, `append`, or `allocator` as magic.
 - A bare string literal without `${...}` remains `&str` and does not allocate.
@@ -637,18 +674,26 @@ active Nocter home:
 
 ```nct
 pub interface Format {
-    pub method &self.format_into(output: &+String): void
+    pub method &self.try_format_into(output: &+String): void!
+    pub default method &self.format_into(output: &+String): void
 }
 ```
 
 - `std` provides `Format` implementations for `str`, `String`, `bool`, and every built-in integer.
-- `str` appends its bytes, `String` appends its current string view, and scalar implementations use
-  their canonical source spelling without extra whitespace.
+- A conformance implements `try_format_into` once. `str` appends its bytes, `String` appends its
+  current string view, and scalar implementations use their canonical source spelling without
+  extra whitespace.
+- `try_format_into` reports recoverable destination growth failure and may leave the prefix appended
+  by earlier successful operations. A conforming implementation does not use this channel for a
+  second domain-specific failure policy.
+- The standard default `format_into` calls `try_format_into` and converts failure into the ordinary
+  allocation abort used by interpolation. It is not a second formatting algorithm.
 - A project-owned struct or enum becomes interpolatable only through an explicit implementation of
   the exact standard interface.
 - Formatting borrows the value. An existing value remains usable after interpolation, and a
   temporary remains live through `format_into` before it is destroyed exactly once.
-- Generic code may interpolate `T` when its active requirements include `T impl Format`.
+- Generic code may interpolate `T` or invoke recoverable formatting when its active requirements
+  include `T impl Format`.
 - A project interface named `Format` does not grant interpolation behavior.
 - Optional, fallible, array, pointer, callable, and opaque values are rejected unless they can
   acquire a legal explicit implementation under the normal interface-implementation rules.

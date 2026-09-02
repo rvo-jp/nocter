@@ -25,6 +25,12 @@ CR, and does not synthesize a final empty line. Borrowed operations preserve sou
 through a compiler-validated typed projection; raw-pointer reconstruction is not a substitute.
 Returning owned `split` components keeps their lifetime independent of the input.
 
+The practical text additions are defined by the string chapter's
+[borrowed-range](07-strings-arrays-views-pointers.md#borrowed-string-ranges-and-iteration) and
+[owned-transformation](07-strings-arrays-views-pointers.md#owned-text-transformations) contracts.
+That chapter is the sole authority for their signatures, exact ASCII byte set, borrowed empty-view
+position, replacement progress, capacity failure, and UTF-8 rules.
+
 Text and collection observation are type-owned. `str` declares text methods and `[T]` declares
 slice methods; `String` and `Vec<T>` reuse them through one-step receiver coercion. Slice indexing
 is therefore the sole implementation used by direct `Vec<T>` indexing. Internal raw-view helpers
@@ -98,20 +104,65 @@ contracts are centralized in [Associative Collections](27-associative-collection
 
 ## Formatting
 
-`std/fmt.Format` is the static contract used by owned string interpolation:
+`std/fmt.Format` is the static contract defined normatively by
+[String Interpolation](07-strings-arrays-views-pointers.md#string-interpolation). It requires one
+recoverable append operation and derives the aborting operation used by owned interpolation.
+
+The distributed library conforms `str`, `String`, `bool`, and every built-in integer. A nominal
+project type may implement the interface and build its representation with canonical members:
+`output.try_push_str` for text and `value.try_format_into(output)` for nested formatted values.
+`try_format_into` reports recoverable destination growth failure and may leave a successfully
+appended prefix. The default `format_into` converts that failure to the ordinary allocation-abort
+policy used by interpolation. Formatting dispatch is static and does not require a runtime
+interface object.
+
+`std/fmt` publishes the `Format` contract, not one append function for every built-in type. The
+closed scalar append operations used by the old surface are replaced by each scalar's one
+`try_format_into` implementation. Type-owned `try_to_string` and standard-library diagnostics call
+that same method. This keeps decimal spelling under one implementation authority without
+presenting a closed type matrix as a general formatting API.
+
+Formatting and byte output deliberately remain distinct contracts. `Format` reports only mutation
+failure from its owned `String` destination; `Writer` may report an I/O failure after publishing a
+prefix outside the process. Their sole value boundary is well-formed `&str`. The standard library
+does not define a second direct-to-writer formatting protocol or reinterpret a writer error as
+allocation failure.
+
+## Text Output
+
+Every `Writer` receives one line adapter in addition to exact text output:
 
 ```nct
-pub interface Format {
-    pub method &self.format_into(output: &+String): void
+pub interface Writer {
+    pub method &+self.write(value: &[u8]): void!
+    pub default method &+self.flush(): void!
+    pub default method &+self.write_text(text: &str): void!
+    pub default method &+self.write_line(text: &str): void!
 }
 ```
 
-The distributed library conforms `str`, `String`, `bool`, and every built-in integer. A nominal
-project type may implement the interface and build its representation with canonical members: `output.push_str`
-for text and `value.format_into(output)` for nested formatted values. The `try_append_*` free
-functions remain distinct because they expose recoverable allocation to explicit builders;
-`format_into` and interpolation use the ordinary aborting allocation policy. Formatting dispatch
-is static and does not require a runtime interface object.
+`write_line` writes the complete input text followed by exactly one LF byte. It does not select a
+platform newline, allocate a combined buffer, or promise that both writes are atomic. A failure may
+be reported after an observable prefix. It inherits buffering and explicit-flush behavior from the
+selected writer.
+
+The process stream conveniences are symmetric:
+
+```nct
+pub noalloc func stdout(): File
+pub noalloc func stderr(): File
+pub noalloc func print(text: &str): void!
+pub noalloc func println(text: &str): void!
+pub noalloc func eprint(text: &str): void!
+pub noalloc func eprintln(text: &str): void!
+```
+
+`print` and `println` write to standard output; `eprint` and `eprintln` write to standard error. The
+line forms append exactly one LF, including for empty input. These functions do not buffer, flush,
+format arbitrary values, or allocate through a Nocter allocation context. They use the same
+descriptor-write authority as `File.write`, including interruption retry, complete-write looping,
+zero-progress rejection, and stable I/O errors. Formatting remains explicit through interpolation,
+for example `io.println("count: ${count}")?`.
 
 ## Time
 

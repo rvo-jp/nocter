@@ -33,9 +33,11 @@ no open finding.
 
 ## Next Work
 
-Define the next practical application boundary before changing compiler or standard-library
-behavior. Preserve the v0.27.0 release record as immutable evidence; any correction requires a new
-version, candidate, tag, and archive.
+Implement [v0.28.0](milestones/v0.28.0.md) from its adopted Phase 0 contract. Phase 1 adds one
+borrowed ASCII-trimming authority and checked owned `repeat` and `replace_all` transformations.
+Phase 2 replaces the closed scalar append matrix with one recoverable `Format` requirement and one
+aborting default, without creating another decimal spelling or interpolation protocol. Phase 3
+completes symmetric process text output over the existing descriptor-write authority.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
