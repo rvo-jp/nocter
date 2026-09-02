@@ -235,6 +235,9 @@
     <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">17</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>already_exists
     <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">66</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>directory_not_empty
+    <span class="token-operator">}</span>
     <span class="token-keyword">if</span> value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">9</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">14</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">21</span> || value<span class="token-operator">.</span>code <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">22</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input
     <span class="token-operator">}</span>
@@ -267,6 +270,12 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> <span class="token-type">SYS_RENAME</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000080
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">SYS_MKDIR</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000088
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">SYS_RMDIR</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000089
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> <span class="token-type">SYS_MUNMAP</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000049
@@ -310,6 +319,10 @@
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-comment">// 0666, filtered by the process umask.</span>
 <span class="token-keyword">const</span> <span class="token-type">CREATE_MODE</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">438</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-comment">// 0777, filtered by the process umask.</span>
+<span class="token-keyword">const</span> <span class="token-type">CREATE_DIRECTORY_MODE</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">511</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> <span class="token-type">MMAP_READ_WRITE</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">3</span>

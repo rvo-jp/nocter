@@ -7,15 +7,16 @@ use /internal/io
 use /internal/os.OSErrorKind
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
-
-
-
-
 use /internal/path as internal_path
+use /internal/ptr as internal_ptr
 use /mem.RawBuffer
 use /mem
 use /ptr
-use /internal/ptr as internal_ptr
+
+enum CreateDirectoryAttempt {
+    created
+    already_exists
+}
 
 #target: "arm64-darwin"
 struct DarwinStatQuery {
@@ -98,6 +99,37 @@ func rename_target(source: &str, destination: &str): void! {
         darwin.SYS_RENAME,
         internal_path.target_path_address(&source_argument),
         internal_path.target_path_address(&destination_argument),
+    )
+    if result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
+    }
+    return
+}
+
+#target: "arm64-darwin"
+func create_directory_target(path: &str): CreateDirectoryAttempt! {
+    let argument = internal_path.target_path_argument(path)?
+    let result = darwin.syscall2(
+        darwin.SYS_MKDIR,
+        internal_path.target_path_address(&argument),
+        darwin.CREATE_DIRECTORY_MODE,
+    )
+    if result.errno == 0 {
+        return CreateDirectoryAttempt.created
+    }
+    let os_error = darwin.error_from_errno(darwin.errno(result.errno))
+    if os_error.kind is OSErrorKind.already_exists {
+        return CreateDirectoryAttempt.already_exists
+    }
+    return io.io_error_from_os(os_error)
+}
+
+#target: "arm64-darwin"
+func remove_directory_target(path: &str): void! {
+    let argument = internal_path.target_path_argument(path)?
+    let result = darwin.syscall1(
+        darwin.SYS_RMDIR,
+        internal_path.target_path_address(&argument),
     )
     if result.errno != 0 {
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))

@@ -200,6 +200,8 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>filesystem<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>directory<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>directory_mutation<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>directory_mutation_tests<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>path<span class="token-operator">.</span><span class="token-type">Utf8Path</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
@@ -277,6 +279,15 @@
 
 <span class="token-comment">/// Renames one entry without a copy-and-delete fallback.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">rename</span><span class="token-operator">(</span>from<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> to<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Creates exactly one directory.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">create_dir</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Creates every missing directory prefix in the authored spelling.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">create_dir_all</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Removes exactly one empty directory without following a final symbolic link.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">remove_dir</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 </code></pre>
             </div>
         </main>

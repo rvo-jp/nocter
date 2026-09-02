@@ -202,15 +202,16 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-type">OSErrorKind</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-type">SyscallResult</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
-
-
-
-
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>path <span class="token-keyword">as</span> internal_path
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr <span class="token-keyword">as</span> internal_ptr
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem
 <span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr <span class="token-keyword">as</span> internal_ptr
+
+<span class="token-keyword">enum</span> <span class="token-type">CreateDirectoryAttempt</span> <span class="token-operator">{</span>
+    created
+    already_exists
+<span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">struct</span> <span class="token-type">DarwinStatQuery</span> <span class="token-operator">{</span>
@@ -293,6 +294,37 @@
         darwin<span class="token-operator">.</span><span class="token-type">SYS_RENAME</span><span class="token-operator">,</span>
         internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>source_argument<span class="token-operator">)</span><span class="token-operator">,</span>
         internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>destination_argument<span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">create_directory_target</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CreateDirectoryAttempt</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> argument <span class="token-operator">=</span> internal_path<span class="token-operator">.</span><span class="token-function">target_path_argument</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall2</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_MKDIR</span><span class="token-operator">,</span>
+        internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">CREATE_DIRECTORY_MODE</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CreateDirectoryAttempt</span><span class="token-operator">.</span>created
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> os_error <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>already_exists <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CreateDirectoryAttempt</span><span class="token-operator">.</span>already_exists
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>os_error<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">remove_directory_target</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> argument <span class="token-operator">=</span> internal_path<span class="token-operator">.</span><span class="token-function">target_path_argument</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_RMDIR</span><span class="token-operator">,</span>
+        internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
     <span class="token-operator">)</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>

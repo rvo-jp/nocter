@@ -1,0 +1,55 @@
+//! Directory lifecycle contract tests.
+
+see ./index.nct
+
+use /testing
+
+test directory_creation_and_removal_preserve_explicit_scope {
+    let root = ".nocter-v027-directory-lifecycle"
+    let nested = ".nocter-v027-directory-lifecycle/first/second"
+    create_dir_all(nested)?
+    let root_metadata = metadata(root)?
+    let nested_metadata = metadata(nested)?
+    testing.assert(root_metadata.is_directory())?
+    testing.assert(nested_metadata.is_directory())?
+
+    create_dir_all(nested)?
+    var existing_rejected = false
+    create_dir(root) catch failure {
+        existing_rejected = failure.has_code("std.io.already_exists")
+    }
+    testing.assert(existing_rejected)?
+
+    var nonempty_rejected = false
+    remove_dir(root) catch failure {
+        nonempty_rejected = failure.has_code("std.io.directory_not_empty")
+    }
+    testing.assert(nonempty_rejected)?
+    remove_dir(nested)?
+    remove_dir(".nocter-v027-directory-lifecycle/first")?
+    remove_dir(root)?
+    let root_exists = exists(root)?
+    testing.assert(!root_exists)?
+    return
+}
+
+test recursive_creation_rejects_empty_and_non_directory_prefixes {
+    var empty_rejected = false
+    create_dir_all("") catch failure {
+        empty_rejected = failure.has_code("std.io.invalid_input")
+    }
+    testing.assert(empty_rejected)?
+
+    let root = ".nocter-v027-directory-prefix"
+    let file = ".nocter-v027-directory-prefix/file"
+    create_dir(root)?
+    write_text(file, "not a directory")?
+    var prefix_rejected = false
+    create_dir_all(".nocter-v027-directory-prefix/file/child") catch failure {
+        prefix_rejected = failure.has_code("std.io.not_directory")
+    }
+    testing.assert(prefix_rejected)?
+    remove_file(file)?
+    remove_dir(root)?
+    return
+}

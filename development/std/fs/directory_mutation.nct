@@ -1,0 +1,56 @@
+//! Public directory lifecycle policy over one target mutation attempt.
+
+see ./index.nct
+see ./darwin.nct
+
+use /internal/io
+use /internal/os.OSErrorKind
+use /path as path_module
+
+func create_dir(path: &str): void! {
+    let attempt = create_directory_target(path)?
+    if attempt is CreateDirectoryAttempt.already_exists {
+        return io.io_error_from_kind(OSErrorKind.already_exists)
+    }
+    return
+}
+
+func create_dir_all(path: &str): void! {
+    path_module.validate(path)?
+    if path.len() == 0 {
+        return io.io_error_from_kind(OSErrorKind.invalid_input)
+    }
+
+    var end: usize = 0
+    while end < path.len() {
+        while end < path.len() && path[end] == 47 {
+            end += 1
+        }
+        if end == path.len() { return }
+        while end < path.len() && path[end] != 47 {
+            end += 1
+        }
+
+        let prefix = path.get_range(0, end) otherwise {
+            return error.new(
+                "std.fs.internal_path_boundary",
+                "directory prefix did not end at a UTF-8 boundary",
+            )
+        }
+        ensure_directory(prefix)?
+    }
+    return
+}
+
+func ensure_directory(value: &str): void! {
+    let attempt = create_directory_target(value)?
+    if attempt is CreateDirectoryAttempt.created { return }
+    let existing = metadata(value)?
+    if existing.is_directory() { return }
+    return io.io_error_from_kind(OSErrorKind.not_directory)
+}
+
+func remove_dir(path: &str): void! {
+    remove_directory_target(path)?
+    return
+}

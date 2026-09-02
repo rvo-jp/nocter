@@ -17,6 +17,7 @@ pub(/) enum OSErrorKind {
     not_directory
     permission_denied
     already_exists
+    directory_not_empty
     invalid_input
     broken_pipe
     timed_out

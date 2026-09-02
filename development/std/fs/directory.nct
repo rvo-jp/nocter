@@ -5,12 +5,6 @@ see ./index.nct
 use /internal/io
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
-
-
-
-
-
-
 use /internal/path as internal_path
 use /internal/ptr as internal_ptr
 use /mem.RawBuffer

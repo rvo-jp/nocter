@@ -5,34 +5,41 @@ see ./index.nct
 use /internal/os.{OSError, OSErrorKind}
 
 func io_error_from_os(os_error: OSError): error {
-    if os_error.kind is OSErrorKind.interrupted {
+    return io_error_from_kind(os_error.kind)
+}
+
+func io_error_from_kind(kind: OSErrorKind): error {
+    if kind is OSErrorKind.interrupted {
         return error.new("std.io.interrupted", "operation interrupted")
     }
-    if os_error.kind is OSErrorKind.would_block {
+    if kind is OSErrorKind.would_block {
         return error.new("std.io.would_block", "operation would block")
     }
-    if os_error.kind is OSErrorKind.not_found {
+    if kind is OSErrorKind.not_found {
         return error.new("std.io.not_found", "file not found")
     }
-    if os_error.kind is OSErrorKind.not_directory {
+    if kind is OSErrorKind.not_directory {
         return error.new("std.io.not_directory", "path is not a directory")
     }
-    if os_error.kind is OSErrorKind.permission_denied {
+    if kind is OSErrorKind.permission_denied {
         return error.new("std.io.permission_denied", "permission denied")
     }
-    if os_error.kind is OSErrorKind.already_exists {
+    if kind is OSErrorKind.already_exists {
         return error.new("std.io.already_exists", "file already exists")
     }
-    if os_error.kind is OSErrorKind.invalid_input {
+    if kind is OSErrorKind.directory_not_empty {
+        return error.new("std.io.directory_not_empty", "directory is not empty")
+    }
+    if kind is OSErrorKind.invalid_input {
         return error.new("std.io.invalid_input", "invalid I/O input")
     }
-    if os_error.kind is OSErrorKind.broken_pipe {
+    if kind is OSErrorKind.broken_pipe {
         return error.new("std.io.broken_pipe", "broken pipe")
     }
-    if os_error.kind is OSErrorKind.timed_out {
+    if kind is OSErrorKind.timed_out {
         return error.new("std.io.timed_out", "operation timed out")
     }
-    if os_error.kind is OSErrorKind.unsupported {
+    if kind is OSErrorKind.unsupported {
         return error.new("std.io.unsupported", "unsupported I/O operation")
     }
     return error.new("std.io.os_error", "OS operation failed")

@@ -269,7 +269,8 @@ umask. It fails with `std.io.already_exists` when the final spelling already nam
 prefix. It succeeds when a prefix already resolves to a directory, including through a symbolic
 link, but fails when an existing prefix is not a directory. An empty spelling is invalid input; a
 spelling containing only root separators succeeds without a mutation. The operation does not
-lexically resolve `.`, `..`, or repeated separators before passing prefixes to the target.
+lexically resolve `.`, `..`, or repeated separators before passing prefixes to the target. It is
+not transactional: directories created before a later prefix failure remain present.
 
 `remove_dir` removes exactly one empty directory. It is never recursive and never follows a final
 symbolic link as a directory. A nonempty directory fails with `std.io.directory_not_empty`.

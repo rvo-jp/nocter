@@ -5,6 +5,8 @@
 
 see ./filesystem.nct
 see ./directory.nct
+see ./directory_mutation.nct
+see ./directory_mutation_tests.nct
 
 use /path.Utf8Path
 use /string.String
@@ -82,3 +84,12 @@ pub func remove_file(path: &str): void!
 
 /// Renames one entry without a copy-and-delete fallback.
 pub func rename(from: &str, to: &str): void!
+
+/// Creates exactly one directory.
+pub func create_dir(path: &str): void!
+
+/// Creates every missing directory prefix in the authored spelling.
+pub func create_dir_all(path: &str): void!
+
+/// Removes exactly one empty directory without following a final symbolic link.
+pub func remove_dir(path: &str): void!

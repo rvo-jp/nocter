@@ -930,7 +930,7 @@ fn standard_collection_ordering_crosses_the_complete_native_session() {
 }
 
 #[test]
-fn standard_directory_record_failures_are_terminal_in_native_tests() {
+fn standard_filesystem_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -967,9 +967,9 @@ fn standard_directory_record_failures_are_terminal_in_native_tests() {
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("directory record tests failed native compilation")
+        panic!("standard filesystem tests failed native compilation")
     };
-    assert_eq!(cases.len(), 2);
+    assert_eq!(cases.len(), 4);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

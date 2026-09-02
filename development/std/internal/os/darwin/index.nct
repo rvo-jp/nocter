@@ -39,6 +39,12 @@ pub(/) const SYS_UNLINK: usize
 pub(/) const SYS_RENAME: usize
 
 #target: "arm64-darwin"
+pub(/) const SYS_MKDIR: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_RMDIR: usize
+
+#target: "arm64-darwin"
 pub(/) const SYS_MUNMAP: usize
 
 #target: "arm64-darwin"
@@ -67,6 +73,9 @@ pub(/) const OPEN_CREATE_APPEND: usize
 
 #target: "arm64-darwin"
 pub(/) const CREATE_MODE: usize
+
+#target: "arm64-darwin"
+pub(/) const CREATE_DIRECTORY_MODE: usize
 
 #target: "arm64-darwin"
 pub(/) const MMAP_READ_WRITE: usize

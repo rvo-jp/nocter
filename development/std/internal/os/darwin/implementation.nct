@@ -40,6 +40,9 @@ noalloc func kind_from_errno(value: Errno): OSErrorKind {
     if value.code == 17 {
         return OSErrorKind.already_exists
     }
+    if value.code == 66 {
+        return OSErrorKind.directory_not_empty
+    }
     if value.code == 9 || value.code == 14 || value.code == 21 || value.code == 22 {
         return OSErrorKind.invalid_input
     }
@@ -72,6 +75,12 @@ const SYS_UNLINK: usize = 0x0200000a
 
 #target: "arm64-darwin"
 const SYS_RENAME: usize = 0x02000080
+
+#target: "arm64-darwin"
+const SYS_MKDIR: usize = 0x02000088
+
+#target: "arm64-darwin"
+const SYS_RMDIR: usize = 0x02000089
 
 #target: "arm64-darwin"
 const SYS_MUNMAP: usize = 0x02000049
@@ -115,6 +124,10 @@ const OPEN_CREATE_APPEND: usize = 0x0209
 #target: "arm64-darwin"
 // 0666, filtered by the process umask.
 const CREATE_MODE: usize = 438
+
+#target: "arm64-darwin"
+// 0777, filtered by the process umask.
+const CREATE_DIRECTORY_MODE: usize = 511
 
 #target: "arm64-darwin"
 const MMAP_READ_WRITE: usize = 3

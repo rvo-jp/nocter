@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.27.0: Filesystem and Path Completion - Nocter</title>
-    <meta name="description" content="Status: Phases 0 through 2 complete; Phase 3 active (2026-09-02). v0.27.0 closes one practical application boundary: allocation-free lexical inspection of ">
+    <title>development/std/fs/directory_mutation.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/fs/directory_mutation.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.27.0/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/std/fs/directory_mutation/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.27.0: Filesystem and Path Completion - Nocter">
-    <meta property="og:description" content="Status: Phases 0 through 2 complete; Phase 3 active (2026-09-02). v0.27.0 closes one practical application boundary: allocation-free lexical inspection of ">
-    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.27.0/">
+    <meta property="og:title" content="development/std/fs/directory_mutation.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/fs/directory_mutation.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/fs/directory_mutation/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.27.0: Filesystem and Path Completion - Nocter">
-    <meta name="twitter:description" content="Status: Phases 0 through 2 complete; Phase 3 active (2026-09-02). v0.27.0 closes one practical application boundary: allocation-free lexical inspection of ">
+    <meta name="twitter:title" content="development/std/fs/directory_mutation.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/fs/directory_mutation.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.27.0: Filesystem and Path Completion - Nocter","description":"Status: Phases 0 through 2 complete; Phase 3 active (2026-09-02). v0.27.0 closes one practical application boundary: allocation-free lexical inspection of ","url":"https://nocter.dev/development/milestones/v0.27.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.27.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.27.0","item":"https://nocter.dev/development/milestones/v0.27.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/fs/directory_mutation.nct - Nocter","description":"Nocter source code for development/std/fs/directory_mutation.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/fs/directory_mutation/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Fs","item":"https://nocter.dev/development/std/fs/"},{"@type":"ListItem","position":5,"name":"Directory_mutation","item":"https://nocter.dev/development/std/fs/directory_mutation/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,59 +172,84 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/milestones/</p>
+            <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.27.0: Filesystem and Path Completion</a></li>
-                <li><a href="../v0.26.0/index.html#content">v0.26.0: Monotonic Time Foundation</a></li>
-                <li><a href="../v0.26.0-release-preparation/index.html#content">v0.26.0 Release Preparation</a></li>
-                <li><a href="../v0.25.0/index.html#content">v0.25.0: No-allocation Contracts</a></li>
-                <li><a href="../v0.25.0-release-preparation/index.html#content">v0.25.0 Release Preparation</a></li>
-                <li><a href="../v0.24.0/index.html#content">v0.24.0</a></li>
-                <li><a href="../v0.24.0-release-preparation/index.html#content">v0.24.0 Release Preparation</a></li>
-                <li><a href="../v0.23.0/index.html#content">v0.23.0</a></li>
-                <li><a href="../v0.22.0/index.html#content">v0.22.0</a></li>
-                <li><a href="../v0.22.0-release-preparation/index.html#content">v0.22.0 Release Preparation</a></li>
-                <li><a href="../v0.21.0/index.html#content">v0.21.0</a></li>
-                <li><a href="../v0.21.0-release-preparation/index.html#content">v0.21.0 Release Preparation</a></li>
-                <li><a href="../v0.20.0/index.html#content">v0.20.0</a></li>
-                <li><a href="../v0.19.0/index.html#content">v0.19.0</a></li>
-                <li><a href="../v0.19.0-release-preparation/index.html#content">v0.19.0 Release Preparation</a></li>
-                <li><a href="../v0.18.0/index.html#content">v0.18.0</a></li>
-                <li><a href="../v0.18.0-release-preparation/index.html#content">v0.18.0 Release Preparation</a></li>
-                <li><a href="../v0.17.0/index.html#content">v0.17.0</a></li>
-                <li><a href="../v0.17.0-release-preparation/index.html#content">v0.17.0 Release Preparation</a></li>
-                <li><a href="../v0.16.0/index.html#content">v0.16.0</a></li>
-                <li><a href="../v0.16.0-release-preparation/index.html#content">v0.16.0 Release Preparation</a></li>
-                <li><a href="../v0.15.0/index.html#content">v0.15.0</a></li>
-                <li><a href="../v0.15.0-release-preparation/index.html#content">v0.15.0 Release Preparation</a></li>
-                <li><a href="../v0.14.0/index.html#content">v0.14.0</a></li>
-                <li><a href="../v0.14.0-qualification/index.html#content">v0.14.0 Qualification</a></li>
-                <li><a href="../v0.14.0-release-preparation/index.html#content">v0.14.0 Release Preparation</a></li>
-                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
-                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="../v0.10.0-phase-1/index.html#content">v0.10.0 Phase 1</a></li>
-                <li><a href="../v0.10.0-phase-2/index.html#content">v0.10.0 Phase 2</a></li>
-                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
-                <li><a href="../v0.8.0/index.html#content">v0.8.0</a></li>
-                <li><a href="../v0.7.0/index.html#content">v0.7.0</a></li>
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/milestones/v0.27.0.md</span>
+                <span class="markdown-path-text">/development/std/fs/directory_mutation.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-27-0-filesystem-and-path-completion">v0.27.0: Filesystem and Path Completion</h1><p><strong>Status: Phases 0 through 2 complete; Phase 3 active (2026-09-02).</strong> v0.27.0 closes one practical application boundary: allocation-free lexical inspection of owned UTF-8 paths and explicit creation or removal of directories. It does not add recursive deletion, canonicalization, descriptor-relative traversal, non-UTF-8 paths, or another target.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Utf8Path</code> exposes allocation-free <code>parent</code>, <code>file_name</code>, <code>file_stem</code>, and <code>extension</code> views with
-  exact behavior for empty, rooted, trailing-separator, repeated-separator, dot, and UTF-8 paths;</li><li><code>is_absolute</code> and path validation publish their existing allocation-free behavior as <code>noalloc</code>;</li><li><code>fs.create_dir</code> creates one directory and distinguishes an existing entry;</li><li><code>fs.create_dir_all</code> creates missing authored prefixes, accepts existing directories, and rejects
-  empty input or an existing non-directory prefix;</li><li><code>fs.remove_dir</code> removes one empty directory, never recursively removes content, and never treats
-  a final symbolic link as a directory;</li><li>stable public failures distinguish an existing entry, a non-directory component, and a nonempty
-  directory;</li><li>formatter, hover, completion, navigation, authored-standard checks, native tests, and an
-  installed-home path see the same contracts;</li><li>complete workspace, documentation, and adversarial authority-review gates pass.</li></ul><h2 id="architecture-boundary">Architecture Boundary</h2><p><code>std/path</code> owns NUL validation, owned UTF-8 spelling, joining, and byte-lexical query algorithms. A lexical query cannot call <code>std/fs</code>, inspect target state, allocate storage, or normalize <code>.</code> and <code>..</code>. All returned views borrow the one owned spelling.</p><p><code>std/internal/os/darwin</code> owns raw syscall numbers, errno classification, and mode constants. <code>std/fs/darwin</code> owns native path-argument preparation and one target attempt. <code>std/fs/filesystem</code> owns public failure policy and the left-to-right <code>create_dir_all</code> state machine. No additional target-neutral module is introduced while only one target implementation exists; such a layer would be a forwarding wrapper rather than an authority.</p><p>Directory mutation is attempted once. Unlike an observational read, a mutating call is not retried after an interruption because the target may already have changed state. Recursive removal remains deferred until Nocter has a descriptor-relative traversal contract that can state its symlink and concurrent-mutation safety precisely.</p><h2 id="phase-0-contract-and-feasibility">Phase 0: Contract and Feasibility</h2><p><strong>Status: complete.</strong> The practical-standard-library specification fixes the public surface, borrowed-view rules, lexical edge cases, directory creation behavior, non-recursive deletion, stable errors, <code>noalloc</code> guarantees, and the existing three-owner implementation boundary.</p><p>Darwin ARM64 supplies direct <code>mkdir</code> and <code>rmdir</code> syscalls through the existing syscall primitive surface. The current UTF-8 target-path argument and OS-error classification contracts are reusable; no compiler syntax, semantic identity, ABI model, or new primitive role is required.</p><h2 id="phase-1-lexical-path-queries">Phase 1: Lexical Path Queries</h2><p><strong>Status: complete.</strong> One private lexical scan authority in <code>std/path</code> owns separator trimming, component boundaries, and extension selection. Bodyless root contracts publish allocation-free borrowed views; two source tests cover rooted, relative, repeated-separator, trailing-separator, dot, multi-extension, and UTF-8 spellings through native execution. The authored-standard semantic graph and complete workspace pass with the same declarations.</p><h2 id="phase-2-directory-lifecycle">Phase 2: Directory Lifecycle</h2><p><strong>Status: complete.</strong> Raw Darwin <code>mkdir</code> and <code>rmdir</code> constants and one-attempt adapters feed a typed create outcome into the standard-owned policy. One shared I/O classification mapper owns all stable <code>std.io.*</code> construction, including nonempty directories. <code>create_dir_all</code> validates the complete spelling before mutation, walks borrowed UTF-8 prefixes, accepts existing directories, and leaves completed prefixes visible after a later failure. Four native filesystem tests cover malformed directory records, invalid entry encoding, lifecycle success, existing entries, empty input, non-directory prefixes, nonempty removal, and explicit cleanup.</p><h2 id="phase-3-tooling-and-practical-integration">Phase 3: Tooling and Practical Integration</h2><p><strong>Status: active.</strong> Exercise the contracts through formatter and semantic editor features, one temporary-directory native application path, authored-standard dependency checks, and the distributed installed-home boundary.</p><h2 id="phase-4-qualification-and-review">Phase 4: Qualification and Review</h2><p><strong>Status: planned.</strong> Run complete workspace, Clippy, formatter, documentation, source-architecture, native, and repository gates. Review for duplicate path scanners, raw errno leakage, target ABI in public modules, retry-after-mutation, recursive-delete residue, hidden allocation, source-only tooling models, obsolete wrappers, and caller-discipline assumptions.</p>
+                <h1>directory_mutation.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Public directory lifecycle policy over one target mutation attempt.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-type">OSErrorKind</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>path <span class="token-keyword">as</span> path_module
+
+<span class="token-keyword">func</span> <span class="token-function">create_dir</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> attempt <span class="token-operator">=</span> <span class="token-function">create_directory_target</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> attempt <span class="token-keyword">is</span> <span class="token-type">CreateDirectoryAttempt</span><span class="token-operator">.</span>already_exists <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_kind</span><span class="token-operator">(</span><span class="token-type">OSErrorKind</span><span class="token-operator">.</span>already_exists<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">create_dir_all</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    path_module<span class="token-operator">.</span><span class="token-function">validate</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> path<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_kind</span><span class="token-operator">(</span><span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">var</span> end<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> end <span class="token-operator">&lt;</span> path<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">while</span> end <span class="token-operator">&lt;</span> path<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> path<span class="token-operator">[</span>end<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">47</span> <span class="token-operator">{</span>
+            end <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">if</span> end <span class="token-operator">=</span><span class="token-operator">=</span> path<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+        <span class="token-keyword">while</span> end <span class="token-operator">&lt;</span> path<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> path<span class="token-operator">[</span>end<span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">47</span> <span class="token-operator">{</span>
+            end <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span>
+
+        <span class="token-keyword">let</span> prefix <span class="token-operator">=</span> path<span class="token-operator">.</span><span class="token-function">get_range</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">,</span> end<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>
+                <span class="token-string">"std.fs.internal_path_boundary"</span><span class="token-operator">,</span>
+                <span class="token-string">"directory prefix did not end at a UTF-8 boundary"</span><span class="token-operator">,</span>
+            <span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-function">ensure_directory</span><span class="token-operator">(</span>prefix<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">ensure_directory</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> attempt <span class="token-operator">=</span> <span class="token-function">create_directory_target</span><span class="token-operator">(</span>value<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> attempt <span class="token-keyword">is</span> <span class="token-type">CreateDirectoryAttempt</span><span class="token-operator">.</span>created <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> existing <span class="token-operator">=</span> <span class="token-function">metadata</span><span class="token-operator">(</span>value<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> existing<span class="token-operator">.</span><span class="token-function">is_directory</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_kind</span><span class="token-operator">(</span><span class="token-type">OSErrorKind</span><span class="token-operator">.</span>not_directory<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">remove_dir</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">remove_directory_target</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -240,6 +265,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../../../script.js" defer></script>
 </body>
 </html>

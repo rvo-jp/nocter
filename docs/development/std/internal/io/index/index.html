@@ -197,10 +197,13 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-type">OSError</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">}</span>
 
 <span class="token-comment">/// Maps one target-independent OS classification to the stable public I/O error family.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span>os_error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error
+
+<span class="token-comment">/// Maps one target-independent classification to the stable public I/O error family.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">io_error_from_kind</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">OSErrorKind</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 <span class="token-comment">/// Reports an operation attempted through a terminal stream wrapper.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
