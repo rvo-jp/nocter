@@ -27,8 +27,10 @@ checking-owned context.
 
 ## Next Work
 
-Define the next milestone and its acceptance criteria before making further product changes. Do
-not infer scope from unfinished ideas or historical milestone plans.
+Implement [v0.27.0](milestones/v0.27.0.md) from its adopted Phase 0 contract. Phase 1 adds one
+allocation-free lexical path authority behind the public `Utf8Path` queries. Phase 2 adds explicit
+single-directory mutation and standard-owned `create_dir_all` policy without recursive deletion or
+a speculative target-neutral wrapper.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

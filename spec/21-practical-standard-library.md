@@ -127,6 +127,38 @@ may support filename bytes that are not UTF-8, and this type does not claim to r
 `join` replaces the base when its child is absolute and otherwise inserts one path separator. It
 does not perform filesystem normalization or canonicalization.
 
+The path owns its complete spelling while its lexical queries return allocation-free views into
+that spelling:
+
+```nct
+instance Utf8Path {
+    pub noalloc method &self.is_absolute(): bool
+    pub noalloc method &self.parent(): &str?
+    pub noalloc method &self.file_name(): &str?
+    pub noalloc method &self.file_stem(): &str?
+    pub noalloc method &self.extension(): &str?
+}
+
+pub noalloc func validate(value: &str): void!
+```
+
+These queries are byte-lexical over the ASCII `/` separator and never access the filesystem.
+Because `/` and `.` are single-byte UTF-8 characters, every returned boundary is a valid UTF-8
+boundary. Trailing separators are ignored before selecting the final component. An empty spelling
+or a spelling containing only separators has no file name, stem, extension, or parent. `.` and `..`
+remain ordinary lexical component spellings; the queries do not resolve them.
+
+`file_name` returns the last nonempty component. `extension` returns the nonempty suffix after the
+last `.` in that component only when the dot is neither its first nor last byte. A leading dot by
+itself therefore does not create an extension, and a trailing dot has no extension. `file_stem`
+returns the file name with that recognized extension and its preceding dot removed, or the complete
+file name when no extension is recognized.
+
+`parent` removes the final nonempty component and adjacent separators. It preserves one leading
+root separator but otherwise returns the exact remaining prefix. A single relative component and
+the filesystem root have no parent. Repeated separators, `.` components, and `..` components are
+not otherwise normalized.
+
 `std/io.File.open`, `File.create`, and `File.append` respectively open an existing file for
 reading, create or truncate a file for writing, and open a file for append. `Utf8Path` coerces to
 `&str`, so the same constructors accept a borrowed path without parallel `_path` functions. File
@@ -183,6 +215,9 @@ pub func read_dir(path: &str): ReadDir!
 pub func exists(path: &str): bool!
 pub func remove_file(path: &str): void!
 pub func rename(from: &str, to: &str): void!
+pub func create_dir(path: &str): void!
+pub func create_dir_all(path: &str): void!
+pub func remove_dir(path: &str): void!
 ```
 
 `read` and `read_to_string` open an existing entry and return independently owned storage.
@@ -227,6 +262,20 @@ is removed rather than its target. `rename` performs one target rename operation
 target it replaces an existing destination when the OS permits. It does not fall back to copying
 and deleting across filesystems. All filesystem functions accept `Utf8Path` through its existing
 readonly coercion and reject an embedded NUL before any OS operation.
+
+`create_dir` creates exactly one directory with target-default permissions filtered by the process
+umask. It fails with `std.io.already_exists` when the final spelling already names any entry.
+`create_dir_all` walks the authored spelling from left to right and creates every missing directory
+prefix. It succeeds when a prefix already resolves to a directory, including through a symbolic
+link, but fails when an existing prefix is not a directory. An empty spelling is invalid input; a
+spelling containing only root separators succeeds without a mutation. The operation does not
+lexically resolve `.`, `..`, or repeated separators before passing prefixes to the target.
+
+`remove_dir` removes exactly one empty directory. It is never recursive and never follows a final
+symbolic link as a directory. A nonempty directory fails with `std.io.directory_not_empty`.
+`remove_file` and `remove_dir` remain distinct so source states whether it intends to remove a
+non-directory entry or an empty directory. Mutating target calls are attempted once: they are not
+blindly retried after an interruption whose completion state could be ambiguous.
 
 Errno classification, syscall numbers, and metadata layout are dependency-free,
 target-specific `std/internal/os` responsibilities. The allocator-backed temporary path argument
