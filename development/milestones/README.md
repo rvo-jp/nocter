@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Current Candidate
 
 - [v0.29.0: Standard Input and Run Invocation](v0.29.0.md)
+- [v0.29.0 Release Preparation](v0.29.0-release-preparation.md)
 
 ## Recent Milestones
 

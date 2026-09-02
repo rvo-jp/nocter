@@ -496,6 +496,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/milestones/v0.29.0-release-preparation/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/milestones/v0.29.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1772,6 +1777,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/releases/v0.28.0/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/releases/v0.29.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

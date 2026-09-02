@@ -41,10 +41,11 @@ complete workspace and static-quality gates pass.
 
 ## Next Work
 
-Prepare the v0.29.0 release. Assign the release identity consistently, rebuild generated
-documentation, produce a reproducible local archive, qualify the extracted installation without
-repository-local toolchain state, and stop before publication unless publication is separately
-authorized. Do not modify or replace an earlier release asset or tag.
+Commit the prepared [v0.29.0 release content](milestones/v0.29.0-release-preparation.md), then
+qualify that exact clean commit through two independent workspace targets, reproducible archive
+generation, and an isolated installed home. Record the exact source commit, test count, archive
+identity, compiler and standard-tree digests, and installed-home evidence before requesting
+publication authority.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
