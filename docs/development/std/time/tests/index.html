@@ -198,6 +198,7 @@
                 <h1>tests.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Duration contract tests.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>primitives<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>testing
 
@@ -266,6 +267,13 @@
     <span class="token-keyword">let</span> start <span class="token-operator">=</span> <span class="token-type">Instant</span><span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">let</span> elapsed <span class="token-operator">=</span> start<span class="token-operator">.</span><span class="token-function">elapsed</span><span class="token-operator">(</span><span class="token-operator">)</span>
     testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span>elapsed<span class="token-operator">.</span><span class="token-function">subsecond_nanoseconds</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> <span class="token-number">1000000000</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">test</span> target_counter_contract_has_a_bounded_frequency_and_wrapping_delta <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> frequency <span class="token-operator">=</span> <span class="token-function">monotonic_frequency_raw</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span>frequency <span class="token-operator">&gt;</span> <span class="token-number">0</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> frequency <span class="token-operator">&lt;</span><span class="token-operator">=</span> <span class="token-number">4294967295</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span><span class="token-function">monotonic_delta_raw</span><span class="token-operator">(</span><span class="token-number">18446744073709551615</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 

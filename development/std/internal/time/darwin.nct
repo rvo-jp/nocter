@@ -1,0 +1,17 @@
+//! Darwin implementation of one target-neutral timeout wait attempt.
+
+see ./index.nct
+
+use /internal/os/darwin
+
+#target: "arm64-darwin"
+noalloc func wait_once(seconds: u64, microseconds: u64): WaitStatus {
+    let result = darwin.wait_timeout_once(seconds, microseconds)
+    if result.errno == 0 {
+        return WaitStatus.complete
+    }
+    if result.errno == darwin.ERRNO_INTERRUPTED {
+        return WaitStatus.interrupted
+    }
+    return WaitStatus.failed
+}

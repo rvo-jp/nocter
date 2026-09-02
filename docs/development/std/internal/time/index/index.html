@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Compiler Design Reviews - Nocter</title>
-    <meta name="description" content="Each review file owns its findings, remediation status, and evidence. This catalog intentionally does not duplicate those mutable facts. Reviews are non-no">
+    <title>development/std/internal/time/index.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/internal/time/index.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/">
-    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/std/internal/time/index/">
+    <link rel="icon" href="../../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Compiler Design Reviews - Nocter">
-    <meta property="og:description" content="Each review file owns its findings, remediation status, and evidence. This catalog intentionally does not duplicate those mutable facts. Reviews are non-no">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/">
+    <meta property="og:title" content="development/std/internal/time/index.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/internal/time/index.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/internal/time/index/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Compiler Design Reviews - Nocter">
-    <meta name="twitter:description" content="Each review file owns its findings, remediation status, and evidence. This catalog intentionally does not duplicate those mutable facts. Reviews are non-no">
+    <meta name="twitter:title" content="development/std/internal/time/index.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/internal/time/index.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Compiler Design Reviews - Nocter","description":"Each review file owns its findings, remediation status, and evidence. This catalog intentionally does not duplicate those mutable facts. Reviews are non-no","url":"https://nocter.dev/development/reviews/","mainEntityOfPage":"https://nocter.dev/development/reviews/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/internal/time/index.nct - Nocter","description":"Nocter source code for development/std/internal/time/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/internal/time/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Internal","item":"https://nocter.dev/development/std/internal/"},{"@type":"ListItem","position":5,"name":"Time","item":"https://nocter.dev/development/std/internal/time/"},{"@type":"ListItem","position":6,"name":"Index","item":"https://nocter.dev/development/std/internal/time/index/"}]}]</script>
 
-    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="../../../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -174,58 +174,40 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/reviews/</p>
+            <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="./v0.26.0-phase-5/index.html#content">v0.26.0 Phase 5 Monotonic-time Qualification Review</a></li>
-                <li><a href="./v0.25.0-query-authority-closure/index.html#content">v0.25.0 Query Authority Closure Review</a></li>
-                <li><a href="./v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li>
-                <li><a href="./v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
-                <li><a href="./v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
-                <li><a href="./v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
-                <li><a href="./v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
-                <li><a href="./v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
-                <li><a href="./v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
-                <li><a href="./v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
-                <li><a href="./v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
-                <li><a href="./v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li>
-                <li><a href="./v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li>
-                <li><a href="./v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li>
-                <li><a href="./v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li>
-                <li><a href="./v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li>
-                <li><a href="./v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li>
-                <li><a href="./v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li>
-                <li><a href="./v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li>
-                <li><a href="./v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li>
-                <li><a href="./v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li>
-                <li><a href="./v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li>
-                <li><a href="./v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li>
-                <li><a href="./v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li>
-                <li><a href="./v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
-                <li><a href="./v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
-                <li><a href="./v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
-                <li><a href="./v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li>
-                <li><a href="./v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
-                <li><a href="./v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
-                <li><a href="./v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
-                <li><a href="./v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li>
-                <li><a href="./v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li>
-                <li><a href="./v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li>
-                <li><a href="./v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li>
-                <li><a href="./v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li>
-                <li><a href="./v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li>
-                <li><a href="./v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li>
-                <li><a href="./v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li>
-                <li><a href="./v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li>
-                <li><a href="./v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li>
+                <li><a href="../../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/README.md</span>
+                <span class="markdown-path-text">/development/std/internal/time/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="compiler-design-reviews">Compiler Design Reviews</h1><p>Each review file owns its findings, remediation status, and evidence. This catalog intentionally does not duplicate those mutable facts. Reviews are non-normative: public behavior remains owned exclusively by <a href="../../spec/index.html#content"><code>spec/</code></a>.</p><p>An implementation qualification proves the recorded implementation against its specification and tests. A final design review asks whether each responsibility can be replaced internally without forcing consumers that use only its contract to change.</p><h2 id="review-catalog">Review Catalog</h2><ul><li><a href="./v0.26.0-phase-5/index.html#content">v0.26.0 Phase 5 Monotonic-time Qualification Review</a></li><li><a href="./v0.25.0-query-authority-closure/index.html#content">v0.25.0 Query Authority Closure Review</a></li><li><a href="./v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li><li><a href="./v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li><li><a href="./v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li><li><a href="./v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li><li><a href="./v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li><li><a href="./v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li><li><a href="./v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li><li><a href="./v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li><li><a href="./v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li><li><a href="./v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li><li><a href="./v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li><li><a href="./v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li><li><a href="./v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li><li><a href="./v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li><li><a href="./v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li><li><a href="./v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li><li><a href="./v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li><li><a href="./v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li><li><a href="./v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li><li><a href="./v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li><li><a href="./v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li><li><a href="./v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li><li><a href="./v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li><li><a href="./v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li><li><a href="./v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li><li><a href="./v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li><li><a href="./v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li><li><a href="./v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li><li><a href="./v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li><li><a href="./v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li><li><a href="./v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li><li><a href="./v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li><li><a href="./v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li><li><a href="./v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li><li><a href="./v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li><li><a href="./v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li><li><a href="./v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li><li><a href="./v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li><li><a href="./v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li></ul>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal target wait boundary for monotonic sleep policy.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
+
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">enum</span> <span class="token-type">WaitStatus</span> <span class="token-operator">{</span>
+    complete
+    interrupted
+    failed
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// Performs one blocking timeout wait without deciding retry or remaining-time policy.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">wait_once</span><span class="token-operator">(</span>seconds<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> microseconds<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">WaitStatus</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -241,6 +223,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../script.js" defer></script>
+    <script src="../../../../../script.js" defer></script>
 </body>
 </html>

@@ -289,6 +289,12 @@
 <span class="token-keyword">const</span> <span class="token-type">SYS_SELECT</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200005d
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">MAX_TIMEVAL_SECONDS</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">9223372036854775807</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">TIMEVAL_MICROSECONDS_PER_SECOND</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">1000000</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> <span class="token-type">OPEN_READ_ONLY</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
@@ -370,8 +376,11 @@
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 copy <span class="token-keyword">struct</span> <span class="token-type">Timeval</span> <span class="token-operator">{</span>
-    seconds<span class="token-operator">:</span> <span class="token-type">u64</span>
-    microseconds<span class="token-operator">:</span> <span class="token-type">u64</span>
+    <span class="token-comment">// Positive i64 seconds have the same 64-bit representation as this validated source value.</span>
+    seconds_bits<span class="token-operator">:</span> <span class="token-type">u64</span>
+    <span class="token-comment">// Darwin stores i32 microseconds followed by four padding bytes. A validated value below one</span>
+    <span class="token-comment">// million occupies the low 32 bits and leaves the complete padding half zero.</span>
+    microseconds_and_padding<span class="token-operator">:</span> <span class="token-type">u64</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
@@ -391,7 +400,13 @@ copy <span class="token-keyword">struct</span> <span class="token-type">Timeval<
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">wait_timeout_once</span><span class="token-operator">(</span>seconds<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> microseconds<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> timeout <span class="token-operator">=</span> <span class="token-type">Timeval</span> <span class="token-operator">{</span> seconds<span class="token-operator">:</span> seconds<span class="token-operator">,</span> microseconds<span class="token-operator">:</span> microseconds <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> seconds <span class="token-operator">&gt;</span> <span class="token-type">MAX_TIMEVAL_SECONDS</span> || microseconds <span class="token-operator">&gt;</span><span class="token-operator">=</span> <span class="token-type">TIMEVAL_MICROSECONDS_PER_SECOND</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-number">22</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> timeout <span class="token-operator">=</span> <span class="token-type">Timeval</span> <span class="token-operator">{</span>
+        seconds_bits<span class="token-operator">:</span> seconds<span class="token-operator">,</span>
+        microseconds_and_padding<span class="token-operator">:</span> microseconds<span class="token-operator">,</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-function">syscall5</span><span class="token-operator">(</span>
         <span class="token-type">SYS_SELECT</span><span class="token-operator">,</span>
         <span class="token-number">0</span><span class="token-operator">,</span>

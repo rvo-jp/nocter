@@ -909,6 +909,7 @@ fn bundled_standard_filesystem_runtime_crosses_public_stream_and_os_contracts() 
 fn expected_example_output(name: &str) -> &'static [u8] {
     match name {
         "custom-format.nct" => b"point = (3, 4)\n",
+        "elapsed.nct" => b"at least two milliseconds elapsed\n",
         "equality.nct" => b"equality found the point\n",
         "hello.nct" => b"Hello from Nocter\n",
         "indexing.nct" | "recovery.nct" => b"",

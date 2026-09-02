@@ -1,0 +1,12 @@
+//! Package-internal target wait boundary for monotonic sleep policy.
+
+see ./darwin.nct
+
+pub(/) enum WaitStatus {
+    complete
+    interrupted
+    failed
+}
+
+/// Performs one blocking timeout wait without deciding retry or remaining-time policy.
+pub(/) noalloc func wait_once(seconds: u64, microseconds: u64): WaitStatus

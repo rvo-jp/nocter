@@ -69,8 +69,11 @@ pub enum PrimitiveRole {
     ProcessEnvironmentCount,
     ProcessEnvironmentName,
     ProcessEnvironmentValue,
+    /// Reads the current 64-bit value from one process monotonic counter domain.
     MonotonicCounterRead,
+    /// Reads that domain's fixed, non-zero ticks-per-second value, which must fit in `u32`.
     MonotonicCounterFrequency,
+    /// Computes `later - earlier` in the counter's wrapping 64-bit domain.
     MonotonicCounterDelta,
     Syscall0,
     Syscall1,

@@ -1,6 +1,7 @@
 //! Duration contract tests.
 
 see ./index.nct
+see ./primitives.nct
 
 use /testing
 
@@ -69,6 +70,13 @@ test instant_elapsed_stays_in_the_normalized_duration_domain {
     let start = Instant.now()
     let elapsed = start.elapsed()
     testing.assert(elapsed.subsecond_nanoseconds() < 1000000000)?
+    return
+}
+
+test target_counter_contract_has_a_bounded_frequency_and_wrapping_delta {
+    let frequency = monotonic_frequency_raw()
+    testing.assert(frequency > 0 && frequency <= 4294967295)?
+    testing.assert(monotonic_delta_raw(18446744073709551615, 0) == 1)?
     return
 }
 

@@ -16,11 +16,8 @@ pub(super) fn select(
     match target.role() {
         PrimitiveRole::AllocationAbort => select_break(operation, target, selected),
         PrimitiveRole::ProcessExit => select_exit(operation, target, selected),
-        PrimitiveRole::MonotonicCounterRead => {
-            select_counter_read(operation, target, selected, false)
-        }
-        PrimitiveRole::MonotonicCounterFrequency => {
-            select_counter_read(operation, target, selected, true)
+        PrimitiveRole::MonotonicCounterRead | PrimitiveRole::MonotonicCounterFrequency => {
+            select_counter_read(operation, target, selected)
         }
         PrimitiveRole::MonotonicCounterDelta => select_counter_delta(operation, target, selected),
         PrimitiveRole::Syscall0
@@ -41,14 +38,15 @@ fn select_counter_read(
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
-    frequency: bool,
 ) -> Result<(), Arm64SelectionError> {
     validate_ordinary_inputs(operation, target, 0)?;
     validate_direct_result(operation, target, 1)?;
-    selected.push(if frequency {
-        Arm64SelectedInstruction::ReadMonotonicCounterFrequency
-    } else {
-        Arm64SelectedInstruction::ReadMonotonicCounter
+    selected.push(match target.role() {
+        PrimitiveRole::MonotonicCounterRead => Arm64SelectedInstruction::ReadMonotonicCounter,
+        PrimitiveRole::MonotonicCounterFrequency => {
+            Arm64SelectedInstruction::ReadMonotonicCounterFrequency
+        }
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
     });
     Ok(())
 }
@@ -91,18 +89,7 @@ fn select_syscall(
     let argument_count = syscall_argument_count(target.role())
         .ok_or(Arm64SelectionError::PrimitiveCall(operation))?;
     validate_ordinary_inputs(operation, target, argument_count + 1)?;
-    let MachineResultAbi::Value(result) = target.abi().result() else {
-        return Err(Arm64SelectionError::PrimitiveCall(operation));
-    };
-    let MachineResultLocation::Registers(registers) = result.location() else {
-        return Err(Arm64SelectionError::PrimitiveCall(operation));
-    };
-    if result.class() != (MachineValueClass::Direct { words: 2 })
-        || registers.first() != 0
-        || registers.words() != 2
-    {
-        return Err(Arm64SelectionError::PrimitiveCall(operation));
-    }
+    validate_direct_result(operation, target, 2)?;
     selected.push(Arm64SelectedInstruction::DarwinSystemCall { argument_count });
     Ok(())
 }

@@ -195,13 +195,14 @@
                 <span class="markdown-path-text">/development/std/time/sleep.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>sleep.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Target-independent sleep policy over one Darwin timeout attempt.</span>
+                <h1>sleep.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Target-independent sleep policy over one portable timeout attempt.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>duration<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>instant<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>time
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-type">WaitStatus</span>
 
 <span class="token-keyword">const</span> <span class="token-type">WAIT_NANOSECONDS_PER_MICROSECOND</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">1000</span>
 <span class="token-keyword">const</span> <span class="token-type">WAIT_MICROSECONDS_PER_SECOND</span><span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">1000000</span>
@@ -236,8 +237,11 @@ copy <span class="token-keyword">struct</span> <span class="token-type">WaitRequ
         <span class="token-keyword">let</span> remaining <span class="token-operator">=</span> duration<span class="token-operator">.</span><span class="token-function">checked_sub</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>elapsed<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
         <span class="token-keyword">if</span> remaining<span class="token-operator">.</span><span class="token-function">is_zero</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
         <span class="token-keyword">let</span> request <span class="token-operator">=</span> <span class="token-function">wait_request</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>remaining<span class="token-operator">)</span>
-        <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">wait_timeout_once</span><span class="token-operator">(</span>request<span class="token-operator">.</span>seconds<span class="token-operator">,</span> request<span class="token-operator">.</span>microseconds<span class="token-operator">)</span>
-        <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> || result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> status <span class="token-operator">=</span> time<span class="token-operator">.</span><span class="token-function">wait_once</span><span class="token-operator">(</span>request<span class="token-operator">.</span>seconds<span class="token-operator">,</span> request<span class="token-operator">.</span>microseconds<span class="token-operator">)</span>
+        <span class="token-keyword">if</span> status <span class="token-keyword">is</span> <span class="token-type">WaitStatus</span><span class="token-operator">.</span>complete <span class="token-operator">{</span>
+            <span class="token-keyword">continue</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">if</span> status <span class="token-keyword">is</span> <span class="token-type">WaitStatus</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span>
             <span class="token-keyword">continue</span>
         <span class="token-operator">}</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.time.sleep_failed"</span><span class="token-operator">,</span> <span class="token-string">"sleep failed"</span><span class="token-operator">)</span>

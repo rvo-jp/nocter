@@ -816,6 +816,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.26.0-phase-5/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/core/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -997,6 +1002,16 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/internal/table/storage/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/internal/time/darwin/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/internal/time/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

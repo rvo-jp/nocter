@@ -1,10 +1,11 @@
-//! Target-independent sleep policy over one Darwin timeout attempt.
+//! Target-independent sleep policy over one portable timeout attempt.
 
 see ./index.nct
 see ./duration.nct
 see ./instant.nct
 
-use /internal/os/darwin
+use /internal/time
+use /internal/time.WaitStatus
 
 const WAIT_NANOSECONDS_PER_MICROSECOND: u64 = 1000
 const WAIT_MICROSECONDS_PER_SECOND: u64 = 1000000
@@ -39,8 +40,11 @@ noalloc func sleep(duration: &Duration): void! {
         let remaining = duration.checked_sub(&elapsed) otherwise { return }
         if remaining.is_zero() { return }
         let request = wait_request(&remaining)
-        let result = darwin.wait_timeout_once(request.seconds, request.microseconds)
-        if result.errno == 0 || result.errno == darwin.ERRNO_INTERRUPTED {
+        let status = time.wait_once(request.seconds, request.microseconds)
+        if status is WaitStatus.complete {
+            continue
+        }
+        if status is WaitStatus.interrupted {
             continue
         }
         return error.new("std.time.sleep_failed", "sleep failed")

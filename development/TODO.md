@@ -25,18 +25,18 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
-The [v0.26.0 milestone](milestones/v0.26.0.md) is active. Phases 0 through 4 implement the public
-contract, closed target primitive roles, normalized values, monotonic measurement, and blocking
-sleep. Native tests cover counter execution, boundary arithmetic, target wait rounding, chunking,
-and the no-early-return sleep rule. A formatted public example and semantic presentation tests cover
-the user and editor surfaces. Wall-clock fallback and external runtime linkage remain prohibited.
+The [v0.26.0 milestone](milestones/v0.26.0.md) is complete and reviewed. Its public contract, closed
+target primitive roles, normalized values, monotonic measurement, blocking sleep, editor surface,
+and native application path passed the complete workspace gates. The
+[Phase 5 review](reviews/v0.26.0-phase-5.md) records the final ABI, authority, dependency, and
+runtime evidence. Wall-clock fallback and external time-runtime calls remain prohibited.
 
 ## Next Work
 
-Complete v0.26.0 Phase 5: run the complete workspace, Clippy, native, documentation, and clean-tree
-gates; review responsibility boundaries and runtime assumptions; then record whether v0.26.0 is
-ready for release preparation. Do not publish or change the release identity without an explicit
-publication request.
+Prepare v0.26.0 for release only after explicit direction: freeze the candidate identity, generate
+the deterministic distribution archive, qualify a fresh installed home, write the public release
+record, and stop before publication unless publication is separately authorized. Do not publish or
+change the release identity as part of ordinary follow-up work.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
