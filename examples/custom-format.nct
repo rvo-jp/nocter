@@ -8,12 +8,12 @@ struct Point {
 
 instance Point {
     impl Format
-    method &self.format_into(output: &+String): void {
-        output.push_str("(")
-        self.x.format_into(output)
-        output.push_str(", ")
-        self.y.format_into(output)
-        output.push_str(")")
+    method &self.try_format_into(output: &+String): void! {
+        output.try_push_str("(")?
+        self.x.try_format_into(output)?
+        output.try_push_str(", ")?
+        self.y.try_format_into(output)?
+        output.try_push_str(")")?
         return
     }
 }

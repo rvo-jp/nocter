@@ -2,21 +2,20 @@
 
 see ./index.nct
 
-use /fmt
-use /internal/mem
+use /fmt.Format
 use /mem.TryAllocator
 use /string.String
 
 instance i8 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_i8(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 4)?
-        fmt.try_append_i8(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -24,13 +23,13 @@ instance i8 {
 instance i16 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_i16(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 6)?
-        fmt.try_append_i16(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -38,13 +37,13 @@ instance i16 {
 instance i32 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_i32(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 11)?
-        fmt.try_append_i32(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -52,13 +51,13 @@ instance i32 {
 instance i64 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_i64(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 20)?
-        fmt.try_append_i64(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -66,13 +65,13 @@ instance i64 {
 instance isize {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_isize(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 20)?
-        fmt.try_append_isize(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -80,13 +79,13 @@ instance isize {
 instance u8 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_u8(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 3)?
-        fmt.try_append_u8(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -94,13 +93,13 @@ instance u8 {
 instance u16 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_u16(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 5)?
-        fmt.try_append_u16(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -108,13 +107,13 @@ instance u16 {
 instance u32 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_u32(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 10)?
-        fmt.try_append_u32(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -122,13 +121,13 @@ instance u32 {
 instance u64 {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_u64(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 20)?
-        fmt.try_append_u64(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }
@@ -136,13 +135,13 @@ instance u64 {
 instance usize {
     method self.to_string(): String {
         var result = String.empty()
-        fmt.try_append_usize(&+result, self) catch allocation_error { return mem.allocation_abort() }
+        self.format_into(&+result)
         return move result
     }
 
     method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
         var result = String.try_with_capacity(allocator, 20)?
-        fmt.try_append_usize(&+result, self)?
+        self.try_format_into(&+result)?
         return move result
     }
 }

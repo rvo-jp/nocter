@@ -1,15 +1,21 @@
-//! Formatting append API for owned strings.
+//! Value formatting into owned strings.
 //!
-//! Normal operations abort on allocation failure. Explicit `try_*` operations
-//! return allocation errors. Both surfaces share the same formatting core.
+//! Implementations expose one recoverable operation. The shared default used
+//! by interpolation converts destination growth failure to allocation abort.
 
 use /string.String
+see ./default.nct
 see ./implementations.nct
-see ./formatting.nct
+see ./scalar.nct
+see ./tests.nct
 
 /// Appends the ordinary textual representation of a value.
 pub interface Format {
-    pub method &self.format_into(output: &+String): void
+    /// Appends with recoverable destination growth.
+    pub method &self.try_format_into(output: &+String): void!
+
+    /// Appends under the ordinary aborting allocation policy.
+    pub default method &self.format_into(output: &+String): void
 }
 
 instance str {
@@ -63,42 +69,3 @@ instance u64 {
 instance usize {
     impl Format
 }
-
-/// Appends borrowed UTF-8 text with recoverable destination growth.
-pub func try_append_str(out: &+String, value: &str): void!
-
-/// Appends owned UTF-8 text without transferring it.
-pub func try_append_string(out: &+String, value: &String): void!
-
-/// Appends the decimal spelling of an i32.
-pub func try_append_i32(out: &+String, value: i32): void!
-
-/// Appends the decimal spelling of an i8.
-pub func try_append_i8(out: &+String, value: i8): void!
-
-/// Appends the decimal spelling of an i16.
-pub func try_append_i16(out: &+String, value: i16): void!
-
-/// Appends the decimal spelling of an i64.
-pub func try_append_i64(out: &+String, value: i64): void!
-
-/// Appends the decimal spelling of an isize.
-pub func try_append_isize(out: &+String, value: isize): void!
-
-/// Appends the decimal spelling of a u8.
-pub func try_append_u8(out: &+String, value: u8): void!
-
-/// Appends the decimal spelling of a u16.
-pub func try_append_u16(out: &+String, value: u16): void!
-
-/// Appends the decimal spelling of a u32.
-pub func try_append_u32(out: &+String, value: u32): void!
-
-/// Appends the decimal spelling of a u64.
-pub func try_append_u64(out: &+String, value: u64): void!
-
-/// Appends the decimal spelling of a usize.
-pub func try_append_usize(out: &+String, value: usize): void!
-
-/// Appends `true` or `false`.
-pub func try_append_bool(out: &+String, value: bool): void!

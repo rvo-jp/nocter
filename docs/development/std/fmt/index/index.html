@@ -90,12 +90,12 @@
 
 <span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
     <span class="token-keyword">impl</span> <span class="token-type">Format</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        output<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span>
-        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span>
-        output<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span>
-        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span>
-        output<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
@@ -193,18 +193,24 @@
                 <span class="markdown-path-text">/development/std/fmt/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Formatting append API for owned strings.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Value formatting into owned strings.</span>
 <span class="token-comment">//!</span>
-<span class="token-comment">//! Normal operations abort on allocation failure. Explicit `try_*` operations</span>
-<span class="token-comment">//! return allocation errors. Both surfaces share the same formatting core.</span>
+<span class="token-comment">//! Implementations expose one recoverable operation. The shared default used</span>
+<span class="token-comment">//! by interpolation converts destination growth failure to allocation abort.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>default<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>implementations<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>formatting<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>scalar<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// Appends the ordinary textual representation of a value.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Format</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+    <span class="token-comment">/// Appends with recoverable destination growth.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Appends under the ordinary aborting allocation policy.</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">str</span> <span class="token-operator">{</span>
@@ -258,45 +264,6 @@
 <span class="token-keyword">instance</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
     <span class="token-keyword">impl</span> <span class="token-type">Format</span>
 <span class="token-operator">}</span>
-
-<span class="token-comment">/// Appends borrowed UTF-8 text with recoverable destination growth.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_str</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends owned UTF-8 text without transferring it.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_string</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of an i32.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_i32</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of an i8.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_i8</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of an i16.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_i16</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of an i64.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_i64</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of an isize.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_isize</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">isize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of a u8.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_u8</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of a u16.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_u16</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of a u32.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_u32</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of a u64.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_u64</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends the decimal spelling of a usize.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_usize</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Appends `true` or `false`.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_append_bool</span><span class="token-operator">(</span>out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 </code></pre>
             </div>
         </main>

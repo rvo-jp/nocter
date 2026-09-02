@@ -291,7 +291,7 @@ fn validate_format_method(
         || !interface_declaration.methods().contains(&method)
         || !callable.generic_parameters().is_empty()
         || !callable.requirements().is_empty()
-        || callable.body().is_some()
+        || callable.body().is_none()
         || !is_public(graph, string_declaration.site())
         || !is_public(graph, interface_declaration.site())
         || !is_public(graph, callable.site())

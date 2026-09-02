@@ -1,97 +1,101 @@
+//! Standard Format implementations for compiler built-in and owned text types.
+
 see ./index.nct
-see ./formatting.nct
+see ./scalar.nct
 use /internal/ptr
 use /string.String
 
-//! Standard Format implementations for compiler built-in and owned text types.
-
 instance str {
-    method &self.format_into(output: &+String): void {
-        append_str(output, self)
+    method &self.try_format_into(output: &+String): void! {
+        output.try_push_str(self)?
         return
     }
 }
 
 instance String {
-    method &self.format_into(output: &+String): void {
-        append_string(output, self)
+    method &self.try_format_into(output: &+String): void! {
+        output.try_push_str(self)?
         return
     }
 }
 
 instance bool {
-    method &self.format_into(output: &+String): void {
-        append_bool(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        if ptr.copy_value(self) {
+            output.try_push_str("true")?
+            return
+        }
+        output.try_push_str("false")?
         return
     }
 }
 
 instance i8 {
-    method &self.format_into(output: &+String): void {
-        append_i8(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_signed(output, ptr.copy_value(self) as i64)?
         return
     }
 }
 
 instance i16 {
-    method &self.format_into(output: &+String): void {
-        append_i16(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_signed(output, ptr.copy_value(self) as i64)?
         return
     }
 }
 
 instance i32 {
-    method &self.format_into(output: &+String): void {
-        append_i32(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_signed(output, ptr.copy_value(self) as i64)?
         return
     }
 }
 
 instance i64 {
-    method &self.format_into(output: &+String): void {
-        append_i64(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_signed(output, ptr.copy_value(self))?
         return
     }
 }
 
 instance isize {
-    method &self.format_into(output: &+String): void {
-        append_isize(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_signed(output, ptr.copy_value(self) as i64)?
         return
     }
 }
 
 instance u8 {
-    method &self.format_into(output: &+String): void {
-        append_u8(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_unsigned(output, ptr.copy_value(self) as u64)?
         return
     }
 }
 
 instance u16 {
-    method &self.format_into(output: &+String): void {
-        append_u16(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_unsigned(output, ptr.copy_value(self) as u64)?
         return
     }
 }
 
 instance u32 {
-    method &self.format_into(output: &+String): void {
-        append_u32(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_unsigned(output, ptr.copy_value(self) as u64)?
         return
     }
 }
 
 instance u64 {
-    method &self.format_into(output: &+String): void {
-        append_u64(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_unsigned(output, ptr.copy_value(self))?
         return
     }
 }
 
 instance usize {
-    method &self.format_into(output: &+String): void {
-        append_usize(output, ptr.copy_value(self))
+    method &self.try_format_into(output: &+String): void! {
+        try_format_unsigned(output, ptr.copy_value(self) as u64)?
         return
     }
 }

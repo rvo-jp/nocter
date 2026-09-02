@@ -81,7 +81,11 @@ instance String {
 }
 drop String(&+self) { return }
 pub interface Format {
-    pub method &self.format_into(output: &+String): void
+    pub method &self.try_format_into(output: &+String): void!
+    pub default method &self.format_into(output: &+String): void {
+        self.try_format_into(output) catch _ { return }
+        return
+    }
 }
 ";
 const ALLOCATION_SOURCE: &str = "\

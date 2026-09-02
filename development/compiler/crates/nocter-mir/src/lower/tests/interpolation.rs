@@ -11,7 +11,7 @@ fn lowers_as_ordered_selected_string_operations() {
          struct Value {}\n\
          instance Value {\n\
              impl Format\n\
-             method &self.format_into(output: &+String): void { return }\n\
+             method &self.try_format_into(output: &+String): void! { return }\n\
          }\n\
          func render(value: &Value): String {\n\
              \"before ${value} after\"\n\
@@ -75,7 +75,7 @@ fn propagation_drops_the_partial_output_storage() {
          struct Value {}\n\
          instance Value {\n\
              impl Format\n\
-             method &self.format_into(output: &+String): void { return }\n\
+             method &self.try_format_into(output: &+String): void! { return }\n\
          }\n\
          func render(input: Value?): String? {\n\
              \"prefix ${move input?}\"\n\
@@ -119,7 +119,7 @@ fn explicit_return_drops_the_partial_output_storage() {
          struct Value {}\n\
          instance Value {\n\
              impl Format\n\
-             method &self.format_into(output: &+String): void { return }\n\
+             method &self.try_format_into(output: &+String): void! { return }\n\
          }\n\
          func render(exit: bool, value: &Value): String {\n\
              \"prefix ${if exit { return String.empty() } else { value }}\"\n\
@@ -149,7 +149,7 @@ fn forced_operand_traps_without_partial_output_cleanup() {
          struct Value {}\n\
          instance Value {\n\
              impl Format\n\
-             method &self.format_into(output: &+String): void { return }\n\
+             method &self.try_format_into(output: &+String): void! { return }\n\
          }\n\
          func render(input: Value?): String {\n\
              \"prefix ${move input!}\"\n\

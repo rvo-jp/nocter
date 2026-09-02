@@ -55,7 +55,11 @@ instance String {{
     pub method &+self.push_str(text: &str): void {{ return }}
 }}
 pub interface Format {{
-    pub method &self.format_into(output: &+String): void
+    pub method &self.try_format_into(output: &+String): void!
+    pub default method &self.format_into(output: &+String): void {{
+        self.try_format_into(output) catch _ {{ return }}
+        return
+    }}
 }}
 {extra}
 "
@@ -75,7 +79,7 @@ fn interpolation_freezes_source_order_format_dispatch_and_owned_output() {
         r#"
 instance i32 {
     impl Format
-    method &self.format_into(output: &+String): void { return }
+    method &self.try_format_into(output: &+String): void! { return }
 }
 func render(value: i32): String {
     "before ${value} after"
@@ -128,7 +132,16 @@ func render(value: i32): String {
         operand.preparation(),
         ReadonlyOperandPreparation::BorrowPlace
     );
-    assert!(matches!(formatter.dispatch(), StaticDispatch::Direct(_)));
+    assert!(matches!(
+        formatter.dispatch(),
+        StaticDispatch::InterfaceDefault { method, .. }
+            if method
+                == output
+                    .program()
+                    .standard_semantics()
+                    .callable(StandardDeclarationRole::FormatMethod)
+                    .unwrap()
+    ));
 }
 
 #[test]
@@ -192,7 +205,7 @@ fn interpolation_borrows_move_only_places_and_drops_temporary_operands_at_statem
 struct Value {}
 instance Value {
     impl Format
-    method &self.format_into(output: &+String): void { return }
+    method &self.try_format_into(output: &+String): void! { return }
 }
 func make(): Value { Value {} }
 func render(value: Value): void {
@@ -270,7 +283,7 @@ drop String(&+self) { return }
 struct Value {}
 instance Value {
     impl Format
-    method &self.format_into(output: &+String): void { return }
+    method &self.try_format_into(output: &+String): void! { return }
 }
 func render(input: Value?): String? {
     "prefix ${move input?}"

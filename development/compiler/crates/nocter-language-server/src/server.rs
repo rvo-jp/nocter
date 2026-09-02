@@ -1416,6 +1416,45 @@ mod tests {
     }
 
     #[test]
+    fn format_hover_distinguishes_recoverable_requirement_and_aborting_default() {
+        let temporary = TemporaryDirectory::new();
+        let (mut server, _source_uri) =
+            open_semantic_source(&temporary, "func main(): void { return }\n");
+        let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/fmt/index.nct");
+        let text = fs::read_to_string(&standard).unwrap();
+
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("method &self.try_format_into"))
+            .unwrap();
+        let character = source_line.find("try_format_into").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":22,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            standard.display()
+        ));
+        assert!(hover.response().unwrap().contains(concat!(
+            "```nocter\\npub method &Format.try_format_into(",
+            "output: &+String): void!\\n```"
+        )));
+
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("default method &self.format_into"))
+            .unwrap();
+        let character = source_line.find("format_into").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":23,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            standard.display()
+        ));
+        assert!(hover.response().unwrap().contains(concat!(
+            "```nocter\\npub default method &Format.format_into(",
+            "output: &+String): void\\n```"
+        )));
+    }
+
+    #[test]
     fn integer_text_queries_use_the_type_owned_standard_contract() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

@@ -1,0 +1,116 @@
+//! Private decimal spelling authority for built-in integers.
+
+use /string.String
+
+func try_format_signed(output: &+String, value: i64): void! {
+    if value == -9223372036854775808 {
+        output.try_push_str("-9223372036854775808")?
+        return
+    }
+    if value < 0 {
+        output.try_push_str("-")?
+        let magnitude: i64 = 0 - value
+        try_format_signed_magnitude(output, magnitude)?
+        return
+    }
+    try_format_signed_magnitude(output, value)?
+    return
+}
+
+func try_format_signed_magnitude(output: &+String, value: i64): void! {
+    if value >= 10 {
+        try_format_signed_magnitude(output, value / 10)?
+    }
+    try_format_signed_digit(output, value % 10)?
+    return
+}
+
+func try_format_unsigned(output: &+String, value: u64): void! {
+    if value >= 10 {
+        try_format_unsigned(output, value / 10)?
+    }
+    try_format_digit(output, value % 10)?
+    return
+}
+
+func try_format_digit(output: &+String, value: u64): void! {
+    if value == 0 {
+        output.try_push_str("0")?
+        return
+    }
+    if value == 1 {
+        output.try_push_str("1")?
+        return
+    }
+    if value == 2 {
+        output.try_push_str("2")?
+        return
+    }
+    if value == 3 {
+        output.try_push_str("3")?
+        return
+    }
+    if value == 4 {
+        output.try_push_str("4")?
+        return
+    }
+    if value == 5 {
+        output.try_push_str("5")?
+        return
+    }
+    if value == 6 {
+        output.try_push_str("6")?
+        return
+    }
+    if value == 7 {
+        output.try_push_str("7")?
+        return
+    }
+    if value == 8 {
+        output.try_push_str("8")?
+        return
+    }
+    output.try_push_str("9")?
+    return
+}
+
+func try_format_signed_digit(output: &+String, value: i64): void! {
+    if value == 0 {
+        output.try_push_str("0")?
+        return
+    }
+    if value == 1 {
+        output.try_push_str("1")?
+        return
+    }
+    if value == 2 {
+        output.try_push_str("2")?
+        return
+    }
+    if value == 3 {
+        output.try_push_str("3")?
+        return
+    }
+    if value == 4 {
+        output.try_push_str("4")?
+        return
+    }
+    if value == 5 {
+        output.try_push_str("5")?
+        return
+    }
+    if value == 6 {
+        output.try_push_str("6")?
+        return
+    }
+    if value == 7 {
+        output.try_push_str("7")?
+        return
+    }
+    if value == 8 {
+        output.try_push_str("8")?
+        return
+    }
+    output.try_push_str("9")?
+    return
+}

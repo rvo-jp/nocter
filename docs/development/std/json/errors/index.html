@@ -90,12 +90,12 @@
 
 <span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
     <span class="token-keyword">impl</span> <span class="token-type">Format</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        output<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span>
-        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span>
-        output<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span>
-        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span>
-        output<span class="token-operator">.</span><span class="token-function">push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
@@ -197,7 +197,7 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>failure<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>fmt
+<span class="token-keyword">use</span> <span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
@@ -210,7 +210,7 @@
     <span class="token-keyword">var</span> message <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">try_copy</span><span class="token-operator">(</span>allocator<span class="token-operator">,</span> message_prefix<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span><span class="token-keyword">move</span> failure<span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    fmt<span class="token-operator">.</span><span class="token-function">try_append_usize</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>message<span class="token-operator">,</span> offset<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+    offset<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>message<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">allocation</span><span class="token-operator">(</span><span class="token-keyword">move</span> failure<span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-type">Attempt</span><span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span>error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>code<span class="token-operator">,</span> <span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">)</span>

@@ -2,7 +2,7 @@
 
 see ./failure.nct
 
-use /fmt
+use /fmt.Format
 use /mem.TryAllocator
 use /string.String
 
@@ -15,7 +15,7 @@ func input_failure<T>(
     var message = String.try_copy(allocator, message_prefix) catch failure {
         return Attempt.allocation(move failure)
     }
-    fmt.try_append_usize(&+message, offset) catch failure {
+    offset.try_format_into(&+message) catch failure {
         return Attempt.allocation(move failure)
     }
     return Attempt.input(error.new(code, &message))

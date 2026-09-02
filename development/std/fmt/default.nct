@@ -1,0 +1,15 @@
+//! Shared aborting policy derived from recoverable formatting.
+
+see ./index.nct
+
+use /internal/mem
+use /string.String
+
+interface Format {
+    default method &self.format_into(output: &+String): void {
+        self.try_format_into(output) catch _ {
+            return mem.allocation_abort()
+        }
+        return
+    }
+}
