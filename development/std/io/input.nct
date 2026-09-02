@@ -1,0 +1,10 @@
+//! Borrowed process standard-input construction.
+
+see ./index.nct
+see ./file.nct
+
+use /internal/os/darwin
+
+noalloc func stdin(): File {
+    return File { fd: darwin.STDIN_FD, state: FileState.borrowed_open }
+}

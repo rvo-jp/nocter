@@ -48,24 +48,45 @@ func open_fd(path: &str, flags: usize): usize! {
     return result.value
 }
 
+enum ReadProgress {
+    retry
+    complete(count: usize)
+}
+
 #target: "arm64-darwin"
-func read_fd(fd: usize, buffer: &+[u8]): usize! {
-    var result: SyscallResult = darwin.syscall3(
-        darwin.SYS_READ,
-        fd,
-        ptr.addr(buffer.ptr()),
-        buffer.len(),
-    )
-    while result.errno == darwin.ERRNO_INTERRUPTED {
-        result = darwin.syscall3(darwin.SYS_READ, fd, ptr.addr(buffer.ptr()), buffer.len())
+noalloc func classify_read_result(result: SyscallResult, capacity: usize): ReadProgress! {
+    if result.errno == darwin.ERRNO_INTERRUPTED {
+        return ReadProgress.retry
     }
     if result.errno != 0 {
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
-    if result.value > buffer.len() {
+    if result.value > capacity {
         return invalid_read_count()
     }
-    return result.value
+    return ReadProgress.complete(result.value)
+}
+
+#target: "arm64-darwin"
+func read_fd(fd: usize, buffer: &+[u8]): usize! {
+    var count: usize = 0
+    var complete: bool = false
+    while !complete {
+        let result = darwin.syscall3(
+            darwin.SYS_READ,
+            fd,
+            ptr.addr(buffer.ptr()),
+            buffer.len(),
+        )
+        match classify_read_result(result, buffer.len())? {
+            ReadProgress.retry {}
+            ReadProgress.complete(received) {
+                count = received
+                complete = true
+            }
+        }
+    }
+    return count
 }
 
 #target: "arm64-darwin"

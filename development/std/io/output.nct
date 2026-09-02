@@ -8,12 +8,6 @@ use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
 use /ptr
 
-#target: "arm64-darwin"
-const STDOUT_FD: usize = 1
-
-#target: "arm64-darwin"
-const STDERR_FD: usize = 2
-
 enum WriteProgress {
     retry
     advance(count: usize)
@@ -69,11 +63,11 @@ noalloc func write_line_fd(fd: usize, text: &str): void! {
 }
 
 noalloc func stdout(): File {
-    return File { fd: STDOUT_FD, state: FileState.borrowed_open }
+    return File { fd: darwin.STDOUT_FD, state: FileState.borrowed_open }
 }
 
 noalloc func stderr(): File {
-    return File { fd: STDERR_FD, state: FileState.borrowed_open }
+    return File { fd: darwin.STDERR_FD, state: FileState.borrowed_open }
 }
 
 noalloc func write(file: &+File, bytes: &[u8]): void! {
@@ -95,22 +89,22 @@ instance File {
 }
 
 noalloc func print(text: &str): void! {
-    write_text_fd(STDOUT_FD, text)?
+    write_text_fd(darwin.STDOUT_FD, text)?
     return
 }
 
 noalloc func println(text: &str): void! {
-    write_line_fd(STDOUT_FD, text)?
+    write_line_fd(darwin.STDOUT_FD, text)?
     return
 }
 
 noalloc func eprint(text: &str): void! {
-    write_text_fd(STDERR_FD, text)?
+    write_text_fd(darwin.STDERR_FD, text)?
     return
 }
 
 noalloc func eprintln(text: &str): void! {
-    write_line_fd(STDERR_FD, text)?
+    write_line_fd(darwin.STDERR_FD, text)?
     return
 }
 

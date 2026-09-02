@@ -8,6 +8,8 @@ see ./core.nct
 use /string.String
 use /vec.Vec
 see ./file.nct
+see ./input.nct
+see ./input_tests.nct
 see ./output.nct
 see ./output_tests.nct
 
@@ -35,8 +37,11 @@ pub interface Writer {
     pub default method &+self.write_line(text: &str): void!
 }
 
-/// An owning byte stream backed by one open file descriptor.
+/// A stateful byte stream wrapper over one owned or borrowed file descriptor.
 pub struct File
+
+/// Returns the process standard-input stream without taking ownership of the descriptor.
+pub noalloc func stdin(): File
 
 /// Returns the process standard-output stream without taking ownership of the descriptor.
 pub noalloc func stdout(): File
@@ -56,7 +61,7 @@ construct File {
 }
 
 instance File {
-    /// Closes the owned descriptor. Repeated calls are harmless.
+    /// Makes this wrapper terminal and closes its descriptor only when the wrapper owns it.
     pub method &+self.close(): void
     impl Reader
     impl Writer

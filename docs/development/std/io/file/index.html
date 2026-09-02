@@ -243,24 +243,45 @@
     <span class="token-keyword">return</span> result<span class="token-operator">.</span>value
 <span class="token-operator">}</span>
 
+<span class="token-keyword">enum</span> <span class="token-type">ReadProgress</span> <span class="token-operator">{</span>
+    retry
+    <span class="token-function">complete</span><span class="token-operator">(</span>count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">read_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
-        darwin<span class="token-operator">.</span><span class="token-type">SYS_READ</span><span class="token-operator">,</span>
-        fd<span class="token-operator">,</span>
-        ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span>
-    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_READ</span><span class="token-operator">,</span> fd<span class="token-operator">,</span> ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">classify_read_result</span><span class="token-operator">(</span>result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span><span class="token-operator">,</span> capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ReadProgress</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">ReadProgress</span><span class="token-operator">.</span>retry
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> capacity <span class="token-operator">{</span>
         <span class="token-keyword">return</span> <span class="token-function">invalid_read_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> result<span class="token-operator">.</span>value
+    <span class="token-keyword">return</span> <span class="token-type">ReadProgress</span><span class="token-operator">.</span><span class="token-function">complete</span><span class="token-operator">(</span>result<span class="token-operator">.</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">read_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> count<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> complete<span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">=</span> <span class="token-keyword">false</span>
+    <span class="token-keyword">while</span> <span class="token-operator">!</span>complete <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_READ</span><span class="token-operator">,</span>
+            fd<span class="token-operator">,</span>
+            ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">)</span>
+        <span class="token-keyword">match</span> <span class="token-function">classify_read_result</span><span class="token-operator">(</span>result<span class="token-operator">,</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+            <span class="token-type">ReadProgress</span><span class="token-operator">.</span>retry <span class="token-operator">{</span><span class="token-operator">}</span>
+            <span class="token-type">ReadProgress</span><span class="token-operator">.</span><span class="token-function">complete</span><span class="token-operator">(</span>received<span class="token-operator">)</span> <span class="token-operator">{</span>
+                count <span class="token-operator">=</span> received
+                complete <span class="token-operator">=</span> <span class="token-keyword">true</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> count
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>

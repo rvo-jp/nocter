@@ -203,6 +203,8 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>file<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>input<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>input_tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>output<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>output_tests<span class="token-operator">.</span>nct
 
@@ -230,8 +232,11 @@
     <span class="token-keyword">pub</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_line</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
-<span class="token-comment">/// An owning byte stream backed by one open file descriptor.</span>
+<span class="token-comment">/// A stateful byte stream wrapper over one owned or borrowed file descriptor.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">File</span>
+
+<span class="token-comment">/// Returns the process standard-input stream without taking ownership of the descriptor.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stdin</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
 
 <span class="token-comment">/// Returns the process standard-output stream without taking ownership of the descriptor.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
@@ -251,7 +256,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Closes the owned descriptor. Repeated calls are harmless.</span>
+    <span class="token-comment">/// Makes this wrapper terminal and closes its descriptor only when the wrapper owns it.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
     <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
     <span class="token-keyword">impl</span> <span class="token-type">Writer</span>

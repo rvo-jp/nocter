@@ -1,0 +1,92 @@
+//! Standard-input ownership and descriptor-read policy tests.
+
+see ./file.nct
+see ./input.nct
+
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+use /vec.Vec
+
+test descriptor_read_progress_is_explicit {
+    match classify_read_result(
+        SyscallResult { value: 0, errno: darwin.ERRNO_INTERRUPTED },
+        8,
+    )? {
+        ReadProgress.retry {}
+        ReadProgress.complete(_) {
+            return error.new("std.io.test", "interrupted read completed")
+        }
+    }
+
+    match classify_read_result(SyscallResult { value: 3, errno: 0 }, 8)? {
+        ReadProgress.retry {
+            return error.new("std.io.test", "successful read requested a retry")
+        }
+        ReadProgress.complete(count) {
+            if count != 3 {
+                return error.new("std.io.test", "read completed with the wrong count")
+            }
+        }
+    }
+
+    match classify_read_result(SyscallResult { value: 0, errno: 0 }, 8)? {
+        ReadProgress.retry {
+            return error.new("std.io.test", "end of stream requested a retry")
+        }
+        ReadProgress.complete(count) {
+            if count != 0 {
+                return error.new("std.io.test", "end of stream returned bytes")
+            }
+        }
+    }
+    return
+}
+
+test descriptor_read_failures_are_stable {
+    let _ = classify_read_result(SyscallResult { value: 9, errno: 0 }, 8) catch invalid_count {
+        if !invalid_count.has_code("std.io.invalid_read_count") {
+            return error.new("std.io.test", "invalid read count returned the wrong failure")
+        }
+        let _ = classify_read_result(
+            SyscallResult { value: 0, errno: 13 },
+            8,
+        ) catch os_failure {
+            if !os_failure.has_code("std.io.permission_denied") {
+                return error.new("std.io.test", "OS read failure classification changed")
+            }
+            return
+        }
+        return error.new("std.io.test", "OS read failure was accepted")
+    }
+    return error.new("std.io.test", "invalid read progress was accepted")
+}
+
+func drop_stdin_wrapper(): void {
+    let wrapper = stdin()
+    return
+}
+
+test standard_input_wrappers_do_not_own_the_process_descriptor {
+    var closed = stdin()
+    closed.close()
+    var empty: Vec<u8> = Vec.empty()
+    let _ = closed.read(&+empty) catch failure {
+        if !failure.has_code("std.io.closed") {
+            return error.new("std.io.test", "closed stdin wrapper returned the wrong failure")
+        }
+
+        var after_close = stdin()
+        if after_close.read(&+empty)? != 0 {
+            return error.new("std.io.test", "zero-capacity stdin read returned bytes")
+        }
+        after_close.close()
+
+        drop_stdin_wrapper()
+        var after_drop = stdin()
+        if after_drop.read(&+empty)? != 0 {
+            return error.new("std.io.test", "stdin descriptor changed after wrapper drop")
+        }
+        return
+    }
+    return error.new("std.io.test", "closed stdin wrapper remained readable")
+}

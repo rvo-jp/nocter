@@ -32,17 +32,19 @@ editor, formatter, architecture, complete-workspace, reproducible-package, insta
 public-asset qualification. Its [final review](reviews/v0.28.0-phase-5.md) has no open finding.
 
 The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has a closed public
-contract and a completed exact run-argument channel. A typed opaque OS-string value now moves from
-the sole separator partition to process launch without entering compiler analysis. The remaining
-input work reuses borrowed File and Reader state and deliberately rejects hidden global line
-buffering.
+contract, a completed exact run-argument channel, and borrowed standard input. A typed opaque
+OS-string value moves from the sole separator partition to process launch without entering
+compiler analysis. `io.stdin()` constructs the existing borrowed `File` state; the single File
+read authority owns retry, bounds, EOF, and stable errors, while close and drop preserve the
+process-global descriptor.
 
 ## Next Work
 
-Implement v0.29.0 Phase 2 as one `io.stdin()` constructor over the existing borrowed `File` state.
-Keep descriptor zero in the target OS fact boundary, reuse the File read authority, and prove that
-closing or dropping wrappers never closes the process-global descriptor. Do not add a second read
-algorithm, primitive, hidden global buffer, or stateless line-input helper.
+Implement v0.29.0 Phase 3 through the existing `BufReader.new(io.stdin())` ownership path. Exercise
+real partial input, LF, CRLF, an unterminated final line, UTF-8 split across descriptor reads,
+invalid UTF-8, EOF, and repeated terminal queries. Add one practical application scenario that
+consumes exact run arguments and stdin together. Do not add a special line-input helper, hidden
+global buffer, second decoder, or second descriptor-read authority.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

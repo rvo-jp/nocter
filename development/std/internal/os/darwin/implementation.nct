@@ -98,6 +98,15 @@ const SYS_GETDIRENTRIES64: usize = 0x02000158
 const SYS_GETENTROPY: usize = 0x020001f4
 
 #target: "arm64-darwin"
+const STDIN_FD: usize = 0
+
+#target: "arm64-darwin"
+const STDOUT_FD: usize = 1
+
+#target: "arm64-darwin"
+const STDERR_FD: usize = 2
+
+#target: "arm64-darwin"
 const SYS_SELECT: usize = 0x0200005d
 
 #target: "arm64-darwin"

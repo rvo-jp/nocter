@@ -1089,6 +1089,67 @@ func main(): i32 {
 }
 
 #[test]
+fn standard_input_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/io.Reader
+use std/io
+use std/vec.Vec
+
+func drop_stdin_wrapper(): void {
+    let wrapper = io.stdin()
+    return
+}
+
+func main(): i32! {
+    var input = io.stdin()
+    let bytes = input.read_to_end()?
+    if bytes.len() != 7 { return 1 }
+    if bytes[0] != 97 || bytes[1] != 108 || bytes[2] != 112 { return 2 }
+    if bytes[3] != 104 || bytes[4] != 97 || bytes[5] != 10 || bytes[6] != 255 { return 3 }
+
+    input.close()
+    var empty: Vec<u8> = Vec.empty()
+    let _ = input.read(&+empty) catch closed_failure {
+        if !closed_failure.has_code("std.io.closed") { return 4 }
+
+        var after_close = io.stdin()
+        if after_close.read(&+empty)? != 0 { return 5 }
+        after_close.close()
+
+        drop_stdin_wrapper()
+        var after_drop = io.stdin()
+        if after_drop.read(&+empty)? != 0 { return 6 }
+        return 42
+    }
+    return 7
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.syntax_diagnostics().is_empty(),
+        "standard input fixture has syntax diagnostics: {:#?}",
+        unit.syntax_diagnostics()
+    );
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_standard_input(image.image(), &package_root.0, b"alpha\n\xff", 42);
+}
+
+#[test]
 fn standard_collection_ordering_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
@@ -1285,7 +1346,7 @@ fn standard_format_contract_crosses_native_tests() {
 }
 
 #[test]
-fn standard_io_output_contract_crosses_native_tests() {
+fn standard_io_descriptor_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -1316,9 +1377,9 @@ fn standard_io_output_contract_crosses_native_tests() {
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("standard I/O output tests failed native compilation")
+        panic!("standard I/O tests failed native compilation")
     };
-    assert_eq!(cases.len(), 2);
+    assert_eq!(cases.len(), 5);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -2332,6 +2393,29 @@ fn execute_streaming_lines(image: &NativeImage, root: &Path, expected: i32) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_standard_input(image: &NativeImage, root: &Path, input: &[u8], expected: i32) {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::{Command, Stdio};
+
+    let executable = root.join("standard-input");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    let mut child = Command::new(&executable)
+        .current_dir(root)
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(input).unwrap();
+    let status = child.wait().unwrap();
+    assert_eq!(
+        status.code(),
+        Some(expected),
+        "standard input executable exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_native_test(image: &NativeImage, root: &Path, name: &str) {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
@@ -2365,6 +2449,9 @@ fn execute_directory_stream(_image: &NativeImage, _root: &Path, _expected: i32) 
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_streaming_lines(_image: &NativeImage, _root: &Path, _expected: i32) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_standard_input(_image: &NativeImage, _root: &Path, _input: &[u8], _expected: i32) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}
