@@ -103,14 +103,15 @@ text_banner_stdout="$temporary_root/text-banner.stdout"
 text_banner_stderr="$temporary_root/text-banner.stderr"
 expected_text_banner_stdout="$temporary_root/text-banner.expected.stdout"
 expected_text_banner_stderr="$temporary_root/text-banner.expected.stderr"
+text_banner_executable="$temporary_root/text-banner"
 printf '==========\ntext: alpha-beta\nbytes: 10\n==========\n' > "$expected_text_banner_stdout"
 : > "$expected_text_banner_stderr"
-"${environment[@]}" "$home/nocter" run \
+"${environment[@]}" "$home/nocter" build \
   --root "$repository_root/examples/text-banner" \
   --locked \
   --offline \
-  -- \
-  '  alpha beta  ' \
+  --output "$text_banner_executable"
+"$text_banner_executable" '  alpha beta  ' \
   > "$text_banner_stdout" \
   2> "$text_banner_stderr"
 cmp "$expected_text_banner_stdout" "$text_banner_stdout"
