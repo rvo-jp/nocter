@@ -43,7 +43,8 @@ noalloc func kind_from_errno(value: Errno): OSErrorKind {
     if value.code == 66 {
         return OSErrorKind.directory_not_empty
     }
-    if value.code == 9 || value.code == 14 || value.code == 21 || value.code == 22 {
+    if value.code == 7 || value.code == 8 || value.code == 9 || value.code == 14
+        || value.code == 21 || value.code == 22 {
         return OSErrorKind.invalid_input
     }
     if value.code == 32 {

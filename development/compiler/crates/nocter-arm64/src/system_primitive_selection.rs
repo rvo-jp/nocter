@@ -5,10 +5,12 @@ use nocter_machine::{
 use nocter_runtime_contract::PrimitiveRole;
 
 use crate::{
-    Arm64DataSize, Arm64SelectedBinaryOperation, Arm64SelectedInstruction, Arm64SelectionError,
+    Arm64DataSize, Arm64NocterAbi, Arm64SelectedBinaryOperation, Arm64SelectedInstruction,
+    Arm64SelectedMemoryAddress, Arm64SelectedRegister, Arm64SelectionError,
 };
 
 pub(super) fn select(
+    program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
@@ -20,7 +22,7 @@ pub(super) fn select(
             select_counter_read(operation, target, selected)
         }
         PrimitiveRole::MonotonicCounterDelta => select_counter_delta(operation, target, selected),
-        PrimitiveRole::SyscallPair0 => select_syscall_pair(operation, target, selected),
+        PrimitiveRole::SyscallPair0 => select_syscall_pair(program, operation, target, selected),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
@@ -36,13 +38,49 @@ pub(super) fn select(
 }
 
 fn select_syscall_pair(
+    program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_ordinary_inputs(operation, target, 1)?;
-    validate_direct_result(operation, target, 3)?;
+    validate_indirect_result(program, operation, target)?;
     selected.push(Arm64SelectedInstruction::DarwinSystemCallPair);
+    for lane in 0..3 {
+        selected.push(Arm64SelectedInstruction::StoreMemory {
+            bytes: 8,
+            destination: Arm64SelectedMemoryAddress::Register {
+                base: Arm64SelectedRegister::Fixed(Arm64NocterAbi::indirect_result_register()),
+                offset: u64::from(lane) * 8,
+            },
+            source: super::primitive_selection::fixed_register(lane)?,
+        });
+    }
+    Ok(())
+}
+
+fn validate_indirect_result(
+    program: &nocter_machine::MachineProgram,
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+) -> Result<(), Arm64SelectionError> {
+    let MachineResultAbi::Value(result) = target.abi().result() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    if result.class() != MachineValueClass::Indirect
+        || result.location()
+            != (MachineResultLocation::CallerStorage {
+                pointer_register: Arm64NocterAbi::indirect_result_register().number(),
+            })
+    {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    let Some(layout) = program.layouts().get(result.ty()) else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    if layout.size() != 24 || layout.alignment() != 8 {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
     Ok(())
 }
 

@@ -1,0 +1,109 @@
+//! Darwin command orchestration and public failure selection.
+//!
+//! Raw target transitions expose typed facts. This layer is their only public-policy consumer: it
+//! keeps prepared storage alive, closes parent descriptors, reaps every created child, and then
+//! selects either an ExitStatus or one stable std.process failure.
+
+see ./index.nct
+see ./command.nct
+see ./darwin.nct
+see ./subprocess_darwin.nct
+
+use /internal/os.{OSErrorKind}
+use /internal/os/darwin
+
+#target: "arm64-darwin"
+noalloc func spawn_failed(): error {
+    return error.new("std.process.spawn_failed", "child process creation failed")
+}
+
+#target: "arm64-darwin"
+noalloc func wait_failed(): error {
+    return error.new("std.process.wait_failed", "child process status could not be observed")
+}
+
+#target: "arm64-darwin"
+noalloc func exec_failed(errno: i32): error {
+    let os_error = darwin.error_from_errno(darwin.errno(errno))
+    if os_error.kind is OSErrorKind.not_found {
+        return error.new("std.process.not_found", "executable was not found")
+    }
+    if os_error.kind is OSErrorKind.not_directory {
+        return error.new("std.process.not_found", "executable was not found")
+    }
+    if os_error.kind is OSErrorKind.permission_denied {
+        return error.new("std.process.permission_denied", "executable permission was denied")
+    }
+    if os_error.kind is OSErrorKind.invalid_input {
+        return error.new("std.process.invalid_input", "executable request was invalid")
+    }
+    return spawn_failed()
+}
+
+#target: "arm64-darwin"
+noalloc func status_from_wait(outcome: WaitOutcome): ExitStatus! {
+    match move outcome {
+        WaitOutcome.exited(code) { return exited_status(code) }
+        WaitOutcome.signaled(signal) { return signaled_status(signal) }
+        WaitOutcome.failed(_) { return wait_failed() }
+        WaitOutcome.invalid(_) { return wait_failed() }
+    }
+}
+
+#target: "arm64-darwin"
+func observe_parent(
+    prepared: PreparedCommand,
+    pid: usize,
+    read_fd: usize,
+    write_fd: usize,
+): ExitStatus! {
+    let _ = darwin.syscall1(darwin.SYS_CLOSE, write_fd)
+    let report = read_exec_report(read_fd)
+    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
+
+    // Waiting precedes public failure selection so every successfully created child is reaped,
+    // including children whose exec request was rejected or whose report channel was malformed.
+    let terminal = status_from_wait(wait_for_child(pid))?
+    drop prepared
+    match move report {
+        ExecReportAttempt.executed { return terminal }
+        ExecReportAttempt.rejected(errno) { return exec_failed(errno) }
+        ExecReportAttempt.channel_failed(_) { return spawn_failed() }
+        ExecReportAttempt.malformed { return spawn_failed() }
+    }
+}
+
+#target: "arm64-darwin"
+func run_command(command: Command): ExitStatus! {
+    let prepared = prepare_command(move command)
+    match create_launch_pipe() {
+        LaunchPipeAttempt.failed(_) { return spawn_failed() }
+        LaunchPipeAttempt.ready(read_fd, write_fd) {
+            match fork_process() {
+                ForkAttempt.failed(_) {
+                    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
+                    let _ = darwin.syscall1(darwin.SYS_CLOSE, write_fd)
+                    return spawn_failed()
+                }
+                ForkAttempt.child {
+                    exec_child(
+                        prepared_path_address(&prepared),
+                        prepared_argv_address(&prepared),
+                        env_vector_raw(),
+                        read_fd,
+                        write_fd,
+                    )
+                }
+                ForkAttempt.parent(pid) {
+                    return observe_parent(move prepared, pid, read_fd, write_fd)?
+                }
+            }
+        }
+    }
+}
+
+instance Command {
+    method self.status(): ExitStatus! {
+        return run_command(move self)?
+    }
+}

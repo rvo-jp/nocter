@@ -146,6 +146,8 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("prelude", "set"),
     ("prelude", "string"),
     ("prelude", "vec"),
+    ("process", "internal/mem"),
+    ("process", "internal/os"),
     ("process", "internal/os/darwin"),
     ("process", "internal/path"),
     ("process", "internal/ptr"),

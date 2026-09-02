@@ -7,7 +7,39 @@ use /mem.TryAllocator
 use /string.String
 use /vec.Vec
 see ./darwin.nct
+see ./command.nct
+see ./command_darwin.nct
 see ./subprocess_darwin.nct
+
+/// An owning exact-path subprocess request.
+pub struct Command
+
+/// One observed terminal state of a reaped child process.
+pub copy struct ExitStatus
+
+construct Command {
+    /// Copies and validates one exact executable path.
+    pub func new(path: &str): Self!
+}
+
+instance Command {
+    /// Appends one exact argument after copying and validating it.
+    pub method &+self.arg(value: &str): void!
+
+    /// Launches the command, waits for its child, and consumes all command storage.
+    pub method self.status(): ExitStatus!
+}
+
+instance ExitStatus {
+    /// Returns true exactly for ordinary exit code zero.
+    pub noalloc method self.success(): bool
+
+    /// Returns the ordinary exit code, or `none` for signal termination.
+    pub noalloc method self.code(): i32?
+
+    /// Returns the terminating signal, or `none` for ordinary exit.
+    pub noalloc method self.signal(): i32?
+}
 
 pub copy struct EnvironmentEntry {
     /// Borrowed environment-variable name retained by process storage.

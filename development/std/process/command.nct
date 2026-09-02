@@ -1,0 +1,207 @@
+//! Owning command storage, input validation, and prepared launch values.
+//!
+//! Every byte buffer and the complete null-terminated argv vector are created before fork. The
+//! target launch path therefore needs only stable addresses and cannot allocate or validate text.
+
+see ./index.nct
+
+use /internal/mem as internal_mem
+use /internal/ptr as internal_ptr
+use /mem.RawBuffer
+use /mem
+use /ptr
+use /string
+use /vec.Vec
+
+const EXIT_KIND_CODE: i32 = 0
+const EXIT_KIND_SIGNAL: i32 = 1
+
+struct OwnedProcessText {
+    storage: RawBuffer
+}
+
+struct Command {
+    path: OwnedProcessText
+    arguments: Vec<OwnedProcessText>
+}
+
+copy struct ExitStatus {
+    kind: i32
+    value: i32
+}
+
+struct PreparedCommand {
+    command: Command
+    argv: Vec<usize>
+}
+
+func invalid_command_input(): error {
+    return error.new(
+        "std.process.invalid_input",
+        "process paths and arguments must be valid UTF-8 without NUL bytes",
+    )
+}
+
+noalloc func validate_process_text(value: &str, require_nonempty: bool): void! {
+    if require_nonempty && value.len() == 0 { return invalid_command_input() }
+    if !string.is_valid_utf8(value.bytes()) { return invalid_command_input() }
+
+    let bytes = value.bytes()
+    var index: usize = 0
+    while index < bytes.len() {
+        if bytes[index] == 0 { return invalid_command_input() }
+        index += 1
+    }
+    return
+}
+
+func own_process_text(value: &str, require_nonempty: bool): OwnedProcessText! {
+    validate_process_text(value, require_nonempty)?
+    let allocation_size = internal_mem.checked_add(value.len(), 1) otherwise {
+        return invalid_command_input()
+    }
+    var allocator = mem.current_allocator()
+    let storage = allocator.alloc(allocation_size, 1)
+    internal_ptr.copy_str_to_ptr(storage.bytes().ptr(), 0, value)
+    internal_ptr.store_u8_to_ptr(storage.bytes().ptr(), value.len(), 0)
+    return OwnedProcessText { storage: move storage }
+}
+
+noalloc func process_text_address(value: &OwnedProcessText): usize {
+    return ptr.addr(value.storage.bytes().ptr())
+}
+
+func prepare_command(command: Command): PreparedCommand {
+    var source = move command
+    let argv_capacity = internal_mem.checked_add(source.arguments.len(), 2) otherwise {
+        return internal_mem.allocation_abort()
+    }
+    var argv: Vec<usize> = Vec.with_capacity(argv_capacity)
+    argv.push(process_text_address(&source.path))
+    for argument in &source.arguments {
+        argv.push(process_text_address(argument))
+    }
+    argv.push(0)
+    return PreparedCommand { command: move source, argv: move argv }
+}
+
+noalloc func prepared_path_address(command: &PreparedCommand): usize {
+    return process_text_address(&command.command.path)
+}
+
+noalloc func prepared_argv_address(command: &PreparedCommand): usize {
+    let values: &[usize] = &command.argv
+    return ptr.addr(values.ptr())
+}
+
+noalloc func exited_status(code: i32): ExitStatus {
+    return ExitStatus { kind: EXIT_KIND_CODE, value: code }
+}
+
+noalloc func signaled_status(signal: i32): ExitStatus {
+    return ExitStatus { kind: EXIT_KIND_SIGNAL, value: signal }
+}
+
+noalloc func optional_i32_is_present(value: i32?): bool {
+    let _ = value otherwise { return false }
+    return true
+}
+
+construct Command {
+    func new(path: &str): Self! {
+        return Command {
+            path: own_process_text(path, true)?,
+            arguments: Vec.empty(),
+        }
+    }
+}
+
+instance Command {
+    method &+self.arg(value: &str): void! {
+        let argument = own_process_text(value, false)?
+        self.arguments.push(move argument)
+        return
+    }
+}
+
+instance ExitStatus {
+    noalloc method self.success(): bool {
+        return self.kind == EXIT_KIND_CODE && self.value == 0
+    }
+
+    noalloc method self.code(): i32? {
+        if self.kind == EXIT_KIND_CODE { return self.value }
+        return none
+    }
+
+    noalloc method self.signal(): i32? {
+        if self.kind == EXIT_KIND_SIGNAL { return self.value }
+        return none
+    }
+}
+
+test command_storage_is_owned_validated_and_prepared_exactly {
+    var command = Command.new("/usr/bin/example")?
+    command.arg("first")?
+    command.arg("")?
+
+    let path_address = process_text_address(&command.path)
+    let first_address = process_text_address(&command.arguments[0])
+    let second_address = process_text_address(&command.arguments[1])
+    let prepared = prepare_command(move command)
+    let argv: &[usize] = &prepared.argv
+    if argv.len() != 4 || argv[0] != path_address || argv[1] != first_address
+        || argv[2] != second_address || argv[3] != 0 {
+        return error.new("std.process.test", "prepared argv changed command arguments")
+    }
+
+    var rejected = Command.new("/usr/bin/example")?
+    rejected.arg("kept")?
+    rejected.arg("bad\0argument") catch failure {
+        if !failure.has_code("std.process.invalid_input") {
+            return error.new("std.process.test", "invalid argument returned the wrong error")
+        }
+    }
+    let rejected_prepared = prepare_command(move rejected)
+    let rejected_argv: &[usize] = &rejected_prepared.argv
+    if rejected_argv.len() != 3 || rejected_argv[2] != 0 {
+        return error.new("std.process.test", "invalid argument partially changed command state")
+    }
+
+    return
+}
+
+test command_rejects_empty_path {
+    let _result = Command.new("") catch failure {
+        if failure.has_code("std.process.invalid_input") { return }
+        return error.new("std.process.test", "empty path returned the wrong error")
+    }
+    return error.new("std.process.test", "empty command path was accepted")
+}
+
+test exit_status_observation_is_unambiguous {
+    let success = exited_status(0)
+    let success_code = success.code() otherwise {
+        return error.new("std.process.test", "successful exit status lost its code")
+    }
+    if !success.success() || success_code != 0 || optional_i32_is_present(success.signal()) {
+        return error.new("std.process.test", "successful exit status was misclassified")
+    }
+
+    let failure = exited_status(19)
+    let failure_code = failure.code() otherwise {
+        return error.new("std.process.test", "failed exit status lost its code")
+    }
+    if failure.success() || failure_code != 19 || optional_i32_is_present(failure.signal()) {
+        return error.new("std.process.test", "failed exit status was misclassified")
+    }
+
+    let signal = signaled_status(9)
+    let signal_number = signal.signal() otherwise {
+        return error.new("std.process.test", "signal status lost its signal")
+    }
+    if signal.success() || optional_i32_is_present(signal.code()) || signal_number != 9 {
+        return error.new("std.process.test", "signal status was misclassified")
+    }
+    return
+}

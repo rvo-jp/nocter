@@ -139,7 +139,7 @@ pub(crate) fn select(
         | PrimitiveRole::Syscall6
         | PrimitiveRole::Trap
         | PrimitiveRole::Unreachable => {
-            super::system_primitive_selection::select(operation, target, selected)
+            super::system_primitive_selection::select(program, operation, target, selected)
         }
     }
 }

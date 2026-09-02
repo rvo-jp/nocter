@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/process/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/process/index.nct.">
+    <title>development/std/process/command_darwin.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/process/command_darwin.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/process/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/process/command_darwin/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/process/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/process/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/process/index/">
+    <meta property="og:title" content="development/std/process/command_darwin.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/process/command_darwin.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/process/command_darwin/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/process/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/process/index.nct.">
+    <meta name="twitter:title" content="development/std/process/command_darwin.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/process/command_darwin.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/index.nct - Nocter","description":"Nocter source code for development/std/process/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/process/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/command_darwin.nct - Nocter","description":"Nocter source code for development/std/process/command_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/command_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Command_darwin","item":"https://nocter.dev/development/std/process/command_darwin/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -190,89 +190,118 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/process/index.nct</span>
+                <span class="markdown-path-text">/development/std/process/command_darwin.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! User-facing `std/process` API.</span>
+                <h1>command_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Darwin command orchestration and public failure selection.</span>
 <span class="token-comment">//!</span>
-<span class="token-comment">//! exit is a standard-library API, not a compiler primitive. The target-specific</span>
-<span class="token-comment">//! implementation calls the active target boundary.</span>
+<span class="token-comment">//! Raw target transitions expose typed facts. This layer is their only public-policy consumer: it</span>
+<span class="token-comment">//! keeps prepared storage alive, closes parent descriptors, reaps every created child, and then</span>
+<span class="token-comment">//! selects either an ExitStatus or one stable std.process failure.</span>
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>subprocess_darwin<span class="token-operator">.</span>nct
 
-<span class="token-comment">/// An owning exact-path subprocess request.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Command</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSErrorKind</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
 
-<span class="token-comment">/// One observed terminal state of a reaped child process.</span>
-<span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">ExitStatus</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">spawn_failed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.spawn_failed"</span><span class="token-operator">,</span> <span class="token-string">"child process creation failed"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
 
-<span class="token-keyword">construct</span> <span class="token-type">Command</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Copies and validates one exact executable path.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">wait_failed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.wait_failed"</span><span class="token-operator">,</span> <span class="token-string">"child process status could not be observed"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">exec_failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> os_error <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>errno<span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>not_found <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.not_found"</span><span class="token-operator">,</span> <span class="token-string">"executable was not found"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>not_directory <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.not_found"</span><span class="token-operator">,</span> <span class="token-string">"executable was not found"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>permission_denied <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.permission_denied"</span><span class="token-operator">,</span> <span class="token-string">"executable permission was denied"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> os_error<span class="token-operator">.</span>kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>invalid_input <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.invalid_input"</span><span class="token-operator">,</span> <span class="token-string">"executable request was invalid"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">spawn_failed</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">status_from_wait</span><span class="token-operator">(</span>outcome<span class="token-operator">:</span> <span class="token-type">WaitOutcome</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> <span class="token-keyword">move</span> outcome <span class="token-operator">{</span>
+        <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">exited</span><span class="token-operator">(</span>code<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">exited_status</span><span class="token-operator">(</span>code<span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">signaled</span><span class="token-operator">(</span>signal<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">signaled_status</span><span class="token-operator">(</span>signal<span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">wait_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">invalid</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">wait_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">observe_parent</span><span class="token-operator">(</span>
+    prepared<span class="token-operator">:</span> <span class="token-type">PreparedCommand</span><span class="token-operator">,</span>
+    pid<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    read_fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    write_fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> write_fd<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> report <span class="token-operator">=</span> <span class="token-function">read_exec_report</span><span class="token-operator">(</span>read_fd<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> read_fd<span class="token-operator">)</span>
+
+    <span class="token-comment">// Waiting precedes public failure selection so every successfully created child is reaped,</span>
+    <span class="token-comment">// including children whose exec request was rejected or whose report channel was malformed.</span>
+    <span class="token-keyword">let</span> terminal <span class="token-operator">=</span> <span class="token-function">status_from_wait</span><span class="token-operator">(</span><span class="token-function">wait_for_child</span><span class="token-operator">(</span>pid<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    drop prepared
+    <span class="token-keyword">match</span> <span class="token-keyword">move</span> report <span class="token-operator">{</span>
+        <span class="token-type">ExecReportAttempt</span><span class="token-operator">.</span>executed <span class="token-operator">{</span> <span class="token-keyword">return</span> terminal <span class="token-operator">}</span>
+        <span class="token-type">ExecReportAttempt</span><span class="token-operator">.</span><span class="token-function">rejected</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">exec_failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">ExecReportAttempt</span><span class="token-operator">.</span><span class="token-function">channel_failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">spawn_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">ExecReportAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">spawn_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">run_command</span><span class="token-operator">(</span>command<span class="token-operator">:</span> <span class="token-type">Command</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> prepared <span class="token-operator">=</span> <span class="token-function">prepare_command</span><span class="token-operator">(</span><span class="token-keyword">move</span> command<span class="token-operator">)</span>
+    <span class="token-keyword">match</span> <span class="token-function">create_launch_pipe</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">LaunchPipeAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">spawn_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">LaunchPipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>read_fd<span class="token-operator">,</span> write_fd<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> <span class="token-function">fork_process</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">ForkAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> read_fd<span class="token-operator">)</span>
+                    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> write_fd<span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> <span class="token-function">spawn_failed</span><span class="token-operator">(</span><span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">ForkAttempt</span><span class="token-operator">.</span>child <span class="token-operator">{</span>
+                    <span class="token-function">exec_child</span><span class="token-operator">(</span>
+                        <span class="token-function">prepared_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>prepared<span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-function">prepared_argv_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>prepared<span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-function">env_vector_raw</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                        read_fd<span class="token-operator">,</span>
+                        write_fd<span class="token-operator">,</span>
+                    <span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">ForkAttempt</span><span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span>pid<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> <span class="token-function">observe_parent</span><span class="token-operator">(</span><span class="token-keyword">move</span> prepared<span class="token-operator">,</span> pid<span class="token-operator">,</span> read_fd<span class="token-operator">,</span> write_fd<span class="token-operator">)</span><span class="token-operator">?</span>
+                <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Command</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Appends one exact argument after copying and validating it.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
-    <span class="token-comment">/// Launches the command, waits for its child, and consumes all command storage.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
+    <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">run_command</span><span class="token-operator">(</span><span class="token-keyword">move</span> self<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">ExitStatus</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Returns true exactly for ordinary exit code zero.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">success</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-comment">/// Returns the ordinary exit code, or `none` for signal termination.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">code</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span>
-
-    <span class="token-comment">/// Returns the terminating signal, or `none` for ordinary exit.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">signal</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">EnvironmentEntry</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Borrowed environment-variable name retained by process storage.</span>
-    <span class="token-keyword">pub</span> name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
-
-    <span class="token-comment">/// Borrowed environment-variable value retained by process storage.</span>
-    <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
-<span class="token-operator">}</span>
-
-<span class="token-comment">/// Copies all process arguments into an owning Vec of process-lifetime views.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">args</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Returns the number of process arguments, including the executable spelling.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-<span class="token-comment">/// Returns one process argument, `none` out of range, or a decoding failure.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">arg</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Returns the number of environment entries.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">environment_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-<span class="token-comment">/// Returns one environment entry, `none` out of range, or a decoding failure.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">environment</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">EnvironmentEntry</span><span class="token-operator">?</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Returns the value of one environment variable, `none` when absent, or a decoding failure.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">env</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Returns the current working directory in current-context storage.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">cwd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Returns the current working directory using recoverable storage from `allocator`.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
-
-<span class="token-comment">/// Terminates the process with `code` and does not return.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">exit</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
-
-<span class="token-comment">/// Terminates the process immediately with an unsuccessful status.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">abort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>
 </code></pre>
             </div>
         </main>

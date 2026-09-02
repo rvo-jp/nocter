@@ -34,6 +34,14 @@ enum WaitAttempt {
 }
 
 #target: "arm64-darwin"
+enum WaitOutcome {
+    exited(code: i32)
+    signaled(signal: i32)
+    failed(errno: i32)
+    invalid(status: i32)
+}
+
+#target: "arm64-darwin"
 enum ExecReportAttempt {
     executed
     rejected(errno: i32)
@@ -79,6 +87,52 @@ noalloc func create_launch_pipe(): LaunchPipeAttempt {
 }
 
 #target: "arm64-darwin"
+noalloc func fork_process(): ForkAttempt {
+    return classify_fork_attempt(darwin.syscall_pair0(darwin.SYS_FORK))
+}
+
+#target: "arm64-darwin"
+noalloc func write_exec_rejection_and_exit(fd: usize, errno: i32): never {
+    let address = ptr.addr(ptr.from_ref(&errno))
+    var offset: usize = 0
+    while offset < EXEC_REPORT_BYTES {
+        let result = darwin.syscall3(
+            darwin.SYS_WRITE,
+            fd,
+            address + offset,
+            EXEC_REPORT_BYTES - offset,
+        )
+        if result.errno == darwin.ERRNO_INTERRUPTED {
+        } else if result.errno != 0 || result.value == 0
+            || result.value > EXEC_REPORT_BYTES - offset {
+            exit_raw(127)
+        } else {
+            offset += result.value
+        }
+    }
+    let _ = darwin.syscall1(darwin.SYS_CLOSE, fd)
+    exit_raw(127)
+}
+
+#target: "arm64-darwin"
+noalloc func exec_child(
+    path_address: usize,
+    argv_address: usize,
+    environment_address: usize,
+    read_fd: usize,
+    report_fd: usize,
+): never {
+    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
+    let result = darwin.syscall3(
+        darwin.SYS_EXECVE,
+        path_address,
+        argv_address,
+        environment_address,
+    )
+    write_exec_rejection_and_exit(report_fd, result.errno)
+}
+
+#target: "arm64-darwin"
 noalloc func read_exec_report(fd: usize): ExecReportAttempt {
     var payload: i32 = 0
     let address = ptr.addr(ptr.from_ref_mut(&+payload))
@@ -114,6 +168,29 @@ noalloc func classify_wait_attempt(result: SyscallResult, status: i32): WaitAtte
     if terminal == 0 { return WaitAttempt.exited((status / 256) % 256) }
     if terminal == 127 { return WaitAttempt.invalid(status) }
     return WaitAttempt.signaled(terminal)
+}
+
+#target: "arm64-darwin"
+noalloc func wait_for_child(pid: usize): WaitOutcome {
+    var status: i32 = 0
+    loop {
+        let result = darwin.syscall6(
+            darwin.SYS_WAIT4,
+            pid,
+            ptr.addr(ptr.from_ref_mut(&+status)),
+            0,
+            0,
+            0,
+            0,
+        )
+        match classify_wait_attempt(result, status) {
+            WaitAttempt.interrupted {}
+            WaitAttempt.exited(code) { return WaitOutcome.exited(code) }
+            WaitAttempt.signaled(signal) { return WaitOutcome.signaled(signal) }
+            WaitAttempt.failed(errno) { return WaitOutcome.failed(errno) }
+            WaitAttempt.invalid(raw) { return WaitOutcome.invalid(raw) }
+        }
+    }
 }
 
 test raw_subprocess_results_have_one_typed_interpretation {

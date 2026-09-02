@@ -29,19 +29,19 @@ The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md)
 public contract and is published and externally audited. Its immutable
 [publication record](releases/v0.29.0.md) owns the final evidence.
 
-The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 1.
+The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 2.
 The public future-direction contract fixes an owning `Command`, synchronous child lifecycle, exact
 path and argument handling, inherited process state, unambiguous exec-failure reporting, and typed
-exit status. Its [Phase 1 review](reviews/v0.30.0-phase-1.md) closes inherited environment access,
-Darwin pair-result preservation, launch-channel setup, and typed raw process transitions without
-publishing the public command surface.
+exit status. Its [Phase 2 review](reviews/v0.30.0-phase-2.md) closes owning C-compatible command
+storage, pre-fork argv preparation, fork/exec/wait orchestration, public failure selection, and the
+indirect ARM64 ABI required by the three-word pair-syscall result.
 
 ## Next Work
 
-Implement v0.30.0 Phase 2: add the owning command representation, exact path and argument copying,
-pre-fork C-compatible storage, and the synchronous launch orchestration that consumes the typed
-Phase 1 target outcomes. Every created child must reach the parent wait path, and the child branch
-must reach only no-allocation target operations before exec or raw exit.
+Implement v0.30.0 Phase 3: qualify successful, nonzero, signaled, missing, denied, invalid-input,
+argument-boundary, interrupted-wait, and launch-channel cleanup behavior through complete native
+sessions. Use deterministic injection only where an operating-system event cannot be induced
+reliably. Every successfully created child must have an observed reap path.
 
 Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

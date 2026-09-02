@@ -229,6 +229,14 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">WaitOutcome</span> <span class="token-operator">{</span>
+    <span class="token-function">exited</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    <span class="token-function">signaled</span><span class="token-operator">(</span>signal<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    <span class="token-function">invalid</span><span class="token-operator">(</span>status<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">enum</span> <span class="token-type">ExecReportAttempt</span> <span class="token-operator">{</span>
     executed
     <span class="token-function">rejected</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
@@ -274,6 +282,52 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">fork_process</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ForkAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-function">classify_fork_attempt</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">syscall_pair0</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_FORK</span><span class="token-operator">)</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">write_exec_rejection_and_exit</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> address <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>errno<span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> <span class="token-type">EXEC_REPORT_BYTES</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_WRITE</span><span class="token-operator">,</span>
+            fd<span class="token-operator">,</span>
+            address <span class="token-operator">+</span> offset<span class="token-operator">,</span>
+            <span class="token-type">EXEC_REPORT_BYTES</span> - offset<span class="token-operator">,</span>
+        <span class="token-operator">)</span>
+        <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> || result<span class="token-operator">.</span>value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span>
+            || result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> <span class="token-type">EXEC_REPORT_BYTES</span> - offset <span class="token-operator">{</span>
+            <span class="token-function">exit_raw</span><span class="token-operator">(</span><span class="token-number">127</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
+            offset <span class="token-operator">+</span><span class="token-operator">=</span> result<span class="token-operator">.</span>value
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> fd<span class="token-operator">)</span>
+    <span class="token-function">exit_raw</span><span class="token-operator">(</span><span class="token-number">127</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">exec_child</span><span class="token-operator">(</span>
+    path_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    argv_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    environment_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    read_fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    report_fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> read_fd<span class="token-operator">)</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_EXECVE</span><span class="token-operator">,</span>
+        path_address<span class="token-operator">,</span>
+        argv_address<span class="token-operator">,</span>
+        environment_address<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-function">write_exec_rejection_and_exit</span><span class="token-operator">(</span>report_fd<span class="token-operator">,</span> result<span class="token-operator">.</span>errno<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">read_exec_report</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExecReportAttempt</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> payload<span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">let</span> address <span class="token-operator">=</span> ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref_mut</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>payload<span class="token-operator">)</span><span class="token-operator">)</span>
@@ -309,6 +363,29 @@
     <span class="token-keyword">if</span> terminal <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">WaitAttempt</span><span class="token-operator">.</span><span class="token-function">exited</span><span class="token-operator">(</span><span class="token-operator">(</span>status <span class="token-operator">/</span> <span class="token-number">256</span><span class="token-operator">)</span> % <span class="token-number">256</span><span class="token-operator">)</span> <span class="token-operator">}</span>
     <span class="token-keyword">if</span> terminal <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">127</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">WaitAttempt</span><span class="token-operator">.</span><span class="token-function">invalid</span><span class="token-operator">(</span>status<span class="token-operator">)</span> <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-type">WaitAttempt</span><span class="token-operator">.</span><span class="token-function">signaled</span><span class="token-operator">(</span>terminal<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">wait_for_child</span><span class="token-operator">(</span>pid<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">WaitOutcome</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> status<span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">loop</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall6</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_WAIT4</span><span class="token-operator">,</span>
+            pid<span class="token-operator">,</span>
+            ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref_mut</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>status<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-number">0</span><span class="token-operator">,</span>
+            <span class="token-number">0</span><span class="token-operator">,</span>
+            <span class="token-number">0</span><span class="token-operator">,</span>
+            <span class="token-number">0</span><span class="token-operator">,</span>
+        <span class="token-operator">)</span>
+        <span class="token-keyword">match</span> <span class="token-function">classify_wait_attempt</span><span class="token-operator">(</span>result<span class="token-operator">,</span> status<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-type">WaitAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span><span class="token-operator">}</span>
+            <span class="token-type">WaitAttempt</span><span class="token-operator">.</span><span class="token-function">exited</span><span class="token-operator">(</span>code<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">exited</span><span class="token-operator">(</span>code<span class="token-operator">)</span> <span class="token-operator">}</span>
+            <span class="token-type">WaitAttempt</span><span class="token-operator">.</span><span class="token-function">signaled</span><span class="token-operator">(</span>signal<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">signaled</span><span class="token-operator">(</span>signal<span class="token-operator">)</span> <span class="token-operator">}</span>
+            <span class="token-type">WaitAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+            <span class="token-type">WaitAttempt</span><span class="token-operator">.</span><span class="token-function">invalid</span><span class="token-operator">(</span>raw<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">invalid</span><span class="token-operator">(</span>raw<span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">test</span> raw_subprocess_results_have_one_typed_interpretation <span class="token-operator">{</span>

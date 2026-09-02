@@ -745,6 +745,110 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
 }
 
 #[test]
+fn standard_subprocess_contract_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let helper = package_root.0.join("subprocess-helper");
+    let missing = package_root.0.join("missing-executable");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/process.{{Command, ExitStatus}}
+use std/string.String
+
+noalloc func has_signal(status: ExitStatus): bool {{
+    let _ = status.signal() otherwise {{ return false }}
+    return true
+}}
+
+func main(): i32 {{
+    var path = String.copy("{}")
+    var first = String.copy("alpha beta")
+    var command = Command.new(&path as &str) catch _ {{ return 1 }}
+    command.arg(&first as &str) catch _ {{ return 2 }}
+    command.arg("") catch _ {{ return 3 }}
+    path.clear()
+    first.clear()
+
+    let status = command.status() catch _ {{ return 4 }}
+    let code = status.code() otherwise {{ return 5 }}
+    if status.success() || code != 7 || has_signal(status) {{ return 6 }}
+
+    let missing = Command.new("{}") catch _ {{ return 8 }}
+    let _status = missing.status() catch failure {{
+        if failure.has_code("std.process.not_found") {{ return 0 }}
+        return 9
+    }}
+    return 10
+}}
+"#,
+            helper.display(),
+            missing.display(),
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_subprocess_contract(image.image(), &package_root.0);
+}
+
+#[test]
+fn standard_process_internal_contracts_cross_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"process\", module: \"./process\" }\n");
+    root_source.push_str("#test: { name: \"darwin-pair\", module: \"./internal/os/darwin\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["process"]),
+            ModuleIdentity::new(standard_package.clone(), ["internal", "os", "darwin"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 2);
+    let output = TempPackage::new();
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("standard process tests failed native compilation")
+        };
+        for case in cases {
+            case_count += 1;
+            execute_native_test(case.image(), &output.0, case.identity().name());
+        }
+    }
+    assert_eq!(case_count, 5);
+}
+
+#[test]
 fn standard_string_concat_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
@@ -2490,6 +2594,34 @@ fn execute_native_test(image: &NativeImage, root: &Path, name: &str) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_subprocess_contract(image: &NativeImage, root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join("subprocess-contract");
+    let helper = root.join("subprocess-helper");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(
+        &helper,
+        b"#!/bin/sh\n[ \"$#\" -eq 2 ] || exit 21\n[ \"$1\" = \"alpha beta\" ] || exit 22\n[ \"$2\" = \"\" ] || exit 23\n[ \"$NOCTER_SUBPROCESS_TEST\" = \"inherited\" ] || exit 24\nexit 7\n",
+    )
+    .unwrap();
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .env("NOCTER_SUBPROCESS_TEST", "inherited")
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "subprocess contract executable exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn prepare_path_directory_fixture(root: &Path) {
     use std::os::unix::fs::symlink;
 
@@ -2510,6 +2642,9 @@ fn execute_standard_input(_image: &NativeImage, _root: &Path, _input: &[u8], _ex
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_subprocess_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn prepare_path_directory_fixture(_root: &Path) {}
