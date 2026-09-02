@@ -113,6 +113,13 @@ functions remain distinct because they expose recoverable allocation to explicit
 `format_into` and interpolation use the ordinary aborting allocation policy. Formatting dispatch
 is static and does not require a runtime interface object.
 
+## Time
+
+`std/time` provides normalized non-negative `Duration` values, opaque monotonic `Instant` values,
+and blocking `time.sleep`. Target counter values, frequencies, timeout layouts, and retry policy are
+not public APIs. The normative value, rounding, failure, and suspension behavior is centralized in
+[Monotonic Time](29-monotonic-time.md).
+
 ## Paths and Files
 
 `std/path.Utf8Path` is an owned, NUL-free UTF-8 path. The name is intentional: operating systems

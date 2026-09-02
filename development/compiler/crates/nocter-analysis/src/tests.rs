@@ -266,6 +266,82 @@ fn bundled_standard_allocation_reaches_an_application_noalloc_contract() {
 }
 
 #[test]
+fn monotonic_time_contract_drives_hover_navigation_and_completion() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "use std/time\n",
+        "use std/time.{Duration, Instant}\n",
+        "func pause(): void! {\n",
+        "    let duration = Duration.from_milliseconds(1)\n",
+        "    let start = Instant.now()\n",
+        "    time.sleep(&duration)?\n",
+        "    let _ = start.elapsed()\n",
+        "    return\n",
+        "}\n",
+    );
+    let (source_path, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(64));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "time fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str() == source_path.to_str().unwrap())
+        .unwrap();
+
+    let sleep_offset = ByteOffset::new(u32::try_from(source_text.find("sleep").unwrap()).unwrap());
+    let sleep = snapshot
+        .semantic_subject(source.id(), sleep_offset)
+        .unwrap()
+        .expect("time.sleep has no semantic subject");
+    assert_eq!(
+        sleep.presentation().code(),
+        "pub noalloc func sleep(duration: &Duration): void!"
+    );
+    let definitions = snapshot
+        .semantic_definition(source.id(), sleep_offset)
+        .unwrap();
+    let implementations = snapshot
+        .semantic_implementation(source.id(), sleep_offset)
+        .unwrap();
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(implementations.len(), 1);
+    assert!(
+        snapshot
+            .sources()
+            .get(definitions[0].source())
+            .unwrap()
+            .name()
+            .as_str()
+            .ends_with("/std/time/index.nct")
+    );
+    assert!(
+        snapshot
+            .sources()
+            .get(implementations[0].source())
+            .unwrap()
+            .name()
+            .as_str()
+            .ends_with("/std/time/sleep.nct")
+    );
+
+    let elapsed_offset =
+        ByteOffset::new(u32::try_from(source_text.find("elapsed").unwrap()).unwrap());
+    let completions = snapshot
+        .semantic_completions(source.id(), elapsed_offset)
+        .unwrap();
+    assert_eq!(completions.coverage(), &SemanticCoverage::Complete);
+    assert!(
+        completions
+            .iter()
+            .any(|completion| completion.label() == "elapsed")
+    );
+}
+
+#[test]
 fn keyed_argument_pack_hover_retains_both_component_types() {
     let tree = TempTree::new();
     let source_text = concat!(

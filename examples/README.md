@@ -67,6 +67,15 @@ nocter check examples/ordering.nct
 nocter run examples/ordering.nct
 ```
 
+[elapsed.nct](elapsed.nct) measures one monotonic interval and blocks for a normalized `Duration`.
+It demonstrates that `std/time` keeps target counter values and wait details behind its public
+`Instant`, `Duration`, and `time.sleep` contracts.
+
+```sh
+nocter check examples/elapsed.nct
+nocter run examples/elapsed.nct
+```
+
 ## Package Examples
 
 [json-normalize/index.nct](json-normalize/index.nct) reads one UTF-8 JSON file, validates and owns

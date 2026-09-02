@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>examples/ordering.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for examples/ordering.nct.">
+    <title>examples/elapsed.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for examples/elapsed.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/examples/ordering/">
+    <link rel="canonical" href="https://nocter.dev/examples/elapsed/">
     <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="examples/ordering.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for examples/ordering.nct.">
-    <meta property="og:url" content="https://nocter.dev/examples/ordering/">
+    <meta property="og:title" content="examples/elapsed.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for examples/elapsed.nct.">
+    <meta property="og:url" content="https://nocter.dev/examples/elapsed/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="examples/ordering.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for examples/ordering.nct.">
+    <meta name="twitter:title" content="examples/elapsed.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for examples/elapsed.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/ordering.nct - Nocter","description":"Nocter source code for examples/ordering.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/ordering/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Ordering","item":"https://nocter.dev/examples/ordering/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/elapsed.nct - Nocter","description":"Nocter source code for examples/elapsed.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/elapsed/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Elapsed","item":"https://nocter.dev/examples/elapsed/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -182,8 +182,8 @@
                 <li><a href="../indexing/index.html#content">indexing.nct</a></li>
                 <li><a href="../recovery/index.html#content">recovery.nct</a></li>
                 <li><a href="../mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
-                <li><a href="./index.html#content" aria-current="page">ordering.nct</a></li>
-                <li><a href="../elapsed/index.html#content">elapsed.nct</a></li>
+                <li><a href="../ordering/index.html#content">ordering.nct</a></li>
+                <li><a href="./index.html#content" aria-current="page">elapsed.nct</a></li>
                 <li><a href="../json-normalize/index/index.html#content">json-normalize/index.nct</a></li>
                 <li><a href="../json-normalize/normalize/index.html#content">normalize.nct</a></li>
                 <li><a href="../line-frequency/index/index.html#content">line-frequency/index.nct</a></li>
@@ -201,55 +201,23 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/examples/ordering.nct</span>
+                <span class="markdown-path-text">/examples/elapsed.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>ordering.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+                <h1>elapsed.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>time
 
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
-
-<span class="token-keyword">struct</span> <span class="token-type">Rank</span> <span class="token-operator">{</span>
-    value<span class="token-operator">:</span> <span class="token-type">i32</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">Rank</span> <span class="token-operator">{</span>
-    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">&lt;</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> self<span class="token-operator">.</span>value <span class="token-operator">&lt;</span> other<span class="token-operator">.</span>value
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> earlier<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">&lt;</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> left <span class="token-operator">&lt;</span> right
-<span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Duration</span><span class="token-operator">,</span> <span class="token-type">Instant</span><span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> low <span class="token-operator">=</span> <span class="token-type">Rank</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">2</span> <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> high <span class="token-operator">=</span> <span class="token-type">Rank</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">8</span> <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">earlier</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>low<span class="token-operator">,</span> <span class="token-operator">&amp;</span>high<span class="token-operator">)</span> || high <span class="token-operator">&lt;</span><span class="token-operator">=</span> low <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-keyword">let</span> requested <span class="token-operator">=</span> <span class="token-type">Duration</span><span class="token-operator">.</span><span class="token-function">from_milliseconds</span><span class="token-operator">(</span><span class="token-number">2</span><span class="token-operator">)</span>
+    <span class="token-keyword">let</span> start <span class="token-operator">=</span> <span class="token-type">Instant</span><span class="token-operator">.</span><span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    time<span class="token-operator">.</span><span class="token-function">sleep</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>requested<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> start<span class="token-operator">.</span><span class="token-function">elapsed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> requested <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.elapsed.early"</span><span class="token-operator">,</span> <span class="token-string">"monotonic sleep returned early"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> alpha <span class="token-operator">=</span> <span class="token-type">String</span> <span class="token-string">"alpha"</span>
-    <span class="token-keyword">let</span> beta <span class="token-operator">=</span> <span class="token-type">String</span> <span class="token-string">"beta"</span>
-    <span class="token-keyword">let</span> alpha_view <span class="token-operator">=</span> <span class="token-operator">&amp;</span>alpha
-    <span class="token-keyword">let</span> beta_view <span class="token-operator">=</span> <span class="token-operator">&amp;</span>beta
-    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-operator">(</span>alpha_view <span class="token-operator">&lt;</span> beta_view<span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-number">2</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> alpha_text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-string">"alpha"</span>
-    <span class="token-keyword">let</span> beta_text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-string">"beta"</span>
-    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-operator">(</span>alpha_text <span class="token-operator">&lt;</span> beta_text<span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-operator">(</span>alpha_text <span class="token-operator">&lt;</span> beta_view<span class="token-operator">)</span> || <span class="token-operator">!</span><span class="token-operator">(</span>alpha_view <span class="token-operator">&lt;</span> beta_text<span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-number">2</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">]</span>
-    <span class="token-keyword">let</span> second <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
-    <span class="token-keyword">let</span> first_view <span class="token-operator">=</span> <span class="token-operator">&amp;</span>first
-    <span class="token-keyword">let</span> second_view <span class="token-operator">=</span> <span class="token-operator">&amp;</span>second
-    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-operator">(</span>first_view <span class="token-operator">&lt;</span> second_view<span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-number">3</span>
-    <span class="token-operator">}</span>
-    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"strict ordering selected source declarations\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"at least two milliseconds elapsed\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 </code></pre>

@@ -1,0 +1,16 @@
+use std/io
+
+use std/time
+
+use std/time.{Duration, Instant}
+
+func main(): i32! {
+    let requested = Duration.from_milliseconds(2)
+    let start = Instant.now()
+    time.sleep(&requested)?
+    if start.elapsed() < requested {
+        return error.new("example.elapsed.early", "monotonic sleep returned early")
+    }
+    io.print("at least two milliseconds elapsed\n")?
+    return 0
+}

@@ -25,17 +25,18 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
-The [v0.26.0 milestone](milestones/v0.26.0.md) is active. Phases 0 through 3 implement the public
+The [v0.26.0 milestone](milestones/v0.26.0.md) is active. Phases 0 through 4 implement the public
 contract, closed target primitive roles, normalized values, monotonic measurement, and blocking
 sleep. Native tests cover counter execution, boundary arithmetic, target wait rounding, chunking,
-and the no-early-return sleep rule. Wall-clock fallback and external runtime linkage remain
-prohibited.
+and the no-early-return sleep rule. A formatted public example and semantic presentation tests cover
+the user and editor surfaces. Wall-clock fallback and external runtime linkage remain prohibited.
 
 ## Next Work
 
-Complete v0.26.0 Phase 4: add a public elapsed-time example, formatter and LSP contract coverage,
-installed-standard checking, and the final user-facing cross-links without exposing target counter
-or wait details.
+Complete v0.26.0 Phase 5: run the complete workspace, Clippy, native, documentation, and clean-tree
+gates; review responsibility boundaries and runtime assumptions; then record whether v0.26.0 is
+ready for release preparation. Do not publish or change the release identity without an explicit
+publication request.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
