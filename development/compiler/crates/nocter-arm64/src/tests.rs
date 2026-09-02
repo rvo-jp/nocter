@@ -78,6 +78,10 @@ fn encodes_integer_arithmetic_without_untyped_register_31() {
 #[test]
 fn encodes_closed_monotonic_counter_register_reads() {
     assert_eq!(
+        word(Arm64Instruction::InstructionSynchronizationBarrier),
+        0xd503_3fdf
+    );
+    assert_eq!(
         word(Arm64Instruction::ReadSystemRegister {
             destination: x(0),
             register: Arm64SystemRegister::CounterVirtual,
@@ -90,6 +94,35 @@ fn encodes_closed_monotonic_counter_register_reads() {
             register: Arm64SystemRegister::CounterFrequency,
         }),
         0xd53b_e003
+    );
+}
+
+#[test]
+fn monotonic_counter_observation_materializes_an_ordering_barrier() {
+    let machine = crate::test_support::lower_machine_with_standard_uses(
+        "use std/time\n\n\
+         func main(): i32 {\n\
+             let _ = time.monotonic_counter_for_test()\n\
+             return 0\n\
+         }\n",
+        &[&["time"]],
+    );
+    let program = crate::Arm64Program::lower_machine(&machine).unwrap();
+    let words = program
+        .text()
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+    let counter_read = 0xd53b_e040;
+
+    assert_eq!(
+        words.iter().filter(|word| **word == counter_read).count(),
+        1
+    );
+    assert!(
+        words
+            .windows(2)
+            .any(|pair| { pair == [0xd503_3fdf, counter_read,] })
     );
 }
 

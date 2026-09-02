@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nocter-session - Nocter</title>
-    <meta name="description" content="Translate one closed compiler-query outcome into target validation or explicit recovery evidence.">
+    <title>nocter-standard-profile - Nocter</title>
+    <meta name="description" content="Own the one physical declaration profile for the standard package bundled with this compiler.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-session/">
+    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-standard-profile/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="nocter-session - Nocter">
-    <meta property="og:description" content="Translate one closed compiler-query outcome into target validation or explicit recovery evidence.">
-    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-session/">
+    <meta property="og:title" content="nocter-standard-profile - Nocter">
+    <meta property="og:description" content="Own the one physical declaration profile for the standard package bundled with this compiler.">
+    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-standard-profile/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="nocter-session - Nocter">
-    <meta name="twitter:description" content="Translate one closed compiler-query outcome into target validation or explicit recovery evidence.">
+    <meta name="twitter:title" content="nocter-standard-profile - Nocter">
+    <meta name="twitter:description" content="Own the one physical declaration profile for the standard package bundled with this compiler.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-session - Nocter","description":"Translate one closed compiler-query outcome into target validation or explicit recovery evidence.","url":"https://nocter.dev/development/compiler/crates/nocter-session/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-session/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Session","item":"https://nocter.dev/development/compiler/crates/nocter-session/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-standard-profile - Nocter","description":"Own the one physical declaration profile for the standard package bundled with this compiler.","url":"https://nocter.dev/development/compiler/crates/nocter-standard-profile/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-standard-profile/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Standard Profile","item":"https://nocter.dev/development/compiler/crates/nocter-standard-profile/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -174,32 +174,12 @@
         <aside class="directory-toc" aria-label="Directory table of contents"></aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/compiler/crates/nocter-session/README.md</span>
+                <span class="markdown-path-text">/development/compiler/crates/nocter-standard-profile/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-session">nocter-session</h1><h2 id="responsibility">Responsibility</h2><p>Translate one closed compiler-query outcome into target validation or explicit recovery evidence.</p><h2 id="contract">Contract</h2><p>The crate depends on <code>nocter-semantic-product</code> and accepts only the sole complete-or-incomplete unit outcome from the semantic query graph. It opens the supplied success or rejection branch and publishes one immutable session outcome with capability-oriented semantic views for complete programs, typed bodies, lexical names, typed interruptions, and exact repair authority. Recovery storage variants and phase order remain private. The crate does not implement stage rules, invoke semantic compiler stages, implement editor queries, generate native code, or project protocol values.</p><h2 id="internal-responsibilities">Internal Responsibilities</h2><ul><li>closed complete-or-incomplete outcome translation</li><li>complete diagnostic retention</li><li>target and executable request composition</li><li>semantic evidence handoff</li><li>inseparable discovery-snapshot and session-outcome publication</li><li>recovery-storage to query-capability projection</li><li>executable and test selection</li></ul><h2 id="invariants">Invariants</h2><ul><li>The crate cannot invoke declaration lowering, preparation, name resolution, body checking, or
-  semantic finalization.</li><li>Successful and recovered evidence are exclusive variants.</li><li>A later failure cannot expose an older successful program.</li><li>Failure-specific repair evidence moves once into its typed recovery owner.</li><li>Consumers cannot select raw recovery phases or reconstruct phase fallback order.</li><li>An analyzed unit cannot pair semantic evidence with a different discovery snapshot.</li><li>Bulk executable closure retains the declaring target program with every selected identity; a
-  consumer cannot combine identities and programs from separate compilations.</li><li>Consuming an analyzed unit for compilation returns either its target or one failure envelope that
-  retains the exact source snapshot, a non-empty ordered cause trace, and the complete
-  query-selected diagnostic set. The first cause remains authoritative; causes reached while
-  continuing editor recovery cannot be dropped or reconstructed downstream.</li><li>The analyzed unit shares one immutable discovery snapshot with computation inputs; it never
-  clones, rebuilds, or substitutes the source graph after a semantic query has consumed it.</li><li>A checked query result has already crossed checking's paired exact-current transition. Session
-  cannot materialize frontend bindings, reopen declaration preparation, or select a body-symbol
-  generation.</li><li>Declaration rejection opens an owned branch of the query's exact-current recovery
-  product. Session composes its diagnostics and editor evidence without invoking declaration
-  lowering a second time.</li><li>Declaration-only evidence retains the originating lowering or checking recovery product intact;
-  session never reconstructs an authority from independently supplied graph, type, ownership, and
-  source-index values.</li><li>Session maps only the semantic component of <code>CheckedProgramOutput</code> through target validation.
-  The output owner preserves the projection on success and reconstructs the exact original pair on
-  rejection; target and session never manipulate a free <code>CheckedProgram + SourceIndex</code> pair.</li><li>Compiler-domain query failure retains its typed originating cause rather than being translated
-  into a generic missing-authority state.</li><li>Lexical rejection opens the finalization query's exact-current recovery branch.
-  Session opens the checking-owned failure branch without reconstructing its error variant or
-  invoking name resolution, checking preparation, or body checking.</li><li>No public query-continuation entry point accepts declarations, prepared programs, body-name sets,
-  or typed-body sets. A source-complete query consumer must supply one closed final success or
-  rejection branch.</li><li>Query-backed analysis has one public consumer accepting the exact-current unit product. It opens
-  either the complete or incomplete compiler-domain branch; branch-specific translators remain
-  private, so callers cannot choose syntax, declaration, preparation, lexical, body, or
-  finalization order.</li></ul>
+                <h1 id="nocter-standard-profile">nocter-standard-profile</h1><h2 id="responsibility">Responsibility</h2><p>Own the one physical declaration profile for the standard package bundled with this compiler.</p><h2 id="contract">Contract</h2><p>The crate projects one package identity into the exact prelude, builtin type, structural attachment, standard declaration, and primitive declaration locators expected in the bundled standard source tree. It does not discover files, resolve declarations, validate semantic contracts, or orchestrate a compiler session.</p><h2 id="invariants">Invariants</h2><ul><li>Production commands, workspace analysis, and physical-standard tests consume the same complete
+  profile. Synthetic primitive fixtures that mirror bundled source consume its primitive-locator
+  subcatalog rather than copying those paths and names.</li><li>Every closed primitive role has exactly one bundled source location.</li><li>A physical-standard test cannot reconstruct a partial bundled profile.</li><li>Physical source paths and declaration spellings do not enter semantic or backend products.</li></ul>
             </div>
         </main>
     </div>

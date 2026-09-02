@@ -22,6 +22,7 @@ nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 [dev-dependencies]
 nocter-checking = { path = "../nocter-checking", features = ["test-api"] }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering", features = ["test-api"] }
+nocter-standard-profile = { path = "../nocter-standard-profile" }
 nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]

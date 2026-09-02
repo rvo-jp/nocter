@@ -740,7 +740,8 @@ fn registry_for(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry 
                     .iter()
                     .map(|segment| graph.symbols().spelling(*segment))
                     .collect::<Option<Vec<_>>>()?;
-                let (module, name) = nocter_test_support::primitive_source_location(role);
+                let (module, name) =
+                    nocter_standard_profile::bundled_primitive_source_location(role);
                 (declaration.kind() == CallableKind::Primitive
                     && actual_path == module
                     && declaration

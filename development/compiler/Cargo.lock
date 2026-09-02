@@ -1700,6 +1700,7 @@ dependencies = [
  "nocter-session",
  "nocter-source",
  "nocter-source-index",
+ "nocter-standard-profile",
  "nocter-syntax",
  "nocter-workspace-revision",
 ]
@@ -1715,6 +1716,7 @@ dependencies = [
  "nocter-mir",
  "nocter-model",
  "nocter-runtime-contract",
+ "nocter-standard-profile",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -1755,6 +1757,7 @@ dependencies = [
  "nocter-source",
  "nocter-source-index",
  "nocter-source-tooling",
+ "nocter-standard-profile",
  "nocter-syntax",
  "nocter-test-support",
 ]
@@ -1808,6 +1811,7 @@ dependencies = [
  "nocter-mir",
  "nocter-model",
  "nocter-runtime-contract",
+ "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-program",
  "nocter-test-support",
@@ -1883,6 +1887,7 @@ dependencies = [
  "nocter-runtime-contract",
  "nocter-source",
  "nocter-source-index",
+ "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-selection",
  "nocter-test-support",
@@ -1959,6 +1964,7 @@ dependencies = [
  "nocter-mir",
  "nocter-model",
  "nocter-runtime-contract",
+ "nocter-standard-profile",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -1980,6 +1986,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-model",
  "nocter-runtime-contract",
+ "nocter-standard-profile",
  "nocter-target-program",
  "nocter-test-support",
  "nocter-toolchain-contract",
@@ -2012,6 +2019,7 @@ dependencies = [
  "nocter-runtime-contract",
  "nocter-session",
  "nocter-source-index",
+ "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-program",
  "nocter-test-support",
@@ -2084,7 +2092,6 @@ name = "nocter-session"
 version = "0.0.0"
 dependencies = [
  "nocter-checking",
- "nocter-compile-input",
  "nocter-declaration-lowering",
  "nocter-declarations",
  "nocter-diagnostics",
@@ -2094,7 +2101,6 @@ dependencies = [
  "nocter-semantic-product",
  "nocter-source",
  "nocter-source-index",
- "nocter-syntax",
  "nocter-target-program",
  "nocter-toolchain-contract",
 ]
@@ -2123,6 +2129,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nocter-standard-profile"
+version = "0.0.0"
+dependencies = [
+ "nocter-compile-input",
+ "nocter-model",
+ "nocter-runtime-contract",
+ "nocter-syntax",
+ "nocter-toolchain-contract",
+]
+
+[[package]]
 name = "nocter-syntax"
 version = "0.0.0"
 dependencies = [
@@ -2139,6 +2156,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-model",
  "nocter-runtime-contract",
+ "nocter-standard-profile",
  "nocter-test-support",
  "nocter-toolchain-contract",
 ]
@@ -2183,6 +2201,7 @@ dependencies = [
  "nocter-package",
  "nocter-session",
  "nocter-source",
+ "nocter-standard-profile",
  "nocter-syntax",
  "nocter-test-support",
  "nocter-workspace-revision",

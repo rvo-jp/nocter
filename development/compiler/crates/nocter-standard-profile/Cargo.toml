@@ -1,0 +1,17 @@
+[package]
+name = "nocter-standard-profile"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+nocter-compile-input = { path = "../nocter-compile-input" }
+nocter-model = { path = "../nocter-model" }
+nocter-runtime-contract = { path = "../nocter-runtime-contract" }
+nocter-syntax = { path = "../nocter-syntax" }
+nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
+
+[lints]
+workspace = true

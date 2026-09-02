@@ -231,6 +231,7 @@ fn editor_orchestration_layers_keep_the_reviewed_dependency_boundary() {
                 "nocter-package",
                 "nocter-session",
                 "nocter-source",
+                "nocter-standard-profile",
                 "nocter-syntax",
                 "nocter-workspace-revision",
             ][..],
@@ -371,13 +372,31 @@ fn toolchain_handoff_vocabulary_stays_below_declaration_construction() {
         production_dependencies("nocter-toolchain-contract").is_empty(),
         "toolchain identities must remain a dependency-free closed vocabulary"
     );
-    for crate_name in ["nocter-compile-input", "nocter-discovery"] {
+    for crate_name in [
+        "nocter-compile-input",
+        "nocter-discovery",
+        "nocter-standard-profile",
+    ] {
         let closure = production_dependency_closure(crate_name);
         assert!(
             !closure.contains("nocter-declarations"),
             "{crate_name} must not recover toolchain identities from declaration storage"
         );
     }
+}
+
+#[test]
+fn bundled_standard_profile_has_only_locator_vocabulary_dependencies() {
+    assert_eq!(
+        production_dependencies("nocter-standard-profile"),
+        BTreeSet::from([
+            "nocter-compile-input".to_owned(),
+            "nocter-model".to_owned(),
+            "nocter-runtime-contract".to_owned(),
+            "nocter-syntax".to_owned(),
+            "nocter-toolchain-contract".to_owned(),
+        ])
+    );
 }
 
 #[test]

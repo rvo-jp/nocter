@@ -1,3 +1,5 @@
+//! Physical declaration profile for the standard package bundled with this compiler.
+
 use nocter_compile_input::{
     BuiltinTypeLocator, ModuleIdentity, PrimitiveRoleLocator, StandardRoleLocator,
     StructuralAttachmentInput, ToolchainInput,
@@ -49,106 +51,56 @@ fn builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {
 }
 
 fn structural_attachments(package: &PackageIdentity) -> Vec<StructuralAttachmentInput> {
-    vec![StructuralAttachmentInput::new(
-        StructuralAttachment::Slice,
-        module(package, &["slice"]),
-    )]
+    StructuralAttachment::ALL
+        .iter()
+        .copied()
+        .map(|attachment| {
+            let path = match attachment {
+                StructuralAttachment::Slice => &["slice"][..],
+            };
+            StructuralAttachmentInput::new(attachment, module(package, path))
+        })
+        .collect()
 }
 
 fn standard_roles(package: &PackageIdentity) -> Vec<StandardRoleLocator> {
+    StandardDeclarationRole::ALL
+        .iter()
+        .copied()
+        .map(|role| {
+            let (path, kind, name) = bundled_standard_source_location(role);
+            StandardRoleLocator::new(role, module(package, path), kind, name)
+        })
+        .collect()
+}
+
+const fn bundled_standard_source_location(
+    role: StandardDeclarationRole,
+) -> (&'static [&'static str], NodeKind, &'static str) {
     use StandardDeclarationRole as Role;
 
-    [
-        (
-            Role::AbortingAllocator,
-            &["mem"][..],
-            NodeKind::StructDeclaration,
-            "Allocator",
-        ),
-        (
-            Role::AllocationContext,
-            &["mem"][..],
-            NodeKind::StructDeclaration,
-            "AllocationContext",
-        ),
-        (
-            Role::AllocationRequest,
-            &["mem"][..],
-            NodeKind::FunctionDeclaration,
-            "alloc_pages",
-        ),
-        (
-            Role::OwnedString,
-            &["string"][..],
-            NodeKind::StructDeclaration,
-            "String",
-        ),
-        (
-            Role::InterpolationConstructor,
-            &["string"][..],
-            NodeKind::ConstructionFunction,
-            "empty",
-        ),
-        (
-            Role::InterpolationTextAppender,
-            &["string"][..],
-            NodeKind::InherentMethod,
-            "push_str",
-        ),
-        (
-            Role::FormatInterface,
-            &["fmt"][..],
-            NodeKind::InterfaceDeclaration,
-            "Format",
-        ),
-        (
-            Role::FormatMethod,
-            &["fmt"][..],
-            NodeKind::InterfaceMethod,
-            "format_into",
-        ),
-        (
-            Role::IteratorInterface,
-            &["iter"][..],
-            NodeKind::InterfaceDeclaration,
-            "Iterator",
-        ),
-        (
-            Role::IteratorItem,
-            &["iter"][..],
-            NodeKind::AssociatedTypeDeclaration,
-            "Item",
-        ),
-        (
-            Role::IteratorNextMethod,
-            &["iter"][..],
-            NodeKind::InterfaceMethod,
-            "next",
-        ),
-        (
-            Role::ExactSizeIteratorInterface,
-            &["iter"][..],
+    match role {
+        Role::AbortingAllocator => (&["mem"], NodeKind::StructDeclaration, "Allocator"),
+        Role::AllocationContext => (&["mem"], NodeKind::StructDeclaration, "AllocationContext"),
+        Role::AllocationRequest => (&["mem"], NodeKind::FunctionDeclaration, "alloc_pages"),
+        Role::OwnedString => (&["string"], NodeKind::StructDeclaration, "String"),
+        Role::InterpolationConstructor => (&["string"], NodeKind::ConstructionFunction, "empty"),
+        Role::InterpolationTextAppender => (&["string"], NodeKind::InherentMethod, "push_str"),
+        Role::FormatInterface => (&["fmt"], NodeKind::InterfaceDeclaration, "Format"),
+        Role::FormatMethod => (&["fmt"], NodeKind::InterfaceMethod, "format_into"),
+        Role::IteratorInterface => (&["iter"], NodeKind::InterfaceDeclaration, "Iterator"),
+        Role::IteratorItem => (&["iter"], NodeKind::AssociatedTypeDeclaration, "Item"),
+        Role::IteratorNextMethod => (&["iter"], NodeKind::InterfaceMethod, "next"),
+        Role::ExactSizeIteratorInterface => (
+            &["iter"],
             NodeKind::InterfaceDeclaration,
             "ExactSizeIterator",
         ),
-        (
-            Role::ExactSizeIteratorRemainingLenMethod,
-            &["iter"][..],
-            NodeKind::InterfaceMethod,
-            "remaining_len",
-        ),
-        (
-            Role::ProcessAbort,
-            &["process"][..],
-            NodeKind::FunctionDeclaration,
-            "abort",
-        ),
-    ]
-    .into_iter()
-    .map(|(role, path, kind, name)| {
-        StandardRoleLocator::new(role, module(package, path), kind, name)
-    })
-    .collect()
+        Role::ExactSizeIteratorRemainingLenMethod => {
+            (&["iter"], NodeKind::InterfaceMethod, "remaining_len")
+        }
+        Role::ProcessAbort => (&["process"], NodeKind::FunctionDeclaration, "abort"),
+    }
 }
 
 fn primitive_roles(package: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
@@ -156,15 +108,17 @@ fn primitive_roles(package: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
         .iter()
         .copied()
         .map(|role| {
-            let (path, name) = primitive_source_location(role);
+            let (path, name) = bundled_primitive_source_location(role);
             PrimitiveRoleLocator::new(role, module(package, path), name)
         })
         .collect()
 }
 
-/// The physical source layout of the standard package bundled by this session implementation.
-/// Semantic and backend phases receive only the resolved role identities.
-fn primitive_source_location(role: PrimitiveRole) -> (&'static [&'static str], &'static str) {
+/// Returns the sole physical source location of a bundled standard primitive role.
+#[must_use]
+pub const fn bundled_primitive_source_location(
+    role: PrimitiveRole,
+) -> (&'static [&'static str], &'static str) {
     use PrimitiveRole as Role;
 
     match role {

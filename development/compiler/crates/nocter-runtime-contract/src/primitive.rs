@@ -3,6 +3,25 @@ use std::fmt;
 
 use nocter_model::CallableId;
 
+macro_rules! closed_role_enum {
+    (
+        $(#[$enum_attribute:meta])*
+        pub enum $name:ident {
+            $($(#[$variant_attribute:meta])* $variant:ident),+ $(,)?
+        }
+    ) => {
+        $(#[$enum_attribute])*
+        pub enum $name {
+            $($(#[$variant_attribute])* $variant),+
+        }
+
+        impl $name {
+            /// Every member of this closed role vocabulary in declaration order.
+            pub const ALL: &'static [Self] = &[$(Self::$variant),+];
+        }
+    };
+}
+
 /// Runtime effects certified by the compiler for one closed primitive role.
 ///
 /// This is positive implementation evidence, not source syntax. New primitive roles must state
@@ -19,136 +38,77 @@ impl PrimitiveEffects {
     }
 }
 
-/// Compiler-defined meaning assigned to one exact bodyless standard callable.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum PrimitiveRole {
-    NewError,
-    ErrorContext,
-    ErrorCode,
-    ErrorMessage,
-    AllocationFailureError,
-    CurrentAllocatorState,
-    CurrentAllocatorKind,
-    AllocationAbort,
-    PointerAddress,
-    PointerFromReference,
-    PointerFromReadWriteReference,
-    PointerFromAddress,
-    PointeeSize,
-    PointeeAlignment,
-    CopyStringToPointer,
-    CopyPointerToPointer,
-    StoreByteToPointer,
-    StoreValueToPointer,
-    DropValueAtPointer,
-    TakeValueAtPointer,
-    StringFromRawParts,
-    ByteSliceFromRawParts,
-    MutableByteSliceFromRawParts,
-    ValueSliceFromRawParts,
-    MutableValueSliceFromRawParts,
-    BytesFromString,
-    StringSubviewUnchecked,
-    SliceLength,
-    SlicePointerAddress,
-    StringLength,
-    StringPointerAddress,
-    U8Truncate,
-    U16Truncate,
-    U32Truncate,
-    I8Truncate,
-    I16Truncate,
-    I32Truncate,
-    U64WrappingAdd,
-    U64WrappingMultiply,
-    U64BitwiseXor,
-    U64RotateRight,
-    ProcessExit,
-    ProcessArgumentCount,
-    ProcessArgument,
-    ProcessEnvironmentCount,
-    ProcessEnvironmentName,
-    ProcessEnvironmentValue,
-    /// Reads the current 64-bit value from one process monotonic counter domain.
-    MonotonicCounterRead,
-    /// Reads that domain's fixed, non-zero ticks-per-second value, which must fit in `u32`.
-    MonotonicCounterFrequency,
-    /// Computes `later - earlier` in the counter's wrapping 64-bit domain.
-    MonotonicCounterDelta,
-    Syscall0,
-    Syscall1,
-    Syscall2,
-    Syscall3,
-    Syscall4,
-    Syscall5,
-    Syscall6,
-    Trap,
-    Unreachable,
+closed_role_enum! {
+    /// Compiler-defined meaning assigned to one exact bodyless standard callable.
+    #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+    pub enum PrimitiveRole {
+        NewError,
+        ErrorContext,
+        ErrorCode,
+        ErrorMessage,
+        AllocationFailureError,
+        CurrentAllocatorState,
+        CurrentAllocatorKind,
+        AllocationAbort,
+        PointerAddress,
+        PointerFromReference,
+        PointerFromReadWriteReference,
+        PointerFromAddress,
+        PointeeSize,
+        PointeeAlignment,
+        CopyStringToPointer,
+        CopyPointerToPointer,
+        StoreByteToPointer,
+        StoreValueToPointer,
+        DropValueAtPointer,
+        TakeValueAtPointer,
+        StringFromRawParts,
+        ByteSliceFromRawParts,
+        MutableByteSliceFromRawParts,
+        ValueSliceFromRawParts,
+        MutableValueSliceFromRawParts,
+        BytesFromString,
+        StringSubviewUnchecked,
+        SliceLength,
+        SlicePointerAddress,
+        StringLength,
+        StringPointerAddress,
+        U8Truncate,
+        U16Truncate,
+        U32Truncate,
+        I8Truncate,
+        I16Truncate,
+        I32Truncate,
+        U64WrappingAdd,
+        U64WrappingMultiply,
+        U64BitwiseXor,
+        U64RotateRight,
+        ProcessExit,
+        ProcessArgumentCount,
+        ProcessArgument,
+        ProcessEnvironmentCount,
+        ProcessEnvironmentName,
+        ProcessEnvironmentValue,
+        /// Performs one instruction-ordered observation of the current 64-bit value from a process
+        /// monotonic-counter domain.
+        MonotonicCounterRead,
+        /// Reads that domain's fixed, non-zero ticks-per-second value, which must fit in `u32`.
+        MonotonicCounterFrequency,
+        /// Computes `later - earlier` in the counter's wrapping 64-bit domain.
+        MonotonicCounterDelta,
+        Syscall0,
+        Syscall1,
+        Syscall2,
+        Syscall3,
+        Syscall4,
+        Syscall5,
+        Syscall6,
+        Trap,
+        Unreachable,
+    }
 }
 
 impl PrimitiveRole {
-    pub const ALL: &'static [Self] = &[
-        Self::NewError,
-        Self::ErrorContext,
-        Self::ErrorCode,
-        Self::ErrorMessage,
-        Self::AllocationFailureError,
-        Self::CurrentAllocatorState,
-        Self::CurrentAllocatorKind,
-        Self::AllocationAbort,
-        Self::PointerAddress,
-        Self::PointerFromReference,
-        Self::PointerFromReadWriteReference,
-        Self::PointerFromAddress,
-        Self::PointeeSize,
-        Self::PointeeAlignment,
-        Self::CopyStringToPointer,
-        Self::CopyPointerToPointer,
-        Self::StoreByteToPointer,
-        Self::StoreValueToPointer,
-        Self::DropValueAtPointer,
-        Self::TakeValueAtPointer,
-        Self::StringFromRawParts,
-        Self::ByteSliceFromRawParts,
-        Self::MutableByteSliceFromRawParts,
-        Self::ValueSliceFromRawParts,
-        Self::MutableValueSliceFromRawParts,
-        Self::BytesFromString,
-        Self::StringSubviewUnchecked,
-        Self::SliceLength,
-        Self::SlicePointerAddress,
-        Self::StringLength,
-        Self::StringPointerAddress,
-        Self::U8Truncate,
-        Self::U16Truncate,
-        Self::U32Truncate,
-        Self::I8Truncate,
-        Self::I16Truncate,
-        Self::I32Truncate,
-        Self::U64WrappingAdd,
-        Self::U64WrappingMultiply,
-        Self::U64BitwiseXor,
-        Self::U64RotateRight,
-        Self::ProcessExit,
-        Self::ProcessArgumentCount,
-        Self::ProcessArgument,
-        Self::ProcessEnvironmentCount,
-        Self::ProcessEnvironmentName,
-        Self::ProcessEnvironmentValue,
-        Self::MonotonicCounterRead,
-        Self::MonotonicCounterFrequency,
-        Self::MonotonicCounterDelta,
-        Self::Syscall0,
-        Self::Syscall1,
-        Self::Syscall2,
-        Self::Syscall3,
-        Self::Syscall4,
-        Self::Syscall5,
-        Self::Syscall6,
-        Self::Trap,
-        Self::Unreachable,
-    ];
-
     /// Returns the stable compiler-contract name of this primitive role.
     #[must_use]
     pub const fn name(self) -> &'static str {

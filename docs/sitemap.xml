@@ -196,6 +196,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/compiler/crates/nocter-standard-profile/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-syntax/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

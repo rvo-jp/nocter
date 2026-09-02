@@ -7,8 +7,8 @@ use nocter_discovery::{DiscoveryFailure, DiscoveryRequest};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
-use nocter_session::bundled_standard_toolchain;
 use nocter_source::ByteOffset;
+use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_workspace_revision::GenerationId;
 
 use crate::{AnalysisSnapshot, AnalysisStatus, SemanticCoverage, TypedBodyUnavailability};

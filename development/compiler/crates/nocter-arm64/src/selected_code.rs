@@ -206,6 +206,10 @@ fn emit_instruction(
             crate::system_primitive_code::emit_system_call(argument_count, code)
         }
         Arm64SelectedInstruction::ReadMonotonicCounter => {
+            // CNTVCT_EL0 is not self-synchronizing on the baseline ARM64 target. Treat the
+            // primitive as an ordered time observation rather than a bare register read so a
+            // later observation cannot be speculated ahead of preceding instructions.
+            code.append(Arm64Instruction::InstructionSynchronizationBarrier);
             code.append(Arm64Instruction::ReadSystemRegister {
                 destination: Arm64NocterAbi::argument_register(0)
                     .expect("one-word primitive result fits the Nocter ABI"),

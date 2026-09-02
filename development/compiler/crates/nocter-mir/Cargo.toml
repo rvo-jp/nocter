@@ -17,6 +17,7 @@ nocter-checking = { path = "../nocter-checking", features = ["test-api"] }
 nocter-toolchain-contract = { path = "../nocter-toolchain-contract" }
 nocter-declaration-lowering = { path = "../nocter-declaration-lowering", features = ["test-api"] }
 nocter-declarations = { path = "../nocter-declarations" }
+nocter-standard-profile = { path = "../nocter-standard-profile" }
 nocter-test-support = { path = "../nocter-test-support" }
 
 [lints]

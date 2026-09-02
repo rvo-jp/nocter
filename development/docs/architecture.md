@@ -73,6 +73,7 @@ Their owners are:
 | semantic identity to source projection | [`nocter-source-index`](../compiler/crates/nocter-source-index/README.md) |
 | phase-neutral diagnostics | [`nocter-diagnostics`](../compiler/crates/nocter-diagnostics/README.md) |
 | compiler session composition | [`nocter-session`](../compiler/crates/nocter-session/README.md) |
+| bundled standard declaration profile | [`nocter-standard-profile`](../compiler/crates/nocter-standard-profile/README.md) |
 | protocol-independent semantic queries | [`nocter-analysis`](../compiler/crates/nocter-analysis/README.md) |
 | workspace revisions, topology, and compilation demand | [`nocter-workspace-analysis`](../compiler/crates/nocter-workspace-analysis/README.md) |
 | LSP lifecycle and result projection | [`nocter-language-server`](../compiler/crates/nocter-language-server/README.md) |
@@ -96,6 +97,9 @@ query, and orchestration code cannot implement a stage's validation rule.
 - Toolchain-selected declarations and standard roles are owned by
   [`nocter-toolchain-contract`](../compiler/crates/nocter-toolchain-contract/README.md) and projected
   through [`nocter-frontend-bindings`](../compiler/crates/nocter-frontend-bindings/README.md).
+- The physical source locators for the compiler-bundled standard package are owned once by
+  [`nocter-standard-profile`](../compiler/crates/nocter-standard-profile/README.md); production and
+  physical-source tests cannot reconstruct that catalog.
 - Persistent semantic storage is an implementation facility owned by
   [`nocter-persistent`](../compiler/crates/nocter-persistent/README.md); only the semantic owner may
   expose domain-specific transactions.

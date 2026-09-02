@@ -15,7 +15,8 @@ use nocter_package::{
 use nocter_package_state::{
     LockResolutionRequest, PackageAcquisitionAuthority, PackageFetchRequest,
 };
-use nocter_session::{ExecutableCompileRequest, ExecutableSelector, bundled_standard_toolchain};
+use nocter_session::{ExecutableCompileRequest, ExecutableSelector};
+use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_test_support::{
     PUBLIC_PACKAGE_EXAMPLES, PublicExampleArgument, PublicExampleFixture, PublicPackageExample,
     repository_release_version,

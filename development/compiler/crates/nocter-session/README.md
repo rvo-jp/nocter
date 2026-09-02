@@ -23,7 +23,7 @@ protocol values.
 - semantic evidence handoff
 - inseparable discovery-snapshot and session-outcome publication
 - recovery-storage to query-capability projection
-- session profiling and test selection
+- executable and test selection
 
 ## Invariants
 

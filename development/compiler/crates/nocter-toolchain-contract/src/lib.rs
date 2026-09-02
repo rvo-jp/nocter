@@ -1,27 +1,48 @@
 //! Closed identities shared across compiler discovery and semantic construction.
 
-/// Compiler-defined meaning assigned to one exact declaration by toolchain discovery.
-///
-/// Roles are never inferred from source names or module paths. The declaration remains ordinary
-/// Nocter source; this identity only authorizes semantics that cannot be expressed by the language
-/// itself, such as interpolation construction and ambient allocation propagation.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum StandardDeclarationRole {
-    AbortingAllocator,
-    AllocationContext,
-    /// Exact standard callable at which a Nocter allocator requests backing storage.
-    AllocationRequest,
-    OwnedString,
-    InterpolationConstructor,
-    InterpolationTextAppender,
-    FormatInterface,
-    FormatMethod,
-    IteratorInterface,
-    IteratorItem,
-    IteratorNextMethod,
-    ExactSizeIteratorInterface,
-    ExactSizeIteratorRemainingLenMethod,
-    ProcessAbort,
+macro_rules! closed_role_enum {
+    (
+        $(#[$enum_attribute:meta])*
+        pub enum $name:ident {
+            $($(#[$variant_attribute:meta])* $variant:ident),+ $(,)?
+        }
+    ) => {
+        $(#[$enum_attribute])*
+        pub enum $name {
+            $($(#[$variant_attribute])* $variant),+
+        }
+
+        impl $name {
+            /// Every member of this closed role vocabulary in declaration order.
+            pub const ALL: &'static [Self] = &[$(Self::$variant),+];
+        }
+    };
+}
+
+closed_role_enum! {
+    /// Compiler-defined meaning assigned to one exact declaration by toolchain discovery.
+    ///
+    /// Roles are never inferred from source names or module paths. The declaration remains
+    /// ordinary Nocter source; this identity only authorizes semantics that cannot be expressed by
+    /// the language itself, such as interpolation construction and ambient allocation propagation.
+    #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+    pub enum StandardDeclarationRole {
+        AbortingAllocator,
+        AllocationContext,
+        /// Exact standard callable at which a Nocter allocator requests backing storage.
+        AllocationRequest,
+        OwnedString,
+        InterpolationConstructor,
+        InterpolationTextAppender,
+        FormatInterface,
+        FormatMethod,
+        IteratorInterface,
+        IteratorItem,
+        IteratorNextMethod,
+        ExactSizeIteratorInterface,
+        ExactSizeIteratorRemainingLenMethod,
+        ProcessAbort,
+    }
 }
 
 impl StandardDeclarationRole {
@@ -56,13 +77,15 @@ impl StandardDeclarationRole {
     }
 }
 
-/// One anonymous structural type surface that standard source declarations may extend.
-///
-/// Named builtin types derive their authority from their `primitive type` declarations. Only
-/// structural types without a declaration require a separate compiler-selected authority.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum StructuralAttachment {
-    Slice,
+closed_role_enum! {
+    /// One anonymous structural type surface that standard source declarations may extend.
+    ///
+    /// Named builtin types derive their authority from their `primitive type` declarations. Only
+    /// structural types without a declaration require a separate compiler-selected authority.
+    #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+    pub enum StructuralAttachment {
+        Slice,
+    }
 }
 
 impl StructuralAttachment {

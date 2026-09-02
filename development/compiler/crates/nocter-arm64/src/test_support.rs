@@ -12,6 +12,16 @@ pub(crate) fn lower_machine(source: &str) -> MachineProgram {
     lower_fixture(&CompilerFixture::with_app(source), false)
 }
 
+pub(crate) fn lower_machine_with_standard_uses(
+    source: &str,
+    modules: &[&[&str]],
+) -> MachineProgram {
+    lower_fixture(
+        &CompilerFixture::with_app_standard_uses(source, modules),
+        false,
+    )
+}
+
 pub(crate) fn lower_tests(source: &str) -> MachineProgram {
     lower_fixture(&CompilerFixture::with_tests(source), true)
 }
@@ -65,7 +75,8 @@ fn primitive_registry(checked: &nocter_checking::CheckedProgram) -> PrimitiveReg
                     .iter()
                     .map(|segment| graph.symbols().spelling(*segment))
                     .collect::<Option<Vec<_>>>()?;
-                let (module, name) = nocter_test_support::primitive_source_location(role);
+                let (module, name) =
+                    nocter_standard_profile::bundled_primitive_source_location(role);
                 (declaration.kind() == CallableKind::Primitive
                     && actual_path == module
                     && declaration

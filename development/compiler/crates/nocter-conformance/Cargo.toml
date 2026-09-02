@@ -18,6 +18,7 @@ nocter-macho = { path = "../nocter-macho" }
 nocter-mir = { path = "../nocter-mir" }
 nocter-model = { path = "../nocter-model" }
 nocter-runtime-contract = { path = "../nocter-runtime-contract" }
+nocter-standard-profile = { path = "../nocter-standard-profile" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-target-program = { path = "../nocter-target-program" }
 nocter-test-support = { path = "../nocter-test-support" }

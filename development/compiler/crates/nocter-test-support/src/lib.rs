@@ -62,77 +62,6 @@ instance error {
 }
 ";
 
-/// Physical primitive locators belonging to the shared authored standard fixture.
-#[must_use]
-pub fn primitive_source_location(
-    role: nocter_runtime_contract::PrimitiveRole,
-) -> (&'static [&'static str], &'static str) {
-    use nocter_runtime_contract::PrimitiveRole as Role;
-
-    match role {
-        Role::NewError => (&["error"], "new_error"),
-        Role::ErrorContext => (&["error"], "context_error"),
-        Role::ErrorCode => (&["error"], "error_code"),
-        Role::ErrorMessage => (&["error"], "error_message"),
-        Role::AllocationFailureError => (&["mem"], "allocation_failure_error"),
-        Role::CurrentAllocatorState => (&["mem"], "current_allocator_state"),
-        Role::CurrentAllocatorKind => (&["mem"], "current_allocator_kind"),
-        Role::AllocationAbort => (&["internal", "mem"], "allocation_abort"),
-        Role::PointerAddress => (&["ptr"], "addr"),
-        Role::PointerFromReference => (&["ptr"], "from_ref"),
-        Role::PointerFromReadWriteReference => (&["ptr"], "from_ref_mut"),
-        Role::PointerFromAddress => (&["internal", "ptr"], "from_addr"),
-        Role::PointeeSize => (&["internal", "ptr"], "pointee_size"),
-        Role::PointeeAlignment => (&["internal", "ptr"], "pointee_align"),
-        Role::CopyStringToPointer => (&["internal", "ptr"], "copy_str_to_ptr"),
-        Role::CopyPointerToPointer => (&["internal", "ptr"], "copy_ptr_to_ptr"),
-        Role::StoreByteToPointer => (&["internal", "ptr"], "store_u8_to_ptr"),
-        Role::StoreValueToPointer => (&["internal", "ptr"], "store_value_to_ptr"),
-        Role::DropValueAtPointer => (&["internal", "ptr"], "drop_value_at_ptr"),
-        Role::TakeValueAtPointer => (&["internal", "ptr"], "take_value_at_ptr"),
-        Role::StringFromRawParts => (&["internal", "ptr"], "str_from_raw_parts"),
-        Role::ByteSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts"),
-        Role::MutableByteSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts_mut"),
-        Role::ValueSliceFromRawParts => (&["internal", "ptr"], "slice_from_raw_parts_value"),
-        Role::MutableValueSliceFromRawParts => {
-            (&["internal", "ptr"], "slice_from_raw_parts_value_mut")
-        }
-        Role::BytesFromString => (&["str"], "bytes_from_str"),
-        Role::StringSubviewUnchecked => (&["str"], "str_subview_unchecked"),
-        Role::SliceLength => (&["slice"], "slice_len_raw"),
-        Role::SlicePointerAddress => (&["slice"], "slice_ptr_addr_raw"),
-        Role::StringLength => (&["str"], "str_len_raw"),
-        Role::StringPointerAddress => (&["str"], "str_ptr_addr_raw"),
-        Role::U8Truncate => (&["num"], "u8_truncate_raw"),
-        Role::U16Truncate => (&["num"], "u16_truncate_raw"),
-        Role::U32Truncate => (&["num"], "u32_truncate_raw"),
-        Role::I8Truncate => (&["num"], "i8_truncate_raw"),
-        Role::I16Truncate => (&["num"], "i16_truncate_raw"),
-        Role::I32Truncate => (&["num"], "i32_truncate_raw"),
-        Role::U64WrappingAdd => (&["num"], "u64_wrapping_add_raw"),
-        Role::U64WrappingMultiply => (&["num"], "u64_wrapping_mul_raw"),
-        Role::U64BitwiseXor => (&["num"], "u64_bit_xor_raw"),
-        Role::U64RotateRight => (&["num"], "u64_rotate_right_raw"),
-        Role::ProcessExit => (&["process"], "exit_raw"),
-        Role::ProcessArgumentCount => (&["process"], "arg_count_raw"),
-        Role::ProcessArgument => (&["process"], "arg_raw"),
-        Role::ProcessEnvironmentCount => (&["process"], "env_count_raw"),
-        Role::ProcessEnvironmentName => (&["process"], "env_name_raw"),
-        Role::ProcessEnvironmentValue => (&["process"], "env_value_raw"),
-        Role::MonotonicCounterRead => (&["time"], "monotonic_counter_raw"),
-        Role::MonotonicCounterFrequency => (&["time"], "monotonic_frequency_raw"),
-        Role::MonotonicCounterDelta => (&["time"], "monotonic_delta_raw"),
-        Role::Syscall0 => (&["internal", "os", "darwin"], "syscall0"),
-        Role::Syscall1 => (&["internal", "os", "darwin"], "syscall1"),
-        Role::Syscall2 => (&["internal", "os", "darwin"], "syscall2"),
-        Role::Syscall3 => (&["internal", "os", "darwin"], "syscall3"),
-        Role::Syscall4 => (&["internal", "os", "darwin"], "syscall4"),
-        Role::Syscall5 => (&["internal", "os", "darwin"], "syscall5"),
-        Role::Syscall6 => (&["internal", "os", "darwin"], "syscall6"),
-        Role::Trap => (&["internal", "os", "darwin"], "trap"),
-        Role::Unreachable => (&["internal", "os", "darwin"], "unreachable"),
-    }
-}
 const ITERATION_SOURCE: &str = "\
 pub interface Iterator {
     pub type Item
@@ -340,6 +269,7 @@ noalloc primitive func monotonic_counter_raw(): u64
 noalloc primitive func monotonic_frequency_raw(): u64
 #target: \"arm64-darwin\"
 noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64
+pub noalloc func monotonic_counter_for_test(): u64 { return monotonic_counter_raw() }
 ";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"

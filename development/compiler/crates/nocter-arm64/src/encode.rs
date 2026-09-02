@@ -19,6 +19,7 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::LoadSigned { .. }
         | Arm64Instruction::StoreUnsigned { .. }) => encode_memory(instruction),
         instruction @ (Arm64Instruction::NoOperation
+        | Arm64Instruction::InstructionSynchronizationBarrier
         | Arm64Instruction::AddressPage { .. }
         | Arm64Instruction::ConditionalSet { .. }
         | Arm64Instruction::Branch { .. }
@@ -226,6 +227,7 @@ fn encode_memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErro
 fn encode_control(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {
     match instruction {
         Arm64Instruction::NoOperation => Ok(0xd503_201f),
+        Arm64Instruction::InstructionSynchronizationBarrier => Ok(0xd503_3fdf),
         Arm64Instruction::AddressPage {
             destination,
             displacement,

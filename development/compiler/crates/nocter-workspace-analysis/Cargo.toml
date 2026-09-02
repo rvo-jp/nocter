@@ -17,6 +17,7 @@ nocter-model = { path = "../nocter-model" }
 nocter-package = { path = "../nocter-package" }
 nocter-session = { path = "../nocter-session" }
 nocter-source = { path = "../nocter-source" }
+nocter-standard-profile = { path = "../nocter-standard-profile" }
 nocter-syntax = { path = "../nocter-syntax" }
 nocter-workspace-revision = { path = "../nocter-workspace-revision" }
 

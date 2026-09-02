@@ -29,7 +29,9 @@ The [v0.26.0 milestone](milestones/v0.26.0.md) is complete and reviewed. Its pub
 target primitive roles, normalized values, monotonic measurement, blocking sleep, editor surface,
 and native application path passed the complete workspace gates. The
 [Phase 5 review](reviews/v0.26.0-phase-5.md) records the final ABI, authority, dependency, and
-runtime evidence. Wall-clock fallback and external time-runtime calls remain prohibited.
+runtime evidence. Its whole-workspace follow-up also closes the speculative ARM64 counter read and
+the duplicated bundled-standard declaration profile. Wall-clock fallback and external time-runtime
+calls remain prohibited.
 
 ## Next Work
 

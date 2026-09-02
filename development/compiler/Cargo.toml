@@ -39,6 +39,7 @@ members = [
     "crates/nocter-source",
     "crates/nocter-source-index",
     "crates/nocter-source-tooling",
+    "crates/nocter-standard-profile",
     "crates/nocter-syntax",
     "crates/nocter-target-program",
     "crates/nocter-target-selection",

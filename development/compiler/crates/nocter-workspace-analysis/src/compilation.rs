@@ -9,7 +9,7 @@ use nocter_package::{
     PackageResolutionPolicy, PackageResolutionRequest, PackageRootCatalog,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
-use nocter_session::bundled_standard_toolchain;
+use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_syntax::SourceSyntaxProvider;
 use nocter_workspace_revision::GenerationId;
 

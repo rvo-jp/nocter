@@ -115,6 +115,8 @@ impl Arm64BranchCondition {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64Instruction {
     NoOperation,
+    /// Flushes the instruction pipeline before subsequent instructions are fetched.
+    InstructionSynchronizationBarrier,
     /// Forms the page containing `pc + displacement`. The displacement must be page-aligned.
     AddressPage {
         destination: Arm64Register,

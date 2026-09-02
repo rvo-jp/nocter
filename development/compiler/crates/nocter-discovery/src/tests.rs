@@ -4,14 +4,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{
     BuiltinTypeLocator, ModuleIdentity, ModuleSourceKind, PackageMode, PrimitiveRoleLocator,
-    StandardRoleLocator, StructuralAttachmentInput, ToolchainInput,
+    StandardRoleLocator, ToolchainInput,
 };
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
 use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
+use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_syntax::{DirectSourceSyntax, NodeKind};
-use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
+use nocter_toolchain_contract::StandardDeclarationRole;
 
 use crate::{
     DiscoveredUnit, DiscoveryError, DiscoveryFailure, DiscoveryRequest, UseFailure,
@@ -931,7 +932,7 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
     let unit = discover(DiscoveryRequest::toolchain_standard(
         CompilationTarget::Arm64Darwin,
         package_graph(vec![standard]),
-        standard_toolchain(&standard_identity),
+        bundled_standard_toolchain(&standard_identity),
     ))
     .unwrap();
     let syntax_errors: Vec<_> = unit
@@ -992,127 +993,4 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
         &unit, &checked,
     );
     standard_contract::assert_private_implementation_functions_are_referenced(&unit, &checked);
-}
-
-fn standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
-    let module = |path: &[&str]| ModuleIdentity::new(package.clone(), path.iter().copied());
-    let attachments = vec![StructuralAttachmentInput::new(
-        StructuralAttachment::Slice,
-        module(&["slice"]),
-    )];
-    let roles = [
-        (
-            StandardDeclarationRole::AbortingAllocator,
-            &["mem"][..],
-            NodeKind::StructDeclaration,
-            "Allocator",
-        ),
-        (
-            StandardDeclarationRole::AllocationContext,
-            &["mem"][..],
-            NodeKind::StructDeclaration,
-            "AllocationContext",
-        ),
-        (
-            StandardDeclarationRole::OwnedString,
-            &["string"][..],
-            NodeKind::StructDeclaration,
-            "String",
-        ),
-        (
-            StandardDeclarationRole::InterpolationConstructor,
-            &["string"][..],
-            NodeKind::ConstructionFunction,
-            "empty",
-        ),
-        (
-            StandardDeclarationRole::InterpolationTextAppender,
-            &["string"][..],
-            NodeKind::InherentMethod,
-            "push_str",
-        ),
-        (
-            StandardDeclarationRole::FormatInterface,
-            &["fmt"][..],
-            NodeKind::InterfaceDeclaration,
-            "Format",
-        ),
-        (
-            StandardDeclarationRole::FormatMethod,
-            &["fmt"][..],
-            NodeKind::InterfaceMethod,
-            "format_into",
-        ),
-        (
-            StandardDeclarationRole::IteratorInterface,
-            &["iter"][..],
-            NodeKind::InterfaceDeclaration,
-            "Iterator",
-        ),
-        (
-            StandardDeclarationRole::IteratorItem,
-            &["iter"][..],
-            NodeKind::AssociatedTypeDeclaration,
-            "Item",
-        ),
-        (
-            StandardDeclarationRole::IteratorNextMethod,
-            &["iter"][..],
-            NodeKind::InterfaceMethod,
-            "next",
-        ),
-        (
-            StandardDeclarationRole::ExactSizeIteratorInterface,
-            &["iter"][..],
-            NodeKind::InterfaceDeclaration,
-            "ExactSizeIterator",
-        ),
-        (
-            StandardDeclarationRole::ExactSizeIteratorRemainingLenMethod,
-            &["iter"][..],
-            NodeKind::InterfaceMethod,
-            "remaining_len",
-        ),
-    ]
-    .into_iter()
-    .map(|(role, path, kind, name)| StandardRoleLocator::new(role, module(path), kind, name))
-    .collect();
-    let primitives = PrimitiveRole::ALL
-        .iter()
-        .copied()
-        .map(|role| {
-            let (path, name) = nocter_test_support::primitive_source_location(role);
-            PrimitiveRoleLocator::new(role, module(path), name)
-        })
-        .collect();
-    ToolchainInput::new(package.clone(), module(&["prelude"]), attachments, roles)
-        .with_primitive_roles(primitives)
-        .with_builtin_types(standard_builtin_types(package))
-}
-
-fn standard_builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {
-    let module = |path: &[&str]| ModuleIdentity::new(package.clone(), path.iter().copied());
-    BuiltinType::ALL
-        .iter()
-        .copied()
-        .map(|builtin| {
-            let path = match builtin {
-                BuiltinType::Bool
-                | BuiltinType::I8
-                | BuiltinType::I16
-                | BuiltinType::I32
-                | BuiltinType::I64
-                | BuiltinType::U8
-                | BuiltinType::U16
-                | BuiltinType::U32
-                | BuiltinType::U64
-                | BuiltinType::Usize
-                | BuiltinType::Isize => &["num"][..],
-                BuiltinType::Str => &["str"][..],
-                BuiltinType::Error => &["error"][..],
-                BuiltinType::Void | BuiltinType::Never => &["core"][..],
-            };
-            BuiltinTypeLocator::new(builtin, module(path), builtin.spelling())
-        })
-        .collect()
 }

@@ -16,6 +16,7 @@ nocter-declaration-lowering = { path = "../nocter-declaration-lowering", feature
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-mir = { path = "../nocter-mir" }
 nocter-model = { path = "../nocter-model" }
+nocter-standard-profile = { path = "../nocter-standard-profile" }
 nocter-target-program = { path = "../nocter-target-program" }
 nocter-test-support = { path = "../nocter-test-support" }
 

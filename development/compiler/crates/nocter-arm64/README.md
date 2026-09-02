@@ -25,4 +25,6 @@ does not inspect MIR semantics, declaration identities, source, or package state
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
 - Every primitive expansion is selected by closed runtime role.
+- A monotonic-counter observation is emitted as an ordered observation, never as a speculative
+  bare system-register read.
 - Encoding is deterministic for one machine program.

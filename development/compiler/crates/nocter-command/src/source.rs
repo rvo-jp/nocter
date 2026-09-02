@@ -9,7 +9,8 @@ use nocter_discovery::{DiscoveryError, DiscoveryFailure, DiscoveryRequest};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{PackageGraphError, ResolvedPackageSelection, StandardPackage};
 use nocter_package_state::PackageAcquisitionAuthority;
-use nocter_session::{ExecutableSelector, TestTargetSelector, bundled_standard_toolchain};
+use nocter_session::{ExecutableSelector, TestTargetSelector};
+use nocter_standard_profile::bundled_standard_toolchain;
 
 use crate::compiler::CommandCompiler;
 use crate::package_state::resolve_command_package_state;

@@ -9,16 +9,14 @@ use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::PrimitiveRole;
+use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_test_support::PUBLIC_PACKAGE_EXAMPLES;
 
 use super::{
     NativeImage, NativeImageSetCompileRequest, NativeTestCompileRequest, NativeTestTargetOutcome,
     compile_native_image, compile_native_images, compile_native_tests,
 };
-use nocter_session::{
-    AnalyzedUnit, AnalyzedUnitStatus, CompiledTarget, ExecutableCompileRequest,
-    bundled_standard_toolchain,
-};
+use nocter_session::{AnalyzedUnit, AnalyzedUnitStatus, CompiledTarget, ExecutableCompileRequest};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
