@@ -33,11 +33,11 @@ no open finding.
 
 ## Next Work
 
-Prepare the completed and [reviewed v0.28.0 milestone](milestones/v0.28.0.md) as a release
-candidate. Advance the sole authored release version, standard package declaration, English
-release notes, and generated documentation in one release-content commit. Then qualify that clean
-commit through independent workspace targets, reproducible archive generation, and an isolated
-installed home before requesting publication authority.
+Commit the prepared [v0.28.0 release content](milestones/v0.28.0-release-preparation.md), then
+qualify that exact clean commit through two independent workspace targets, reproducible archive
+generation, and an isolated installed home. Record the exact source commit, test count, archive
+identity, compiler and standard-tree digests, and installed-home evidence before requesting
+publication authority.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
