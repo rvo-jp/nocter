@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Current Candidate
 
 - [v0.27.0: Filesystem and Path Completion](v0.27.0.md)
+- [v0.27.0 Release Preparation](v0.27.0-release-preparation.md)
 
 ## Recent Milestones
 

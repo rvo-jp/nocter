@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.27.0: Filesystem and Path Completion - Nocter</title>
-    <meta name="description" content="Status: implementation complete through Phase 4 (2026-09-02); release preparation has not started. v0.27.0 closes one practical application boundary: alloc">
+    <meta name="description" content="Status: implementation complete through Phase 4; release candidate preparation active (2026-09-02). v0.27.0 closes one practical application boundary: allo">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.27.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.27.0: Filesystem and Path Completion - Nocter">
-    <meta property="og:description" content="Status: implementation complete through Phase 4 (2026-09-02); release preparation has not started. v0.27.0 closes one practical application boundary: alloc">
+    <meta property="og:description" content="Status: implementation complete through Phase 4; release candidate preparation active (2026-09-02). v0.27.0 closes one practical application boundary: allo">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.27.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.27.0: Filesystem and Path Completion - Nocter">
-    <meta name="twitter:description" content="Status: implementation complete through Phase 4 (2026-09-02); release preparation has not started. v0.27.0 closes one practical application boundary: alloc">
+    <meta name="twitter:description" content="Status: implementation complete through Phase 4; release candidate preparation active (2026-09-02). v0.27.0 closes one practical application boundary: allo">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.27.0: Filesystem and Path Completion - Nocter","description":"Status: implementation complete through Phase 4 (2026-09-02); release preparation has not started. v0.27.0 closes one practical application boundary: alloc","url":"https://nocter.dev/development/milestones/v0.27.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.27.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.27.0","item":"https://nocter.dev/development/milestones/v0.27.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.27.0: Filesystem and Path Completion - Nocter","description":"Status: implementation complete through Phase 4; release candidate preparation active (2026-09-02). v0.27.0 closes one practical application boundary: allo","url":"https://nocter.dev/development/milestones/v0.27.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.27.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.27.0","item":"https://nocter.dev/development/milestones/v0.27.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -177,6 +177,7 @@
                 <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="./index.html#content" aria-current="page">v0.27.0: Filesystem and Path Completion</a></li>
+                <li><a href="../v0.27.0-release-preparation/index.html#content">v0.27.0 Release Preparation</a></li>
                 <li><a href="../v0.26.0/index.html#content">v0.26.0: Monotonic Time Foundation</a></li>
                 <li><a href="../v0.26.0-release-preparation/index.html#content">v0.26.0 Release Preparation</a></li>
                 <li><a href="../v0.25.0/index.html#content">v0.25.0: No-allocation Contracts</a></li>
@@ -219,7 +220,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.27.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-27-0-filesystem-and-path-completion">v0.27.0: Filesystem and Path Completion</h1><p><strong>Status: implementation complete through Phase 4 (2026-09-02); release preparation has not started.</strong> v0.27.0 closes one practical application boundary: allocation-free lexical inspection of owned UTF-8 paths and explicit creation or removal of directories. It does not add recursive deletion, canonicalization, descriptor-relative traversal, non-UTF-8 paths, or another target.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Utf8Path</code> exposes allocation-free <code>parent</code>, <code>file_name</code>, <code>file_stem</code>, and <code>extension</code> views with
+                <h1 id="v0-27-0-filesystem-and-path-completion">v0.27.0: Filesystem and Path Completion</h1><p><strong>Status: implementation complete through Phase 4; release candidate preparation active (2026-09-02).</strong> v0.27.0 closes one practical application boundary: allocation-free lexical inspection of owned UTF-8 paths and explicit creation or removal of directories. It does not add recursive deletion, canonicalization, descriptor-relative traversal, non-UTF-8 paths, or another target.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Utf8Path</code> exposes allocation-free <code>parent</code>, <code>file_name</code>, <code>file_stem</code>, and <code>extension</code> views with
   exact behavior for empty, rooted, trailing-separator, repeated-separator, dot, and UTF-8 paths;</li><li><code>is_absolute</code> and path validation publish their existing allocation-free behavior as <code>noalloc</code>;</li><li><code>fs.create_dir</code> creates one directory and distinguishes an existing entry;</li><li><code>fs.create_dir_all</code> creates missing authored prefixes, accepts existing directories, and rejects
   empty input or an existing non-directory prefix;</li><li><code>fs.remove_dir</code> removes one empty directory, never recursively removes content, and never treats
   a final symbolic link as a directory;</li><li>stable public failures distinguish an existing entry, a non-directory component, and a nonempty

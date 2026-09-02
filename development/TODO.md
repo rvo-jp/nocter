@@ -32,10 +32,10 @@ editor, formatter, architecture, and complete-workspace qualification. Its
 
 ## Next Work
 
-Begin v0.27.0 release preparation only after explicit direction. Update the sole release-version
-authority, user-facing release records, and installed artifact metadata together; then run the
-clean reproducible packaging qualification before publication. Do not add recursive deletion or a
-speculative target-neutral wrapper during stabilization.
+Complete [v0.27.0 release preparation](milestones/v0.27.0-release-preparation.md). Commit the exact
+release content, run both independent external-target source qualifications and the explicit HTTPS
+test, produce and qualify the archive twice, and record exact artifact evidence before creating a
+tag or GitHub release. Do not add new feature scope during stabilization.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
