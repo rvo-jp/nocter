@@ -227,7 +227,7 @@
 <span class="token-function">nocter</span> run -- <span class="token-string">"  alpha beta  "</span>
 </code></pre><p><a href="./stdin-prefix/index/index.html#content">stdin-prefix/index.nct</a> prefixes every logical standard-input line with one exact command-line argument. Its <a href="./stdin-prefix/prefix/index.html#content">prefix.nct</a> implementation combines the borrowed <code>io.stdin()</code> stream with explicit <code>BufReader</code> state and ordinary <code>Writer</code> output; there is no global line buffer or input-specific compiler path.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/stdin-prefix
 <span class="token-function">nocter</span> check
-<span class="token-function">printf</span> <span class="token-string">'alpha\r\nbeta'</span> <span class="token-operator">|</span> <span class="token-function">nocter</span> run -- <span class="token-string">'&gt; '</span>
+<span class="token-function">nocter</span> run -- <span class="token-string">'&gt; '</span> <span class="token-operator">&lt;</span> sample.txt
 </code></pre><p><a href="./json-normalize/index/index.html#content">json-normalize/index.nct</a> reads one UTF-8 JSON file, validates and owns its complete value, then writes the shared compact spelling directly to standard output. Its <a href="./json-normalize/normalize/index.html#content">normalize.nct</a> implementation composes process arguments, paths, filesystem input, JSON parsing, and the public <code>Writer</code> generator without a JSON-specific file or operating-system API.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/json-normalize
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build

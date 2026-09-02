@@ -117,6 +117,21 @@ printf '==========\ntext: alpha-beta\nbytes: 10\n==========\n' > "$expected_text
 cmp "$expected_text_banner_stdout" "$text_banner_stdout"
 cmp "$expected_text_banner_stderr" "$text_banner_stderr"
 
+stdin_prefix_stdout="$temporary_root/stdin-prefix.stdout"
+stdin_prefix_stderr="$temporary_root/stdin-prefix.stderr"
+expected_stdin_prefix_stderr="$temporary_root/stdin-prefix.expected.stderr"
+: > "$expected_stdin_prefix_stderr"
+"${environment[@]}" "$home/nocter" run \
+  --root "$repository_root/examples/stdin-prefix" \
+  --locked \
+  --offline \
+  -- '> ' \
+  < "$repository_root/examples/stdin-prefix/sample.txt" \
+  > "$stdin_prefix_stdout" \
+  2> "$stdin_prefix_stderr"
+cmp "$repository_root/examples/stdin-prefix/sample-output.txt" "$stdin_prefix_stdout"
+cmp "$expected_stdin_prefix_stderr" "$stdin_prefix_stderr"
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"

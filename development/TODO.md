@@ -31,18 +31,19 @@ recoverable formatting contract, line-oriented writers, and symmetric process ou
 editor, formatter, architecture, complete-workspace, reproducible-package, installed-home, and
 public-asset qualification. Its [final review](reviews/v0.28.0-phase-5.md) has no open finding.
 
-The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has a closed public
-contract, a completed exact run-argument channel, borrowed standard input, and buffered line
-integration. The `stdin-prefix` public package now combines exact arguments and stdin through the
-ordinary `process`, `io`, `BufReader`, and `Writer` contracts. Its shared execution scenarios own
-exact stdin, status, stdout, and stderr expectations for later qualification.
+The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has completed its
+public contract, exact run-argument channel, borrowed standard input, buffered line integration,
+and tooling/distribution integration. The `stdin-prefix` public package is the shared source for
+formatter, semantic editor, native command, and extracted-home `nocter run` coverage. Its process
+contracts own exact arguments, stdin, status, stdout, and stderr.
 
 ## Next Work
 
-Implement v0.29.0 Phase 4 by making formatter and semantic editor tests consume the ordinary
-`stdin-prefix` public package, then qualify installed `nocter run ... -- ...` with piped stdin from
-an extracted home. Extend the shared public-example contracts where another consumer needs input;
-do not create bespoke copies of the example source or expected process behavior.
+Complete v0.29.0 Phase 5 qualification and review. Run the complete workspace and release gates,
+then audit for duplicate argument partitioning, lossy OS-string conversion, child arguments
+entering semantic products, duplicate read or line-buffer algorithms, process-global descriptor
+closure, hidden input state, target facts outside the OS boundary, and test or production
+contracts that depend on caller discipline. Publication remains separately authorized.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

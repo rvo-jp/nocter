@@ -97,7 +97,7 @@ there is no global line buffer or input-specific compiler path.
 ```sh
 cd examples/stdin-prefix
 nocter check
-printf 'alpha\r\nbeta' | nocter run -- '> '
+nocter run -- '> ' < sample.txt
 ```
 
 [json-normalize/index.nct](json-normalize/index.nct) reads one UTF-8 JSON file, validates and owns

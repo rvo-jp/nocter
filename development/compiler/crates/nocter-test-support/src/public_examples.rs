@@ -280,6 +280,14 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                 stderr: b"usage: stdin-prefix PREFIX\n",
             },
             PublicExampleRun {
+                name: "sample",
+                arguments: &[PublicExampleArgument::Text("> ")],
+                stdin: include_bytes!("../../../../../examples/stdin-prefix/sample.txt"),
+                status: 0,
+                stdout: include_bytes!("../../../../../examples/stdin-prefix/sample-output.txt"),
+                stderr: b"",
+            },
+            PublicExampleRun {
                 name: "lines",
                 arguments: &[PublicExampleArgument::Text("> ")],
                 stdin: b"\nalpha\r\nlone\rbeta\n\xf0\x9f\x98\x80 split\nfinal",

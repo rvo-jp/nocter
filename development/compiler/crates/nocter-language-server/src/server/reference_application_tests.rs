@@ -250,6 +250,86 @@ fn text_banner_uses_public_text_and_output_editor_semantics_end_to_end() {
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
 }
 
+#[test]
+fn stdin_prefix_uses_public_process_and_input_editor_semantics_end_to_end() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/stdin-prefix");
+    let source = root.join("prefix.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (stdin_line, stdin_source) = source_line(&text, "BufReader.new(io.stdin())");
+    let stdin_character = stdin_source.find("stdin").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        stdin_line,
+        stdin_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub noalloc func stdin(): File"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        stdin_line,
+        stdin_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/io/index.nct"), "{response}");
+    assert!(!response.contains("input.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let (read_line, read_source) = source_line(&text, "input.read_line_into");
+    let read_character = read_source.find("read_line_into").unwrap();
+    let hover = server.receive(&position_request(
+        4,
+        "textDocument/hover",
+        &source,
+        read_line,
+        read_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub method &+BufReader.read_line_into(destination: &+String): bool!"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let incomplete = text.replace("io.stdin()", "io.st");
+    let mut incomplete_json = String::new();
+    nocter_json::write_string(&mut incomplete_json, &incomplete);
+    let changed = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\",\"version\":2}},\"contentChanges\":[{{\"text\":{incomplete_json}}}]}}}}",
+        source.display()
+    ));
+    assert_eq!(
+        changed.analysis().unwrap().snapshot().unwrap().status(),
+        nocter_analysis::AnalysisStatus::CompilationFailed
+    );
+    let (completion_line, completion_source) = source_line(&incomplete, "io.st");
+    let completion_character = completion_source.find("io.st").unwrap() + "io.st".len();
+    let completion = server.receive(&position_request(
+        5,
+        "textDocument/completion",
+        &source,
+        completion_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for function in ["stderr", "stdin", "stdout"] {
+        assert!(
+            response.contains(&format!("\"label\":\"io.{function}\"")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
 fn open_package_source(root: &Path, source: &Path) -> (super::LanguageServer, String) {
     let text = fs::read_to_string(source).unwrap();
     let mut server = semantic_server(root);
