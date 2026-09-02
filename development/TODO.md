@@ -37,15 +37,18 @@ and tooling/distribution integration. The `stdin-prefix` public package is the s
 formatter, semantic editor, native command, and extracted-home `nocter run` coverage. Its process
 contracts own exact arguments, stdin, status, stdout, and stderr. The
 [Phase 5 review](reviews/v0.29.0-phase-5.md) found no open implementation or design issue, and the
-complete workspace and static-quality gates pass.
+complete workspace and static-quality gates pass. Its
+[release candidate](milestones/v0.29.0-release-preparation.md) is fixed at commit
+`724bf0bb6edcb9c7c8a45d2e8aa0645f6ae78544`; reproducible packaging and isolated installed-home
+qualification pass.
 
 ## Next Work
 
-Commit the prepared [v0.29.0 release content](milestones/v0.29.0-release-preparation.md), then
-qualify that exact clean commit through two independent workspace targets, reproducible archive
-generation, and an isolated installed home. Record the exact source commit, test count, archive
-identity, compiler and standard-tree digests, and installed-home evidence before requesting
-publication authority.
+Publish the already qualified v0.29.0 candidate only after explicit authorization. Publication
+must reuse `dist/nocter-v0.29.0-arm64-darwin.tar.gz` without rebuilding it, advance public latest
+release and download links in a separate commit, create one annotated `v0.29.0` tag, upload exactly
+one archive, and audit the public asset byte for byte. Existing release tags and assets remain
+immutable.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
