@@ -182,6 +182,8 @@
                 <li><a href="./mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
                 <li><a href="./ordering/index.html#content">ordering.nct</a></li>
                 <li><a href="./elapsed/index.html#content">elapsed.nct</a></li>
+                <li><a href="./text-banner/index/index.html#content">text-banner/index.nct</a></li>
+                <li><a href="./text-banner/banner/index.html#content">banner.nct</a></li>
                 <li><a href="./json-normalize/index/index.html#content">json-normalize/index.nct</a></li>
                 <li><a href="./json-normalize/normalize/index.html#content">normalize.nct</a></li>
                 <li><a href="./line-frequency/index/index.html#content">line-frequency/index.nct</a></li>
@@ -218,7 +220,10 @@
 <span class="token-function">nocter</span> run examples/ordering.nct
 </code></pre><p><a href="./elapsed/index.html#content">elapsed.nct</a> measures one monotonic interval and blocks for a normalized <code>Duration</code>. It demonstrates that <code>std/time</code> keeps target counter values and wait details behind its public <code>Instant</code>, <code>Duration</code>, and <code>time.sleep</code> contracts.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/elapsed.nct
 <span class="token-function">nocter</span> run examples/elapsed.nct
-</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./json-normalize/index/index.html#content">json-normalize/index.nct</a> reads one UTF-8 JSON file, validates and owns its complete value, then writes the shared compact spelling directly to standard output. Its <a href="./json-normalize/normalize/index.html#content">normalize.nct</a> implementation composes process arguments, paths, filesystem input, JSON parsing, and the public <code>Writer</code> generator without a JSON-specific file or operating-system API.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/json-normalize
+</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./text-banner/index/index.html#content">text-banner/index.nct</a> turns one command-line argument into a compact text report. Its <a href="./text-banner/banner/index.html#content">banner.nct</a> implementation composes borrowed ASCII trimming, owned replacement and repetition, interpolation, integer formatting, and symmetric line output. The missing-argument path writes its usage message to standard error.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/text-banner
+<span class="token-function">nocter</span> check
+<span class="token-function">nocter</span> run -- <span class="token-string">"  alpha beta  "</span>
+</code></pre><p><a href="./json-normalize/index/index.html#content">json-normalize/index.nct</a> reads one UTF-8 JSON file, validates and owns its complete value, then writes the shared compact spelling directly to standard output. Its <a href="./json-normalize/normalize/index.html#content">normalize.nct</a> implementation composes process arguments, paths, filesystem input, JSON parsing, and the public <code>Writer</code> generator without a JSON-specific file or operating-system API.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/json-normalize
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> build
 ./json-normalize ../../example.json

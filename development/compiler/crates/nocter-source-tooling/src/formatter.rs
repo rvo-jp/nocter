@@ -704,6 +704,18 @@ mod tests {
     }
 
     #[test]
+    fn formats_practical_text_reporting_pipeline_canonically() {
+        let formatted = format(
+            "use std/io\nfunc report(text:&str):void! { let normalized=text.trim_ascii().replace_all(\" \",\"-\")?\nlet line=\"value: ${normalized}\"\nio.println(&line)?\nio.eprintln(\"done\")?\nreturn\n}\n",
+        );
+        assert_eq!(
+            formatted,
+            "use std/io\n\nfunc report(text: &str): void! { let normalized = text.trim_ascii().replace_all(\" \", \"-\")?\n    let line = \"value: ${normalized}\"\n    io.println(&line)?\n    io.eprintln(\"done\")?\n    return\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn formats_nested_generic_lists_through_parser_owned_split_tokens() {
         assert_eq!(
             format("func nested(value:Outer<Inner<\nT\n>>):void {}\n"),

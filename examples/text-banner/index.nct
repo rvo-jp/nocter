@@ -1,0 +1,14 @@
+#package: {
+    name: "text-banner",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "text-banner",
+}
+
+see ./banner.nct
+
+func main(): i32! {
+    return run()
+}

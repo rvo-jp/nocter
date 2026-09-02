@@ -226,6 +226,28 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         ],
     },
     PublicPackageExample {
+        directory: "text-banner",
+        package_identity: "workspace:text-banner",
+        executable: "text-banner",
+        fixtures: &[],
+        runs: &[
+            PublicExampleRun {
+                name: "usage",
+                arguments: &[],
+                status: 2,
+                stdout: b"",
+                stderr: b"usage: text-banner TEXT\n",
+            },
+            PublicExampleRun {
+                name: "success",
+                arguments: &[PublicExampleArgument::Text("  alpha beta  ")],
+                status: 0,
+                stdout: b"==========\ntext: alpha-beta\nbytes: 10\n==========\n",
+                stderr: b"",
+            },
+        ],
+    },
+    PublicPackageExample {
         directory: "text-search",
         package_identity: "workspace:text-search",
         executable: "text-search",

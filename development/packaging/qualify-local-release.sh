@@ -99,6 +99,23 @@ for example in "$repository_root"/examples/*; do
   fi
 done
 
+text_banner_stdout="$temporary_root/text-banner.stdout"
+text_banner_stderr="$temporary_root/text-banner.stderr"
+expected_text_banner_stdout="$temporary_root/text-banner.expected.stdout"
+expected_text_banner_stderr="$temporary_root/text-banner.expected.stderr"
+printf '==========\ntext: alpha-beta\nbytes: 10\n==========\n' > "$expected_text_banner_stdout"
+: > "$expected_text_banner_stderr"
+"${environment[@]}" "$home/nocter" run \
+  --root "$repository_root/examples/text-banner" \
+  --locked \
+  --offline \
+  -- \
+  '  alpha beta  ' \
+  > "$text_banner_stdout" \
+  2> "$text_banner_stderr"
+cmp "$expected_text_banner_stdout" "$text_banner_stdout"
+cmp "$expected_text_banner_stderr" "$text_banner_stderr"
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"

@@ -78,6 +78,17 @@ nocter run examples/elapsed.nct
 
 ## Package Examples
 
+[text-banner/index.nct](text-banner/index.nct) turns one command-line argument into a compact text
+report. Its [banner.nct](text-banner/banner.nct) implementation composes borrowed ASCII trimming,
+owned replacement and repetition, interpolation, integer formatting, and symmetric line output.
+The missing-argument path writes its usage message to standard error.
+
+```sh
+cd examples/text-banner
+nocter check
+nocter run -- "  alpha beta  "
+```
+
 [json-normalize/index.nct](json-normalize/index.nct) reads one UTF-8 JSON file, validates and owns
 its complete value, then writes the shared compact spelling directly to standard output. Its
 [normalize.nct](json-normalize/normalize.nct) implementation composes process arguments, paths,

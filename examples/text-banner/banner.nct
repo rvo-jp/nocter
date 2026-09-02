@@ -1,0 +1,18 @@
+use std/io
+use std/process
+
+func run(): i32! {
+    if process.arg_count() != 2 {
+        io.eprintln("usage: text-banner TEXT")?
+        return 2
+    }
+    let input: &str = process.arg(1)? otherwise {
+        io.eprintln("usage: text-banner TEXT")?
+        return 2
+    }
+    let normalized = input.trim_ascii().replace_all(" ", "-")?
+    let rule = "=".repeat(normalized.len())
+    let report = "${rule}\ntext: ${normalized}\nbytes: ${normalized.len()}\n${rule}"
+    io.println(&report)?
+    return 0
+}
