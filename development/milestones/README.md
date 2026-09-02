@@ -6,13 +6,10 @@ the milestone itself, while publication evidence belongs in
 [`development/releases/`](../releases/README.md). Public language behavior belongs only in
 [`spec/`](../../spec/README.md).
 
-## Current Candidate
+## Recent Milestones
 
 - [v0.25.0: No-allocation Contracts](v0.25.0.md)
 - [v0.25.0 Release Preparation](v0.25.0-release-preparation.md)
-
-## Recent Milestones
-
 - [v0.24.0](v0.24.0.md)
 - [v0.24.0 Release Preparation](v0.24.0-release-preparation.md)
 - [v0.23.0](v0.23.0.md)
