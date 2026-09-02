@@ -46,6 +46,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Associative Collections](27-associative-collections.md)
 - [JSON Values and Text](28-json.md) — v0.22.0 standard-library contract
 - [Monotonic Time](29-monotonic-time.md)
+- [Synchronous Subprocesses](30-subprocesses.md) — adopted v0.30.0 future direction
 
 ## Supporting Material
 
@@ -61,7 +62,9 @@ values. v0.25.0 adds the source-visible `noalloc` callable guarantee. v0.26.0 ad
 durations, monotonic elapsed-time measurement, and blocking sleep. v0.27.0 completes lexical
 UTF-8 path inspection and explicit directory lifecycle operations. v0.28.0 adopts practical
 ASCII text transformations, a private scalar-formatting authority, and symmetric text output.
-v0.29.0 adds borrowed standard input and an exact child-argument channel for `nocter run`.
+v0.29.0 adds borrowed standard input and an exact child-argument channel for `nocter run`. The
+[synchronous subprocess chapter](30-subprocesses.md) records the adopted but not yet implemented
+v0.30.0 direction and is explicitly marked as future behavior.
 Implementation phases and qualification evidence belong only to contributor records and are
 intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository

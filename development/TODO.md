@@ -26,16 +26,23 @@ retains typed incomplete-declaration failures and seals exact body source input 
 checking-owned context.
 
 The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has completed its
-public contract and is published and externally audited. Exact run arguments, borrowed standard
-input, explicit buffered lines, and the `stdin-prefix` application pass native, editor, formatter,
-architecture, complete-workspace, reproducible-package, installed-home, and public-asset
-qualification. Its [final review](reviews/v0.29.0-phase-5.md) has no open finding.
+public contract and is published and externally audited. Its immutable
+[publication record](releases/v0.29.0.md) owns the final evidence.
+
+The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 0.
+The public future-direction contract fixes an owning `Command`, synchronous child lifecycle, exact
+path and argument handling, inherited process state, unambiguous exec-failure reporting, and typed
+exit status. Its [Phase 0 review](reviews/v0.30.0-phase-0.md) found no unresolved design or
+feasibility issue.
 
 ## Next Work
 
-Define the next practical application boundary before changing compiler or standard-library
-behavior. Preserve the v0.29.0 release record as immutable evidence; any correction requires a new
-version, candidate, tag, and archive.
+Implement v0.30.0 Phase 1: expose the already-retained inherited environment-vector address through
+one closed compiler primitive role, then add and qualify the raw Darwin subprocess transitions.
+Do not publish `Command` until that lower boundary proves exact exec-failure and wait behavior.
+
+Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
+candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

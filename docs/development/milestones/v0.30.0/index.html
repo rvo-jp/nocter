@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>v0.30.0: Synchronous Subprocess Execution - Nocter</title>
+    <meta name="description" content="Status: Phase 0 complete; Phase 1 is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications and has a ">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.30.0/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="v0.30.0: Synchronous Subprocess Execution - Nocter">
+    <meta property="og:description" content="Status: Phase 0 complete; Phase 1 is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications and has a ">
+    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.30.0/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="v0.30.0: Synchronous Subprocess Execution - Nocter">
+    <meta name="twitter:description" content="Status: Phase 0 complete; Phase 1 is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications and has a ">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.30.0: Synchronous Subprocess Execution - Nocter","description":"Status: Phase 0 complete; Phase 1 is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications and has a ","url":"https://nocter.dev/development/milestones/v0.30.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.30.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.30.0","item":"https://nocter.dev/development/milestones/v0.30.0/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/milestones/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.30.0: Synchronous Subprocess Execution</a></li>
+                <li><a href="../v0.29.0/index.html#content">v0.29.0: Standard Input and Run Invocation</a></li>
+                <li><a href="../v0.29.0-release-preparation/index.html#content">v0.29.0 Release Preparation</a></li>
+                <li><a href="../v0.28.0/index.html#content">v0.28.0: Practical Text, Formatting, and Output</a></li>
+                <li><a href="../v0.28.0-release-preparation/index.html#content">v0.28.0 Release Preparation</a></li>
+                <li><a href="../v0.27.0/index.html#content">v0.27.0: Filesystem and Path Completion</a></li>
+                <li><a href="../v0.27.0-release-preparation/index.html#content">v0.27.0 Release Preparation</a></li>
+                <li><a href="../v0.26.0/index.html#content">v0.26.0: Monotonic Time Foundation</a></li>
+                <li><a href="../v0.26.0-release-preparation/index.html#content">v0.26.0 Release Preparation</a></li>
+                <li><a href="../v0.25.0/index.html#content">v0.25.0: No-allocation Contracts</a></li>
+                <li><a href="../v0.25.0-release-preparation/index.html#content">v0.25.0 Release Preparation</a></li>
+                <li><a href="../v0.24.0/index.html#content">v0.24.0</a></li>
+                <li><a href="../v0.24.0-release-preparation/index.html#content">v0.24.0 Release Preparation</a></li>
+                <li><a href="../v0.23.0/index.html#content">v0.23.0</a></li>
+                <li><a href="../v0.22.0/index.html#content">v0.22.0</a></li>
+                <li><a href="../v0.22.0-release-preparation/index.html#content">v0.22.0 Release Preparation</a></li>
+                <li><a href="../v0.21.0/index.html#content">v0.21.0</a></li>
+                <li><a href="../v0.21.0-release-preparation/index.html#content">v0.21.0 Release Preparation</a></li>
+                <li><a href="../v0.20.0/index.html#content">v0.20.0</a></li>
+                <li><a href="../v0.19.0/index.html#content">v0.19.0</a></li>
+                <li><a href="../v0.19.0-release-preparation/index.html#content">v0.19.0 Release Preparation</a></li>
+                <li><a href="../v0.18.0/index.html#content">v0.18.0</a></li>
+                <li><a href="../v0.18.0-release-preparation/index.html#content">v0.18.0 Release Preparation</a></li>
+                <li><a href="../v0.17.0/index.html#content">v0.17.0</a></li>
+                <li><a href="../v0.17.0-release-preparation/index.html#content">v0.17.0 Release Preparation</a></li>
+                <li><a href="../v0.16.0/index.html#content">v0.16.0</a></li>
+                <li><a href="../v0.16.0-release-preparation/index.html#content">v0.16.0 Release Preparation</a></li>
+                <li><a href="../v0.15.0/index.html#content">v0.15.0</a></li>
+                <li><a href="../v0.15.0-release-preparation/index.html#content">v0.15.0 Release Preparation</a></li>
+                <li><a href="../v0.14.0/index.html#content">v0.14.0</a></li>
+                <li><a href="../v0.14.0-qualification/index.html#content">v0.14.0 Qualification</a></li>
+                <li><a href="../v0.14.0-release-preparation/index.html#content">v0.14.0 Release Preparation</a></li>
+                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
+                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
+                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
+                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
+                <li><a href="../v0.10.0-phase-1/index.html#content">v0.10.0 Phase 1</a></li>
+                <li><a href="../v0.10.0-phase-2/index.html#content">v0.10.0 Phase 2</a></li>
+                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
+                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
+                <li><a href="../v0.8.0/index.html#content">v0.8.0</a></li>
+                <li><a href="../v0.7.0/index.html#content">v0.7.0</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/milestones/v0.30.0.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="v0-30-0-synchronous-subprocess-execution">v0.30.0: Synchronous Subprocess Execution</h1><p><strong>Status: Phase 0 complete; Phase 1 is next.</strong> v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications and has a closed ownership model: an owning <code>Command</code> launches one exact executable path with owned arguments, inherits process state, waits, and returns a typed terminal status. It does not introduce a shell, <code>PATH</code> search, output capture, or an independently discardable child handle.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Command.new</code> validates and owns an exact executable-path spelling;</li><li><code>Command.arg</code> validates and owns arguments in insertion order without partially applying an
+  invalid input;</li><li><code>Command.status</code> creates exactly one child, passes exact argument bytes, inherits environment,
+  working directory, and standard streams, and reaps that child;</li><li><code>ExitStatus</code> distinguishes ordinary exit from signal termination and defines success as exit
+  code zero;</li><li>exec failure is reported to the parent independently of any child exit status;</li><li>inherited environment bytes cross process creation without public UTF-8 decoding or
+  reconstruction;</li><li>no child-side path returns to Nocter allocation, destruction, or user code after fork;</li><li>native, editor, formatter, authored-standard, installed-home, and complete-workspace gates cover
+  the same public source contracts;</li><li>final review finds no duplicate launch authority, target-layout leakage, unreaped-child path,
+  caller-discipline protocol, or obsolete compatibility surface.</li></ul><h2 id="accepted-design">Accepted Design</h2><p>The public contract is owned normatively by <a href="../../../spec/30-subprocesses/index.html#content"><code>spec/30-subprocesses.md</code></a>. Phase 0 keeps it explicitly marked as future behavior until implementation and qualification close.</p><p>The first boundary is synchronous by design. Publishing <code>Child</code> before pipes, nonblocking wait, and destruction behavior are specified would create a resource whose safe default disposal is unclear: blocking drop is surprising, non-reaping drop leaks a zombie, and implicit termination is destructive. Consuming <code>Command</code> into <code>status</code> makes successful child creation and eventual reap one operation.</p><p>The executable parameter is an exact path. Silent <code>PATH</code> lookup would add environment parsing, empty-component behavior, executable probing, and error precedence to this milestone. Shell execution would additionally introduce quoting and injection semantics. Both remain separate future APIs.</p><h2 id="responsibility-boundaries">Responsibility Boundaries</h2><p><code>std/process</code> owns source-visible command state, validation, owned C-compatible launch values, public failure selection, wait retry, and <code>ExitStatus</code>. It must prepare every allocation and every pointer vector before creating a child.</p><p>Target-specific standard source owns syscall numbers, wait-status bits, descriptor flags, and the raw launch-report protocol. Generic syscall primitives continue to expose <code>{ value, errno }</code> facts; they do not gain process policy. The close-on-exec report channel is the sole authority for distinguishing an exec failure from a successfully executed program that returns a conventional failure code.</p><p>The compiler already retains the original environment-vector address in its immutable process context. Phase 1 adds one closed primitive role that reads this existing context word for trusted standard-library use. Darwin <code>fork</code> and <code>pipe</code> each return two successful words, while the existing ordinary syscall boundary intentionally preserves only one. A separate zero-argument pair-result syscall role will retain that target ABI fact without expanding every ordinary <code>SyscallResult</code> or creating a subprocess-specific compiler operation. The compiler does not decode environment entries, build command state, select public errors, or interpret wait bits.</p><h2 id="phase-0-contract-and-feasibility">Phase 0: Contract and Feasibility</h2><p><strong>Status: complete.</strong> The public future-direction chapter fixes exact-path execution, owned arguments, inherited state, synchronous waiting, exit/signal representation, stable failures, close-on-exec reporting, allocation scope, and non-goals.</p><p>Feasibility inspection confirms that the Darwin ARM64 SDK exposes direct <code>fork</code>, <code>wait4</code>, <code>pipe</code>, <code>execve</code>, and <code>fcntl</code> syscall numbers. Apple XNU source additionally confirms that both <code>fork</code> and <code>pipe</code> publish two successful return words. The existing generic syscall roles can carry <code>wait4</code>, <code>execve</code>, and <code>fcntl</code>, but cannot carry <code>fork</code> or <code>pipe</code> because their canonical result deliberately discards the second success register. Phase 1 therefore adds one zero-argument pair-result syscall role and one read of the environment-vector word already stored in process context. Subprocess types and policy remain ordinary standard source.</p><p>The child-side rule is stricter than ordinary source execution. All owned NUL-terminated strings, the null-terminated argument-pointer vector, descriptor channel, and close-on-exec flag are prepared before <code>fork</code>. The child may then close one channel end, call <code>execve</code>, write the raw errno on failure, and terminate through the existing raw exit boundary. It cannot allocate, drop command storage, format an error, or unwind through ordinary Nocter control flow.</p><p>The parent closes its child-only channel end, reads the launch result, retries interrupted wait, and always reaps the created pid before returning. The report channel closes automatically on a successful exec, so exit code 127 or any other program result remains an ordinary <code>ExitStatus</code>.</p><p>The <a href="../../reviews/v0.30.0-phase-0/index.html#content">Phase 0 review</a> found no language-syntax, semantic-identity, MIR, or native-image-format change required for the public types. Phase 1 does require two closed primitive additions and ARM64 selection/materialization for their exact results. The review also rejects four shortcuts: discarding Darwin's second success register, reconstructing the environment through UTF-8 views, treating a magic exit code as exec failure, and exposing <code>Child</code> without a closed disposal contract.</p><h2 id="phase-1-process-context-and-raw-target-boundary">Phase 1: Process Context and Raw Target Boundary</h2><p><strong>Status: pending.</strong> Add the closed inherited-environment-vector and zero-argument pair-result syscall primitive contracts through runtime contract, standard profile, validation, machine context requirements, ARM64 selection, and focused tests. Add raw Darwin launch facts and deterministic transition tests without publishing <code>Command</code>. The standard adapter must return typed raw outcomes rather than requiring its caller to remember second-register, errno, channel, or wait-bit conventions.</p><h2 id="phase-2-owning-command-and-status">Phase 2: Owning Command and Status</h2><p><strong>Status: pending.</strong> Implement bodyless public declarations in <code>std/process/index.nct</code> and keep private storage and target bodies in new responsibility-specific source files. Prove argument ownership, rejection atomicity, exact argv construction, inherited environment identity, exec failure reporting, wait retry, status decoding, and destruction of parent-side storage.</p><h2 id="phase-3-native-failure-and-lifecycle-qualification">Phase 3: Native Failure and Lifecycle Qualification</h2><p><strong>Status: pending.</strong> Execute successful, nonzero, signaled, missing, denied, invalid-input, and argument-boundary cases through complete native sessions. Stress interrupted wait and channel cleanup where deterministic injection is needed. Every created child must have an observed reap path under success and every reported failure.</p><h2 id="phase-4-tooling-and-practical-integration">Phase 4: Tooling and Practical Integration</h2><p><strong>Status: pending.</strong> Add one runnable package that invokes a repository-created helper by exact path and reports its typed status. Cover formatter, hover, completion, declaration navigation, implementation navigation, public documentation, and installed-home qualification through that same contract. Do not add an editor-only surface or formatter fixture when the public source can serve as evidence.</p><h2 id="phase-5-qualification-and-review">Phase 5: Qualification and Review</h2><p><strong>Status: pending.</strong> Run complete locked workspace tests, warnings-denied Clippy, no-default- features checking, standard formatting, documentation generation and reproducibility, native and repository gates. Review the complete subprocess path for duplicate authority, child-side Nocter execution, descriptor leaks, wait races, target ABI leakage, source-visible compiler knowledge, and caller-discipline assumptions. Release preparation remains a separate step.</p><h2 id="non-goals">Non-goals</h2><ul><li>shell parsing or execution;</li><li><code>PATH</code> search;</li><li>environment mutation or removal;</li><li>child working-directory overrides;</li><li>standard-stream redirection, pipes, or output capture;</li><li>an asynchronous or pollable <code>Child</code> handle;</li><li>parent-sent signals, process groups, terminal ownership, or job control;</li><li>threads, async tasks, or another target.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

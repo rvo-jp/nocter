@@ -506,6 +506,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/milestones/v0.30.0/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/milestones/v0.7.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -892,6 +897,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/reviews/v0.29.0-phase-5/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/reviews/v0.30.0-phase-0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1977,6 +1987,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/29-monotonic-time/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/spec/30-subprocesses/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
