@@ -111,6 +111,7 @@ nocter build app.nct
 nocter run
 nocter run --executable tool
 nocter run app.nct
+nocter run app.nct -- alpha beta
 nocter check
 nocter check --format json
 nocter check app.nct
@@ -373,7 +374,26 @@ temporary file, and returns the program's exit status.
 nocter run
 nocter run --executable server
 nocter run app.nct
+nocter run app.nct -- first "two words"
 ```
+
+For `run` only, the first standalone `--` ends the compiler invocation and starts the child
+argument sequence. Every following operating-system argument is forwarded unchanged and is never
+decoded as UTF-8, interpreted as a compiler option, or used for package or source selection. The
+launcher supplies its generated-executable spelling for argument zero; forwarded arguments begin
+at index one in `std/process`. A final `--` with no following arguments is equivalent to no child
+arguments.
+
+Compiler input selection must be complete before the separator. A source whose spelling begins
+with `-` therefore uses `--file`, for example `nocter run --file ./--script.nct -- value`. Other
+commands retain `--` as their ordinary end-of-options marker and do not gain a child argument
+sequence.
+
+The child inherits the invoking process's standard input, standard output, and standard error.
+Package execution uses the selected package root as its working directory; single-file execution
+uses the invocation directory. Child arguments do not change either rule. A failure to launch the
+generated executable remains a command error, while a launched program's status is returned
+unchanged.
 
 Compilation failures prevent launch. RAM-only execution, JIT execution, and calling `main` inside
 the compiler process are not part of this contract.
@@ -595,4 +615,4 @@ and command errors go to stderr. Help, `--version`, and successful `doctor` outp
 - registries and semantic-version dependency resolution
 - multi-package workspaces
 - project-wide formatting or incremental build artifacts
-- child-process argument forwarding before its separator and ownership contract are specified
+- child environment or working-directory overrides on `run`

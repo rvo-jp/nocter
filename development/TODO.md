@@ -31,11 +31,16 @@ recoverable formatting contract, line-oriented writers, and symmetric process ou
 editor, formatter, architecture, complete-workspace, reproducible-package, installed-home, and
 public-asset qualification. Its [final review](reviews/v0.28.0-phase-5.md) has no open finding.
 
+The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has a closed public
+contract and feasibility review. It separates compiler arguments from opaque child arguments once,
+reuses borrowed File and Reader state for standard input, and deliberately rejects hidden global
+line buffering.
+
 ## Next Work
 
-Define the next practical application boundary before changing compiler or standard-library
-behavior. Preserve the v0.28.0 release record as immutable evidence; any correction requires a new
-version, candidate, tag, and archive.
+Implement v0.29.0 Phase 1 as one exact run-argument channel from CLI partition through typed run
+planning to process launch. Do not let package resolution, semantic analysis, or native compilation
+inspect child arguments, and do not retain the old ambiguous `run -- --script.nct` interpretation.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

@@ -164,6 +164,37 @@ descriptor-write authority as `File.write`, including interruption retry, comple
 zero-progress rejection, and stable I/O errors. Formatting remains explicit through interpolation,
 for example `io.println("count: ${count}")?`.
 
+## Standard Input
+
+`std/io` exposes the inherited process input through the same byte-reader contract used by files:
+
+```nct
+pub noalloc func stdin(): File
+```
+
+`stdin` returns a non-owning `File` wrapper around the process standard-input descriptor. Closing
+or dropping that value makes only that wrapper terminal; it does not close the process-global
+descriptor and does not affect a separately acquired wrapper. `stdin` itself does not allocate,
+read, wait, or validate UTF-8. Reads may block and report the same stable I/O failures as an opened
+file.
+
+The standard library does not publish a stateless `io.read_line` convenience. Such a function
+could read beyond one line and either lose bytes or require hidden process-global buffering. Line
+input instead uses the existing owning buffer explicitly:
+
+```nct
+use std/io
+use std/io/buffer.BufReader
+
+var input = BufReader.new(io.stdin())
+let line = input.read_line()?
+```
+
+Each `BufReader` owns its unread bytes and line state. Creating two buffered wrappers for the same
+process descriptor therefore creates two independent consumers; the library does not coordinate
+their buffered state. EOF, CR/LF removal, UTF-8 validation, allocation failure, and terminal-state
+behavior remain exactly the common `BufReader` contract.
+
 ## Time
 
 `std/time` provides normalized non-negative `Duration` values, opaque monotonic `Instant` values,
@@ -215,9 +246,9 @@ reading, create or truncate a file for writing, and open a file for append. `Utf
 `&str`, so the same constructors accept a borrowed path without parallel `_path` functions. File
 handles close once when explicitly closed or dropped. Explicit close makes that `File` value
 terminal: later read, write, and flush operations fail with `std.io.closed` instead of retaining a
-descriptor word that the operating system may reuse. The `stdout` and `stderr` constructors return
-non-owning wrappers. Closing one makes that wrapper terminal without closing the process-global
-descriptor used by other wrappers.
+descriptor word that the operating system may reuse. The `stdin`, `stdout`, and `stderr`
+constructors return non-owning wrappers. Closing one makes that wrapper terminal without closing
+the process-global descriptor used by other wrappers.
 
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a

@@ -8,11 +8,12 @@ the milestone itself, while publication evidence belongs in
 
 ## Current Candidate
 
-- [v0.28.0: Practical Text, Formatting, and Output](v0.28.0.md)
-- [v0.28.0 Release Preparation](v0.28.0-release-preparation.md)
+- [v0.29.0: Standard Input and Run Invocation](v0.29.0.md)
 
 ## Recent Milestones
 
+- [v0.28.0: Practical Text, Formatting, and Output](v0.28.0.md)
+- [v0.28.0 Release Preparation](v0.28.0-release-preparation.md)
 - [v0.27.0: Filesystem and Path Completion](v0.27.0.md)
 - [v0.27.0 Release Preparation](v0.27.0-release-preparation.md)
 - [v0.26.0: Monotonic Time Foundation](v0.26.0.md)

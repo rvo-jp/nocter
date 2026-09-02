@@ -302,6 +302,8 @@ Consequences:
 
 - entry parameters are accessed through `std/process`, not special `main` parameters;
 - file handles are owned by `File`, not by compiler-known integers;
+- standard input, output, and error are non-owning `File` wrappers whose local close never closes
+  the process-global descriptor;
 - allocation failure follows allocator policy, while I/O, path, encoding, and OS failures remain
   recoverable `T!` results;
 - `exit` and `abort` are standard-library functions returning `never`;
