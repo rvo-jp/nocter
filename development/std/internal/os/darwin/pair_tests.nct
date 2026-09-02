@@ -1,0 +1,39 @@
+//! Native qualification for Darwin syscalls with two successful return words.
+
+see ./index.nct
+
+use /ptr
+
+test pipe_syscall_preserves_both_descriptor_results {
+    let result = syscall_pair0(SYS_PIPE)
+    if result.errno != 0 {
+        return error.new("std.internal.os.test", "pipe syscall failed")
+    }
+    if result.first == result.second {
+        let _ = syscall1(SYS_CLOSE, result.first)
+        return error.new("std.internal.os.test", "pipe returned one descriptor twice")
+    }
+
+    let sent: u8 = 91
+    let write_result = syscall3(SYS_WRITE, result.second, ptr.addr(ptr.from_ref(&sent)), 1)
+    if write_result.errno != 0 || write_result.value != 1 {
+        let _ = syscall1(SYS_CLOSE, result.first)
+        let _ = syscall1(SYS_CLOSE, result.second)
+        return error.new("std.internal.os.test", "pipe write descriptor is invalid")
+    }
+
+    var received: u8 = 0
+    let read_result = syscall3(SYS_READ, result.first, ptr.addr(ptr.from_ref_mut(&+received)), 1)
+    if read_result.errno != 0 || read_result.value != 1 || received != sent {
+        let _ = syscall1(SYS_CLOSE, result.first)
+        let _ = syscall1(SYS_CLOSE, result.second)
+        return error.new("std.internal.os.test", "pipe read descriptor is invalid")
+    }
+
+    let read_close = syscall1(SYS_CLOSE, result.first)
+    let write_close = syscall1(SYS_CLOSE, result.second)
+    if read_close.errno != 0 || write_close.errno != 0 {
+        return error.new("std.internal.os.test", "pipe descriptor close failed")
+    }
+    return
+}

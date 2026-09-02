@@ -2,10 +2,19 @@
 
 use /internal/os.{OSError, OSErrorKind, Platform}
 see ./implementation.nct
+see ./pair_tests.nct
 
 #target: "arm64-darwin"
 pub(/) copy struct SyscallResult {
     pub value: usize
+    pub errno: i32
+}
+
+/// Result of a zero-argument Darwin syscall that owns both successful return registers.
+#target: "arm64-darwin"
+pub(/) copy struct SyscallPairResult {
+    pub first: usize
+    pub second: usize
     pub errno: i32
 }
 
@@ -21,6 +30,9 @@ pub(/) noalloc func errno(code: i32): Errno
 pub(/) noalloc func error_from_errno(value: Errno): OSError
 
 #target: "arm64-darwin"
+pub(/) const SYS_FORK: usize
+
+#target: "arm64-darwin"
 pub(/) const SYS_READ: usize
 
 #target: "arm64-darwin"
@@ -33,7 +45,16 @@ pub(/) const SYS_OPEN: usize
 pub(/) const SYS_CLOSE: usize
 
 #target: "arm64-darwin"
+pub(/) const SYS_WAIT4: usize
+
+#target: "arm64-darwin"
 pub(/) const SYS_UNLINK: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_PIPE: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_EXECVE: usize
 
 #target: "arm64-darwin"
 pub(/) const SYS_RENAME: usize
@@ -105,6 +126,12 @@ pub(/) const SYS_FCNTL: usize
 pub(/) const F_GETPATH: usize
 
 #target: "arm64-darwin"
+pub(/) const F_SETFD: usize
+
+#target: "arm64-darwin"
+pub(/) const FD_CLOEXEC: usize
+
+#target: "arm64-darwin"
 pub(/) const MAX_PATH_LEN: usize
 
 #target: "arm64-darwin"
@@ -151,6 +178,10 @@ pub(/) noalloc primitive func syscall1(
     number: usize,
     a0: usize,
 ): SyscallResult
+
+/// Performs a zero-argument syscall whose successful ABI result occupies two words.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func syscall_pair0(number: usize): SyscallPairResult
 
 #target: "arm64-darwin"
 pub(/) noalloc primitive func syscall2(

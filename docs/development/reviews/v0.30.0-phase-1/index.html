@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.24.0 Explicit Value Subjects Review - Nocter</title>
-    <meta name="description" content="Status: complete (2026-08-31). This review covers the complete language, compiler, tooling, standard-library, example, and documentation migration for the ">
+    <title>v0.30.0 Phase 1 Process-context and Raw-target Review - Nocter</title>
+    <meta name="description" content="Status: complete with no open finding (2026-09-03). Phase 1 carries the two target facts that ordinary Nocter source cannot derive—the inherited environmen">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.24.0-explicit-value-subjects/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.30.0-phase-1/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.24.0 Explicit Value Subjects Review - Nocter">
-    <meta property="og:description" content="Status: complete (2026-08-31). This review covers the complete language, compiler, tooling, standard-library, example, and documentation migration for the ">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.24.0-explicit-value-subjects/">
+    <meta property="og:title" content="v0.30.0 Phase 1 Process-context and Raw-target Review - Nocter">
+    <meta property="og:description" content="Status: complete with no open finding (2026-09-03). Phase 1 carries the two target facts that ordinary Nocter source cannot derive—the inherited environmen">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.30.0-phase-1/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.24.0 Explicit Value Subjects Review - Nocter">
-    <meta name="twitter:description" content="Status: complete (2026-08-31). This review covers the complete language, compiler, tooling, standard-library, example, and documentation migration for the ">
+    <meta name="twitter:title" content="v0.30.0 Phase 1 Process-context and Raw-target Review - Nocter">
+    <meta name="twitter:description" content="Status: complete with no open finding (2026-09-03). Phase 1 carries the two target facts that ordinary Nocter source cannot derive—the inherited environmen">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.24.0 Explicit Value Subjects Review - Nocter","description":"Status: complete (2026-08-31). This review covers the complete language, compiler, tooling, standard-library, example, and documentation migration for the ","url":"https://nocter.dev/development/reviews/v0.24.0-explicit-value-subjects/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.24.0-explicit-value-subjects/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.24.0 Explicit Value Subjects","item":"https://nocter.dev/development/reviews/v0.24.0-explicit-value-subjects/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.30.0 Phase 1 Process-context and Raw-target Review - Nocter","description":"Status: complete with no open finding (2026-09-03). Phase 1 carries the two target facts that ordinary Nocter source cannot derive—the inherited environmen","url":"https://nocter.dev/development/reviews/v0.30.0-phase-1/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.30.0-phase-1/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.30.0 Phase 1","item":"https://nocter.dev/development/reviews/v0.30.0-phase-1/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -175,7 +175,7 @@
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.30.0-phase-1/index.html#content">v0.30.0 Phase 1 Process-context and Raw-target Review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.30.0 Phase 1 Process-context and Raw-target Review</a></li>
                 <li><a href="../v0.30.0-phase-0/index.html#content">v0.30.0 Phase 0 Synchronous-subprocess Design Review</a></li>
                 <li><a href="../v0.29.0-phase-5/index.html#content">v0.29.0 Phase 5 Standard Input and Run Invocation Review</a></li>
                 <li><a href="../v0.28.0-phase-5/index.html#content">v0.28.0 Phase 5 Text, Formatting, and Output Review</a></li>
@@ -185,7 +185,7 @@
                 <li><a href="../v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li>
                 <li><a href="../v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
                 <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.24.0 Explicit Value Subjects Review</a></li>
+                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
                 <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
                 <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
                 <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
@@ -225,26 +225,15 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.24.0-explicit-value-subjects.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.30.0-phase-1.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-24-0-explicit-value-subjects-review">v0.24.0 Explicit Value Subjects Review</h1><p><strong>Status: complete (2026-08-31).</strong> This review covers the complete language, compiler, tooling, standard-library, example, and documentation migration for the v0.24.0 import and constant-name contract.</p><h2 id="contract-and-authority-review">Contract and Authority Review</h2><ul><li><code>ExportedEntity::is_selectable_type</code> is the sole semantic classification for authored selected
-  imports. Declaration lowering and body name resolution consume it; neither carries a duplicate
-  declaration-kind list.</li><li>Syntax owns only the <code>ModuleAlias</code> shape. Top-level lowering and block name resolution bind its
-  identifier to the resolved module identity. Source projection therefore gives hover, navigation,
-  references, rename, and semantic tokens the ordinary module fact instead of an editor-only alias
-  interpretation.</li><li>Constant spelling is checked once while declaration names are lowered. Constant evaluation,
-  checking, code generation, and LSP presentation consume the accepted declaration identity and do
-  not repeat the character policy.</li><li>Analysis emits one compiler-owned completion plan: selected imports for types, namespace imports
-  for values, and deterministic aliases for namespace collisions. Code actions consume that label
-  and edit plan; the language server serializes it without rebuilding import semantics.</li><li><code>std/</code>, examples, compiler fixtures, and generated project templates use ordinary v0.24.0 source.
-  There is no compatibility lookup for selected values or lowercase constants.</li></ul><h2 id="findings-closed-during-review">Findings Closed During Review</h2><ol><li>1. Automatic imports initially suppressed <code>module.member</code> when an unrelated local <code>member</code> was
-   visible. Type-name collision filtering now applies only to unqualified type candidates, and an
-   end-to-end test preserves the qualified value candidate.</li><li>The first selected-value diagnostic reused discovery code <code>E0263</code>. Top-level non-type selection
-   now owns <code>E0264</code>, block selection owns <code>E0349</code>, and namespace-alias re-export owns <code>E0265</code>.</li><li>One parser test still asserted that namespace aliases were invalid. It now tests only the still
-   invalid empty selection; dedicated alias parsing covers top-level, block, and package-root forms.</li><li><code>pub use module as alias</code> became parseable without the retained semantic prohibition. Lowering
-   now rejects it explicitly and has a focused rule test.</li><li>One accepted syntax snapshot still described a selected function import and unqualified calls.
-   The fixture and exact syntax-tree snapshot now use the namespace form.</li></ol><h2 id="residue-and-failure-mode-audit">Residue and Failure-Mode Audit</h2><p>The review searched current public documentation, standard source, examples, compiler fixtures, embedded Nocter programs, diagnostics, parser snapshots, automatic imports, and generated project templates. Remaining selected lowercase names occur only in deliberate rejection tests or parser inputs whose semantic invalidity is the tested boundary. Historical release records were not rewritten as current contracts.</p><p>No remaining implementation requires a caller to distinguish value and type declarations itself, guess a namespace alias, preserve an undocumented ordering, or re-run module resolution from source text. Top-level and block imports have separate phase-local diagnostics but consume the same declaration-owned classification.</p><h2 id="qualification">Qualification</h2><ul><li>locked full-workspace tests pass;</li><li>warnings-denied workspace Clippy passes;</li><li>Rust formatting and repository whitespace checks pass;</li><li>all standalone and package examples check offline against an isolated current Nocter home;</li><li>public documentation generation and packaging-manifest validation pass.</li></ul><p>No finding with current user impact or an evident near-term failure mode remains.</p>
+                <h1 id="v0-30-0-phase-1-process-context-and-raw-target-review">v0.30.0 Phase 1 Process-context and Raw-target Review</h1><p><strong>Status: complete with no open finding (2026-09-03).</strong> Phase 1 carries the two target facts that ordinary Nocter source cannot derive—the inherited environment-vector address and both successful result registers of a zero-argument Darwin syscall—then closes their interpretation inside typed standard-library transitions. It does not publish <code>Command</code>, create a child, or execute another image.</p><h2 id="reviewed-boundary">Reviewed Boundary</h2><p>The review traced both primitive roles from the closed runtime inventory through their exact bundled-source locators, target-program contract validation, Machine context requirements, ARM64 selection, instruction materialization, authored standard declarations, and native execution. It separately traced the raw Darwin result from <code>std/internal/os/darwin</code> into target-gated <code>std/process</code> state transitions.</p><p>The adversarial search covered loss of the second result register, swapped pipe descriptors, carry-set values escaping as successful data, an environment address reconstructed from public UTF-8 views, target constants duplicated in process policy, wait bits decoded by a future caller, partial or interrupted exec-report reads, a missing close-on-exec flag, leaked descriptors on flag failure, speculative wrappers without consumers, and accidental public exposure.</p><h2 id="compiler-and-abi-authority">Compiler and ABI Authority</h2><p><code>PrimitiveRole</code> remains the single exhaustive semantic inventory. The standard profile binds each new role to one exact source declaration. Target validation fixes visibility, target gate, parameter count, result shape, provenance, and no-allocation eligibility before Machine lowering. Machine context planning treats the environment-vector read exactly like the existing argument and environment queries, so every transitive caller receives the immutable process-context pointer.</p><p>ARM64 selection records two new closed instructions. Environment access loads the existing <code>ENVIRONMENT_VECTOR_OFFSET</code>; it neither scans nor decodes the vector. Pair syscall materialization moves the syscall number to Darwin's syscall register, preserves <code>x0</code> and <code>x1</code> on carry-clear success, writes errno zero in <code>x2</code>, and on carry-set failure moves the kernel error to <code>x2</code> while zeroing both value words. No later layer reads condition flags or reconstructs this choice.</p><p>The ordinary syscall instruction and two-field <code>SyscallResult</code> are unchanged. The exceptional three-field result is available only to the implicit standard package and only for the exact zero-argument role. This avoids imposing a meaningless second word on every file, time, memory, and process syscall.</p><h2 id="standard-library-authority">Standard-library Authority</h2><p><code>std/internal/os/darwin</code> owns syscall numbers, descriptor flags, raw result records, and the only pair primitive declaration. Its native test writes one byte to the pair's second descriptor and reads it from the first, proving register preservation and descriptor order. Both descriptors are closed on every test path.</p><p>Target-gated <code>std/process</code> owns typed <code>ForkAttempt</code>, <code>LaunchPipeAttempt</code>, <code>WaitAttempt</code>, and <code>ExecReportAttempt</code> transitions. It alone interprets the fork child marker and wait-status bits. Launch-pipe construction sets close-on-exec on the child report end, retries an interrupted flag operation, and closes both descriptors if setup fails. Exec-report reading owns retry, exact four-byte accumulation, clean pre-payload EOF, malformed partial EOF, excessive read counts, raw channel failure, and rejection payload classification.</p><p>An initial review build exposed five raw operation functions that had no consumer before Phase 2. The authored-standard architecture gate rejected them. They were removed instead of hidden behind test-only references. Phase 1 retains only operations it can execute and qualify now; fork, exec, child failure reporting, and wait invocation will enter with the owning orchestration that uses them.</p><h2 id="qualification">Qualification</h2><p>Focused qualification passes:</p><ul><li>complete native standard-library execution, including real pair-descriptor ordering, a
+  close-on-exec launch channel, clean EOF as exec success, exact errno payload recovery, typed wait
+  classification, and a nonzero inherited environment-vector address;</li><li>authored-standard discovery and dependency validation, including the no-unused-private-function
+  architecture gate;</li><li>Machine process-context propagation for independent argument-count and environment-vector
+  readers;</li><li>the affected runtime-contract, standard-profile, target-program, Machine, ARM64, and native-
+  session library suites.</li></ul><p>Complete locked workspace, Clippy, no-default-features, documentation, and repository checks are run before the Phase 1 commit. No open remediation remains. Phase 2 is the next implementation boundary.</p>
             </div>
         </main>
     </div>

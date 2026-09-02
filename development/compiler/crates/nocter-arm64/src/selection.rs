@@ -165,6 +165,7 @@ pub enum Arm64SelectedInstruction {
     DarwinSystemCall {
         argument_count: u8,
     },
+    DarwinSystemCallPair,
     ReadMonotonicCounter,
     ReadMonotonicCounterFrequency,
     ExitProcess {
@@ -210,6 +211,7 @@ pub enum Arm64SelectedInstruction {
     ReadProcessEnvironmentCount,
     ReadProcessEnvironmentName,
     ReadProcessEnvironmentValue,
+    ReadProcessEnvironmentVector,
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,

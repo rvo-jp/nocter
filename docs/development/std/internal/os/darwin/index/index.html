@@ -197,10 +197,19 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">,</span> <span class="token-type">Platform</span><span class="token-operator">}</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>implementation<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pair_tests<span class="token-operator">.</span>nct
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">SyscallResult</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> value<span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span> errno<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// Result of a zero-argument Darwin syscall that owns both successful return registers.</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">SyscallPairResult</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> first<span class="token-operator">:</span> <span class="token-type">usize</span>
+    <span class="token-keyword">pub</span> second<span class="token-operator">:</span> <span class="token-type">usize</span>
     <span class="token-keyword">pub</span> errno<span class="token-operator">:</span> <span class="token-type">i32</span>
 <span class="token-operator">}</span>
 
@@ -216,6 +225,9 @@
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">error_from_errno</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Errno</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">OSError</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_FORK</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_READ</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
@@ -228,7 +240,16 @@
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_CLOSE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_WAIT4</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_UNLINK</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_PIPE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_EXECVE</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">SYS_RENAME</span><span class="token-operator">:</span> <span class="token-type">usize</span>
@@ -300,6 +321,12 @@
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">F_GETPATH</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">F_SETFD</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">FD_CLOEXEC</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">const</span> <span class="token-type">MAX_PATH_LEN</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
@@ -346,6 +373,10 @@
     number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
     a0<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallResult</span>
+
+<span class="token-comment">/// Performs a zero-argument syscall whose successful ABI result occupies two words.</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">syscall_pair0</span><span class="token-operator">(</span>number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SyscallPairResult</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">syscall2</span><span class="token-operator">(</span>

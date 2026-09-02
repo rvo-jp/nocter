@@ -38,6 +38,29 @@ pub(crate) fn emit_system_call(
     Ok(())
 }
 
+/// Preserves both Darwin success registers and translates carry-set failure into the third word.
+pub(crate) fn emit_system_call_pair(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let syscall_number = crate::frame_access::scratch(0);
+    move_register(argument(0), syscall_number, code);
+    code.append(Arm64Instruction::SupervisorCall {
+        immediate: DARWIN_SUPERVISOR_CALL,
+    });
+
+    let success = code.create_label();
+    let complete = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    move_register(argument(0), argument(2), code);
+    crate::frame_access::load_immediate(code, argument(0), 0, Arm64DataSize::Bits64);
+    crate::frame_access::load_immediate(code, argument(1), 0, Arm64DataSize::Bits64);
+    code.branch(complete, false);
+    code.bind(success)?;
+    crate::frame_access::load_immediate(code, argument(2), 0, Arm64DataSize::Bits64);
+    code.bind(complete)?;
+    Ok(())
+}
+
 pub(crate) fn emit_exit(
     function: &Arm64SelectedFunction,
     status: Option<Arm64SelectedRegister>,

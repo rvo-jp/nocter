@@ -142,6 +142,10 @@ pub(crate) fn select_primitive(
             validate_abi(operation, target, true, 2)?;
             selected.push(Arm64SelectedInstruction::ReadProcessEnvironmentValue);
         }
+        PrimitiveRole::ProcessEnvironmentVector => {
+            validate_abi(operation, target, false, 1)?;
+            selected.push(Arm64SelectedInstruction::ReadProcessEnvironmentVector);
+        }
         _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
     Ok(())

@@ -64,7 +64,8 @@ pub(crate) fn select(
         | PrimitiveRole::ProcessArgument
         | PrimitiveRole::ProcessEnvironmentCount
         | PrimitiveRole::ProcessEnvironmentName
-        | PrimitiveRole::ProcessEnvironmentValue => {
+        | PrimitiveRole::ProcessEnvironmentValue
+        | PrimitiveRole::ProcessEnvironmentVector => {
             crate::process_selection::select_primitive(operation, target, selected)
         }
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {
@@ -129,6 +130,7 @@ pub(crate) fn select(
         | PrimitiveRole::MonotonicCounterFrequency
         | PrimitiveRole::MonotonicCounterDelta
         | PrimitiveRole::Syscall0
+        | PrimitiveRole::SyscallPair0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
         | PrimitiveRole::Syscall3

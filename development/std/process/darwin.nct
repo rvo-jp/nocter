@@ -15,7 +15,7 @@ use /string
 use /vec.Vec
 
 #target: "arm64-darwin"
-primitive func exit_raw(code: i32): never
+noalloc primitive func exit_raw(code: i32): never
 
 #target: "arm64-darwin"
 noalloc primitive func arg_count_raw(): usize
@@ -31,6 +31,9 @@ noalloc primitive func env_name_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
 noalloc primitive func env_value_raw(index: usize): &str from static
+
+#target: "arm64-darwin"
+noalloc primitive func env_vector_raw(): usize
 
 #target: "arm64-darwin"
 func open_current_directory(): usize! {

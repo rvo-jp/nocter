@@ -1498,7 +1498,11 @@ fn ambient_context_plans_separate_process_state_from_allocation_selection() {
         &CompilerFixture::with_app_standard_uses(
             "use std/process\n\
              func read_count(): usize { return process.arg_count_for_test() }\n\
-             func main(): usize { return read_count() }\n",
+             func read_vector(): usize { return process.env_vector_for_test() }\n\
+             func main(): usize {\n\
+                 let _ = read_vector()\n\
+                 return read_count()\n\
+             }\n",
             &[&["process"]],
         ),
         false,
@@ -1507,9 +1511,9 @@ fn ambient_context_plans_separate_process_state_from_allocation_selection() {
     let MachineProgramRoot::Process { root, entry } = *program.root() else {
         panic!("fixture must produce a process root")
     };
-    let process_reader = program
+    let process_readers = program
         .functions()
-        .find_map(|(function, definition)| {
+        .filter_map(|(function, definition)| {
             definition
                 .body()
                 .operations()
@@ -1520,13 +1524,17 @@ fn ambient_context_plans_separate_process_state_from_allocation_selection() {
                             if matches!(
                                 call.target(),
                                 crate::MachineCallTarget::Primitive(target)
-                                    if target.role() == PrimitiveRole::ProcessArgumentCount
+                                    if matches!(
+                                        target.role(),
+                                        PrimitiveRole::ProcessArgumentCount
+                                            | PrimitiveRole::ProcessEnvironmentVector
+                                    )
                             )
                     )
                 })
                 .then_some(function)
         })
-        .expect("fixture must retain the process primitive caller");
+        .collect::<Vec<_>>();
 
     assert_eq!(
         program.contexts().process().get(root),
@@ -1536,10 +1544,10 @@ fn ambient_context_plans_separate_process_state_from_allocation_selection() {
         program.contexts().process().get(entry),
         Some(MachineContextRequirement::Incoming)
     );
-    assert_eq!(
-        program.contexts().process().get(process_reader),
-        Some(MachineContextRequirement::Incoming)
-    );
+    assert_eq!(process_readers.len(), 2);
+    assert!(process_readers.iter().all(|reader| {
+        program.contexts().process().get(*reader) == Some(MachineContextRequirement::Incoming)
+    }));
     assert_eq!(
         program.contexts().allocation().get(entry),
         Some(MachineContextRequirement::None)

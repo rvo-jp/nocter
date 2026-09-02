@@ -20,6 +20,7 @@ pub(super) fn select(
             select_counter_read(operation, target, selected)
         }
         PrimitiveRole::MonotonicCounterDelta => select_counter_delta(operation, target, selected),
+        PrimitiveRole::SyscallPair0 => select_syscall_pair(operation, target, selected),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2
@@ -32,6 +33,17 @@ pub(super) fn select(
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
+}
+
+fn select_syscall_pair(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 1)?;
+    validate_direct_result(operation, target, 3)?;
+    selected.push(Arm64SelectedInstruction::DarwinSystemCallPair);
+    Ok(())
 }
 
 fn select_counter_read(

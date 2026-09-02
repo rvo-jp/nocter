@@ -29,17 +29,19 @@ The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md)
 public contract and is published and externally audited. Its immutable
 [publication record](releases/v0.29.0.md) owns the final evidence.
 
-The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 0.
+The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 1.
 The public future-direction contract fixes an owning `Command`, synchronous child lifecycle, exact
 path and argument handling, inherited process state, unambiguous exec-failure reporting, and typed
-exit status. Its [Phase 0 review](reviews/v0.30.0-phase-0.md) found no unresolved design or
-feasibility issue.
+exit status. Its [Phase 1 review](reviews/v0.30.0-phase-1.md) closes inherited environment access,
+Darwin pair-result preservation, launch-channel setup, and typed raw process transitions without
+publishing the public command surface.
 
 ## Next Work
 
-Implement v0.30.0 Phase 1: expose the already-retained inherited environment-vector address through
-one closed compiler primitive role, then add and qualify the raw Darwin subprocess transitions.
-Do not publish `Command` until that lower boundary proves exact exec-failure and wait behavior.
+Implement v0.30.0 Phase 2: add the owning command representation, exact path and argument copying,
+pre-fork C-compatible storage, and the synchronous launch orchestration that consumes the typed
+Phase 1 target outcomes. Every created child must reach the parent wait path, and the child branch
+must reach only no-allocation target operations before exec or raw exit.
 
 Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

@@ -313,6 +313,24 @@ Consequences:
 The compiler-generated entry wrapper may use the registered process boundary directly, but this
 does not make similarly named user functions special.
 
+The Darwin syscall boundary normally returns `SyscallResult { value, errno }`. The two
+zero-argument Darwin operations used by subprocess creation, `fork` and `pipe`, instead have two
+successful result words. One package-visible primitive preserves that exceptional ABI shape as
+`SyscallPairResult { first, second, errno }`; ordinary syscalls do not gain an unused second word.
+On failure, both value words are zero and `errno` owns the target error. On success, `errno` is
+zero and both target result words are preserved in order.
+
+Neither record is a public process API. `std/internal/os/darwin` alone owns carry-flag and register
+translation. Target-specific `std/process` source converts those records into typed fork, launch
+channel, exec-report, and terminal-wait transitions. Higher process policy therefore cannot
+reinterpret a register position, errno convention, descriptor ordering, close-on-exec flag, or
+wait-status bit pattern.
+
+The compiler retains the inherited environment-vector address in immutable process-entry context
+and exposes it through one source-private process primitive. That primitive returns only the
+opaque target address. It does not decode entries, create public environment views, or decide
+subprocess inheritance policy.
+
 ## Keyword Ownership
 
 Standard-library evolution does not reserve ordinary API names. Adding a type or function to

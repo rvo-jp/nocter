@@ -89,6 +89,8 @@ closed_role_enum! {
         ProcessEnvironmentCount,
         ProcessEnvironmentName,
         ProcessEnvironmentValue,
+        /// Reads the opaque inherited environment-vector address retained by process entry.
+        ProcessEnvironmentVector,
         /// Performs one instruction-ordered observation of the current 64-bit value from a process
         /// monotonic-counter domain.
         MonotonicCounterRead,
@@ -97,6 +99,8 @@ closed_role_enum! {
         /// Computes `later - earlier` in the counter's wrapping 64-bit domain.
         MonotonicCounterDelta,
         Syscall0,
+        /// Preserves both successful result words of one zero-argument target syscall.
+        SyscallPair0,
         Syscall1,
         Syscall2,
         Syscall3,
@@ -160,10 +164,12 @@ impl PrimitiveRole {
             Self::ProcessEnvironmentCount => "process_environment_count",
             Self::ProcessEnvironmentName => "process_environment_name",
             Self::ProcessEnvironmentValue => "process_environment_value",
+            Self::ProcessEnvironmentVector => "process_environment_vector",
             Self::MonotonicCounterRead => "monotonic_counter_read",
             Self::MonotonicCounterFrequency => "monotonic_counter_frequency",
             Self::MonotonicCounterDelta => "monotonic_counter_delta",
             Self::Syscall0 => "syscall_0",
+            Self::SyscallPair0 => "syscall_pair_0",
             Self::Syscall1 => "syscall_1",
             Self::Syscall2 => "syscall_2",
             Self::Syscall3 => "syscall_3",

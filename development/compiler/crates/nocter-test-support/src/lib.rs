@@ -247,7 +247,7 @@ pub primitive type never
 ";
 const PROCESS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
-primitive func exit_raw(code: i32): never
+noalloc primitive func exit_raw(code: i32): never
 #target: \"arm64-darwin\"
 primitive func arg_count_raw(): usize
 #target: \"arm64-darwin\"
@@ -258,12 +258,15 @@ primitive func env_count_raw(): usize
 primitive func env_name_raw(index: usize): &str from static
 #target: \"arm64-darwin\"
 primitive func env_value_raw(index: usize): &str from static
+#target: \"arm64-darwin\"
+primitive func env_vector_raw(): usize
 pub func exit_for_test(code: i32): never { exit_raw(code) }
 pub func arg_count_for_test(): usize { return arg_count_raw() }
 pub func arg_for_test(index: usize): &str { return arg_raw(index) }
 pub func env_count_for_test(): usize { return env_count_raw() }
 pub func env_name_for_test(index: usize): &str { return env_name_raw(index) }
 pub func env_value_for_test(index: usize): &str { return env_value_raw(index) }
+pub func env_vector_for_test(): usize { return env_vector_raw() }
 ";
 const IO_SOURCE: &str = "pub func answer_for_test(): i32 { return 42 }\n";
 const TIME_SOURCE: &str = "\
@@ -282,7 +285,15 @@ pub(/) copy struct SyscallResult {
     pub errno: i32
 }
 #target: \"arm64-darwin\"
+pub(/) copy struct SyscallPairResult {
+    pub first: usize
+    pub second: usize
+    pub errno: i32
+}
+#target: \"arm64-darwin\"
 primitive func syscall0(number: usize): SyscallResult
+#target: \"arm64-darwin\"
+pub(/) primitive func syscall_pair0(number: usize): SyscallPairResult
 #target: \"arm64-darwin\"
 pub(/) primitive func syscall1(number: usize, a0: usize): SyscallResult
 #target: \"arm64-darwin\"

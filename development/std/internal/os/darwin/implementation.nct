@@ -59,6 +59,9 @@ noalloc func kind_from_errno(value: Errno): OSErrorKind {
 }
 
 #target: "arm64-darwin"
+const SYS_FORK: usize = 0x02000002
+
+#target: "arm64-darwin"
 const SYS_READ: usize = 0x02000003
 
 #target: "arm64-darwin"
@@ -71,7 +74,16 @@ const SYS_OPEN: usize = 0x02000005
 const SYS_CLOSE: usize = 0x02000006
 
 #target: "arm64-darwin"
+const SYS_WAIT4: usize = 0x02000007
+
+#target: "arm64-darwin"
 const SYS_UNLINK: usize = 0x0200000a
+
+#target: "arm64-darwin"
+const SYS_PIPE: usize = 0x0200002a
+
+#target: "arm64-darwin"
+const SYS_EXECVE: usize = 0x0200003b
 
 #target: "arm64-darwin"
 const SYS_RENAME: usize = 0x02000080
@@ -155,6 +167,12 @@ const SYS_FCNTL: usize = 0x0200005c
 
 #target: "arm64-darwin"
 const F_GETPATH: usize = 50
+
+#target: "arm64-darwin"
+const F_SETFD: usize = 2
+
+#target: "arm64-darwin"
+const FD_CLOEXEC: usize = 1
 
 #target: "arm64-darwin"
 const MAX_PATH_LEN: usize = 1024

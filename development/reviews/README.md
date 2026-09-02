@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.30.0 Phase 1 Process-context and Raw-target Review](v0.30.0-phase-1.md)
 - [v0.30.0 Phase 0 Synchronous-subprocess Design Review](v0.30.0-phase-0.md)
 - [v0.29.0 Phase 5 Standard Input and Run Invocation Review](v0.29.0-phase-5.md)
 - [v0.28.0 Phase 5 Text, Formatting, and Output Review](v0.28.0-phase-5.md)

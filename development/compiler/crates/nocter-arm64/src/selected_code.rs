@@ -205,6 +205,9 @@ fn emit_instruction(
         Arm64SelectedInstruction::DarwinSystemCall { argument_count } => {
             crate::system_primitive_code::emit_system_call(argument_count, code)
         }
+        Arm64SelectedInstruction::DarwinSystemCallPair => {
+            crate::system_primitive_code::emit_system_call_pair(code)
+        }
         Arm64SelectedInstruction::ReadMonotonicCounter => {
             // CNTVCT_EL0 is not self-synchronizing on the baseline ARM64 target. Treat the
             // primitive as an ordered time observation rather than a bare register read so a
@@ -279,6 +282,10 @@ fn emit_instruction(
         }
         Arm64SelectedInstruction::ReadProcessEnvironmentValue => {
             crate::process_code::emit_environment_value(code)
+        }
+        Arm64SelectedInstruction::ReadProcessEnvironmentVector => {
+            crate::process_code::emit_environment_vector(code);
+            Ok(())
         }
     }
 }

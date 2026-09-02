@@ -20,6 +20,7 @@ enum TypeContract {
     Builtin(BuiltinType),
     Generic(usize),
     SyscallResult,
+    SyscallPairResult,
     Pointer(Box<Self>),
     Borrow {
         capability: BorrowCapability,
@@ -345,7 +346,29 @@ fn type_matches(
             TypeContract::SyscallResult,
         ) => {
             arguments.is_empty()
-                && validate_syscall_result(graph, types, *definition, standard_package)
+                && validate_supporting_struct(
+                    graph,
+                    types,
+                    *definition,
+                    standard_package,
+                    &[BuiltinType::Usize, BuiltinType::I32],
+                )
+        }
+        (
+            Some(TypeKind::Nominal {
+                definition,
+                arguments,
+            }),
+            TypeContract::SyscallPairResult,
+        ) => {
+            arguments.is_empty()
+                && validate_supporting_struct(
+                    graph,
+                    types,
+                    *definition,
+                    standard_package,
+                    &[BuiltinType::Usize, BuiltinType::Usize, BuiltinType::I32],
+                )
         }
         (Some(TypeKind::Pointer(actual)), TypeContract::Pointer(expected))
         | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected)) => {
@@ -368,11 +391,12 @@ fn type_matches(
     }
 }
 
-fn validate_syscall_result(
+fn validate_supporting_struct(
     graph: &DeclarationGraph,
     types: &TypeStore,
     nominal: NominalTypeId,
     standard_package: PackageId,
+    field_types: &[BuiltinType],
 ) -> bool {
     let Some(declaration) = graph.declarations().nominal_types().get(nominal) else {
         return false;
@@ -391,12 +415,13 @@ fn validate_syscall_result(
         || declaration.target_gate() != Some(CompilationTarget::Arm64Darwin)
         || !declaration.generic_parameters().is_empty()
         || !declaration.requirements().is_empty()
-        || fields.len() != 2
+        || fields.len() != field_types.len()
     {
         return false;
     }
-    [BuiltinType::Usize, BuiltinType::I32]
-        .into_iter()
+    field_types
+        .iter()
+        .copied()
         .zip(fields.iter().copied())
         .all(|(ty, field)| {
             graph
@@ -437,6 +462,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let byte_pointer = || TypeContract::pointer(u8());
     let readonly_bytes = || TypeContract::readonly(TypeContract::slice(u8()));
     let syscall_result = || TypeContract::SyscallResult;
+    let syscall_pair_result = || TypeContract::SyscallPairResult;
     let private = PrimitiveExposure::SourcePrivate;
     let package = PrimitiveExposure::Package;
     let public = PrimitiveExposure::Public;
@@ -657,7 +683,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             make(0, vec![u64(), u64()], u64(), private, None, vec![])
         }
         PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), private, arm64_darwin, vec![]),
-        PrimitiveRole::ProcessArgumentCount | PrimitiveRole::ProcessEnvironmentCount => {
+        PrimitiveRole::ProcessArgumentCount
+        | PrimitiveRole::ProcessEnvironmentCount
+        | PrimitiveRole::ProcessEnvironmentVector => {
             make(0, vec![], usize(), private, arm64_darwin, vec![])
         }
         PrimitiveRole::ProcessArgument
@@ -702,6 +730,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 vec![],
             )
         }
+        PrimitiveRole::SyscallPair0 => make(
+            0,
+            vec![usize()],
+            syscall_pair_result(),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::Trap => make(0, vec![], never(), package, arm64_darwin, vec![]),
         PrimitiveRole::Unreachable => make(0, vec![], never(), private, arm64_darwin, vec![]),
     }

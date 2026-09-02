@@ -65,6 +65,14 @@ pub(crate) fn emit_environment_count(code: &mut Arm64CodeBuilder) {
     );
 }
 
+pub(crate) fn emit_environment_vector(code: &mut Arm64CodeBuilder) {
+    load_context_word(
+        argument(0),
+        Arm64ProcessContextLayout::ENVIRONMENT_VECTOR_OFFSET,
+        code,
+    );
+}
+
 fn emit_count_null_terminated_vector(
     vector: crate::Arm64Register,
     count: crate::Arm64Register,
