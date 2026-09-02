@@ -34,15 +34,16 @@ the duplicated bundled-standard declaration profile. Wall-clock fallback and ext
 calls remain prohibited.
 
 [v0.26.0 release preparation](milestones/v0.26.0-release-preparation.md) owns the candidate version,
-independent source qualification, reproducible archive, and installed-home evidence. Publication
-has not been authorized.
+independent source qualification, reproducible archive, and installed-home evidence. The exact
+release-content commit and retained local archive are qualified. Publication has not been
+authorized.
 
 ## Next Work
 
-Complete the v0.26.0 release preparation: commit one clean release-content candidate, run the
-independent source gates, generate and compare two optimized archives, qualify a fresh installed
-home, and record the retained artifact identity. Stop before tagging, pushing, uploading, changing
-public latest-release links, or creating a publication record.
+Wait for explicit authorization to publish v0.26.0. Publication must reuse the qualified archive
+without rebuilding it, verify its recorded digest immediately before upload, and then perform the
+tag, asset, release-page, public latest-link, immutable publication-record, and external re-download
+audit sequence. Do not perform any of those mutations during preparation.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
