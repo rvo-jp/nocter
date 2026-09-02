@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.29.0 Phase 5 Standard Input and Run Invocation Review](v0.29.0-phase-5.md)
 - [v0.28.0 Phase 5 Text, Formatting, and Output Review](v0.28.0-phase-5.md)
 - [v0.27.0 Phase 4 Filesystem and Path Review](v0.27.0-phase-4.md)
 - [v0.26.0 Phase 5 Monotonic-time Qualification Review](v0.26.0-phase-5.md)

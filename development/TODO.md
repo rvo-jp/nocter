@@ -35,15 +35,16 @@ The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md)
 public contract, exact run-argument channel, borrowed standard input, buffered line integration,
 and tooling/distribution integration. The `stdin-prefix` public package is the shared source for
 formatter, semantic editor, native command, and extracted-home `nocter run` coverage. Its process
-contracts own exact arguments, stdin, status, stdout, and stderr.
+contracts own exact arguments, stdin, status, stdout, and stderr. The
+[Phase 5 review](reviews/v0.29.0-phase-5.md) found no open implementation or design issue, and the
+complete workspace and static-quality gates pass.
 
 ## Next Work
 
-Complete v0.29.0 Phase 5 qualification and review. Run the complete workspace and release gates,
-then audit for duplicate argument partitioning, lossy OS-string conversion, child arguments
-entering semantic products, duplicate read or line-buffer algorithms, process-global descriptor
-closure, hidden input state, target facts outside the OS boundary, and test or production
-contracts that depend on caller discipline. Publication remains separately authorized.
+Prepare the v0.29.0 release. Assign the release identity consistently, rebuild generated
+documentation, produce a reproducible local archive, qualify the extracted installation without
+repository-local toolchain state, and stop before publication unless publication is separately
+authorized. Do not modify or replace an earlier release asset or tag.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
