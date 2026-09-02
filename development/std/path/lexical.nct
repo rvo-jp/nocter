@@ -1,0 +1,110 @@
+//! Allocation-free lexical UTF-8 path queries.
+
+see ./index.nct
+see ./utf8_path.nct
+
+instance Utf8Path {
+    noalloc method &self.is_absolute(): bool {
+        let value: &str = &self.text
+        return leading_separator_end(value) != 0
+    }
+
+    noalloc method &self.parent(): &str? {
+        let value: &str = &self.text
+        let end = trailing_separator_start(value)
+        if end == 0 { return none }
+
+        let component_start = final_component_start(value, end)
+        if component_start == 0 { return none }
+
+        let root_end = leading_separator_end(value)
+        var parent_end = component_start
+        while parent_end > root_end && value[parent_end - 1] == 47 {
+            parent_end -= 1
+        }
+        if parent_end == 0 { return none }
+        return value.get_range(0, parent_end)?
+    }
+
+    noalloc method &self.file_name(): &str? {
+        let value: &str = &self.text
+        return final_component(value)?
+    }
+
+    noalloc method &self.file_stem(): &str? {
+        let value: &str = &self.text
+        let name = final_component(value) otherwise { return none }
+        let separator = extension_separator(name) otherwise { return name }
+        return name.get_range(0, separator)?
+    }
+
+    noalloc method &self.extension(): &str? {
+        let value: &str = &self.text
+        let name = final_component(value) otherwise { return none }
+        let separator = extension_separator(name) otherwise { return none }
+        return name.get_range(separator + 1, name.len())?
+    }
+}
+
+noalloc func validate(value: &str): void! {
+    let raw = value.bytes()
+    var offset: usize = 0
+    while offset < raw.len() {
+        if raw[offset] == 0 {
+            return invalid_path()
+        }
+        offset += 1
+    }
+    return
+}
+
+noalloc func leading_separator_end(value: &str): usize {
+    var end: usize = 0
+    while end < value.len() && value[end] == 47 {
+        end += 1
+    }
+    return end
+}
+
+noalloc func trailing_separator_start(value: &str): usize {
+    var end = value.len()
+    while end > 0 && value[end - 1] == 47 {
+        end -= 1
+    }
+    return end
+}
+
+noalloc func final_component_start(value: &str, end: usize): usize {
+    var start = end
+    while start > 0 && value[start - 1] != 47 {
+        start -= 1
+    }
+    return start
+}
+
+noalloc func final_component(value: &str): &str? {
+    let end = trailing_separator_start(value)
+    if end == 0 { return none }
+    let start = final_component_start(value, end)
+    return value.get_range(start, end)?
+}
+
+noalloc func extension_separator(name: &str): usize? {
+    if name.len() < 3 { return none }
+    var found: usize = 0
+    var has_extension = false
+    var offset: usize = 1
+    while offset + 1 < name.len() {
+        if name[offset] == 46 {
+            found = offset
+            has_extension = true
+        }
+        offset += 1
+    }
+    if !has_extension { return none }
+    return found
+}
+
+noalloc func invalid_path(): error {
+    return error.new("std.path.invalid_path", "UTF-8 path contains a NUL byte")
+}

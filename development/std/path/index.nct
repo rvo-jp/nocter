@@ -4,6 +4,8 @@
 //! instead of misrepresenting every platform path as text.
 
 see ./utf8_path.nct
+see ./lexical.nct
+see ./tests.nct
 
 /// An owning path whose complete byte spelling is well-formed UTF-8.
 pub struct Utf8Path
@@ -18,11 +20,23 @@ instance Utf8Path {
     pub coerce &self as &str
 
     /// Returns whether the path begins at the filesystem root.
-    pub method &self.is_absolute(): bool
+    pub noalloc method &self.is_absolute(): bool
+
+    /// Returns the lexical parent spelling without accessing the filesystem.
+    pub noalloc method &self.parent(): &str?
+
+    /// Returns the final nonempty lexical component.
+    pub noalloc method &self.file_name(): &str?
+
+    /// Returns the final component without its recognized extension.
+    pub noalloc method &self.file_stem(): &str?
+
+    /// Returns the recognized nonempty extension without its preceding dot.
+    pub noalloc method &self.extension(): &str?
 
     /// Joins a relative child path and returns a validated owning result.
     pub method &self.join(child: &str): Utf8Path!
 }
 
 /// Validates one UTF-8 path spelling without constructing an owning path.
-pub func validate(value: &str): void!
+pub noalloc func validate(value: &str): void!

@@ -139,6 +139,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("num", "mem"),
     ("num", "string"),
     ("path", "string"),
+    ("path", "testing"),
     ("prelude", "fmt"),
     ("prelude", "iter"),
     ("prelude", "map"),

@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/path/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/path/index.nct.">
+    <title>development/std/path/lexical.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/path/lexical.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/path/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/path/lexical/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/path/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/path/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/path/index/">
+    <meta property="og:title" content="development/std/path/lexical.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/path/lexical.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/path/lexical/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/path/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/path/index.nct.">
+    <meta name="twitter:title" content="development/std/path/lexical.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/path/lexical.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/path/index.nct - Nocter","description":"Nocter source code for development/std/path/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/path/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Path","item":"https://nocter.dev/development/std/path/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/path/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/path/lexical.nct - Nocter","description":"Nocter source code for development/std/path/lexical.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/path/lexical/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Path","item":"https://nocter.dev/development/std/path/"},{"@type":"ListItem","position":5,"name":"Lexical","item":"https://nocter.dev/development/std/path/lexical/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -190,51 +190,119 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/path/index.nct</span>
+                <span class="markdown-path-text">/development/std/path/lexical.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owned UTF-8 filesystem paths.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! Darwin permits non-UTF-8 path bytes. This type deliberately promises UTF-8</span>
-<span class="token-comment">//! instead of misrepresenting every platform path as text.</span>
+                <h1>lexical.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Allocation-free lexical UTF-8 path queries.</span>
 
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>utf8_path<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>lexical<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
-
-<span class="token-comment">/// An owning path whose complete byte spelling is well-formed UTF-8.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Utf8Path</span>
-
-<span class="token-keyword">construct</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Validates and copies one UTF-8 path spelling.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
-<span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Exposes the validated UTF-8 path text without transferring ownership.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>text
+        <span class="token-keyword">return</span> <span class="token-function">leading_separator_end</span><span class="token-operator">(</span>value<span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
 
-    <span class="token-comment">/// Returns whether the path begins at the filesystem root.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>text
+        <span class="token-keyword">let</span> end <span class="token-operator">=</span> <span class="token-function">trailing_separator_start</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+        <span class="token-keyword">if</span> end <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
 
-    <span class="token-comment">/// Returns the lexical parent spelling without accessing the filesystem.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+        <span class="token-keyword">let</span> component_start <span class="token-operator">=</span> <span class="token-function">final_component_start</span><span class="token-operator">(</span>value<span class="token-operator">,</span> end<span class="token-operator">)</span>
+        <span class="token-keyword">if</span> component_start <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
 
-    <span class="token-comment">/// Returns the final nonempty lexical component.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+        <span class="token-keyword">let</span> root_end <span class="token-operator">=</span> <span class="token-function">leading_separator_end</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+        <span class="token-keyword">var</span> parent_end <span class="token-operator">=</span> component_start
+        <span class="token-keyword">while</span> parent_end <span class="token-operator">&gt;</span> root_end <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> value<span class="token-operator">[</span>parent_end - <span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">47</span> <span class="token-operator">{</span>
+            parent_end -<span class="token-operator">=</span> <span class="token-number">1</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">if</span> parent_end <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> value<span class="token-operator">.</span><span class="token-function">get_range</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">,</span> parent_end<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
 
-    <span class="token-comment">/// Returns the final component without its recognized extension.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>text
+        <span class="token-keyword">return</span> <span class="token-function">final_component</span><span class="token-operator">(</span>value<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
 
-    <span class="token-comment">/// Returns the recognized nonempty extension without its preceding dot.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>text
+        <span class="token-keyword">let</span> name <span class="token-operator">=</span> <span class="token-function">final_component</span><span class="token-operator">(</span>value<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> separator <span class="token-operator">=</span> <span class="token-function">extension_separator</span><span class="token-operator">(</span>name<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> name <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> name<span class="token-operator">.</span><span class="token-function">get_range</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">,</span> separator<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
 
-    <span class="token-comment">/// Joins a relative child path and returns a validated owning result.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">join</span><span class="token-operator">(</span>child<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Utf8Path</span><span class="token-operator">!</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>text
+        <span class="token-keyword">let</span> name <span class="token-operator">=</span> <span class="token-function">final_component</span><span class="token-operator">(</span>value<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> separator <span class="token-operator">=</span> <span class="token-function">extension_separator</span><span class="token-operator">(</span>name<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> name<span class="token-operator">.</span><span class="token-function">get_range</span><span class="token-operator">(</span>separator <span class="token-operator">+</span> <span class="token-number">1</span><span class="token-operator">,</span> name<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-comment">/// Validates one UTF-8 path spelling without constructing an owning path.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">validate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">validate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> raw <span class="token-operator">=</span> value<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> raw<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> raw<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-function">invalid_path</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">leading_separator_end</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> end<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> end <span class="token-operator">&lt;</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> value<span class="token-operator">[</span>end<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">47</span> <span class="token-operator">{</span>
+        end <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> end
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">trailing_separator_start</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> end <span class="token-operator">=</span> value<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">while</span> end <span class="token-operator">&gt;</span> <span class="token-number">0</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> value<span class="token-operator">[</span>end - <span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">47</span> <span class="token-operator">{</span>
+        end -<span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> end
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">final_component_start</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> end<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> start <span class="token-operator">=</span> end
+    <span class="token-keyword">while</span> start <span class="token-operator">&gt;</span> <span class="token-number">0</span> <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> value<span class="token-operator">[</span>start - <span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">47</span> <span class="token-operator">{</span>
+        start -<span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> start
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">final_component</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> end <span class="token-operator">=</span> <span class="token-function">trailing_separator_start</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
+    <span class="token-keyword">if</span> end <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> start <span class="token-operator">=</span> <span class="token-function">final_component_start</span><span class="token-operator">(</span>value<span class="token-operator">,</span> end<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> value<span class="token-operator">.</span><span class="token-function">get_range</span><span class="token-operator">(</span>start<span class="token-operator">,</span> end<span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">extension_separator</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> name<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> <span class="token-number">3</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> found<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> has_extension <span class="token-operator">=</span> <span class="token-keyword">false</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">+</span> <span class="token-number">1</span> <span class="token-operator">&lt;</span> name<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> name<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">46</span> <span class="token-operator">{</span>
+            found <span class="token-operator">=</span> offset
+            has_extension <span class="token-operator">=</span> <span class="token-keyword">true</span>
+        <span class="token-operator">}</span>
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>has_extension <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> found
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">invalid_path</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.path.invalid_path"</span><span class="token-operator">,</span> <span class="token-string">"UTF-8 path contains a NUL byte"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
 </code></pre>
             </div>
         </main>

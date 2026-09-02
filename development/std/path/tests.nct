@@ -1,0 +1,70 @@
+//! Lexical path contract tests.
+
+see ./index.nct
+
+use /testing
+
+test lexical_path_queries_cover_roots_and_separator_runs {
+    let empty = Utf8Path.new("")?
+    expect_absent(empty.parent())?
+    expect_absent(empty.file_name())?
+
+    let root = Utf8Path.new("///")?
+    testing.assert(root.is_absolute())?
+    expect_absent(root.parent())?
+    expect_absent(root.file_name())?
+
+    let nested = Utf8Path.new("alpha/beta.txt///")?
+    testing.assert(!nested.is_absolute())?
+    expect_text(nested.parent(), "alpha")?
+    expect_text(nested.file_name(), "beta.txt")?
+    expect_text(nested.file_stem(), "beta")?
+    expect_text(nested.extension(), "txt")?
+
+    let absolute = Utf8Path.new("//alpha//beta")?
+    testing.assert(absolute.is_absolute())?
+    expect_text(absolute.parent(), "//alpha")?
+    expect_text(absolute.file_name(), "beta")?
+
+    let root_child = Utf8Path.new("/alpha")?
+    expect_text(root_child.parent(), "/")?
+    return
+}
+
+test lexical_path_queries_preserve_dot_and_utf8_components {
+    let hidden = Utf8Path.new(".env")?
+    expect_text(hidden.file_name(), ".env")?
+    expect_text(hidden.file_stem(), ".env")?
+    expect_absent(hidden.extension())?
+
+    let trailing_dot = Utf8Path.new("name.")?
+    expect_text(trailing_dot.file_stem(), "name.")?
+    expect_absent(trailing_dot.extension())?
+
+    let multi_extension = Utf8Path.new("archive.tar.gz")?
+    expect_text(multi_extension.file_stem(), "archive.tar")?
+    expect_text(multi_extension.extension(), "gz")?
+
+    let dot_parent = Utf8Path.new("../leaf")?
+    expect_text(dot_parent.parent(), "..")?
+
+    let utf8 = Utf8Path.new("資料/報告.最終")?
+    expect_text(utf8.parent(), "資料")?
+    expect_text(utf8.file_name(), "報告.最終")?
+    expect_text(utf8.file_stem(), "報告")?
+    expect_text(utf8.extension(), "最終")?
+    return
+}
+
+func expect_text(actual: &str?, expected: &str): void! {
+    let value = actual otherwise {
+        return error.new("std.path.test", "expected a lexical path view")
+    }
+    testing.assert(value == expected)?
+    return
+}
+
+func expect_absent(actual: &str?): void! {
+    let _value = actual otherwise { return }
+    return error.new("std.path.test", "expected no lexical path view")
+}

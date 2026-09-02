@@ -1,6 +1,7 @@
 //! UTF-8 path representation, validation, and joining.
 
 see ./index.nct
+see ./lexical.nct
 
 use /string.String
 
@@ -21,19 +22,9 @@ instance Utf8Path {
         return &self.text
     }
 
-    method &self.is_absolute(): bool {
-        return is_absolute(self)
-    }
-
     method &self.join(child: &str): Utf8Path! {
         return join(self, child)?
     }
-}
-
-func is_absolute(path: &Utf8Path): bool {
-    let value: &str = &path.text
-    let raw: &[u8] = value.bytes()
-    return value.len() != 0 && raw[0] == 47
 }
 
 func join(path: &Utf8Path, child: &str): Utf8Path! {
@@ -48,20 +39,4 @@ func join(path: &Utf8Path, child: &str): Utf8Path! {
     }
     result.push_str(child)
     return Utf8Path { text: move result }
-}
-
-func validate(value: &str): void! {
-    let raw = value.bytes()
-    var offset: usize = 0
-    while offset < raw.len() {
-        if raw[offset] == 0 {
-            return invalid_path()
-        }
-        offset += 1
-    }
-    return
-}
-
-func invalid_path(): error {
-    return error.new("std.path.invalid_path", "UTF-8 path contains a NUL byte")
 }

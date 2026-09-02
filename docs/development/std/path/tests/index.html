@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/path/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/path/index.nct.">
+    <title>development/std/path/tests.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/path/tests.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/path/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/path/tests/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/path/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/path/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/path/index/">
+    <meta property="og:title" content="development/std/path/tests.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/path/tests.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/path/tests/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/path/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/path/index.nct.">
+    <meta name="twitter:title" content="development/std/path/tests.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/path/tests.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/path/index.nct - Nocter","description":"Nocter source code for development/std/path/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/path/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Path","item":"https://nocter.dev/development/std/path/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/path/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/path/tests.nct - Nocter","description":"Nocter source code for development/std/path/tests.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/path/tests/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Path","item":"https://nocter.dev/development/std/path/"},{"@type":"ListItem","position":5,"name":"Tests","item":"https://nocter.dev/development/std/path/tests/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -190,51 +190,79 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/path/index.nct</span>
+                <span class="markdown-path-text">/development/std/path/tests.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owned UTF-8 filesystem paths.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! Darwin permits non-UTF-8 path bytes. This type deliberately promises UTF-8</span>
-<span class="token-comment">//! instead of misrepresenting every platform path as text.</span>
+                <h1>tests.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Lexical path contract tests.</span>
 
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>utf8_path<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>lexical<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-comment">/// An owning path whose complete byte spelling is well-formed UTF-8.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Utf8Path</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>testing
 
-<span class="token-keyword">construct</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Validates and copies one UTF-8 path spelling.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-keyword">test</span> lexical_path_queries_cover_roots_and_separator_runs <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> empty <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">""</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_absent</span><span class="token-operator">(</span>empty<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_absent</span><span class="token-operator">(</span>empty<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">let</span> root <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"///"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span>root<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_absent</span><span class="token-operator">(</span>root<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_absent</span><span class="token-operator">(</span>root<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">let</span> nested <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"alpha/beta.txt///"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span><span class="token-operator">!</span>nested<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>nested<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"alpha"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>nested<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"beta.txt"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>nested<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"beta"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>nested<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"txt"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">let</span> absolute <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"//alpha//beta"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span>absolute<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>absolute<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"//alpha"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>absolute<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"beta"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">let</span> root_child <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"/alpha"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>root_child<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"/"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">Utf8Path</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Exposes the validated UTF-8 path text without transferring ownership.</span>
-    <span class="token-keyword">pub</span> coerce <span class="token-operator">&amp;</span>self <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+<span class="token-keyword">test</span> lexical_path_queries_preserve_dot_and_utf8_components <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> hidden <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">".env"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>hidden<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">".env"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>hidden<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">".env"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_absent</span><span class="token-operator">(</span>hidden<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
 
-    <span class="token-comment">/// Returns whether the path begins at the filesystem root.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_absolute</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">let</span> trailing_dot <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"name."</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>trailing_dot<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"name."</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_absent</span><span class="token-operator">(</span>trailing_dot<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
 
-    <span class="token-comment">/// Returns the lexical parent spelling without accessing the filesystem.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> multi_extension <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"archive.tar.gz"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>multi_extension<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"archive.tar"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>multi_extension<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"gz"</span><span class="token-operator">)</span><span class="token-operator">?</span>
 
-    <span class="token-comment">/// Returns the final nonempty lexical component.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> dot_parent <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"../leaf"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>dot_parent<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">".."</span><span class="token-operator">)</span><span class="token-operator">?</span>
 
-    <span class="token-comment">/// Returns the final component without its recognized extension.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
-
-    <span class="token-comment">/// Returns the recognized nonempty extension without its preceding dot.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
-
-    <span class="token-comment">/// Joins a relative child path and returns a validated owning result.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">join</span><span class="token-operator">(</span>child<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Utf8Path</span><span class="token-operator">!</span>
+    <span class="token-keyword">let</span> utf8 <span class="token-operator">=</span> <span class="token-type">Utf8Path</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"資料/報告.最終"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>utf8<span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"資料"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>utf8<span class="token-operator">.</span><span class="token-function">file_name</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"報告.最終"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>utf8<span class="token-operator">.</span><span class="token-function">file_stem</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"報告"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">expect_text</span><span class="token-operator">(</span>utf8<span class="token-operator">.</span><span class="token-function">extension</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-string">"最終"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-comment">/// Validates one UTF-8 path spelling without constructing an owning path.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">validate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-keyword">func</span> <span class="token-function">expect_text</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">,</span> expected<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> actual <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.path.test"</span><span class="token-operator">,</span> <span class="token-string">"expected a lexical path view"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    testing<span class="token-operator">.</span><span class="token-function">assert</span><span class="token-operator">(</span>value <span class="token-operator">=</span><span class="token-operator">=</span> expected<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">expect_absent</span><span class="token-operator">(</span>actual<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> _value <span class="token-operator">=</span> actual <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.path.test"</span><span class="token-operator">,</span> <span class="token-string">"expected no lexical path view"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
 </code></pre>
             </div>
         </main>

@@ -154,10 +154,10 @@ itself therefore does not create an extension, and a trailing dot has no extensi
 returns the file name with that recognized extension and its preceding dot removed, or the complete
 file name when no extension is recognized.
 
-`parent` removes the final nonempty component and adjacent separators. It preserves one leading
-root separator but otherwise returns the exact remaining prefix. A single relative component and
-the filesystem root have no parent. Repeated separators, `.` components, and `..` components are
-not otherwise normalized.
+`parent` removes the final nonempty component and adjacent separators while preserving an authored
+leading root-separator run. It otherwise returns the exact remaining prefix. A single relative
+component and a spelling made only of root separators have no parent. Repeated separators, `.`
+components, and `..` components are not otherwise normalized.
 
 `std/io.File.open`, `File.create`, and `File.append` respectively open an existing file for
 reading, create or truncate a file for writing, and open a file for append. `Utf8Path` coerces to
