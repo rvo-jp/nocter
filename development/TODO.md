@@ -9,9 +9,9 @@ asset must not be replaced.
 The [v0.25.0 implementation](milestones/v0.25.0.md) is complete and qualified. It adds the sole
 source-visible guarantee `noalloc`, backed by one checker-owned positive allocation-effect table,
 closed standard and primitive effect evidence, deliberate standard-library contracts, and shared
-tooling presentation. [Release preparation](milestones/v0.25.0-release-preparation.md) now owns the
-candidate version, independent source qualification, reproducible artifact, and installed-home
-evidence. Publication has not been authorized.
+tooling presentation. [Release preparation](milestones/v0.25.0-release-preparation.md) has qualified
+the exact release-content commit, two independent source builds, one reproducible optimized
+archive, and the isolated installed-home matrix. Publication has not been authorized.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -34,11 +34,10 @@ checking-owned context.
 
 ## Next Work
 
-Complete the [v0.25.0 release preparation](milestones/v0.25.0-release-preparation.md): freeze one
-clean release-content commit, run duplicate independent source qualification, produce two identical
-optimized archives and installed homes, execute the fresh-home smoke and integrity matrix, and
-record the final candidate identity. Stop before tagging, pushing, uploading, or changing public
-latest-release links.
+v0.25.0 is ready for an explicitly authorized publication operation. Reuse the retained qualified
+archive without rebuilding it; advance public latest-release links, create and push the annotated
+tag, upload exactly that archive, and verify the public download only after authorization. Do not
+replace an existing tag or asset.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
