@@ -5,10 +5,11 @@ use std::path::{Path, PathBuf};
 use nocter_model::CompilationTarget;
 
 use crate::command_schema::{CommandKind, CommandOption, CommandSchema, option_schema};
+use crate::run_invocation::partition_run_invocation;
 use crate::{
     BuildCommandOptions, BuildCommandPlan, CheckCommandOptions, CheckCommandPlan, CommandPlanError,
-    ProgramInputError, ProgramInputOptions, RunCommandOptions, RunCommandPlan, TestCommandOptions,
-    TestCommandPlan, resolve_package_input, resolve_program_input,
+    ProgramInputError, ProgramInputOptions, RunCommandOptions, RunCommandPlan, RunProgramArguments,
+    TestCommandOptions, TestCommandPlan, resolve_package_input, resolve_program_input,
 };
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -340,6 +341,7 @@ impl ParsedBuildCommand {
 pub struct ParsedRunCommand {
     input: ProgramInputOptions,
     command: RunCommandOptions,
+    program_arguments: RunProgramArguments,
     resolution: ResolutionOptions,
     target: Option<CompilationTarget>,
 }
@@ -356,7 +358,8 @@ impl ParsedRunCommand {
     ) -> Result<PreparedRunCommand, PreparedCommandError> {
         let input = resolve_program_input(current_directory, self.input)
             .map_err(PreparedCommandError::Input)?;
-        let plan = RunCommandPlan::new(input, self.command).map_err(PreparedCommandError::Plan)?;
+        let plan = RunCommandPlan::new(input, self.command, self.program_arguments)
+            .map_err(PreparedCommandError::Plan)?;
         Ok(PreparedRunCommand {
             plan,
             resolution: self.resolution,
@@ -815,6 +818,7 @@ fn parse_build(
 fn parse_run(
     arguments: impl Iterator<Item = OsString>,
 ) -> Result<ParsedRunCommand, OptionsParseFailure> {
+    let (compiler_arguments, program_arguments) = partition_run_invocation(arguments).into_parts();
     let ParsedOptions {
         root,
         file,
@@ -829,10 +833,11 @@ fn parse_run(
         format_check: _,
         name: _,
         library: _,
-    } = parse_options(arguments, CommandKind::Run.schema())?;
+    } = parse_options(compiler_arguments.into_iter(), CommandKind::Run.schema())?;
     Ok(ParsedRunCommand {
         input: ProgramInputOptions::new(root, positional, file),
         command: RunCommandOptions::new(executable),
+        program_arguments,
         resolution,
         target,
     })
@@ -1805,18 +1810,66 @@ mod tests {
     }
 
     #[test]
-    fn end_of_options_keeps_a_dash_prefixed_source_positional() {
+    fn run_separator_starts_program_arguments_instead_of_selecting_a_source() {
         let parsed = parse_command_arguments(arguments(&["run", "--", "--script.nct"])).unwrap();
         let ParsedCommand::Run(parsed) = parsed else {
             panic!("expected run command");
         };
         let root = package_root();
-        fs::write(root.join("--script.nct"), "func main(): void { return }\n").unwrap();
         let prepared = parsed.prepare(&root).unwrap();
         assert!(matches!(
             prepared.plan().selector(),
             ExecutableSelector::Only
         ));
+        assert!(matches!(
+            prepared.plan().input(),
+            ResolvedProgramInput::Package(_)
+        ));
+        assert_eq!(
+            prepared.plan().program_arguments().as_slice(),
+            [OsString::from("--script.nct")]
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dash_prefixed_run_source_requires_the_explicit_file_option() {
+        let root = package_root();
+        fs::write(root.join("--script.nct"), "func main(): void { return }\n").unwrap();
+        let parsed = parse_command_arguments(arguments(&[
+            "run",
+            "--file",
+            "./--script.nct",
+            "--",
+            "value",
+        ]))
+        .unwrap();
+        let ParsedCommand::Run(parsed) = parsed else {
+            panic!("expected run command");
+        };
+        let prepared = parsed.prepare(&root).unwrap();
+
+        assert!(matches!(
+            prepared.plan().input(),
+            ResolvedProgramInput::SingleFile(_)
+        ));
+        assert_eq!(
+            prepared.plan().program_arguments().as_slice(),
+            [OsString::from("value")]
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn non_run_commands_retain_the_shared_end_of_options_rule() {
+        let root = package_root();
+        fs::write(root.join("--script.nct"), "func main(): void { return }\n").unwrap();
+        let parsed = parse_command_arguments(arguments(&["check", "--", "--script.nct"])).unwrap();
+        let ParsedCommand::Check(parsed) = parsed else {
+            panic!("expected check command");
+        };
+        let prepared = parsed.prepare(&root).unwrap();
+
         assert!(matches!(
             prepared.plan().input(),
             ResolvedProgramInput::SingleFile(_)

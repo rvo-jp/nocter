@@ -9,7 +9,8 @@ and package-state contracts.
 
 The crate consumes parsed command arguments plus validated installation and filesystem inputs. It
 publishes command results, artifacts, graph/inspection output, or typed failures. It does not own
-process argument decoding, terminal rendering, language rules, or stage internals.
+terminal rendering, language rules, or stage internals. Program arguments accepted after the
+`run` separator remain opaque native OS strings and are never decoded by this crate.
 
 Every source-analyzing command creates one ephemeral `nocter-compiler-computation` owner. Package
 resolution and discovery obtain syntax through that owner's computed provider, and target
@@ -19,6 +20,7 @@ cannot invoke or order semantic stages.
 ## Internal Responsibilities
 
 - command schema and input planning
+- one-time `run` compiler/program argument partition and opaque launch transport
 - package versus explicit single-file selection
 - ephemeral compiler-computation lifetime and query-backed package/discovery composition
 - check, build, run, test, format, fetch, graph, and init composition
@@ -27,6 +29,8 @@ cannot invoke or order semantic stages.
 ## Invariants
 
 - A command selects its compilation mode explicitly and once.
+- `run` partitions at its first standalone `--`; only compiler arguments enter generic option
+  parsing, and only the process launcher opens the resulting program-argument vector.
 - Package-only and single-file-only commands resolve through typed input boundaries; they do not
   recover a narrower mode by matching a general package/file result.
 - `check`, `build`, and `run` share the same target acceptance boundary.

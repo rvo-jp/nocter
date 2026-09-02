@@ -87,7 +87,7 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
 ) -> Result<ExecutedProgram, RunCommandExecutionError> {
     let (plan, resolution, target) = command.into_parts();
     let toolchain = toolchain.for_requested_target(target);
-    let (input, selector, working_directory) = plan.into_parts();
+    let (input, selector, working_directory, program_arguments) = plan.into_parts();
     let mut compiler = CommandCompiler::default();
     let unit = discover_command_source(
         &input,
@@ -104,6 +104,7 @@ pub fn execute_prepared_run<A: PackageAcquisitionAuthority>(
     match run_executable(
         ExecutableCompileRequest::new(target, selector),
         working_directory,
+        program_arguments,
     ) {
         Ok(executed) => Ok(executed),
         Err(error) => Err(RunCommandExecutionError::Run(Box::new(

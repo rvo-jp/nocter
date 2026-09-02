@@ -21,6 +21,7 @@ mod output_plan;
 mod package_state;
 mod planning;
 mod run;
+mod run_invocation;
 mod source;
 mod standalone_source;
 mod test;
@@ -75,6 +76,7 @@ pub use planning::{
     TestCommandPlan,
 };
 pub use run::{ExecutedProgram, RunCommandError, run_executable};
+pub use run_invocation::RunProgramArguments;
 pub use source::{CommandSourceError, CommandToolchain};
 pub use standalone_source::StandaloneSourceError;
 pub use test::{

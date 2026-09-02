@@ -8,7 +8,7 @@ use nocter_native_session::{NativeSessionError, compile_native_image};
 use nocter_session::ExecutableCompileRequest;
 use nocter_source_index::SourceIndex;
 
-use crate::{ArtifactError, stage_temporary_image};
+use crate::{ArtifactError, RunProgramArguments, stage_temporary_image};
 
 /// One completed child process and the independent source projection from its compile session.
 #[derive(Debug)]
@@ -36,8 +36,9 @@ impl ExecutedProgram {
 
 /// Compiles, stages, launches, waits for, and removes one selected executable.
 ///
-/// Standard input, output, and error are inherited from the command process. A program's nonzero
-/// status is a successful command orchestration result and remains available through
+/// `program_arguments` are forwarded as native OS strings after the launcher-provided argument
+/// zero. Standard input, output, and error are inherited from the command process. A program's
+/// nonzero status is a successful command orchestration result and remains available through
 /// [`ExecutedProgram::status`].
 ///
 /// # Errors
@@ -47,14 +48,15 @@ impl ExecutedProgram {
 pub fn run_executable(
     request: ExecutableCompileRequest,
     working_directory: impl AsRef<Path>,
+    program_arguments: RunProgramArguments,
 ) -> Result<ExecutedProgram, RunCommandError> {
     let compiled = compile_native_image(request)?;
     let (image, source_index) = compiled.into_parts();
     let artifact = stage_temporary_image(image.bytes())?;
     let executable = artifact.path().to_path_buf();
-    let launched = Command::new(&executable)
-        .current_dir(working_directory)
-        .status();
+    let mut command = Command::new(&executable);
+    program_arguments.apply_to(&mut command);
+    let launched = command.current_dir(working_directory).status();
     let removed = artifact.remove();
     match (launched, removed) {
         (Ok(status), Ok(())) => Ok(ExecutedProgram {

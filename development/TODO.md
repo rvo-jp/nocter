@@ -32,15 +32,17 @@ editor, formatter, architecture, complete-workspace, reproducible-package, insta
 public-asset qualification. Its [final review](reviews/v0.28.0-phase-5.md) has no open finding.
 
 The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has a closed public
-contract and feasibility review. It separates compiler arguments from opaque child arguments once,
-reuses borrowed File and Reader state for standard input, and deliberately rejects hidden global
-line buffering.
+contract and a completed exact run-argument channel. A typed opaque OS-string value now moves from
+the sole separator partition to process launch without entering compiler analysis. The remaining
+input work reuses borrowed File and Reader state and deliberately rejects hidden global line
+buffering.
 
 ## Next Work
 
-Implement v0.29.0 Phase 1 as one exact run-argument channel from CLI partition through typed run
-planning to process launch. Do not let package resolution, semantic analysis, or native compilation
-inspect child arguments, and do not retain the old ambiguous `run -- --script.nct` interpretation.
+Implement v0.29.0 Phase 2 as one `io.stdin()` constructor over the existing borrowed `File` state.
+Keep descriptor zero in the target OS fact boundary, reuse the File read authority, and prove that
+closing or dropping wrappers never closes the process-global descriptor. Do not add a second read
+algorithm, primitive, hidden global buffer, or stateless line-input helper.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

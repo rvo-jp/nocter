@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use nocter_session::{ExecutableSelector, TestTargetSelector};
 
-use crate::{PackageCommandInput, ResolvedProgramInput};
+use crate::{PackageCommandInput, ResolvedProgramInput, RunProgramArguments};
 
 /// Raw executable choice accepted by the check argument parser.
 #[derive(Debug, Default)]
@@ -291,6 +291,7 @@ pub struct RunCommandPlan {
     input: ResolvedProgramInput,
     selector: ExecutableSelector,
     working_directory: PathBuf,
+    program_arguments: RunProgramArguments,
 }
 
 impl RunCommandPlan {
@@ -302,6 +303,7 @@ impl RunCommandPlan {
     pub fn new(
         input: ResolvedProgramInput,
         options: RunCommandOptions,
+        program_arguments: RunProgramArguments,
     ) -> Result<Self, CommandPlanError> {
         let (selector, working_directory) = match (&input, options.executable) {
             (ResolvedProgramInput::Package(package), Some(name)) => (
@@ -323,6 +325,7 @@ impl RunCommandPlan {
             input,
             selector,
             working_directory,
+            program_arguments,
         })
     }
 
@@ -341,8 +344,25 @@ impl RunCommandPlan {
         &self.working_directory
     }
 
-    pub(crate) fn into_parts(self) -> (ResolvedProgramInput, ExecutableSelector, PathBuf) {
-        (self.input, self.selector, self.working_directory)
+    #[cfg(test)]
+    pub(crate) const fn program_arguments(&self) -> &RunProgramArguments {
+        &self.program_arguments
+    }
+
+    pub(crate) fn into_parts(
+        self,
+    ) -> (
+        ResolvedProgramInput,
+        ExecutableSelector,
+        PathBuf,
+        RunProgramArguments,
+    ) {
+        (
+            self.input,
+            self.selector,
+            self.working_directory,
+            self.program_arguments,
+        )
     }
 }
 

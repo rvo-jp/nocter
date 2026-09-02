@@ -107,6 +107,13 @@ struct PositionalSchema {
 }
 
 #[derive(Clone, Copy)]
+struct TrailingArgumentsSchema {
+    usage: &'static str,
+    value: &'static str,
+    description: &'static str,
+}
+
+#[derive(Clone, Copy)]
 enum CommandForm {
     Subcommand,
     GlobalOption,
@@ -120,6 +127,7 @@ pub(crate) struct CommandSchema {
     summary: &'static str,
     accepted: u16,
     positional: Option<PositionalSchema>,
+    trailing_arguments: Option<TrailingArgumentsSchema>,
 }
 
 impl CommandSchema {
@@ -142,6 +150,9 @@ impl CommandSchema {
         }
         if let Some(positional) = self.positional {
             write!(usage, " [{}]", positional.value).expect("writing to String cannot fail");
+        }
+        if let Some(trailing) = self.trailing_arguments {
+            write!(usage, " {}", trailing.usage).expect("writing to String cannot fail");
         }
         usage
     }
@@ -268,6 +279,12 @@ const HELP_TOPIC: PositionalSchema = PositionalSchema {
     description: "An implemented command or global option.",
 };
 
+const RUN_ARGUMENTS: TrailingArgumentsSchema = TrailingArgumentsSchema {
+    usage: "[-- <ARG>...]",
+    value: "ARG...",
+    description: "Arguments forwarded unchanged to the launched program after --.",
+};
+
 const HELP: CommandSchema = CommandSchema {
     kind: CommandKind::Help,
     name: "help",
@@ -275,6 +292,7 @@ const HELP: CommandSchema = CommandSchema {
     summary: "Show overview or command-specific help.",
     accepted: HELP_OPTION,
     positional: Some(HELP_TOPIC),
+    trailing_arguments: None,
 };
 
 const VERSION: CommandSchema = CommandSchema {
@@ -284,6 +302,7 @@ const VERSION: CommandSchema = CommandSchema {
     summary: "Report the validated compiler installation identity.",
     accepted: 0,
     positional: None,
+    trailing_arguments: None,
 };
 
 const DOCTOR: CommandSchema = CommandSchema {
@@ -293,6 +312,7 @@ const DOCTOR: CommandSchema = CommandSchema {
     summary: "Validate and report the active Nocter home.",
     accepted: HELP_OPTION,
     positional: None,
+    trailing_arguments: None,
 };
 
 const INIT: CommandSchema = CommandSchema {
@@ -302,6 +322,7 @@ const INIT: CommandSchema = CommandSchema {
     summary: "Create a source-owned package without overwriting files.",
     accepted: HELP_OPTION | CommandOption::Name.bit() | CommandOption::Library.bit(),
     positional: Some(DIRECTORY),
+    trailing_arguments: None,
 };
 
 const GRAPH: CommandSchema = CommandSchema {
@@ -314,6 +335,7 @@ const GRAPH: CommandSchema = CommandSchema {
         | RESOLUTION_OPTIONS
         | CommandOption::Format.bit(),
     positional: None,
+    trailing_arguments: None,
 };
 
 const FETCH: CommandSchema = CommandSchema {
@@ -323,6 +345,7 @@ const FETCH: CommandSchema = CommandSchema {
     summary: "Resolve dependencies and commit exact locks and package state.",
     accepted: HELP_OPTION | CommandOption::Root.bit() | RESOLUTION_OPTIONS,
     positional: None,
+    trailing_arguments: None,
 };
 
 const CHECK: CommandSchema = CommandSchema {
@@ -336,6 +359,7 @@ const CHECK: CommandSchema = CommandSchema {
         | CommandOption::Format.bit()
         | CommandOption::Target.bit(),
     positional: Some(SOURCE),
+    trailing_arguments: None,
 };
 
 const BUILD: CommandSchema = CommandSchema {
@@ -349,6 +373,7 @@ const BUILD: CommandSchema = CommandSchema {
         | RESOLUTION_OPTIONS
         | CommandOption::Target.bit(),
     positional: Some(SOURCE),
+    trailing_arguments: None,
 };
 
 const RUN: CommandSchema = CommandSchema {
@@ -358,6 +383,7 @@ const RUN: CommandSchema = CommandSchema {
     summary: "Build and run one selected executable or standalone source.",
     accepted: HELP_OPTION | INPUT_OPTIONS | RESOLUTION_OPTIONS | CommandOption::Target.bit(),
     positional: Some(SOURCE),
+    trailing_arguments: Some(RUN_ARGUMENTS),
 };
 
 const TEST: CommandSchema = CommandSchema {
@@ -373,6 +399,7 @@ const TEST: CommandSchema = CommandSchema {
         | RESOLUTION_OPTIONS
         | CommandOption::Format.bit(),
     positional: None,
+    trailing_arguments: None,
 };
 
 const TOKENS: CommandSchema = CommandSchema {
@@ -382,6 +409,7 @@ const TOKENS: CommandSchema = CommandSchema {
     summary: "Inspect one source file as a versioned lexical JSON envelope.",
     accepted: HELP_OPTION | CommandOption::Format.bit(),
     positional: Some(SOURCE),
+    trailing_arguments: None,
 };
 
 const AST: CommandSchema = CommandSchema {
@@ -391,6 +419,7 @@ const AST: CommandSchema = CommandSchema {
     summary: "Inspect one source file as a versioned concrete-syntax JSON envelope.",
     accepted: HELP_OPTION | CommandOption::Format.bit(),
     positional: Some(SOURCE),
+    trailing_arguments: None,
 };
 
 const FMT: CommandSchema = CommandSchema {
@@ -400,6 +429,7 @@ const FMT: CommandSchema = CommandSchema {
     summary: "Format exactly one source file in place.",
     accepted: HELP_OPTION | CommandOption::FormatCheck.bit(),
     positional: Some(SOURCE),
+    trailing_arguments: None,
 };
 
 const LSP: CommandSchema = CommandSchema {
@@ -409,6 +439,7 @@ const LSP: CommandSchema = CommandSchema {
     summary: "Run the Language Server Protocol over standard input and output.",
     accepted: HELP_OPTION,
     positional: None,
+    trailing_arguments: None,
 };
 
 const COMMANDS: [CommandSchema; 14] = [
@@ -474,6 +505,13 @@ fn render_command_help(schema: CommandSchema) -> String {
             positional.value, positional.description,
         )
         .expect("writing to String cannot fail");
+    }
+    if let Some(trailing) = schema.trailing_arguments {
+        if schema.positional.is_none() {
+            output.push_str("\nArguments:\n");
+        }
+        writeln!(output, "  {:<22} {}", trailing.value, trailing.description)
+            .expect("writing to String cannot fail");
     }
     let accepted_options = OPTIONS
         .iter()
@@ -574,5 +612,20 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn only_run_help_advertises_the_opaque_program_argument_channel() {
+        for command in COMMANDS {
+            let rendered = render_command_help(command);
+            assert_eq!(
+                rendered.contains("[-- <ARG>...]"),
+                command.kind == CommandKind::Run,
+                "{}",
+                command.name,
+            );
+        }
+        let rendered = render_command_help(RUN);
+        assert!(rendered.contains("forwarded unchanged"));
     }
 }

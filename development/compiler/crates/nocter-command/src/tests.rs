@@ -243,10 +243,18 @@ fn build_and_run_plans_close_package_and_file_selection_rules() {
         } if path == &canonical_directory.join("bin/tool")
     ));
 
-    let run = super::RunCommandPlan::new(package(), super::RunCommandOptions::executable("tool"))
-        .unwrap();
+    let run = super::RunCommandPlan::new(
+        package(),
+        super::RunCommandOptions::executable("tool"),
+        super::RunProgramArguments::new([std::ffi::OsString::from("input")]),
+    )
+    .unwrap();
     assert!(matches!(run.selector(), ExecutableSelector::Named(name) if name.as_ref() == "tool"));
     assert_eq!(run.working_directory(), canonical_package);
+    assert_eq!(
+        run.program_arguments().as_slice(),
+        [std::ffi::OsString::from("input")]
+    );
 
     let file = || {
         super::resolve_program_input(
@@ -265,8 +273,12 @@ fn build_and_run_plans_close_package_and_file_selection_rules() {
         } if path == &canonical_directory.join("script")
     ));
     assert!(matches!(
-        super::RunCommandPlan::new(file(), super::RunCommandOptions::executable("forbidden"))
-            .unwrap_err(),
+        super::RunCommandPlan::new(
+            file(),
+            super::RunCommandOptions::executable("forbidden"),
+            super::RunProgramArguments::default(),
+        )
+        .unwrap_err(),
         super::CommandPlanError::ExecutableWithSingleFile
     ));
     fs::remove_dir_all(directory).unwrap();
@@ -445,8 +457,12 @@ fn run_returns_a_nonzero_program_status_without_classifying_it_as_orchestration_
     let (mut compiler, unit) = command_discover(single_file_request(&source));
 
     let target = compiler.compile(&unit).unwrap();
-    let executed =
-        super::run_executable(ExecutableCompileRequest::only(target), &directory).unwrap();
+    let executed = super::run_executable(
+        ExecutableCompileRequest::only(target),
+        &directory,
+        super::RunProgramArguments::default(),
+    )
+    .unwrap();
 
     assert_eq!(executed.status().code(), Some(7));
     fs::remove_dir_all(directory).unwrap();
@@ -773,12 +789,29 @@ fn named_check_selects_exactly_one_module_and_rejects_an_unknown_target() {
 }
 
 #[test]
-fn parsed_single_file_run_crosses_the_common_command_adapter() {
+fn parsed_single_file_run_forwards_program_arguments_across_the_command_adapter() {
     let directory = unique_test_directory("prepared-file-run");
-    write_source(&directory, "status.nct", "func main(): i32 { 9 }\n");
-    let super::ParsedCommand::Run(parsed) =
-        super::parse_command_arguments(["run".into(), "status.nct".into()]).unwrap()
-    else {
+    write_source(
+        &directory,
+        "status.nct",
+        "use std/process\n\
+         func main(): i32! {\n\
+             if process.arg_count() != 3 { return 10 }\n\
+             let first: &str = process.arg(1)? otherwise { return 11 }\n\
+             if first != \"--target\" { return 12 }\n\
+             let second: &str = process.arg(2)? otherwise { return 13 }\n\
+             if second != \"two words\" { return 14 }\n\
+             return 0\n\
+         }\n",
+    );
+    let super::ParsedCommand::Run(parsed) = super::parse_command_arguments([
+        "run".into(),
+        "status.nct".into(),
+        "--".into(),
+        "--target".into(),
+        "two words".into(),
+    ])
+    .unwrap() else {
         panic!("expected run command");
     };
     let prepared = parsed.prepare(&directory).unwrap();
@@ -787,7 +820,44 @@ fn parsed_single_file_run_crosses_the_common_command_adapter() {
         super::execute_prepared_run(prepared, &command_toolchain(), &mut NoRemoteAcquisition)
             .unwrap();
 
-    assert_eq!(executed.status().code(), Some(9));
+    assert_eq!(executed.status().code(), Some(0));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[cfg(all(unix, target_arch = "aarch64", target_os = "macos"))]
+#[test]
+fn parsed_run_forwards_a_non_unicode_program_argument_without_decoding_it() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
+    let directory = unique_test_directory("prepared-native-argument-run");
+    write_source(
+        &directory,
+        "status.nct",
+        "use std/process\n\
+         func main(): i32 {\n\
+             if process.arg_count() == 2 { return 0 }\n\
+             return 1\n\
+         }\n",
+    );
+    let super::ParsedCommand::Run(parsed) = super::parse_command_arguments([
+        OsString::from("run"),
+        OsString::from("status.nct"),
+        OsString::from("--"),
+        OsString::from_vec(vec![0xff, b'a']),
+    ])
+    .unwrap() else {
+        panic!("expected run command");
+    };
+
+    let executed = super::execute_prepared_run(
+        parsed.prepare(&directory).unwrap(),
+        &command_toolchain(),
+        &mut NoRemoteAcquisition,
+    )
+    .unwrap();
+
+    assert_eq!(executed.status().code(), Some(0));
     fs::remove_dir_all(directory).unwrap();
 }
 
