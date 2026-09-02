@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Current Candidate
 
 - [v0.26.0: Monotonic Time Foundation](v0.26.0.md)
+- [v0.26.0 Release Preparation](v0.26.0-release-preparation.md)
 
 ## Recent Milestones
 

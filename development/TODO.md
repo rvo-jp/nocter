@@ -33,12 +33,16 @@ runtime evidence. Its whole-workspace follow-up also closes the speculative ARM6
 the duplicated bundled-standard declaration profile. Wall-clock fallback and external time-runtime
 calls remain prohibited.
 
+[v0.26.0 release preparation](milestones/v0.26.0-release-preparation.md) owns the candidate version,
+independent source qualification, reproducible archive, and installed-home evidence. Publication
+has not been authorized.
+
 ## Next Work
 
-Prepare v0.26.0 for release only after explicit direction: freeze the candidate identity, generate
-the deterministic distribution archive, qualify a fresh installed home, write the public release
-record, and stop before publication unless publication is separately authorized. Do not publish or
-change the release identity as part of ordinary follow-up work.
+Complete the v0.26.0 release preparation: commit one clean release-content candidate, run the
+independent source gates, generate and compare two optimized archives, qualify a fresh installed
+home, and record the retained artifact identity. Stop before tagging, pushing, uploading, changing
+public latest-release links, or creating a publication record.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

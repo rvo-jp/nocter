@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.26.0: Monotonic Time Foundation - Nocter</title>
-    <meta name="description" content="Status: Phases 0 through 5 complete; ready for release preparation (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, mon">
+    <meta name="description" content="Status: Phases 0 through 5 complete; release preparation active (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monoto">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.26.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.26.0: Monotonic Time Foundation - Nocter">
-    <meta property="og:description" content="Status: Phases 0 through 5 complete; ready for release preparation (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, mon">
+    <meta property="og:description" content="Status: Phases 0 through 5 complete; release preparation active (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monoto">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.26.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.26.0: Monotonic Time Foundation - Nocter">
-    <meta name="twitter:description" content="Status: Phases 0 through 5 complete; ready for release preparation (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, mon">
+    <meta name="twitter:description" content="Status: Phases 0 through 5 complete; release preparation active (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monoto">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.26.0: Monotonic Time Foundation - Nocter","description":"Status: Phases 0 through 5 complete; ready for release preparation (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, mon","url":"https://nocter.dev/development/milestones/v0.26.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.26.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.26.0","item":"https://nocter.dev/development/milestones/v0.26.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.26.0: Monotonic Time Foundation - Nocter","description":"Status: Phases 0 through 5 complete; release preparation active (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monoto","url":"https://nocter.dev/development/milestones/v0.26.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.26.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.26.0","item":"https://nocter.dev/development/milestones/v0.26.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -177,6 +177,7 @@
                 <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="./index.html#content" aria-current="page">v0.26.0: Monotonic Time Foundation</a></li>
+                <li><a href="../v0.26.0-release-preparation/index.html#content">v0.26.0 Release Preparation</a></li>
                 <li><a href="../v0.25.0/index.html#content">v0.25.0: No-allocation Contracts</a></li>
                 <li><a href="../v0.25.0-release-preparation/index.html#content">v0.25.0 Release Preparation</a></li>
                 <li><a href="../v0.24.0/index.html#content">v0.24.0</a></li>
@@ -217,7 +218,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.26.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-26-0-monotonic-time-foundation">v0.26.0: Monotonic Time Foundation</h1><p><strong>Status: Phases 0 through 5 complete; ready for release preparation (2026-09-02).</strong> v0.26.0 adds one bounded application foundation: normalized durations, monotonic elapsed-time measurement, and blocking sleep. It does not add calendar time, async execution, or another guarantee modifier.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>std/time.Duration</code> represents every normalized non-negative span through <code>u64</code> whole seconds
+                <h1 id="v0-26-0-monotonic-time-foundation">v0.26.0: Monotonic Time Foundation</h1><p><strong>Status: Phases 0 through 5 complete; release preparation active (2026-09-02).</strong> v0.26.0 adds one bounded application foundation: normalized durations, monotonic elapsed-time measurement, and blocking sleep. It does not add calendar time, async execution, or another guarantee modifier.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>std/time.Duration</code> represents every normalized non-negative span through <code>u64</code> whole seconds
   and a subsecond nanosecond component;</li><li>constructors avoid intermediate overflow, while addition and subtraction report unrepresentable
   results through absence rather than trapping;</li><li><code>Instant.now</code> and <code>Instant.elapsed</code> use a monotonic target counter without exposing its ticks or
   frequency;</li><li>one complete counter cycle exceeds one hundred years, and elapsed subtraction handles one wrap;</li><li><code>time.sleep</code> rounds positive sub-resolution waits upward, retries interruption from a freshly
