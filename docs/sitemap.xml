@@ -461,6 +461,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/milestones/v0.26.0/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/milestones/v0.7.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1737,6 +1742,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/28-json/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/spec/29-monotonic-time/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

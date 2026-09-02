@@ -25,10 +25,16 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
+The [v0.26.0 milestone](milestones/v0.26.0.md) is active. Phase 0 fixes the public monotonic-time
+contract and assigns compiler, target adapter, and standard-library ownership. Implementation begins
+with the closed target primitive contract; wall-clock fallback and external runtime linkage are not
+allowed.
+
 ## Next Work
 
-Define the next milestone and its acceptance criteria before making further product changes. Do
-not infer scope from unfinished ideas or historical milestone plans.
+Complete v0.26.0 Phase 1: add monotonic counter read, frequency, and wrap-aware delta as closed
+target primitive roles with exact signature, effect, selection, encoding, and architecture tests.
+Then implement `std/time` without exposing target values or duplicating target arithmetic.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

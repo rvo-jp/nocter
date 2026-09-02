@@ -14,6 +14,7 @@ Before compiler work, read:
 - `milestones/README.md`
 - `milestones/v0.24.0.md`
 - `milestones/v0.25.0.md`
+- `milestones/v0.26.0.md`
 - `docs/README.md`
 - `docs/architecture.md`
 - `docs/maintenance.md`
