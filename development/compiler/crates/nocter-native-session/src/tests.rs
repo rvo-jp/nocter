@@ -1150,6 +1150,61 @@ func main(): i32! {
 }
 
 #[test]
+fn standard_buffered_input_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/io
+use std/io/buffer.BufReader
+use std/string.String
+
+func main(): i32! {
+    var input = BufReader.with_capacity(io.stdin(), 3)
+    var line = String.with_capacity(64)
+    let original_capacity = line.capacity()
+
+    if !input.read_line_into(&+line)? || (&line as &str) != "" { return 1 }
+    if !input.read_line_into(&+line)? || (&line as &str) != "alpha" { return 2 }
+    if !input.read_line_into(&+line)? || (&line as &str) != "lone\rbeta" { return 3 }
+    if !input.read_line_into(&+line)? || (&line as &str) != "😀 split" { return 4 }
+    let final_line = input.read_line()? otherwise { return 5 }
+    if (&final_line as &str) != "final" { return 6 }
+    if input.read_line_into(&+line)? { return 7 }
+    if (&line as &str) != "" { return 8 }
+    if line.capacity() != original_capacity { return 9 }
+    let _after_eof = input.read_line()? otherwise { return 42 }
+    return 10
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.syntax_diagnostics().is_empty(),
+        "buffered standard input fixture has syntax diagnostics: {:#?}",
+        unit.syntax_diagnostics()
+    );
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_standard_input(
+        image.image(),
+        &package_root.0,
+        b"\nalpha\r\nlone\rbeta\n\xf0\x9f\x98\x80 split\nfinal",
+        42,
+    );
+}
+
+#[test]
 fn standard_collection_ordering_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

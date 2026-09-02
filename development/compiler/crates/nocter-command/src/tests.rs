@@ -1,6 +1,7 @@
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::ModuleIdentity;
@@ -1067,9 +1068,31 @@ fn run_public_package_example(compiler_root: &Path, contract: PublicPackageExamp
                 }
             }
         }
-        let executed = command.output().unwrap_or_else(|error| {
+        command.stdin(Stdio::piped());
+        command.stdout(Stdio::piped());
+        command.stderr(Stdio::piped());
+        let mut child = command.spawn().unwrap_or_else(|error| {
             panic!(
                 "{} {} failed to launch: {error:?}",
+                contract.directory(),
+                run.name()
+            )
+        });
+        child
+            .stdin
+            .take()
+            .expect("piped public example stdin is available")
+            .write_all(run.stdin())
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{} {} rejected stdin: {error:?}",
+                    contract.directory(),
+                    run.name()
+                )
+            });
+        let executed = child.wait_with_output().unwrap_or_else(|error| {
+            panic!(
+                "{} {} failed while waiting: {error:?}",
                 contract.directory(),
                 run.name()
             )

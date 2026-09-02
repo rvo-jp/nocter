@@ -1,0 +1,14 @@
+#package: {
+    name: "stdin-prefix",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "stdin-prefix",
+}
+
+see ./prefix.nct
+
+func main(): i32 {
+    return run()
+}

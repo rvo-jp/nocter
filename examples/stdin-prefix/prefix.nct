@@ -1,0 +1,48 @@
+use std/io.Writer
+use std/io
+use std/io/buffer.BufReader
+use std/process
+use std/string.String
+
+func run(): i32 {
+    if process.arg_count() != 2 {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    let prefix = process.arg(1) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    } otherwise {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    prefix_lines(prefix) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    return 0
+}
+
+func prefix_lines(prefix: &str): void! {
+    var input = BufReader.new(io.stdin())
+    var output = io.stdout()
+    var line = String.empty()
+    while input.read_line_into(&+line)? {
+        output.write_text(prefix)?
+        output.write_line(&line)?
+    }
+    return
+}
+
+func report_usage(): void! {
+    io.eprintln("usage: stdin-prefix PREFIX")?
+    return
+}
+
+func report_failure(failure: &error): void! {
+    io.eprint("stdin-prefix: ")?
+    io.eprint(failure.code())?
+    io.eprint(": ")?
+    io.eprintln(failure.message())?
+    return
+}

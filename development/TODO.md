@@ -32,19 +32,17 @@ editor, formatter, architecture, complete-workspace, reproducible-package, insta
 public-asset qualification. Its [final review](reviews/v0.28.0-phase-5.md) has no open finding.
 
 The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has a closed public
-contract, a completed exact run-argument channel, and borrowed standard input. A typed opaque
-OS-string value moves from the sole separator partition to process launch without entering
-compiler analysis. `io.stdin()` constructs the existing borrowed `File` state; the single File
-read authority owns retry, bounds, EOF, and stable errors, while close and drop preserve the
-process-global descriptor.
+contract, a completed exact run-argument channel, borrowed standard input, and buffered line
+integration. The `stdin-prefix` public package now combines exact arguments and stdin through the
+ordinary `process`, `io`, `BufReader`, and `Writer` contracts. Its shared execution scenarios own
+exact stdin, status, stdout, and stderr expectations for later qualification.
 
 ## Next Work
 
-Implement v0.29.0 Phase 3 through the existing `BufReader.new(io.stdin())` ownership path. Exercise
-real partial input, LF, CRLF, an unterminated final line, UTF-8 split across descriptor reads,
-invalid UTF-8, EOF, and repeated terminal queries. Add one practical application scenario that
-consumes exact run arguments and stdin together. Do not add a special line-input helper, hidden
-global buffer, second decoder, or second descriptor-read authority.
+Implement v0.29.0 Phase 4 by making formatter and semantic editor tests consume the ordinary
+`stdin-prefix` public package, then qualify installed `nocter run ... -- ...` with piped stdin from
+an extracted home. Extend the shared public-example contracts where another consumer needs input;
+do not create bespoke copies of the example source or expected process behavior.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

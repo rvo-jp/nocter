@@ -28,6 +28,7 @@ pub enum PublicExampleFixture {
 pub struct PublicExampleRun {
     name: &'static str,
     arguments: &'static [PublicExampleArgument],
+    stdin: &'static [u8],
     status: i32,
     stdout: &'static [u8],
     stderr: &'static [u8],
@@ -42,6 +43,11 @@ impl PublicExampleRun {
     #[must_use]
     pub const fn arguments(self) -> &'static [PublicExampleArgument] {
         self.arguments
+    }
+
+    #[must_use]
+    pub const fn stdin(self) -> &'static [u8] {
+        self.stdin
     }
 
     #[must_use]
@@ -117,6 +123,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                stdin: b"",
                 status: 2,
                 stdout: b"",
                 stderr: b"usage: json-normalize PATH\n",
@@ -124,6 +131,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "success",
                 arguments: &[PublicExampleArgument::FixturePath("valid.json")],
+                stdin: b"",
                 status: 0,
                 stdout: b"{\"items\":[true,\"\xc3\xa9\",1E+2]}\n",
                 stderr: b"",
@@ -131,6 +139,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "invalid-json",
                 arguments: &[PublicExampleArgument::FixturePath("invalid.json")],
+                stdin: b"",
                 status: 2,
                 stdout: b"",
                 stderr: b"json-normalize: std.json.invalid_syntax: invalid JSON syntax at byte 3\n",
@@ -149,6 +158,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                stdin: b"",
                 status: 2,
                 stdout: b"usage: line-frequency PATH NEEDLE\n",
                 stderr: b"",
@@ -159,6 +169,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::FixturePath("input.txt"),
                     PublicExampleArgument::Text("alpha"),
                 ],
+                stdin: b"",
                 status: 0,
                 stdout: b"lines: 3\nunique: 2\nmatching: 2\n",
                 stderr: b"",
@@ -177,6 +188,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                stdin: b"",
                 status: 2,
                 stdout: b"usage: file-summary PATH\n",
                 stderr: b"",
@@ -184,6 +196,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "success",
                 arguments: &[PublicExampleArgument::FixturePath("input.txt")],
+                stdin: b"",
                 status: 0,
                 stdout: b"2\n",
                 stderr: b"",
@@ -202,6 +215,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                stdin: b"",
                 status: 2,
                 stdout: b"usage: text-report PATH NEEDLE\n",
                 stderr: b"",
@@ -209,6 +223,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "missing-needle",
                 arguments: &[PublicExampleArgument::FixturePath("input.txt")],
+                stdin: b"",
                 status: 2,
                 stdout: b"usage: text-report PATH NEEDLE\n",
                 stderr: b"",
@@ -219,6 +234,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::FixturePath("input.txt"),
                     PublicExampleArgument::Text("alpha"),
                 ],
+                stdin: b"",
                 status: 0,
                 stdout: b"lines: 3\nmatching: 2\n",
                 stderr: b"",
@@ -234,6 +250,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                stdin: b"",
                 status: 2,
                 stdout: b"",
                 stderr: b"usage: text-banner TEXT\n",
@@ -241,9 +258,42 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "success",
                 arguments: &[PublicExampleArgument::Text("  alpha beta  ")],
+                stdin: b"",
                 status: 0,
                 stdout: b"==========\ntext: alpha-beta\nbytes: 10\n==========\n",
                 stderr: b"",
+            },
+        ],
+    },
+    PublicPackageExample {
+        directory: "stdin-prefix",
+        package_identity: "workspace:stdin-prefix",
+        executable: "stdin-prefix",
+        fixtures: &[],
+        runs: &[
+            PublicExampleRun {
+                name: "usage",
+                arguments: &[],
+                stdin: b"",
+                status: 2,
+                stdout: b"",
+                stderr: b"usage: stdin-prefix PREFIX\n",
+            },
+            PublicExampleRun {
+                name: "lines",
+                arguments: &[PublicExampleArgument::Text("> ")],
+                stdin: b"\nalpha\r\nlone\rbeta\n\xf0\x9f\x98\x80 split\nfinal",
+                status: 0,
+                stdout: b"> \n> alpha\n> lone\rbeta\n> \xf0\x9f\x98\x80 split\n> final\n",
+                stderr: b"",
+            },
+            PublicExampleRun {
+                name: "invalid-utf8",
+                arguments: &[PublicExampleArgument::Text("> ")],
+                stdin: b"good\nbad\xff\n",
+                status: 2,
+                stdout: b"> good\n",
+                stderr: b"stdin-prefix: std.string.invalid_utf8: invalid UTF-8\n",
             },
         ],
     },
@@ -278,6 +328,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             PublicExampleRun {
                 name: "usage",
                 arguments: &[],
+                stdin: b"",
                 status: 2,
                 stdout: b"",
                 stderr: b"usage: text-search NEEDLE ROOT\n",
@@ -288,6 +339,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("needle"),
                     PublicExampleArgument::FixturePath("tree"),
                 ],
+                stdin: b"",
                 status: 0,
                 stdout: concat!(
                     "alpha.txt:2:needle alpha\n",
@@ -304,6 +356,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("absent"),
                     PublicExampleArgument::FixturePath("tree"),
                 ],
+                stdin: b"",
                 status: 1,
                 stdout: b"",
                 stderr: b"",
@@ -314,6 +367,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("needle"),
                     PublicExampleArgument::FixturePath("missing"),
                 ],
+                stdin: b"",
                 status: 2,
                 stdout: b"",
                 stderr: b"text-search: std.io.not_found: cannot read directory missing\n",
@@ -324,6 +378,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
                     PublicExampleArgument::Text("bad"),
                     PublicExampleArgument::FixturePath("invalid"),
                 ],
+                stdin: b"",
                 status: 2,
                 stdout: b"",
                 stderr: b"text-search: std.string.invalid_utf8: cannot read bad.txt\n",
