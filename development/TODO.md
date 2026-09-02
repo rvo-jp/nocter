@@ -44,11 +44,11 @@ qualification pass.
 
 ## Next Work
 
-Publish the already qualified v0.29.0 candidate only after explicit authorization. Publication
-must reuse `dist/nocter-v0.29.0-arm64-darwin.tar.gz` without rebuilding it, advance public latest
-release and download links in a separate commit, create one annotated `v0.29.0` tag, upload exactly
-one archive, and audit the public asset byte for byte. Existing release tags and assets remain
-immutable.
+Publish the already qualified v0.29.0 archive described by the
+[release-preparation record](milestones/v0.29.0-release-preparation.md). Publication is authorized:
+advance public latest links in a separate commit, tag that publication state once, upload exactly
+the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
+during publication.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
