@@ -33,11 +33,11 @@ no open finding.
 
 ## Next Work
 
-The [v0.28.0 release candidate](milestones/v0.28.0-release-preparation.md) is qualified from exact
-release-content commit `c246a9d1e9fe4a6792b7282a553d02d195fe2e0e`. Preserve the retained local
-archive byte for byte. Publication is the next release operation, but requires a separate user
-instruction; root download links and the public release index remain on v0.27.0 until that
-operation succeeds and is externally audited.
+Publish the already qualified v0.28.0 archive described by the
+[release-preparation record](milestones/v0.28.0-release-preparation.md). Publication is authorized:
+advance public latest links in a separate commit, tag that publication state once, upload exactly
+the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
+during publication.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
