@@ -41,6 +41,14 @@ test lexical_path_queries_preserve_dot_and_utf8_components {
     expect_text(trailing_dot.file_stem(), "name.")?
     expect_absent(trailing_dot.extension())?
 
+    let repeated_trailing_dot = Utf8Path.new("name..")?
+    expect_text(repeated_trailing_dot.file_stem(), "name..")?
+    expect_absent(repeated_trailing_dot.extension())?
+
+    let only_dots = Utf8Path.new("...")?
+    expect_text(only_dots.file_stem(), "...")?
+    expect_absent(only_dots.extension())?
+
     let multi_extension = Utf8Path.new("archive.tar.gz")?
     expect_text(multi_extension.file_stem(), "archive.tar")?
     expect_text(multi_extension.extension(), "gz")?

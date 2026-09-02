@@ -45,8 +45,7 @@ func create_dir_all(path: &str): void! {
 func ensure_directory(value: &str): void! {
     let attempt = create_directory_target(value)?
     if attempt is CreateDirectoryAttempt.created { return }
-    let existing = metadata(value)?
-    if existing.is_directory() { return }
+    if existing_path_is_directory_target(value)? { return }
     return io.io_error_from_kind(OSErrorKind.not_directory)
 }
 

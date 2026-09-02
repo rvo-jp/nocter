@@ -824,6 +824,25 @@ func main(): i32! {
     fs.remove_file(&target)?
     fs.remove_dir("workspace/cache")?
     fs.remove_dir("workspace")?
+
+    var dangling_rejected = false
+    fs.create_dir_all("dangling-root/link/child") catch failure {
+        dangling_rejected = failure.has_code("std.io.not_directory")
+    }
+    if !dangling_rejected { return 8 }
+
+    var symlink_remove_rejected = false
+    fs.remove_dir("dangling-root/link") catch failure {
+        symlink_remove_rejected = failure.has_code("std.io.not_directory")
+    }
+    if !symlink_remove_rejected { return 9 }
+    fs.remove_file("dangling-root/link")?
+    fs.remove_dir("dangling-root")?
+
+    fs.create_dir_all("linked-root/child")?
+    fs.remove_dir("linked-root/child")?
+    fs.remove_file("linked-root")?
+    fs.remove_dir("real-root")?
     return 0
 }
 "#,
@@ -845,6 +864,7 @@ func main(): i32! {
 
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    prepare_path_directory_fixture(&package_root.0);
     execute_native_test(image.image(), &package_root.0, "public-path-directory");
 }
 
@@ -2098,6 +2118,16 @@ fn execute_native_test(image: &NativeImage, root: &Path, name: &str) {
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn prepare_path_directory_fixture(root: &Path) {
+    use std::os::unix::fs::symlink;
+
+    fs::create_dir(root.join("dangling-root")).unwrap();
+    symlink("missing", root.join("dangling-root/link")).unwrap();
+    fs::create_dir(root.join("real-root")).unwrap();
+    symlink("real-root", root.join("linked-root")).unwrap();
+}
+
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_directory_stream(_image: &NativeImage, _root: &Path, _expected: i32) {}
 
@@ -2106,3 +2136,6 @@ fn execute_streaming_lines(_image: &NativeImage, _root: &Path, _expected: i32) {
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn prepare_path_directory_fixture(_root: &Path) {}

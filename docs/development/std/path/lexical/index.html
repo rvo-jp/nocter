@@ -288,8 +288,8 @@
     <span class="token-keyword">if</span> name<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">&lt;</span> <span class="token-number">3</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
     <span class="token-keyword">var</span> found<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
     <span class="token-keyword">var</span> has_extension <span class="token-operator">=</span> <span class="token-keyword">false</span>
-    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1</span>
-    <span class="token-keyword">while</span> offset <span class="token-operator">+</span> <span class="token-number">1</span> <span class="token-operator">&lt;</span> name<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> name<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-keyword">if</span> name<span class="token-operator">[</span>offset<span class="token-operator">]</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">46</span> <span class="token-operator">{</span>
             found <span class="token-operator">=</span> offset
             has_extension <span class="token-operator">=</span> <span class="token-keyword">true</span>
@@ -297,6 +297,7 @@
         offset <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> <span class="token-operator">!</span>has_extension <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> found <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> || found <span class="token-operator">+</span> <span class="token-number">1</span> <span class="token-operator">=</span><span class="token-operator">=</span> name<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
     <span class="token-keyword">return</span> found
 <span class="token-operator">}</span>
 

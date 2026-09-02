@@ -34,6 +34,8 @@ test directory_creation_and_removal_preserve_explicit_scope {
 }
 
 test recursive_creation_rejects_empty_and_non_directory_prefixes {
+    create_dir_all("///")?
+
     var empty_rejected = false
     create_dir_all("") catch failure {
         empty_rejected = failure.has_code("std.io.invalid_input")

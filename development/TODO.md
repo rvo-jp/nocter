@@ -25,12 +25,17 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
+The [v0.27.0 filesystem and path milestone](milestones/v0.27.0.md) is implementation-complete.
+Allocation-free lexical path views and explicit directory lifecycle operations pass native,
+editor, formatter, architecture, and complete-workspace qualification. Its
+[final review](reviews/v0.27.0-phase-4.md) has no open finding.
+
 ## Next Work
 
-Continue [v0.27.0 Phase 4](milestones/v0.27.0.md): run the complete qualification matrix and review
-the completed path and directory design for duplicate lexical authorities, target or errno
-leakage, retries after mutation, hidden allocation, obsolete wrappers, and caller-discipline
-assumptions. Do not add recursive deletion or a speculative target-neutral wrapper.
+Begin v0.27.0 release preparation only after explicit direction. Update the sole release-version
+authority, user-facing release records, and installed artifact metadata together; then run the
+clean reproducible packaging qualification before publication. Do not add recursive deletion or a
+speculative target-neutral wrapper during stabilization.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

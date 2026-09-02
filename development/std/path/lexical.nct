@@ -93,8 +93,8 @@ noalloc func extension_separator(name: &str): usize? {
     if name.len() < 3 { return none }
     var found: usize = 0
     var has_extension = false
-    var offset: usize = 1
-    while offset + 1 < name.len() {
+    var offset: usize = 0
+    while offset < name.len() {
         if name[offset] == 46 {
             found = offset
             has_extension = true
@@ -102,6 +102,7 @@ noalloc func extension_separator(name: &str): usize? {
         offset += 1
     }
     if !has_extension { return none }
+    if found == 0 || found + 1 == name.len() { return none }
     return found
 }
 

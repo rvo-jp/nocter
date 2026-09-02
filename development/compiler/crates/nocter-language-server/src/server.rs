@@ -1526,30 +1526,8 @@ mod tests {
     #[test]
     fn path_and_directory_mutation_contracts_share_complete_editor_semantics() {
         let temporary = TemporaryDirectory::new();
-        let source = temporary.path().join("main.nct");
-        let source_uri = format!("file://{}", source.display());
         let source_text = "use std/fs\nuse std/path.Utf8Path\n\nfunc inspect(path: &Utf8Path): void! {\n    fs.create_dir_all(path)?\n    let _parent = path.parent()\n    return\n}\n";
-        let mut source_json = String::new();
-        nocter_json::write_string(&mut source_json, source_text);
-        let mut server = semantic_server(temporary.path());
-        server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
-            temporary.path().display()
-        ));
-        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let opened = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
-        ));
-        assert!(opened.issue().is_none(), "{:?}", opened.issue());
-        assert!(
-            opened
-                .analysis()
-                .unwrap()
-                .snapshot()
-                .unwrap()
-                .diagnostics()
-                .is_empty()
-        );
+        let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
 
         let create_line = source_text
             .lines()
@@ -1816,6 +1794,36 @@ mod tests {
                 ),
             ),
         )
+    }
+
+    fn open_semantic_source(
+        temporary: &TemporaryDirectory,
+        source_text: &str,
+    ) -> (LanguageServer, String) {
+        let source = temporary.path().join("main.nct");
+        let source_uri = format!("file://{}", source.display());
+        let mut source_json = String::new();
+        nocter_json::write_string(&mut source_json, source_text);
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
+        ));
+        assert!(opened.issue().is_none(), "{:?}", opened.issue());
+        assert!(
+            opened
+                .analysis()
+                .unwrap()
+                .snapshot()
+                .unwrap()
+                .diagnostics()
+                .is_empty()
+        );
+        (server, source_uri)
     }
 
     pub(super) struct TemporaryDirectory(PathBuf);

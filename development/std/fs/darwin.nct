@@ -51,6 +51,11 @@ func metadata_target(path: &str): Metadata! {
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(query.result.errno)))
     }
 
+    return metadata_from_query(&query)
+}
+
+#target: "arm64-darwin"
+func metadata_from_query(query: &DarwinStatQuery): Metadata {
     let address: usize = ptr.addr(query.storage.bytes().ptr())
     let mode_pointer: *u16 = internal_ptr.from_addr(address)
     let size_pointer: *u64 = internal_ptr.from_addr(address)
@@ -63,6 +68,19 @@ func metadata_target(path: &str): Metadata! {
     }
     let len: u64 = internal_ptr.take_value_at_ptr(size_pointer, darwin.STAT_SIZE_OFFSET)
     return Metadata { file_type: file_type, len: len }
+}
+
+#target: "arm64-darwin"
+func existing_path_is_directory_target(path: &str): bool! {
+    let query = stat_path(path)?
+    if query.result.errno == 0 {
+        return metadata_from_query(&query).is_directory()
+    }
+
+    let os_error = darwin.error_from_errno(darwin.errno(query.result.errno))
+    if os_error.kind is OSErrorKind.not_found { return false }
+    if os_error.kind is OSErrorKind.not_directory { return false }
+    return io.io_error_from_os(os_error)
 }
 
 #target: "arm64-darwin"
