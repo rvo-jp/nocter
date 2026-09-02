@@ -1,0 +1,126 @@
+//! Descriptor output policy and process text conveniences.
+
+see ./index.nct
+see ./file.nct
+
+use /internal/io
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+use /ptr
+
+#target: "arm64-darwin"
+const STDOUT_FD: usize = 1
+
+#target: "arm64-darwin"
+const STDERR_FD: usize = 2
+
+enum WriteProgress {
+    retry
+    advance(count: usize)
+}
+
+#target: "arm64-darwin"
+noalloc func classify_write_result(result: SyscallResult, remaining: usize): WriteProgress! {
+    if result.errno == darwin.ERRNO_INTERRUPTED {
+        return WriteProgress.retry
+    }
+    if result.errno != 0 {
+        return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
+    }
+    if result.value == 0 {
+        return write_zero()
+    }
+    if result.value > remaining {
+        return invalid_write_count()
+    }
+    return WriteProgress.advance(result.value)
+}
+
+#target: "arm64-darwin"
+noalloc func write_fd(fd: usize, bytes: &[u8]): void! {
+    var offset: usize = 0
+    while offset < bytes.len() {
+        let remaining: usize = bytes.len() - offset
+        let result = darwin.syscall3(
+            darwin.SYS_WRITE,
+            fd,
+            ptr.addr(bytes.ptr()) + offset,
+            remaining,
+        )
+        match classify_write_result(result, remaining)? {
+            WriteProgress.retry {}
+            WriteProgress.advance(count) { offset += count }
+        }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func write_text_fd(fd: usize, text: &str): void! {
+    write_fd(fd, text.bytes())?
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func write_line_fd(fd: usize, text: &str): void! {
+    write_text_fd(fd, text)?
+    write_text_fd(fd, "\n")?
+    return
+}
+
+noalloc func stdout(): File {
+    return File { fd: STDOUT_FD, state: FileState.borrowed_open }
+}
+
+noalloc func stderr(): File {
+    return File { fd: STDERR_FD, state: FileState.borrowed_open }
+}
+
+noalloc func write(file: &+File, bytes: &[u8]): void! {
+    require_open(file)?
+    write_fd(file.fd, bytes)?
+    return
+}
+
+instance File {
+    noalloc method &+self.write(bytes: &[u8]): void! {
+        write(self, bytes)?
+        return
+    }
+
+    noalloc method &+self.flush(): void! {
+        require_open(self)?
+        return
+    }
+}
+
+noalloc func print(text: &str): void! {
+    write_text_fd(STDOUT_FD, text)?
+    return
+}
+
+noalloc func println(text: &str): void! {
+    write_line_fd(STDOUT_FD, text)?
+    return
+}
+
+noalloc func eprint(text: &str): void! {
+    write_text_fd(STDERR_FD, text)?
+    return
+}
+
+noalloc func eprintln(text: &str): void! {
+    write_line_fd(STDERR_FD, text)?
+    return
+}
+
+noalloc func write_zero(): error {
+    return error.new("std.io.write_zero", "writer made no progress")
+}
+
+noalloc func invalid_write_count(): error {
+    return error.new(
+        "std.io.invalid_write_count",
+        "writer reported more bytes than the supplied input contains",
+    )
+}

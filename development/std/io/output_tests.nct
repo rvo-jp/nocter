@@ -1,0 +1,55 @@
+//! Deterministic descriptor-write policy tests.
+
+see ./output.nct
+
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+
+test descriptor_write_progress_is_explicit {
+    match classify_write_result(SyscallResult { value: 0, errno: darwin.ERRNO_INTERRUPTED }, 8)? {
+        WriteProgress.retry {}
+        WriteProgress.advance(_) {
+            return error.new("std.io.test", "interrupted write advanced the input")
+        }
+    }
+
+    match classify_write_result(SyscallResult { value: 3, errno: 0 }, 8)? {
+        WriteProgress.retry {
+            return error.new("std.io.test", "partial write was retried without advancing")
+        }
+        WriteProgress.advance(count) {
+            if count != 3 {
+                return error.new("std.io.test", "partial write advanced by the wrong count")
+            }
+        }
+    }
+    return
+}
+
+test descriptor_write_failures_are_stable {
+    let _ = classify_write_result(SyscallResult { value: 0, errno: 0 }, 8) catch failure {
+        if !failure.has_code("std.io.write_zero") {
+            return error.new("std.io.test", "zero progress returned the wrong failure")
+        }
+        let _ = classify_write_result(
+            SyscallResult { value: 9, errno: 0 },
+            8,
+        ) catch invalid_count {
+            if !invalid_count.has_code("std.io.invalid_write_count") {
+                return error.new("std.io.test", "invalid progress returned the wrong failure")
+            }
+            let _ = classify_write_result(
+                SyscallResult { value: 0, errno: 13 },
+                8,
+            ) catch os_failure {
+                if !os_failure.has_code("std.io.permission_denied") {
+                    return error.new("std.io.test", "OS failure classification changed")
+                }
+                return
+            }
+            return error.new("std.io.test", "OS write failure was accepted")
+        }
+        return error.new("std.io.test", "invalid write progress was accepted")
+    }
+    return error.new("std.io.test", "zero write progress was accepted")
+}

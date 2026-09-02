@@ -97,6 +97,70 @@ test write_returns_destination_failure_after_partial_output {
 }
 "#;
 
+const IO_WRITER_CONTRACT_TEST_SOURCE: &str = r#"//! Public Writer line-adapter tests.
+#package: { name: "io-writer-tests", version: "0.0.0", }
+#test: { name: "writer", module: "." }
+use std/io.Writer
+use std/string.String
+see ./implementation.nct
+pub struct RecordingWriter
+construct RecordingWriter {
+    pub func accepting(): Self
+    pub func failing_after(write_count: usize): Self
+}
+instance RecordingWriter {
+    impl Writer
+    pub method &self.text(): &str
+}
+"#;
+
+const IO_WRITER_IMPLEMENTATION_TEST_SOURCE: &str = r#"see ./index.nct
+use std/string.String
+struct RecordingWriter {
+    output: String
+    writes: usize
+    failure_at: usize
+}
+construct RecordingWriter {
+    func accepting(): Self {
+        return RecordingWriter { output: String.empty(), writes: 0, failure_at: 1000000 }
+    }
+    func failing_after(write_count: usize): Self {
+        return RecordingWriter { output: String.empty(), writes: 0, failure_at: write_count }
+    }
+}
+instance RecordingWriter {
+    method &+self.write(bytes: &[u8]): void! {
+        if self.writes >= self.failure_at {
+            return error.new("test.destination", "destination rejected line bytes")
+        }
+        self.writes += 1
+        self.output.try_push_utf8(bytes)?
+        return
+    }
+    method &self.text(): &str { return &self.output as &str }
+}
+test line_adapter_preserves_exact_and_empty_lines {
+    var writer = RecordingWriter.accepting()
+    writer.write_line("alpha")?
+    writer.write_line("")?
+    if writer.text() != "alpha\n\n" {
+        return error.new("test.output", "Writer line adapter changed its exact bytes")
+    }
+    return
+}
+test line_adapter_returns_failure_after_observable_prefix {
+    var writer = RecordingWriter.failing_after(1)
+    writer.write_line("prefix") catch failure {
+        if !failure.has_code("test.destination") || writer.text() != "prefix" {
+            return error.new("test.failure", "Writer line failure or prefix changed")
+        }
+        return
+    }
+    return error.new("test.failure", "Writer line destination failure was not returned")
+}
+"#;
+
 const MAP_PHASE3_TEST_SOURCE: &str = r#"see ./index.nct
 
 use std/hash.HashState
@@ -1214,6 +1278,82 @@ fn standard_format_contract_crosses_native_tests() {
         panic!("standard format tests failed native compilation")
     };
     assert_eq!(cases.len(), 1);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+#[test]
+fn standard_io_output_contract_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"output\", module: \"./io\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["io"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("standard I/O output tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 2);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+#[test]
+fn public_writer_line_adapter_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source("index.nct", IO_WRITER_CONTRACT_TEST_SOURCE);
+    package_root.source("implementation.nct", IO_WRITER_IMPLEMENTATION_TEST_SOURCE);
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let package = PackageIdentity::new("workspace:io-writer-tests");
+    let resolved = ResolvedPackageSpec::new(package.clone(), &package_root.0)
+        .with_standard_dependency(standard_package.clone());
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![
+            resolved,
+            resolved_standard(&standard_root, &standard_package),
+        ]),
+        vec![ModuleIdentity::new(package, Vec::<&str>::new())],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("public Writer line tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 2);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

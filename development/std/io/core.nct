@@ -24,6 +24,11 @@ interface Writer {
         write_text_to(self, text)?
         return
     }
+
+    default method &+self.write_line(text: &str): void! {
+        write_line_to(self, text)?
+        return
+    }
 }
 
 func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl Reader {
@@ -59,6 +64,12 @@ func initialized_scratch(size: usize): Vec<u8> {
 func write_text_to<W>(writer: &+W, text: &str): void! where W impl Writer {
     let encoded: &[u8] = text.bytes()
     writer.write(encoded)?
+    return
+}
+
+func write_line_to<W>(writer: &+W, text: &str): void! where W impl Writer {
+    writer.write_text(text)?
+    writer.write_text("\n")?
     return
 }
 

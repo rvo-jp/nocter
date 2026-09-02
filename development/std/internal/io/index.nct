@@ -5,10 +5,10 @@ see ./errors.nct
 use /internal/os.{OSError, OSErrorKind}
 
 /// Maps one target-independent OS classification to the stable public I/O error family.
-pub(/) func io_error_from_os(os_error: OSError): error
+pub(/) noalloc func io_error_from_os(os_error: OSError): error
 
 /// Maps one target-independent classification to the stable public I/O error family.
-pub(/) func io_error_from_kind(kind: OSErrorKind): error
+pub(/) noalloc func io_error_from_kind(kind: OSErrorKind): error
 
 /// Reports an operation attempted through a terminal stream wrapper.
-pub(/) func closed_stream_error(): error
+pub(/) noalloc func closed_stream_error(): error

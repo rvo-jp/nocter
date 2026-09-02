@@ -203,6 +203,8 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>file<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>output<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>output_tests<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// A source that initializes at most `buffer.len()` bytes per read.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Reader</span> <span class="token-operator">{</span>
@@ -223,16 +225,19 @@
 
     <span class="token-comment">/// Writes the UTF-8 encoding bytes through the shared byte contract.</span>
     <span class="token-keyword">pub</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Writes UTF-8 text followed by exactly one LF byte.</span>
+    <span class="token-keyword">pub</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_line</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// An owning byte stream backed by one open file descriptor.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">File</span>
 
 <span class="token-comment">/// Returns the process standard-output stream without taking ownership of the descriptor.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
 
 <span class="token-comment">/// Returns the process standard-error stream without taking ownership of the descriptor.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Opens an existing file for reading.</span>
@@ -253,7 +258,16 @@
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Writes UTF-8 text to standard output without adding a newline.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">print</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">print</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Writes UTF-8 text and one LF byte to standard output.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">println</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Writes UTF-8 text to standard error without adding a newline.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">eprint</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Writes UTF-8 text and one LF byte to standard error.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">eprintln</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 </code></pre>
             </div>
         </main>

@@ -5,20 +5,9 @@ see ./core.nct
 
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
-
-
 use /internal/io
-
 use /internal/path as internal_path
 use /ptr
-use /string.String
-use /vec.Vec
-
-#target: "arm64-darwin"
-const STDOUT_FD: usize = 1
-
-#target: "arm64-darwin"
-const STDERR_FD: usize = 2
 
 #target: "arm64-darwin"
 func open_read_fd(path: &str): usize! {
@@ -80,45 +69,6 @@ func read_fd(fd: usize, buffer: &+[u8]): usize! {
 }
 
 #target: "arm64-darwin"
-func write_fd(fd: usize, bytes: &[u8]): void! {
-    var offset: usize = 0
-    while offset < bytes.len() {
-        let remaining: usize = bytes.len() - offset
-        var result: SyscallResult = darwin.syscall3(
-            darwin.SYS_WRITE,
-            fd,
-            ptr.addr(bytes.ptr()) + offset,
-            remaining,
-        )
-        while result.errno == darwin.ERRNO_INTERRUPTED {
-            result = darwin.syscall3(
-                darwin.SYS_WRITE,
-                fd,
-                ptr.addr(bytes.ptr()) + offset,
-                remaining,
-            )
-        }
-        if result.errno != 0 {
-            return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
-        }
-        if result.value == 0 {
-            return write_zero()
-        }
-        if result.value > remaining {
-            return invalid_write_count()
-        }
-        offset += result.value
-    }
-    return
-}
-
-#target: "arm64-darwin"
-func write_text_fd(fd: usize, text: &str): void! {
-    write_fd(fd, text.bytes())?
-    return
-}
-
-#target: "arm64-darwin"
 func close_fd(fd: usize): void {
     // A failed close is deliberately not retried: Darwin may have consumed the
     // descriptor even when reporting an interruption, and retrying could close
@@ -138,14 +88,6 @@ struct File {
     state: FileState
 }
 
-func stdout(): File {
-    return File { fd: STDOUT_FD, state: FileState.borrowed_open }
-}
-
-func stderr(): File {
-    return File { fd: STDERR_FD, state: FileState.borrowed_open }
-}
-
 construct File {
     func open(path: &str): Self! {
         let fd = open_read_fd(path)?
@@ -163,7 +105,7 @@ construct File {
     }
 }
 
-func require_open(file: &File): void! {
+noalloc func require_open(file: &File): void! {
     if file.state is FileState.closed {
         return io.closed_stream_error()
     }
@@ -173,12 +115,6 @@ func require_open(file: &File): void! {
 func read(file: &+File, buffer: &+[u8]): usize! {
     require_open(file)?
     return read_fd(file.fd, buffer)?
-}
-
-func write(file: &+File, bytes: &[u8]): void! {
-    require_open(file)?
-    write_fd(file.fd, bytes)?
-    return
 }
 
 func close(file: &+File): void {
@@ -198,35 +134,9 @@ instance File {
     method &+self.read(buffer: &+[u8]): usize! {
         return read(self, buffer)?
     }
-
-    method &+self.write(bytes: &[u8]): void! {
-        write(self, bytes)?
-        return
-    }
-
-    method &+self.flush(): void! {
-        require_open(self)?
-        return
-    }
 }
 
 drop File(&+self) {
     close(self)
     return
-}
-
-func print(text: &str): void! {
-    write_text_fd(1, text)?
-    return
-}
-
-func write_zero(): error {
-    return error.new("std.io.write_zero", "writer made no progress")
-}
-
-func invalid_write_count(): error {
-    return error.new(
-        "std.io.invalid_write_count",
-        "writer reported more bytes than the supplied input contains",
-    )
 }

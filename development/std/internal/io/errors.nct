@@ -4,11 +4,11 @@ see ./index.nct
 
 use /internal/os.{OSError, OSErrorKind}
 
-func io_error_from_os(os_error: OSError): error {
+noalloc func io_error_from_os(os_error: OSError): error {
     return io_error_from_kind(os_error.kind)
 }
 
-func io_error_from_kind(kind: OSErrorKind): error {
+noalloc func io_error_from_kind(kind: OSErrorKind): error {
     if kind is OSErrorKind.interrupted {
         return error.new("std.io.interrupted", "operation interrupted")
     }
@@ -45,6 +45,6 @@ func io_error_from_kind(kind: OSErrorKind): error {
     return error.new("std.io.os_error", "OS operation failed")
 }
 
-func closed_stream_error(): error {
+noalloc func closed_stream_error(): error {
     return error.new("std.io.closed", "I/O stream is closed")
 }

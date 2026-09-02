@@ -33,11 +33,10 @@ no open finding.
 
 ## Next Work
 
-Continue [v0.28.0](milestones/v0.28.0.md) from its completed formatting-authority phase. Phase 3
-adds line-oriented writers and symmetric process stdout/stderr text functions over the existing
-descriptor-write authority, with truthful `noalloc` propagated through its private helper chain.
-Phase 4 integrates the completed surface into tooling, an example, and installed-home execution
-before qualification.
+Continue [v0.28.0](milestones/v0.28.0.md) from its completed symmetric-output phase. Phase 4 adds
+one command-line reporting example, formatter and semantic-editor coverage for the completed text,
+formatting, and output surface, authored-standard dependency assertions, and an installed-home
+native scenario. Phase 5 then qualifies and reviews the complete release boundary.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

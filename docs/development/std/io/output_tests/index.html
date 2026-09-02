@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/internal/io/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/internal/io/index.nct.">
+    <title>development/std/io/output_tests.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/io/output_tests.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/internal/io/index/">
-    <link rel="icon" href="../../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/std/io/output_tests/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/internal/io/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/internal/io/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/internal/io/index/">
+    <meta property="og:title" content="development/std/io/output_tests.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/io/output_tests.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/io/output_tests/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/internal/io/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/internal/io/index.nct.">
+    <meta name="twitter:title" content="development/std/io/output_tests.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/io/output_tests.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/internal/io/index.nct - Nocter","description":"Nocter source code for development/std/internal/io/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/internal/io/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Internal","item":"https://nocter.dev/development/std/internal/"},{"@type":"ListItem","position":5,"name":"Io","item":"https://nocter.dev/development/std/internal/io/"},{"@type":"ListItem","position":6,"name":"Index","item":"https://nocter.dev/development/std/internal/io/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/io/output_tests.nct - Nocter","description":"Nocter source code for development/std/io/output_tests.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/io/output_tests/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Io","item":"https://nocter.dev/development/std/io/"},{"@type":"ListItem","position":5,"name":"Output_tests","item":"https://nocter.dev/development/std/io/output_tests/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../../style.css">
+    <link rel="stylesheet" href="../../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -174,39 +174,80 @@
         <aside class="directory-toc" aria-label="Directory table of contents">
             <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../../milestones/index.html#content">Milestone catalog</a></li>
-                <li><a href="../../../../reviews/index.html#content">Design review catalog</a></li>
-                <li><a href="../../../../releases/index.html#content">Publication catalog</a></li>
-                <li><a href="../../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../../docs/index.html#content">Architecture and maintenance documents</a></li>
-                <li><a href="../../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/internal/io/index.nct</span>
+                <span class="markdown-path-text">/development/std/io/output_tests.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal policy shared by public I/O modules.</span>
+                <h1>output_tests.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Deterministic descriptor-write policy tests.</span>
 
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>output<span class="token-operator">.</span>nct
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-type">SyscallResult</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
 
-<span class="token-comment">/// Maps one target-independent OS classification to the stable public I/O error family.</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span>os_error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error
+<span class="token-keyword">test</span> descriptor_write_progress_is_explicit <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> <span class="token-function">classify_write_result</span><span class="token-operator">(</span><span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">}</span><span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-type">WriteProgress</span><span class="token-operator">.</span>retry <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">WriteProgress</span><span class="token-operator">.</span><span class="token-function">advance</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"interrupted write advanced the input"</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
 
-<span class="token-comment">/// Maps one target-independent classification to the stable public I/O error family.</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">io_error_from_kind</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">OSErrorKind</span><span class="token-operator">)</span><span class="token-operator">:</span> error
+    <span class="token-keyword">match</span> <span class="token-function">classify_write_result</span><span class="token-operator">(</span><span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-type">WriteProgress</span><span class="token-operator">.</span>retry <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"partial write was retried without advancing"</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-type">WriteProgress</span><span class="token-operator">.</span><span class="token-function">advance</span><span class="token-operator">(</span>count<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> count <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">3</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"partial write advanced by the wrong count"</span><span class="token-operator">)</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
 
-<span class="token-comment">/// Reports an operation attempted through a terminal stream wrapper.</span>
-<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error
+<span class="token-keyword">test</span> descriptor_write_failures_are_stable <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">classify_write_result</span><span class="token-operator">(</span><span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">,</span> <span class="token-number">8</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> <span class="token-operator">!</span>failure<span class="token-operator">.</span><span class="token-function">has_code</span><span class="token-operator">(</span><span class="token-string">"std.io.write_zero"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"zero progress returned the wrong failure"</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">classify_write_result</span><span class="token-operator">(</span>
+            <span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">9</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">,</span>
+            <span class="token-number">8</span><span class="token-operator">,</span>
+        <span class="token-operator">)</span> <span class="token-keyword">catch</span> invalid_count <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> <span class="token-operator">!</span>invalid_count<span class="token-operator">.</span><span class="token-function">has_code</span><span class="token-operator">(</span><span class="token-string">"std.io.invalid_write_count"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"invalid progress returned the wrong failure"</span><span class="token-operator">)</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">let</span> _ <span class="token-operator">=</span> <span class="token-function">classify_write_result</span><span class="token-operator">(</span>
+                <span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-number">13</span> <span class="token-operator">}</span><span class="token-operator">,</span>
+                <span class="token-number">8</span><span class="token-operator">,</span>
+            <span class="token-operator">)</span> <span class="token-keyword">catch</span> os_failure <span class="token-operator">{</span>
+                <span class="token-keyword">if</span> <span class="token-operator">!</span>os_failure<span class="token-operator">.</span><span class="token-function">has_code</span><span class="token-operator">(</span><span class="token-string">"std.io.permission_denied"</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"OS failure classification changed"</span><span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-keyword">return</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"OS write failure was accepted"</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"invalid write progress was accepted"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.test"</span><span class="token-operator">,</span> <span class="token-string">"zero write progress was accepted"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
 </code></pre>
             </div>
         </main>
@@ -223,6 +264,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../../script.js" defer></script>
+    <script src="../../../../script.js" defer></script>
 </body>
 </html>

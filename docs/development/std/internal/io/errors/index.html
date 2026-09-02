@@ -199,11 +199,11 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">OSError</span><span class="token-operator">,</span> <span class="token-type">OSErrorKind</span><span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span>os_error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">io_error_from_os</span><span class="token-operator">(</span>os_error<span class="token-operator">:</span> <span class="token-type">OSError</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">io_error_from_kind</span><span class="token-operator">(</span>os_error<span class="token-operator">.</span>kind<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">io_error_from_kind</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">OSErrorKind</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">io_error_from_kind</span><span class="token-operator">(</span>kind<span class="token-operator">:</span> <span class="token-type">OSErrorKind</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">if</span> kind <span class="token-keyword">is</span> <span class="token-type">OSErrorKind</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.interrupted"</span><span class="token-operator">,</span> <span class="token-string">"operation interrupted"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
@@ -240,7 +240,7 @@
     <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.os_error"</span><span class="token-operator">,</span> <span class="token-string">"OS operation failed"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.closed"</span><span class="token-operator">,</span> <span class="token-string">"I/O stream is closed"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>

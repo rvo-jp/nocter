@@ -8,6 +8,8 @@ see ./core.nct
 use /string.String
 use /vec.Vec
 see ./file.nct
+see ./output.nct
+see ./output_tests.nct
 
 /// A source that initializes at most `buffer.len()` bytes per read.
 pub interface Reader {
@@ -28,16 +30,19 @@ pub interface Writer {
 
     /// Writes the UTF-8 encoding bytes through the shared byte contract.
     pub default method &+self.write_text(text: &str): void!
+
+    /// Writes UTF-8 text followed by exactly one LF byte.
+    pub default method &+self.write_line(text: &str): void!
 }
 
 /// An owning byte stream backed by one open file descriptor.
 pub struct File
 
 /// Returns the process standard-output stream without taking ownership of the descriptor.
-pub func stdout(): File
+pub noalloc func stdout(): File
 
 /// Returns the process standard-error stream without taking ownership of the descriptor.
-pub func stderr(): File
+pub noalloc func stderr(): File
 
 construct File {
     /// Opens an existing file for reading.
@@ -58,4 +63,13 @@ instance File {
 }
 
 /// Writes UTF-8 text to standard output without adding a newline.
-pub func print(text: &str): void!
+pub noalloc func print(text: &str): void!
+
+/// Writes UTF-8 text and one LF byte to standard output.
+pub noalloc func println(text: &str): void!
+
+/// Writes UTF-8 text to standard error without adding a newline.
+pub noalloc func eprint(text: &str): void!
+
+/// Writes UTF-8 text and one LF byte to standard error.
+pub noalloc func eprintln(text: &str): void!

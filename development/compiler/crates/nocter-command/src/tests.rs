@@ -839,6 +839,38 @@ fn every_public_single_file_example_runs_to_success() {
 }
 
 #[test]
+fn standard_text_output_selects_stdout_and_stderr_symmetrically() {
+    let directory = unique_test_directory("standard-text-output");
+    write_source(
+        &directory,
+        "output.nct",
+        concat!(
+            "use std/io\n\n",
+            "func main(): i32! {\n",
+            "    io.print(\"out\")?\n",
+            "    io.println(\"-line\")?\n",
+            "    io.println(\"\")?\n",
+            "    io.eprint(\"err\")?\n",
+            "    io.eprintln(\"-line\")?\n",
+            "    io.eprintln(\"\")?\n",
+            "    return 0\n",
+            "}\n",
+        ),
+    );
+    let source = directory.join("output.nct");
+    let (mut compiler, unit) = command_discover(single_file_request(&source));
+    let executable = directory.join("output");
+    let target = compiler.compile(&unit).unwrap();
+    super::build_executable(ExecutableCompileRequest::only(target), &executable).unwrap();
+
+    let executed = Command::new(&executable).output().unwrap();
+    assert_eq!(executed.status.code(), Some(0));
+    assert_eq!(executed.stdout, b"out-line\n\n");
+    assert_eq!(executed.stderr, b"err-line\n\n");
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn bundled_standard_error_runtime_crosses_public_apis_and_native_cleanup() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source = compiler_root.join("tests/fixtures/standard/error-runtime.nct");

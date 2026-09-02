@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/io/file.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/io/file.nct.">
+    <title>development/std/io/output.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/io/output.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/io/file/">
+    <link rel="canonical" href="https://nocter.dev/development/std/io/output/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/io/file.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/io/file.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/io/file/">
+    <meta property="og:title" content="development/std/io/output.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/io/output.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/io/output/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/io/file.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/io/file.nct.">
+    <meta name="twitter:title" content="development/std/io/output.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/io/output.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/io/file.nct - Nocter","description":"Nocter source code for development/std/io/file.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/io/file/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Io","item":"https://nocter.dev/development/std/io/"},{"@type":"ListItem","position":5,"name":"File","item":"https://nocter.dev/development/std/io/file/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/io/output.nct - Nocter","description":"Nocter source code for development/std/io/output.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/io/output/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Io","item":"https://nocter.dev/development/std/io/"},{"@type":"ListItem","position":5,"name":"Output","item":"https://nocter.dev/development/std/io/output/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -190,150 +190,134 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/io/file.nct</span>
+                <span class="markdown-path-text">/development/std/io/output.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>file.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! File ownership and Darwin descriptor operations.</span>
+                <h1>output.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Descriptor output policy and process text conveniences.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>core<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>file<span class="token-operator">.</span>nct
 
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>io
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-type">SyscallResult</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>io
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>path <span class="token-keyword">as</span> internal_path
 <span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">open_read_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">OPEN_READ_ONLY</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-keyword">const</span> <span class="token-type">STDOUT_FD</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">STDERR_FD</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">2</span>
+
+<span class="token-keyword">enum</span> <span class="token-type">WriteProgress</span> <span class="token-operator">{</span>
+    retry
+    <span class="token-function">advance</span><span class="token-operator">(</span>count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">create_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">OPEN_CREATE_TRUNCATE</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">classify_write_result</span><span class="token-operator">(</span>result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span><span class="token-operator">,</span> remaining<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">WriteProgress</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">WriteProgress</span><span class="token-operator">.</span>retry
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">write_zero</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> remaining <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">invalid_write_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">WriteProgress</span><span class="token-operator">.</span><span class="token-function">advance</span><span class="token-operator">(</span>result<span class="token-operator">.</span>value<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">append_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">return</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">OPEN_CREATE_APPEND</span><span class="token-operator">)</span><span class="token-operator">?</span>
-<span class="token-operator">}</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">open_fd</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> flags<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> argument <span class="token-operator">=</span> internal_path<span class="token-operator">.</span><span class="token-function">target_path_argument</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-
-    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
-        darwin<span class="token-operator">.</span><span class="token-type">SYS_OPEN</span><span class="token-operator">,</span>
-        internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
-        flags<span class="token-operator">,</span>
-        darwin<span class="token-operator">.</span><span class="token-type">CREATE_MODE</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span>
-    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
-            darwin<span class="token-operator">.</span><span class="token-type">SYS_OPEN</span><span class="token-operator">,</span>
-            internal_path<span class="token-operator">.</span><span class="token-function">target_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>argument<span class="token-operator">)</span><span class="token-operator">,</span>
-            flags<span class="token-operator">,</span>
-            darwin<span class="token-operator">.</span><span class="token-type">CREATE_MODE</span><span class="token-operator">,</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">write_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> offset <span class="token-operator">&lt;</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> remaining<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - offset
+        <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_WRITE</span><span class="token-operator">,</span>
+            fd<span class="token-operator">,</span>
+            ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>bytes<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">+</span> offset<span class="token-operator">,</span>
+            remaining<span class="token-operator">,</span>
         <span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> result<span class="token-operator">.</span>value
-<span class="token-operator">}</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">read_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span> <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
-        darwin<span class="token-operator">.</span><span class="token-type">SYS_READ</span><span class="token-operator">,</span>
-        fd<span class="token-operator">,</span>
-        ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
-        buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span>
-    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
-        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_READ</span><span class="token-operator">,</span> fd<span class="token-operator">,</span> ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">io_error_from_os</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">error_from_errno</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-function">errno</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">invalid_read_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">return</span> result<span class="token-operator">.</span>value
-<span class="token-operator">}</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">close_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-comment">// A failed close is deliberately not retried: Darwin may have consumed the</span>
-    <span class="token-comment">// descriptor even when reporting an interruption, and retrying could close</span>
-    <span class="token-comment">// an unrelated descriptor that another operation has reused.</span>
-    <span class="token-keyword">let</span> _ <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CLOSE</span><span class="token-operator">,</span> fd<span class="token-operator">)</span>
-    <span class="token-keyword">return</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">enum</span> <span class="token-type">FileState</span> <span class="token-operator">{</span>
-    owned_open
-    borrowed_open
-    closed
-<span class="token-operator">}</span>
-
-<span class="token-keyword">struct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    fd<span class="token-operator">:</span> <span class="token-type">usize</span>
-    state<span class="token-operator">:</span> <span class="token-type">FileState</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">construct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    <span class="token-keyword">func</span> <span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> fd <span class="token-operator">=</span> <span class="token-function">open_read_fd</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> fd<span class="token-operator">,</span> state<span class="token-operator">:</span> <span class="token-type">FileState</span><span class="token-operator">.</span>owned_open <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">func</span> <span class="token-function">create</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> fd <span class="token-operator">=</span> <span class="token-function">create_fd</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> fd<span class="token-operator">,</span> state<span class="token-operator">:</span> <span class="token-type">FileState</span><span class="token-operator">.</span>owned_open <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-
-    <span class="token-keyword">func</span> <span class="token-function">append</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-keyword">let</span> fd <span class="token-operator">=</span> <span class="token-function">append_fd</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> fd<span class="token-operator">,</span> state<span class="token-operator">:</span> <span class="token-type">FileState</span><span class="token-operator">.</span>owned_open <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">require_open</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> file<span class="token-operator">.</span>state <span class="token-keyword">is</span> <span class="token-type">FileState</span><span class="token-operator">.</span>closed <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> io<span class="token-operator">.</span><span class="token-function">closed_stream_error</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">match</span> <span class="token-function">classify_write_result</span><span class="token-operator">(</span>result<span class="token-operator">,</span> remaining<span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+            <span class="token-type">WriteProgress</span><span class="token-operator">.</span>retry <span class="token-operator">{</span><span class="token-operator">}</span>
+            <span class="token-type">WriteProgress</span><span class="token-operator">.</span><span class="token-function">advance</span><span class="token-operator">(</span>count<span class="token-operator">)</span> <span class="token-operator">{</span> offset <span class="token-operator">+</span><span class="token-operator">=</span> count <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">read</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">write_text_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">write_fd</span><span class="token-operator">(</span>fd<span class="token-operator">,</span> text<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">write_line_fd</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">write_text_fd</span><span class="token-operator">(</span>fd<span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-function">write_text_fd</span><span class="token-operator">(</span>fd<span class="token-operator">,</span> <span class="token-string">"\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> <span class="token-type">STDOUT_FD</span><span class="token-operator">,</span> state<span class="token-operator">:</span> <span class="token-type">FileState</span><span class="token-operator">.</span>borrowed_open <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">File</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> <span class="token-type">STDERR_FD</span><span class="token-operator">,</span> state<span class="token-operator">:</span> <span class="token-type">FileState</span><span class="token-operator">.</span>borrowed_open <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">write</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">,</span> bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-function">require_open</span><span class="token-operator">(</span>file<span class="token-operator">)</span><span class="token-operator">?</span>
-    <span class="token-keyword">return</span> <span class="token-function">read_fd</span><span class="token-operator">(</span>file<span class="token-operator">.</span>fd<span class="token-operator">,</span> buffer<span class="token-operator">)</span><span class="token-operator">?</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">func</span> <span class="token-function">close</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-    <span class="token-keyword">if</span> file<span class="token-operator">.</span>state <span class="token-keyword">is</span> <span class="token-type">FileState</span><span class="token-operator">.</span>owned_open <span class="token-operator">{</span>
-        <span class="token-function">close_fd</span><span class="token-operator">(</span>file<span class="token-operator">.</span>fd<span class="token-operator">)</span>
-    <span class="token-operator">}</span>
-    file<span class="token-operator">.</span>state <span class="token-operator">=</span> <span class="token-type">FileState</span><span class="token-operator">.</span>closed
+    <span class="token-function">write_fd</span><span class="token-operator">(</span>file<span class="token-operator">.</span>fd<span class="token-operator">,</span> bytes<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
-        <span class="token-function">close</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-function">write</span><span class="token-operator">(</span>self<span class="token-operator">,</span> bytes<span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> <span class="token-function">read</span><span class="token-operator">(</span>self<span class="token-operator">,</span> buffer<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-function">require_open</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-drop <span class="token-type">File</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
-    <span class="token-function">close</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">print</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">write_text_fd</span><span class="token-operator">(</span><span class="token-type">STDOUT_FD</span><span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">println</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">write_line_fd</span><span class="token-operator">(</span><span class="token-type">STDOUT_FD</span><span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">eprint</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">write_text_fd</span><span class="token-operator">(</span><span class="token-type">STDERR_FD</span><span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">eprintln</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-function">write_line_fd</span><span class="token-operator">(</span><span class="token-type">STDERR_FD</span><span class="token-operator">,</span> text<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">write_zero</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.io.write_zero"</span><span class="token-operator">,</span> <span class="token-string">"writer made no progress"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">invalid_write_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>
+        <span class="token-string">"std.io.invalid_write_count"</span><span class="token-operator">,</span>
+        <span class="token-string">"writer reported more bytes than the supplied input contains"</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>
