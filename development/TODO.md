@@ -2,9 +2,9 @@
 
 ## Current State
 
-Nocter v0.28.0 is [published and externally audited](releases/v0.28.0.md). Its practical text,
-formatting, and output contract, exact source, reproducible artifact, publication, and public
-re-download evidence are frozen. The `v0.28.0` tag and release asset must not be replaced.
+Nocter v0.29.0 is [published and externally audited](releases/v0.29.0.md). Its standard-input and
+run-invocation contract, exact source, reproducible artifact, publication, and public re-download
+evidence are frozen. The `v0.29.0` tag and release asset must not be replaced.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -25,30 +25,17 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
-The [v0.28.0 practical text, formatting, and output milestone](milestones/v0.28.0.md) is complete,
-published, and externally audited. Borrowed trimming, bounded owned transformations, one
-recoverable formatting contract, line-oriented writers, and symmetric process output pass native,
-editor, formatter, architecture, complete-workspace, reproducible-package, installed-home, and
-public-asset qualification. Its [final review](reviews/v0.28.0-phase-5.md) has no open finding.
-
 The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has completed its
-public contract, exact run-argument channel, borrowed standard input, buffered line integration,
-and tooling/distribution integration. The `stdin-prefix` public package is the shared source for
-formatter, semantic editor, native command, and extracted-home `nocter run` coverage. Its process
-contracts own exact arguments, stdin, status, stdout, and stderr. The
-[Phase 5 review](reviews/v0.29.0-phase-5.md) found no open implementation or design issue, and the
-complete workspace and static-quality gates pass. Its
-[release candidate](milestones/v0.29.0-release-preparation.md) is fixed at commit
-`724bf0bb6edcb9c7c8a45d2e8aa0645f6ae78544`; reproducible packaging and isolated installed-home
-qualification pass.
+public contract and is published and externally audited. Exact run arguments, borrowed standard
+input, explicit buffered lines, and the `stdin-prefix` application pass native, editor, formatter,
+architecture, complete-workspace, reproducible-package, installed-home, and public-asset
+qualification. Its [final review](reviews/v0.29.0-phase-5.md) has no open finding.
 
 ## Next Work
 
-Publish the already qualified v0.29.0 archive described by the
-[release-preparation record](milestones/v0.29.0-release-preparation.md). Publication is authorized:
-advance public latest links in a separate commit, tag that publication state once, upload exactly
-the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
-during publication.
+Define the next practical application boundary before changing compiler or standard-library
+behavior. Preserve the v0.29.0 release record as immutable evidence; any correction requires a new
+version, candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
