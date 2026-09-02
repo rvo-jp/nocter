@@ -799,6 +799,56 @@ func main(): i32 {
 }
 
 #[test]
+fn public_path_and_directory_lifecycle_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/fs
+use std/path.Utf8Path
+
+func main(): i32! {
+    let target = Utf8Path.new("workspace/cache/items.json")?
+    let parent = target.parent() otherwise { return 1 }
+    fs.create_dir_all(parent)?
+    fs.write_text(&target, "value")?
+
+    let file_name = target.file_name() otherwise { return 2 }
+    let stem = target.file_stem() otherwise { return 3 }
+    let extension = target.extension() otherwise { return 4 }
+    if file_name != "items.json" { return 5 }
+    if stem != "items" { return 6 }
+    if extension != "json" { return 7 }
+
+    fs.remove_file(&target)?
+    fs.remove_dir("workspace/cache")?
+    fs.remove_dir("workspace")?
+    return 0
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.syntax_diagnostics().is_empty(),
+        "public path and directory fixture has syntax diagnostics: {:#?}",
+        unit.syntax_diagnostics()
+    );
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "public-path-directory");
+}
+
+#[test]
 fn standard_streaming_lines_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

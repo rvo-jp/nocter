@@ -1524,6 +1524,118 @@ mod tests {
     }
 
     #[test]
+    fn path_and_directory_mutation_contracts_share_complete_editor_semantics() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let source_uri = format!("file://{}", source.display());
+        let source_text = "use std/fs\nuse std/path.Utf8Path\n\nfunc inspect(path: &Utf8Path): void! {\n    fs.create_dir_all(path)?\n    let _parent = path.parent()\n    return\n}\n";
+        let mut source_json = String::new();
+        nocter_json::write_string(&mut source_json, source_text);
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":{source_json}}}}}}}"
+        ));
+        assert!(opened.issue().is_none(), "{:?}", opened.issue());
+        assert!(
+            opened
+                .analysis()
+                .unwrap()
+                .snapshot()
+                .unwrap()
+                .diagnostics()
+                .is_empty()
+        );
+
+        let create_line = source_text
+            .lines()
+            .position(|line| line.contains("create_dir_all"))
+            .unwrap();
+        let create_character = source_text
+            .lines()
+            .nth(create_line)
+            .unwrap()
+            .find("create_dir_all")
+            .unwrap();
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{create_line},\"character\":{create_character}}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"fs.create_dir_all\""),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let create_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{create_line},\"character\":{create_character}}}}}}}"
+        ));
+        let response = create_hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub func create_dir_all(path: &str): void!\\n```"),
+            "{response}"
+        );
+        assert!(create_hover.issue().is_none(), "{:?}", create_hover.issue());
+
+        let create_definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{create_line},\"character\":{create_character}}}}}}}"
+        ));
+        let response = create_definition.response().unwrap();
+        assert!(response.contains("/std/fs/index.nct"), "{response}");
+        assert!(
+            create_definition.issue().is_none(),
+            "{:?}",
+            create_definition.issue()
+        );
+
+        let parent_line = source_text
+            .lines()
+            .position(|line| line.contains("path.parent"))
+            .unwrap();
+        let parent_character = source_text
+            .lines()
+            .nth(parent_line)
+            .unwrap()
+            .rfind("parent")
+            .unwrap();
+        let parent_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{parent_line},\"character\":{parent_character}}}}}}}"
+        ));
+        let response = parent_hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub noalloc method &Utf8Path.parent(): &str?\\n```"),
+            "{response}"
+        );
+        assert!(parent_hover.issue().is_none(), "{:?}", parent_hover.issue());
+
+        let parent_definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{parent_line},\"character\":{parent_character}}}}}}}"
+        ));
+        let response = parent_definition.response().unwrap();
+        assert!(response.contains("/std/path/index.nct"), "{response}");
+        assert!(
+            parent_definition.issue().is_none(),
+            "{:?}",
+            parent_definition.issue()
+        );
+
+        let parent_implementation = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{parent_line},\"character\":{parent_character}}}}}}}"
+        ));
+        let response = parent_implementation.response().unwrap();
+        assert!(response.contains("/std/path/lexical.nct"), "{response}");
+        assert!(
+            parent_implementation.issue().is_none(),
+            "{:?}",
+            parent_implementation.issue()
+        );
+    }
+
+    #[test]
     fn streaming_line_contract_and_body_share_complete_editor_semantics() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

@@ -595,6 +595,18 @@ mod tests {
     }
 
     #[test]
+    fn formats_public_path_and_directory_api_usage_canonically() {
+        let formatted = format(
+            "use std/fs\nuse std/path.Utf8Path\nfunc prepare(path:&Utf8Path):void! { let parent=path.parent() otherwise { return }\nfs.create_dir_all(parent)?\nreturn\n}\n",
+        );
+        assert_eq!(
+            formatted,
+            "use std/fs\nuse std/path.Utf8Path\n\nfunc prepare(path: &Utf8Path): void! { let parent = path.parent() otherwise { return }\n    fs.create_dir_all(parent)?\n    return\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn preserves_index_jointness_and_distinguishes_typed_sequence_spacing() {
         assert_eq!(
             format("func f(values:&[i32]):i32 { return values[0]+Vec [1,2][0] }\n"),

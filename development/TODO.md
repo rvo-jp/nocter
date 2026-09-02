@@ -27,10 +27,10 @@ checking-owned context.
 
 ## Next Work
 
-Continue [v0.27.0 Phase 3](milestones/v0.27.0.md): prove the completed path and directory contracts
-through formatter, semantic editor features, a temporary-directory native application path,
-authored-standard checks, and an isolated installed-home-compatible compilation. Do not add
-recursive deletion or a speculative target-neutral wrapper.
+Continue [v0.27.0 Phase 4](milestones/v0.27.0.md): run the complete qualification matrix and review
+the completed path and directory design for duplicate lexical authorities, target or errno
+leakage, retries after mutation, hidden allocation, obsolete wrappers, and caller-discipline
+assumptions. Do not add recursive deletion or a speculative target-neutral wrapper.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
