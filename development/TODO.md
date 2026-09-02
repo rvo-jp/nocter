@@ -25,16 +25,16 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
-The [v0.26.0 milestone](milestones/v0.26.0.md) is active. Phase 0 fixes the public monotonic-time
-contract and assigns compiler, target adapter, and standard-library ownership. Implementation begins
-with the closed target primitive contract; wall-clock fallback and external runtime linkage are not
-allowed.
+The [v0.26.0 milestone](milestones/v0.26.0.md) is active. Phases 0 through 2 fix the public contract,
+implement the closed target primitive roles, and add normalized `Duration` plus opaque `Instant`
+values with native counter coverage. Wall-clock fallback and external runtime linkage remain
+prohibited.
 
 ## Next Work
 
-Complete v0.26.0 Phase 1: add monotonic counter read, frequency, and wrap-aware delta as closed
-target primitive roles with exact signature, effect, selection, encoding, and architecture tests.
-Then implement `std/time` without exposing target values or duplicating target arithmetic.
+Complete v0.26.0 Phase 3: add one internal Darwin timeout attempt and a target-independent sleep loop
+that rounds positive requests upward, chunks target limits, remeasures after interruption, and
+reports stable public errors. Prove the behavior with native monotonic elapsed-time tests.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

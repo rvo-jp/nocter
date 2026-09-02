@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.26.0: Monotonic Time Foundation - Nocter</title>
-    <meta name="description" content="Status: Phase 2 complete; implementation in progress (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monotonic elapsed">
+    <title>development/std/time/primitives.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/time/primitives.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.26.0/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/std/time/primitives/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.26.0: Monotonic Time Foundation - Nocter">
-    <meta property="og:description" content="Status: Phase 2 complete; implementation in progress (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monotonic elapsed">
-    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.26.0/">
+    <meta property="og:title" content="development/std/time/primitives.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/time/primitives.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/time/primitives/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.26.0: Monotonic Time Foundation - Nocter">
-    <meta name="twitter:description" content="Status: Phase 2 complete; implementation in progress (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monotonic elapsed">
+    <meta name="twitter:title" content="development/std/time/primitives.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/time/primitives.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.26.0: Monotonic Time Foundation - Nocter","description":"Status: Phase 2 complete; implementation in progress (2026-09-02). v0.26.0 adds one bounded application foundation: normalized durations, monotonic elapsed","url":"https://nocter.dev/development/milestones/v0.26.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.26.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.26.0","item":"https://nocter.dev/development/milestones/v0.26.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/time/primitives.nct - Nocter","description":"Nocter source code for development/std/time/primitives.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/time/primitives/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Time","item":"https://nocter.dev/development/std/time/"},{"@type":"ListItem","position":5,"name":"Primitives","item":"https://nocter.dev/development/std/time/primitives/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -174,58 +174,40 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/milestones/</p>
+            <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.26.0: Monotonic Time Foundation</a></li>
-                <li><a href="../v0.25.0/index.html#content">v0.25.0: No-allocation Contracts</a></li>
-                <li><a href="../v0.25.0-release-preparation/index.html#content">v0.25.0 Release Preparation</a></li>
-                <li><a href="../v0.24.0/index.html#content">v0.24.0</a></li>
-                <li><a href="../v0.24.0-release-preparation/index.html#content">v0.24.0 Release Preparation</a></li>
-                <li><a href="../v0.23.0/index.html#content">v0.23.0</a></li>
-                <li><a href="../v0.22.0/index.html#content">v0.22.0</a></li>
-                <li><a href="../v0.22.0-release-preparation/index.html#content">v0.22.0 Release Preparation</a></li>
-                <li><a href="../v0.21.0/index.html#content">v0.21.0</a></li>
-                <li><a href="../v0.21.0-release-preparation/index.html#content">v0.21.0 Release Preparation</a></li>
-                <li><a href="../v0.20.0/index.html#content">v0.20.0</a></li>
-                <li><a href="../v0.19.0/index.html#content">v0.19.0</a></li>
-                <li><a href="../v0.19.0-release-preparation/index.html#content">v0.19.0 Release Preparation</a></li>
-                <li><a href="../v0.18.0/index.html#content">v0.18.0</a></li>
-                <li><a href="../v0.18.0-release-preparation/index.html#content">v0.18.0 Release Preparation</a></li>
-                <li><a href="../v0.17.0/index.html#content">v0.17.0</a></li>
-                <li><a href="../v0.17.0-release-preparation/index.html#content">v0.17.0 Release Preparation</a></li>
-                <li><a href="../v0.16.0/index.html#content">v0.16.0</a></li>
-                <li><a href="../v0.16.0-release-preparation/index.html#content">v0.16.0 Release Preparation</a></li>
-                <li><a href="../v0.15.0/index.html#content">v0.15.0</a></li>
-                <li><a href="../v0.15.0-release-preparation/index.html#content">v0.15.0 Release Preparation</a></li>
-                <li><a href="../v0.14.0/index.html#content">v0.14.0</a></li>
-                <li><a href="../v0.14.0-qualification/index.html#content">v0.14.0 Qualification</a></li>
-                <li><a href="../v0.14.0-release-preparation/index.html#content">v0.14.0 Release Preparation</a></li>
-                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
-                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="../v0.10.0-phase-1/index.html#content">v0.10.0 Phase 1</a></li>
-                <li><a href="../v0.10.0-phase-2/index.html#content">v0.10.0 Phase 2</a></li>
-                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
-                <li><a href="../v0.8.0/index.html#content">v0.8.0</a></li>
-                <li><a href="../v0.7.0/index.html#content">v0.7.0</a></li>
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/milestones/v0.26.0.md</span>
+                <span class="markdown-path-text">/development/std/time/primitives.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-26-0-monotonic-time-foundation">v0.26.0: Monotonic Time Foundation</h1><p><strong>Status: Phase 2 complete; implementation in progress (2026-09-02).</strong> v0.26.0 adds one bounded application foundation: normalized durations, monotonic elapsed-time measurement, and blocking sleep. It does not add calendar time, async execution, or another guarantee modifier.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>std/time.Duration</code> represents every normalized non-negative span through <code>u64</code> whole seconds
-  and a subsecond nanosecond component;</li><li>constructors avoid intermediate overflow, while addition and subtraction report unrepresentable
-  results through absence rather than trapping;</li><li><code>Instant.now</code> and <code>Instant.elapsed</code> use a monotonic target counter without exposing its ticks or
-  frequency;</li><li>one complete counter cycle exceeds one hundred years, and elapsed subtraction handles one wrap;</li><li><code>time.sleep</code> rounds positive sub-resolution waits upward, retries interruption from a freshly
-  measured remainder, chunks values beyond one target wait, and reports other OS failures;</li><li>all public operations publish <code>noalloc</code>, while sleep deliberately makes no non-blocking or
-  realtime promise;</li><li>formatter, hover, completion, navigation, installed-standard checking, and native execution see
-  the same public contracts;</li><li>complete workspace, native, documentation, and design-review gates pass.</li></ul><h2 id="architecture-boundary">Architecture Boundary</h2><p><code>nocter-runtime-contract</code> owns three closed target primitive roles: monotonic counter read, fixed counter frequency, and wrapping counter delta. The ARM64 backend implements those roles directly from architectural counter state. Target validation fixes their semantic signatures and effect evidence; the standard library cannot select them by name.</p><p><code>std/internal/os/darwin</code> owns the raw timeout structure and exactly one descriptor-free target wait. <code>std/time</code> owns counter conversion, normalized value invariants, rounding, chunking, retry, and public errors. The compiler does not know <code>Duration</code> layout or sleep policy, and the OS adapter does not know the public time model.</p><p>Wall-clock <code>gettimeofday</code> is not a fallback for monotonic time because clock adjustment can make it move backward. Dynamic calls to <code>libSystem</code>, platform SDK dependencies, and target spelling checks are prohibited.</p><h2 id="phase-0-contract-and-feasibility">Phase 0: Contract and Feasibility</h2><p><strong>Status: complete.</strong> The normative contract fixes normalization, checked arithmetic, counter-wrap behavior, resolution rounding, interruption retry, failure codes, <code>noalloc</code> scope, and responsibility boundaries. ARM64 Darwin can supply the counter without an external runtime; its existing syscall boundary can perform descriptor-free timed waits.</p><h2 id="phase-1-target-primitive-contract">Phase 1: Target Primitive Contract</h2><p><strong>Status: complete.</strong> Exact primitive roles, declaration locators, target signature validation, ARM64 selection, closed instruction encoding, and unit tests are implemented. No public time type enters the compiler.</p><h2 id="phase-2-standard-time-values">Phase 2: Standard Time Values</h2><p><strong>Status: complete.</strong> <code>std/time</code> owns the public <code>Duration</code> and <code>Instant</code> contracts, private representations, normalization, checked arithmetic, counter conversion, boundary tests, and native counter execution. Target ticks and frequency remain private.</p><h2 id="phase-3-blocking-sleep">Phase 3: Blocking Sleep</h2><p><strong>Status: in progress.</strong> Add the Darwin one-wait adapter and target-independent sleep loop with rounding, chunking, interruption policy, and native elapsed-time tests.</p><h2 id="phase-4-tooling-and-practical-integration">Phase 4: Tooling and Practical Integration</h2><p><strong>Status: pending.</strong> Add public examples, specification cross-links, LSP coverage, installed-standard qualification, and any stable API documentation needed to use the module without reading its body.</p><h2 id="phase-5-qualification-and-review">Phase 5: Qualification and Review</h2><p><strong>Status: pending.</strong> Run the complete workspace and native gates. Review for duplicate time conversion, wall-clock fallback, machine-to-semantic reversal, target ABI leakage, caller-discipline preconditions, effect overstatement, and obsolete wrappers before declaring the milestone complete.</p>
+                <h1>primitives.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Compiler-owned monotonic counter primitives.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">monotonic_counter_raw</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">monotonic_frequency_raw</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">primitive</span> <span class="token-keyword">func</span> <span class="token-function">monotonic_delta_raw</span><span class="token-operator">(</span>earlier<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">,</span> later<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -241,6 +223,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../../../script.js" defer></script>
 </body>
 </html>

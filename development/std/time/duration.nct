@@ -1,0 +1,110 @@
+//! Duration representation, normalization, and checked arithmetic.
+
+see ./index.nct
+
+const NANOSECONDS_PER_SECOND: u64 = 1000000000
+const MILLISECONDS_PER_SECOND: u64 = 1000
+const MICROSECONDS_PER_SECOND: u64 = 1000000
+const NANOSECONDS_PER_MILLISECOND: u64 = 1000000
+const NANOSECONDS_PER_MICROSECOND: u64 = 1000
+const MAX_SECONDS: u64 = 18446744073709551615
+
+copy struct Duration {
+    seconds: u64
+    nanoseconds: u64
+}
+
+noalloc func normalized_duration(seconds: u64, nanoseconds: u64): Duration {
+    return Duration { seconds: seconds, nanoseconds: nanoseconds }
+}
+
+noalloc func duration_from_counter_delta(delta: u64, frequency: u64): Duration {
+    let seconds = delta / frequency
+    let remainder = delta % frequency
+    // ARM64 CNTFRQ_EL0 is a non-zero 32-bit frequency. Splitting whole seconds first makes this
+    // product fit in u64 while preserving floor rounding.
+    let nanoseconds = (remainder * NANOSECONDS_PER_SECOND) / frequency
+    return normalized_duration(seconds, nanoseconds)
+}
+
+construct Duration {
+    noalloc func from_seconds(value: u64): Self {
+        return normalized_duration(value, 0)
+    }
+
+    noalloc func from_milliseconds(value: u64): Self {
+        return normalized_duration(
+            value / MILLISECONDS_PER_SECOND,
+            (value % MILLISECONDS_PER_SECOND) * NANOSECONDS_PER_MILLISECOND,
+        )
+    }
+
+    noalloc func from_microseconds(value: u64): Self {
+        return normalized_duration(
+            value / MICROSECONDS_PER_SECOND,
+            (value % MICROSECONDS_PER_SECOND) * NANOSECONDS_PER_MICROSECOND,
+        )
+    }
+
+    noalloc func from_nanoseconds(value: u64): Self {
+        return normalized_duration(
+            value / NANOSECONDS_PER_SECOND,
+            value % NANOSECONDS_PER_SECOND,
+        )
+    }
+}
+
+instance Duration {
+    noalloc method &self.whole_seconds(): u64 {
+        return self.seconds
+    }
+
+    noalloc method &self.subsecond_nanoseconds(): u64 {
+        return self.nanoseconds
+    }
+
+    noalloc method &self.is_zero(): bool {
+        return self.seconds == 0 && self.nanoseconds == 0
+    }
+
+    noalloc method &self.checked_add(other: &Self): Self? {
+        let nanosecond_sum = self.nanoseconds + other.nanoseconds
+        let carry: u64 = if nanosecond_sum >= NANOSECONDS_PER_SECOND { 1 } else { 0 }
+        let nanoseconds = if carry == 1 {
+            nanosecond_sum - NANOSECONDS_PER_SECOND
+        } else {
+            nanosecond_sum
+        }
+        if other.seconds > MAX_SECONDS - self.seconds { return none }
+        var seconds = self.seconds + other.seconds
+        if carry == 1 {
+            if seconds == MAX_SECONDS { return none }
+            seconds += 1
+        }
+        return normalized_duration(seconds, nanoseconds)
+    }
+
+    noalloc method &self.checked_sub(other: &Self): Self? {
+        if self < other { return none }
+        if self.nanoseconds >= other.nanoseconds {
+            return normalized_duration(
+                self.seconds - other.seconds,
+                self.nanoseconds - other.nanoseconds,
+            )
+        }
+        return normalized_duration(
+            self.seconds - other.seconds - 1,
+            NANOSECONDS_PER_SECOND + self.nanoseconds - other.nanoseconds,
+        )
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        return self.seconds == other.seconds && self.nanoseconds == other.nanoseconds
+    }
+
+    noalloc operator (&self < other: &Self): bool {
+        if self.seconds < other.seconds { return true }
+        if other.seconds < self.seconds { return false }
+        return self.nanoseconds < other.nanoseconds
+    }
+}

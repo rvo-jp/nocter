@@ -1,0 +1,73 @@
+//! Duration contract tests.
+
+see ./index.nct
+
+use /testing
+
+test duration_units_share_one_normal_form {
+    let second = Duration.from_seconds(1)
+    let milliseconds = Duration.from_milliseconds(1000)
+    let microseconds = Duration.from_microseconds(1000000)
+    let nanoseconds = Duration.from_nanoseconds(1000000000)
+    testing.assert_eq(&second, &milliseconds)?
+    testing.assert_eq(&second, &microseconds)?
+    testing.assert_eq(&second, &nanoseconds)?
+
+    let split = Duration.from_nanoseconds(12345678901)
+    testing.assert(split.whole_seconds() == 12)?
+    testing.assert(split.subsecond_nanoseconds() == 345678901)?
+    testing.assert(!split.is_zero())?
+    testing.assert(Duration.from_seconds(0).is_zero())?
+    return
+}
+
+test duration_constructors_accept_full_width_inputs {
+    let milliseconds = Duration.from_milliseconds(18446744073709551615)
+    testing.assert(milliseconds.whole_seconds() == 18446744073709551)?
+    testing.assert(milliseconds.subsecond_nanoseconds() == 615000000)?
+
+    let microseconds = Duration.from_microseconds(18446744073709551615)
+    testing.assert(microseconds.whole_seconds() == 18446744073709)?
+    testing.assert(microseconds.subsecond_nanoseconds() == 551615000)?
+
+    let nanoseconds = Duration.from_nanoseconds(18446744073709551615)
+    testing.assert(nanoseconds.whole_seconds() == 18446744073)?
+    testing.assert(nanoseconds.subsecond_nanoseconds() == 709551615)?
+    return
+}
+
+test duration_checked_arithmetic_handles_normalization_boundaries {
+    let almost_second = Duration.from_nanoseconds(999999999)
+    let two_nanoseconds = Duration.from_nanoseconds(2)
+    let sum = almost_second.checked_add(&two_nanoseconds) otherwise {
+        return error.new("std.time.test", "representable addition failed")
+    }
+    testing.assert(sum.whole_seconds() == 1)?
+    testing.assert(sum.subsecond_nanoseconds() == 1)?
+
+    let difference = sum.checked_sub(&two_nanoseconds) otherwise {
+        return error.new("std.time.test", "representable subtraction failed")
+    }
+    testing.assert_eq(&difference, &almost_second)?
+
+    let _underflow = almost_second.checked_sub(&sum) otherwise {
+        return
+    }
+    return error.new("std.time.test", "duration subtraction underflow succeeded")
+}
+
+test duration_checked_add_rejects_the_single_carry_overflow {
+    let maximum = Duration.from_seconds(18446744073709551615)
+    let one_second = Duration.from_seconds(1)
+    let _overflow = maximum.checked_add(&one_second) otherwise {
+        return
+    }
+    return error.new("std.time.test", "duration addition overflow succeeded")
+}
+
+test instant_elapsed_stays_in_the_normalized_duration_domain {
+    let start = Instant.now()
+    let elapsed = start.elapsed()
+    testing.assert(elapsed.subsecond_nanoseconds() < 1000000000)?
+    return
+}

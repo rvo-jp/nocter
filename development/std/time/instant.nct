@@ -1,0 +1,23 @@
+//! Opaque monotonic observations and target-independent conversion.
+
+see ./index.nct
+see ./duration.nct
+see ./primitives.nct
+
+copy struct Instant {
+    counter: u64
+}
+
+construct Instant {
+    noalloc func now(): Self {
+        return Instant { counter: monotonic_counter_raw() }
+    }
+}
+
+instance Instant {
+    noalloc method &self.elapsed(): Duration {
+        let current = monotonic_counter_raw()
+        let delta = monotonic_delta_raw(self.counter, current)
+        return duration_from_counter_delta(delta, monotonic_frequency_raw())
+    }
+}

@@ -1,3 +1,57 @@
-//! Monotonic time contracts.
+//! Normalized durations and monotonic elapsed time.
 
+see ./duration.nct
+see ./instant.nct
 see ./primitives.nct
+see ./tests.nct
+
+/// A normalized, non-negative span of time.
+pub copy struct Duration
+
+/// An opaque observation from the process monotonic-clock domain.
+pub copy struct Instant
+
+construct Duration {
+    /// Creates a duration from whole seconds.
+    pub noalloc func from_seconds(value: u64): Self
+
+    /// Creates a duration from whole milliseconds without intermediate overflow.
+    pub noalloc func from_milliseconds(value: u64): Self
+
+    /// Creates a duration from whole microseconds without intermediate overflow.
+    pub noalloc func from_microseconds(value: u64): Self
+
+    /// Creates a duration from whole nanoseconds without intermediate overflow.
+    pub noalloc func from_nanoseconds(value: u64): Self
+}
+
+instance Duration {
+    /// Returns the normalized whole-second component.
+    pub noalloc method &self.whole_seconds(): u64
+
+    /// Returns the normalized subsecond component in nanoseconds.
+    pub noalloc method &self.subsecond_nanoseconds(): u64
+
+    /// Returns whether this duration has no length.
+    pub noalloc method &self.is_zero(): bool
+
+    /// Adds two durations, returning absence when the normalized result is unrepresentable.
+    pub noalloc method &self.checked_add(other: &Self): Self?
+
+    /// Subtracts a duration, returning absence when `other` is greater than this value.
+    pub noalloc method &self.checked_sub(other: &Self): Self?
+
+    pub noalloc operator (&self == other: &Self): bool
+
+    pub noalloc operator (&self < other: &Self): bool
+}
+
+construct Instant {
+    /// Observes the target monotonic clock.
+    pub noalloc func now(): Self
+}
+
+instance Instant {
+    /// Measures the non-negative duration from this observation to now.
+    pub noalloc method &self.elapsed(): Duration
+}
