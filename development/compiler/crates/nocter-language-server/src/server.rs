@@ -1375,6 +1375,47 @@ mod tests {
     }
 
     #[test]
+    fn text_transformation_hover_uses_the_public_standard_contract() {
+        let temporary = TemporaryDirectory::new();
+        let (mut server, _source_uri) =
+            open_semantic_source(&temporary, "func main(): void { return }\n");
+        let standard = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../std/str/index.nct");
+        let text = fs::read_to_string(&standard).unwrap();
+
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("method &self.trim_ascii(): &str from self"))
+            .unwrap();
+        let character = source_line.find("trim_ascii").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            standard.display()
+        ));
+        assert!(
+            hover
+                .response()
+                .unwrap()
+                .contains("```nocter\\npub noalloc method &str.trim_ascii(): &str from self\\n```")
+        );
+
+        let (line, source_line) = text
+            .lines()
+            .enumerate()
+            .find(|(_, line)| line.contains("method &self.replace_all(pattern:"))
+            .unwrap();
+        let character = source_line.find("replace_all").unwrap();
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":21,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{line},\"character\":{character}}}}}}}",
+            standard.display()
+        ));
+        assert!(hover.response().unwrap().contains(concat!(
+            "```nocter\\npub method &str.replace_all(",
+            "pattern: &str, replacement: &str): String!\\n```"
+        )));
+    }
+
+    #[test]
     fn integer_text_queries_use_the_type_owned_standard_contract() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

@@ -33,11 +33,11 @@ no open finding.
 
 ## Next Work
 
-Implement [v0.28.0](milestones/v0.28.0.md) from its adopted Phase 0 contract. Phase 1 adds one
-borrowed ASCII-trimming authority and checked owned `repeat` and `replace_all` transformations.
-Phase 2 replaces the closed scalar append matrix with one recoverable `Format` requirement and one
-aborting default, without creating another decimal spelling or interpolation protocol. Phase 3
-completes symmetric process text output over the existing descriptor-write authority.
+Continue [v0.28.0](milestones/v0.28.0.md) from its completed text-transformation phase. Phase 2
+replaces the closed scalar append matrix with one recoverable `Format` requirement and one aborting
+default, without creating another decimal spelling or interpolation protocol. Phase 3 completes
+symmetric process text output over the existing descriptor-write authority. Phase 4 integrates the
+completed surface into tooling, an example, and installed-home execution before qualification.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

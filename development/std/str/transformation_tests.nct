@@ -1,0 +1,60 @@
+//! Borrowed trim and owned text transformation contract tests.
+
+see ./index.nct
+
+test ascii_trim_preserves_utf8_and_named_edges {
+    let text: &str = " \t こんにちは \r\n"
+    if text.trim_ascii_start() != "こんにちは \r\n" {
+        return error.new("std.str.test", "start trim changed the wrong edge")
+    }
+    if text.trim_ascii_end() != " \t こんにちは" {
+        return error.new("std.str.test", "end trim changed the wrong edge")
+    }
+    if text.trim_ascii() != "こんにちは" {
+        return error.new("std.str.test", "two-sided trim changed UTF-8 text")
+    }
+    let whitespace: &str = "\t \r\n"
+    if whitespace.trim_ascii_start().len() != 0
+        || whitespace.trim_ascii_end().len() != 0
+        || whitespace.trim_ascii().len() != 0 {
+        return error.new("std.str.test", "all-whitespace trim was not empty")
+    }
+    return
+}
+
+test repeat_and_replace_have_exact_owned_spelling {
+    let repeated = "ab".repeat(3)
+    if (&repeated as &str) != "ababab" {
+        return error.new("std.str.test", "repeat spelling changed")
+    }
+    let empty = "ab".repeat(0)
+    if (&empty as &str) != "" {
+        return error.new("std.str.test", "zero repeat was not empty")
+    }
+
+    let grown = "a-b-a".replace_all("a", "xyz")?
+    if (&grown as &str) != "xyz-b-xyz" {
+        return error.new("std.str.test", "growing replacement changed spelling")
+    }
+    let shrunk = "aaaa".replace_all("aa", "b")?
+    if (&shrunk as &str) != "bb" {
+        return error.new("std.str.test", "replacement was not non-overlapping")
+    }
+    let recursive = "a".replace_all("a", "aa")?
+    if (&recursive as &str) != "aa" {
+        return error.new("std.str.test", "replacement text was searched recursively")
+    }
+    let unchanged = "éclair".replace_all("z", "x")?
+    if (&unchanged as &str) != "éclair" {
+        return error.new("std.str.test", "missing pattern changed the source text")
+    }
+    return
+}
+
+test replace_rejects_an_empty_pattern {
+    let _result = "text".replace_all("", "x") catch failure {
+        if failure.has_code("std.str.empty_pattern") { return }
+        return error.new("std.str.test", "empty pattern returned the wrong error")
+    }
+    return error.new("std.str.test", "empty replacement pattern was accepted")
+}

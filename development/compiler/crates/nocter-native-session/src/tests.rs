@@ -710,6 +710,57 @@ fn standard_string_concat_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn standard_text_transformations_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r#"use std/ptr
+
+func main(): i32 {
+    let text: &str = " \tNocter\r\n"
+    if text.trim_ascii_start() != "Nocter\r\n" { return 1 }
+    if text.trim_ascii_end() != " \tNocter" { return 2 }
+    if text.trim_ascii() != "Nocter" { return 3 }
+
+    let whitespace: &str = "\t \r\n"
+    let empty_start = whitespace.trim_ascii_start()
+    let empty_end = whitespace.trim_ascii_end()
+    let empty_both = whitespace.trim_ascii()
+    if empty_start.len() != 0 || empty_end.len() != 0 || empty_both.len() != 0 { return 4 }
+    let whitespace_end = ptr.addr(whitespace.ptr()) + whitespace.len()
+    if ptr.addr(empty_start.ptr()) != whitespace_end
+        || ptr.addr(empty_end.ptr()) != whitespace_end
+        || ptr.addr(empty_both.ptr()) != whitespace_end { return 5 }
+
+    let repeated = "é".repeat(3)
+    if (&repeated as &str) != "ééé" { return 6 }
+    let replaced = "aaaa/é".replace_all("aa", "b") catch _ { return 7 }
+    if (&replaced as &str) != "bb/é" { return 8 }
+    let _invalid = "x".replace_all("", "y") catch failure {
+        if failure.has_code("std.str.empty_pattern") { return 0 }
+        return 9
+    }
+    return 10
+}
+"#,
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "text-transformations");
+}
+
+#[test]
 fn standard_directory_stream_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

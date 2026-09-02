@@ -1,0 +1,57 @@
+//! Allocation-free ASCII edge trimming.
+
+see ./index.nct
+see ./views.nct
+
+noalloc func is_ascii_whitespace(byte: u8): bool {
+    return byte == 32 || (byte >= 9 && byte <= 13)
+}
+
+noalloc func ascii_trim_start(text: &str): usize {
+    var start: usize = 0
+    while start < text.len() && is_ascii_whitespace(text[start]) {
+        start += 1
+    }
+    return start
+}
+
+noalloc func ascii_trim_end(text: &str, start: usize): usize {
+    var end: usize = text.len()
+    while end > start && is_ascii_whitespace(text[end - 1]) {
+        end -= 1
+    }
+    return end
+}
+
+noalloc func trim_ascii_start(text: &str): &str from text {
+    let start = ascii_trim_start(text)
+    return str_subview_unchecked(text, start, text.len() - start)
+}
+
+noalloc func trim_ascii_end(text: &str): &str from text {
+    let end = ascii_trim_end(text, 0)
+    if end == 0 {
+        return str_subview_unchecked(text, text.len(), 0)
+    }
+    return str_subview_unchecked(text, 0, end)
+}
+
+noalloc func trim_ascii(text: &str): &str from text {
+    let start = ascii_trim_start(text)
+    let end = ascii_trim_end(text, start)
+    return str_subview_unchecked(text, start, end - start)
+}
+
+instance str {
+    noalloc method &self.trim_ascii_start(): &str from self {
+        return trim_ascii_start(self)
+    }
+
+    noalloc method &self.trim_ascii_end(): &str from self {
+        return trim_ascii_end(self)
+    }
+
+    noalloc method &self.trim_ascii(): &str from self {
+        return trim_ascii(self)
+    }
+}

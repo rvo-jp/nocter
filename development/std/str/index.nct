@@ -11,6 +11,9 @@ use /vec.Vec
 see ./text.nct
 see ./views.nct
 see ./owned.nct
+see ./trim.nct
+see ./transform.nct
+see ./transformation_tests.nct
 
 /// Borrowed UTF-8 text with storage owned elsewhere.
 pub primitive type str
@@ -73,6 +76,15 @@ instance str {
 
     pub noalloc method &self.strip_suffix(suffix: &str): &str? from self
 
+    /// Removes ASCII whitespace from the beginning and returns a borrowed view.
+    pub noalloc method &self.trim_ascii_start(): &str from self
+
+    /// Removes ASCII whitespace from the end and returns a borrowed view.
+    pub noalloc method &self.trim_ascii_end(): &str from self
+
+    /// Removes ASCII whitespace from both ends and returns a borrowed view.
+    pub noalloc method &self.trim_ascii(): &str from self
+
     pub method &self.split(separator: &str): Vec<String>!
 
     pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
@@ -81,4 +93,10 @@ instance str {
 
     /// Iterates over the exact UTF-8 encoding bytes without allocation.
     pub noalloc method &self.bytes_iter(): ViewIter<u8>
+
+    /// Repeats this text into independently owned storage.
+    pub method &self.repeat(count: usize): String
+
+    /// Replaces non-overlapping matches into independently owned storage.
+    pub method &self.replace_all(pattern: &str, replacement: &str): String!
 }

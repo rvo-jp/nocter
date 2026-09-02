@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/str/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/str/index.nct.">
+    <title>development/std/str/transformation_tests.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/str/transformation_tests.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/str/index/">
+    <link rel="canonical" href="https://nocter.dev/development/std/str/transformation_tests/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/str/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/str/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/str/index/">
+    <meta property="og:title" content="development/std/str/transformation_tests.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/str/transformation_tests.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/str/transformation_tests/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/str/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/str/index.nct.">
+    <meta name="twitter:title" content="development/std/str/transformation_tests.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/str/transformation_tests.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/str/index.nct - Nocter","description":"Nocter source code for development/std/str/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/str/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Str","item":"https://nocter.dev/development/std/str/"},{"@type":"ListItem","position":5,"name":"Index","item":"https://nocter.dev/development/std/str/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/str/transformation_tests.nct - Nocter","description":"Nocter source code for development/std/str/transformation_tests.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/str/transformation_tests/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Str","item":"https://nocter.dev/development/std/str/"},{"@type":"ListItem","position":5,"name":"Transformation_tests","item":"https://nocter.dev/development/std/str/transformation_tests/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -190,110 +190,68 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/str/index.nct</span>
+                <span class="markdown-path-text">/development/std/str/transformation_tests.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Borrowed UTF-8 text observation, search, views, and materialization.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! `str` is a compiler built-in unsized type, but its public methods are</span>
-<span class="token-comment">//! ordinary Nocter source. Only the narrow representation query below is a</span>
-<span class="token-comment">//! trusted primitive. Allocating conveniences are isolated from borrowed</span>
-<span class="token-comment">//! algorithms in `owned.nct`.</span>
+                <h1>transformation_tests.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Borrowed trim and owned text transformation contract tests.</span>
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Iterator</span><span class="token-operator">,</span> <span class="token-type">ViewIter</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>text<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>views<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>owned<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>trim<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>transform<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>transformation_tests<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-comment">/// Borrowed UTF-8 text with storage owned elsewhere.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> <span class="token-type">str</span>
-
-<span class="token-comment">/// Allocation-free iterator over separator-delimited borrowed components.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">SplitIter</span>
-
-<span class="token-comment">/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">LinesIter</span>
-
-<span class="token-keyword">construct</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>
-        text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
-        separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from text | separator
+<span class="token-keyword">test</span> ascii_trim_preserves_utf8_and_named_edges <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-string">" \t こんにちは \r\n"</span>
+    <span class="token-keyword">if</span> text<span class="token-operator">.</span><span class="token-function">trim_ascii_start</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"こんにちは \r\n"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"start trim changed the wrong edge"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> text<span class="token-operator">.</span><span class="token-function">trim_ascii_end</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">" \t こんにちは"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"end trim changed the wrong edge"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> text<span class="token-operator">.</span><span class="token-function">trim_ascii</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"こんにちは"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"two-sided trim changed UTF-8 text"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> whitespace<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-string">"\t \r\n"</span>
+    <span class="token-keyword">if</span> whitespace<span class="token-operator">.</span><span class="token-function">trim_ascii_start</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span>
+        || whitespace<span class="token-operator">.</span><span class="token-function">trim_ascii_end</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span>
+        || whitespace<span class="token-operator">.</span><span class="token-function">trim_ascii</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"all-whitespace trim was not empty"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">construct</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-keyword">test</span> repeat_and_replace_have_exact_owned_spelling <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> repeated <span class="token-operator">=</span> <span class="token-string">"ab"</span><span class="token-operator">.</span><span class="token-function">repeat</span><span class="token-operator">(</span><span class="token-number">3</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>repeated <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"ababab"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"repeat spelling changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> empty <span class="token-operator">=</span> <span class="token-string">"ab"</span><span class="token-operator">.</span><span class="token-function">repeat</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span>
+    <span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>empty <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">""</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"zero repeat was not empty"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">let</span> grown <span class="token-operator">=</span> <span class="token-string">"a-b-a"</span><span class="token-operator">.</span><span class="token-function">replace_all</span><span class="token-operator">(</span><span class="token-string">"a"</span><span class="token-operator">,</span> <span class="token-string">"xyz"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>grown <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"xyz-b-xyz"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"growing replacement changed spelling"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> shrunk <span class="token-operator">=</span> <span class="token-string">"aaaa"</span><span class="token-operator">.</span><span class="token-function">replace_all</span><span class="token-operator">(</span><span class="token-string">"aa"</span><span class="token-operator">,</span> <span class="token-string">"b"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>shrunk <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"bb"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"replacement was not non-overlapping"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> recursive <span class="token-operator">=</span> <span class="token-string">"a"</span><span class="token-operator">.</span><span class="token-function">replace_all</span><span class="token-operator">(</span><span class="token-string">"a"</span><span class="token-operator">,</span> <span class="token-string">"aa"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>recursive <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"aa"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"replacement text was searched recursively"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> unchanged <span class="token-operator">=</span> <span class="token-string">"éclair"</span><span class="token-operator">.</span><span class="token-function">replace_all</span><span class="token-operator">(</span><span class="token-string">"z"</span><span class="token-operator">,</span> <span class="token-string">"x"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>unchanged <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">"éclair"</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"missing pattern changed the source text"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">LinesIter</span> <span class="token-operator">{</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">}</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">str</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Compares UTF-8 encoding bytes without allocation.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-comment">/// Orders UTF-8 encoding bytes lexicographically without allocation.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">&lt;</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u8</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_char_boundary</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">get_range</span><span class="token-operator">(</span>start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> end<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">find_from</span><span class="token-operator">(</span>needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> start<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">find</span><span class="token-operator">(</span>needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">?</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">contains</span><span class="token-operator">(</span>needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">starts_with</span><span class="token-operator">(</span>prefix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">ends_with</span><span class="token-operator">(</span>suffix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">strip_prefix</span><span class="token-operator">(</span>prefix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> from self
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">strip_suffix</span><span class="token-operator">(</span>suffix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> from self
-
-    <span class="token-comment">/// Removes ASCII whitespace from the beginning and returns a borrowed view.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">trim_ascii_start</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self
-
-    <span class="token-comment">/// Removes ASCII whitespace from the end and returns a borrowed view.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">trim_ascii_end</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self
-
-    <span class="token-comment">/// Removes ASCII whitespace from both ends and returns a borrowed view.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">trim_ascii</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">split</span><span class="token-operator">(</span>separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">split_views</span><span class="token-operator">(</span>separator<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SplitIter</span><span class="token-operator">!</span> from self | separator
-
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">lines</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> some <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">}</span>
-
-    <span class="token-comment">/// Iterates over the exact UTF-8 encoding bytes without allocation.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes_iter</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ViewIter</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
-
-    <span class="token-comment">/// Repeats this text into independently owned storage.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">repeat</span><span class="token-operator">(</span>count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
-
-    <span class="token-comment">/// Replaces non-overlapping matches into independently owned storage.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">replace_all</span><span class="token-operator">(</span>pattern<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> replacement<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
+<span class="token-keyword">test</span> replace_rejects_an_empty_pattern <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> _result <span class="token-operator">=</span> <span class="token-string">"text"</span><span class="token-operator">.</span><span class="token-function">replace_all</span><span class="token-operator">(</span><span class="token-string">""</span><span class="token-operator">,</span> <span class="token-string">"x"</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+        <span class="token-keyword">if</span> failure<span class="token-operator">.</span><span class="token-function">has_code</span><span class="token-operator">(</span><span class="token-string">"std.str.empty_pattern"</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"empty pattern returned the wrong error"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.str.test"</span><span class="token-operator">,</span> <span class="token-string">"empty replacement pattern was accepted"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

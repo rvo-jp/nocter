@@ -159,6 +159,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("set", "iter"),
     ("set", "mem"),
     ("slice", "internal/ptr"),
+    ("str", "internal/mem"),
     ("str", "internal/ptr"),
     ("str", "iter"),
     ("str", "string"),

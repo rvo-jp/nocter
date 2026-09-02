@@ -1,0 +1,89 @@
+//! Owned transformations over borrowed UTF-8 text.
+
+see ./index.nct
+see ./search.nct
+see ./views.nct
+
+use /internal/mem as internal_mem
+use /string.String
+
+func repeat(text: &str, count: usize): String {
+    if count == 0 || text.len() == 0 {
+        return String.empty()
+    }
+    let required_capacity = internal_mem.checked_multiply(text.len(), count) otherwise {
+        return internal_mem.allocation_abort()
+    }
+    var result = String.with_capacity(required_capacity)
+    var index: usize = 0
+    while index < count {
+        result.push_str(text)
+        index += 1
+    }
+    return move result
+}
+
+noalloc func replacement_capacity(
+    text: &str,
+    pattern: &str,
+    replacement: &str,
+): usize {
+    var capacity: usize = text.len()
+    var search_start: usize = 0
+    while search_start <= text.len() {
+        let match_start = find_from(text, pattern, search_start) otherwise {
+            return capacity
+        }
+        if replacement.len() >= pattern.len() {
+            let growth = replacement.len() - pattern.len()
+            capacity = internal_mem.checked_add(capacity, growth) otherwise {
+                return internal_mem.allocation_abort()
+            }
+        } else {
+            capacity -= pattern.len() - replacement.len()
+        }
+        search_start = match_start + pattern.len()
+    }
+    return capacity
+}
+
+func replace_all(text: &str, pattern: &str, replacement: &str): String! {
+    if pattern.len() == 0 {
+        return error.new(
+            "std.str.empty_pattern",
+            "replacement pattern must not be empty",
+        )
+    }
+
+    let capacity = replacement_capacity(text, pattern, replacement)
+    var result = String.with_capacity(capacity)
+    var copied_until: usize = 0
+    while copied_until <= text.len() {
+        let match_start = find_from(text, pattern, copied_until) otherwise {
+            result.push_str(str_subview_unchecked(
+                text,
+                copied_until,
+                text.len() - copied_until,
+            ))
+            return move result
+        }
+        result.push_str(str_subview_unchecked(
+            text,
+            copied_until,
+            match_start - copied_until,
+        ))
+        result.push_str(replacement)
+        copied_until = match_start + pattern.len()
+    }
+    return move result
+}
+
+instance str {
+    method &self.repeat(count: usize): String {
+        return repeat(self, count)
+    }
+
+    method &self.replace_all(pattern: &str, replacement: &str): String! {
+        return replace_all(self, pattern, replacement)?
+    }
+}
