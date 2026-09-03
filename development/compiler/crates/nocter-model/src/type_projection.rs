@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::{
-    CallableContract, InvalidParameterOrigin, TypeAuthority, TypeId, TypeKind, TypeStore,
-    TypeTransaction, UnknownTypeId,
+    CallableContract, InvalidParameterOrigin, TupleElements, TypeAuthority, TypeId, TypeKind,
+    TypeStore, TypeTransaction, UnknownTypeId,
 };
 
 /// Self-contained structural type authority projected from one root type.
@@ -131,6 +131,17 @@ fn project_type(
             element: project_type(source, target, projected, element)?,
             length,
         },
+        TypeKind::Tuple(elements) => {
+            let projected_elements = project_types(source, target, projected, elements.as_slice())?;
+            let [first, second, remaining @ ..] = projected_elements.as_ref() else {
+                unreachable!("tuple semantic identity always contains at least two elements")
+            };
+            TypeKind::Tuple(TupleElements::new(
+                *first,
+                *second,
+                remaining.iter().copied(),
+            ))
+        }
         TypeKind::PackEntry { key, value } => TypeKind::PackEntry {
             key: project_type(source, target, projected, key)?,
             value: project_type(source, target, projected, value)?,

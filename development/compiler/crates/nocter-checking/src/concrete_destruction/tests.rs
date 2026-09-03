@@ -108,6 +108,40 @@ fn nominal_glue_preserves_drop_arguments_and_reverse_field_order() {
 }
 
 #[test]
+fn tuple_glue_preserves_reverse_positional_destruction() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func hold(value: (Owned, Owned, Owned)): void { return }\n",
+    );
+    let program = output.program();
+    let tuple = program
+        .types()
+        .iter()
+        .find_map(|(ty, kind)| {
+            matches!(kind, TypeKind::Tuple(elements) if elements.as_slice().len() == 3)
+                .then_some(ty)
+        })
+        .expect("fixture tuple type");
+    let mut resolver = ConcreteDispatchResolver::new(program);
+    let plan = resolver
+        .resolve_destruction(tuple, &TypeSubstitution::default())
+        .unwrap()
+        .unwrap();
+    let ConcreteDestructionKind::Tuple(elements) = plan.kind() else {
+        panic!("tuple must retain structural destruction")
+    };
+
+    assert_eq!(
+        elements
+            .iter()
+            .map(super::ConcreteTupleElementDestruction::index)
+            .collect::<Vec<_>>(),
+        [2, 1, 0]
+    );
+}
+
+#[test]
 fn enum_glue_retains_only_active_payload_work_in_reverse_order() {
     let output = check(
         "struct Owned { value: i32 }\n\

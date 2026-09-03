@@ -258,6 +258,13 @@ fn validate_deferred_drop_calls(
         MirDestructionKind::FixedArray { element, .. }
         | MirDestructionKind::Optional(element)
         | MirDestructionKind::Opaque { plan: element, .. } => (None, vec![element]),
+        MirDestructionKind::Tuple(elements) => (
+            None,
+            elements
+                .iter()
+                .map(crate::MirTupleElementDestruction::plan)
+                .collect(),
+        ),
         MirDestructionKind::Fallible { success, failure } => (
             None,
             success

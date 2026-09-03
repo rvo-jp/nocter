@@ -41,8 +41,9 @@ pub use dataflow::{
 };
 pub use destruction::MachineDestructionError;
 pub(crate) use destruction::{
-    MachineDestructionCapture, MachineDestructionField, MachineDestructionKind,
-    MachineDestructionPayload, MachineDestructionPlan, MachineDestructionVariant,
+    MachineDestructionCapture, MachineDestructionElement, MachineDestructionField,
+    MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
+    MachineDestructionVariant,
 };
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
@@ -54,7 +55,7 @@ pub(crate) use layout::MachineLayoutPlan;
 pub use layout::{
     MachineCaptureLayout, MachineEnumVariantLayout, MachineFieldLayout, MachineLayout,
     MachineLayoutError, MachineLayoutKind, MachineLayoutStore, MachineOutcomeKind,
-    MachinePayloadLayout, MachineScalar,
+    MachinePayloadLayout, MachineScalar, MachineTupleElementLayout,
 };
 pub use linkage::{MachineLinkageError, MachineLinkageKey};
 pub use lower::{MachineAddressError, MachineAggregateError, MachineProgramError};

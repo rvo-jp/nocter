@@ -609,6 +609,9 @@ fn runtime_type_table(
                 element: *element,
                 length: *length,
             },
+            TypeKind::Tuple(elements) => {
+                RuntimeType::Tuple(elements.iter().collect::<Vec<_>>().into_boxed_slice())
+            }
             TypeKind::PackEntry { key, value } => RuntimeType::PackEntry {
                 key: *key,
                 value: *value,

@@ -70,6 +70,14 @@ noalloc func find(text: &str, needle: &str): usize? {
     return find_from(text, needle, 0)?
 }
 
+noalloc func split_once(text: &str, separator: &str): (&str, &str)? from text {
+    let separator_start: usize = find(text, separator)?
+    let separator_end: usize = separator_start + separator.len()
+    let before: &str = get_range(text, 0, separator_start)?
+    let after: &str = get_range(text, separator_end, text.len())?
+    return (before, after)
+}
+
 noalloc func contains(text: &str, needle: &str): bool {
     let offset: usize = find(text, needle) otherwise { return false }
     return offset <= text.len()

@@ -173,6 +173,11 @@ impl<'program> DestructionEffectResolver<'program> {
                 self.visit_type(key, active, drops, unknown)?;
                 self.visit_type(value, active, drops, unknown)?;
             }
+            TypeKind::Tuple(elements) => {
+                for element in elements.iter() {
+                    self.visit_type(element, active, drops, unknown)?;
+                }
+            }
             TypeKind::Builtin(_)
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }

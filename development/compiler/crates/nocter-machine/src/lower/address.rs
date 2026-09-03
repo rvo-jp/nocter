@@ -172,6 +172,7 @@ fn lower_projection(
     }
     match projection {
         MirProjectionKind::Field(_)
+        | MirProjectionKind::TupleElement(_)
         | MirProjectionKind::ClosureCapture(_)
         | MirProjectionKind::VariantPayload { .. }
         | MirProjectionKind::PackEntryKey
@@ -244,6 +245,9 @@ fn static_projection_offset(
             .layouts
             .field(field)
             .map(crate::MachineFieldLayout::offset),
+        (MirProjectionKind::TupleElement(index), MachineLayoutKind::Tuple { elements }) => {
+            elements.get(index).map(|element| element.offset())
+        }
         (MirProjectionKind::ClosureCapture(capture), MachineLayoutKind::Closure { .. }) => context
             .layouts
             .capture(capture)

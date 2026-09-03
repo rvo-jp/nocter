@@ -365,6 +365,9 @@ const fn is_comma_list(kind: NodeKind) -> bool {
             | NodeKind::CallSuffix
             | NodeKind::StructInitializer
             | NodeKind::ArrayLiteral
+            | NodeKind::TupleExpression
+            | NodeKind::TupleType
+            | NodeKind::BindingPattern
             | NodeKind::SequenceBody
             | NodeKind::MappingBody
             | NodeKind::EnumPatternPayload

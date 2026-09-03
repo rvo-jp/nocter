@@ -10,27 +10,37 @@ pub enum CleanupCondition {
     IfInitialized,
 }
 
-/// One named-field step and the checked result type reached after projecting it.
+/// One statically selected aggregate step and the checked result type reached after projecting it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct CleanupFieldProjection {
-    field: FieldId,
-    ty: TypeId,
+pub enum CleanupProjection {
+    Field { field: FieldId, ty: TypeId },
+    TupleElement { index: usize, ty: TypeId },
 }
 
-impl CleanupFieldProjection {
+impl CleanupProjection {
     #[must_use]
-    pub const fn new(field: FieldId, ty: TypeId) -> Self {
-        Self { field, ty }
+    pub const fn named_field(field: FieldId, ty: TypeId) -> Self {
+        Self::Field { field, ty }
     }
 
     #[must_use]
-    pub const fn field(self) -> FieldId {
-        self.field
+    pub const fn field(self) -> Option<FieldId> {
+        match self {
+            Self::Field { field, .. } => Some(field),
+            Self::TupleElement { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn tuple_element(index: usize, ty: TypeId) -> Self {
+        Self::TupleElement { index, ty }
     }
 
     #[must_use]
     pub const fn ty(self) -> TypeId {
-        self.ty
+        match self {
+            Self::Field { ty, .. } | Self::TupleElement { ty, .. } => ty,
+        }
     }
 }
 
@@ -39,14 +49,14 @@ impl CleanupFieldProjection {
 pub struct CleanupPath {
     root: PlaceRoot,
     root_ty: TypeId,
-    projections: Box<[CleanupFieldProjection]>,
+    projections: Box<[CleanupProjection]>,
 }
 
 impl CleanupPath {
     pub(crate) fn new(
         root: PlaceRoot,
         root_ty: TypeId,
-        projections: impl Into<Box<[CleanupFieldProjection]>>,
+        projections: impl Into<Box<[CleanupProjection]>>,
     ) -> Self {
         Self {
             root,
@@ -61,7 +71,7 @@ impl CleanupPath {
     }
 
     #[must_use]
-    pub const fn projections(&self) -> &[CleanupFieldProjection] {
+    pub const fn projections(&self) -> &[CleanupProjection] {
         &self.projections
     }
 
@@ -142,6 +152,9 @@ pub struct CleanupAction {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CleanupTiming {
+    /// Runs after a destructuring binding has transferred every named leaf and before the binding
+    /// statement completes. Discarded leaves are destroyed through the ordinary cleanup contract.
+    DuringBinding,
     /// Runs after one complete statement has committed its result or destination.
     AtStatementEnd,
     /// Runs after a boolean control header and before selecting or entering its branch/body.

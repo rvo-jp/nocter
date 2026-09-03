@@ -26,6 +26,10 @@ pub enum PlaceProjection {
         field: FieldId,
         ty: TypeId,
     },
+    TupleElement {
+        index: usize,
+        ty: TypeId,
+    },
     /// An implicit dereference required to continue projecting through a borrow value.
     BorrowDeref {
         capability: BorrowCapability,
@@ -54,6 +58,7 @@ impl PlaceProjection {
     pub const fn ty(&self) -> TypeId {
         match self {
             Self::Field { ty, .. }
+            | Self::TupleElement { ty, .. }
             | Self::BorrowDeref { ty, .. }
             | Self::BuiltinIndex { ty, .. }
             | Self::CoercedBuiltinIndex { ty, .. }
@@ -135,10 +140,12 @@ impl CheckedPlace {
     #[must_use]
     pub fn is_move_source(&self) -> bool {
         self.access == PlaceAccess::Owned
-            && self
-                .projections
-                .iter()
-                .all(|projection| matches!(projection, PlaceProjection::Field { .. }))
+            && self.projections.iter().all(|projection| {
+                matches!(
+                    projection,
+                    PlaceProjection::Field { .. } | PlaceProjection::TupleElement { .. }
+                )
+            })
     }
 
     pub(crate) fn evaluation_nodes(&self) -> impl Iterator<Item = BodyNodeId> + '_ {
@@ -153,7 +160,9 @@ impl CheckedPlace {
                     PlaceProjection::BuiltinIndex { index, .. }
                     | PlaceProjection::CoercedBuiltinIndex { index, .. }
                     | PlaceProjection::SelectedIndex { index, .. } => Some(*index),
-                    PlaceProjection::Field { .. } | PlaceProjection::BorrowDeref { .. } => None,
+                    PlaceProjection::Field { .. }
+                    | PlaceProjection::TupleElement { .. }
+                    | PlaceProjection::BorrowDeref { .. } => None,
                 }),
         )
     }
@@ -170,6 +179,7 @@ impl PlaceProjection {
     ) -> Result<(), super::CheckedSemanticRebindError> {
         match self {
             Self::Field { ty, .. }
+            | Self::TupleElement { ty, .. }
             | Self::BorrowDeref { ty, .. }
             | Self::BuiltinIndex { ty, .. } => *ty = semantics.ty(*ty)?,
             Self::CoercedBuiltinIndex {

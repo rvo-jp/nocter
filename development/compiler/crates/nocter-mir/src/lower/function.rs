@@ -300,6 +300,13 @@ impl<'a> FunctionLowerer<'a> {
                     .collect::<Result<Vec<_>, _>>()?
                     .into_boxed_slice(),
             ),
+            AggregateConstruction::Tuple(values) => MirAggregate::Tuple(
+                values
+                    .iter()
+                    .map(|value| self.require_value(*value))
+                    .collect::<Result<Vec<_>, _>>()?
+                    .into_boxed_slice(),
+            ),
         };
         self.append_value(ty, MirOperationKind::Aggregate(aggregate))
     }

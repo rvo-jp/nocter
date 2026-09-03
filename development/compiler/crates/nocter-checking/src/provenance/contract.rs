@@ -103,6 +103,9 @@ pub(crate) fn invocation_place_can_reach_result(
                 | TypeKind::Optional(element)
                 | TypeKind::Fallible(element),
             ) => pending.push((*element, bindings)),
+            Some(TypeKind::Tuple(elements)) => {
+                pending.extend(elements.iter().map(|element| (element, bindings.clone())));
+            }
             Some(TypeKind::PackEntry { key, value }) => {
                 pending.push((*key, bindings.clone()));
                 pending.push((*value, bindings));
@@ -203,6 +206,9 @@ pub(crate) fn type_can_carry_loan(
                 | TypeKind::Optional(element)
                 | TypeKind::Fallible(element),
             ) => pending.push((*element, bindings)),
+            Some(TypeKind::Tuple(elements)) => {
+                pending.extend(elements.iter().map(|element| (element, bindings.clone())));
+            }
             Some(TypeKind::PackEntry { key, value }) => {
                 pending.push((*key, bindings.clone()));
                 pending.push((*value, bindings));

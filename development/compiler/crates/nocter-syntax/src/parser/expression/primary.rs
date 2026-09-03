@@ -72,10 +72,33 @@ fn grouped_expression(parser: &mut Parser<'_>) -> CompletedMarker {
     }
     parser.eat_newlines();
     expression(parser, ExpressionMode::Delimited);
+    let tuple = parser.eat_punctuation(Punctuation::Comma);
+    if tuple {
+        parser.eat_newlines();
+        if parser.at_punctuation(Punctuation::RightParen) || parser.at(TokenKind::Eof) {
+            parser.missing(ExpectedSyntax::Expression);
+        } else {
+            expression(parser, ExpressionMode::Delimited);
+            while parser.eat_punctuation(Punctuation::Comma) {
+                parser.eat_newlines();
+                if parser.at_punctuation(Punctuation::RightParen) || parser.at(TokenKind::Eof) {
+                    break;
+                }
+                expression(parser, ExpressionMode::Delimited);
+            }
+        }
+    }
     parser.eat_newlines();
     parser.expect_punctuation(Punctuation::RightParen);
     parser.leave_nesting();
-    parser.complete(marker, NodeKind::GroupedExpression)
+    parser.complete(
+        marker,
+        if tuple {
+            NodeKind::TupleExpression
+        } else {
+            NodeKind::GroupedExpression
+        },
+    )
 }
 
 fn closure_expression(parser: &mut Parser<'_>) -> CompletedMarker {

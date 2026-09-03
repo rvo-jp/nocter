@@ -33,6 +33,21 @@ pub(crate) fn validate_destruction_plan(
             }
             validate_destruction_plan(environment, element)?;
         }
+        MirDestructionKind::Tuple(elements) => {
+            let Some(TypeKind::Tuple(declared)) = types.get(plan.ty()) else {
+                return Err(MirValidationError::InvalidDestruction(plan.ty()));
+            };
+            let mut previous = None;
+            for element in elements {
+                if previous.is_some_and(|previous| previous <= element.index())
+                    || declared.get(element.index()) != Some(element.plan().ty())
+                {
+                    return Err(MirValidationError::InvalidDestruction(plan.ty()));
+                }
+                previous = Some(element.index());
+                validate_destruction_plan(environment, element.plan())?;
+            }
+        }
         MirDestructionKind::Optional(payload) => {
             if !matches!(types.get(plan.ty()), Some(TypeKind::Optional(actual)) if actual == &payload.ty())
             {

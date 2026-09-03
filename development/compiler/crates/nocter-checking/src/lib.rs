@@ -81,20 +81,20 @@ pub use checked::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,
     BodyClosureRecipe, BodyClosureRecipeError, BorrowConversionImplementation,
     BorrowConversionPreparation, BuildCheckedBodyError, CallTarget, CallableProvenanceTable,
-    CheckedArgumentPack, CheckedBody, CheckedBodyLoans, CheckedBodyProvenance,
-    CheckedBorrowConversion, CheckedCall, CheckedCallableProvenance, CheckedCapture,
-    CheckedClosure, CheckedClosureCapture, CheckedClosureProvenance, CheckedComparison,
-    CheckedControl, CheckedInterpolation, CheckedIteratorAcquisition, CheckedLoan, CheckedLocal,
-    CheckedLoop, CheckedNode, CheckedOpaqueWitness, CheckedOperation, CheckedOutcome,
-    CheckedPackLiteral, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
+    CheckedArgumentPack, CheckedBindingPattern, CheckedBody, CheckedBodyLoans,
+    CheckedBodyProvenance, CheckedBorrowConversion, CheckedCall, CheckedCallableProvenance,
+    CheckedCapture, CheckedClosure, CheckedClosureCapture, CheckedClosureProvenance,
+    CheckedComparison, CheckedControl, CheckedInterpolation, CheckedIteratorAcquisition,
+    CheckedLoan, CheckedLocal, CheckedLoop, CheckedNode, CheckedOpaqueWitness, CheckedOperation,
+    CheckedOutcome, CheckedPackLiteral, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
     CheckedPatternSlot, CheckedPatternSubject, CheckedPlace, CheckedProgram,
     CheckedProgramMapFailure, CheckedProgramOutput, CheckedReadonlyOperand, CheckedReceiver,
     CheckedReceiverCoercion, CheckedSemanticRebindError, CleanupAction, CleanupCondition,
-    CleanupFieldProjection, CleanupPath, CleanupSchedule, CleanupTable, CleanupTarget,
-    CleanupTiming, ClosureDefinition, ClosureEnvironmentField, ClosureParameter,
-    ClosureProvenanceTable, ClosureSignature, ClosureTable, ClosureTableBuildError,
-    CoercedReceiverPreparation, ComparisonImplementation, ComparisonOperation, ConstantValue,
-    DropSelection, DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
+    CleanupPath, CleanupProjection, CleanupSchedule, CleanupTable, CleanupTarget, CleanupTiming,
+    ClosureDefinition, ClosureEnvironmentField, ClosureParameter, ClosureProvenanceTable,
+    ClosureSignature, ClosureTable, ClosureTableBuildError, CoercedReceiverPreparation,
+    ComparisonImplementation, ComparisonOperation, ConstantValue, DropSelection,
+    DuplicateGenericArgument, GenericArgument, GenericArguments, InterpolationPart,
     IterationAcquisition, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable, LogicalOperation,
     LoopKind, OpaqueWitnessTable, OpaqueWitnessTableBuildError, PatternBindingMode,
     PatternRemainder, PatternSubjectPreparation, PlaceAccess, PlaceProjection, PlaceRoot,
@@ -105,7 +105,7 @@ pub use checked::{
 pub use concrete_destruction::{
     ConcreteCaptureDestruction, ConcreteDestructionError, ConcreteDestructionKind,
     ConcreteDestructionPlan, ConcreteFieldDestruction, ConcretePayloadDestruction,
-    ConcreteVariantDestruction,
+    ConcreteTupleElementDestruction, ConcreteVariantDestruction,
 };
 pub use concrete_dispatch::{
     ConcreteDispatchError, ConcreteDispatchResolver, ResolvedCallableDispatch,
@@ -142,8 +142,8 @@ pub use interface_implementation::{
     RequiredInterfaceImplementationParameter, RequirementDerivation, SubstitutionError,
 };
 pub use member_completion::{
-    MemberCompletionCandidate, MemberCompletionError, MemberCompletionQuerySession,
-    MemberCompletionTarget,
+    MemberCompletionCandidate, MemberCompletionError, MemberCompletionName,
+    MemberCompletionQuerySession, MemberCompletionTarget,
 };
 pub use name_evidence::{
     BodyNameEvidence, NameRejection, QueriedBodyNameRejection, ReusableBodyNameQueryOutcome,

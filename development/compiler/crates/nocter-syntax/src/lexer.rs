@@ -215,7 +215,9 @@ impl<'source> Lexer<'source> {
                     self.diagnostic(LexDiagnosticKind::PlainSingleQuote, start, self.cursor);
                 }
                 b'0'..=b'9' => self.lex_number(),
-                b'.' if self.bytes.get(start + 1).is_some_and(u8::is_ascii_digit) => {
+                b'.' if self.bytes.get(start + 1).is_some_and(u8::is_ascii_digit)
+                    && !self.can_lex_tuple_projection() =>
+                {
                     self.lex_leading_dot_float();
                 }
                 byte if is_identifier_start(byte) => self.lex_identifier(),
@@ -262,6 +264,25 @@ impl<'source> Lexer<'source> {
         self.push_token(kind, start, self.cursor);
     }
 
+    fn can_lex_tuple_projection(&self) -> bool {
+        matches!(
+            self.tokens.last().map(|token| token.kind()),
+            Some(
+                TokenKind::Identifier
+                    | TokenKind::IntegerLiteral
+                    | TokenKind::ByteLiteral
+                    | TokenKind::StringEnd(_)
+                    | TokenKind::InterpolationEnd
+                    | TokenKind::Keyword(Keyword::True | Keyword::False | Keyword::None)
+                    | TokenKind::Punctuation(
+                        Punctuation::RightParen
+                            | Punctuation::RightBracket
+                            | Punctuation::RightBrace
+                    )
+            )
+        )
+    }
+
     fn lex_number(&mut self) {
         let start = self.cursor;
         while self
@@ -273,7 +294,10 @@ impl<'source> Lexer<'source> {
             self.cursor += 1;
         }
 
-        if self.bytes.get(self.cursor) == Some(&b'.')
+        if !matches!(
+            self.tokens.last().map(|token| token.kind()),
+            Some(TokenKind::Punctuation(Punctuation::Dot))
+        ) && self.bytes.get(self.cursor) == Some(&b'.')
             && self
                 .bytes
                 .get(self.cursor + 1)

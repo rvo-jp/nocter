@@ -9,6 +9,29 @@ pub struct MachineDestructionField {
     plan: MachineDestructionPlan,
 }
 
+/// One positional tuple-element cleanup at its frozen byte offset.
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct MachineDestructionElement {
+    offset: u64,
+    plan: MachineDestructionPlan,
+}
+
+impl MachineDestructionElement {
+    pub(crate) const fn new(offset: u64, plan: MachineDestructionPlan) -> Self {
+        Self { offset, plan }
+    }
+
+    #[must_use]
+    pub const fn offset(&self) -> u64 {
+        self.offset
+    }
+
+    #[must_use]
+    pub const fn plan(&self) -> &MachineDestructionPlan {
+        &self.plan
+    }
+}
+
 impl MachineDestructionField {
     pub(crate) const fn new(offset: u64, plan: MachineDestructionPlan) -> Self {
         Self { offset, plan }
@@ -114,6 +137,7 @@ pub enum MachineDestructionKind {
         stride: u64,
         element: Box<MachineDestructionPlan>,
     },
+    Tuple(Box<[MachineDestructionElement]>),
     Outcome {
         tag_offset: u64,
         payload_offset: u64,

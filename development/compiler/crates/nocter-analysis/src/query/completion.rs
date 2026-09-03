@@ -3,8 +3,9 @@ use std::fmt;
 
 use nocter_checking::{
     AssociatedTypeCompletionError, CheckedOperation, CheckedProgram, ConstructionCompletionError,
-    EnumPatternCompletionError, MemberCompletionError, MemberCompletionTarget, NameTarget,
-    ReceiverPreparation, StructuralFieldCompletionError, TypedBodyInterruptionKind,
+    EnumPatternCompletionError, MemberCompletionError, MemberCompletionName,
+    MemberCompletionTarget, NameTarget, ReceiverPreparation, StructuralFieldCompletionError,
+    TypedBodyInterruptionKind,
 };
 use nocter_declarations::{DeclarationGraph, ExportedEntity, NominalShape};
 use nocter_model::{BodyId, BodyScopeId, BorrowCapability, Symbol};
@@ -418,11 +419,22 @@ fn interrupted_completions(
                 candidates
                     .iter()
                     .filter_map(|candidate| {
-                        let label = interruption.graph().symbols().spelling(candidate.name())?;
+                        let label =
+                            member_completion_label(interruption.graph(), candidate.name())?;
                         let (kind, entity) = completion_target(candidate.target());
-                        let detail = entity
-                            .and_then(|entity| interruption.presentation(entity, spellings))
-                            .map(|presentation| Box::<str>::from(presentation.code()));
+                        let detail = match candidate.target() {
+                            MemberCompletionTarget::TupleElement { tuple, index } => {
+                                tuple_completion_detail(
+                                    interruption.graph(),
+                                    tuple,
+                                    *index,
+                                    spellings,
+                                )
+                            }
+                            _ => entity
+                                .and_then(|entity| interruption.presentation(entity, spellings))
+                                .map(|presentation| Box::<str>::from(presentation.code())),
+                        };
                         Some(SemanticCompletion::new(label, kind, detail))
                     })
                     .collect::<Vec<_>>()
@@ -540,11 +552,16 @@ fn checked_member_completions(
         candidates
             .iter()
             .filter_map(|candidate| {
-                let label = program.graph().symbols().spelling(candidate.name())?;
+                let label = member_completion_label(program.graph(), candidate.name())?;
                 let (kind, entity) = completion_target(candidate.target());
-                let detail = entity
-                    .and_then(|entity| presentation(program, entity, spellings))
-                    .map(|presentation| Box::<str>::from(presentation.code()));
+                let detail = match candidate.target() {
+                    MemberCompletionTarget::TupleElement { tuple, index } => {
+                        tuple_completion_detail(program.graph(), tuple, *index, spellings)
+                    }
+                    _ => entity
+                        .and_then(|entity| presentation(program, entity, spellings))
+                        .map(|presentation| Box::<str>::from(presentation.code())),
+                };
                 Some(SemanticCompletion::new(label, kind, detail))
             })
             .collect::<Vec<_>>()
@@ -553,21 +570,52 @@ fn checked_member_completions(
 }
 
 const fn completion_target(
-    target: MemberCompletionTarget,
+    target: &MemberCompletionTarget,
 ) -> (SemanticCompletionKind, Option<SemanticEntity>) {
     match target {
         MemberCompletionTarget::Field(field) => (
             SemanticCompletionKind::Field,
-            Some(SemanticEntity::Field(field)),
+            Some(SemanticEntity::Field(*field)),
         ),
+        MemberCompletionTarget::TupleElement { .. } => (SemanticCompletionKind::Field, None),
         MemberCompletionTarget::Method { surface } => (
             SemanticCompletionKind::Method,
             match surface {
-                Some(surface) => Some(SemanticEntity::Callable(surface)),
+                Some(surface) => Some(SemanticEntity::Callable(*surface)),
                 None => None,
             },
         ),
     }
+}
+
+fn member_completion_label(
+    graph: &DeclarationGraph,
+    name: MemberCompletionName,
+) -> Option<Box<str>> {
+    match name {
+        MemberCompletionName::Declared(name) => graph.symbols().spelling(name).map(Box::from),
+        MemberCompletionName::TupleElement(index) => Some(index.to_string().into_boxed_str()),
+    }
+}
+
+fn tuple_completion_detail(
+    graph: &DeclarationGraph,
+    tuple: &nocter_model::TypeProjection,
+    index: usize,
+    spellings: &VisibleSpellings,
+) -> Option<Box<str>> {
+    let tuple_presentation =
+        crate::query::presentation::recovery_type_presentation(tuple, graph, spellings)?;
+    let nocter_model::TypeKind::Tuple(elements) = tuple.types().get(tuple.root())? else {
+        return None;
+    };
+    let ty = crate::query::presentation::type_presentation_with_spellings(
+        graph,
+        tuple.types(),
+        elements.get(index)?,
+        spellings,
+    )?;
+    Some(format!("{}.{index}: {}", tuple_presentation.code(), ty.code()).into_boxed_str())
 }
 
 const fn receiver_access(preparation: ReceiverPreparation) -> (BorrowCapability, bool) {

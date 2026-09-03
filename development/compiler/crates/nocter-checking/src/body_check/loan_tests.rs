@@ -124,6 +124,34 @@ fn named_fields_are_disjoint_but_the_same_field_conflicts() {
 }
 
 #[test]
+fn tuple_positions_are_disjoint_but_the_same_position_conflicts() {
+    check(
+        "func inspect(value: &i32): void { return }\n\
+         func valid(): void {\n\
+             var pair = (1, 2)\n\
+             let read = &pair.0\n\
+             pair.1 = 3\n\
+             inspect(read)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    let error = check(
+        "func inspect(value: &i32): void { return }\n\
+         func invalid(): void {\n\
+             var pair = (1, 2)\n\
+             let read = &pair.0\n\
+             pair.0 = 3\n\
+             inspect(read)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(crate::BodyRule::BorrowedPlaceMutation));
+}
+
+#[test]
 fn receiver_derived_method_result_keeps_the_receiver_loan_live() {
     let error = check(
         "copy struct Box { value: i32 }\n\

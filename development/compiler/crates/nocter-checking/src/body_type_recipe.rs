@@ -69,6 +69,7 @@ enum BodyTypeKind {
         element: BodyTypeRef,
         length: u64,
     },
+    Tuple(Box<[BodyTypeRef]>),
     PackEntry {
         key: BodyTypeRef,
         value: BodyTypeRef,
@@ -318,6 +319,9 @@ fn capture_kind(
             element: reference(*element)?,
             length: *length,
         },
+        TypeKind::Tuple(elements) => {
+            BodyTypeKind::Tuple(capture_types(elements.as_slice(), reference)?)
+        }
         TypeKind::PackEntry { key, value } => BodyTypeKind::PackEntry {
             key: reference(*key)?,
             value: reference(*value)?,
@@ -406,6 +410,17 @@ fn replay_kind(
             element: resolve(*element)?,
             length: *length,
         },
+        BodyTypeKind::Tuple(elements) => {
+            let elements = replay_types(elements, &resolve)?;
+            let [first, second, remaining @ ..] = elements.as_ref() else {
+                unreachable!("tuple type recipe retains at least two elements")
+            };
+            TypeKind::Tuple(nocter_model::TupleElements::new(
+                *first,
+                *second,
+                remaining.iter().copied(),
+            ))
+        }
         BodyTypeKind::PackEntry { key, value } => TypeKind::PackEntry {
             key: resolve(*key)?,
             value: resolve(*value)?,

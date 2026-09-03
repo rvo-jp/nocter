@@ -489,6 +489,7 @@ TypeAtom = BuiltinScalarType
          | NamedType
          | SliceType
          | FixedArrayType
+         | TupleType
          | GroupedType
 
 BuiltinScalarType = "bool"
@@ -504,6 +505,7 @@ TypeSelectionSuffix = "." Name TypeArguments?
 SliceType = "[" Type "]"
 FixedArrayType = "[" Type ";" Expression "]"
 GroupedType = "(" Type ")"
+TupleType = "(" Type "," Type ("," Type)* ","? ")"
 
 CallableType = NoAllocModifier? CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
@@ -664,8 +666,8 @@ Statement = BindingStatement
           | ForStatement
           | RegionStatement
 
-BindingStatement = ("let" | "var") BindingTarget TypeAnnotation? "=" Expression
-BindingTarget = Name | "_"
+BindingStatement = ("let" | "var") BindingPattern TypeAnnotation? "=" Expression
+BindingPattern = Name | "_" | "(" BindingPattern "," BindingPattern ("," BindingPattern)* ","? ")"
 TypeAnnotation = ":" Type
 
 AssignmentStatement = AssignmentTarget AssignmentOperator Expression
@@ -685,7 +687,7 @@ ForSource = HeaderExpression "..<" HeaderExpression | HeaderExpression
 
 RegionStatement = "region" Name "using" AllocatorPlace Block
 
-NamedPlace = Name ("." Name)*
+NamedPlace = Name ("." (Name | integer_literal))*
 AllocatorPlace = NamedPlace
 ```
 
@@ -695,9 +697,11 @@ writable place. The place, initialization, borrow, and operator checks happen af
 keeps `call() = value` structurally an assignment with one invalid target rather than forcing error
 recovery to invent another expression tree.
 
-`let _ = expression` is the only discard binding. Later validation rejects `var _`, missing type
-information, invalid binding types, assignment to immutable places, assignment to borrowed
-parameter bindings, and compound assignment whose target is not definitely initialized.
+`_` discards one leaf of a binding. A complete `_` binding remains valid only with `let`; tuple
+patterns may contain discard leaves under either `let` or `var`. Later validation rejects invalid
+tuple shape or arity, missing type information, invalid binding types, assignment to immutable
+places, assignment to borrowed parameter bindings, and compound assignment whose target is not
+definitely initialized.
 
 The `drop` spelling is contextual only at the beginning of a statement followed by one `Name`.
 Dropping a field, index, call result, or arbitrary expression has no statement production. An
@@ -709,8 +713,9 @@ collection source is one ordinary expression, including an explicit `&`, `&+`, o
 Iteration capability and the rejection of a bare collection are semantic checks.
 
 `AllocatorPlace` is shared by `region ... using` and typed-literal overrides. It admits an existing
-binding and statically named fields only. Calls, indexes, literals, conversions, and other
-effectful expressions must be evaluated into a binding before selection as an allocation context.
+binding followed by statically selected named fields or tuple positions. Calls, indexes, literals,
+conversions, and other effectful expressions must be evaluated into a binding before selection as
+an allocation context.
 
 ## Control Expressions and Enum Patterns
 
@@ -778,10 +783,11 @@ OutcomeExpression = PostfixExpression ExpressionOutcomeSuffix?
 ExpressionOutcomeSuffix = "?" | "!"
 
 PostfixExpression = PrimaryExpression PostfixSuffix*
-PostfixSuffix = CallSuffix | MemberSuffix | IndexSuffix
+PostfixSuffix = CallSuffix | MemberSuffix | TupleElementSuffix | IndexSuffix
 CallSuffix = "(" List(CallArgument) ")"
 CallArgument = Expression | "..." SpreadExpression
 MemberSuffix = "." Name
+TupleElementSuffix = "." integer_literal
 IndexSuffix = "[" Expression "]"
 ```
 
@@ -842,9 +848,11 @@ PrimaryExpression = ControlExpression
                   | "true"
                   | "false"
                   | "none"
+                  | TupleExpression
                   | GroupedExpression
 
 GroupedExpression = "(" Expression ")"
+TupleExpression = "(" Expression "," Expression ("," Expression)* ","? ")"
 
 ReferenceExpression = OwnerHead
 GenericOwnerMember = GenericOwnerReference "." Name

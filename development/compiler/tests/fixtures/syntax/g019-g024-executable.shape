@@ -19,14 +19,14 @@ SourceFile
           ModulePath
         ExecutableSequence
           BindingStatement
-            BindingTarget
+            BindingPattern
             TypeAnnotation
               Type
                 NamedType
             Expression
               ScalarLiteral
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               PostfixExpression
                 ReferenceExpression
@@ -34,7 +34,7 @@ SourceFile
                   Expression
                     ReferenceExpression
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               ReferenceExpression
           AssignmentStatement
@@ -99,6 +99,7 @@ SourceFile
           RegionStatement
             AllocatorPlace
               NamedPlace
+                MemberSuffix
             Block
               ExecutableSequence
                 BodyResult
@@ -111,7 +112,7 @@ SourceFile
                         Expression
                           ReferenceExpression
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               IfExpression
                 IfCondition
@@ -147,7 +148,7 @@ SourceFile
                             Expression
                               ScalarLiteral
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               MatchExpression
                 Expression
@@ -169,7 +170,7 @@ SourceFile
                         Expression
                           ScalarLiteral
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               RecoveryExpression
                 RecoveryExpression

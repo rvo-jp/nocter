@@ -49,6 +49,7 @@ fn stored_layout_fixture() -> nocter_mir::MirProgram {
              let pair = Pair { small: 1, wide: 2 }\n\
              let choice = Choice.pair(3, 4)\n\
              let values: [u16; 3] = [1, 2, 3]\n\
+             let tuple: (u8, u64, u16) = (1, 2, 3)\n\
              let markers: [Empty; 3] = [Empty {}, Empty {}, Empty {}]\n\
              let text: &str = \"ok\"\n\
              let number: i32 = 5\n\
@@ -116,6 +117,8 @@ fn assert_aggregate_layouts(program: &nocter_mir::MirProgram, layouts: &MachineL
         [8, 16]
     );
 
+    assert_tuple_layout(types, layouts);
+
     let array = types
         .iter()
         .find_map(|(ty, kind)| {
@@ -154,6 +157,28 @@ fn assert_aggregate_layouts(program: &nocter_mir::MirProgram, layouts: &MachineL
         empty_array_layout.kind(),
         MachineLayoutKind::FixedArray { stride: 0, .. }
     ));
+}
+
+fn assert_tuple_layout(types: &RuntimeTypeTable, layouts: &MachineLayoutStore) {
+    let tuple = types
+        .iter()
+        .find_map(|(ty, kind)| {
+            matches!(kind, RuntimeType::Tuple(elements) if elements.len() == 3).then_some(ty)
+        })
+        .expect("fixture tuple type");
+    let tuple_layout = layouts.get(tuple).unwrap();
+    assert_eq!((tuple_layout.size(), tuple_layout.alignment()), (24, 8));
+    let MachineLayoutKind::Tuple { elements } = tuple_layout.kind() else {
+        panic!("tuple must use positional product layout")
+    };
+    assert_eq!(
+        elements
+            .iter()
+            .copied()
+            .map(crate::MachineTupleElementLayout::offset)
+            .collect::<Vec<_>>(),
+        [0, 8, 16]
+    );
 }
 
 fn assert_scalar_view_and_outcome_layouts(
@@ -396,6 +421,13 @@ fn abi_classifies_indirect_arguments_and_all_return_forms_from_stored_layouts() 
     let empty = named_nominal(&program, "Empty");
     let pair = named_nominal(&program, "Pair");
     let large = named_nominal(&program, "Large");
+    let tuple = program
+        .types()
+        .iter()
+        .find_map(|(ty, kind)| {
+            matches!(kind, RuntimeType::Tuple(elements) if elements.len() == 3).then_some(ty)
+        })
+        .expect("ABI fixture tuple");
 
     let indirect = abi
         .iter()
@@ -438,6 +470,21 @@ fn abi_classifies_indirect_arguments_and_all_return_forms_from_stored_layouts() 
             }
         )
     });
+    assert_return(&abi, tuple, MachineValueClass::Indirect, |location| {
+        matches!(
+            location,
+            MachineResultLocation::CallerStorage {
+                pointer_register: 8
+            }
+        )
+    });
+    assert!(abi.iter().any(|(_, callable)| {
+        matches!(
+            callable.arguments(),
+            [argument]
+                if argument.ty() == tuple && argument.class() == MachineValueClass::Indirect
+        )
+    }));
     assert!(
         abi.iter()
             .any(|(_, callable)| callable.result() == MachineResultAbi::Diverging)
@@ -491,6 +538,8 @@ fn abi_fixture() -> nocter_mir::MirProgram {
          func make_empty(): Empty { Empty {} }\n\
          func make_pair(): Pair { Pair { small: 1, wide: 2 } }\n\
          func make_large(): Large { Large { first: 1, second: 2, third: 3 } }\n\
+         func make_tuple(): (u64, u64, u64) { (1, 2, 3) }\n\
+         func accept_tuple(value: (u64, u64, u64)): void { return }\n\
          func halt(): never { loop {} }\n\
          func main(): void {\n\
              place(0, 1, 2, 3, 4, 5, 6, \"two words\", Empty {}, 9)\n\
@@ -499,6 +548,8 @@ fn abi_fixture() -> nocter_mir::MirProgram {
              let empty = make_empty()\n\
              let pair = make_pair()\n\
              let large = make_large()\n\
+             let tuple = make_tuple()\n\
+             accept_tuple(tuple)\n\
              drop empty\n\
              drop pair\n\
              drop large\n\

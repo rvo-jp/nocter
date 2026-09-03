@@ -166,8 +166,14 @@ impl Analyzer<'_, '_> {
                 path.root(),
                 path.projections()
                     .iter()
-                    .copied()
-                    .map(crate::CleanupFieldProjection::field)
+                    .map(|projection| match projection {
+                        crate::CleanupProjection::Field { field, .. } => {
+                            LoanProjection::Field(*field)
+                        }
+                        crate::CleanupProjection::TupleElement { index, .. } => {
+                            LoanProjection::TupleElement(*index)
+                        }
+                    })
                     .collect::<Vec<_>>()
                     .into(),
             ))),
@@ -200,9 +206,14 @@ impl Analyzer<'_, '_> {
                 LoanRoot::Place(path.root()),
                 path.projections()
                     .iter()
-                    .copied()
-                    .map(crate::CleanupFieldProjection::field)
-                    .map(LoanProjection::Field)
+                    .map(|projection| match projection {
+                        crate::CleanupProjection::Field { field, .. } => {
+                            LoanProjection::Field(*field)
+                        }
+                        crate::CleanupProjection::TupleElement { index, .. } => {
+                            LoanProjection::TupleElement(*index)
+                        }
+                    })
                     .collect::<Vec<_>>(),
             )],
             CleanupTarget::Place { place, .. } => {

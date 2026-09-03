@@ -19,8 +19,8 @@ pub use builder::BuildCheckedBodyError;
 pub(crate) use builder::CheckedBodyBuilder;
 pub(crate) use cleanup::CleanupEffect;
 pub use cleanup::{
-    CleanupAction, CleanupCondition, CleanupFieldProjection, CleanupPath, CleanupSchedule,
-    CleanupTable, CleanupTarget, CleanupTiming,
+    CleanupAction, CleanupCondition, CleanupPath, CleanupProjection, CleanupSchedule, CleanupTable,
+    CleanupTarget, CleanupTiming,
 };
 pub use closure::{BodyClosureRecipe, BodyClosureRecipeError, ClosureTableBuildError};
 pub(crate) use closure::{ClosureAuthority, ClosureTransaction, StaleClosureTransaction};
@@ -33,10 +33,10 @@ pub use loan::{
 };
 pub use node::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
-    BorrowConversionPreparation, CallTarget, CheckedBorrowConversion, CheckedCall, CheckedClosure,
-    CheckedClosureCapture, CheckedComparison, CheckedControl, CheckedInterpolation,
-    CheckedIteratorAcquisition, CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome,
-    CheckedPackLiteral, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
+    BorrowConversionPreparation, CallTarget, CheckedBindingPattern, CheckedBorrowConversion,
+    CheckedCall, CheckedClosure, CheckedClosureCapture, CheckedComparison, CheckedControl,
+    CheckedInterpolation, CheckedIteratorAcquisition, CheckedLoop, CheckedNode, CheckedOperation,
+    CheckedOutcome, CheckedPackLiteral, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
     CheckedPatternSlot, CheckedPatternSubject, CheckedReadonlyOperand, CheckedReceiver,
     CheckedReceiverCoercion, CoercedReceiverPreparation, ComparisonImplementation,
     ComparisonOperation, ConstantValue, InterpolationPart, IterationAcquisition, LogicalOperation,

@@ -132,13 +132,35 @@ impl FunctionLowerer<'_> {
                 }
             }
             PlaceRoot::Capture(capture) => self.lower_capture_path(capture)?,
-            PlaceRoot::Value(_) => return Err(MirLoweringError::InvalidCleanup(owner)),
+            PlaceRoot::Value(value) => {
+                let source_ty = self
+                    .body
+                    .nodes()
+                    .get(value)
+                    .map(nocter_checking::CheckedNode::ty)
+                    .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+                let place = self.materialize_checked_value(value, source_ty)?;
+                let lowered = self
+                    .builder
+                    .place(place)
+                    .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+                super::place::LoweredPlacePath {
+                    root: lowered.root(),
+                    projections: lowered.projections().to_vec(),
+                    ty: lowered.ty(),
+                }
+            }
         };
         for projection in path.projections().iter().copied() {
-            lowered.push(
-                MirProjectionKind::Field(projection.field()),
-                self.concrete_type(projection.ty())?,
-            );
+            let kind = match projection {
+                nocter_checking::CleanupProjection::Field { field, .. } => {
+                    MirProjectionKind::Field(field)
+                }
+                nocter_checking::CleanupProjection::TupleElement { index, .. } => {
+                    MirProjectionKind::TupleElement(index)
+                }
+            };
+            lowered.push(kind, self.concrete_type(projection.ty())?);
         }
         let ty = self.concrete_type(path.ty())?;
         if lowered.ty != ty {
@@ -212,6 +234,17 @@ impl FunctionLowerer<'_> {
                         element.ty(),
                     )?;
                     self.lower_destruction(owner, child, element)?;
+                }
+            }
+            ConcreteDestructionKind::Tuple(elements) => {
+                for element in elements {
+                    let child = self.project_cleanup_place(
+                        owner,
+                        place,
+                        MirProjectionKind::TupleElement(element.index()),
+                        element.plan().ty(),
+                    )?;
+                    self.lower_destruction(owner, child, element.plan())?;
                 }
             }
             ConcreteDestructionKind::Optional(payload) => {
@@ -288,7 +321,7 @@ impl FunctionLowerer<'_> {
         })
     }
 
-    fn project_cleanup_place(
+    pub(super) fn project_cleanup_place(
         &mut self,
         owner: BodyNodeId,
         base: MirPlaceId,

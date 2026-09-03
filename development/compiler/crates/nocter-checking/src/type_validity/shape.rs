@@ -122,6 +122,14 @@ pub fn validate_type(
             TypeKind::FixedArray { element, .. } => {
                 pending.push((*element, TypePosition::Data));
             }
+            TypeKind::Tuple(elements) => {
+                pending.extend(
+                    elements
+                        .iter()
+                        .rev()
+                        .map(|element| (element, TypePosition::Data)),
+                );
+            }
             TypeKind::PackEntry { key, value } => {
                 pending.push((*value, TypePosition::Data));
                 pending.push((*key, TypePosition::Data));

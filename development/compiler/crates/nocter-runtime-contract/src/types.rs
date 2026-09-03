@@ -30,6 +30,7 @@ pub enum RuntimeType {
         element: TypeId,
         length: u64,
     },
+    Tuple(Box<[TypeId]>),
     PackEntry {
         key: TypeId,
         value: TypeId,
@@ -117,6 +118,23 @@ impl RuntimeTypeTableBuilder {
                 | RuntimeType::Fallible(ty) => Some(*ty),
                 RuntimeType::Borrow { referent, .. } => Some(*referent),
                 RuntimeType::FixedArray { element, .. } => Some(*element),
+                RuntimeType::Tuple(elements) => {
+                    if elements.len() < 2 {
+                        return Err(RuntimeTypeTableBuildError::InvalidTupleArity {
+                            owner: *owner,
+                            actual: elements.len(),
+                        });
+                    }
+                    for referenced in elements {
+                        if !self.entries.contains_key(referenced) {
+                            return Err(RuntimeTypeTableBuildError::UnknownReference {
+                                owner: *owner,
+                                referenced: *referenced,
+                            });
+                        }
+                    }
+                    None
+                }
                 RuntimeType::PackEntry { key, value } => {
                     if !self.entries.contains_key(key) {
                         return Err(RuntimeTypeTableBuildError::UnknownReference {
@@ -152,6 +170,7 @@ impl RuntimeTypeTableBuilder {
 pub enum RuntimeTypeTableBuildError {
     DuplicateType(TypeId),
     DuplicatePrimitive(RuntimePrimitive),
+    InvalidTupleArity { owner: TypeId, actual: usize },
     UnknownReference { owner: TypeId, referenced: TypeId },
 }
 
@@ -202,6 +221,21 @@ mod tests {
         assert_eq!(
             builder.finish().unwrap_err(),
             RuntimeTypeTableBuildError::UnknownReference { owner, referenced }
+        );
+    }
+
+    #[test]
+    fn finish_rejects_a_tuple_shape_outside_the_language_arity() {
+        let mut builder = RuntimeTypeTableBuilder::new();
+        let semantic = TypeStore::new();
+        let owner = semantic.builtin(BuiltinType::Bool);
+        builder
+            .insert(owner, RuntimeType::Tuple(Box::new([])))
+            .unwrap();
+
+        assert_eq!(
+            builder.finish().unwrap_err(),
+            RuntimeTypeTableBuildError::InvalidTupleArity { owner, actual: 0 }
         );
     }
 }

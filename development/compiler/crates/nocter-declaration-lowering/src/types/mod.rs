@@ -141,6 +141,7 @@ pub enum BoundTypeKind {
         /// the header-constant pass before structural type normalization begins.
         length: NodeId,
     },
+    Tuple(Box<[BoundTypeId]>),
     Callable(BoundCallableType),
     Optional(BoundTypeId),
     Fallible(BoundTypeId),

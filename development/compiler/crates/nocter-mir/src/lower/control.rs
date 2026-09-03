@@ -3,7 +3,7 @@ use nocter_model::{BodyNodeId, BuiltinType, MirBlockId, MirValueId, TypeKind};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
-use crate::{MirBranchTarget, MirConstant, MirOperationKind, MirPlaceRoot, MirTerminator};
+use crate::{MirBranchTarget, MirConstant, MirOperationKind, MirTerminator};
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_control(
@@ -16,25 +16,10 @@ impl FunctionLowerer<'_> {
                 statements, result, ..
             } => self.lower_block_control(node, statements, *result),
             CheckedControl::Bind {
-                binding,
+                pattern,
                 initializer,
             } => {
-                let value = self.require_value(*initializer)?;
-                let local = self.ensure_local(*binding)?;
-                let ty = self
-                    .body
-                    .locals()
-                    .get(*binding)
-                    .copied()
-                    .map(nocter_checking::CheckedLocal::ty)
-                    .ok_or(MirLoweringError::UnknownLocal(*binding))?;
-                let ty = self.concrete_type(ty)?;
-                let place = self.builder.add_place(MirPlaceRoot::Local(local), [], ty);
-                self.append_effect(MirOperationKind::Initialize {
-                    destination: place,
-                    value,
-                })?;
-                self.mark_binding_initialized(*binding)?;
+                self.lower_binding(node, pattern, *initializer)?;
                 Ok(None)
             }
             CheckedControl::Assign { target, value } => {

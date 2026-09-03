@@ -24,7 +24,7 @@ SourceFile
       Block
         ExecutableSequence
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               LogicalOrExpression
                 LogicalAndExpression
@@ -40,13 +40,13 @@ SourceFile
                   ScalarLiteral
                 ScalarLiteral
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               OrderingExpression
                 ReferenceExpression
                 ReferenceExpression
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               ConversionExpression
                 UnaryExpression
@@ -55,7 +55,7 @@ SourceFile
                   BorrowType
                     NamedType
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               OutcomeExpression
                 GroupedExpression
@@ -63,7 +63,7 @@ SourceFile
                     MoveExpression
                       NamedPlace
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               PostfixExpression
                 PostfixExpression
@@ -75,7 +75,7 @@ SourceFile
                   Expression
                     ReferenceExpression
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               StructLiteral
                 NamedType
@@ -87,7 +87,7 @@ SourceFile
                     Expression
                       ReferenceExpression
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               PostfixExpression
                 GenericOwnerMember
@@ -99,7 +99,7 @@ SourceFile
                   Expression
                     ReferenceExpression
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               ArrayLiteral
                 Expression
@@ -109,7 +109,7 @@ SourceFile
                 Expression
                   ScalarLiteral
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               TypedSequenceLiteral
                 NamedType
@@ -131,7 +131,7 @@ SourceFile
                   AllocatorPlace
                     NamedPlace
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               TypedStringLiteral
                 NamedType
@@ -140,7 +140,7 @@ SourceFile
                   AllocatorPlace
                     NamedPlace
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               StringExpression
                 StringPart
@@ -148,7 +148,7 @@ SourceFile
                   Expression
                     ReferenceExpression
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               ClosureExpression
                 ClosureHead

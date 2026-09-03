@@ -275,6 +275,7 @@ fn encode_expected(expected: ExpectedSyntax, output: &mut Vec<u8>) {
         ExpectedSyntax::Block => ("block", ""),
         ExpectedSyntax::LiteralShape => ("literal_shape", ""),
         ExpectedSyntax::Expression => ("expression", ""),
+        ExpectedSyntax::BindingPattern => ("binding_pattern", ""),
         ExpectedSyntax::AssignmentTarget => ("assignment_target", ""),
         ExpectedSyntax::EnumPattern => ("enum_pattern", ""),
         ExpectedSyntax::ClosureHead => ("closure_head", ""),

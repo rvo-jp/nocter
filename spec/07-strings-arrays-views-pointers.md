@@ -454,6 +454,7 @@ instance str {
     pub noalloc method &self.is_char_boundary(index: usize): bool
     pub noalloc method &self.get_range(start: usize, end: usize): &str?
     pub noalloc method &self.find(needle: &str): usize?
+    pub noalloc method &self.split_once(separator: &str): (&str, &str)? from self
     pub noalloc method &self.contains(needle: &str): bool
     pub noalloc method &self.trim_ascii_start(): &str from self
     pub noalloc method &self.trim_ascii_end(): &str from self
@@ -516,6 +517,7 @@ instance str {
     pub noalloc method &self.get_range(start: usize, end: usize): &str?
     pub noalloc method &self.strip_prefix(prefix: &str): &str? from self
     pub noalloc method &self.strip_suffix(suffix: &str): &str? from self
+    pub noalloc method &self.split_once(separator: &str): (&str, &str)? from self
     pub noalloc method &self.trim_ascii_start(): &str from self
     pub noalloc method &self.trim_ascii_end(): &str from self
     pub noalloc method &self.trim_ascii(): &str from self
@@ -531,6 +533,11 @@ are valid. The result borrows `text`; it never reconstructs provenance from an i
 `strip_prefix` and `strip_suffix` compare exact UTF-8 bytes and return a view into `text`. The
 affix is an input to the comparison, not a storage origin of the returned view. An empty affix
 matches and returns the complete input.
+
+`split_once` finds the first exact separator and returns the borrowed prefix and suffix around it.
+The separator is excluded from both positions. An empty separator returns the empty view at the
+start followed by the complete input; a missing separator returns `none`. Both returned views
+borrow only `self`, and the operation performs no allocation.
 
 ASCII whitespace is exactly space (`0x20`), horizontal tab (`0x09`), line feed (`0x0A`), vertical
 tab (`0x0B`), form feed (`0x0C`), and carriage return (`0x0D`). `trim_ascii_start` and

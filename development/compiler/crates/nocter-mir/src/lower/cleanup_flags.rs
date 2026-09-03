@@ -13,12 +13,31 @@ use crate::MirOperationKind;
 pub(super) enum CleanupIdentity {
     Path {
         root: PlaceRoot,
-        fields: Box<[FieldId]>,
+        projections: Box<[CleanupIdentityProjection]>,
     },
     Value {
         node: BodyNodeId,
         remainder: ValueRemainder,
     },
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(super) enum CleanupIdentityProjection {
+    Field(FieldId),
+    TupleElement(usize),
+}
+
+fn cleanup_identity_projection(
+    projection: &nocter_checking::CleanupProjection,
+) -> CleanupIdentityProjection {
+    match projection {
+        nocter_checking::CleanupProjection::Field { field, .. } => {
+            CleanupIdentityProjection::Field(*field)
+        }
+        nocter_checking::CleanupProjection::TupleElement { index, .. } => {
+            CleanupIdentityProjection::TupleElement(*index)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -35,11 +54,10 @@ impl CleanupIdentity {
         match target {
             CleanupTarget::Path(path) => Some(Self::Path {
                 root: path.root(),
-                fields: path
+                projections: path
                     .projections()
                     .iter()
-                    .copied()
-                    .map(nocter_checking::CleanupFieldProjection::field)
+                    .map(cleanup_identity_projection)
                     .collect(),
             }),
             CleanupTarget::Value { node, .. } => Some(Self::Value {
@@ -155,19 +173,24 @@ impl FunctionLowerer<'_> {
             .places()
             .get(place)
             .ok_or(MirLoweringError::UnknownPlace(place))?;
-        let fields = checked
+        let projections = checked
             .projections()
             .iter()
             .map(|projection| match projection {
-                PlaceProjection::Field { field, .. } => Some(*field),
+                PlaceProjection::Field { field, .. } => {
+                    Some(CleanupIdentityProjection::Field(*field))
+                }
+                PlaceProjection::TupleElement { index, .. } => {
+                    Some(CleanupIdentityProjection::TupleElement(*index))
+                }
                 PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
                 | PlaceProjection::CoercedBuiltinIndex { .. }
                 | PlaceProjection::SelectedIndex { .. } => None,
             })
             .collect::<Option<Vec<_>>>();
-        if let Some(fields) = fields {
-            self.set_path_flags(checked.root(), &fields, initialized)?;
+        if let Some(projections) = projections {
+            self.set_path_flags(checked.root(), &projections, initialized)?;
         }
         Ok(())
     }
@@ -252,13 +275,12 @@ impl FunctionLowerer<'_> {
     ) -> Result<(), MirLoweringError> {
         match target {
             CleanupTarget::Path(path) => {
-                let fields = path
+                let projections = path
                     .projections()
                     .iter()
-                    .copied()
-                    .map(nocter_checking::CleanupFieldProjection::field)
+                    .map(cleanup_identity_projection)
                     .collect::<Vec<_>>();
-                self.set_path_flags(path.root(), &fields, false)
+                self.set_path_flags(path.root(), &projections, false)
             }
             CleanupTarget::Value { node, .. } => self.mark_value_storage_uninitialized(*node),
             CleanupTarget::EnumResidual {
@@ -283,7 +305,7 @@ impl FunctionLowerer<'_> {
     fn set_path_flags(
         &mut self,
         root: PlaceRoot,
-        fields: &[FieldId],
+        projections: &[CleanupIdentityProjection],
         initialized: bool,
     ) -> Result<(), MirLoweringError> {
         let flags = self
@@ -292,8 +314,10 @@ impl FunctionLowerer<'_> {
             .filter_map(|(identity, flag)| match identity {
                 CleanupIdentity::Path {
                     root: candidate,
-                    fields: candidate_fields,
-                } if *candidate == root && fields_are_prefix(fields, candidate_fields) => {
+                    projections: candidate_projections,
+                } if *candidate == root
+                    && projections_are_prefix(projections, candidate_projections) =>
+                {
                     Some(*flag)
                 }
                 CleanupIdentity::Path { .. } | CleanupIdentity::Value { .. } => None,
@@ -317,6 +341,9 @@ impl FunctionLowerer<'_> {
     }
 }
 
-fn fields_are_prefix(prefix: &[FieldId], fields: &[FieldId]) -> bool {
-    fields.starts_with(prefix)
+fn projections_are_prefix(
+    prefix: &[CleanupIdentityProjection],
+    projections: &[CleanupIdentityProjection],
+) -> bool {
+    projections.starts_with(prefix)
 }

@@ -450,7 +450,8 @@ impl<'program> Collector<'program> {
                     }
                 }
                 AggregateConstruction::Enum { payload, .. }
-                | AggregateConstruction::FixedArray(payload) => {
+                | AggregateConstruction::FixedArray(payload)
+                | AggregateConstruction::Tuple(payload) => {
                     for value in payload {
                         self.visit_node(*value)?;
                     }
@@ -697,7 +698,9 @@ impl<'program> Collector<'program> {
         }
         for projection in place.projections() {
             match projection {
-                PlaceProjection::Field { .. } | PlaceProjection::BorrowDeref { .. } => {}
+                PlaceProjection::Field { .. }
+                | PlaceProjection::TupleElement { .. }
+                | PlaceProjection::BorrowDeref { .. } => {}
                 PlaceProjection::BuiltinIndex { index, .. } => self.visit_node(*index)?,
                 PlaceProjection::CoercedBuiltinIndex {
                     index,

@@ -212,7 +212,6 @@
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
                 <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
                 <li><a href="../../releases/index.html#content">release index</a></li>
-                <li><a href="../33-tuples/index.html#content">tuple chapter</a></li>
             </ul>
         </aside>
         <main id="content">
@@ -459,6 +458,7 @@ TypeAtom = BuiltinScalarType
          | NamedType
          | SliceType
          | FixedArrayType
+         | TupleType
          | GroupedType
 
 BuiltinScalarType = "bool"
@@ -474,6 +474,7 @@ TypeSelectionSuffix = "." Name TypeArguments?
 SliceType = "[" Type "]"
 FixedArrayType = "[" Type ";" Expression "]"
 GroupedType = "(" Type ")"
+TupleType = "(" Type "," Type ("," Type)* ","? ")"
 
 CallableType = NoAllocModifier? CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
@@ -529,8 +530,8 @@ Executable = Statement | Expression
           | ForStatement
           | RegionStatement
 
-BindingStatement = ("let" | "var") BindingTarget TypeAnnotation? "=" Expression
-BindingTarget = Name | "_"
+BindingStatement = ("let" | "var") BindingPattern TypeAnnotation? "=" Expression
+BindingPattern = Name | "_" | "(" BindingPattern "," BindingPattern ("," BindingPattern)* ","? ")"
 TypeAnnotation = ":" Type
 
 AssignmentStatement = AssignmentTarget AssignmentOperator Expression
@@ -550,9 +551,9 @@ ForSource = HeaderExpression "..&lt;" HeaderExpression | HeaderExpression
 
 RegionStatement = "region" Name "using" AllocatorPlace Block
 
-NamedPlace = Name ("." Name)*
+NamedPlace = Name ("." (Name | integer_literal))*
 AllocatorPlace = NamedPlace
-</code></pre><p><code>PostfixExpression</code> is the common expression production for a primary followed by field, call, method, or index suffixes. Recognizing it as an assignment target does not prove that it denotes a writable place. The place, initialization, borrow, and operator checks happen after parsing. This keeps <code>call() = value</code> structurally an assignment with one invalid target rather than forcing error recovery to invent another expression tree.</p><p><code>let _ = expression</code> is the only discard binding. Later validation rejects <code>var _</code>, missing type information, invalid binding types, assignment to immutable places, assignment to borrowed parameter bindings, and compound assignment whose target is not definitely initialized.</p><p>The <code>drop</code> spelling is contextual only at the beginning of a statement followed by one <code>Name</code>. Dropping a field, index, call result, or arbitrary expression has no statement production. An ordinary call such as <code>drop(value)</code> remains an expression using an ordinary name.</p><p><code>ForSource</code> gives <code>..&lt;</code> a grammar role only in a <code>for</code> header. The first alternative is selected when that token follows the first expression; no other binary range expression exists. A collection source is one ordinary expression, including an explicit <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> prefix. Iteration capability and the rejection of a bare collection are semantic checks.</p><p><code>AllocatorPlace</code> is shared by <code>region ... using</code> and typed-literal overrides. It admits an existing binding and statically named fields only. Calls, indexes, literals, conversions, and other effectful expressions must be evaluated into a binding before selection as an allocation context.</p><h2 id="control-expressions-and-enum-patterns">Control Expressions and Enum Patterns</h2><pre><code class="language-text">ControlExpression = IfExpression | MatchExpression
+</code></pre><p><code>PostfixExpression</code> is the common expression production for a primary followed by field, call, method, or index suffixes. Recognizing it as an assignment target does not prove that it denotes a writable place. The place, initialization, borrow, and operator checks happen after parsing. This keeps <code>call() = value</code> structurally an assignment with one invalid target rather than forcing error recovery to invent another expression tree.</p><p><code>_</code> discards one leaf of a binding. A complete <code>_</code> binding remains valid only with <code>let</code>; tuple patterns may contain discard leaves under either <code>let</code> or <code>var</code>. Later validation rejects invalid tuple shape or arity, missing type information, invalid binding types, assignment to immutable places, assignment to borrowed parameter bindings, and compound assignment whose target is not definitely initialized.</p><p>The <code>drop</code> spelling is contextual only at the beginning of a statement followed by one <code>Name</code>. Dropping a field, index, call result, or arbitrary expression has no statement production. An ordinary call such as <code>drop(value)</code> remains an expression using an ordinary name.</p><p><code>ForSource</code> gives <code>..&lt;</code> a grammar role only in a <code>for</code> header. The first alternative is selected when that token follows the first expression; no other binary range expression exists. A collection source is one ordinary expression, including an explicit <code>&amp;</code>, <code>&amp;+</code>, or <code>move</code> prefix. Iteration capability and the rejection of a bare collection are semantic checks.</p><p><code>AllocatorPlace</code> is shared by <code>region ... using</code> and typed-literal overrides. It admits an existing binding followed by statically selected named fields or tuple positions. Calls, indexes, literals, conversions, and other effectful expressions must be evaluated into a binding before selection as an allocation context.</p><h2 id="control-expressions-and-enum-patterns">Control Expressions and Enum Patterns</h2><pre><code class="language-text">ControlExpression = IfExpression | MatchExpression
 
 IfExpression = "if" IfCondition Block ElseClause?
 IfCondition = HeaderExpression ("is" EnumPattern)?
@@ -595,10 +596,11 @@ OutcomeExpression = PostfixExpression ExpressionOutcomeSuffix?
 ExpressionOutcomeSuffix = "?" | "!"
 
 PostfixExpression = PrimaryExpression PostfixSuffix*
-PostfixSuffix = CallSuffix | MemberSuffix | IndexSuffix
+PostfixSuffix = CallSuffix | MemberSuffix | TupleElementSuffix | IndexSuffix
 CallSuffix = "(" List(CallArgument) ")"
 CallArgument = Expression | "..." SpreadExpression
 MemberSuffix = "." Name
+TupleElementSuffix = "." integer_literal
 IndexSuffix = "[" Expression "]"
 </code></pre><p>Every repeated binary level associates left. <code>&amp;&amp;</code> and <code>||</code> retain their specified short-circuit evaluation. Equality and ordering are deliberately non-associative instead: one ungrouped level accepts at most one comparison. <code>a &lt; b &lt; c</code> and <code>a == b == true</code> therefore have no production. When comparing a comparison result is intentional, grouping states that intent explicitly, as in <code>(a == b) == true</code>. The parser does not invent a comparison-chain node.</p><p>Unary operators bind more tightly than <code>as</code>. Thus <code>&amp;value as &amp;View</code> is exactly <code>(&amp;value) as &amp;View</code>, while <code>&amp;(value as WiderInteger)</code> requires the authored grouping shown. Conversion binds more tightly than multiplicative arithmetic. Repeated explicit conversions associate left; conversion validity and the one-step borrow-coercion rule are semantic checks.</p><p>At a unary-prefix position, lexical <code>&amp;&amp;</code> supplies two readonly borrow prefixes; after a completed left operand it remains logical conjunction. Thus <code>&amp;&amp;value</code> is parsed as <code>&amp;(&amp;value)</code>, while <code>left &amp;&amp; value</code> uses <code>LogicalAndExpression</code>. No type information selects between them.</p><p>One ungrouped layer accepts at most one outcome suffix. <code>value??</code>, <code>value!!</code>, <code>value?!</code>, and <code>value!?</code> have no production. Grouping creates another expression layer, so <code>(value?)?</code> is valid syntax. <code>move place?</code> and <code>move place!</code> are part of <code>MoveExpression</code>: the complete place is moved before the suffix applies. Calls, indexes, dereferences, and grouped expressions are not <code>MovePlace</code> forms.</p><p>Each recovery clause applies to the complete expression to its left. This permits a fallible optional to handle failure and then absence:</p><pre><code class="language-nct">value <span class="token-keyword">catch</span> error <span class="token-operator">{</span> <span class="token-function">fallback_optional</span><span class="token-operator">(</span>error<span class="token-operator">)</span> <span class="token-operator">}</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-function">fallback_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
 </code></pre><p>The blocks make recovery grouping explicit. Nested fallback is written inside the block; there is no separate precedence guess or implicit flattening. <code>catch</code> requires one binding or <code>_</code>, while bare <code>catch { ... }</code> has no production.</p><p>An index suffix requires its opening <code>[</code> to be joint with the preceding expression token. <code>values[index]</code> is indexing; <code>values [index]</code> is considered for typed-sequence construction instead. A call opener may be separated by spaces but must remain on the same logical line as its callee. <code>.</code> may use the lexical continuation rule. These decisions use only token spacing and newlines.</p><p>Assignment and <code>..&lt;</code> are absent from this precedence grammar. Assignment is a statement, and <code>..&lt;</code> exists only in a range <code>for</code> header.</p><h2 id="primary-expressions">Primary Expressions</h2><pre><code class="language-text">PrimaryExpression = ControlExpression
@@ -614,9 +616,11 @@ IndexSuffix = "[" Expression "]"
                   | "true"
                   | "false"
                   | "none"
+                  | TupleExpression
                   | GroupedExpression
 
 GroupedExpression = "(" Expression ")"
+TupleExpression = "(" Expression "," Expression ("," Expression)* ","? ")"
 
 ReferenceExpression = OwnerHead
 GenericOwnerMember = GenericOwnerReference "." Name

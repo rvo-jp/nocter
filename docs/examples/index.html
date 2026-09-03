@@ -181,6 +181,7 @@
                 <li><a href="./recovery/index.html#content">recovery.nct</a></li>
                 <li><a href="./mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
                 <li><a href="./ordering/index.html#content">ordering.nct</a></li>
+                <li><a href="./tuples/index.html#content">tuples.nct</a></li>
                 <li><a href="./elapsed/index.html#content">elapsed.nct</a></li>
                 <li><a href="./subprocess-configured/index/index.html#content">subprocess-configured/index.nct</a></li>
                 <li><a href="./subprocess-output/index/index.html#content">subprocess-output/index.nct</a></li>
@@ -226,6 +227,8 @@
 <span class="token-function">nocter</span> run examples/mutable-iteration.nct
 </code></pre><p><a href="./ordering/index.html#content">ordering.nct</a> defines strict ordering for a project type, uses the same structural requirement from generic code, and compares <code>String</code> plus <code>Vec</code> values through standard source declarations and readonly coercions.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/ordering.nct
 <span class="token-function">nocter</span> run examples/ordering.nct
+</code></pre><p><a href="./tuples/index.html#content">tuples.nct</a> returns an owned structural tuple, mutates a decimal projection, projects an rvalue, destructures named and discarded positions, and lets ordinary reverse-order destruction clean up owned elements.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/tuples.nct
+<span class="token-function">nocter</span> run examples/tuples.nct
 </code></pre><p><a href="./elapsed/index.html#content">elapsed.nct</a> measures one monotonic interval and blocks for a normalized <code>Duration</code>. It demonstrates that <code>std/time</code> keeps target counter values and wait details behind its public <code>Instant</code>, <code>Duration</code>, and <code>time.sleep</code> contracts.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/elapsed.nct
 <span class="token-function">nocter</span> run examples/elapsed.nct
 </code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./subprocess-configured/index/index.html#content">subprocess-configured/index.nct</a> configures an exact child environment and working directory, replaces finite standard input, captures both output streams, and observes the terminal status as one synchronous operation. Repeated <code>env</code> calls demonstrate last-write-wins replacement; <code>clear_env</code> and <code>remove_env</code> make the final child environment exact.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/subprocess-configured

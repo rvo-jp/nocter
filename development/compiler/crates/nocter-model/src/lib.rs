@@ -39,7 +39,7 @@ pub use target::{CompilationTarget, PackageTargetKind};
 pub use type_projection::{TypeProjection, TypeProjectionError};
 pub use type_store::{
     AllocationGuarantee, ArgumentPack, ArgumentPackType, BorrowCapability, BuiltinType,
-    CallableCapability, CallableContract, CallableGuarantees, InvalidParameterOrigin, TypeKind,
-    TypeStore, UnknownTypeId,
+    CallableCapability, CallableContract, CallableGuarantees, InvalidParameterOrigin,
+    TupleElements, TypeKind, TypeStore, UnknownTypeId,
 };
 pub use type_transaction::{StaleTypeTransaction, TypeAuthority, TypeTransaction};

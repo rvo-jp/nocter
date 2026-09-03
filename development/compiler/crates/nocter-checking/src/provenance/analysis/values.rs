@@ -205,6 +205,15 @@ impl Analyzer<'_, '_> {
                 }
                 result.insert_projection(ProvenanceProjection::Element, values);
             }
+            AggregateConstruction::Tuple(elements) => {
+                for (index, element) in elements.iter().enumerate() {
+                    let (value, reaches) = self.evaluate(*element, state)?;
+                    if !reaches {
+                        return Ok((ValueProvenance::independent(), false));
+                    }
+                    result.insert_projection(ProvenanceProjection::TupleElement(index), value);
+                }
+            }
         }
         Ok((result, true))
     }

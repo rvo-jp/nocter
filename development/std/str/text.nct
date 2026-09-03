@@ -76,6 +76,10 @@ instance str {
         return find(self, needle)?
     }
 
+    noalloc method &self.split_once(separator: &str): (&str, &str)? from self {
+        return split_once(self, separator)?
+    }
+
     noalloc method &self.contains(needle: &str): bool {
         return contains(self, needle)
     }

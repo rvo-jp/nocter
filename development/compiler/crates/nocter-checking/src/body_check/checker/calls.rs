@@ -1,7 +1,7 @@
 use nocter_declarations::{CallableKind, CallableOwner, ExportedEntity};
 use nocter_model::{BodyNodeId, TypeId};
 use nocter_syntax::SyntaxOrigin;
-use nocter_syntax::{NodeId, NodeKind, SyntaxToken};
+use nocter_syntax::{NodeId, NodeKind, PostfixSuffixKind, SyntaxToken};
 
 use super::BodyChecker;
 use super::call_planning::DeclaredCallGenerics;
@@ -269,10 +269,14 @@ pub(super) fn member_owner_is_value(
                 let [base, suffix] = children.as_slice() else {
                     return Err(BodyCheckInternalError::InvalidSyntax(node));
                 };
-                match checker.kind(*suffix)? {
-                    NodeKind::MemberSuffix => node = *base,
-                    NodeKind::CallSuffix | NodeKind::IndexSuffix => return Ok(true),
-                    _ => return Err(BodyCheckInternalError::InvalidSyntax(*suffix)),
+                match checker.kind(*suffix)?.postfix_suffix() {
+                    Some(PostfixSuffixKind::Member) => node = *base,
+                    Some(
+                        PostfixSuffixKind::Call
+                        | PostfixSuffixKind::TupleElement
+                        | PostfixSuffixKind::Index,
+                    ) => return Ok(true),
+                    None => return Err(BodyCheckInternalError::InvalidSyntax(*suffix)),
                 }
             }
             NodeKind::GenericOwnerMember => return Ok(false),

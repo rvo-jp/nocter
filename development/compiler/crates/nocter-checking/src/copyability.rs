@@ -456,6 +456,10 @@ impl CopyabilityTransaction {
                 schedule_dependencies(ty, [element], &self.conditions, pending);
                 None
             }
+            TypeKind::Tuple(elements) => {
+                schedule_dependencies(ty, elements.iter(), &self.conditions, pending);
+                None
+            }
             TypeKind::Nominal {
                 definition,
                 arguments,

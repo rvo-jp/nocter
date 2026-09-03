@@ -69,7 +69,7 @@ pub enum NodeKind {
     ExpressionStatement,
     BodyResult,
     BindingStatement,
-    BindingTarget,
+    BindingPattern,
     TypeAnnotation,
     AssignmentStatement,
     AssignmentTarget,
@@ -103,6 +103,7 @@ pub enum NodeKind {
     CallSuffix,
     KeyedArgument,
     MemberSuffix,
+    TupleElementSuffix,
     IndexSuffix,
     IfExpression,
     IfCondition,
@@ -137,6 +138,7 @@ pub enum NodeKind {
     GenericOwnerMember,
     ReferenceExpression,
     GroupedExpression,
+    TupleExpression,
     ScalarLiteral,
     Type,
     SelfType,
@@ -150,6 +152,7 @@ pub enum NodeKind {
     SliceType,
     FixedArrayType,
     GroupedType,
+    TupleType,
     OpaqueResult,
     WhereClause,
     InterfacePredicate,
@@ -164,7 +167,31 @@ pub enum NodeKind {
     Error,
 }
 
+/// Closed grammar vocabulary for the suffix of a [`NodeKind::PostfixExpression`].
+///
+/// Semantic consumers match this enum rather than independently enumerating syntax node kinds.
+/// Adding another postfix operation therefore creates exhaustiveness failures at every semantic
+/// decision that must classify it.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PostfixSuffixKind {
+    Call,
+    Member,
+    TupleElement,
+    Index,
+}
+
 impl NodeKind {
+    #[must_use]
+    pub const fn postfix_suffix(self) -> Option<PostfixSuffixKind> {
+        match self {
+            Self::CallSuffix => Some(PostfixSuffixKind::Call),
+            Self::MemberSuffix => Some(PostfixSuffixKind::Member),
+            Self::TupleElementSuffix => Some(PostfixSuffixKind::TupleElement),
+            Self::IndexSuffix => Some(PostfixSuffixKind::Index),
+            _ => None,
+        }
+    }
+
     /// Stable lower-snake-case spelling used by compiler-owned tooling protocols.
     // Keeping this exhaustive protocol vocabulary in one match makes a newly added syntax kind a
     // compile error here instead of silently omitting or deriving a public spelling.
@@ -236,7 +263,7 @@ impl NodeKind {
             Self::ExpressionStatement => "expression_statement",
             Self::BodyResult => "body_result",
             Self::BindingStatement => "binding_statement",
-            Self::BindingTarget => "binding_target",
+            Self::BindingPattern => "binding_pattern",
             Self::TypeAnnotation => "type_annotation",
             Self::AssignmentStatement => "assignment_statement",
             Self::AssignmentTarget => "assignment_target",
@@ -270,6 +297,7 @@ impl NodeKind {
             Self::CallSuffix => "call_suffix",
             Self::KeyedArgument => "keyed_argument",
             Self::MemberSuffix => "member_suffix",
+            Self::TupleElementSuffix => "tuple_element_suffix",
             Self::IndexSuffix => "index_suffix",
             Self::IfExpression => "if_expression",
             Self::IfCondition => "if_condition",
@@ -304,6 +332,7 @@ impl NodeKind {
             Self::GenericOwnerMember => "generic_owner_member",
             Self::ReferenceExpression => "reference_expression",
             Self::GroupedExpression => "grouped_expression",
+            Self::TupleExpression => "tuple_expression",
             Self::ScalarLiteral => "scalar_literal",
             Self::Type => "type",
             Self::SelfType => "self_type",
@@ -317,6 +346,7 @@ impl NodeKind {
             Self::SliceType => "slice_type",
             Self::FixedArrayType => "fixed_array_type",
             Self::GroupedType => "grouped_type",
+            Self::TupleType => "tuple_type",
             Self::OpaqueResult => "opaque_result",
             Self::WhereClause => "where_clause",
             Self::InterfacePredicate => "interface_predicate",

@@ -49,6 +49,23 @@ impl FunctionLowerer<'_> {
                     .get(value)
                     .ok_or(MirLoweringError::InvalidProjectionTypes(place))?;
                 let value_ty = self.concrete_type(checked_value.ty())?;
+                if !matches!(
+                    checked.projections().first(),
+                    Some(PlaceProjection::BorrowDeref { .. })
+                ) {
+                    let lowered_value = self.require_value(value)?;
+                    let storage = self.materialize_value_storage(value, lowered_value)?;
+                    let stored = self
+                        .builder
+                        .place(storage)
+                        .ok_or(MirLoweringError::InvalidProjectionTypes(place))?;
+                    let path = LoweredPlacePath {
+                        root: stored.root(),
+                        projections: stored.projections().to_vec(),
+                        ty: value_ty,
+                    };
+                    return self.finish_lower_place(place, &checked, path, 0);
+                }
                 let (capability, referent) = self.borrow_shape(place, value_ty)?;
                 let Some(PlaceProjection::BorrowDeref {
                     capability: projected,
@@ -96,6 +113,9 @@ impl FunctionLowerer<'_> {
             match projection {
                 PlaceProjection::Field { field, .. } => {
                     path.push(MirProjectionKind::Field(*field), ty);
+                }
+                PlaceProjection::TupleElement { index, .. } => {
+                    path.push(MirProjectionKind::TupleElement(*index), ty);
                 }
                 PlaceProjection::BorrowDeref { capability, .. } => {
                     path.push(MirProjectionKind::BorrowDereference(*capability), ty);

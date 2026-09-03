@@ -5,5 +5,6 @@ mod state;
 pub use drops::{DropTable, DropTableError};
 pub(crate) use roots::{initialized_body_roots, owned_body_roots};
 pub(crate) use state::{
-    InitializationState, MovePath, OwnershipState, OwnershipStateError, TemporaryIdentity,
+    InitializationState, MovePath, MoveProjection, OwnershipState, OwnershipStateError,
+    TemporaryIdentity,
 };

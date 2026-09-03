@@ -180,7 +180,7 @@ fn classify(
             };
             return Ok(Some((SemanticHighlightKind::Variable, readonly)));
         }
-        SemanticEntity::Field(_) => {
+        SemanticEntity::Field(_) | SemanticEntity::PlaceProjection(..) => {
             return Ok(Some((
                 SemanticHighlightKind::Property,
                 binding.access() == Some(SourceAccess::Readonly),

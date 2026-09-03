@@ -49,7 +49,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Synchronous Subprocesses](30-subprocesses.md) — v0.30.0 standard-library contract
 - [Captured Subprocess Output](31-subprocess-output.md) — v0.31.0 standard-library contract
 - [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 standard-library contract
-- [Tuples](33-tuples.md) — adopted v0.33.0 future direction
+- [Tuples](33-tuples.md) — v0.33.0 language contract
 
 ## Supporting Material
 
@@ -58,8 +58,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the published v0.32.0 language and standard-library contract,
-including the v0.20.0
+This working tree specifies the v0.33.0 language and standard-library contract, extending the
+published v0.32.0 contract. It includes the v0.20.0
 interface-prerequisite foundation, v0.21.0 associative collections, v0.22.0 JSON standard module,
 the complete v0.23.0 type-owned integer text surface, and explicit module subjects for external
 values. v0.25.0 adds the source-visible `noalloc` callable guarantee. v0.26.0 adds normalized
@@ -69,15 +69,13 @@ ASCII text transformations, a private scalar-formatting authority, and symmetric
 v0.29.0 adds borrowed standard input and an exact child-argument channel for `nocter run`. v0.30.0
 adds the owning synchronous-subprocess contract. v0.31.0 adds simultaneous stdout and stderr
 capture to that closed synchronous lifecycle. v0.32.0 completes configured commands with child
-environment, working-directory, and finite-input ownership. Publication status belongs to the
-release index.
+environment, working-directory, and finite-input ownership. v0.33.0 adds structural tuple types,
+values, decimal projections, and recursive local-binding patterns. Publication status belongs to
+the release index.
 Implementation phases and qualification evidence belong only to contributor records and are
 intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
-
-The [tuple chapter](33-tuples.md) records the adopted v0.33.0 direction as an explicitly future
-contract. It does not describe behavior implemented or published by v0.32.0.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise

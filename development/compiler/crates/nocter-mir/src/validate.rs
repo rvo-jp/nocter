@@ -239,6 +239,10 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             MirProjectionKind::Field(field) => {
                 self.validate_declared_field_projection(place, source, field, result)?;
             }
+            MirProjectionKind::TupleElement(index) => match self.types.get(source) {
+                Some(TypeKind::Tuple(elements)) if elements.get(index) == Some(result) => {}
+                _ => return Err(MirValidationError::InvalidProjection { place }),
+            },
             MirProjectionKind::ClosureCapture(capture) => {
                 if capture_type(self.environment, source, capture) != Some(result) {
                     return Err(MirValidationError::InvalidProjection { place });
@@ -762,6 +766,19 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(invalid());
                 }
             }
+            MirAggregate::Tuple(values) => {
+                let Some(TypeKind::Tuple(elements)) = self.types.get(result) else {
+                    return Err(invalid());
+                };
+                if elements.as_slice().len() != values.len()
+                    || elements
+                        .iter()
+                        .zip(values.iter().copied())
+                        .any(|(expected, value)| self.value_type(value) != Ok(expected))
+                {
+                    return Err(invalid());
+                }
+            }
             MirAggregate::Optional(value) => {
                 let Some(TypeKind::Optional(payload)) = self.types.get(result) else {
                     return Err(invalid());
@@ -980,7 +997,9 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 MirAggregate::Struct { fields, .. } => {
                     values.extend(fields.iter().map(|(_, value)| *value));
                 }
-                MirAggregate::Enum { payload, .. } | MirAggregate::FixedArray(payload) => {
+                MirAggregate::Enum { payload, .. }
+                | MirAggregate::FixedArray(payload)
+                | MirAggregate::Tuple(payload) => {
                     values.extend(payload.iter().copied());
                 }
                 MirAggregate::Closure { captures, .. } => {

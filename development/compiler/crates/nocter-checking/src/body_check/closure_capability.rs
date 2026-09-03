@@ -214,7 +214,8 @@ fn append_operands(
         }
         CheckedOperation::Aggregate(
             AggregateConstruction::Enum { payload, .. }
-            | AggregateConstruction::FixedArray(payload),
+            | AggregateConstruction::FixedArray(payload)
+            | AggregateConstruction::Tuple(payload),
         ) => pending.extend(payload.iter().rev().copied()),
         CheckedOperation::Outcome(
             CheckedOutcome::Inject { payload, .. }

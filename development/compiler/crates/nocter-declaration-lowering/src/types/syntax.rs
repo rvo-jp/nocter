@@ -110,6 +110,21 @@ fn bind_node(
                 length: array_length(tree, node)?,
             },
         ),
+        NodeKind::TupleType => {
+            let elements = direct_nodes(tree, node, NodeKind::Type)
+                .into_iter()
+                .map(|element| {
+                    values
+                        .get(&element)
+                        .copied()
+                        .ok_or(TypeBindingError::InvalidSyntax(element))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if elements.len() < 2 {
+                return Err(TypeBindingError::InvalidSyntax(node));
+            }
+            push(kinds, BoundTypeKind::Tuple(elements.into_boxed_slice()))
+        }
         NodeKind::GroupedType => child_value(tree, node, values)?,
         NodeKind::CallableType => bind_callable(namespaces, tree, node, values, kinds)?,
         _ => return Ok(None),

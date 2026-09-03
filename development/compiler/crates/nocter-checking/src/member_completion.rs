@@ -1,5 +1,5 @@
 use std::fmt;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use nocter_declarations::DeclarationGraph;
 use nocter_model::{
@@ -13,30 +13,43 @@ use crate::instance_operations::{
     InstanceOperationSelector, InstanceSelectionContext, MethodCompletionCandidate,
 };
 
-/// One compiler-selected field or method visible on a receiver.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// One compiler-selected member spelling visible on a receiver.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum MemberCompletionName {
+    Declared(Symbol),
+    TupleElement(usize),
+}
+
+/// One compiler-selected field, tuple element, or method visible on a receiver.
+#[derive(Clone, Debug)]
 pub struct MemberCompletionCandidate {
-    name: Symbol,
+    name: MemberCompletionName,
     target: MemberCompletionTarget,
 }
 
 impl MemberCompletionCandidate {
     #[must_use]
-    pub const fn name(self) -> Symbol {
+    pub const fn name(&self) -> MemberCompletionName {
         self.name
     }
 
     #[must_use]
-    pub const fn target(self) -> MemberCompletionTarget {
-        self.target
+    pub const fn target(&self) -> &MemberCompletionTarget {
+        &self.target
     }
 }
 
 /// The canonical semantic identity represented by a member completion item.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum MemberCompletionTarget {
     Field(FieldId),
-    Method { surface: Option<CallableId> },
+    TupleElement {
+        tuple: Arc<nocter_model::TypeProjection>,
+        index: usize,
+    },
+    Method {
+        surface: Option<CallableId>,
+    },
 }
 
 /// Exact checked receiver facts required to enumerate callable members.
@@ -77,6 +90,7 @@ pub enum MemberCompletionError {
     MissingBody(BodyId),
     MissingReceiver(nocter_model::BodyNodeId),
     UnknownReceiver(TypeId),
+    TypeProjection(nocter_model::TypeProjectionError),
     InvalidRecoveryEvidence,
     AuthorityMismatch,
     PoisonedQueryState,
@@ -103,6 +117,7 @@ impl fmt::Display for MemberCompletionError {
                     "member completion receiver {receiver:?} is absent"
                 )
             }
+            Self::TypeProjection(error) => error.fmt(formatter),
             Self::InvalidRecoveryEvidence => {
                 formatter.write_str("member completion recovery evidence is inconsistent")
             }
@@ -115,7 +130,22 @@ impl fmt::Display for MemberCompletionError {
     }
 }
 
-impl std::error::Error for MemberCompletionError {}
+impl std::error::Error for MemberCompletionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::SourceAccess(error) => Some(error),
+            Self::Selection(error) => Some(error),
+            Self::TypeProjection(error) => Some(error),
+            Self::FieldSelection
+            | Self::MissingBody(_)
+            | Self::MissingReceiver(_)
+            | Self::UnknownReceiver(_)
+            | Self::InvalidRecoveryEvidence
+            | Self::AuthorityMismatch
+            | Self::PoisonedQueryState => None,
+        }
+    }
+}
 
 #[derive(Debug)]
 struct MemberCompletionQueryState {
@@ -225,7 +255,7 @@ pub(crate) fn select_member_completions(
     };
     let access = crate::SourceAccessContext::for_source(source_access, context.source)
         .map_err(MemberCompletionError::SourceAccess)?;
-    let mut completions = field_completions(graph, types, access, receiver)?;
+    let mut completions = data_member_completions(graph, types, access, receiver)?;
     let assumptions = environment
         .body_assumptions()
         .get(context.body)
@@ -246,7 +276,7 @@ pub(crate) fn select_member_completions(
             .into_iter()
             .map(
                 |MethodCompletionCandidate { name, surface }| MemberCompletionCandidate {
-                    name,
+                    name: MemberCompletionName::Declared(name),
                     target: MemberCompletionTarget::Method { surface },
                 },
             ),
@@ -254,22 +284,41 @@ pub(crate) fn select_member_completions(
     completions.sort_unstable_by_key(|candidate| {
         (
             candidate.name,
-            match candidate.target {
+            match &candidate.target {
                 MemberCompletionTarget::Field(_) => 0_u8,
-                MemberCompletionTarget::Method { .. } => 1,
+                MemberCompletionTarget::TupleElement { .. } => 1,
+                MemberCompletionTarget::Method { .. } => 2,
             },
         )
     });
     Ok(completions.into_boxed_slice())
 }
 
-fn field_completions(
+fn data_member_completions(
     graph: &DeclarationGraph,
     types: &mut nocter_model::TypeTransaction,
     access: crate::SourceAccessContext<'_>,
     receiver: TypeId,
 ) -> Result<Vec<MemberCompletionCandidate>, MemberCompletionError> {
     let names = match types.get(receiver) {
+        Some(TypeKind::Tuple(elements)) => {
+            let tuple = Arc::new(
+                types
+                    .project(receiver)
+                    .map_err(MemberCompletionError::TypeProjection)?,
+            );
+            return Ok(elements
+                .iter()
+                .enumerate()
+                .map(|(index, _)| MemberCompletionCandidate {
+                    name: MemberCompletionName::TupleElement(index),
+                    target: MemberCompletionTarget::TupleElement {
+                        tuple: Arc::clone(&tuple),
+                        index,
+                    },
+                })
+                .collect());
+        }
         Some(TypeKind::Nominal { definition, .. }) => {
             let Some(nominal) = graph.declarations().nominal_types().get(*definition) else {
                 return Err(MemberCompletionError::FieldSelection);
@@ -298,7 +347,7 @@ fn field_completions(
         };
         match select_field(graph, types, access, receiver, spelling) {
             Ok(field) => completions.push(MemberCompletionCandidate {
-                name,
+                name: MemberCompletionName::Declared(name),
                 target: MemberCompletionTarget::Field(field.field()),
             }),
             Err(

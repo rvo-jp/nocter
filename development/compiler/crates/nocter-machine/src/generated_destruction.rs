@@ -140,6 +140,15 @@ impl<'a> DestructionBuilder<'a> {
                 stride,
                 element,
             } => self.emit_array(element, *length, *stride, pointer, steps)?,
+            MachineDestructionKind::Tuple(elements) => {
+                for element in elements {
+                    self.emit_plan(
+                        element.plan(),
+                        pointer,
+                        with_offset(&steps, element.offset()),
+                    )?;
+                }
+            }
             MachineDestructionKind::Outcome {
                 tag_offset,
                 payload_offset,

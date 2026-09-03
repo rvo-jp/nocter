@@ -655,6 +655,18 @@ mod tests {
     }
 
     #[test]
+    fn formats_tuple_types_values_and_binding_patterns_with_one_list_policy() {
+        let formatted = format(
+            "func pair(value:(i32,bool,)):(i32,bool){let (number,flag,)=(1,true,)\nreturn (number,flag,)\n}\n",
+        );
+        assert_eq!(
+            formatted,
+            "func pair(value: (i32, bool)): (i32, bool) { let (number, flag) = (1, true)\n    return (number, flag)\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn formats_keyed_packs_and_mapping_literals_with_the_shared_list_model() {
         let formatted = format(
             "construct Assoc<K,V>{ pub literal [:](...entries:K:V):Self { return Self {} } }\nfunc make():void { let pairs=Map [\"a\":1,\"b\":2,]\nlet empty=Map<&str,i32> [:]\nreturn\n}\n",

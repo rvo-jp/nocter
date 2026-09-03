@@ -54,9 +54,7 @@ pub(super) fn executable(parser: &mut Parser<'_>) -> Executable {
 fn binding(parser: &mut Parser<'_>) -> CompletedMarker {
     let marker = parser.start();
     parser.bump();
-    let target = parser.start();
-    parser.expect_name_or_discard();
-    parser.complete(target, NodeKind::BindingTarget);
+    binding_pattern(parser);
     if parser.at_punctuation(Punctuation::Colon) {
         let annotation = parser.start();
         parser.bump();
@@ -67,6 +65,41 @@ fn binding(parser: &mut Parser<'_>) -> CompletedMarker {
     newline::after_incomplete(parser, newline::Boundary::Statement);
     expression::expression(parser, expression::ExpressionMode::Ordinary);
     parser.complete(marker, NodeKind::BindingStatement)
+}
+
+fn binding_pattern(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    if !parser.eat_punctuation(Punctuation::LeftParen) {
+        parser.expect_name_or_discard();
+        parser.complete(marker, NodeKind::BindingPattern);
+        return;
+    }
+    if !parser.enter_nesting() {
+        parser.recover_balanced(Punctuation::LeftParen, Punctuation::RightParen);
+        parser.complete(marker, NodeKind::BindingPattern);
+        return;
+    }
+    parser.eat_newlines();
+    binding_pattern(parser);
+    if !parser.eat_punctuation(Punctuation::Comma) {
+        parser.missing(ExpectedSyntax::Punctuation(Punctuation::Comma));
+    }
+    parser.eat_newlines();
+    if parser.at_punctuation(Punctuation::RightParen) || parser.at(TokenKind::Eof) {
+        parser.missing(ExpectedSyntax::BindingPattern);
+    } else {
+        binding_pattern(parser);
+        while parser.eat_punctuation(Punctuation::Comma) {
+            parser.eat_newlines();
+            if parser.at_punctuation(Punctuation::RightParen) || parser.at(TokenKind::Eof) {
+                break;
+            }
+            binding_pattern(parser);
+        }
+    }
+    parser.expect_punctuation(Punctuation::RightParen);
+    parser.leave_nesting();
+    parser.complete(marker, NodeKind::BindingPattern);
 }
 
 fn assignment(parser: &mut Parser<'_>) -> AssignmentAttempt {

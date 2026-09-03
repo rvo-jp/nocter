@@ -22,9 +22,9 @@ impl Analyzer<'_, '_> {
                 result,
             } => self.evaluate_block(node, *scope, statements, *result, state),
             CheckedControl::Bind {
-                binding,
+                pattern,
                 initializer,
-            } => self.evaluate_binding(node, *binding, *initializer, state),
+            } => self.evaluate_binding(node, pattern, *initializer, state),
             CheckedControl::Assign { target, value } => {
                 self.evaluate_assignment(node, *target, *value, state)
             }
@@ -104,16 +104,38 @@ impl Analyzer<'_, '_> {
     fn evaluate_binding(
         &mut self,
         node: BodyNodeId,
-        binding: nocter_model::LocalBindingId,
+        pattern: &crate::CheckedBindingPattern,
         initializer: BodyNodeId,
         state: &mut ProvenanceState,
     ) -> Result<(ValueProvenance, bool), BodyCheckError> {
         let (value, reaches) = self.evaluate(initializer, state)?;
         if reaches {
-            self.validate_binding_storage(node, binding, &value)?;
-            state.set_value(PlaceRoot::Local(binding), value);
+            self.bind_pattern(node, pattern, &value, state)?;
         }
         Ok((ValueProvenance::independent(), reaches))
+    }
+
+    fn bind_pattern(
+        &mut self,
+        node: BodyNodeId,
+        pattern: &crate::CheckedBindingPattern,
+        value: &ValueProvenance,
+        state: &mut ProvenanceState,
+    ) -> Result<(), BodyCheckError> {
+        match pattern {
+            crate::CheckedBindingPattern::Local { binding, .. } => {
+                self.validate_binding_storage(node, *binding, value)?;
+                state.set_value(PlaceRoot::Local(*binding), value.clone());
+            }
+            crate::CheckedBindingPattern::Discard { .. } => {}
+            crate::CheckedBindingPattern::Tuple { elements, .. } => {
+                for (index, element) in elements.iter().enumerate() {
+                    let value = value.projected(ProvenanceProjection::TupleElement(index));
+                    self.bind_pattern(node, element, &value, state)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn evaluate_assignment(

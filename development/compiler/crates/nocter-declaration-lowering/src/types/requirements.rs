@@ -500,6 +500,7 @@ fn contains_generic(
             | BoundTypeKind::Alias { arguments, .. } => {
                 pending.extend(arguments.iter().copied());
             }
+            BoundTypeKind::Tuple(elements) => pending.extend(elements.iter().copied()),
             BoundTypeKind::AssociatedSelection { base, .. }
             | BoundTypeKind::Pointer(base)
             | BoundTypeKind::Borrow { referent: base, .. }

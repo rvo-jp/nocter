@@ -1,0 +1,26 @@
+//! Borrowed UTF-8 view contract tests.
+
+see ./index.nct
+
+test split_once_returns_two_borrowed_positions {
+    let (key, value) = "language=Nocter".split_once("=") otherwise {
+        return error.new("std.str.test", "split_once missed a present separator")
+    }
+    if key != "language" {
+        return error.new("std.str.test", "split_once returned the wrong prefix")
+    }
+    if value != "Nocter" {
+        return error.new("std.str.test", "split_once returned the wrong suffix")
+    }
+
+    let (empty, complete) = "Nocter".split_once("") otherwise {
+        return error.new("std.str.test", "split_once rejected an empty separator")
+    }
+    if !empty.is_empty() || complete != "Nocter" {
+        return error.new("std.str.test", "split_once mishandled an empty separator")
+    }
+
+    let absent = "Nocter".split_once("=")
+    let _ = absent otherwise { return }
+    return error.new("std.str.test", "split_once found an absent separator")
+}

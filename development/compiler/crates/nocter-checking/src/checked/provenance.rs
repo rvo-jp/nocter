@@ -40,6 +40,7 @@ pub enum ProvenanceSource {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ProvenanceProjection {
     Field(FieldId),
+    TupleElement(usize),
     VariantPayload {
         variant: VariantId,
         parameter: ParameterId,

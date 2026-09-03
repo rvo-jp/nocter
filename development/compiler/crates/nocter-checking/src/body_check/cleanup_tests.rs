@@ -155,7 +155,7 @@ fn partial_move_cleans_the_value_then_only_the_remaining_field() {
     };
 
     assert_eq!(path.projections().len(), 1);
-    assert_ne!(path.projections()[0].field(), moved_field);
+    assert_ne!(path.projections()[0].field(), Some(moved_field));
     assert_eq!(remaining.condition(), CleanupCondition::Always);
 }
 

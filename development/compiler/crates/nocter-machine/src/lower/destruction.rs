@@ -89,6 +89,25 @@ fn lower_kind(
                 element: Box::new(lower_plan(element, context)?),
             })
         }
+        (MirDestructionKind::Tuple(elements), MachineLayoutKind::Tuple { elements: layouts }) => {
+            let elements = elements
+                .iter()
+                .map(|element| {
+                    let offset = layouts
+                        .get(element.index())
+                        .filter(|layout| layout.ty() == element.plan().ty())
+                        .map(|element| element.offset())
+                        .ok_or_else(|| {
+                            context.error(MachineDestructionError::MissingMember(plan.ty()))
+                        })?;
+                    Ok(crate::MachineDestructionElement::new(
+                        offset,
+                        lower_plan(element.plan(), context)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, MachineProgramError>>()?;
+            Ok(MachineDestructionKind::Tuple(elements.into_boxed_slice()))
+        }
         (
             MirDestructionKind::Optional(payload),
             MachineLayoutKind::Outcome {

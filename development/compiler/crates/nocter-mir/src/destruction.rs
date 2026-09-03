@@ -43,6 +43,7 @@ pub enum MirDestructionKind {
         length: u64,
         element: Box<MirDestructionPlan>,
     },
+    Tuple(Box<[MirTupleElementDestruction]>),
     Optional(Box<MirDestructionPlan>),
     Fallible {
         success: Option<Box<MirDestructionPlan>>,
@@ -54,6 +55,29 @@ pub enum MirDestructionKind {
         definition: OpaqueTypeId,
         plan: Box<MirDestructionPlan>,
     },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MirTupleElementDestruction {
+    index: usize,
+    plan: MirDestructionPlan,
+}
+
+impl MirTupleElementDestruction {
+    #[must_use]
+    pub const fn new(index: usize, plan: MirDestructionPlan) -> Self {
+        Self { index, plan }
+    }
+
+    #[must_use]
+    pub const fn index(&self) -> usize {
+        self.index
+    }
+
+    #[must_use]
+    pub const fn plan(&self) -> &MirDestructionPlan {
+        &self.plan
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

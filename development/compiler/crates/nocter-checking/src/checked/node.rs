@@ -550,6 +550,7 @@ pub enum AggregateConstruction {
         payload: Box<[BodyNodeId]>,
     },
     FixedArray(Box<[BodyNodeId]>),
+    Tuple(Box<[BodyNodeId]>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1136,7 +1137,7 @@ pub enum CheckedControl {
         result: Option<BodyNodeId>,
     },
     Bind {
-        binding: LocalBindingId,
+        pattern: CheckedBindingPattern,
         initializer: BodyNodeId,
     },
     Assign {
@@ -1180,15 +1181,77 @@ pub enum CheckedControl {
     },
 }
 
+/// One fully typed local-binding pattern. Its recursive shape is the sole binding plan consumed by
+/// ownership, provenance, loan analysis, and MIR lowering.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CheckedBindingPattern {
+    Local {
+        binding: LocalBindingId,
+        ty: TypeId,
+    },
+    Discard {
+        ty: TypeId,
+    },
+    Tuple {
+        ty: TypeId,
+        elements: Box<[CheckedBindingPattern]>,
+    },
+}
+
+impl CheckedBindingPattern {
+    #[must_use]
+    pub const fn ty(&self) -> TypeId {
+        match self {
+            Self::Local { ty, .. } | Self::Discard { ty } | Self::Tuple { ty, .. } => *ty,
+        }
+    }
+
+    #[must_use]
+    pub fn elements(&self) -> Option<&[Self]> {
+        match self {
+            Self::Tuple { elements, .. } => Some(elements),
+            Self::Local { .. } | Self::Discard { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn binding(&self) -> Option<LocalBindingId> {
+        match self {
+            Self::Local { binding, .. } => Some(*binding),
+            Self::Discard { .. } | Self::Tuple { .. } => None,
+        }
+    }
+
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        match self {
+            Self::Local { ty, .. } | Self::Discard { ty } => *ty = semantics.ty(*ty)?,
+            Self::Tuple { ty, elements } => {
+                *ty = semantics.ty(*ty)?;
+                for element in elements {
+                    element.rebind(semantics)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl CheckedControl {
     fn rebind(
         &mut self,
         semantics: &super::CheckedSemanticRebinder<'_>,
     ) -> Result<(), super::CheckedSemanticRebindError> {
-        if let Self::Pattern { arms, .. } = self {
-            for arm in arms {
-                arm.pattern.rebind(semantics)?;
+        match self {
+            Self::Bind { pattern, .. } => pattern.rebind(semantics)?,
+            Self::Pattern { arms, .. } => {
+                for arm in arms {
+                    arm.pattern.rebind(semantics)?;
+                }
             }
+            _ => {}
         }
         Ok(())
     }

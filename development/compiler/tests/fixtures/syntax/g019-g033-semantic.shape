@@ -22,7 +22,7 @@ SourceFile
       Block
         ExecutableSequence
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               ScalarLiteral
           AssignmentStatement
@@ -266,6 +266,6 @@ SourceFile
       Block
         ExecutableSequence
           BindingStatement
-            BindingTarget
+            BindingPattern
             Expression
               ScalarLiteral

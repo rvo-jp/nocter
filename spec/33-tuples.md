@@ -1,6 +1,6 @@
 # Tuples
 
-**Future Direction — adopted for v0.33.0, not implemented by v0.32.0.**
+**v0.33.0 language contract.**
 
 Tuples are anonymous, structural products. They group a fixed number of values when names would not
 improve the meaning of the data. A tuple is not a shortened struct declaration and does not acquire
@@ -148,8 +148,10 @@ language tuple. Foreign interfaces must use an explicitly specified ABI surface.
 
 Hover, completion detail, inlay hints, and diagnostics render tuple types canonically as
 `(A, B, C)` from semantic type identity. Tooling must not reconstruct tuple types from source text.
-Go-to-definition has no target for the tuple type itself; references inside its element types retain
-their ordinary targets.
+Completion after a tuple-valued place's `.` lists its valid decimal positions and resolved element
+types. Hovering the decimal token in `value.0` displays the canonical receiver and result type.
+That token is highlighted as a property, but go-to-definition has no target because a structural
+position is not a declaration. References inside tuple element types retain their ordinary targets.
 
 The formatter preserves the distinction among grouped syntax, closure syntax, callable types, and
 tuples. Numeric projections are highlighted and resolved as tuple elements, not struct fields.

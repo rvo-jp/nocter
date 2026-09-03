@@ -1,6 +1,6 @@
 use nocter_model::{BorrowCapability, BuiltinType, TypeId, TypeKind};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceOrigin};
-use nocter_syntax::{NodeId, NodeKind, SyntaxOrigin, SyntaxToken};
+use nocter_syntax::{NodeId, NodeKind, PostfixSuffixKind, SyntaxOrigin, SyntaxToken};
 
 use super::{BodyChecker, NodeProjection, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
@@ -8,7 +8,7 @@ use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::field_selection::{FieldSelectionError, select_field};
 use crate::instance_operations::{IndexOperationCandidate, retain_direct_candidates};
 use crate::syntax::{
-    child_nodes, descendant_identifiers, direct_identifier, direct_node, is_transparent_expression,
+    child_nodes, direct_identifier, direct_node, direct_token, is_transparent_expression,
 };
 use crate::{LocalBindingKind, NameTarget, PlaceAccess, PlaceProjection, PlaceRoot};
 
@@ -21,18 +21,26 @@ struct PlaceDraft {
     projections: Vec<PlaceProjection>,
     partial_parents: Vec<nocter_model::NominalTypeId>,
     source_projections: Vec<NodeProjection>,
+    positional_source_projections: Vec<(usize, SourceOrigin)>,
 }
 
 impl BodyChecker<'_, '_> {
     pub(super) fn named_place(&mut self, node: NodeId) -> Result<ResolvedPlace, BodyCheckError> {
-        let tokens = descendant_identifiers(self.tree(), node);
-        let root = tokens
-            .first()
-            .copied()
+        let root = direct_identifier(self.tree(), node)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         let mut draft = self.start_place(node, root)?;
-        for field in tokens.into_iter().skip(1) {
-            self.push_field(node, &mut draft, field)?;
+        for suffix in child_nodes(self.tree(), node) {
+            match self.kind(suffix)? {
+                NodeKind::MemberSuffix => {
+                    let field = direct_identifier(self.tree(), suffix)
+                        .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
+                    self.push_field(suffix, &mut draft, field)?;
+                }
+                NodeKind::TupleElementSuffix => {
+                    self.push_tuple_element(suffix, &mut draft)?;
+                }
+                _ => return Err(BodyCheckInternalError::InvalidSyntax(suffix).into()),
+            }
         }
         Ok(self.finish_place(draft))
     }
@@ -131,6 +139,9 @@ impl BodyChecker<'_, '_> {
                     };
                     self.push_field(suffix, &mut draft, field)?;
                 }
+                PlaceOperation::TupleElement(suffix) => {
+                    self.push_tuple_element(suffix, &mut draft)?;
+                }
                 PlaceOperation::Index(suffix) => self.push_index(suffix, &mut draft, capability)?,
             }
         }
@@ -175,6 +186,7 @@ impl BodyChecker<'_, '_> {
             projections: checked.projections().to_vec(),
             partial_parents: Vec::new(),
             source_projections: Vec::new(),
+            positional_source_projections: Vec::new(),
         };
         let base = self.place_projection_base(&mut draft)?;
         if base != referent
@@ -238,7 +250,10 @@ impl BodyChecker<'_, '_> {
     fn start_value_place(&mut self, node: NodeId) -> Result<PlaceDraft, BodyCheckError> {
         let value = self.check_expression(node, None)?;
         let ty = self.node_type(value)?;
-        if !matches!(self.types.get(ty), Some(TypeKind::Borrow { .. })) {
+        if !matches!(
+            self.types.get(ty),
+            Some(TypeKind::Borrow { .. } | TypeKind::Tuple(_))
+        ) {
             return Err(self.rule(BodyRule::InvalidIndexOperation, node)?);
         }
         self.start_place_from_root(node, PlaceRoot::Value(value), ty)
@@ -308,6 +323,7 @@ impl BodyChecker<'_, '_> {
             projections: Vec::new(),
             partial_parents: Vec::new(),
             source_projections: Vec::new(),
+            positional_source_projections: Vec::new(),
         })
     }
 
@@ -358,6 +374,43 @@ impl BodyChecker<'_, '_> {
             field: selected.field(),
             ty: draft.ty,
         });
+        Ok(())
+    }
+
+    fn push_tuple_element(
+        &mut self,
+        suffix: NodeId,
+        draft: &mut PlaceDraft,
+    ) -> Result<(), BodyCheckError> {
+        let base = self.place_projection_base(draft)?;
+        let token = direct_token(
+            self.tree(),
+            suffix,
+            nocter_syntax::TokenKind::IntegerLiteral,
+        )
+        .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
+        let spelling = self.token_text(token)?;
+        if spelling.len() > 1 && spelling.starts_with('0') {
+            return Err(self.rule(BodyRule::UnknownField, suffix)?);
+        }
+        let index = spelling
+            .parse::<usize>()
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(suffix))?;
+        let Some(TypeKind::Tuple(elements)) = self.types.get(base) else {
+            return Err(self.rule(BodyRule::UnknownField, suffix)?);
+        };
+        let Some(ty) = elements.get(index) else {
+            return Err(self.rule(BodyRule::UnknownField, suffix)?);
+        };
+        let origin = SourceOrigin::from_token(self.tree(), token)
+            .map_err(|_| BodyCheckInternalError::InvalidSyntax(suffix))?;
+        draft
+            .positional_source_projections
+            .push((draft.projections.len(), origin));
+        draft.ty = ty;
+        draft
+            .projections
+            .push(PlaceProjection::TupleElement { index, ty });
         Ok(())
     }
 
@@ -495,14 +548,28 @@ impl BodyChecker<'_, '_> {
                 .into_iter()
                 .map(|projection| projection.with_access(access)),
         );
+        let place = self.builder.add_place(
+            draft.root,
+            draft.root_ty,
+            draft.projections,
+            draft.access,
+            draft.writable,
+        );
+        self.projections
+            .extend(
+                draft
+                    .positional_source_projections
+                    .into_iter()
+                    .map(|(projection, origin)| {
+                        NodeProjection::new(
+                            SemanticEntity::PlaceProjection(self.source.body(), place, projection),
+                            origin,
+                        )
+                        .with_access(access)
+                    }),
+            );
         ResolvedPlace {
-            id: self.builder.add_place(
-                draft.root,
-                draft.root_ty,
-                draft.projections,
-                draft.access,
-                draft.writable,
-            ),
+            id: place,
             ty: draft.ty,
             access: draft.access,
             partial_parents: draft.partial_parents.into_boxed_slice(),
@@ -590,6 +657,7 @@ impl BodyChecker<'_, '_> {
 #[derive(Clone, Copy)]
 enum PlaceOperation {
     Field(NodeId),
+    TupleElement(NodeId),
     Index(NodeId),
 }
 
@@ -637,10 +705,13 @@ fn collect_postfix_operations(
                     .node(children[1])
                     .map(nocter_syntax::SyntaxNode::kind)
                     .ok_or(PlaceSyntaxError::InvalidSyntax(children[1]))?;
-                operations.push(match suffix {
-                    NodeKind::MemberSuffix => PlaceOperation::Field(children[1]),
-                    NodeKind::IndexSuffix => PlaceOperation::Index(children[1]),
-                    NodeKind::CallSuffix => {
+                operations.push(match suffix.postfix_suffix() {
+                    Some(PostfixSuffixKind::Member) => PlaceOperation::Field(children[1]),
+                    Some(PostfixSuffixKind::TupleElement) => {
+                        PlaceOperation::TupleElement(children[1])
+                    }
+                    Some(PostfixSuffixKind::Index) => PlaceOperation::Index(children[1]),
+                    Some(PostfixSuffixKind::Call) => {
                         if operations.is_empty() {
                             return Err(PlaceSyntaxError::NotPlace(children[1]));
                         }
@@ -650,7 +721,7 @@ fn collect_postfix_operations(
                             operations,
                         });
                     }
-                    _ => return Err(PlaceSyntaxError::InvalidSyntax(node)),
+                    None => return Err(PlaceSyntaxError::InvalidSyntax(node)),
                 });
                 node = children[0];
             }

@@ -34,6 +34,9 @@ pub(super) fn lower_aggregate(
             MirAggregate::FixedArray(values),
             MachineLayoutKind::FixedArray { length, stride, .. },
         ) => lower_fixed_array(values, *length, *stride, context)?,
+        (MirAggregate::Tuple(values), MachineLayoutKind::Tuple { elements }) => {
+            lower_tuple(values, elements, context)?
+        }
         (
             MirAggregate::Optional(payload),
             MachineLayoutKind::Outcome {
@@ -183,6 +186,26 @@ fn lower_fixed_array(
                 .ok_or_else(|| context.error(MachineAggregateError::OffsetOverflow))?;
             Ok(MachineAggregateWrite::Value {
                 offset,
+                value: context.ids.value(*value)?,
+            })
+        })
+        .collect()
+}
+
+fn lower_tuple(
+    values: &[MirValueId],
+    elements: &[crate::MachineTupleElementLayout],
+    context: AggregateContext<'_>,
+) -> Result<Vec<MachineAggregateWrite>, MachineProgramError> {
+    if values.len() != elements.len() {
+        return Err(context.error(MachineAggregateError::MemberMismatch));
+    }
+    values
+        .iter()
+        .zip(elements)
+        .map(|(value, element)| {
+            Ok(MachineAggregateWrite::Value {
+                offset: element.offset(),
                 value: context.ids.value(*value)?,
             })
         })

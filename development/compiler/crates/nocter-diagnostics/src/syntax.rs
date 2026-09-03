@@ -175,6 +175,7 @@ fn expected_message(expected: ExpectedSyntax) -> Box<str> {
         ExpectedSyntax::Block => "expected a block".into(),
         ExpectedSyntax::LiteralShape => "expected a literal shape".into(),
         ExpectedSyntax::Expression => "expected an expression".into(),
+        ExpectedSyntax::BindingPattern => "expected a binding pattern".into(),
         ExpectedSyntax::AssignmentTarget => "expected an assignment target".into(),
         ExpectedSyntax::EnumPattern => "expected an enum pattern".into(),
         ExpectedSyntax::ClosureHead => "expected a closure parameter list".into(),

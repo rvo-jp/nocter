@@ -7,7 +7,8 @@ use nocter_declarations::{
 use nocter_frontend_bindings::AssociatedProjectionUse;
 use nocter_model::{
     AssociatedTypeId, CallableContract, GenericParameterId, InterfaceId, OpaqueTypeId,
-    ParameterOrigin, ResultProvenance, Symbol, TypeAliasId, TypeId, TypeKind, TypeStore,
+    ParameterOrigin, ResultProvenance, Symbol, TupleElements, TypeAliasId, TypeId, TypeKind,
+    TypeStore,
 };
 use nocter_syntax::NodeId;
 
@@ -466,6 +467,17 @@ impl Evaluator<'_> {
                     .copied()
                     .ok_or(TypeNormalizationError::InvalidBoundType(key.ty))?,
             },
+            BoundTypeKind::Tuple(elements) => {
+                let elements = self.results(&key, &elements)?;
+                let [first, second, remaining @ ..] = elements.as_ref() else {
+                    return Err(TypeNormalizationError::InvalidBoundType(key.ty));
+                };
+                TypeKind::Tuple(TupleElements::new(
+                    *first,
+                    *second,
+                    remaining.iter().copied(),
+                ))
+            }
             BoundTypeKind::Callable(callable) => {
                 let parameters = self.results(&key, callable.parameters())?;
                 let pack = callable
@@ -841,6 +853,7 @@ fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey>
         BoundTypeKind::Nominal { arguments, .. } | BoundTypeKind::Opaque { arguments, .. } => {
             arguments.to_vec()
         }
+        BoundTypeKind::Tuple(elements) => elements.to_vec(),
         BoundTypeKind::AssociatedSelection { base, .. }
         | BoundTypeKind::Pointer(base)
         | BoundTypeKind::Borrow { referent: base, .. }

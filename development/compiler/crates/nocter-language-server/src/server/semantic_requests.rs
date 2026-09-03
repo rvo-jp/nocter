@@ -1675,6 +1675,83 @@ mod tests {
     }
 
     #[test]
+    fn tuple_member_completion_uses_checked_positional_shape() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "func inspect(): void {\n",
+            "    let pair = (1, true)\n",
+            "    pair.\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+
+        let completion = request_completion(&mut server, &uri, 2, 2, 9);
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"0\",\"kind\":5"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"detail\":\"(i32, bool).0: i32\""),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"1\",\"kind\":5"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"detail\":\"(i32, bool).1: bool\""),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let valid = concat!(
+            "func inspect(): i32 {\n",
+            "    let pair = (1, true)\n",
+            "    let selected = pair.0\n",
+            "    selected\n",
+            "}\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, valid, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete
+        );
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":24}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("(i32, bool).0: i32"), "{response}");
+        assert!(
+            response.contains(concat!(
+                "\"start\":{\"line\":2,\"character\":24},",
+                "\"end\":{\"line\":2,\"character\":25}"
+            )),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":24}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("\"result\":null"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+    }
+
+    #[test]
     fn associative_collections_share_checked_editor_identity_across_features() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

@@ -3,7 +3,7 @@ use nocter_model::{
     CapabilityEvidenceId, CaptureId, ConstantId, ConstructionId, DeclarationSiteId, DropId,
     FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
     LocalBindingId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId,
-    RequirementId, TestId, TypeAliasId, VariantId,
+    PlaceId, RequirementId, TestId, TypeAliasId, VariantId,
 };
 
 /// A syntax-independent identity that can have source projections.
@@ -39,6 +39,9 @@ pub enum SemanticEntity {
     Body(BodyId),
     BodyScope(BodyId, BodyScopeId),
     BodyNode(BodyId, BodyNodeId),
+    /// One checked, source-authored place projection. The final index addresses the immutable
+    /// projection sequence of `place`; it is not a declaration or a navigation target.
+    PlaceProjection(BodyId, PlaceId, usize),
     LocalBinding(BodyId, LocalBindingId),
     Capture(BodyId, CaptureId),
     OpaqueType(OpaqueTypeId),

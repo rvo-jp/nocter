@@ -10,6 +10,7 @@ use crate::{MirBodyBuildError, MirProgram, MirProgramBuildError, MirProgramBuild
 mod allocation;
 mod argument_pack;
 mod assignment;
+mod binding;
 mod borrow_conversion;
 mod call;
 mod callable_environment;

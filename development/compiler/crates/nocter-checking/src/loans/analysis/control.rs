@@ -26,12 +26,13 @@ impl Analyzer<'_, '_> {
                 result,
             } => self.evaluate_block(node, *scope, statements, *result, state, extra),
             CheckedControl::Bind {
-                binding,
+                pattern,
                 initializer,
             } => {
                 let (value, reaches) = self.evaluate(*initializer, state, extra)?;
                 if reaches {
-                    state.set_root(PlaceRoot::Local(*binding), value);
+                    Self::bind_pattern(pattern, &value, state);
+                    self.check_cleanup_conflicts(node, state, extra)?;
                 }
                 Ok((LoanValue::independent(), reaches))
             }
@@ -100,6 +101,25 @@ impl Analyzer<'_, '_> {
                 let output = self.evaluate(*body, state, extra)?;
                 state.remove_root(PlaceRoot::Local(*binding));
                 Ok(output)
+            }
+        }
+    }
+
+    fn bind_pattern(
+        pattern: &crate::CheckedBindingPattern,
+        value: &LoanValue,
+        state: &mut LoanState,
+    ) {
+        match pattern {
+            crate::CheckedBindingPattern::Local { binding, .. } => {
+                state.set_root(PlaceRoot::Local(*binding), value.clone());
+            }
+            crate::CheckedBindingPattern::Discard { .. } => {}
+            crate::CheckedBindingPattern::Tuple { elements, .. } => {
+                for (index, element) in elements.iter().enumerate() {
+                    let value = value.projected(ProvenanceProjection::TupleElement(index));
+                    Self::bind_pattern(element, &value, state);
+                }
             }
         }
     }

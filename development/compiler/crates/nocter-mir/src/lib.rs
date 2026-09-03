@@ -31,7 +31,7 @@ pub use builder::MirBodyBuildError;
 pub(crate) use builder::{MirBodyBuilder, MirFunctionBuilder};
 pub use destruction::{
     MirCaptureDestruction, MirDestructionKind, MirDestructionPlan, MirFieldDestruction,
-    MirPayloadDestruction, MirVariantDestruction,
+    MirPayloadDestruction, MirTupleElementDestruction, MirVariantDestruction,
 };
 pub use lower::{MirLoweringError, lower_executable};
 pub use operation::{

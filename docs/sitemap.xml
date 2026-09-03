@@ -1046,6 +1046,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.33.0-phases-1-3/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/core/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1681,6 +1686,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/std/str/views_tests/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/str/views/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1932,6 +1942,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/text-search/search/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/examples/tuples/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

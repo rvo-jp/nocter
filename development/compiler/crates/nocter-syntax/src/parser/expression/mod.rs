@@ -46,8 +46,14 @@ pub(super) fn postfix(parser: &mut Parser<'_>, mode: ExpressionMode) -> Complete
             let suffix = parser.start();
             parser.bump();
             newline::after_incomplete(parser, mode.newline_boundary());
-            parser.expect_name();
-            parser.complete(suffix, NodeKind::MemberSuffix);
+            let kind = if parser.at(TokenKind::IntegerLiteral) {
+                parser.bump();
+                NodeKind::TupleElementSuffix
+            } else {
+                parser.expect_name();
+                NodeKind::MemberSuffix
+            };
+            parser.complete(suffix, kind);
             left = parser.complete(parent, NodeKind::PostfixExpression);
             continue;
         }

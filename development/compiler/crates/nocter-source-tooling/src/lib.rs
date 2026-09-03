@@ -368,6 +368,7 @@ fn expected_parts(expected: ExpectedSyntax) -> (&'static str, Option<&'static st
         ExpectedSyntax::Block => ("block", None),
         ExpectedSyntax::LiteralShape => ("literal_shape", None),
         ExpectedSyntax::Expression => ("expression", None),
+        ExpectedSyntax::BindingPattern => ("binding_pattern", None),
         ExpectedSyntax::AssignmentTarget => ("assignment_target", None),
         ExpectedSyntax::EnumPattern => ("enum_pattern", None),
         ExpectedSyntax::ClosureHead => ("closure_head", None),

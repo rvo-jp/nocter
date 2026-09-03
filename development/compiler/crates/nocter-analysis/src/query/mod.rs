@@ -273,22 +273,36 @@ fn interactive_binding(binding: &SourceBinding) -> bool {
 }
 
 const fn interactive_entity(entity: SemanticEntity) -> bool {
-    matches!(
-        entity,
+    match entity {
         SemanticEntity::Module(_)
-            | SemanticEntity::BuiltinType(_)
-            | SemanticEntity::NominalType(_)
-            | SemanticEntity::TypeAlias(_)
-            | SemanticEntity::Interface(_)
-            | SemanticEntity::AssociatedType(_)
-            | SemanticEntity::Callable(_)
-            | SemanticEntity::Constant(_)
-            | SemanticEntity::Field(_)
-            | SemanticEntity::Variant(_)
-            | SemanticEntity::GenericParameter(_)
-            | SemanticEntity::Parameter(_)
-            | SemanticEntity::Test(_)
-            | SemanticEntity::LocalBinding(..)
-            | SemanticEntity::Capture(..)
-    )
+        | SemanticEntity::BuiltinType(_)
+        | SemanticEntity::NominalType(_)
+        | SemanticEntity::TypeAlias(_)
+        | SemanticEntity::Interface(_)
+        | SemanticEntity::AssociatedType(_)
+        | SemanticEntity::Callable(_)
+        | SemanticEntity::Constant(_)
+        | SemanticEntity::Field(_)
+        | SemanticEntity::Variant(_)
+        | SemanticEntity::GenericParameter(_)
+        | SemanticEntity::Parameter(_)
+        | SemanticEntity::Test(_)
+        | SemanticEntity::PlaceProjection(..)
+        | SemanticEntity::LocalBinding(..)
+        | SemanticEntity::Capture(..) => true,
+        SemanticEntity::Package(_)
+        | SemanticEntity::PackageTarget(_)
+        | SemanticEntity::Import(_)
+        | SemanticEntity::DeclarationSite(_)
+        | SemanticEntity::Construction(_)
+        | SemanticEntity::Instance(_)
+        | SemanticEntity::InterfaceImplementation(_)
+        | SemanticEntity::Drop(_)
+        | SemanticEntity::Requirement(_)
+        | SemanticEntity::CapabilityEvidence(_)
+        | SemanticEntity::Body(_)
+        | SemanticEntity::BodyScope(..)
+        | SemanticEntity::BodyNode(..)
+        | SemanticEntity::OpaqueType(_) => false,
+    }
 }

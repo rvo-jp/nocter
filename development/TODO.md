@@ -20,9 +20,11 @@ The active compiler is under `development/compiler/`. Current architecture belon
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 milestone, release, and review records rather than this handoff.
 
-The [v0.33.0 structural-tuple milestone](milestones/v0.33.0.md) is active. Phase 0 fixes tuples as
-anonymous ordered products across syntax, semantic identity, checked ownership, MIR, runtime shape,
-machine layout and lowering, formatting, and semantic tooling. The
+The [v0.33.0 structural-tuple milestone](milestones/v0.33.0.md) is active. Phases 0 through 3
+implement tuples as anonymous ordered products across syntax, semantic identity, checked ownership,
+MIR, runtime shape, machine layout and lowering, formatting, semantic tooling, `str.split_once`, and
+one public example. Their
+[implementation review](reviews/v0.33.0-phases-1-3.md) has no open finding. The
 [representation boundary](docs/tuple-design.md) prohibits synthetic nominal types, `PackEntry`
 reuse, backend shape reconstruction, and editor-specific parsing.
 
@@ -49,12 +51,12 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Implement v0.33.0 Phase 1 as one semantic-product change: tuple type and expression syntax, numeric
-projection, recursive local binding patterns, interned structural identity, checked positional
-places and binding plans, stable diagnostics, formatter support, and canonical semantic
-presentation. Do not commit a parser-only tuple subset or manufacture nominal declarations and
-fields. Preserve the v0.32.0 release record as immutable evidence; any correction requires a new
-version, candidate, tag, and archive.
+Complete v0.33.0 Phase 4 qualification and final responsibility review. Verify the complete locked
+workspace, warnings-denied Clippy, no-default-features build, formatter, generated documentation,
+public examples, installed-home behavior, repository integrity, tuple ABI, and native lifecycle.
+Do not publish until a separately authorized release-preparation and publication workflow.
+Preserve the v0.32.0 release record as immutable evidence; any correction requires a new version,
+candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

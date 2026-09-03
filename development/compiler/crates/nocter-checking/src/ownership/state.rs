@@ -14,27 +14,42 @@ pub(crate) enum TemporaryIdentity {
 
 /// Canonical storage path used by ownership transfer and dataflow.
 ///
-/// Only named fields may extend a root. Indexes and dereferences never enter this identity.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) enum MoveProjection {
+    Field(FieldId),
+    TupleElement(usize),
+}
+
+/// Only statically selected aggregate positions may extend a root. Dynamic indexes and
+/// dereferences never enter this identity.
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(crate) struct MovePath {
     root: PlaceRoot,
-    fields: Box<[FieldId]>,
+    projections: Box<[MoveProjection]>,
 }
 
 impl MovePath {
     pub(crate) fn root(root: PlaceRoot) -> Self {
         Self {
             root,
-            fields: Box::new([]),
+            projections: Box::new([]),
         }
     }
 
     pub(crate) fn field(&self, field: FieldId) -> Self {
-        let mut fields = self.fields.to_vec();
-        fields.push(field);
+        self.project(MoveProjection::Field(field))
+    }
+
+    pub(crate) fn tuple_element(&self, index: usize) -> Self {
+        self.project(MoveProjection::TupleElement(index))
+    }
+
+    fn project(&self, projection: MoveProjection) -> Self {
+        let mut projections = self.projections.to_vec();
+        projections.push(projection);
         Self {
             root: self.root,
-            fields: fields.into_boxed_slice(),
+            projections: projections.into_boxed_slice(),
         }
     }
 
@@ -44,10 +59,11 @@ impl MovePath {
             return None;
         }
         for projection in place.projections() {
-            let PlaceProjection::Field { field, .. } = projection else {
-                return None;
+            path = match projection {
+                PlaceProjection::Field { field, .. } => path.field(*field),
+                PlaceProjection::TupleElement { index, .. } => path.tuple_element(*index),
+                _ => return None,
             };
-            path = path.field(*field);
         }
         Some(path)
     }
@@ -60,6 +76,7 @@ impl MovePath {
         for projection in place.projections() {
             match projection {
                 PlaceProjection::Field { field, .. } => path = path.field(*field),
+                PlaceProjection::TupleElement { index, .. } => path = path.tuple_element(*index),
                 PlaceProjection::BorrowDeref { .. }
                 | PlaceProjection::BuiltinIndex { .. }
                 | PlaceProjection::CoercedBuiltinIndex { .. }
@@ -73,21 +90,21 @@ impl MovePath {
         self.root
     }
 
-    pub(crate) fn fields(&self) -> &[FieldId] {
-        &self.fields
+    pub(crate) fn projections(&self) -> &[MoveProjection] {
+        &self.projections
     }
 
     fn is_prefix_of(&self, another: &Self) -> bool {
         self.root == another.root
-            && self.fields.len() <= another.fields.len()
-            && another.fields.starts_with(&self.fields)
+            && self.projections.len() <= another.projections.len()
+            && another.projections.starts_with(&self.projections)
     }
 
     fn parent(&self) -> Option<Self> {
-        let (_, fields) = self.fields.split_last()?;
+        let (_, projections) = self.projections.split_last()?;
         Some(Self {
             root: self.root,
-            fields: fields.into(),
+            projections: projections.into(),
         })
     }
 }
@@ -166,7 +183,7 @@ impl OwnershipState {
     /// unavailable parent. Replacing a complete path removes every more-specific partial fact.
     pub(crate) fn assign(&mut self, path: &MovePath) -> Result<(), OwnershipStateError> {
         let mut prefix = MovePath::root(path.root_identity());
-        for field in path.fields() {
+        for projection in path.projections() {
             let state = self.state_at(&prefix)?;
             if state != InitializationState::Initialized {
                 return Err(OwnershipStateError::UnavailableAssignmentParent {
@@ -174,7 +191,7 @@ impl OwnershipState {
                     state,
                 });
             }
-            prefix = prefix.field(*field);
+            prefix = prefix.project(*projection);
         }
         let explicit = self.paths.contains_key(path);
         let has_descendant = self

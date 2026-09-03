@@ -194,58 +194,16 @@ impl TypeUnifier<'_> {
 }
 
 fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, TypeId)>) -> bool {
-    if let (TypeKind::Callable(left), TypeKind::Callable(right)) = (left, right) {
-        return decompose_callable(left, right, pending);
+    if let Some(result) = decompose_declared_application(left, right, pending) {
+        return result;
     }
     match (left, right) {
+        (TypeKind::Callable(left), TypeKind::Callable(right)) => {
+            decompose_callable(left, right, pending)
+        }
         (TypeKind::Builtin(left), TypeKind::Builtin(right)) => left == right,
         (TypeKind::GenericParameter(left), TypeKind::GenericParameter(right)) => left == right,
         (TypeKind::InterfaceSelf(left), TypeKind::InterfaceSelf(right)) => left == right,
-        (
-            TypeKind::Closure {
-                definition: left_definition,
-                arguments: left_arguments,
-            },
-            TypeKind::Closure {
-                definition: right_definition,
-                arguments: right_arguments,
-            },
-        ) if left_definition == right_definition
-            && left_arguments.len() == right_arguments.len() =>
-        {
-            append_paired(left_arguments, right_arguments, pending);
-            true
-        }
-        (
-            TypeKind::Nominal {
-                definition: left_definition,
-                arguments: left_arguments,
-            },
-            TypeKind::Nominal {
-                definition: right_definition,
-                arguments: right_arguments,
-            },
-        ) if left_definition == right_definition
-            && left_arguments.len() == right_arguments.len() =>
-        {
-            append_paired(left_arguments, right_arguments, pending);
-            true
-        }
-        (
-            TypeKind::Opaque {
-                definition: left_definition,
-                arguments: left_arguments,
-            },
-            TypeKind::Opaque {
-                definition: right_definition,
-                arguments: right_arguments,
-            },
-        ) if left_definition == right_definition
-            && left_arguments.len() == right_arguments.len() =>
-        {
-            append_paired(left_arguments, right_arguments, pending);
-            true
-        }
         (
             TypeKind::AssociatedProjection {
                 base: left_base,
@@ -292,8 +250,93 @@ fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, 
             pending.push((*left_element, *right_element));
             true
         }
+        (TypeKind::Tuple(left), TypeKind::Tuple(right)) => decompose_tuple(left, right, pending),
         _ => false,
     }
+}
+
+fn decompose_declared_application(
+    left: &TypeKind,
+    right: &TypeKind,
+    pending: &mut Vec<(TypeId, TypeId)>,
+) -> Option<bool> {
+    match (left, right) {
+        (
+            TypeKind::Closure {
+                definition: left_definition,
+                arguments: left_arguments,
+            },
+            TypeKind::Closure {
+                definition: right_definition,
+                arguments: right_arguments,
+            },
+        ) => Some(decompose_application(
+            left_definition,
+            left_arguments,
+            right_definition,
+            right_arguments,
+            pending,
+        )),
+        (
+            TypeKind::Nominal {
+                definition: left_definition,
+                arguments: left_arguments,
+            },
+            TypeKind::Nominal {
+                definition: right_definition,
+                arguments: right_arguments,
+            },
+        ) => Some(decompose_application(
+            left_definition,
+            left_arguments,
+            right_definition,
+            right_arguments,
+            pending,
+        )),
+        (
+            TypeKind::Opaque {
+                definition: left_definition,
+                arguments: left_arguments,
+            },
+            TypeKind::Opaque {
+                definition: right_definition,
+                arguments: right_arguments,
+            },
+        ) => Some(decompose_application(
+            left_definition,
+            left_arguments,
+            right_definition,
+            right_arguments,
+            pending,
+        )),
+        _ => None,
+    }
+}
+
+fn decompose_application<T: Eq>(
+    left_definition: &T,
+    left_arguments: &[TypeId],
+    right_definition: &T,
+    right_arguments: &[TypeId],
+    pending: &mut Vec<(TypeId, TypeId)>,
+) -> bool {
+    if left_definition != right_definition || left_arguments.len() != right_arguments.len() {
+        return false;
+    }
+    append_paired(left_arguments, right_arguments, pending);
+    true
+}
+
+fn decompose_tuple(
+    left: &nocter_model::TupleElements,
+    right: &nocter_model::TupleElements,
+    pending: &mut Vec<(TypeId, TypeId)>,
+) -> bool {
+    if left.as_slice().len() != right.as_slice().len() {
+        return false;
+    }
+    append_paired(left.as_slice(), right.as_slice(), pending);
+    true
 }
 
 fn decompose_callable(
@@ -363,6 +406,7 @@ fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
             output.push(contract.result());
         }
         TypeKind::PackEntry { key, value } => output.extend([*key, *value]),
+        TypeKind::Tuple(elements) => output.extend(elements.iter()),
     }
 }
 

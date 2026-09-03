@@ -160,6 +160,24 @@ fn disjoint_named_fields_move_independently() {
 }
 
 #[test]
+fn disjoint_tuple_positions_move_independently() {
+    let fixture = Fixture::new(
+        "struct Owned { value: i32 }\n\
+         func split(pair: (Owned, Owned)): Owned {\n\
+             let _ = move pair.0\n\
+             move pair.1\n\
+         }\n",
+    );
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+
+    check_prepared_program(&input, prepared).unwrap();
+}
+
+#[test]
 fn named_field_move_invalidates_that_field_and_its_parent() {
     for result in ["move pair.first", "move pair"] {
         let fixture = Fixture::new(&format!(

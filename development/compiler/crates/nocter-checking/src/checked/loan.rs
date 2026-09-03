@@ -42,6 +42,7 @@ pub enum LoanId {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum LoanProjection {
     Field(FieldId),
+    TupleElement(usize),
     /// An index, dereference, payload, or other projection that cannot prove disjointness.
     Opaque,
 }
@@ -84,6 +85,10 @@ impl LoanPlace {
             return !matches!(
                 (left, right),
                 (LoanProjection::Field(_), LoanProjection::Field(_))
+                    | (
+                        LoanProjection::TupleElement(_),
+                        LoanProjection::TupleElement(_)
+                    )
             );
         }
         true

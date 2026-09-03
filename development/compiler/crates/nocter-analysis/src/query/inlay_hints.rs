@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_declarations::{ProvenanceAnnotation, ProvenanceOrigin};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
-use nocter_syntax::{NodeKind, SyntaxElement, SyntaxTree};
+use nocter_syntax::{NodeKind, SyntaxTree};
 
 use crate::AnalysisSnapshot;
 use crate::query::SemanticQueryContext;
@@ -296,25 +296,21 @@ impl InlayContext<'_> {
 }
 
 fn annotated_binding_targets(syntax: &SyntaxTree) -> BTreeSet<TextRange> {
-    syntax
-        .nodes()
-        .filter(|(_, node)| node.kind() == NodeKind::BindingStatement)
-        .filter_map(|(binding, _)| {
-            let mut target = None;
-            let mut annotation = false;
-            for child in syntax.children(binding) {
-                let SyntaxElement::Node(child) = child else {
-                    continue;
-                };
-                match syntax.node(*child)?.kind() {
-                    NodeKind::BindingTarget => {
-                        target = syntax.node(*child).map(nocter_syntax::SyntaxNode::range);
-                    }
-                    NodeKind::TypeAnnotation => annotation = true,
-                    _ => {}
-                }
-            }
-            annotation.then_some(target).flatten()
-        })
-        .collect()
+    let mut targets = BTreeSet::new();
+    for (binding, node) in syntax.nodes() {
+        if node.kind() != NodeKind::BindingStatement
+            || nocter_syntax::direct_node(syntax, binding, NodeKind::TypeAnnotation).is_none()
+        {
+            continue;
+        }
+        let Some(pattern) = nocter_syntax::direct_node(syntax, binding, NodeKind::BindingPattern)
+        else {
+            continue;
+        };
+        targets.extend(
+            nocter_syntax::descendant_identifier_iter(syntax, pattern)
+                .map(nocter_syntax::SyntaxToken::range),
+        );
+    }
+    targets
 }

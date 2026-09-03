@@ -250,6 +250,36 @@ fn escaped_interpolation_remains_string_text() {
 }
 
 #[test]
+fn numeric_member_spelling_is_lexed_as_projection_only_after_a_value() {
+    let projection = lex_text("value.1.0");
+    assert!(projection.diagnostics.is_empty());
+    assert_eq!(
+        projection
+            .tokens
+            .iter()
+            .map(|token| token.kind())
+            .collect::<Vec<_>>(),
+        [
+            TokenKind::Identifier,
+            TokenKind::Punctuation(Punctuation::Dot),
+            TokenKind::IntegerLiteral,
+            TokenKind::Punctuation(Punctuation::Dot),
+            TokenKind::IntegerLiteral,
+            TokenKind::Eof,
+        ]
+    );
+
+    assert_eq!(
+        lex_text("1.0").diagnostics[0].kind,
+        LexDiagnosticKind::UnsupportedFloatLiteral
+    );
+    assert_eq!(
+        lex_text(".5").diagnostics[0].kind,
+        LexDiagnosticKind::UnsupportedFloatLiteral
+    );
+}
+
+#[test]
 fn reports_closed_lexical_error_classes_without_duplicate_eof() {
     let cases = [
         ("/*", LexDiagnosticKind::UnterminatedBlockComment),

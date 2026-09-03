@@ -39,6 +39,24 @@ pub struct MachineFieldLayout {
     offset: u64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MachineTupleElementLayout {
+    ty: TypeId,
+    offset: u64,
+}
+
+impl MachineTupleElementLayout {
+    #[must_use]
+    pub const fn ty(self) -> TypeId {
+        self.ty
+    }
+
+    #[must_use]
+    pub const fn offset(self) -> u64 {
+        self.offset
+    }
+}
+
 impl MachineFieldLayout {
     #[must_use]
     pub const fn ty(self) -> TypeId {
@@ -116,6 +134,9 @@ pub enum MachineLayoutKind {
     ErrorHandle,
     Struct {
         fields: Box<[MachineFieldLayout]>,
+    },
+    Tuple {
+        elements: Box<[MachineTupleElementLayout]>,
     },
     Enum {
         tag_offset: u64,
@@ -398,6 +419,7 @@ impl LayoutBuilder<'_> {
                     },
                 })
             }
+            RuntimeType::Tuple(elements) => self.tuple(ty, elements),
             RuntimeType::PackEntry { key, value } => {
                 let key_layout = self.layout(*key)?.clone();
                 let value_layout = self.layout(*value)?.clone();
@@ -547,6 +569,26 @@ impl LayoutBuilder<'_> {
             size,
             alignment,
             kind: MachineLayoutKind::Struct { fields },
+        })
+    }
+
+    fn tuple(
+        &mut self,
+        ty: TypeId,
+        elements: &[TypeId],
+    ) -> Result<MachineLayout, MachineLayoutError> {
+        let (size, alignment, offsets) = self.member_offsets(ty, elements.iter().copied())?;
+        let elements = elements
+            .iter()
+            .copied()
+            .zip(offsets)
+            .map(|(ty, offset)| MachineTupleElementLayout { ty, offset })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+        Ok(MachineLayout {
+            size,
+            alignment,
+            kind: MachineLayoutKind::Tuple { elements },
         })
     }
 

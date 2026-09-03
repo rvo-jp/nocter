@@ -131,6 +131,15 @@ impl Analyzer<'_, '_> {
                 }
                 result.insert_projection(ProvenanceProjection::Element, values);
             }
+            AggregateConstruction::Tuple(elements) => {
+                for (index, element) in elements.iter().enumerate() {
+                    let (value, reaches) = self.evaluate(*element, state, extra)?;
+                    if !reaches {
+                        return Ok((LoanValue::independent(), false));
+                    }
+                    result.insert_projection(ProvenanceProjection::TupleElement(index), value);
+                }
+            }
         }
         Ok((result, true))
     }

@@ -419,9 +419,32 @@ fn grouped_type(parser: &mut Parser<'_>) {
         return;
     }
     type_(parser);
+    let tuple = parser.eat_punctuation(Punctuation::Comma);
+    if tuple {
+        parser.eat_newlines();
+        if parser.at_punctuation(Punctuation::RightParen) || parser.at(TokenKind::Eof) {
+            parser.missing(ExpectedSyntax::Type);
+        } else {
+            type_(parser);
+            while parser.eat_punctuation(Punctuation::Comma) {
+                parser.eat_newlines();
+                if parser.at_punctuation(Punctuation::RightParen) || parser.at(TokenKind::Eof) {
+                    break;
+                }
+                type_(parser);
+            }
+        }
+    }
     parser.expect_punctuation(Punctuation::RightParen);
     parser.leave_nesting();
-    parser.complete(marker, NodeKind::GroupedType);
+    parser.complete(
+        marker,
+        if tuple {
+            NodeKind::TupleType
+        } else {
+            NodeKind::GroupedType
+        },
+    );
 }
 
 fn outcome_suffix(parser: &mut Parser<'_>) {

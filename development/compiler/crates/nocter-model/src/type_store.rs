@@ -35,6 +35,37 @@ pub enum ArgumentPack<T> {
 
 pub type ArgumentPackType = ArgumentPack<TypeId>;
 
+/// The two-or-more-element structural payload of a source tuple.
+///
+/// The constructor requires the first two positions, making the language's minimum tuple arity an
+/// invariant of semantic representation rather than a convention imposed on callers.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TupleElements(Box<[TypeId]>);
+
+impl TupleElements {
+    #[must_use]
+    pub fn new(first: TypeId, second: TypeId, remaining: impl IntoIterator<Item = TypeId>) -> Self {
+        let mut elements = vec![first, second];
+        elements.extend(remaining);
+        Self(elements.into_boxed_slice())
+    }
+
+    #[must_use]
+    pub const fn as_slice(&self) -> &[TypeId] {
+        &self.0
+    }
+
+    #[must_use]
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = TypeId> + ExactSizeIterator + '_ {
+        self.0.iter().copied()
+    }
+
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<TypeId> {
+        self.0.get(index).copied()
+    }
+}
+
 impl<T: Copy> ArgumentPack<T> {
     #[must_use]
     pub const fn primary(self) -> T {
@@ -267,6 +298,7 @@ pub enum TypeKind {
         element: TypeId,
         length: u64,
     },
+    Tuple(TupleElements),
     /// One compiler-owned keyed-pack entry. Source syntax cannot name or construct this type.
     PackEntry {
         key: TypeId,
@@ -302,6 +334,7 @@ impl TypeKind {
             | Self::FixedArray { element: base, .. }
             | Self::Optional(base)
             | Self::Fallible(base) => visit(*base),
+            Self::Tuple(elements) => elements.iter().for_each(visit),
             Self::PackEntry { key, value } => {
                 visit(*key);
                 visit(*value);
@@ -487,6 +520,7 @@ impl TypeProperties {
             TypeKind::Nominal { arguments, .. }
             | TypeKind::Opaque { arguments, .. }
             | TypeKind::Closure { arguments, .. } => children_concrete(arguments),
+            TypeKind::Tuple(elements) => children_concrete(elements.as_slice()),
             TypeKind::Pointer(base)
             | TypeKind::Borrow { referent: base, .. }
             | TypeKind::Slice(base)
@@ -518,6 +552,9 @@ impl TypeProperties {
             TypeKind::PackEntry { key, value } => {
                 child(*key).may_carry_storage || child(*value).may_carry_storage
             }
+            TypeKind::Tuple(elements) => elements
+                .iter()
+                .any(|element| child(element).may_carry_storage),
             TypeKind::FixedArray { element, .. }
             | TypeKind::Optional(element)
             | TypeKind::Fallible(element) => child(*element).may_carry_storage,
@@ -599,7 +636,7 @@ mod tests {
 
     use super::{
         ArgumentPackType, BorrowCapability, BuiltinType, CallableCapability, CallableContract,
-        CallableGuarantees, TypeKind, TypeStore,
+        CallableGuarantees, TupleElements, TypeKind, TypeStore,
     };
 
     #[test]
@@ -622,6 +659,24 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(types.type_count(), BuiltinType::ALL.len() + 1);
+    }
+
+    #[test]
+    fn tuple_identity_is_the_ordered_structural_element_sequence() {
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let i32_ = types.builtin(BuiltinType::I32);
+        let u64_ = types.builtin(BuiltinType::U64);
+        let ordered = TypeKind::Tuple(TupleElements::new(i32_, u64_, []));
+
+        let first = types.intern(ordered.clone()).unwrap();
+        let repeated = types.intern(ordered).unwrap();
+        let reversed = types
+            .intern(TypeKind::Tuple(TupleElements::new(u64_, i32_, [])))
+            .unwrap();
+
+        assert_eq!(first, repeated);
+        assert_ne!(first, reversed);
     }
 
     #[test]

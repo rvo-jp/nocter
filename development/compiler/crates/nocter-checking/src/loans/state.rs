@@ -2,7 +2,15 @@ use std::collections::BTreeMap;
 
 use super::liveness::{LivePlace, LiveSlot};
 use super::value::LoanValue;
-use crate::{PlaceRoot, ProvenanceProjection};
+use crate::{LoanProjection, PlaceRoot, ProvenanceProjection};
+
+fn provenance_projection(projection: LoanProjection) -> Option<ProvenanceProjection> {
+    match projection {
+        LoanProjection::Field(field) => Some(ProvenanceProjection::Field(field)),
+        LoanProjection::TupleElement(index) => Some(ProvenanceProjection::TupleElement(index)),
+        LoanProjection::Opaque => None,
+    }
+}
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(super) struct LoanState {
@@ -32,10 +40,10 @@ impl LoanState {
         let root = LiveSlot::Place(LivePlace::from_parts(place.root(), Box::new([])));
         let mut current = self.values.get(&root).cloned().unwrap_or_default();
         let path = place
-            .fields()
+            .projections()
             .iter()
             .copied()
-            .map(ProvenanceProjection::Field)
+            .map_while(provenance_projection)
             .collect::<Vec<_>>();
         current.replace_projection(&path, value);
         self.values.insert(root, current);
@@ -47,10 +55,10 @@ impl LoanState {
             return;
         };
         let path = place
-            .fields()
+            .projections()
             .iter()
             .copied()
-            .map(ProvenanceProjection::Field)
+            .map_while(provenance_projection)
             .collect::<Vec<_>>();
         current.remove_projection(&path);
         self.values.insert(root, current);
@@ -79,8 +87,11 @@ impl LoanState {
     fn place_value(&self, place: &LivePlace) -> LoanValue {
         let root = LiveSlot::Place(LivePlace::from_parts(place.root(), Box::new([])));
         let mut value = self.values.get(&root).cloned().unwrap_or_default();
-        for field in place.fields() {
-            value = value.projected(ProvenanceProjection::Field(*field));
+        for projection in place.projections() {
+            let Some(projection) = provenance_projection(*projection) else {
+                break;
+            };
+            value = value.projected(projection);
         }
         value
     }

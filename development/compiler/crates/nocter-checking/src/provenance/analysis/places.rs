@@ -173,6 +173,9 @@ impl Analyzer<'_, '_> {
 fn value_projection(projection: &PlaceProjection) -> Option<ProvenanceProjection> {
     match projection {
         PlaceProjection::Field { field, .. } => Some(ProvenanceProjection::Field(*field)),
+        PlaceProjection::TupleElement { index, .. } => {
+            Some(ProvenanceProjection::TupleElement(*index))
+        }
         PlaceProjection::BuiltinIndex { .. }
         | PlaceProjection::CoercedBuiltinIndex { .. }
         | PlaceProjection::SelectedIndex { .. } => Some(ProvenanceProjection::Element),

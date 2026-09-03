@@ -79,7 +79,9 @@ const fn entity_family_rank(entity: SemanticEntity) -> u8 {
     match entity {
         SemanticEntity::LocalBinding(..) | SemanticEntity::Capture(..) => 0,
         SemanticEntity::Parameter(_) | SemanticEntity::GenericParameter(_) => 1,
-        SemanticEntity::Field(_) | SemanticEntity::Variant(_) => 2,
+        SemanticEntity::Field(_)
+        | SemanticEntity::Variant(_)
+        | SemanticEntity::PlaceProjection(..) => 2,
         SemanticEntity::Callable(_)
         | SemanticEntity::BuiltinType(_)
         | SemanticEntity::Constant(_)

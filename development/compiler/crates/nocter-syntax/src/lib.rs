@@ -40,7 +40,8 @@ pub use surface::{
 };
 pub use token::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 pub use tree::{
-    MissingSyntax, NodeId, NodeKind, SyntaxElement, SyntaxNode, SyntaxToken, SyntaxTree, TokenId,
+    MissingSyntax, NodeId, NodeKind, PostfixSuffixKind, SyntaxElement, SyntaxNode, SyntaxToken,
+    SyntaxTree, TokenId,
 };
 
 /// Reports whether `text` is one complete source-level name.

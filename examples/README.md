@@ -67,6 +67,15 @@ nocter check examples/ordering.nct
 nocter run examples/ordering.nct
 ```
 
+[tuples.nct](tuples.nct) returns an owned structural tuple, mutates a decimal projection,
+projects an rvalue, destructures named and discarded positions, and lets ordinary reverse-order
+destruction clean up owned elements.
+
+```sh
+nocter check examples/tuples.nct
+nocter run examples/tuples.nct
+```
+
 [elapsed.nct](elapsed.nct) measures one monotonic interval and blocks for a normalized `Duration`.
 It demonstrates that `std/time` keeps target counter values and wait details behind its public
 `Instant`, `Duration`, and `time.sleep` contracts.

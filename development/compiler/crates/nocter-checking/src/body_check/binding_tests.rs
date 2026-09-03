@@ -4,9 +4,124 @@ use nocter_model::{BuiltinType, TypeKind};
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    BodyRule, CheckedControl, CheckedOperation, ConstantExpressionRule, TypeValidityRule,
+    BodyRule, CheckedBindingPattern, CheckedControl, CheckedOperation, CleanupProjection,
+    CleanupTarget, CleanupTiming, ConstantExpressionRule, PlaceProjection, TypeValidityRule,
     prepare_program_checking,
 };
+
+#[test]
+fn tuples_have_structural_types_positional_places_and_recursive_binding_plans() {
+    let output = check(
+        "func value(): i32 {\n    var pair: (i32, (i32, i32)) = (1, (2, 3))\n    pair.1.0 = 4\n    let (first, (second, third)) = pair\n    first + second + third\n}\n",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| body.locals().len() == 4)
+        .unwrap();
+
+    let tuple_types = output
+        .program()
+        .types()
+        .iter()
+        .filter(|(_, ty)| matches!(ty, TypeKind::Tuple(_)))
+        .count();
+    assert_eq!(tuple_types, 2);
+    assert!(body.places().iter().any(|(_, place)| {
+        matches!(
+            place.projections(),
+            [
+                PlaceProjection::TupleElement { index: 1, .. },
+                PlaceProjection::TupleElement { index: 0, .. }
+            ]
+        )
+    }));
+    assert!(body.nodes().iter().any(|(_, node)| {
+        matches!(
+            node.operation(),
+            CheckedOperation::Control(CheckedControl::Bind {
+                pattern: CheckedBindingPattern::Tuple { elements, .. },
+                ..
+            }) if matches!(elements.as_ref(), [
+                CheckedBindingPattern::Local { .. },
+                CheckedBindingPattern::Tuple { .. }
+            ])
+        )
+    }));
+}
+
+#[test]
+fn tuple_binding_shape_and_projection_bounds_are_checked_semantically() {
+    for source in [
+        "func value(): void { let (first, second) = 1 }\n",
+        "func value(): void { let (first, second, third) = (1, 2) }\n",
+        "func value(): i32 { let pair = (1, 2)\n pair.2 }\n",
+        "func value(): i32 { let pair = (1, 2)\n pair.01 }\n",
+    ] {
+        assert!(check(source).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn tuple_binding_discards_use_the_shared_cleanup_authority() {
+    let output = check(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func consume(pair: (Owned, Owned)): void {\n\
+             let (retained, _) = move pair\n\
+             drop retained\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let (_, body) = output
+        .program()
+        .bodies()
+        .iter()
+        .find(|(_, body)| {
+            body.nodes().iter().any(|(_, checked)| {
+                matches!(
+                    checked.operation(),
+                    CheckedOperation::Control(CheckedControl::Bind {
+                        pattern: CheckedBindingPattern::Tuple { .. },
+                        ..
+                    })
+                )
+            })
+        })
+        .unwrap();
+    let (binding, initializer) = body
+        .nodes()
+        .iter()
+        .find_map(|(node, checked)| match checked.operation() {
+            CheckedOperation::Control(CheckedControl::Bind {
+                pattern: CheckedBindingPattern::Tuple { .. },
+                initializer,
+            }) => Some((node, *initializer)),
+            _ => None,
+        })
+        .unwrap();
+    let actions = body
+        .cleanups()
+        .actions(binding, CleanupTiming::DuringBinding)
+        .expect("discarded move-only element must have a cleanup schedule");
+
+    assert!(matches!(
+        actions,
+        [action]
+            if matches!(
+                action.target(),
+                CleanupTarget::Path(path)
+                    if path.root() == crate::PlaceRoot::Value(initializer)
+                        && matches!(
+                            path.projections(),
+                            [CleanupProjection::TupleElement { index: 1, .. }]
+                        )
+            )
+    ));
+}
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     check_fixture(&Fixture::new(source), false)

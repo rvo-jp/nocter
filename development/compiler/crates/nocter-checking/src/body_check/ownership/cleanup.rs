@@ -4,12 +4,14 @@ use nocter_model::{BodyNodeId, BodyScopeId, PlaceId, TypeId, TypeKind};
 use super::super::error::BodyCheckInternalError;
 use crate::checked::CleanupEffect;
 use crate::copyability::{CopyProofs, Copyability};
-use crate::ownership::{InitializationState, MovePath, OwnershipState, owned_body_roots};
+use crate::ownership::{
+    InitializationState, MovePath, MoveProjection, OwnershipState, owned_body_roots,
+};
 use crate::type_relations::TypeSubstitution;
 use crate::{
-    BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition,
-    CleanupFieldProjection, CleanupPath, CleanupTarget, ClosureTable, DropTable, LocalBindingKind,
-    PatternRemainder, PlaceRoot,
+    BodySource, CheckedBody, CheckedPattern, CleanupAction, CleanupCondition, CleanupPath,
+    CleanupProjection, CleanupTarget, ClosureTable, DropTable, LocalBindingKind, PatternRemainder,
+    PlaceRoot,
 };
 
 use super::destruction_effect::DestructionEffectResolver;
@@ -200,6 +202,21 @@ impl<'program> CleanupPlanner<'program> {
         ))
     }
 
+    pub(super) fn binding_discard_action(
+        &mut self,
+        path: &MovePath,
+        ty: TypeId,
+    ) -> Result<Option<CleanupAction>, BodyCheckInternalError> {
+        if !self.needs_cleanup(ty)? {
+            return Ok(None);
+        }
+        Ok(Some(CleanupAction::new(
+            CleanupTarget::Path(self.checked_cleanup_path(path, ty)?),
+            CleanupCondition::Always,
+            self.destruction_effect(ty)?,
+        )))
+    }
+
     pub(super) fn replacement_path_actions(
         &mut self,
         path: &MovePath,
@@ -235,9 +252,13 @@ impl<'program> CleanupPlanner<'program> {
         actions: &mut Vec<CleanupAction>,
     ) -> Result<(), BodyCheckInternalError> {
         if state.has_descendant(path) {
-            let fields = self.struct_fields(ty)?;
-            for (field, field_ty) in fields.into_iter().rev() {
-                self.plan_path(&path.field(field), field_ty, state, actions)?;
+            let children = self.aggregate_children(ty)?;
+            for (projection, child_ty) in children.into_iter().rev() {
+                let child = match projection {
+                    MoveProjection::Field(field) => path.field(field),
+                    MoveProjection::TupleElement(index) => path.tuple_element(index),
+                };
+                self.plan_path(&child, child_ty, state, actions)?;
             }
             return Ok(());
         }
@@ -265,14 +286,19 @@ impl<'program> CleanupPlanner<'program> {
     ) -> Result<CleanupPath, BodyCheckInternalError> {
         let root_ty = self.root_type(path.root_identity())?;
         let mut current = root_ty;
-        let mut projections = Vec::with_capacity(path.fields().len());
-        for field in path.fields() {
+        let mut projections = Vec::with_capacity(path.projections().len());
+        for projection in path.projections() {
             let next = self
-                .struct_fields(current)?
+                .aggregate_children(current)?
                 .into_iter()
-                .find_map(|(candidate, ty)| (candidate == *field).then_some(ty))
+                .find_map(|(candidate, ty)| (candidate == *projection).then_some(ty))
                 .ok_or(BodyCheckInternalError::CleanupPlanning)?;
-            projections.push(CleanupFieldProjection::new(*field, next));
+            projections.push(match projection {
+                MoveProjection::Field(field) => CleanupProjection::named_field(*field, next),
+                MoveProjection::TupleElement(index) => {
+                    CleanupProjection::tuple_element(*index, next)
+                }
+            });
             current = next;
         }
         if current != expected {
@@ -352,10 +378,17 @@ impl<'program> CleanupPlanner<'program> {
         }
     }
 
-    fn struct_fields(
+    fn aggregate_children(
         &mut self,
         ty: TypeId,
-    ) -> Result<Vec<(nocter_model::FieldId, TypeId)>, BodyCheckInternalError> {
+    ) -> Result<Vec<(MoveProjection, TypeId)>, BodyCheckInternalError> {
+        if let Some(TypeKind::Tuple(elements)) = self.types.get(ty) {
+            return Ok(elements
+                .iter()
+                .enumerate()
+                .map(|(index, ty)| (MoveProjection::TupleElement(index), ty))
+                .collect());
+        }
         let (definition, arguments) = match self.types.get(ty).cloned() {
             Some(TypeKind::Nominal {
                 definition,
@@ -401,7 +434,7 @@ impl<'program> CleanupPlanner<'program> {
                 let field_ty = substitution
                     .apply_type(self.types, declaration.ty())
                     .map_err(|_| BodyCheckInternalError::CleanupPlanning)?;
-                Ok((field, field_ty))
+                Ok((MoveProjection::Field(field), field_ty))
             })
             .collect()
     }

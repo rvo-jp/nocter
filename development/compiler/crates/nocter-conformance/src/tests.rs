@@ -8,6 +8,8 @@ use nocter_runtime_contract::{PrimitiveBinding, PrimitiveRegistry, PrimitiveRole
 use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot};
 use nocter_test_support::CompilerFixture;
 
+mod tuples;
+
 #[test]
 fn constant_process_crosses_the_complete_native_pipeline() {
     let machine = lower_machine("func main(): i32 { 42 }\n");

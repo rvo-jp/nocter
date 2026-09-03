@@ -739,6 +739,11 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
         }
         ConcreteDestructionKind::FixedArray { element, .. }
         | ConcreteDestructionKind::Optional(element) => collect_drops(element, drops),
+        ConcreteDestructionKind::Tuple(elements) => {
+            for element in elements {
+                collect_drops(element.plan(), drops);
+            }
+        }
         ConcreteDestructionKind::Fallible { success, failure } => {
             if let Some(success) = success {
                 collect_drops(success, drops);

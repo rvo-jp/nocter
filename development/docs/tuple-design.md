@@ -61,9 +61,10 @@ tuple projection contains an element position and its already-resolved type. Loa
 retain that position, allowing different elements to be proven disjoint without consulting syntax
 or nominal declarations.
 
-Local destructuring is represented by a checked binding plan. The plan records the tuple positions,
-new local identities, discard leaves, and the move/copy decision established by checking. MIR
-construction consumes this plan; it does not type-check the source pattern again.
+Local destructuring is represented by a recursive checked binding pattern containing local
+identities, discard leaves, and tuple branches. The checked initializer operation is the sole
+authority for its already-established move or copy behavior. MIR construction consumes both facts;
+it does not type-check the source pattern or infer transfer behavior again.
 
 The internal binding-pattern contract is recursive even though v0.33.0 exposes it only for local
 `let` and `var` statements. Name and discard leaves plus tuple branches are sufficient. Future

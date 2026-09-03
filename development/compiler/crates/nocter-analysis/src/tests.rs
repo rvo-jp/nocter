@@ -7,11 +7,14 @@ use nocter_discovery::{DiscoveryFailure, DiscoveryRequest};
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
-use nocter_source::ByteOffset;
+use nocter_source::{ByteOffset, TextRange};
 use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_workspace_revision::GenerationId;
 
-use crate::{AnalysisSnapshot, AnalysisStatus, SemanticCoverage, TypedBodyUnavailability};
+use crate::{
+    AnalysisSnapshot, AnalysisStatus, SemanticCoverage, SemanticHighlightKind,
+    TypedBodyUnavailability,
+};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -177,6 +180,91 @@ fn namespace_member_call_projects_the_callable_for_hover_and_navigation() {
             .len(),
         1
     );
+}
+
+#[test]
+fn tuple_types_share_canonical_hover_and_recursive_binding_inlays() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "func inspect(): void {\n",
+        "    let pair = (1, true)\n",
+        "    let (number, flag) = pair\n",
+        "    let (annotated, second): (i32, bool) = pair\n",
+        "    return\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(64));
+    assert_eq!(snapshot.status(), AnalysisStatus::Complete);
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let pair = source_text.find("pair").unwrap();
+    let subject = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(pair).unwrap()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(subject.presentation().code(), "let pair: (i32, bool)");
+
+    let hints = snapshot
+        .semantic_inlay_hints(
+            source.id(),
+            TextRange::new(ByteOffset::new(0), source.len()),
+        )
+        .unwrap();
+    let labels = hints
+        .values()
+        .iter()
+        .map(crate::SemanticInlayHint::label)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        [": (i32, bool)", ": i32", ": bool"],
+        "the complete annotation must suppress both recursive binding hints"
+    );
+}
+
+#[test]
+fn tuple_projection_is_one_checked_editor_occurrence_without_a_definition() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "func inspect(): i32 {\n",
+        "    let pair = (1, true)\n",
+        "    pair.0\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(65));
+    assert_eq!(snapshot.status(), AnalysisStatus::Complete);
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let projection = source_text.find(".0").unwrap() + 1;
+    let start = ByteOffset::new(u32::try_from(projection).unwrap());
+    let end = ByteOffset::new(u32::try_from(projection + 1).unwrap());
+
+    let subject = snapshot
+        .semantic_subject(source.id(), start)
+        .unwrap()
+        .expect("checked tuple projection lost its editor occurrence");
+    assert_eq!(subject.presentation().code(), "(i32, bool).0: i32");
+    assert!(
+        snapshot
+            .semantic_definition(source.id(), start)
+            .unwrap()
+            .is_empty()
+    );
+
+    let highlights = snapshot.semantic_highlights(source.id()).unwrap();
+    let projection_highlight = highlights
+        .values()
+        .iter()
+        .find(|highlight| highlight.range() == TextRange::new(start, end))
+        .expect("tuple projection lost its exact semantic range");
+    assert_eq!(projection_highlight.kind(), SemanticHighlightKind::Property);
+    assert!(projection_highlight.is_readonly());
 }
 
 #[test]

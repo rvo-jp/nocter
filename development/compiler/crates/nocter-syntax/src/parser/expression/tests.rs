@@ -12,7 +12,11 @@ fn parse_module(text: &str) -> SyntaxTree {
 
 fn assert_ok(text: &str) {
     let tree = parse_module(text);
-    assert!(tree.lexed().diagnostics().is_empty());
+    assert!(
+        tree.lexed().diagnostics().is_empty(),
+        "{:?}",
+        tree.lexed().diagnostics()
+    );
     assert!(tree.diagnostics().is_empty(), "{:?}", tree.diagnostics());
     assert_token_projection(&tree);
 }
@@ -74,6 +78,48 @@ fn parses_precedence_conversion_and_outcome_layers() {
     assert_ok(
         "func calculate<T>(left: T, right: T, scale: T, expected: bool, ready: bool, fallback: bool, result: T?): bool {\n    let arithmetic = left + right * scale << 1\n    let logic = arithmetic == left && ready || fallback\n    let view = &left as &View\n    let explicit = (left == right) == expected\n    let nested = (move result?)?\n    logic\n}\n",
     );
+}
+
+#[test]
+fn parses_structural_tuple_types_values_projections_and_local_patterns() {
+    let tree = parse_module(
+        "func pair(input: String): (String, usize) {\n    let pair: (String, usize) = (input, 1)\n    var (name, count) = move pair\n    let nested = (name, (count, true),)\n    nested.1.0\n}\n",
+    );
+    assert!(
+        tree.lexed().diagnostics().is_empty(),
+        "{:?}",
+        tree.lexed().diagnostics()
+    );
+    assert!(tree.diagnostics().is_empty(), "{:?}", tree.diagnostics());
+    assert_eq!(count_nodes(&tree, NodeKind::TupleType), 2);
+    assert_eq!(count_nodes(&tree, NodeKind::TupleExpression), 3);
+    assert_eq!(count_nodes(&tree, NodeKind::TupleElementSuffix), 2);
+    assert_eq!(count_nodes(&tree, NodeKind::BindingPattern), 5);
+    assert_token_projection(&tree);
+}
+
+#[test]
+fn parses_numeric_projection_in_explicit_move_places() {
+    let tree = parse_module(
+        "struct Owned { value: i32 }\nfunc take(pair: (Owned, Owned)): Owned { move pair.1 }\n",
+    );
+
+    assert!(tree.lexed().diagnostics().is_empty());
+    assert!(tree.diagnostics().is_empty(), "{:?}", tree.diagnostics());
+    assert_eq!(count_nodes(&tree, NodeKind::TupleElementSuffix), 1);
+}
+
+#[test]
+fn rejects_empty_and_single_element_tuple_forms() {
+    for source in [
+        "func invalid(): void { let pair = () }\n",
+        "func invalid(value: i32): void { let pair = (value,) }\n",
+        "func invalid(value: i32): void { let (): void = value }\n",
+        "func invalid(value: i32): void { let (only,) = value }\n",
+        "func invalid(value: (i32,)): void {}\n",
+    ] {
+        assert!(parse_module(source).has_errors(), "{source}");
+    }
 }
 
 #[test]

@@ -5,7 +5,7 @@ use super::MirLoweringError;
 use super::function::FunctionLowerer;
 use crate::{
     MirCaptureDestruction, MirDestructionKind, MirDestructionPlan, MirFieldDestruction,
-    MirPayloadDestruction, MirVariantDestruction,
+    MirPayloadDestruction, MirTupleElementDestruction, MirVariantDestruction,
 };
 
 impl FunctionLowerer<'_> {
@@ -64,6 +64,18 @@ impl FunctionLowerer<'_> {
                     element: Box::new(self.lower_deferred_destruction(owner, element)?),
                 }
             }
+            ConcreteDestructionKind::Tuple(elements) => MirDestructionKind::Tuple(
+                elements
+                    .iter()
+                    .map(|element| {
+                        Ok(MirTupleElementDestruction::new(
+                            element.index(),
+                            self.lower_deferred_destruction(owner, element.plan())?,
+                        ))
+                    })
+                    .collect::<Result<Vec<_>, MirLoweringError>>()?
+                    .into_boxed_slice(),
+            ),
             ConcreteDestructionKind::Optional(payload) => MirDestructionKind::Optional(Box::new(
                 self.lower_deferred_destruction(owner, payload)?,
             )),

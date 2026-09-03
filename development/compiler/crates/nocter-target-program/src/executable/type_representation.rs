@@ -70,6 +70,7 @@ pub(super) fn close_type_representations(
             | TypeKind::Borrow { .. }
             | TypeKind::Slice(_)
             | TypeKind::FixedArray { .. }
+            | TypeKind::Tuple(_)
             | TypeKind::PackEntry { .. }
             | TypeKind::Closure { .. }
             | TypeKind::Callable(_)
@@ -224,6 +225,7 @@ fn enqueue_structural_children(kind: &TypeKind, pending: &mut BTreeSet<TypeId>) 
             pending.insert(*key);
             pending.insert(*value);
         }
+        TypeKind::Tuple(elements) => pending.extend(elements.iter()),
         TypeKind::Callable(contract) => {
             pending.extend(contract.parameters().iter().copied());
             if let Some(pack) = contract.pack() {

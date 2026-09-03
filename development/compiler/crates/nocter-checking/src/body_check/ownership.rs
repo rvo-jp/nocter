@@ -330,7 +330,8 @@ impl OwnershipAnalyzer<'_> {
                 return self.visit_value_sequence(fields.iter().map(|(_, value)| *value), state);
             }
             AggregateConstruction::Enum { payload, .. }
-            | AggregateConstruction::FixedArray(payload) => payload,
+            | AggregateConstruction::FixedArray(payload)
+            | AggregateConstruction::Tuple(payload) => payload,
         };
         self.visit_value_sequence(values.iter().copied(), state)
     }
@@ -348,15 +349,15 @@ impl OwnershipAnalyzer<'_> {
                 result,
             } => self.visit_block(node, *scope, statements, *result, state),
             CheckedControl::Bind {
-                binding,
+                pattern,
                 initializer,
             } => {
                 if !self.visit(*initializer, state)? {
                     return Ok(false);
                 }
-                state
-                    .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))
-                    .map_err(|_| BodyCheckInternalError::OwnershipState)?;
+                let actions = self.binding_discard_cleanups(pattern, *initializer)?;
+                self.record_cleanup(node, CleanupTiming::DuringBinding, actions);
+                Self::declare_binding_pattern(pattern, state)?;
                 Ok(true)
             }
             CheckedControl::Discard(value) => self.visit_discard(node, *value, state),
@@ -398,6 +399,62 @@ impl OwnershipAnalyzer<'_> {
                 allocator,
                 body,
             } => self.visit_region(*binding, *allocator, *body, state),
+        }
+    }
+
+    fn declare_binding_pattern(
+        pattern: &crate::CheckedBindingPattern,
+        state: &mut OwnershipState,
+    ) -> Result<(), BodyCheckError> {
+        match pattern {
+            crate::CheckedBindingPattern::Local { binding, .. } => state
+                .declare_initialized(MovePath::root(crate::PlaceRoot::Local(*binding)))
+                .map_err(|_| BodyCheckInternalError::OwnershipState.into()),
+            crate::CheckedBindingPattern::Discard { .. } => Ok(()),
+            crate::CheckedBindingPattern::Tuple { elements, .. } => {
+                for element in elements {
+                    Self::declare_binding_pattern(element, state)?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn binding_discard_cleanups(
+        &mut self,
+        pattern: &crate::CheckedBindingPattern,
+        initializer: BodyNodeId,
+    ) -> Result<Vec<CleanupAction>, BodyCheckInternalError> {
+        let root = MovePath::root(crate::PlaceRoot::Value(initializer));
+        let mut actions = Vec::new();
+        self.collect_binding_discard_cleanups(pattern, &root, &mut actions)?;
+        Ok(actions)
+    }
+
+    fn collect_binding_discard_cleanups(
+        &mut self,
+        pattern: &crate::CheckedBindingPattern,
+        path: &MovePath,
+        actions: &mut Vec<CleanupAction>,
+    ) -> Result<(), BodyCheckInternalError> {
+        match pattern {
+            crate::CheckedBindingPattern::Local { .. } => Ok(()),
+            crate::CheckedBindingPattern::Discard { ty } => {
+                if let Some(action) = self.cleanup_planner().binding_discard_action(path, *ty)? {
+                    actions.push(action);
+                }
+                Ok(())
+            }
+            crate::CheckedBindingPattern::Tuple { elements, .. } => {
+                for (index, element) in elements.iter().enumerate().rev() {
+                    self.collect_binding_discard_cleanups(
+                        element,
+                        &path.tuple_element(index),
+                        actions,
+                    )?;
+                }
+                Ok(())
+            }
         }
     }
 

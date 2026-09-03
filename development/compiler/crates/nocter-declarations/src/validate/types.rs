@@ -20,6 +20,7 @@ pub(super) fn validate_types(program: &DeclarationProgram) -> Result<(), Program
             | TypeKind::Borrow { .. }
             | TypeKind::Slice(_)
             | TypeKind::FixedArray { .. }
+            | TypeKind::Tuple(_)
             | TypeKind::PackEntry { .. }
             | TypeKind::Callable(_)
             | TypeKind::Optional(_)

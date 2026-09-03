@@ -334,7 +334,8 @@ impl<'program> DependencyCollector<'program> {
                     }
                 }
                 AggregateConstruction::Enum { payload, .. }
-                | AggregateConstruction::FixedArray(payload) => {
+                | AggregateConstruction::FixedArray(payload)
+                | AggregateConstruction::Tuple(payload) => {
                     for value in payload {
                         self.visit_node(*value)?;
                     }
@@ -518,7 +519,13 @@ impl<'program> DependencyCollector<'program> {
                     self.visit_node(*result)?;
                 }
             }
-            CheckedControl::Bind { initializer, .. } => self.visit_node(*initializer)?,
+            CheckedControl::Bind {
+                pattern,
+                initializer,
+            } => {
+                self.visit_node(*initializer)?;
+                self.visit_binding_pattern(pattern)?;
+            }
             CheckedControl::Assign { target, value }
             | CheckedControl::CompoundAssign { target, value, .. } => {
                 self.visit_node(*value)?;
@@ -672,7 +679,9 @@ impl<'program> DependencyCollector<'program> {
     fn visit_place_projections(&mut self, place: &CheckedPlace) -> Result<(), BodyDependencyError> {
         for projection in place.projections() {
             match projection {
-                PlaceProjection::Field { .. } | PlaceProjection::BorrowDeref { .. } => {}
+                PlaceProjection::Field { .. }
+                | PlaceProjection::TupleElement { .. }
+                | PlaceProjection::BorrowDeref { .. } => {}
                 PlaceProjection::BuiltinIndex { index, .. } => self.visit_node(*index)?,
                 PlaceProjection::CoercedBuiltinIndex {
                     index,
@@ -816,6 +825,23 @@ impl<'program> DependencyCollector<'program> {
         let borrow = PreparedBorrow { source, capability };
         if self.prepared_borrow_set.insert(borrow) {
             self.prepared_borrows.push(borrow);
+        }
+        Ok(())
+    }
+
+    fn visit_binding_pattern(
+        &mut self,
+        pattern: &nocter_checking::CheckedBindingPattern,
+    ) -> Result<(), BodyDependencyError> {
+        self.record_type(pattern.ty())?;
+        match pattern {
+            nocter_checking::CheckedBindingPattern::Local { .. }
+            | nocter_checking::CheckedBindingPattern::Discard { .. } => {}
+            nocter_checking::CheckedBindingPattern::Tuple { elements, .. } => {
+                for element in elements {
+                    self.visit_binding_pattern(element)?;
+                }
+            }
         }
         Ok(())
     }

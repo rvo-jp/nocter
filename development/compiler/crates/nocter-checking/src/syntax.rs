@@ -2,7 +2,7 @@ use nocter_model::Symbol;
 use nocter_source::SourceMap;
 use nocter_syntax::{NodeId, NodeKind, SyntaxToken, SyntaxTree};
 pub(crate) use nocter_syntax::{
-    child_nodes, direct_identifier, direct_node, direct_nodes, first_direct_token,
+    child_nodes, direct_identifier, direct_node, direct_nodes, direct_token, first_direct_token,
 };
 
 use crate::names::NameResolutionInternalError;

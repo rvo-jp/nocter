@@ -21,12 +21,13 @@ use crate::checked::{CheckedBodyBuilder, CheckedBodyRecipe, ClosureTransaction};
 use crate::copyability::{CopyProofs, Copyability};
 use crate::instance_operations::{InstanceOperationSelector, InstanceSelectionContext};
 use crate::syntax::{
-    child_nodes, descendant_identifiers, direct_identifier, direct_node, first_direct_token,
-    is_transparent_expression, token_text,
+    child_nodes, descendant_identifiers, direct_identifier, direct_node, direct_nodes,
+    first_direct_token, is_transparent_expression, token_text,
 };
 use crate::{
-    BodySource, CheckedControl, CheckedOperation, ConstantValue, DropTable, ExpectedEvidence,
-    NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames, plan_expected_type,
+    AggregateConstruction, BodySource, CheckedControl, CheckedOperation, ConstantValue, DropTable,
+    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames,
+    plan_expected_type,
 };
 
 mod aggregates;
@@ -545,11 +546,14 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     }
 
     fn check_binding(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {
-        let target = self.required_child(statement, NodeKind::BindingTarget)?;
-        let token = direct_identifier(self.tree(), target)
-            .ok_or(BodyCheckInternalError::InvalidSyntax(target))?;
+        let pattern = self.required_child(statement, NodeKind::BindingPattern)?;
         let annotation = direct_node(self.tree(), statement, NodeKind::TypeAnnotation);
-        let discard = self.token_text(token)? == "_";
+        let pattern_children = direct_nodes(self.tree(), pattern, NodeKind::BindingPattern);
+        let root_token = pattern_children
+            .is_empty()
+            .then(|| direct_identifier(self.tree(), pattern))
+            .flatten();
+        let root_discard = root_token.map(|token| self.token_text(token)).transpose()? == Some("_");
         let mutable = self.tree().children(statement).iter().any(|element| {
             matches!(
                 element,
@@ -557,8 +561,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     if token.kind() == TokenKind::Keyword(Keyword::Var)
             )
         });
-        if discard && (mutable || annotation.is_some()) {
-            return Err(self.rule(BodyRule::InvalidDiscardBinding, target)?);
+        if root_discard && (mutable || annotation.is_some()) {
+            return Err(self.rule(BodyRule::InvalidDiscardBinding, pattern)?);
         }
         let expected = annotation
             .map(|annotation| {
@@ -569,27 +573,60 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         let initializer = self.required_child(statement, NodeKind::Expression)?;
         let value = self.check_expression(initializer, expected)?;
         let ty = self.node_type(value)?;
-        if discard {
+        if root_discard {
             return self.add_node(
                 statement,
                 self.types.builtin(BuiltinType::Void),
                 CheckedOperation::Control(CheckedControl::Discard(value)),
             );
         }
-        let local = self
-            .local_declarations
-            .get(&SyntaxOrigin::Token(token))
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingLocalDeclaration(target))?;
-        self.builder.define_local(local, ty)?;
+        let pattern = self.check_binding_pattern(pattern, ty)?;
         self.add_node(
             statement,
             self.types.builtin(BuiltinType::Void),
             CheckedOperation::Control(CheckedControl::Bind {
-                binding: local,
+                pattern,
                 initializer: value,
             }),
         )
+    }
+
+    fn check_binding_pattern(
+        &mut self,
+        syntax: NodeId,
+        ty: TypeId,
+    ) -> Result<crate::CheckedBindingPattern, BodyCheckError> {
+        let children = direct_nodes(self.tree(), syntax, NodeKind::BindingPattern);
+        if children.is_empty() {
+            let token = direct_identifier(self.tree(), syntax)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(syntax))?;
+            if self.token_text(token)? == "_" {
+                return Ok(crate::CheckedBindingPattern::Discard { ty });
+            }
+            let local = self
+                .local_declarations
+                .get(&SyntaxOrigin::Token(token))
+                .copied()
+                .ok_or(BodyCheckInternalError::MissingLocalDeclaration(syntax))?;
+            self.builder.define_local(local, ty)?;
+            return Ok(crate::CheckedBindingPattern::Local { binding: local, ty });
+        }
+        let Some(TypeKind::Tuple(element_types)) = self.types.get(ty) else {
+            return Err(self.rule(BodyRule::TypeMismatch, syntax)?);
+        };
+        let element_types = element_types.as_slice().to_vec();
+        if children.len() != element_types.len() {
+            return Err(self.rule(BodyRule::TypeMismatch, syntax)?);
+        }
+        let elements = children
+            .into_iter()
+            .zip(element_types)
+            .map(|(child, element_ty)| self.check_binding_pattern(child, element_ty))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(crate::CheckedBindingPattern::Tuple {
+            ty,
+            elements: elements.into_boxed_slice(),
+        })
     }
 
     fn check_return(&mut self, statement: NodeId) -> Result<BodyNodeId, BodyCheckError> {
@@ -693,6 +730,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 NodeKind::ScalarLiteral => return self.check_scalar(current, expected),
                 NodeKind::StructLiteral => return self.check_struct_literal(current, expected),
                 NodeKind::ArrayLiteral => return self.check_array_literal(current, expected),
+                NodeKind::TupleExpression => {
+                    return self.check_tuple_expression(current, expected);
+                }
                 NodeKind::TypedSequenceLiteral => {
                     return self.check_typed_sequence_literal(current, expected);
                 }
@@ -756,6 +796,56 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.apply_expected(current, value, expected)
             });
         }
+    }
+
+    fn check_tuple_expression(
+        &mut self,
+        node: NodeId,
+        expected: Option<TypeId>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        let expressions = direct_nodes(self.tree(), node, NodeKind::Expression);
+        if expressions.len() < 2 {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        }
+        let expected_elements = expected.and_then(|ty| match self.types.get(ty) {
+            Some(TypeKind::Tuple(elements)) if elements.as_slice().len() == expressions.len() => {
+                Some(elements.as_slice().to_vec())
+            }
+            _ => None,
+        });
+        let mut values = Vec::with_capacity(expressions.len());
+        let mut element_types = Vec::with_capacity(expressions.len());
+        for (index, expression) in expressions.into_iter().enumerate() {
+            let element_expected = expected_elements
+                .as_ref()
+                .and_then(|elements| elements.get(index))
+                .copied();
+            let value = self.check_expression(expression, element_expected)?;
+            element_types.push(self.node_type(value)?);
+            values.push(value);
+        }
+        let (first, remaining) = element_types
+            .split_first()
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        let (second, remaining) = remaining
+            .split_first()
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        let ty = self
+            .types
+            .intern(TypeKind::Tuple(nocter_model::TupleElements::new(
+                *first,
+                *second,
+                remaining.iter().copied(),
+            )))
+            .map_err(|_| BodyCheckInternalError::UnknownType(*first))?;
+        let checked = self.add_node(
+            node,
+            ty,
+            CheckedOperation::Aggregate(AggregateConstruction::Tuple(values.into_boxed_slice())),
+        )?;
+        expected.map_or(Ok(checked), |expected| {
+            self.apply_expected(node, checked, expected)
+        })
     }
 
     fn check_if(

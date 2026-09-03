@@ -325,10 +325,8 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         node: NodeId,
         actions: &mut Vec<Action>,
     ) -> Result<(), NameResolutionInternalError> {
-        let target = direct_node(self.tree(), node, NodeKind::BindingTarget)
+        let pattern = direct_node(self.tree(), node, NodeKind::BindingPattern)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
-        let token = direct_identifier(self.tree(), target)
-            .ok_or(NameResolutionInternalError::InvalidSyntaxNode(target))?;
         let kind = if self.tree().children(node).iter().any(|element| {
             matches!(
                 element,
@@ -340,17 +338,41 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         } else {
             LocalBindingKind::Immutable
         };
-        actions.push(Action::Declare(Introduction {
-            token,
-            kind,
-            documentation: Some(node),
-        }));
+        let mut introductions = Vec::new();
+        self.collect_binding_introductions(pattern, node, kind, &mut introductions)?;
+        // Actions are evaluated as a stack. Reversing declarations preserves the pattern's source
+        // order after the initializer and annotation have been resolved.
+        actions.extend(introductions.into_iter().rev().map(Action::Declare));
         if let Some(annotation) = direct_node(self.tree(), node, NodeKind::TypeAnnotation) {
             actions.push(Action::Visit(annotation));
         }
         let expression = direct_node(self.tree(), node, NodeKind::Expression)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         actions.push(Action::Visit(expression));
+        Ok(())
+    }
+
+    fn collect_binding_introductions(
+        &self,
+        pattern: NodeId,
+        documentation: NodeId,
+        kind: LocalBindingKind,
+        introductions: &mut Vec<Introduction>,
+    ) -> Result<(), NameResolutionInternalError> {
+        let children = direct_nodes(self.tree(), pattern, NodeKind::BindingPattern);
+        if children.is_empty() {
+            let token = direct_identifier(self.tree(), pattern)
+                .ok_or(NameResolutionInternalError::InvalidSyntaxNode(pattern))?;
+            introductions.push(Introduction {
+                token,
+                kind,
+                documentation: Some(documentation),
+            });
+            return Ok(());
+        }
+        for child in children {
+            self.collect_binding_introductions(child, documentation, kind, introductions)?;
+        }
         Ok(())
     }
 

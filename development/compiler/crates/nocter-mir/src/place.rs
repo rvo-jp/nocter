@@ -80,6 +80,7 @@ impl MirProjection {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MirProjectionKind {
     Field(FieldId),
+    TupleElement(usize),
     ClosureCapture(CaptureId),
     VariantPayload {
         variant: VariantId,

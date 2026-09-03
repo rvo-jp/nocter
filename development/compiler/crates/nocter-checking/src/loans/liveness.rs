@@ -1,36 +1,39 @@
 use std::collections::{BTreeSet, HashMap};
 
-use nocter_model::{BodyNodeId, FieldId, LoopId};
+use nocter_model::{BodyNodeId, LoopId};
 
 use crate::{
     AggregateConstruction, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome,
-    CleanupTarget, DropTable, LoopKind, PlaceProjection, PlaceRoot, PrimitiveOperation,
+    CleanupProjection, CleanupTarget, DropTable, LoanProjection, LoopKind, PlaceProjection,
+    PlaceRoot, PrimitiveOperation,
 };
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct LivePlace {
     root: PlaceRoot,
-    fields: Box<[FieldId]>,
+    projections: Box<[LoanProjection]>,
 }
 
 impl LivePlace {
-    pub(super) fn from_parts(root: PlaceRoot, fields: Box<[FieldId]>) -> Self {
-        Self { root, fields }
+    pub(super) fn from_parts(root: PlaceRoot, projections: Box<[LoanProjection]>) -> Self {
+        Self { root, projections }
     }
 
     pub(super) fn from_checked(place: &crate::CheckedPlace) -> Self {
-        let fields = place
+        let projections = place
             .projections()
             .iter()
-            .take_while(|projection| matches!(projection, PlaceProjection::Field { .. }))
-            .filter_map(|projection| match projection {
-                PlaceProjection::Field { field, .. } => Some(*field),
+            .map_while(|projection| match projection {
+                PlaceProjection::Field { field, .. } => Some(LoanProjection::Field(*field)),
+                PlaceProjection::TupleElement { index, .. } => {
+                    Some(LoanProjection::TupleElement(*index))
+                }
                 _ => None,
             })
             .collect();
         Self {
             root: place.root(),
-            fields,
+            projections,
         }
     }
 
@@ -38,14 +41,14 @@ impl LivePlace {
         self.root
     }
 
-    pub(super) const fn fields(&self) -> &[FieldId] {
-        &self.fields
+    pub(super) const fn projections(&self) -> &[LoanProjection] {
+        &self.projections
     }
 
     fn is_at_or_below(&self, another: &Self) -> bool {
         self.root == another.root
-            && self.fields.len() >= another.fields.len()
-            && self.fields.starts_with(&another.fields)
+            && self.projections.len() >= another.projections.len()
+            && self.projections.starts_with(&another.projections)
     }
 }
 
@@ -140,7 +143,8 @@ impl Analyzer<'_> {
                         fields.iter().map(|(_, value)| *value).collect()
                     }
                     AggregateConstruction::Enum { payload, .. }
-                    | AggregateConstruction::FixedArray(payload) => payload.into_vec(),
+                    | AggregateConstruction::FixedArray(payload)
+                    | AggregateConstruction::Tuple(payload) => payload.into_vec(),
                 };
                 self.operands(operands, live)?
             }
@@ -316,11 +320,11 @@ impl Analyzer<'_> {
                 result,
             } => self.control_block(*scope, statements, *result, result_live, live),
             CheckedControl::Bind {
-                binding,
+                pattern,
                 initializer,
             } => {
                 let mut live = live;
-                Self::kill_root(&mut live, PlaceRoot::Local(*binding));
+                Self::kill_binding_pattern(&mut live, pattern);
                 self.operand(*initializer, live)
             }
             CheckedControl::Assign { target, value } => {
@@ -388,6 +392,20 @@ impl Analyzer<'_> {
                 body_live = self.transfer(*body, body_live)?;
                 Self::kill_root(&mut body_live, PlaceRoot::Local(*binding));
                 self.operand(*allocator, body_live)
+            }
+        }
+    }
+
+    fn kill_binding_pattern(live: &mut LiveSet, pattern: &crate::CheckedBindingPattern) {
+        match pattern {
+            crate::CheckedBindingPattern::Local { binding, .. } => {
+                Self::kill_root(live, PlaceRoot::Local(*binding));
+            }
+            crate::CheckedBindingPattern::Discard { .. } => {}
+            crate::CheckedBindingPattern::Tuple { elements, .. } => {
+                for element in elements {
+                    Self::kill_binding_pattern(live, element);
+                }
             }
         }
     }
@@ -557,7 +575,14 @@ impl Analyzer<'_> {
                             path.projections()
                                 .iter()
                                 .copied()
-                                .map(crate::CleanupFieldProjection::field)
+                                .map(|projection| match projection {
+                                    CleanupProjection::Field { field, .. } => {
+                                        LoanProjection::Field(field)
+                                    }
+                                    CleanupProjection::TupleElement { index, .. } => {
+                                        LoanProjection::TupleElement(index)
+                                    }
+                                })
                                 .collect::<Vec<_>>()
                                 .into(),
                         )),

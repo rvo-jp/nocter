@@ -73,6 +73,7 @@ pub enum MirAggregate {
         payload: Box<[MirValueId]>,
     },
     FixedArray(Box<[MirValueId]>),
+    Tuple(Box<[MirValueId]>),
     Optional(Option<MirValueId>),
     /// A successful fallible payload. `None` is the canonical representation of `void!` success.
     FallibleSuccess(Option<MirValueId>),

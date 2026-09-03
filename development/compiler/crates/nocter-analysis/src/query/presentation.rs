@@ -175,9 +175,9 @@ fn checked_body(
     entity: SemanticEntity,
 ) -> Option<&nocter_checking::CheckedBody> {
     match entity {
-        SemanticEntity::LocalBinding(body, _) | SemanticEntity::Capture(body, _) => {
-            checked.bodies().get(body)
-        }
+        SemanticEntity::LocalBinding(body, _)
+        | SemanticEntity::Capture(body, _)
+        | SemanticEntity::PlaceProjection(body, ..) => checked.bodies().get(body),
         _ => None,
     }
 }
@@ -234,6 +234,9 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::LocalBinding(..)
             | SemanticEntity::Capture(..)
             | SemanticEntity::Test(_) => self.value_entity(body, entity)?,
+            SemanticEntity::PlaceProjection(_, place, projection) => {
+                self.place_projection(body?, place, projection)?;
+            }
             SemanticEntity::Package(_)
             | SemanticEntity::PackageTarget(_)
             | SemanticEntity::Import(_)
@@ -250,6 +253,26 @@ impl<'a> Renderer<'a> {
             | SemanticEntity::OpaqueType(_) => return None,
         }
         Some(())
+    }
+
+    fn place_projection(
+        &mut self,
+        body: &nocter_checking::CheckedBody,
+        place: nocter_model::PlaceId,
+        projection: usize,
+    ) -> Option<()> {
+        let place = body.places().get(place)?;
+        let selected = place.projections().get(projection)?;
+        let nocter_checking::PlaceProjection::TupleElement { index, ty } = selected else {
+            return None;
+        };
+        let receiver = projection
+            .checked_sub(1)
+            .and_then(|previous| place.projections().get(previous))
+            .map_or(place.root_ty(), nocter_checking::PlaceProjection::ty);
+        self.ty(receiver)?;
+        write!(self.output, ".{index}: ").ok()?;
+        self.ty(*ty)
     }
 
     fn workspace_entity(&mut self, entity: SemanticEntity) -> Option<()> {
@@ -1161,6 +1184,7 @@ impl<'a> Renderer<'a> {
                 self.ty(*element)?;
                 write!(self.output, "; {length}]").ok()?;
             }
+            TypeKind::Tuple(elements) => self.tuple_type(elements)?,
             TypeKind::Closure { .. } => self.output.push_str("closure"),
             TypeKind::Callable(contract) => {
                 self.callable_contract(contract)?;
@@ -1176,6 +1200,18 @@ impl<'a> Renderer<'a> {
                 self.output.push('!');
             }
         }
+        Some(())
+    }
+
+    fn tuple_type(&mut self, elements: &nocter_model::TupleElements) -> Option<()> {
+        self.output.push('(');
+        for (index, element) in elements.iter().enumerate() {
+            if index != 0 {
+                self.output.push_str(", ");
+            }
+            self.ty(element)?;
+        }
+        self.output.push(')');
         Some(())
     }
 

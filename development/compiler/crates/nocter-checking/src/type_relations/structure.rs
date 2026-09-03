@@ -1,4 +1,4 @@
-use nocter_model::{CallableContract, TypeId, TypeKind};
+use nocter_model::{CallableContract, TupleElements, TypeId, TypeKind};
 
 use super::SubstitutionError;
 
@@ -20,6 +20,7 @@ pub(crate) fn visit_type_children(kind: &TypeKind, mut visit: impl FnMut(TypeId)
             visit(*key);
             visit(*value);
         }
+        TypeKind::Tuple(elements) => elements.iter().for_each(&mut visit),
         TypeKind::Callable(contract) => {
             contract.parameters().iter().copied().for_each(&mut visit);
             if let Some(pack) = contract.pack() {
@@ -91,6 +92,20 @@ where
             element: map(element)?,
             length,
         },
+        TypeKind::Tuple(elements) => {
+            let mut mapped = elements
+                .iter()
+                .map(&mut map)
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter();
+            let first = mapped
+                .next()
+                .expect("tuple semantic identity retains at least two elements");
+            let second = mapped
+                .next()
+                .expect("tuple semantic identity retains at least two elements");
+            TypeKind::Tuple(TupleElements::new(first, second, mapped))
+        }
         TypeKind::PackEntry { key, value } => TypeKind::PackEntry {
             key: map(key)?,
             value: map(value)?,

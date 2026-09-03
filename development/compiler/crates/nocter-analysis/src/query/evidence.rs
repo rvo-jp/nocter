@@ -693,6 +693,9 @@ impl<'a> SemanticQueryContext<'a> {
             SemanticEntity::Body(id) => declarations.bodies().get(id).is_some(),
             SemanticEntity::BodyScope(body, scope) => self.scope_exists(body, scope),
             SemanticEntity::BodyNode(body, node) => self.node_exists(body, node),
+            SemanticEntity::PlaceProjection(body, place, projection) => {
+                self.place_projection_exists(body, place, projection)
+            }
             SemanticEntity::LocalBinding(body, local) => self.local_exists(body, local),
             SemanticEntity::Capture(body, capture) => self.capture_exists(body, capture),
             SemanticEntity::OpaqueType(id) => declarations.opaque_types().get(id).is_some(),
@@ -721,6 +724,24 @@ impl<'a> SemanticQueryContext<'a> {
             self.evidence.typed_body(body),
             Some(nocter_session::SemanticTypedBodyView::Available(body))
                 if body.nodes().get(node).is_some()
+        )
+    }
+
+    fn place_projection_exists(
+        &self,
+        body: BodyId,
+        place: nocter_model::PlaceId,
+        projection: usize,
+    ) -> bool {
+        matches!(
+            self.evidence.typed_body(body),
+            Some(nocter_session::SemanticTypedBodyView::Available(body))
+                if matches!(
+                    body.places()
+                        .get(place)
+                        .and_then(|place| place.projections().get(projection)),
+                    Some(nocter_checking::PlaceProjection::TupleElement { .. })
+                )
         )
     }
 

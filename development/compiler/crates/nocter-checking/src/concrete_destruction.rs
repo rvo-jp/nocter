@@ -46,6 +46,7 @@ pub enum ConcreteDestructionKind {
         length: u64,
         element: Box<ConcreteDestructionPlan>,
     },
+    Tuple(Box<[ConcreteTupleElementDestruction]>),
     Optional(Box<ConcreteDestructionPlan>),
     Fallible {
         success: Option<Box<ConcreteDestructionPlan>>,
@@ -58,6 +59,24 @@ pub enum ConcreteDestructionKind {
         witness: TypeId,
         plan: Box<ConcreteDestructionPlan>,
     },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConcreteTupleElementDestruction {
+    index: usize,
+    plan: ConcreteDestructionPlan,
+}
+
+impl ConcreteTupleElementDestruction {
+    #[must_use]
+    pub const fn index(&self) -> usize {
+        self.index
+    }
+
+    #[must_use]
+    pub const fn plan(&self) -> &ConcreteDestructionPlan {
+        &self.plan
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -284,6 +303,20 @@ impl ConcreteDispatchResolver<'_> {
                             length,
                             element: Box::new(element),
                         },
+                    )
+                })
+            }
+            TypeKind::Tuple(elements) => {
+                let mut plans = Vec::new();
+                for (index, element) in elements.iter().enumerate().rev() {
+                    if let Some(plan) = self.plan_type(element, active)? {
+                        plans.push(ConcreteTupleElementDestruction { index, plan });
+                    }
+                }
+                (!plans.is_empty()).then(|| {
+                    ConcreteDestructionPlan::new(
+                        ty,
+                        ConcreteDestructionKind::Tuple(plans.into_boxed_slice()),
                     )
                 })
             }

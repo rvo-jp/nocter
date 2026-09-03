@@ -1,7 +1,7 @@
 use nocter_declarations::{BodyOwner, CallableOwner, ExportedEntity};
 use nocter_model::{
     AssociatedTypeId, BorrowCapability, CallableCapability, CallableContract, GenericParameterId,
-    NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TypeId, TypeKind,
+    NominalTypeId, ParameterOrigin, ResultProvenance, Symbol, TupleElements, TypeId, TypeKind,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
@@ -300,9 +300,27 @@ impl BodyChecker<'_, '_> {
             | NodeKind::SliceType
             | NodeKind::FixedArrayType
             | NodeKind::GroupedType => self.resolve_type_wrapper(node),
+            NodeKind::TupleType => self.resolve_tuple_type(node),
             NodeKind::CallableType => self.resolve_callable_type(node),
             _ => Err(self.rule(BodyRule::InvalidBodyTypeUse, node)?),
         }
+    }
+
+    fn resolve_tuple_type(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
+        let elements = direct_nodes(self.tree(), node, NodeKind::Type)
+            .into_iter()
+            .map(|element| self.resolve_type_use(element))
+            .collect::<Result<Vec<_>, _>>()?;
+        let [first, second, remaining @ ..] = elements.as_slice() else {
+            return Err(BodyCheckInternalError::InvalidSyntax(node).into());
+        };
+        self.types
+            .intern(TypeKind::Tuple(TupleElements::new(
+                *first,
+                *second,
+                remaining.iter().copied(),
+            )))
+            .map_err(|_| BodyCheckInternalError::UnknownType(*first).into())
     }
 
     fn resolve_type_wrapper(&mut self, node: NodeId) -> Result<TypeId, BodyCheckError> {
