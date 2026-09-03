@@ -2,9 +2,9 @@
 
 ## Current State
 
-Nocter v0.29.0 is [published and externally audited](releases/v0.29.0.md). Its standard-input and
-run-invocation contract, exact source, reproducible artifact, publication, and public re-download
-evidence are frozen. The `v0.29.0` tag and release asset must not be replaced.
+Nocter v0.30.0 is [published and externally audited](releases/v0.30.0.md). Its synchronous-
+subprocess contract, exact source, reproducible artifact, publication, and public re-download
+evidence are frozen. The `v0.30.0` tag and release asset must not be replaced.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -25,28 +25,17 @@ dependencies rather than source-text assertions or Clippy method bans. Its final
 retains typed incomplete-declaration failures and seals exact body source input inside the
 checking-owned context.
 
-The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md) has completed its
-public contract and is published and externally audited. Its immutable
-[publication record](releases/v0.29.0.md) owns the final evidence.
-
-The [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) is complete, reviewed, and
-locally qualified for publication.
-The public contract fixes an owning `Command`, synchronous child lifecycle, exact path and argument
-handling, inherited process state, unambiguous exec-failure reporting, and typed exit status. Its
-[Phase 5 review](reviews/v0.30.0-phase-5.md) closes complete repository
-qualification and the final launch, resource-lifecycle, target-boundary, and caller-discipline
-audit with no open finding.
+The [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) is complete, published, and
+externally audited. Its owning `Command`, exact launch behavior, synchronous child lifecycle,
+unambiguous exec-failure reporting, and typed exit status pass native, editor, formatter,
+complete-workspace, reproducible-package, installed-home, and public-asset qualification. Its
+[Phase 5 review](reviews/v0.30.0-phase-5.md) has no open finding.
 
 ## Next Work
 
-Publish the already qualified v0.30.0 archive described by the
-[release-preparation record](milestones/v0.30.0-release-preparation.md). Publication is authorized:
-advance public latest links in a separate commit, tag that publication state once, upload exactly
-the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
-during publication.
-
-Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
-candidate, tag, and archive.
+Define the next practical application boundary before changing compiler or standard-library
+behavior. Preserve the v0.30.0 release record as immutable evidence; any correction requires a new
+version, candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
