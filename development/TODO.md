@@ -6,8 +6,9 @@ Nocter v0.30.0 is [published and externally audited](releases/v0.30.0.md). Its s
 subprocess contract, exact source, reproducible artifact, publication, and public re-download
 evidence are frozen. The `v0.30.0` tag and release asset must not be replaced.
 
-The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is complete through Phase 5. `Output`
-and consuming `Command.output` are implemented, and one private Darwin lifecycle composes
+The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is complete, reviewed, and
+release-qualified. `Output` and consuming `Command.output` are implemented, and one private Darwin
+lifecycle composes
 normalized launch and capture pipes, exact descriptor installation, staged launch reports,
 two-stream polling, owning byte buffers, and exact-child observation. Public and private native
 qualification now covers empty and exact text output, arbitrary bytes, nonzero and signal
@@ -15,9 +16,11 @@ termination, setup and exec rejection, repeated cleanup, and initially closed pa
 descriptors. The public `subprocess-output` package now crosses formatter, editor, native, command,
 and installed-home boundaries through one shared execution contract. Complete workspace,
 warnings-denied, no-default-features, documentation, packaging-input, and repository qualification
-passes. Its [Phase 5 review](reviews/v0.31.0-phase-5.md) has no open finding. Release content now
-identifies v0.31.0, and the
-[release-preparation record](milestones/v0.31.0-release-preparation.md) owns candidate qualification.
+passes. Its [Phase 5 review](reviews/v0.31.0-phase-5.md) has no open finding. The exact candidate
+commit passed two independent workspace and Clippy runs, reproducible packaging, installed-home
+execution, framed LSP verification, and tamper rejection. The
+[release-preparation record](milestones/v0.31.0-release-preparation.md) owns its retained archive
+identity and qualification evidence.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -46,10 +49,10 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Commit the prepared v0.31.0 release content, then qualify that exact clean commit through two
-independent workspace targets, reproducible archive generation, and an isolated installed home.
-Record the exact source commit, test count, archive identity, compiler and standard-tree digests,
-and installed-home evidence before requesting publication authority.
+Publish v0.31.0 only after separate user authorization. Publication must reuse the retained
+qualified archive without rebuilding it, advance public latest-release links in a separate commit,
+create one annotated `v0.31.0` tag, upload exactly one archive, and verify the public asset byte for
+byte before recording immutable publication evidence.
 
 Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

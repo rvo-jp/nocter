@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.31.0: Captured Synchronous Subprocess Output - Nocter</title>
-    <meta name="description" content="Status: complete and reviewed; release qualification is next. v0.31.0 extends the closed synchronous process lifecycle with complete standard-output and st">
+    <meta name="description" content="Status: complete, reviewed, and release-qualified; publication is pending. v0.31.0 extends the closed synchronous process lifecycle with complete standard-">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.31.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.31.0: Captured Synchronous Subprocess Output - Nocter">
-    <meta property="og:description" content="Status: complete and reviewed; release qualification is next. v0.31.0 extends the closed synchronous process lifecycle with complete standard-output and st">
+    <meta property="og:description" content="Status: complete, reviewed, and release-qualified; publication is pending. v0.31.0 extends the closed synchronous process lifecycle with complete standard-">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.31.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.31.0: Captured Synchronous Subprocess Output - Nocter">
-    <meta name="twitter:description" content="Status: complete and reviewed; release qualification is next. v0.31.0 extends the closed synchronous process lifecycle with complete standard-output and st">
+    <meta name="twitter:description" content="Status: complete, reviewed, and release-qualified; publication is pending. v0.31.0 extends the closed synchronous process lifecycle with complete standard-">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.31.0: Captured Synchronous Subprocess Output - Nocter","description":"Status: complete and reviewed; release qualification is next. v0.31.0 extends the closed synchronous process lifecycle with complete standard-output and st","url":"https://nocter.dev/development/milestones/v0.31.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.31.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.31.0","item":"https://nocter.dev/development/milestones/v0.31.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.31.0: Captured Synchronous Subprocess Output - Nocter","description":"Status: complete, reviewed, and release-qualified; publication is pending. v0.31.0 extends the closed synchronous process lifecycle with complete standard-","url":"https://nocter.dev/development/milestones/v0.31.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.31.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.31.0","item":"https://nocter.dev/development/milestones/v0.31.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -228,7 +228,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.31.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-31-0-captured-synchronous-subprocess-output">v0.31.0: Captured Synchronous Subprocess Output</h1><p><strong>Status: complete and reviewed; release qualification is next.</strong> v0.31.0 extends the closed synchronous process lifecycle with complete standard-output and standard-error capture. The release boundary remains intentionally smaller than an asynchronous child API: one consumed command creates one child, drains both output pipes without deadlock, observes termination, and returns an owning result.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Command.output</code> captures arbitrary stdout and stderr bytes while inheriting stdin, environment,
+                <h1 id="v0-31-0-captured-synchronous-subprocess-output">v0.31.0: Captured Synchronous Subprocess Output</h1><p><strong>Status: complete, reviewed, and release-qualified; publication is pending.</strong> v0.31.0 extends the closed synchronous process lifecycle with complete standard-output and standard-error capture. The release boundary remains intentionally smaller than an asynchronous child API: one consumed command creates one child, drains both output pipes without deadlock, observes termination, and returns an owning result.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Command.output</code> captures arbitrary stdout and stderr bytes while inheriting stdin, environment,
   and working directory;</li><li><code>Output</code> owns one <code>ExitStatus</code>, one stdout <code>Vec&lt;u8&gt;</code>, and one stderr <code>Vec&lt;u8&gt;</code>;</li><li>both finite pipes are drained concurrently rather than sequentially;</li><li>child setup failure is unambiguous and cannot be mistaken for an exit status;</li><li>descriptor collisions with previously closed standard streams cannot corrupt the launch
   protocol;</li><li>every representable post-fork error path closes owned descriptors and attempts exact-child reap;</li><li>native stress executes simultaneous output substantially larger than pipe capacity;</li><li>editor, formatter, examples, installed-home, complete-workspace, and reproducible-package gates
   consume the same public declarations;</li><li>final review finds no duplicate pipe authority, target ABI leakage, caller-discipline lifecycle,
