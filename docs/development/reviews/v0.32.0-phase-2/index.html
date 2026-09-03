@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/process/capture_launch_darwin.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/process/capture_launch_darwin.nct.">
+    <title>v0.32.0 Phase 2 Review - Nocter</title>
+    <meta name="description" content="Result: complete with no open finding. The configured command now reaches one child setup path and one parent I/O session. This review covers the authority">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/process/capture_launch_darwin/">
-    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.32.0-phase-2/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/process/capture_launch_darwin.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/process/capture_launch_darwin.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/process/capture_launch_darwin/">
+    <meta property="og:title" content="v0.32.0 Phase 2 Review - Nocter">
+    <meta property="og:description" content="Result: complete with no open finding. The configured command now reaches one child setup path and one parent I/O session. This review covers the authority">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.32.0-phase-2/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/process/capture_launch_darwin.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/process/capture_launch_darwin.nct.">
+    <meta name="twitter:title" content="v0.32.0 Phase 2 Review - Nocter">
+    <meta name="twitter:description" content="Result: complete with no open finding. The configured command now reaches one child setup path and one parent I/O session. This review covers the authority">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/capture_launch_darwin.nct - Nocter","description":"Nocter source code for development/std/process/capture_launch_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/capture_launch_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Capture_launch_darwin","item":"https://nocter.dev/development/std/process/capture_launch_darwin/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.32.0 Phase 2 Review - Nocter","description":"Result: complete with no open finding. The configured command now reaches one child setup path and one parent I/O session. This review covers the authority","url":"https://nocter.dev/development/reviews/v0.32.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.32.0-phase-2/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.32.0 Phase 2","item":"https://nocter.dev/development/reviews/v0.32.0-phase-2/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,106 +172,86 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/</p>
+            <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
-                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
-                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
-                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
-                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
-                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
-                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
-                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
-                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
-                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.32.0 Phase 2 Unified Command-I/O Review</a></li>
+                <li><a href="../v0.32.0-phase-1/index.html#content">v0.32.0 Phase 1 Owned Configuration and Prepared-plan Review</a></li>
+                <li><a href="../v0.32.0-phase-0/index.html#content">v0.32.0 Phase 0 Configured-subprocess Design Review</a></li>
+                <li><a href="../v0.31.0-phase-5/index.html#content">v0.31.0 Phase 5 Qualification and Final Review</a></li>
+                <li><a href="../v0.31.0-phase-4/index.html#content">v0.31.0 Phase 4 Tooling and Practical Integration Review</a></li>
+                <li><a href="../v0.31.0-phase-3/index.html#content">v0.31.0 Phase 3 Native Failure and Lifecycle Review</a></li>
+                <li><a href="../v0.31.0-phase-2/index.html#content">v0.31.0 Phase 2 Owning Output Lifecycle Review</a></li>
+                <li><a href="../v0.31.0-phase-1/index.html#content">v0.31.0 Phase 1 Raw Descriptor and Readiness Review</a></li>
+                <li><a href="../v0.31.0-phase-0/index.html#content">v0.31.0 Phase 0 Captured-output Design Review</a></li>
+                <li><a href="../v0.30.0-phase-5/index.html#content">v0.30.0 Phase 5 Qualification and Final Review</a></li>
+                <li><a href="../v0.30.0-phase-4/index.html#content">v0.30.0 Phase 4 Tooling and Practical Integration Review</a></li>
+                <li><a href="../v0.30.0-phase-3/index.html#content">v0.30.0 Phase 3 Native Failure and Lifecycle Review</a></li>
+                <li><a href="../v0.30.0-phase-2/index.html#content">v0.30.0 Phase 2 Owning Command and Status Review</a></li>
+                <li><a href="../v0.30.0-phase-1/index.html#content">v0.30.0 Phase 1 Process-context and Raw-target Review</a></li>
+                <li><a href="../v0.30.0-phase-0/index.html#content">v0.30.0 Phase 0 Synchronous-subprocess Design Review</a></li>
+                <li><a href="../v0.29.0-phase-5/index.html#content">v0.29.0 Phase 5 Standard Input and Run Invocation Review</a></li>
+                <li><a href="../v0.28.0-phase-5/index.html#content">v0.28.0 Phase 5 Text, Formatting, and Output Review</a></li>
+                <li><a href="../v0.27.0-phase-4/index.html#content">v0.27.0 Phase 4 Filesystem and Path Review</a></li>
+                <li><a href="../v0.26.0-phase-5/index.html#content">v0.26.0 Phase 5 Monotonic-time Qualification Review</a></li>
+                <li><a href="../v0.25.0-query-authority-closure/index.html#content">v0.25.0 Query Authority Closure Review</a></li>
+                <li><a href="../v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li>
+                <li><a href="../v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
+                <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
+                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
+                <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
+                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
+                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
+                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
+                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
+                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li>
+                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li>
+                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li>
+                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li>
+                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li>
+                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li>
+                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li>
+                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li>
+                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li>
+                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li>
+                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li>
+                <li><a href="../v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li>
+                <li><a href="../v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/process/capture_launch_darwin.nct</span>
+                <span class="markdown-path-text">/development/reviews/v0.32.0-phase-2.md</span>
             </div>
             <div class="markdown-body">
-                <h1>capture_launch_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Darwin child setup for captured standard output and standard error.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! This source is the only bridge between owning capture pipes and standard descriptor</span>
-<span class="token-comment">//! installation. It reports every rejected setup before raw child exit and delegates executable</span>
-<span class="token-comment">//! replacement to the launch-report authority.</span>
-
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_session_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>launch_report_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_darwin<span class="token-operator">.</span>nct
-
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">reject_capture_setup</span><span class="token-operator">(</span>
-    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
-    captures<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CaptureSession</span><span class="token-operator">,</span>
-    errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
-    <span class="token-function">close_all_capture_ends</span><span class="token-operator">(</span>captures<span class="token-operator">)</span>
-    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_SETUP</span><span class="token-operator">,</span> errno<span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">reject_malformed_capture_setup</span><span class="token-operator">(</span>
-    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
-    captures<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CaptureSession</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
-    <span class="token-comment">// An impossible successful dup2 result must not become clean launch EOF. An unknown stage is</span>
-    <span class="token-comment">// deliberately decoded as a malformed launch report by the parent.</span>
-    <span class="token-function">close_all_capture_ends</span><span class="token-operator">(</span>captures<span class="token-operator">)</span>
-    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span>
-<span class="token-operator">}</span>
-
-#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">exec_captured_child</span><span class="token-operator">(</span>
-    path_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    argv_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    environment_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
-    report<span class="token-operator">:</span> <span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
-    captures<span class="token-operator">:</span> <span class="token-type">CaptureSession</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
-    <span class="token-keyword">var</span> launch_report <span class="token-operator">=</span> <span class="token-keyword">move</span> report
-    <span class="token-keyword">var</span> capture <span class="token-operator">=</span> <span class="token-keyword">move</span> captures
-    <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">)</span>
-    <span class="token-function">close_capture_reads</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
-
-    <span class="token-keyword">match</span> <span class="token-function">install_descriptor</span><span class="token-operator">(</span>
-        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>capture<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
-        darwin<span class="token-operator">.</span><span class="token-type">STANDARD_OUTPUT_FD</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
-        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-function">reject_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">,</span> errno<span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>invalid <span class="token-operator">{</span>
-            <span class="token-function">reject_malformed_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-    <span class="token-keyword">match</span> <span class="token-function">install_descriptor</span><span class="token-operator">(</span>
-        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>capture<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
-        darwin<span class="token-operator">.</span><span class="token-type">STANDARD_ERROR_FD</span><span class="token-operator">,</span>
-    <span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
-        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-function">reject_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">,</span> errno<span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>invalid <span class="token-operator">{</span>
-            <span class="token-function">reject_malformed_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-    <span class="token-operator">}</span>
-    <span class="token-function">close_capture_writes</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
-    <span class="token-function">exec_child_after_setup</span><span class="token-operator">(</span>
-        path_address<span class="token-operator">,</span>
-        argv_address<span class="token-operator">,</span>
-        environment_address<span class="token-operator">,</span>
-        <span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span>
-    <span class="token-operator">)</span>
-<span class="token-operator">}</span>
-</code></pre>
+                <h1 id="v0-32-0-phase-2-review">v0.32.0 Phase 2 Review</h1><p><strong>Result: complete with no open finding.</strong> The configured command now reaches one child setup path and one parent I/O session. This review covers the authority replacement; exhaustive behavior and failure injection remain Phase 3 qualification.</p><h2 id="replaced-authorities">Replaced Authorities</h2><ul><li>The two-descriptor capture poll, capture session, and capture child-setup sources were removed.</li><li>One three-descriptor poll transition now classifies writable stdin and readable stdout/stderr.
+  Direction-specific validation rejects event bits that are valid for another descriptor role.</li><li>One <code>CommandIoSession</code> owns optional input state, optional capture state, every pipe endpoint,
+  transfer offsets, capture buffers, scratch storage, liveness, and cleanup.</li><li><code>status</code> and <code>output</code> share the same prepare, fork, launch-report, I/O, wait, and failure-selection
+  path. Their only remaining distinction is whether capture channels are requested and which typed
+  output variant is accepted.</li></ul><h2 id="target-and-policy-boundaries">Target and Policy Boundaries</h2><ul><li>Raw Darwin code reports closed poll, read, write, descriptor-install, directory, exec, and wait
+  facts. It does not construct public process errors.</li><li>Child setup reports input installation, output installation, directory change, and executable
+  replacement as distinct stages. Ordinary exit status remains outside the report protocol.</li><li>Parent orchestration waits exactly once before selecting launch, capture, or input failures.</li><li>A descriptor-local <code>F_SETNOSIGPIPE</code> setting converts early child stdin closure to typed <code>EPIPE</code>;
+  no process-wide signal state is changed.</li></ul><h2 id="single-environment-authority">Single Environment Authority</h2><p>The old compiler <code>ProcessEnvironmentVector</code> primitive existed only so the previous command path could pass inherited <code>envp</code> directly to exec. The prepared environment now owns every exec vector, so the primitive, its standard profile binding, machine-context dependency, ARM64 selection and emission, and test fixture surface were deleted together. The compiler still retains counted process-entry storage for public argument and environment queries; it can no longer bypass the prepared command environment.</p><h2 id="evidence">Evidence</h2><ul><li>Existing native <code>Command.status</code> and <code>Command.output</code> examples run through the unified path.</li><li>New target tests observe simultaneous writer/read readiness and prove descriptor-local broken
+  pipe classification without terminating the test process.</li><li>All 34 <code>nocter</code> library tests pass through authored and installed standard-library copies.</li><li>Focused machine, ARM64, runtime-contract, standard-profile, target-program, and discovery suites
+  pass after primitive deletion; discovery reports no unreferenced private implementation helper.</li><li>Complete lifecycle combinations and failure precedence are deliberately owned by Phase 3 rather
+  than inferred from these structural checks.</li></ul>
             </div>
         </main>
     </div>
@@ -287,6 +267,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

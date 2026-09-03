@@ -1,0 +1,124 @@
+//! Darwin child-side standard-descriptor, directory, and executable setup.
+//!
+//! The child consumes only a prepared launch plan, one owning I/O session, and one close-on-exec
+//! report. Every rejected transition is reported before raw child exit.
+
+see ./command_io_session_darwin.nct
+see ./launch_report_darwin.nct
+see ./pipe_darwin.nct
+
+use /internal/os/darwin
+
+#target: "arm64-darwin"
+noalloc func reject_command_setup(
+    report: &+OwnedPipe,
+    stage: i32,
+    errno: i32,
+): never {
+    write_launch_failure_and_exit(report, stage, errno)
+}
+
+#target: "arm64-darwin"
+noalloc func reject_malformed_command_setup(
+    report: &+OwnedPipe,
+): never {
+    write_launch_failure_and_exit(report, 0, 1)
+}
+
+#target: "arm64-darwin"
+noalloc func install_child_input(
+    report: &+OwnedPipe,
+    channel: &+CommandInputChannel,
+): void {
+    match channel {
+        CommandInputChannel.inherited {}
+        CommandInputChannel.configured(state) {
+            close_pipe_write(&+state.pipe)
+            match install_descriptor(pipe_read_fd(&state.pipe), darwin.STDIN_FD) {
+                DescriptorInstallAttempt.ready {}
+                DescriptorInstallAttempt.failed(errno) {
+                    reject_command_setup(report, LAUNCH_STAGE_INPUT_SETUP, errno)
+                }
+                DescriptorInstallAttempt.invalid {
+                    reject_malformed_command_setup(report)
+                }
+            }
+            close_pipe_read(&+state.pipe)
+        }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func install_child_captures(
+    report: &+OwnedPipe,
+    channels: &+CommandCaptureChannels,
+): void {
+    match channels {
+        CommandCaptureChannels.inherited {}
+        CommandCaptureChannels.configured(state) {
+            close_pipe_read(&+state.stdout_pipe)
+            close_pipe_read(&+state.stderr_pipe)
+            match install_descriptor(pipe_write_fd(&state.stdout_pipe), darwin.STDOUT_FD) {
+                DescriptorInstallAttempt.ready {}
+                DescriptorInstallAttempt.failed(errno) {
+                    reject_command_setup(report, LAUNCH_STAGE_OUTPUT_SETUP, errno)
+                }
+                DescriptorInstallAttempt.invalid {
+                    reject_malformed_command_setup(report)
+                }
+            }
+            match install_descriptor(pipe_write_fd(&state.stderr_pipe), darwin.STDERR_FD) {
+                DescriptorInstallAttempt.ready {}
+                DescriptorInstallAttempt.failed(errno) {
+                    reject_command_setup(report, LAUNCH_STAGE_OUTPUT_SETUP, errno)
+                }
+                DescriptorInstallAttempt.invalid {
+                    reject_malformed_command_setup(report)
+                }
+            }
+            close_pipe_write(&+state.stdout_pipe)
+            close_pipe_write(&+state.stderr_pipe)
+        }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func enter_child_directory(
+    path_address: usize,
+    report: &+OwnedPipe,
+): void {
+    if path_address == 0 { return }
+    var result = darwin.syscall1(darwin.SYS_CHDIR, path_address)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall1(darwin.SYS_CHDIR, path_address)
+    }
+    if result.errno != 0 {
+        reject_command_setup(report, LAUNCH_STAGE_DIRECTORY, result.errno)
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func exec_command_child(
+    path_address: usize,
+    argv_address: usize,
+    environment_address: usize,
+    working_directory_address: usize,
+    report: OwnedPipe,
+    session: CommandIoSession,
+): never {
+    var launch_report = move report
+    var command_io = move session
+    close_pipe_read(&+launch_report)
+    install_child_input(&+launch_report, &+command_io.input)
+    install_child_captures(&+launch_report, &+command_io.captures)
+    enter_child_directory(working_directory_address, &+launch_report)
+    exec_child_after_setup(
+        path_address,
+        argv_address,
+        environment_address,
+        &+launch_report,
+    )
+}

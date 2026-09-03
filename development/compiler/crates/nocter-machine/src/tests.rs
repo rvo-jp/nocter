@@ -1498,9 +1498,9 @@ fn ambient_context_plans_separate_process_state_from_allocation_selection() {
         &CompilerFixture::with_app_standard_uses(
             "use std/process\n\
              func read_count(): usize { return process.arg_count_for_test() }\n\
-             func read_vector(): usize { return process.env_vector_for_test() }\n\
+             func read_environment_count(): usize { return process.env_count_for_test() }\n\
              func main(): usize {\n\
-                 let _ = read_vector()\n\
+                 let _ = read_environment_count()\n\
                  return read_count()\n\
              }\n",
             &[&["process"]],
@@ -1527,7 +1527,7 @@ fn ambient_context_plans_separate_process_state_from_allocation_selection() {
                                     if matches!(
                                         target.role(),
                                         PrimitiveRole::ProcessArgumentCount
-                                            | PrimitiveRole::ProcessEnvironmentVector
+                                            | PrimitiveRole::ProcessEnvironmentCount
                                     )
                             )
                     )

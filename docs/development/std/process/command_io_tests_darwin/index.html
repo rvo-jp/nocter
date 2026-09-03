@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/process/capture_launch_tests_darwin.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/process/capture_launch_tests_darwin.nct.">
+    <title>development/std/process/command_io_tests_darwin.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/process/command_io_tests_darwin.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/process/capture_launch_tests_darwin/">
+    <link rel="canonical" href="https://nocter.dev/development/std/process/command_io_tests_darwin/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/process/capture_launch_tests_darwin.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/process/capture_launch_tests_darwin.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/process/capture_launch_tests_darwin/">
+    <meta property="og:title" content="development/std/process/command_io_tests_darwin.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/process/command_io_tests_darwin.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/process/command_io_tests_darwin/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/process/capture_launch_tests_darwin.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/process/capture_launch_tests_darwin.nct.">
+    <meta name="twitter:title" content="development/std/process/command_io_tests_darwin.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/process/command_io_tests_darwin.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/capture_launch_tests_darwin.nct - Nocter","description":"Nocter source code for development/std/process/capture_launch_tests_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/capture_launch_tests_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Capture_launch_tests_darwin","item":"https://nocter.dev/development/std/process/capture_launch_tests_darwin/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/command_io_tests_darwin.nct - Nocter","description":"Nocter source code for development/std/process/command_io_tests_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/command_io_tests_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Command_io_tests_darwin","item":"https://nocter.dev/development/std/process/command_io_tests_darwin/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -190,97 +190,117 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/process/capture_launch_tests_darwin.nct</span>
+                <span class="markdown-path-text">/development/std/process/command_io_tests_darwin.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>capture_launch_tests_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Native qualification for child capture setup rejection and parent cleanup.</span>
+                <h1>command_io_tests_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Native qualification for three-direction readiness and bounded transfer facts.</span>
 
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_launch_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_session_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>launch_report_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_darwin<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>subprocess_darwin<span class="token-operator">.</span>nct
 
-<span class="token-keyword">test</span> captured_child_reports_descriptor_setup_rejection <span class="token-operator">{</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-type">SyscallResult</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr <span class="token-keyword">as</span> internal_ptr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
+
+<span class="token-keyword">test</span> command_io_classification_preserves_direction_and_broken_pipe <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">events_match_interest</span><span class="token-operator">(</span><span class="token-type">POLL_INPUT</span><span class="token-operator">,</span> <span class="token-type">POLL_INPUT</span><span class="token-operator">)</span>
+        || <span class="token-operator">!</span><span class="token-function">events_match_interest</span><span class="token-operator">(</span><span class="token-type">POLL_OUTPUT</span><span class="token-operator">,</span> <span class="token-type">POLL_OUTPUT</span><span class="token-operator">)</span>
+        || <span class="token-function">events_match_interest</span><span class="token-operator">(</span><span class="token-type">POLL_INPUT</span><span class="token-operator">,</span> <span class="token-type">POLL_OUTPUT</span><span class="token-operator">)</span>
+        || <span class="token-function">events_match_interest</span><span class="token-operator">(</span><span class="token-type">POLL_OUTPUT</span><span class="token-operator">,</span> <span class="token-type">POLL_INPUT</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"poll direction validation changed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">match</span> <span class="token-function">classify_command_io_read</span><span class="token-operator">(</span><span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">1</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span>count<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> count <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"read count changed"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+        _ <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"read bytes changed classification"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-function">classify_command_io_write</span><span class="token-operator">(</span>
+        <span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_BROKEN_PIPE</span> <span class="token-operator">}</span><span class="token-operator">,</span>
+        <span class="token-number">1</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>broken_pipe <span class="token-operator">{</span><span class="token-operator">}</span>
+        _ <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"broken pipe changed classification"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-function">classify_command_io_write</span><span class="token-operator">(</span><span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">2</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span><span class="token-operator">}</span>
+        _ <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"oversized write became progress"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">test</span> command_io_poll_observes_writer_and_reader_together <span class="token-operator">{</span>
     <span class="token-keyword">match</span> <span class="token-function">create_cloexec_pipe</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
         <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup report pipe creation failed"</span><span class="token-operator">)</span>
+            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"input readiness pipe creation failed"</span><span class="token-operator">)</span>
         <span class="token-operator">}</span>
-        <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>report<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">match</span> <span class="token-function">create_capture_session</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-                <span class="token-type">CapturePreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup capture creation failed"</span><span class="token-operator">)</span>
+        <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>input_pipe<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">var</span> input <span class="token-operator">=</span> <span class="token-keyword">move</span> input_pipe
+            <span class="token-keyword">match</span> <span class="token-function">suppress_pipe_writer_sigpipe</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>input<span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"SIGPIPE suppression failed"</span><span class="token-operator">)</span>
                 <span class="token-operator">}</span>
-                <span class="token-type">CapturePreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>captures<span class="token-operator">)</span> <span class="token-operator">{</span>
-                    <span class="token-keyword">var</span> capture <span class="token-operator">=</span> <span class="token-keyword">move</span> captures
-                    <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>capture<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
-                    <span class="token-keyword">match</span> <span class="token-function">fork_process</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-                        <span class="token-type">ForkAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup test fork failed"</span><span class="token-operator">)</span>
-                        <span class="token-operator">}</span>
-                        <span class="token-type">ForkAttempt</span><span class="token-operator">.</span>child <span class="token-operator">{</span>
-                            <span class="token-function">exec_captured_child</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-keyword">move</span> report<span class="token-operator">,</span> <span class="token-keyword">move</span> capture<span class="token-operator">)</span>
-                        <span class="token-operator">}</span>
-                        <span class="token-type">ForkAttempt</span><span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span>pid<span class="token-operator">)</span> <span class="token-operator">{</span>
-                            <span class="token-keyword">let</span> launch <span class="token-operator">=</span> <span class="token-function">read_launch_report</span><span class="token-operator">(</span><span class="token-keyword">move</span> report<span class="token-operator">)</span>
-                            <span class="token-keyword">let</span> drained <span class="token-operator">=</span> <span class="token-function">drain_captured_streams</span><span class="token-operator">(</span><span class="token-keyword">move</span> capture<span class="token-operator">)</span>
-                            <span class="token-keyword">let</span> terminal <span class="token-operator">=</span> <span class="token-function">wait_for_child</span><span class="token-operator">(</span>pid<span class="token-operator">)</span>
-
-                            <span class="token-keyword">match</span> <span class="token-keyword">move</span> launch <span class="token-operator">{</span>
-                                <span class="token-type">LaunchReportAttempt</span><span class="token-operator">.</span><span class="token-function">setup_rejected</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">if</span> errno <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-                                        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection lost errno"</span><span class="token-operator">)</span>
-                                    <span class="token-operator">}</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">LaunchReportAttempt</span><span class="token-operator">.</span>executed <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection became execution"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">LaunchReportAttempt</span><span class="token-operator">.</span><span class="token-function">exec_rejected</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection became exec rejection"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">LaunchReportAttempt</span><span class="token-operator">.</span><span class="token-function">channel_failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection lost its report"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">LaunchReportAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection became malformed"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                            <span class="token-operator">}</span>
-                            <span class="token-keyword">match</span> <span class="token-keyword">move</span> drained <span class="token-operator">{</span>
-                                <span class="token-type">CaptureSessionAttempt</span><span class="token-operator">.</span><span class="token-function">complete</span><span class="token-operator">(</span>stdout<span class="token-operator">,</span> stderr<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">if</span> stdout<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> || stderr<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
-                                        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection fabricated output"</span><span class="token-operator">)</span>
-                                    <span class="token-operator">}</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">CaptureSessionAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection broke capture cleanup"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">CaptureSessionAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection malformed capture cleanup"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                            <span class="token-operator">}</span>
-                            <span class="token-keyword">match</span> <span class="token-keyword">move</span> terminal <span class="token-operator">{</span>
-                                <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">exited</span><span class="token-operator">(</span>code<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">if</span> code <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">127</span> <span class="token-operator">{</span>
-                                        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection exit code changed"</span><span class="token-operator">)</span>
-                                    <span class="token-operator">}</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">signaled</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup rejection became a signal"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup child was not reaped"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                                <span class="token-type">WaitOutcome</span><span class="token-operator">.</span><span class="token-function">invalid</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"setup child status was invalid"</span><span class="token-operator">)</span>
-                                <span class="token-operator">}</span>
-                            <span class="token-operator">}</span>
-                        <span class="token-operator">}</span>
+                <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">match</span> <span class="token-function">create_cloexec_pipe</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"output readiness pipe creation failed"</span><span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>output_pipe<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">var</span> output <span class="token-operator">=</span> <span class="token-keyword">move</span> output_pipe
+                    <span class="token-keyword">let</span> sent<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-number">71</span>
+                    <span class="token-keyword">let</span> written <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+                        darwin<span class="token-operator">.</span><span class="token-type">SYS_WRITE</span><span class="token-operator">,</span>
+                        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">)</span><span class="token-operator">,</span>
+                        ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>sent<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-number">1</span><span class="token-operator">,</span>
+                    <span class="token-operator">)</span>
+                    <span class="token-keyword">if</span> written<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> || written<span class="token-operator">.</span>value <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-operator">{</span>
+                        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"readiness fixture write failed"</span><span class="token-operator">)</span>
                     <span class="token-operator">}</span>
+                    <span class="token-keyword">match</span> <span class="token-function">poll_command_io_once</span><span class="token-operator">(</span>
+                        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>input<span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-keyword">true</span><span class="token-operator">,</span>
+                        <span class="token-function">pipe_read_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-keyword">true</span><span class="token-operator">,</span>
+                        <span class="token-number">0</span><span class="token-operator">,</span>
+                        <span class="token-keyword">false</span><span class="token-operator">,</span>
+                    <span class="token-operator">)</span> <span class="token-operator">{</span>
+                        <span class="token-type">CommandIoPollAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>input_events<span class="token-operator">,</span> stdout_events<span class="token-operator">,</span> stderr_events<span class="token-operator">)</span> <span class="token-operator">{</span>
+                            <span class="token-keyword">if</span> <span class="token-operator">!</span>input_events<span class="token-operator">.</span>writable || input_events<span class="token-operator">.</span>readable
+                                || <span class="token-operator">!</span>stdout_events<span class="token-operator">.</span>readable || stdout_events<span class="token-operator">.</span>writable
+                                || stderr_events<span class="token-operator">.</span>readable || stderr_events<span class="token-operator">.</span>writable
+                                || stderr_events<span class="token-operator">.</span>error || stderr_events<span class="token-operator">.</span>hangup
+                                || stderr_events<span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+                                <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"three-direction readiness changed"</span><span class="token-operator">)</span>
+                            <span class="token-operator">}</span>
+                        <span class="token-operator">}</span>
+                        _ <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"three-direction poll failed"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+                    <span class="token-operator">}</span>
+
+                    <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>input<span class="token-operator">)</span>
+                    <span class="token-keyword">let</span> byte<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-number">1</span>
+                    <span class="token-keyword">match</span> <span class="token-function">write_command_input_once</span><span class="token-operator">(</span>
+                        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>input<span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-function">internal_input_byte</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>byte<span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-number">0</span><span class="token-operator">,</span>
+                    <span class="token-operator">)</span> <span class="token-operator">{</span>
+                        <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>broken_pipe <span class="token-operator">{</span><span class="token-operator">}</span>
+                        _ <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"owned writer raised SIGPIPE or lost EPIPE"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+                    <span class="token-operator">}</span>
+                    drop output
+                    drop input
                 <span class="token-operator">}</span>
             <span class="token-operator">}</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">internal_input_byte</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">u8</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> internal_ptr<span class="token-operator">.</span><span class="token-function">slice_from_raw_parts_value</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref</span><span class="token-operator">(</span>value<span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

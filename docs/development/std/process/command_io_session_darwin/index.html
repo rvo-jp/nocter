@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>development/std/process/command_io_session_darwin.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/process/command_io_session_darwin.nct.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/std/process/command_io_session_darwin/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="development/std/process/command_io_session_darwin.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/process/command_io_session_darwin.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/process/command_io_session_darwin/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="development/std/process/command_io_session_darwin.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/process/command_io_session_darwin.nct.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/command_io_session_darwin.nct - Nocter","description":"Nocter source code for development/std/process/command_io_session_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/command_io_session_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Command_io_session_darwin","item":"https://nocter.dev/development/std/process/command_io_session_darwin/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/std/process/command_io_session_darwin.nct</span>
+            </div>
+            <div class="markdown-body">
+                <h1>command_io_session_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning Darwin stdin/stdout/stderr command-I/O session.</span>
+<span class="token-comment">//!</span>
+<span class="token-comment">//! One session owns all configured pipes, direction liveness, bounded fair progress, capture</span>
+<span class="token-comment">//! buffers, and cleanup. Raw poll/read/write facts remain in `command_io_darwin.nct`.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_darwin<span class="token-operator">.</span>nct
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">RawBuffer</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem
+<span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CommandInputChannel</span> <span class="token-operator">{</span>
+    inherited
+    <span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-type">CommandInputState</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">struct</span> <span class="token-type">CommandInputState</span> <span class="token-operator">{</span>
+    pipe<span class="token-operator">:</span> <span class="token-type">OwnedPipe</span>
+    offset<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">struct</span> <span class="token-type">CommandCaptureState</span> <span class="token-operator">{</span>
+    stdout_pipe<span class="token-operator">:</span> <span class="token-type">OwnedPipe</span>
+    stderr_pipe<span class="token-operator">:</span> <span class="token-type">OwnedPipe</span>
+    stdout<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
+    stderr<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
+    scratch<span class="token-operator">:</span> <span class="token-type">RawBuffer</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CommandCaptureChannels</span> <span class="token-operator">{</span>
+    inherited
+    <span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-type">CommandCaptureState</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">struct</span> <span class="token-type">CommandIoSession</span> <span class="token-operator">{</span>
+    input<span class="token-operator">:</span> <span class="token-type">CommandInputChannel</span>
+    captures<span class="token-operator">:</span> <span class="token-type">CommandCaptureChannels</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CommandIoPreparationAttempt</span> <span class="token-operator">{</span>
+    <span class="token-function">ready</span><span class="token-operator">(</span>session<span class="token-operator">:</span> <span class="token-type">CommandIoSession</span><span class="token-operator">)</span>
+    <span class="token-function">input_failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    <span class="token-function">capture_failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">InputChannelPreparationAttempt</span> <span class="token-operator">{</span>
+    <span class="token-function">ready</span><span class="token-operator">(</span>channel<span class="token-operator">:</span> <span class="token-type">CommandInputChannel</span><span class="token-operator">)</span>
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CaptureChannelsPreparationAttempt</span> <span class="token-operator">{</span>
+    <span class="token-function">ready</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span>
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CapturedCommandOutput</span> <span class="token-operator">{</span>
+    inherited
+    <span class="token-function">captured</span><span class="token-operator">(</span>stdout<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">,</span> stderr<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">struct</span> <span class="token-type">CommandIoResult</span> <span class="token-operator">{</span>
+    output<span class="token-operator">:</span> <span class="token-type">CapturedCommandOutput</span>
+    input_failed<span class="token-operator">:</span> <span class="token-type">bool</span>
+    capture_failed<span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">StreamDrainAttempt</span> <span class="token-operator">{</span>
+    progress
+    interrupted
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    malformed
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">COMMAND_IO_CHUNK_BYTES</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">8192</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">create_input_channel</span><span class="token-operator">(</span>configured<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">InputChannelPreparationAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>configured <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">InputChannelPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span><span class="token-type">CommandInputChannel</span><span class="token-operator">.</span>inherited<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-function">create_cloexec_pipe</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-type">InputChannelPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> <span class="token-function">suppress_pipe_writer_sigpipe</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>pipe<span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> <span class="token-type">InputChannelPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>
+                        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span><span class="token-type">CommandInputState</span> <span class="token-operator">{</span>
+                            pipe<span class="token-operator">:</span> <span class="token-keyword">move</span> pipe<span class="token-operator">,</span>
+                            offset<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+                        <span class="token-operator">}</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                    <span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    drop pipe
+                    <span class="token-keyword">return</span> <span class="token-type">InputChannelPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">create_capture_channels</span><span class="token-operator">(</span>configured<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CaptureChannelsPreparationAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>configured <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CaptureChannelsPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-function">create_cloexec_pipe</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-type">CaptureChannelsPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>stdout_pipe<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> <span class="token-function">create_cloexec_pipe</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    drop stdout_pipe
+                    <span class="token-keyword">return</span> <span class="token-type">CaptureChannelsPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>stderr_pipe<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">var</span> allocator <span class="token-operator">=</span> mem<span class="token-operator">.</span><span class="token-function">current_allocator</span><span class="token-operator">(</span><span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> <span class="token-type">CaptureChannelsPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>
+                        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span><span class="token-type">CommandCaptureState</span> <span class="token-operator">{</span>
+                            stdout_pipe<span class="token-operator">:</span> <span class="token-keyword">move</span> stdout_pipe<span class="token-operator">,</span>
+                            stderr_pipe<span class="token-operator">:</span> <span class="token-keyword">move</span> stderr_pipe<span class="token-operator">,</span>
+                            stdout<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                            stderr<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                            scratch<span class="token-operator">:</span> allocator<span class="token-operator">.</span><span class="token-function">alloc</span><span class="token-operator">(</span><span class="token-type">COMMAND_IO_CHUNK_BYTES</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                        <span class="token-operator">}</span><span class="token-operator">)</span><span class="token-operator">,</span>
+                    <span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">create_command_io_session</span><span class="token-operator">(</span>
+    has_input<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+    captures_output<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CommandIoPreparationAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> <span class="token-function">create_input_channel</span><span class="token-operator">(</span>has_input<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">InputChannelPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-type">CommandIoPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">input_failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-type">InputChannelPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>input<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> <span class="token-function">create_capture_channels</span><span class="token-operator">(</span>captures_output<span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">CaptureChannelsPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    drop input
+                    <span class="token-keyword">return</span> <span class="token-type">CommandIoPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">capture_failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">CaptureChannelsPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>captures<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> <span class="token-type">CommandIoPreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span><span class="token-type">CommandIoSession</span> <span class="token-operator">{</span>
+                        input<span class="token-operator">:</span> <span class="token-keyword">move</span> input<span class="token-operator">,</span>
+                        captures<span class="token-operator">:</span> <span class="token-keyword">move</span> captures<span class="token-operator">,</span>
+                    <span class="token-operator">}</span><span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">input_channel_parent_active</span><span class="token-operator">(</span>channel<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandInputChannel</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channel <span class="token-operator">{</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">pipe_write_is_open</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">input_channel_parent_fd</span><span class="token-operator">(</span>channel<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandInputChannel</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channel <span class="token-operator">{</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">0</span> <span class="token-operator">}</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stdout_channel_parent_active</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-function">pipe_read_is_open</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stdout_channel_parent_fd</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">0</span> <span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-function">pipe_read_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stderr_channel_parent_active</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-function">pipe_read_is_open</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">stderr_channel_parent_fd</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">0</span> <span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-function">pipe_read_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">command_io_is_active</span><span class="token-operator">(</span>session<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandIoSession</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-function">input_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>session<span class="token-operator">.</span>input<span class="token-operator">)</span>
+        || <span class="token-function">stdout_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>session<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+        || <span class="token-function">stderr_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>session<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span>channel<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandInputChannel</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channel <span class="token-operator">{</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
+            <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">prepare_parent_command_io</span><span class="token-operator">(</span>session<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandIoSession</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> <span class="token-operator">&amp;+</span>session<span class="token-operator">.</span>input <span class="token-operator">{</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-operator">&amp;+</span>session<span class="token-operator">.</span>captures <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
+            <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">append_command_io_bytes</span><span class="token-operator">(</span>
+    output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">,</span>
+    scratch<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">RawBuffer</span><span class="token-operator">,</span>
+    count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> bytes <span class="token-operator">=</span> scratch<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> index<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> index <span class="token-operator">&lt;</span> count <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>bytes<span class="token-operator">[</span>index<span class="token-operator">]</span><span class="token-operator">)</span>
+        index <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">write_ready_command_input</span><span class="token-operator">(</span>
+    channel<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandInputChannel</span><span class="token-operator">,</span>
+    input<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">?</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">StreamDrainAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> input_bytes <span class="token-operator">=</span> input <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> channel <span class="token-operator">{</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">let</span> position <span class="token-operator">=</span> state<span class="token-operator">.</span>offset
+            <span class="token-keyword">match</span> <span class="token-function">write_command_input_once</span><span class="token-operator">(</span><span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span> input_bytes<span class="token-operator">,</span> position<span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span>count<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">let</span> next <span class="token-operator">=</span> position <span class="token-operator">+</span> count
+                    state<span class="token-operator">.</span>offset <span class="token-operator">=</span> next
+                    <span class="token-keyword">if</span> next <span class="token-operator">=</span><span class="token-operator">=</span> input_bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span> <span class="token-operator">}</span>
+                    <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress
+                <span class="token-operator">}</span>
+                <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>broken_pipe <span class="token-operator">{</span>
+                    <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress
+                <span class="token-operator">}</span>
+                <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">}</span>
+                <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+                <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">drain_ready_stdout</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">StreamDrainAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> <span class="token-function">read_command_io_once</span><span class="token-operator">(</span>
+                <span class="token-function">pipe_read_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+                state<span class="token-operator">.</span>scratch<span class="token-operator">.</span><span class="token-function">bytes_mut</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span>count<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-function">append_command_io_bytes</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stdout<span class="token-operator">,</span> <span class="token-operator">&amp;</span>state<span class="token-operator">.</span>scratch<span class="token-operator">,</span> count<span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress
+                <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span>end <span class="token-operator">{</span>
+                    <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress
+                <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">drain_ready_stderr</span><span class="token-operator">(</span>channels<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">StreamDrainAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> <span class="token-function">read_command_io_once</span><span class="token-operator">(</span>
+                <span class="token-function">pipe_read_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+                state<span class="token-operator">.</span>scratch<span class="token-operator">.</span><span class="token-function">bytes_mut</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span>count<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-function">append_command_io_bytes</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stderr<span class="token-operator">,</span> <span class="token-operator">&amp;</span>state<span class="token-operator">.</span>scratch<span class="token-operator">,</span> count<span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress
+                <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span>end <span class="token-operator">{</span>
+                    <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress
+                <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+                <span class="token-type">CommandIoReadAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">finish_command_io</span><span class="token-operator">(</span>
+    session<span class="token-operator">:</span> <span class="token-type">CommandIoSession</span><span class="token-operator">,</span>
+    input_failed<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+    capture_failed<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CommandIoResult</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> source <span class="token-operator">=</span> <span class="token-keyword">move</span> session
+    <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>source<span class="token-operator">.</span>input<span class="token-operator">)</span>
+    <span class="token-keyword">match</span> <span class="token-keyword">move</span> source<span class="token-operator">.</span>captures <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-type">CommandIoResult</span> <span class="token-operator">{</span>
+                output<span class="token-operator">:</span> <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span>inherited<span class="token-operator">,</span>
+                input_failed<span class="token-operator">:</span> input_failed<span class="token-operator">,</span>
+                capture_failed<span class="token-operator">:</span> capture_failed<span class="token-operator">,</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">return</span> <span class="token-type">CommandIoResult</span> <span class="token-operator">{</span>
+                output<span class="token-operator">:</span> <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span><span class="token-function">captured</span><span class="token-operator">(</span><span class="token-keyword">move</span> state<span class="token-operator">.</span>stdout<span class="token-operator">,</span> <span class="token-keyword">move</span> state<span class="token-operator">.</span>stderr<span class="token-operator">)</span><span class="token-operator">,</span>
+                input_failed<span class="token-operator">:</span> input_failed<span class="token-operator">,</span>
+                capture_failed<span class="token-operator">:</span> capture_failed<span class="token-operator">,</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">drain_command_io</span><span class="token-operator">(</span>session<span class="token-operator">:</span> <span class="token-type">CommandIoSession</span><span class="token-operator">,</span> input<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CommandIoResult</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> state <span class="token-operator">=</span> <span class="token-keyword">move</span> session
+    <span class="token-keyword">var</span> input_failed <span class="token-operator">=</span> <span class="token-keyword">false</span>
+    <span class="token-keyword">var</span> capture_failed <span class="token-operator">=</span> <span class="token-keyword">false</span>
+    <span class="token-function">prepare_parent_command_io</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">)</span>
+    <span class="token-keyword">if</span> <span class="token-function">input_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> input_bytes <span class="token-operator">=</span> input <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+            input_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+            <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span>
+            <span class="token-keyword">return</span> <span class="token-function">drain_command_io_after_input_validation</span><span class="token-operator">(</span>
+                <span class="token-keyword">move</span> state<span class="token-operator">,</span>
+                input<span class="token-operator">,</span>
+                input_failed<span class="token-operator">,</span>
+                capture_failed<span class="token-operator">,</span>
+            <span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-keyword">if</span> input_bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">drain_command_io_after_input_validation</span><span class="token-operator">(</span>
+        <span class="token-keyword">move</span> state<span class="token-operator">,</span>
+        input<span class="token-operator">,</span>
+        input_failed<span class="token-operator">,</span>
+        capture_failed<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">drain_command_io_after_input_validation</span><span class="token-operator">(</span>
+    session<span class="token-operator">:</span> <span class="token-type">CommandIoSession</span><span class="token-operator">,</span>
+    input<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">?</span><span class="token-operator">,</span>
+    prior_input_failure<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+    prior_capture_failure<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CommandIoResult</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> state <span class="token-operator">=</span> <span class="token-keyword">move</span> session
+    <span class="token-keyword">var</span> input_failed <span class="token-operator">=</span> prior_input_failure
+    <span class="token-keyword">var</span> capture_failed <span class="token-operator">=</span> prior_capture_failure
+    <span class="token-keyword">while</span> <span class="token-function">command_io_is_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">match</span> <span class="token-function">poll_command_io_once</span><span class="token-operator">(</span>
+            <span class="token-function">input_channel_parent_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-function">input_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-function">stdout_channel_parent_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-function">stdout_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-function">stderr_channel_parent_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span><span class="token-operator">,</span>
+            <span class="token-function">stderr_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-type">CommandIoPollAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span><span class="token-operator">}</span>
+            <span class="token-type">CommandIoPollAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">if</span> <span class="token-function">input_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span> <span class="token-operator">{</span> input_failed <span class="token-operator">=</span> <span class="token-keyword">true</span> <span class="token-operator">}</span>
+                <span class="token-keyword">if</span> <span class="token-function">stdout_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                    || <span class="token-function">stderr_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    capture_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                <span class="token-operator">}</span>
+                <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span>
+                <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+            <span class="token-operator">}</span>
+            <span class="token-type">CommandIoPollAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span>
+                <span class="token-keyword">if</span> <span class="token-function">input_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span> <span class="token-operator">{</span> input_failed <span class="token-operator">=</span> <span class="token-keyword">true</span> <span class="token-operator">}</span>
+                <span class="token-keyword">if</span> <span class="token-function">stdout_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                    || <span class="token-function">stderr_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    capture_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                <span class="token-operator">}</span>
+                <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span>
+                <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+            <span class="token-operator">}</span>
+            <span class="token-type">CommandIoPollAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>input_events<span class="token-operator">,</span> stdout_events<span class="token-operator">,</span> stderr_events<span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-keyword">if</span> input_events<span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+                    input_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                    <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span>
+                <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-keyword">if</span> <span class="token-function">input_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span>
+                    <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> <span class="token-operator">(</span>input_events<span class="token-operator">.</span>writable || input_events<span class="token-operator">.</span>error || input_events<span class="token-operator">.</span>hangup<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">match</span> <span class="token-function">write_ready_command_input</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">,</span> input<span class="token-operator">)</span> <span class="token-operator">{</span>
+                        <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress <span class="token-operator">{</span><span class="token-operator">}</span>
+                        <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span><span class="token-operator">}</span>
+                        <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+                            input_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                            <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span>
+                        <span class="token-operator">}</span>
+                        <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span>
+                            input_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                            <span class="token-function">close_input_channel_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>input<span class="token-operator">)</span>
+                        <span class="token-operator">}</span>
+                    <span class="token-operator">}</span>
+                <span class="token-operator">}</span>
+                <span class="token-keyword">if</span> stdout_events<span class="token-operator">.</span>invalid || stderr_events<span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+                    capture_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                    <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
+                    <span class="token-keyword">if</span> <span class="token-function">stdout_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                        <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> <span class="token-operator">(</span>stdout_events<span class="token-operator">.</span>readable || stdout_events<span class="token-operator">.</span>error || stdout_events<span class="token-operator">.</span>hangup<span class="token-operator">)</span> <span class="token-operator">{</span>
+                        <span class="token-keyword">match</span> <span class="token-function">drain_ready_stdout</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span> <span class="token-operator">{</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress <span class="token-operator">{</span><span class="token-operator">}</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span><span class="token-operator">}</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+                                capture_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                                <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                            <span class="token-operator">}</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span>
+                                capture_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                                <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                            <span class="token-operator">}</span>
+                        <span class="token-operator">}</span>
+                    <span class="token-operator">}</span>
+                    <span class="token-keyword">if</span> <span class="token-function">stderr_channel_parent_active</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                        <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> <span class="token-operator">(</span>stderr_events<span class="token-operator">.</span>readable || stderr_events<span class="token-operator">.</span>error || stderr_events<span class="token-operator">.</span>hangup<span class="token-operator">)</span> <span class="token-operator">{</span>
+                        <span class="token-keyword">match</span> <span class="token-function">drain_ready_stderr</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span> <span class="token-operator">{</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>progress <span class="token-operator">{</span><span class="token-operator">}</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span><span class="token-operator">}</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
+                                capture_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                                <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                            <span class="token-operator">}</span>
+                            <span class="token-type">StreamDrainAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span>
+                                capture_failed <span class="token-operator">=</span> <span class="token-keyword">true</span>
+                                <span class="token-function">close_capture_channels_parent</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+                            <span class="token-operator">}</span>
+                        <span class="token-operator">}</span>
+                    <span class="token-operator">}</span>
+                <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-function">finish_command_io</span><span class="token-operator">(</span><span class="token-keyword">move</span> state<span class="token-operator">,</span> input_failed<span class="token-operator">,</span> capture_failed<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../../script.js" defer></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 //! Raw Darwin fork and terminal-observation transitions.
 //!
 //! This source is the sole owner of fork result classification and wait-status decoding. Launch
-//! reporting, pipe ownership, and capture readiness are separate responsibilities.
+//! reporting, pipe ownership, and command-I/O readiness are separate responsibilities.
 
 see ./darwin.nct
 
@@ -142,8 +142,5 @@ test raw_subprocess_results_have_one_typed_interpretation {
         WaitAttempt.failed(_) { return error.new("std.process.test", "invalid wait became failure") }
     }
 
-    if env_vector_raw() == 0 {
-        return error.new("std.process.test", "environment vector is absent")
-    }
     return
 }

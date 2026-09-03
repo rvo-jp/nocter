@@ -683,9 +683,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             make(0, vec![u64(), u64()], u64(), private, None, vec![])
         }
         PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), private, arm64_darwin, vec![]),
-        PrimitiveRole::ProcessArgumentCount
-        | PrimitiveRole::ProcessEnvironmentCount
-        | PrimitiveRole::ProcessEnvironmentVector => {
+        PrimitiveRole::ProcessArgumentCount | PrimitiveRole::ProcessEnvironmentCount => {
             make(0, vec![], usize(), private, arm64_darwin, vec![])
         }
         PrimitiveRole::ProcessArgument

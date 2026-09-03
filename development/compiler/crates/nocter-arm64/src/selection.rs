@@ -211,7 +211,6 @@ pub enum Arm64SelectedInstruction {
     ReadProcessEnvironmentCount,
     ReadProcessEnvironmentName,
     ReadProcessEnvironmentValue,
-    ReadProcessEnvironmentVector,
     CompareBorrowed {
         size: Arm64LoadStoreSize,
         extension: Arm64SelectedLoadExtension,

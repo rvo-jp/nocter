@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>development/std/process/capture_session_tests_darwin.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for development/std/process/capture_session_tests_darwin.nct.">
+    <title>development/std/process/command_child_darwin.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/process/command_child_darwin.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/std/process/capture_session_tests_darwin/">
+    <link rel="canonical" href="https://nocter.dev/development/std/process/command_child_darwin/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="development/std/process/capture_session_tests_darwin.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for development/std/process/capture_session_tests_darwin.nct.">
-    <meta property="og:url" content="https://nocter.dev/development/std/process/capture_session_tests_darwin/">
+    <meta property="og:title" content="development/std/process/command_child_darwin.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/process/command_child_darwin.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/process/command_child_darwin/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="development/std/process/capture_session_tests_darwin.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for development/std/process/capture_session_tests_darwin.nct.">
+    <meta name="twitter:title" content="development/std/process/command_child_darwin.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/process/command_child_darwin.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/capture_session_tests_darwin.nct - Nocter","description":"Nocter source code for development/std/process/capture_session_tests_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/capture_session_tests_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Capture_session_tests_darwin","item":"https://nocter.dev/development/std/process/capture_session_tests_darwin/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/command_child_darwin.nct - Nocter","description":"Nocter source code for development/std/process/command_child_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/command_child_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Command_child_darwin","item":"https://nocter.dev/development/std/process/command_child_darwin/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -190,63 +190,132 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/std/process/capture_session_tests_darwin.nct</span>
+                <span class="markdown-path-text">/development/std/process/command_child_darwin.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>capture_session_tests_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Native qualification for owning capture-session buffers and stream separation.</span>
+                <h1>command_child_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Darwin child-side standard-descriptor, directory, and executable setup.</span>
+<span class="token-comment">//!</span>
+<span class="token-comment">//! The child consumes only a prepared launch plan, one owning I/O session, and one close-on-exec</span>
+<span class="token-comment">//! report. Every rejected transition is reported before raw child exit.</span>
 
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_session_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command_io_session_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>launch_report_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_darwin<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
-<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
 
-<span class="token-keyword">test</span> capture_session_owns_and_separates_both_complete_streams <span class="token-operator">{</span>
-    <span class="token-keyword">match</span> <span class="token-function">create_capture_session</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
-        <span class="token-type">CapturePreparationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"capture session creation failed"</span><span class="token-operator">)</span>
-        <span class="token-operator">}</span>
-        <span class="token-type">CapturePreparationAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>session<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">var</span> capture <span class="token-operator">=</span> <span class="token-keyword">move</span> session
-            <span class="token-keyword">let</span> stdout_bytes<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">u8</span>; <span class="token-number">3</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">[</span><span class="token-number">11</span><span class="token-operator">,</span> <span class="token-number">12</span><span class="token-operator">,</span> <span class="token-number">13</span><span class="token-operator">]</span>
-            <span class="token-keyword">let</span> stderr_bytes<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">u8</span>; <span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">[</span><span class="token-number">21</span><span class="token-operator">,</span> <span class="token-number">22</span><span class="token-operator">]</span>
-            <span class="token-keyword">let</span> stdout_write <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
-                darwin<span class="token-operator">.</span><span class="token-type">SYS_WRITE</span><span class="token-operator">,</span>
-                <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>capture<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
-                ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>stdout_bytes<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
-                <span class="token-number">3</span><span class="token-operator">,</span>
-            <span class="token-operator">)</span>
-            <span class="token-keyword">let</span> stderr_write <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
-                darwin<span class="token-operator">.</span><span class="token-type">SYS_WRITE</span><span class="token-operator">,</span>
-                <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>capture<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
-                ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>stderr_bytes<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
-                <span class="token-number">2</span><span class="token-operator">,</span>
-            <span class="token-operator">)</span>
-            <span class="token-keyword">if</span> stdout_write<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> || stdout_write<span class="token-operator">.</span>value <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">3</span>
-                || stderr_write<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> || stderr_write<span class="token-operator">.</span>value <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">2</span> <span class="token-operator">{</span>
-                <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"capture session fixture write failed"</span><span class="token-operator">)</span>
-            <span class="token-operator">}</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">reject_command_setup</span><span class="token-operator">(</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+    stage<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+    errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span>report<span class="token-operator">,</span> stage<span class="token-operator">,</span> errno<span class="token-operator">)</span>
+<span class="token-operator">}</span>
 
-            <span class="token-keyword">match</span> <span class="token-function">drain_captured_streams</span><span class="token-operator">(</span><span class="token-keyword">move</span> capture<span class="token-operator">)</span> <span class="token-operator">{</span>
-                <span class="token-type">CaptureSessionAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"capture session drain failed"</span><span class="token-operator">)</span>
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">reject_malformed_command_setup</span><span class="token-operator">(</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">install_child_input</span><span class="token-operator">(</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+    channel<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandInputChannel</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channel <span class="token-operator">{</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">CommandInputChannel</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span>
+            <span class="token-keyword">match</span> <span class="token-function">install_descriptor</span><span class="token-operator">(</span><span class="token-function">pipe_read_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">STDIN_FD</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-function">reject_command_setup</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_INPUT_SETUP</span><span class="token-operator">,</span> errno<span class="token-operator">)</span>
                 <span class="token-operator">}</span>
-                <span class="token-type">CaptureSessionAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span>
-                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"capture session drain was malformed"</span><span class="token-operator">)</span>
-                <span class="token-operator">}</span>
-                <span class="token-type">CaptureSessionAttempt</span><span class="token-operator">.</span><span class="token-function">complete</span><span class="token-operator">(</span>stdout<span class="token-operator">,</span> stderr<span class="token-operator">)</span> <span class="token-operator">{</span>
-                    <span class="token-keyword">if</span> stdout<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">3</span> || stdout<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">11</span> || stdout<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">12</span>
-                        || stdout<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">13</span> <span class="token-operator">{</span>
-                        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"stdout capture changed"</span><span class="token-operator">)</span>
-                    <span class="token-operator">}</span>
-                    <span class="token-keyword">if</span> stderr<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">2</span> || stderr<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">21</span> || stderr<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">22</span> <span class="token-operator">{</span>
-                        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"stderr capture changed"</span><span class="token-operator">)</span>
-                    <span class="token-operator">}</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+                    <span class="token-function">reject_malformed_command_setup</span><span class="token-operator">(</span>report<span class="token-operator">)</span>
                 <span class="token-operator">}</span>
             <span class="token-operator">}</span>
+            <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>pipe<span class="token-operator">)</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">install_child_captures</span><span class="token-operator">(</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+    channels<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CommandCaptureChannels</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> channels <span class="token-operator">{</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">CommandCaptureChannels</span><span class="token-operator">.</span><span class="token-function">configured</span><span class="token-operator">(</span>state<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
+            <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span>
+            <span class="token-keyword">match</span> <span class="token-function">install_descriptor</span><span class="token-operator">(</span><span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span><span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">STDOUT_FD</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-function">reject_command_setup</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_OUTPUT_SETUP</span><span class="token-operator">,</span> errno<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+                    <span class="token-function">reject_malformed_command_setup</span><span class="token-operator">(</span>report<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+            <span class="token-keyword">match</span> <span class="token-function">install_descriptor</span><span class="token-operator">(</span><span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span><span class="token-operator">,</span> darwin<span class="token-operator">.</span><span class="token-type">STDERR_FD</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+                    <span class="token-function">reject_command_setup</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_OUTPUT_SETUP</span><span class="token-operator">,</span> errno<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+                    <span class="token-function">reject_malformed_command_setup</span><span class="token-operator">(</span>report<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
+            <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span>
+            <span class="token-function">close_pipe_write</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>state<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">enter_child_directory</span><span class="token-operator">(</span>
+    path_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> path_address <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CHDIR</span><span class="token-operator">,</span> path_address<span class="token-operator">)</span>
+    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall1</span><span class="token-operator">(</span>darwin<span class="token-operator">.</span><span class="token-type">SYS_CHDIR</span><span class="token-operator">,</span> path_address<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-function">reject_command_setup</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_DIRECTORY</span><span class="token-operator">,</span> result<span class="token-operator">.</span>errno<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">exec_command_child</span><span class="token-operator">(</span>
+    path_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    argv_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    environment_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    working_directory_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    report<span class="token-operator">:</span> <span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+    session<span class="token-operator">:</span> <span class="token-type">CommandIoSession</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> launch_report <span class="token-operator">=</span> <span class="token-keyword">move</span> report
+    <span class="token-keyword">var</span> command_io <span class="token-operator">=</span> <span class="token-keyword">move</span> session
+    <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">)</span>
+    <span class="token-function">install_child_input</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>command_io<span class="token-operator">.</span>input<span class="token-operator">)</span>
+    <span class="token-function">install_child_captures</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>command_io<span class="token-operator">.</span>captures<span class="token-operator">)</span>
+    <span class="token-function">enter_child_directory</span><span class="token-operator">(</span>working_directory_address<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>launch_report<span class="token-operator">)</span>
+    <span class="token-function">exec_child_after_setup</span><span class="token-operator">(</span>
+        path_address<span class="token-operator">,</span>
+        argv_address<span class="token-operator">,</span>
+        environment_address<span class="token-operator">,</span>
+        <span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

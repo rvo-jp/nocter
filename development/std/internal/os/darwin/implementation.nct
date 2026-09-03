@@ -93,6 +93,9 @@ const SYS_DUP2: usize = 0x0200005a
 const SYS_POLL: usize = 0x020000e6
 
 #target: "arm64-darwin"
+const SYS_CHDIR: usize = 0x0200000c
+
+#target: "arm64-darwin"
 const SYS_RENAME: usize = 0x02000080
 
 #target: "arm64-darwin"
@@ -170,6 +173,9 @@ const MMAP_NO_FILE: usize = 0xffffffffffffffff
 const ERRNO_INTERRUPTED: i32 = 4
 
 #target: "arm64-darwin"
+const ERRNO_BROKEN_PIPE: i32 = 32
+
+#target: "arm64-darwin"
 const SYS_FCNTL: usize = 0x0200005c
 
 #target: "arm64-darwin"
@@ -180,6 +186,9 @@ const F_GETFD: usize = 1
 
 #target: "arm64-darwin"
 const F_DUPFD_CLOEXEC: usize = 67
+
+#target: "arm64-darwin"
+const F_SETNOSIGPIPE: usize = 73
 
 #target: "arm64-darwin"
 const FD_CLOEXEC: usize = 1

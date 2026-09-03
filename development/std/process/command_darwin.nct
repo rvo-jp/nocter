@@ -1,13 +1,12 @@
 //! Darwin command orchestration and public failure selection.
 //!
 //! Raw target transitions expose typed facts. This layer is their only public-policy consumer: it
-//! keeps prepared storage alive, closes parent descriptors, reaps every created child, and then
-//! selects either an ExitStatus or one stable std.process failure.
+//! prepares all storage, creates one I/O session, reaps every child, and applies failure precedence.
 
 see ./index.nct
 see ./command.nct
-see ./capture_launch_darwin.nct
-see ./capture_session_darwin.nct
+see ./command_child_darwin.nct
+see ./command_io_session_darwin.nct
 see ./darwin.nct
 see ./launch_report_darwin.nct
 see ./launch_plan_darwin.nct
@@ -19,8 +18,15 @@ use /internal/os/darwin
 
 #target: "arm64-darwin"
 enum CommandFork {
-    child(prepared: PreparedCommand, report: OwnedPipe)
-    parent(prepared: PreparedCommand, pid: usize, report: OwnedPipe)
+    child(prepared: PreparedCommand, report: OwnedPipe, io: CommandIoSession)
+    parent(prepared: PreparedCommand, pid: usize, report: OwnedPipe, io: CommandIoSession)
+}
+
+#target: "arm64-darwin"
+struct CommandObservation {
+    status: ExitStatus
+    launch: LaunchReportAttempt
+    io: CommandIoResult
 }
 
 #target: "arm64-darwin"
@@ -36,6 +42,19 @@ noalloc func wait_failed(): error {
 #target: "arm64-darwin"
 noalloc func capture_failed(): error {
     return error.new("std.process.capture_failed", "child output could not be captured")
+}
+
+#target: "arm64-darwin"
+noalloc func input_failed(): error {
+    return error.new("std.process.input_failed", "child input could not be written")
+}
+
+#target: "arm64-darwin"
+noalloc func current_directory_failed(): error {
+    return error.new(
+        "std.process.current_directory_failed",
+        "child working directory could not be entered",
+    )
 }
 
 #target: "arm64-darwin"
@@ -67,26 +86,12 @@ noalloc func status_from_wait(outcome: WaitOutcome): ExitStatus! {
 }
 
 #target: "arm64-darwin"
-func observe_terminal(prepared: PreparedCommand, pid: usize): ExitStatus! {
-    let terminal = status_from_wait(wait_for_child(pid))?
-    drop prepared
-    return terminal
-}
-
-#target: "arm64-darwin"
-func observe_parent(
-    prepared: PreparedCommand,
-    pid: usize,
-    report: OwnedPipe,
-): ExitStatus! {
-    let launch = read_launch_report(move report)
-
-    // Waiting precedes public failure selection so every successfully created child is reaped,
-    // including children whose exec request was rejected or whose report channel was malformed.
-    let terminal = observe_terminal(move prepared, pid)?
+noalloc func require_successful_launch(launch: LaunchReportAttempt): void! {
     match move launch {
-        LaunchReportAttempt.executed { return terminal }
-        LaunchReportAttempt.setup_rejected(_) { return spawn_failed() }
+        LaunchReportAttempt.executed { return }
+        LaunchReportAttempt.input_setup_rejected(_) { return input_failed() }
+        LaunchReportAttempt.output_setup_rejected(_) { return capture_failed() }
+        LaunchReportAttempt.directory_rejected(_) { return current_directory_failed() }
         LaunchReportAttempt.exec_rejected(errno) { return exec_failed(errno) }
         LaunchReportAttempt.channel_failed(_) { return spawn_failed() }
         LaunchReportAttempt.malformed { return spawn_failed() }
@@ -94,55 +99,52 @@ func observe_parent(
 }
 
 #target: "arm64-darwin"
-func observe_output_parent(
+func observe_command_parent(
     prepared: PreparedCommand,
     pid: usize,
     report: OwnedPipe,
-    captures: CaptureSession,
-): Output! {
+    io: CommandIoSession,
+): CommandObservation! {
+    var command = move prepared
     let launch = read_launch_report(move report)
-    let captured = drain_captured_streams(move captures)
+    let transferred = drain_command_io(move io, prepared_input(&command))
 
-    // Waiting remains the last fallible lifecycle transition and precedes public failure
-    // selection. A wait failure therefore cannot be hidden by an earlier launch or capture error.
-    let terminal = observe_terminal(move prepared, pid)?
-    match move launch {
-        LaunchReportAttempt.setup_rejected(_) { return capture_failed() }
-        LaunchReportAttempt.exec_rejected(errno) { return exec_failed(errno) }
-        LaunchReportAttempt.channel_failed(_) { return spawn_failed() }
-        LaunchReportAttempt.malformed { return spawn_failed() }
-        LaunchReportAttempt.executed {
-            match move captured {
-                CaptureSessionAttempt.complete(stdout, stderr) {
-                    return Output {
-                        status: terminal,
-                        stdout: move stdout,
-                        stderr: move stderr,
-                    }
-                }
-                CaptureSessionAttempt.failed(_) { return capture_failed() }
-                CaptureSessionAttempt.malformed { return capture_failed() }
-            }
-        }
+    // Exact-child observation is the last fallible lifecycle transition and therefore has highest
+    // public precedence over launch, capture, and input transport facts.
+    let status = status_from_wait(wait_for_child(pid))?
+    drop command
+    return CommandObservation {
+        status: status,
+        launch: move launch,
+        io: move transferred,
     }
 }
 
 #target: "arm64-darwin"
-func fork_prepared_command(command: Command): CommandFork! {
+func fork_prepared_command(command: Command, captures_output: bool): CommandFork! {
     let prepared = prepare_command(move command)
+    let io = match create_command_io_session(prepared_has_input(&prepared), captures_output) {
+        CommandIoPreparationAttempt.ready(session) { move session }
+        CommandIoPreparationAttempt.input_failed(_) { return input_failed() }
+        CommandIoPreparationAttempt.capture_failed(_) { return capture_failed() }
+    }
     match create_cloexec_pipe() {
-        PipeAttempt.failed(_) { return spawn_failed() }
+        PipeAttempt.failed(_) {
+            drop io
+            return spawn_failed()
+        }
         PipeAttempt.ready(report) {
             match fork_process() {
                 ForkAttempt.failed(_) {
                     drop report
+                    drop io
                     return spawn_failed()
                 }
                 ForkAttempt.child {
-                    return CommandFork.child(move prepared, move report)
+                    return CommandFork.child(move prepared, move report, move io)
                 }
                 ForkAttempt.parent(pid) {
-                    return CommandFork.parent(move prepared, pid, move report)
+                    return CommandFork.parent(move prepared, pid, move report, move io)
                 }
             }
         }
@@ -151,43 +153,66 @@ func fork_prepared_command(command: Command): CommandFork! {
 
 #target: "arm64-darwin"
 func run_command(command: Command): ExitStatus! {
-    match fork_prepared_command(move command)? {
-        CommandFork.child(prepared, report) {
-            exec_child(
+    match fork_prepared_command(move command, false)? {
+        CommandFork.child(prepared, report, io) {
+            exec_command_child(
                 prepared_path_address(&prepared),
                 prepared_argv_address(&prepared),
                 prepared_environment_address(&prepared),
+                prepared_working_directory_address(&prepared),
                 move report,
+                move io,
             )
         }
-        CommandFork.parent(prepared, pid, report) {
-            return observe_parent(move prepared, pid, move report)?
+        CommandFork.parent(prepared, pid, report, io) {
+            let observation = observe_command_parent(
+                move prepared,
+                pid,
+                move report,
+                move io,
+            )?
+            require_successful_launch(move observation.launch)?
+            if observation.io.capture_failed { return capture_failed() }
+            if observation.io.input_failed { return input_failed() }
+            match move observation.io.output {
+                CapturedCommandOutput.inherited { return observation.status }
+                CapturedCommandOutput.captured(_, _) { return capture_failed() }
+            }
         }
     }
 }
 
 #target: "arm64-darwin"
 func output_command(command: Command): Output! {
-    match create_capture_session() {
-        CapturePreparationAttempt.failed(_) { return capture_failed() }
-        CapturePreparationAttempt.ready(captures) {
-            match fork_prepared_command(move command)? {
-                CommandFork.child(prepared, report) {
-                    exec_captured_child(
-                        prepared_path_address(&prepared),
-                        prepared_argv_address(&prepared),
-                        prepared_environment_address(&prepared),
-                        move report,
-                        move captures,
-                    )
-                }
-                CommandFork.parent(prepared, pid, report) {
-                    return observe_output_parent(
-                        move prepared,
-                        pid,
-                        move report,
-                        move captures,
-                    )?
+    match fork_prepared_command(move command, true)? {
+        CommandFork.child(prepared, report, io) {
+            exec_command_child(
+                prepared_path_address(&prepared),
+                prepared_argv_address(&prepared),
+                prepared_environment_address(&prepared),
+                prepared_working_directory_address(&prepared),
+                move report,
+                move io,
+            )
+        }
+        CommandFork.parent(prepared, pid, report, io) {
+            let observation = observe_command_parent(
+                move prepared,
+                pid,
+                move report,
+                move io,
+            )?
+            require_successful_launch(move observation.launch)?
+            if observation.io.capture_failed { return capture_failed() }
+            if observation.io.input_failed { return input_failed() }
+            match move observation.io.output {
+                CapturedCommandOutput.inherited { return capture_failed() }
+                CapturedCommandOutput.captured(stdout, stderr) {
+                    return Output {
+                        status: observation.status,
+                        stdout: move stdout,
+                        stderr: move stderr,
+                    }
                 }
             }
         }

@@ -64,8 +64,7 @@ pub(crate) fn select(
         | PrimitiveRole::ProcessArgument
         | PrimitiveRole::ProcessEnvironmentCount
         | PrimitiveRole::ProcessEnvironmentName
-        | PrimitiveRole::ProcessEnvironmentValue
-        | PrimitiveRole::ProcessEnvironmentVector => {
+        | PrimitiveRole::ProcessEnvironmentValue => {
             crate::process_selection::select_primitive(operation, target, selected)
         }
         PrimitiveRole::CurrentAllocatorState | PrimitiveRole::CurrentAllocatorKind => {

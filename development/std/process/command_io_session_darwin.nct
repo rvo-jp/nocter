@@ -1,0 +1,519 @@
+//! Owning Darwin stdin/stdout/stderr command-I/O session.
+//!
+//! One session owns all configured pipes, direction liveness, bounded fair progress, capture
+//! buffers, and cleanup. Raw poll/read/write facts remain in `command_io_darwin.nct`.
+
+see ./command_io_darwin.nct
+see ./index.nct
+see ./pipe_darwin.nct
+
+use /mem.RawBuffer
+use /mem
+use /vec.Vec
+
+#target: "arm64-darwin"
+enum CommandInputChannel {
+    inherited
+    configured(state: CommandInputState)
+}
+
+#target: "arm64-darwin"
+struct CommandInputState {
+    pipe: OwnedPipe
+    offset: usize
+}
+
+#target: "arm64-darwin"
+struct CommandCaptureState {
+    stdout_pipe: OwnedPipe
+    stderr_pipe: OwnedPipe
+    stdout: Vec<u8>
+    stderr: Vec<u8>
+    scratch: RawBuffer
+}
+
+#target: "arm64-darwin"
+enum CommandCaptureChannels {
+    inherited
+    configured(state: CommandCaptureState)
+}
+
+#target: "arm64-darwin"
+struct CommandIoSession {
+    input: CommandInputChannel
+    captures: CommandCaptureChannels
+}
+
+#target: "arm64-darwin"
+enum CommandIoPreparationAttempt {
+    ready(session: CommandIoSession)
+    input_failed(errno: i32)
+    capture_failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+enum InputChannelPreparationAttempt {
+    ready(channel: CommandInputChannel)
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+enum CaptureChannelsPreparationAttempt {
+    ready(channels: CommandCaptureChannels)
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+enum CapturedCommandOutput {
+    inherited
+    captured(stdout: Vec<u8>, stderr: Vec<u8>)
+}
+
+#target: "arm64-darwin"
+struct CommandIoResult {
+    output: CapturedCommandOutput
+    input_failed: bool
+    capture_failed: bool
+}
+
+#target: "arm64-darwin"
+enum StreamDrainAttempt {
+    progress
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+#target: "arm64-darwin"
+const COMMAND_IO_CHUNK_BYTES: usize = 8192
+
+#target: "arm64-darwin"
+func create_input_channel(configured: bool): InputChannelPreparationAttempt {
+    if !configured {
+        return InputChannelPreparationAttempt.ready(CommandInputChannel.inherited)
+    }
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(errno) {
+            return InputChannelPreparationAttempt.failed(errno)
+        }
+        PipeAttempt.ready(pipe) {
+            match suppress_pipe_writer_sigpipe(&pipe) {
+                PipeConfigurationAttempt.ready {
+                    return InputChannelPreparationAttempt.ready(
+                        CommandInputChannel.configured(CommandInputState {
+                            pipe: move pipe,
+                            offset: 0,
+                        }),
+                    )
+                }
+                PipeConfigurationAttempt.failed(errno) {
+                    drop pipe
+                    return InputChannelPreparationAttempt.failed(errno)
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func create_capture_channels(configured: bool): CaptureChannelsPreparationAttempt {
+    if !configured {
+        return CaptureChannelsPreparationAttempt.ready(CommandCaptureChannels.inherited)
+    }
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(errno) {
+            return CaptureChannelsPreparationAttempt.failed(errno)
+        }
+        PipeAttempt.ready(stdout_pipe) {
+            match create_cloexec_pipe() {
+                PipeAttempt.failed(errno) {
+                    drop stdout_pipe
+                    return CaptureChannelsPreparationAttempt.failed(errno)
+                }
+                PipeAttempt.ready(stderr_pipe) {
+                    var allocator = mem.current_allocator()
+                    return CaptureChannelsPreparationAttempt.ready(
+                        CommandCaptureChannels.configured(CommandCaptureState {
+                            stdout_pipe: move stdout_pipe,
+                            stderr_pipe: move stderr_pipe,
+                            stdout: Vec.empty(),
+                            stderr: Vec.empty(),
+                            scratch: allocator.alloc(COMMAND_IO_CHUNK_BYTES, 1),
+                        }),
+                    )
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func create_command_io_session(
+    has_input: bool,
+    captures_output: bool,
+): CommandIoPreparationAttempt {
+    match create_input_channel(has_input) {
+        InputChannelPreparationAttempt.failed(errno) {
+            return CommandIoPreparationAttempt.input_failed(errno)
+        }
+        InputChannelPreparationAttempt.ready(input) {
+            match create_capture_channels(captures_output) {
+                CaptureChannelsPreparationAttempt.failed(errno) {
+                    drop input
+                    return CommandIoPreparationAttempt.capture_failed(errno)
+                }
+                CaptureChannelsPreparationAttempt.ready(captures) {
+                    return CommandIoPreparationAttempt.ready(CommandIoSession {
+                        input: move input,
+                        captures: move captures,
+                    })
+                }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func input_channel_parent_active(channel: &CommandInputChannel): bool {
+    match channel {
+        CommandInputChannel.inherited { return false }
+        CommandInputChannel.configured(state) { return pipe_write_is_open(&state.pipe) }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func input_channel_parent_fd(channel: &CommandInputChannel): usize {
+    match channel {
+        CommandInputChannel.inherited { return 0 }
+        CommandInputChannel.configured(state) { return pipe_write_fd(&state.pipe) }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func stdout_channel_parent_active(channels: &CommandCaptureChannels): bool {
+    match channels {
+        CommandCaptureChannels.inherited { return false }
+        CommandCaptureChannels.configured(state) {
+            return pipe_read_is_open(&state.stdout_pipe)
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func stdout_channel_parent_fd(channels: &CommandCaptureChannels): usize {
+    match channels {
+        CommandCaptureChannels.inherited { return 0 }
+        CommandCaptureChannels.configured(state) {
+            return pipe_read_fd(&state.stdout_pipe)
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func stderr_channel_parent_active(channels: &CommandCaptureChannels): bool {
+    match channels {
+        CommandCaptureChannels.inherited { return false }
+        CommandCaptureChannels.configured(state) {
+            return pipe_read_is_open(&state.stderr_pipe)
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func stderr_channel_parent_fd(channels: &CommandCaptureChannels): usize {
+    match channels {
+        CommandCaptureChannels.inherited { return 0 }
+        CommandCaptureChannels.configured(state) {
+            return pipe_read_fd(&state.stderr_pipe)
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func command_io_is_active(session: &CommandIoSession): bool {
+    return input_channel_parent_active(&session.input)
+        || stdout_channel_parent_active(&session.captures)
+        || stderr_channel_parent_active(&session.captures)
+}
+
+#target: "arm64-darwin"
+noalloc func close_input_channel_parent(channel: &+CommandInputChannel): void {
+    match channel {
+        CommandInputChannel.inherited {}
+        CommandInputChannel.configured(state) { close_pipe_write(&+state.pipe) }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func close_capture_channels_parent(channels: &+CommandCaptureChannels): void {
+    match channels {
+        CommandCaptureChannels.inherited {}
+        CommandCaptureChannels.configured(state) {
+            close_pipe_read(&+state.stdout_pipe)
+            close_pipe_read(&+state.stderr_pipe)
+        }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func prepare_parent_command_io(session: &+CommandIoSession): void {
+    match &+session.input {
+        CommandInputChannel.inherited {}
+        CommandInputChannel.configured(state) { close_pipe_read(&+state.pipe) }
+    }
+    match &+session.captures {
+        CommandCaptureChannels.inherited {}
+        CommandCaptureChannels.configured(state) {
+            close_pipe_write(&+state.stdout_pipe)
+            close_pipe_write(&+state.stderr_pipe)
+        }
+    }
+    return
+}
+
+#target: "arm64-darwin"
+func append_command_io_bytes(
+    output: &+Vec<u8>,
+    scratch: &RawBuffer,
+    count: usize,
+): void {
+    let bytes = scratch.bytes()
+    var index: usize = 0
+    while index < count {
+        output.push(bytes[index])
+        index += 1
+    }
+    return
+}
+
+#target: "arm64-darwin"
+func write_ready_command_input(
+    channel: &+CommandInputChannel,
+    input: &[u8]?,
+): StreamDrainAttempt {
+    let input_bytes = input otherwise { return StreamDrainAttempt.malformed }
+    match channel {
+        CommandInputChannel.inherited { return StreamDrainAttempt.malformed }
+        CommandInputChannel.configured(state) {
+            let position = state.offset
+            match write_command_input_once(pipe_write_fd(&state.pipe), input_bytes, position) {
+                CommandIoWriteAttempt.bytes(count) {
+                    let next = position + count
+                    state.offset = next
+                    if next == input_bytes.len() { close_pipe_write(&+state.pipe) }
+                    return StreamDrainAttempt.progress
+                }
+                CommandIoWriteAttempt.broken_pipe {
+                    close_pipe_write(&+state.pipe)
+                    return StreamDrainAttempt.progress
+                }
+                CommandIoWriteAttempt.interrupted { return StreamDrainAttempt.interrupted }
+                CommandIoWriteAttempt.failed(errno) { return StreamDrainAttempt.failed(errno) }
+                CommandIoWriteAttempt.malformed { return StreamDrainAttempt.malformed }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func drain_ready_stdout(channels: &+CommandCaptureChannels): StreamDrainAttempt {
+    match channels {
+        CommandCaptureChannels.inherited { return StreamDrainAttempt.malformed }
+        CommandCaptureChannels.configured(state) {
+            match read_command_io_once(
+                pipe_read_fd(&state.stdout_pipe),
+                state.scratch.bytes_mut(),
+            ) {
+                CommandIoReadAttempt.bytes(count) {
+                    append_command_io_bytes(&+state.stdout, &state.scratch, count)
+                    return StreamDrainAttempt.progress
+                }
+                CommandIoReadAttempt.end {
+                    close_pipe_read(&+state.stdout_pipe)
+                    return StreamDrainAttempt.progress
+                }
+                CommandIoReadAttempt.interrupted { return StreamDrainAttempt.interrupted }
+                CommandIoReadAttempt.failed(errno) { return StreamDrainAttempt.failed(errno) }
+                CommandIoReadAttempt.malformed { return StreamDrainAttempt.malformed }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func drain_ready_stderr(channels: &+CommandCaptureChannels): StreamDrainAttempt {
+    match channels {
+        CommandCaptureChannels.inherited { return StreamDrainAttempt.malformed }
+        CommandCaptureChannels.configured(state) {
+            match read_command_io_once(
+                pipe_read_fd(&state.stderr_pipe),
+                state.scratch.bytes_mut(),
+            ) {
+                CommandIoReadAttempt.bytes(count) {
+                    append_command_io_bytes(&+state.stderr, &state.scratch, count)
+                    return StreamDrainAttempt.progress
+                }
+                CommandIoReadAttempt.end {
+                    close_pipe_read(&+state.stderr_pipe)
+                    return StreamDrainAttempt.progress
+                }
+                CommandIoReadAttempt.interrupted { return StreamDrainAttempt.interrupted }
+                CommandIoReadAttempt.failed(errno) { return StreamDrainAttempt.failed(errno) }
+                CommandIoReadAttempt.malformed { return StreamDrainAttempt.malformed }
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func finish_command_io(
+    session: CommandIoSession,
+    input_failed: bool,
+    capture_failed: bool,
+): CommandIoResult {
+    var source = move session
+    close_input_channel_parent(&+source.input)
+    match move source.captures {
+        CommandCaptureChannels.inherited {
+            return CommandIoResult {
+                output: CapturedCommandOutput.inherited,
+                input_failed: input_failed,
+                capture_failed: capture_failed,
+            }
+        }
+        CommandCaptureChannels.configured(state) {
+            return CommandIoResult {
+                output: CapturedCommandOutput.captured(move state.stdout, move state.stderr),
+                input_failed: input_failed,
+                capture_failed: capture_failed,
+            }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+func drain_command_io(session: CommandIoSession, input: &[u8]?): CommandIoResult {
+    var state = move session
+    var input_failed = false
+    var capture_failed = false
+    prepare_parent_command_io(&+state)
+    if input_channel_parent_active(&state.input) {
+        let input_bytes = input otherwise {
+            input_failed = true
+            close_input_channel_parent(&+state.input)
+            return drain_command_io_after_input_validation(
+                move state,
+                input,
+                input_failed,
+                capture_failed,
+            )
+        }
+        if input_bytes.len() == 0 { close_input_channel_parent(&+state.input) }
+    }
+    return drain_command_io_after_input_validation(
+        move state,
+        input,
+        input_failed,
+        capture_failed,
+    )
+}
+
+#target: "arm64-darwin"
+func drain_command_io_after_input_validation(
+    session: CommandIoSession,
+    input: &[u8]?,
+    prior_input_failure: bool,
+    prior_capture_failure: bool,
+): CommandIoResult {
+    var state = move session
+    var input_failed = prior_input_failure
+    var capture_failed = prior_capture_failure
+    while command_io_is_active(&state) {
+        match poll_command_io_once(
+            input_channel_parent_fd(&state.input),
+            input_channel_parent_active(&state.input),
+            stdout_channel_parent_fd(&state.captures),
+            stdout_channel_parent_active(&state.captures),
+            stderr_channel_parent_fd(&state.captures),
+            stderr_channel_parent_active(&state.captures),
+        ) {
+            CommandIoPollAttempt.interrupted {}
+            CommandIoPollAttempt.failed(_) {
+                if input_channel_parent_active(&state.input) { input_failed = true }
+                if stdout_channel_parent_active(&state.captures)
+                    || stderr_channel_parent_active(&state.captures) {
+                    capture_failed = true
+                }
+                close_input_channel_parent(&+state.input)
+                close_capture_channels_parent(&+state.captures)
+            }
+            CommandIoPollAttempt.malformed {
+                if input_channel_parent_active(&state.input) { input_failed = true }
+                if stdout_channel_parent_active(&state.captures)
+                    || stderr_channel_parent_active(&state.captures) {
+                    capture_failed = true
+                }
+                close_input_channel_parent(&+state.input)
+                close_capture_channels_parent(&+state.captures)
+            }
+            CommandIoPollAttempt.ready(input_events, stdout_events, stderr_events) {
+                if input_events.invalid {
+                    input_failed = true
+                    close_input_channel_parent(&+state.input)
+                } else if input_channel_parent_active(&state.input)
+                    && (input_events.writable || input_events.error || input_events.hangup) {
+                    match write_ready_command_input(&+state.input, input) {
+                        StreamDrainAttempt.progress {}
+                        StreamDrainAttempt.interrupted {}
+                        StreamDrainAttempt.failed(_) {
+                            input_failed = true
+                            close_input_channel_parent(&+state.input)
+                        }
+                        StreamDrainAttempt.malformed {
+                            input_failed = true
+                            close_input_channel_parent(&+state.input)
+                        }
+                    }
+                }
+                if stdout_events.invalid || stderr_events.invalid {
+                    capture_failed = true
+                    close_capture_channels_parent(&+state.captures)
+                } else {
+                    if stdout_channel_parent_active(&state.captures)
+                        && (stdout_events.readable || stdout_events.error || stdout_events.hangup) {
+                        match drain_ready_stdout(&+state.captures) {
+                            StreamDrainAttempt.progress {}
+                            StreamDrainAttempt.interrupted {}
+                            StreamDrainAttempt.failed(_) {
+                                capture_failed = true
+                                close_capture_channels_parent(&+state.captures)
+                            }
+                            StreamDrainAttempt.malformed {
+                                capture_failed = true
+                                close_capture_channels_parent(&+state.captures)
+                            }
+                        }
+                    }
+                    if stderr_channel_parent_active(&state.captures)
+                        && (stderr_events.readable || stderr_events.error || stderr_events.hangup) {
+                        match drain_ready_stderr(&+state.captures) {
+                            StreamDrainAttempt.progress {}
+                            StreamDrainAttempt.interrupted {}
+                            StreamDrainAttempt.failed(_) {
+                                capture_failed = true
+                                close_capture_channels_parent(&+state.captures)
+                            }
+                            StreamDrainAttempt.malformed {
+                                capture_failed = true
+                                close_capture_channels_parent(&+state.captures)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return finish_command_io(move state, input_failed, capture_failed)
+}

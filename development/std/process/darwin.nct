@@ -33,9 +33,6 @@ noalloc primitive func env_name_raw(index: usize): &str from static
 noalloc primitive func env_value_raw(index: usize): &str from static
 
 #target: "arm64-darwin"
-noalloc primitive func env_vector_raw(): usize
-
-#target: "arm64-darwin"
 func open_current_directory(): usize! {
     let path = internal_path.target_path_argument(".")?
     let result = darwin.syscall3(darwin.SYS_OPEN, internal_path.target_path_address(&path), 0, 0)

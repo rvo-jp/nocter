@@ -171,7 +171,6 @@ pub const fn bundled_primitive_source_location(
         Role::ProcessEnvironmentCount => (&["process"], "env_count_raw"),
         Role::ProcessEnvironmentName => (&["process"], "env_name_raw"),
         Role::ProcessEnvironmentValue => (&["process"], "env_value_raw"),
-        Role::ProcessEnvironmentVector => (&["process"], "env_vector_raw"),
         Role::MonotonicCounterRead => (&["time"], "monotonic_counter_raw"),
         Role::MonotonicCounterFrequency => (&["time"], "monotonic_frequency_raw"),
         Role::MonotonicCounterDelta => (&["time"], "monotonic_delta_raw"),

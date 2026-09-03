@@ -89,8 +89,6 @@ closed_role_enum! {
         ProcessEnvironmentCount,
         ProcessEnvironmentName,
         ProcessEnvironmentValue,
-        /// Reads the opaque inherited environment-vector address retained by process entry.
-        ProcessEnvironmentVector,
         /// Performs one instruction-ordered observation of the current 64-bit value from a process
         /// monotonic-counter domain.
         MonotonicCounterRead,
@@ -164,7 +162,6 @@ impl PrimitiveRole {
             Self::ProcessEnvironmentCount => "process_environment_count",
             Self::ProcessEnvironmentName => "process_environment_name",
             Self::ProcessEnvironmentValue => "process_environment_value",
-            Self::ProcessEnvironmentVector => "process_environment_vector",
             Self::MonotonicCounterRead => "monotonic_counter_read",
             Self::MonotonicCounterFrequency => "monotonic_counter_frequency",
             Self::MonotonicCounterDelta => "monotonic_counter_delta",

@@ -6,19 +6,16 @@
 use /mem.TryAllocator
 use /string.String
 use /vec.Vec
-see ./capture_darwin.nct
-see ./capture_launch_darwin.nct
-see ./capture_launch_tests_darwin.nct
-see ./capture_session_darwin.nct
-see ./capture_session_tests_darwin.nct
-see ./capture_tests_darwin.nct
+see ./command_child_darwin.nct
+see ./command_io_darwin.nct
+see ./command_io_session_darwin.nct
+see ./command_io_tests_darwin.nct
 see ./configuration.nct
 see ./darwin.nct
 see ./command.nct
 see ./command_darwin.nct
 see ./launch_plan_darwin.nct
 see ./launch_report_darwin.nct
-see ./launch_report_tests_darwin.nct
 see ./pipe_darwin.nct
 see ./pipe_tests_darwin.nct
 see ./subprocess_darwin.nct
@@ -49,6 +46,21 @@ construct Command {
 instance Command {
     /// Appends one exact argument after copying and validating it.
     pub method &+self.arg(value: &str): void!
+
+    /// Sets the working directory used before executable replacement.
+    pub method &+self.current_dir(path: &str): void!
+
+    /// Sets one exact child environment value, replacing an equal name.
+    pub method &+self.env(name: &str, value: &str): void!
+
+    /// Removes one child environment name if inherited or explicitly set.
+    pub method &+self.remove_env(name: &str): void!
+
+    /// Removes every inherited and explicitly configured environment entry.
+    pub method &+self.clear_env(): void
+
+    /// Copies finite bytes that replace inherited standard input.
+    pub method &+self.input(value: &[u8]): void
 
     /// Launches the command, waits for its child, and consumes all command storage.
     pub method self.status(): ExitStatus!

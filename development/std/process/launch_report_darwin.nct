@@ -12,7 +12,9 @@ use /ptr
 #target: "arm64-darwin"
 enum LaunchReportAttempt {
     executed
-    setup_rejected(errno: i32)
+    input_setup_rejected(errno: i32)
+    output_setup_rejected(errno: i32)
+    directory_rejected(errno: i32)
     exec_rejected(errno: i32)
     channel_failed(errno: i32)
     malformed
@@ -28,10 +30,16 @@ copy struct LaunchFailurePayload {
 const LAUNCH_REPORT_BYTES: usize = 8
 
 #target: "arm64-darwin"
-const LAUNCH_STAGE_SETUP: i32 = 1
+const LAUNCH_STAGE_INPUT_SETUP: i32 = 1
 
 #target: "arm64-darwin"
-const LAUNCH_STAGE_EXEC: i32 = 2
+const LAUNCH_STAGE_OUTPUT_SETUP: i32 = 2
+
+#target: "arm64-darwin"
+const LAUNCH_STAGE_DIRECTORY: i32 = 3
+
+#target: "arm64-darwin"
+const LAUNCH_STAGE_EXEC: i32 = 4
 
 #target: "arm64-darwin"
 noalloc func write_launch_failure_and_exit(
@@ -59,23 +67,6 @@ noalloc func write_launch_failure_and_exit(
     }
     close_pipe_write(report)
     exit_raw(127)
-}
-
-#target: "arm64-darwin"
-noalloc func exec_child(
-    path_address: usize,
-    argv_address: usize,
-    environment_address: usize,
-    report: OwnedPipe,
-): never {
-    var channel = move report
-    close_pipe_read(&+channel)
-    exec_child_after_setup(
-        path_address,
-        argv_address,
-        environment_address,
-        &+channel,
-    )
 }
 
 #target: "arm64-darwin"
@@ -121,8 +112,14 @@ noalloc func read_launch_report(report: OwnedPipe): LaunchReportAttempt {
         }
     }
     if payload.errno == 0 { return LaunchReportAttempt.malformed }
-    if payload.stage == LAUNCH_STAGE_SETUP {
-        return LaunchReportAttempt.setup_rejected(payload.errno)
+    if payload.stage == LAUNCH_STAGE_INPUT_SETUP {
+        return LaunchReportAttempt.input_setup_rejected(payload.errno)
+    }
+    if payload.stage == LAUNCH_STAGE_OUTPUT_SETUP {
+        return LaunchReportAttempt.output_setup_rejected(payload.errno)
+    }
+    if payload.stage == LAUNCH_STAGE_DIRECTORY {
+        return LaunchReportAttempt.directory_rejected(payload.errno)
     }
     if payload.stage == LAUNCH_STAGE_EXEC {
         return LaunchReportAttempt.exec_rejected(payload.errno)

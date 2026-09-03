@@ -283,10 +283,6 @@ fn emit_instruction(
         Arm64SelectedInstruction::ReadProcessEnvironmentValue => {
             crate::process_code::emit_environment_value(code)
         }
-        Arm64SelectedInstruction::ReadProcessEnvironmentVector => {
-            crate::process_code::emit_environment_vector(code);
-            Ok(())
-        }
     }
 }
 

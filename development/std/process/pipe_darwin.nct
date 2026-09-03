@@ -24,6 +24,12 @@ enum PipeAttempt {
 }
 
 #target: "arm64-darwin"
+enum PipeConfigurationAttempt {
+    ready
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
 enum DescriptorInstallAttempt {
     ready
     failed(errno: i32)
@@ -103,6 +109,11 @@ noalloc func pipe_read_is_open(pipe: &OwnedPipe): bool {
 }
 
 #target: "arm64-darwin"
+noalloc func pipe_write_is_open(pipe: &OwnedPipe): bool {
+    return pipe.write_open
+}
+
+#target: "arm64-darwin"
 noalloc func close_pipe_read(pipe: &+OwnedPipe): void {
     if pipe.read_open {
         close_raw_fd(pipe.read_fd)
@@ -118,6 +129,26 @@ noalloc func close_pipe_write(pipe: &+OwnedPipe): void {
         pipe.write_open = false
     }
     return
+}
+
+#target: "arm64-darwin"
+noalloc func suppress_pipe_writer_sigpipe(pipe: &OwnedPipe): PipeConfigurationAttempt {
+    var result = darwin.syscall3(
+        darwin.SYS_FCNTL,
+        pipe_write_fd(pipe),
+        darwin.F_SETNOSIGPIPE,
+        1,
+    )
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(
+            darwin.SYS_FCNTL,
+            pipe_write_fd(pipe),
+            darwin.F_SETNOSIGPIPE,
+            1,
+        )
+    }
+    if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
+    return PipeConfigurationAttempt.ready
 }
 
 #target: "arm64-darwin"

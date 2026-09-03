@@ -4,6 +4,7 @@
 //! and copied finite input. Pointer-vector construction and target setup remain separate.
 
 see ./command.nct
+see ./index.nct
 
 use /internal/mem as internal_mem
 use /internal/ptr

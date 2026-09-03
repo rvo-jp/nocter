@@ -280,7 +280,6 @@ fn primitive_uses_context(kind: MachineContextKind, role: PrimitiveRole) -> bool
                 | PrimitiveRole::ProcessEnvironmentCount
                 | PrimitiveRole::ProcessEnvironmentName
                 | PrimitiveRole::ProcessEnvironmentValue
-                | PrimitiveRole::ProcessEnvironmentVector
         ),
     }
 }

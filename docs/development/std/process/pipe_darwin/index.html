@@ -219,6 +219,12 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">PipeConfigurationAttempt</span> <span class="token-operator">{</span>
+    ready
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">enum</span> <span class="token-type">DescriptorInstallAttempt</span> <span class="token-operator">{</span>
     ready
     <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
@@ -298,6 +304,11 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">pipe_write_is_open</span><span class="token-operator">(</span>pipe<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">OwnedPipe</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> pipe<span class="token-operator">.</span>write_open
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">close_pipe_read</span><span class="token-operator">(</span>pipe<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> pipe<span class="token-operator">.</span>read_open <span class="token-operator">{</span>
         <span class="token-function">close_raw_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">.</span>read_fd<span class="token-operator">)</span>
@@ -313,6 +324,26 @@
         pipe<span class="token-operator">.</span>write_open <span class="token-operator">=</span> <span class="token-keyword">false</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">suppress_pipe_writer_sigpipe</span><span class="token-operator">(</span>pipe<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">OwnedPipe</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">PipeConfigurationAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_FCNTL</span><span class="token-operator">,</span>
+        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">F_SETNOSIGPIPE</span><span class="token-operator">,</span>
+        <span class="token-number">1</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_FCNTL</span><span class="token-operator">,</span>
+            <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+            darwin<span class="token-operator">.</span><span class="token-type">F_SETNOSIGPIPE</span><span class="token-operator">,</span>
+            <span class="token-number">1</span><span class="token-operator">,</span>
+        <span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span>ready
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
