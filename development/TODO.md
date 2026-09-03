@@ -48,9 +48,15 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Define the next practical application boundary before changing compiler or standard-library
-behavior. Preserve the v0.31.0 release record as immutable evidence; any correction requires a new
-version, candidate, tag, and archive.
+Implement [v0.32.0](milestones/v0.32.0.md) as one complete configured synchronous-command release.
+Phase 0 has fixed the public contract and Darwin feasibility. Phase 1 must add owned environment,
+working-directory, and input configuration plus one prepared launch plan without changing the
+compiler. Later phases generalize the command I/O session, qualify every configuration with both
+terminal methods, integrate one public example, and close the entire practical use case before
+release preparation.
+
+Preserve the v0.31.0 release record as immutable evidence; any correction requires a new version,
+candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.32.0: Complete Configured Synchronous Subprocesses](v0.32.0.md)
 - [v0.31.0: Captured Synchronous Subprocess Output](v0.31.0.md)
 - [v0.31.0 Release Preparation](v0.31.0-release-preparation.md)
 - [v0.30.0: Synchronous Subprocess Execution](v0.30.0.md)
