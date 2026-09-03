@@ -43,9 +43,13 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Define the next coherent practical or language boundary before changing compiler or standard-
-library behavior. Preserve the v0.33.0 release record as immutable evidence; any correction
-requires a new version, candidate, tag, and archive.
+Implement [v0.34.0](milestones/v0.34.0.md) from its completed Phase 0 Unicode-scalar authority
+design. Phase 1 must first close character and the already incomplete byte literal pipeline through
+syntax-owned decoded values, then carry distinct `char` identity through constants, runtime shape,
+layout, ABI, and ARM64. Do not add `Chars` until that scalar product is complete.
+
+Preserve the v0.33.0 release record as immutable evidence; any correction requires a new version,
+candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred

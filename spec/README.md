@@ -50,6 +50,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Captured Subprocess Output](31-subprocess-output.md) — v0.31.0 standard-library contract
 - [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 standard-library contract
 - [Tuples](33-tuples.md) — v0.33.0 language contract
+- [Unicode Scalar Values](34-unicode-scalars.md) — v0.34.0 future direction
 
 ## Supporting Material
 
@@ -71,7 +72,8 @@ adds the owning synchronous-subprocess contract. v0.31.0 adds simultaneous stdou
 capture to that closed synchronous lifecycle. v0.32.0 completes configured commands with child
 environment, working-directory, and finite-input ownership. v0.33.0 adds structural tuple types,
 values, decimal projections, and recursive local-binding patterns. Publication status belongs to
-the release index.
+the release index. The [v0.34.0 Unicode-scalar chapter](34-unicode-scalars.md) is explicitly marked
+as future direction until its complete language and standard-library implementation is qualified.
 Implementation phases and qualification evidence belong only to contributor records and are
 intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository

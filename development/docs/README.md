@@ -26,6 +26,7 @@ milestones, not in current design documents.
 - [Associative Collection Implementation Boundary](associative-collection-implementation.md)
 - [JSON Implementation Boundary](json-implementation.md)
 - [Tuple Representation Boundary](tuple-design.md)
+- [Unicode Scalar Representation Boundary](unicode-scalar-design.md)
 
 ## Maintenance Contracts
 
