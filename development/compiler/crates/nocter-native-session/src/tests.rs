@@ -907,6 +907,125 @@ func main(): i32 {{
 }
 
 #[test]
+fn configured_subprocess_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let workspace = package_root.0.join("configured-workspace");
+    let inherited_helper = package_root.0.join("inherited-helper");
+    let transfer_helper = package_root.0.join("transfer-helper");
+    let empty_helper = package_root.0.join("empty-input-helper");
+    let early_close_helper = package_root.0.join("early-close-helper");
+    let missing_directory = package_root.0.join("missing-directory");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/process.Command
+use std/vec.Vec
+
+func repeated(byte: u8, count: usize): Vec<u8> {{
+    var bytes: Vec<u8> = Vec.with_capacity(count)
+    var index: usize = 0
+    while index < count {{
+        bytes.push(byte)
+        index += 1
+    }}
+    return move bytes
+}}
+
+noalloc func range_matches(bytes: &[u8], start: usize, count: usize, byte: u8): bool {{
+    if start + count > bytes.len() {{ return false }}
+    var index: usize = 0
+    while index < count {{
+        if bytes[start + index] != byte {{ return false }}
+        index += 1
+    }}
+    return true
+}}
+
+func status_fails_with(command: Command, code: &str): bool {{
+    let _status = command.status() catch failure {{ return failure.has_code(code) }}
+    return false
+}}
+
+func output_fails_with(command: Command, code: &str): bool {{
+    let _output = command.output() catch failure {{ return failure.has_code(code) }}
+    return false
+}}
+
+func main(): i32 {{
+    var exact = Command.new("./environment-helper") catch _ {{ return 1 }}
+    exact.current_dir("{}") catch _ {{ return 2 }}
+    exact.clear_env()
+    exact.env("KEEP", "first") catch _ {{ return 3 }}
+    exact.env("KEEP", "final=value") catch _ {{ return 4 }}
+    exact.env("REMOVE", "present") catch _ {{ return 5 }}
+    exact.remove_env("REMOVE") catch _ {{ return 6 }}
+    let exact_status = exact.status() catch _ {{ return 7 }}
+    if !exact_status.success() {{
+        return exact_status.code() otherwise {{ return 8 }}
+    }}
+
+    var inherited = Command.new("{}") catch _ {{ return 9 }}
+    inherited.env("NOCTER_CHANGED", "child=value") catch _ {{ return 10 }}
+    inherited.remove_env("NOCTER_REMOVED") catch _ {{ return 11 }}
+    let inherited_status = inherited.status() catch _ {{ return 12 }}
+    if !inherited_status.success() {{
+        return inherited_status.code() otherwise {{ return 13 }}
+    }}
+
+    let input_byte: u8 = 73
+    let stdout_byte: u8 = 79
+    let stderr_byte: u8 = 69
+    let transfer_count: usize = 131072
+    let input = repeated(input_byte, transfer_count)
+    var transfer = Command.new("{}") catch _ {{ return 14 }}
+    transfer.input(&input)
+    let output = transfer.output() catch _ {{ return 15 }}
+    if !output.status.success() || output.stdout.len() != transfer_count * 2
+        || output.stderr.len() != transfer_count {{ return 16 }}
+    if !range_matches(&output.stdout, 0, transfer_count, stdout_byte)
+        || !range_matches(&output.stdout, transfer_count, transfer_count, input_byte)
+        || !range_matches(&output.stderr, 0, transfer_count, stderr_byte) {{ return 17 }}
+
+    let empty: Vec<u8> = Vec.empty()
+    var empty_command = Command.new("{}") catch _ {{ return 18 }}
+    empty_command.input(&empty)
+    let empty_status = empty_command.status() catch _ {{ return 19 }}
+    if !empty_status.success() {{ return 20 }}
+
+    let early_bytes = repeated(input_byte, 1048576)
+    var early = Command.new("{}") catch _ {{ return 21 }}
+    early.input(&early_bytes)
+    let early_output = early.output() catch _ {{ return 22 }}
+    if !early_output.status.success() || early_output.stdout.len() != 0
+        || early_output.stderr.len() != 0 {{ return 23 }}
+
+    var bad_directory = Command.new("./never-executed") catch _ {{ return 24 }}
+    bad_directory.current_dir("{}") catch _ {{ return 25 }}
+    if !status_fails_with(move bad_directory, "std.process.current_directory_failed") {{ return 26 }}
+
+    var bad_output_directory = Command.new("./never-executed") catch _ {{ return 27 }}
+    bad_output_directory.current_dir("{}") catch _ {{ return 28 }}
+    if !output_fails_with(move bad_output_directory, "std.process.current_directory_failed") {{
+        return 29
+    }}
+    return 0
+}}
+"#,
+            workspace.display(),
+            inherited_helper.display(),
+            transfer_helper.display(),
+            empty_helper.display(),
+            early_close_helper.display(),
+            missing_directory.display(),
+            missing_directory.display(),
+        ),
+    );
+    compile_and_execute_configured_subprocess(&package_root.0, &standard_root);
+}
+
+#[test]
 fn standard_process_internal_contracts_cross_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
@@ -950,7 +1069,7 @@ fn standard_process_internal_contracts_cross_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 12);
+    assert_eq!(case_count, 13);
 }
 
 #[test]
@@ -1096,6 +1215,20 @@ fn compile_and_execute_subprocess_output(package_root: &Path, standard_root: &Pa
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_subprocess_output_contract(image.image(), package_root);
+}
+
+fn compile_and_execute_configured_subprocess(package_root: &Path, standard_root: &Path) {
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.join("main.nct"),
+        package_graph(vec![resolved_standard(standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_configured_subprocess_contract(image.image(), package_root);
 }
 
 #[test]
@@ -2942,6 +3075,90 @@ fn execute_subprocess_output_contract(image: &NativeImage, root: &Path) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_configured_subprocess_contract(image: &NativeImage, root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join("configured-subprocess-contract");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let workspace = root.join("configured-workspace");
+    fs::create_dir(&workspace).unwrap();
+    let environment_helper = workspace.join("environment-helper");
+    fs::write(
+        &environment_helper,
+        concat!(
+            "#!/bin/sh\n",
+            "[ -f ./working-directory-marker ] || exit 31\n",
+            "[ \"$KEEP\" = \"final=value\" ] || exit 32\n",
+            "[ \"${REMOVE+x}\" = \"\" ] || exit 33\n",
+            "[ \"${NOCTER_INHERITED+x}\" = \"\" ] || exit 34\n",
+            "exit 0\n",
+        ),
+    )
+    .unwrap();
+    fs::write(workspace.join("working-directory-marker"), "ready\n").unwrap();
+    fs::set_permissions(&environment_helper, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let inherited_helper = root.join("inherited-helper");
+    fs::write(
+        &inherited_helper,
+        concat!(
+            "#!/bin/sh\n",
+            "[ \"$NOCTER_INHERITED\" = \"parent\" ] || exit 41\n",
+            "[ \"$NOCTER_CHANGED\" = \"child=value\" ] || exit 42\n",
+            "[ \"${NOCTER_REMOVED+x}\" = \"\" ] || exit 43\n",
+            "exit 0\n",
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&inherited_helper, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let transfer_helper = root.join("transfer-helper");
+    fs::write(
+        &transfer_helper,
+        concat!(
+            "#!/bin/sh\n",
+            "i=0\n",
+            "while [ \"$i\" -lt 2048 ]; do\n",
+            "  printf 'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO'\n",
+            "  printf 'EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE' >&2\n",
+            "  i=$((i + 1))\n",
+            "done\n",
+            "/bin/cat\n",
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&transfer_helper, fs::Permissions::from_mode(0o755)).unwrap();
+
+    for (name, source) in [
+        (
+            "empty-input-helper",
+            "#!/bin/sh\nif IFS= read -r line; then exit 51; fi\nexit 0\n",
+        ),
+        ("early-close-helper", "#!/bin/sh\nexit 0\n"),
+    ] {
+        let helper = root.join(name);
+        fs::write(&helper, source).unwrap();
+        fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .env("NOCTER_INHERITED", "parent")
+        .env("NOCTER_CHANGED", "parent")
+        .env("NOCTER_REMOVED", "parent")
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "configured subprocess contract exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_subprocess_lifecycle_contract(image: &NativeImage, root: &Path) {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
@@ -3012,6 +3229,9 @@ fn execute_subprocess_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_output_contract(_image: &NativeImage, _root: &Path) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_configured_subprocess_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_lifecycle_contract(_image: &NativeImage, _root: &Path) {}

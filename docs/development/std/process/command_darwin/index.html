@@ -225,6 +225,26 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CommandOutputMode</span> <span class="token-operator">{</span>
+    inherited
+    captured
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CompletedCommand</span> <span class="token-operator">{</span>
+    <span class="token-function">status</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">)</span>
+    <span class="token-function">output</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">captures_command_output</span><span class="token-operator">(</span>mode<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">CommandOutputMode</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> mode <span class="token-operator">{</span>
+        <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">false</span> <span class="token-operator">}</span>
+        <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>captured <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">true</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">spawn_failed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> error <span class="token-operator">{</span>
     <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.spawn_failed"</span><span class="token-operator">,</span> <span class="token-string">"child process creation failed"</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
@@ -347,39 +367,41 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">run_command</span><span class="token-operator">(</span>command<span class="token-operator">:</span> <span class="token-type">Command</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">match</span> <span class="token-function">fork_prepared_command</span><span class="token-operator">(</span><span class="token-keyword">move</span> command<span class="token-operator">,</span> <span class="token-keyword">false</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
-        <span class="token-type">CommandFork</span><span class="token-operator">.</span><span class="token-function">child</span><span class="token-operator">(</span>prepared<span class="token-operator">,</span> report<span class="token-operator">,</span> io<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-function">exec_command_child</span><span class="token-operator">(</span>
-                <span class="token-function">prepared_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>prepared<span class="token-operator">)</span><span class="token-operator">,</span>
-                <span class="token-function">prepared_argv_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>prepared<span class="token-operator">)</span><span class="token-operator">,</span>
-                <span class="token-function">prepared_environment_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>prepared<span class="token-operator">)</span><span class="token-operator">,</span>
-                <span class="token-function">prepared_working_directory_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>prepared<span class="token-operator">)</span><span class="token-operator">,</span>
-                <span class="token-keyword">move</span> report<span class="token-operator">,</span>
-                <span class="token-keyword">move</span> io<span class="token-operator">,</span>
-            <span class="token-operator">)</span>
+<span class="token-keyword">func</span> <span class="token-function">complete_command_observation</span><span class="token-operator">(</span>
+    observation<span class="token-operator">:</span> <span class="token-type">CommandObservation</span><span class="token-operator">,</span>
+    mode<span class="token-operator">:</span> <span class="token-type">CommandOutputMode</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CompletedCommand</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> <span class="token-keyword">move</span> observation
+    <span class="token-function">require_successful_launch</span><span class="token-operator">(</span><span class="token-keyword">move</span> result<span class="token-operator">.</span>launch<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>io<span class="token-operator">.</span>capture_failed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>io<span class="token-operator">.</span>input_failed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">input_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-keyword">move</span> result<span class="token-operator">.</span>io<span class="token-operator">.</span>output <span class="token-operator">{</span>
+        <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> mode <span class="token-operator">{</span>
+                <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> <span class="token-type">CompletedCommand</span><span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span>result<span class="token-operator">.</span>status<span class="token-operator">)</span>
+                <span class="token-operator">}</span>
+                <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>captured <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+            <span class="token-operator">}</span>
         <span class="token-operator">}</span>
-        <span class="token-type">CommandFork</span><span class="token-operator">.</span><span class="token-function">parent</span><span class="token-operator">(</span>prepared<span class="token-operator">,</span> pid<span class="token-operator">,</span> report<span class="token-operator">,</span> io<span class="token-operator">)</span> <span class="token-operator">{</span>
-            <span class="token-keyword">let</span> observation <span class="token-operator">=</span> <span class="token-function">observe_command_parent</span><span class="token-operator">(</span>
-                <span class="token-keyword">move</span> prepared<span class="token-operator">,</span>
-                pid<span class="token-operator">,</span>
-                <span class="token-keyword">move</span> report<span class="token-operator">,</span>
-                <span class="token-keyword">move</span> io<span class="token-operator">,</span>
-            <span class="token-operator">)</span><span class="token-operator">?</span>
-            <span class="token-function">require_successful_launch</span><span class="token-operator">(</span><span class="token-keyword">move</span> observation<span class="token-operator">.</span>launch<span class="token-operator">)</span><span class="token-operator">?</span>
-            <span class="token-keyword">if</span> observation<span class="token-operator">.</span>io<span class="token-operator">.</span>capture_failed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
-            <span class="token-keyword">if</span> observation<span class="token-operator">.</span>io<span class="token-operator">.</span>input_failed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">input_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
-            <span class="token-keyword">match</span> <span class="token-keyword">move</span> observation<span class="token-operator">.</span>io<span class="token-operator">.</span>output <span class="token-operator">{</span>
-                <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> observation<span class="token-operator">.</span>status <span class="token-operator">}</span>
-                <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span><span class="token-function">captured</span><span class="token-operator">(</span>_<span class="token-operator">,</span> _<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span><span class="token-function">captured</span><span class="token-operator">(</span>stdout<span class="token-operator">,</span> stderr<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> mode <span class="token-operator">{</span>
+                <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+                <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>captured <span class="token-operator">{</span>
+                    <span class="token-keyword">return</span> <span class="token-type">CompletedCommand</span><span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-type">Output</span> <span class="token-operator">{</span>
+                        status<span class="token-operator">:</span> result<span class="token-operator">.</span>status<span class="token-operator">,</span>
+                        stdout<span class="token-operator">:</span> <span class="token-keyword">move</span> stdout<span class="token-operator">,</span>
+                        stderr<span class="token-operator">:</span> <span class="token-keyword">move</span> stderr<span class="token-operator">,</span>
+                    <span class="token-operator">}</span><span class="token-operator">)</span>
+                <span class="token-operator">}</span>
             <span class="token-operator">}</span>
         <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">func</span> <span class="token-function">output_command</span><span class="token-operator">(</span>command<span class="token-operator">:</span> <span class="token-type">Command</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">match</span> <span class="token-function">fork_prepared_command</span><span class="token-operator">(</span><span class="token-keyword">move</span> command<span class="token-operator">,</span> <span class="token-keyword">true</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+<span class="token-keyword">func</span> <span class="token-function">execute_command</span><span class="token-operator">(</span>command<span class="token-operator">:</span> <span class="token-type">Command</span><span class="token-operator">,</span> mode<span class="token-operator">:</span> <span class="token-type">CommandOutputMode</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CompletedCommand</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> <span class="token-function">fork_prepared_command</span><span class="token-operator">(</span><span class="token-keyword">move</span> command<span class="token-operator">,</span> <span class="token-function">captures_command_output</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>mode<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
         <span class="token-type">CommandFork</span><span class="token-operator">.</span><span class="token-function">child</span><span class="token-operator">(</span>prepared<span class="token-operator">,</span> report<span class="token-operator">,</span> io<span class="token-operator">)</span> <span class="token-operator">{</span>
             <span class="token-function">exec_command_child</span><span class="token-operator">(</span>
                 <span class="token-function">prepared_path_address</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>prepared<span class="token-operator">)</span><span class="token-operator">,</span>
@@ -397,20 +419,24 @@
                 <span class="token-keyword">move</span> report<span class="token-operator">,</span>
                 <span class="token-keyword">move</span> io<span class="token-operator">,</span>
             <span class="token-operator">)</span><span class="token-operator">?</span>
-            <span class="token-function">require_successful_launch</span><span class="token-operator">(</span><span class="token-keyword">move</span> observation<span class="token-operator">.</span>launch<span class="token-operator">)</span><span class="token-operator">?</span>
-            <span class="token-keyword">if</span> observation<span class="token-operator">.</span>io<span class="token-operator">.</span>capture_failed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
-            <span class="token-keyword">if</span> observation<span class="token-operator">.</span>io<span class="token-operator">.</span>input_failed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">input_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
-            <span class="token-keyword">match</span> <span class="token-keyword">move</span> observation<span class="token-operator">.</span>io<span class="token-operator">.</span>output <span class="token-operator">{</span>
-                <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span>inherited <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
-                <span class="token-type">CapturedCommandOutput</span><span class="token-operator">.</span><span class="token-function">captured</span><span class="token-operator">(</span>stdout<span class="token-operator">,</span> stderr<span class="token-operator">)</span> <span class="token-operator">{</span>
-                    <span class="token-keyword">return</span> <span class="token-type">Output</span> <span class="token-operator">{</span>
-                        status<span class="token-operator">:</span> observation<span class="token-operator">.</span>status<span class="token-operator">,</span>
-                        stdout<span class="token-operator">:</span> <span class="token-keyword">move</span> stdout<span class="token-operator">,</span>
-                        stderr<span class="token-operator">:</span> <span class="token-keyword">move</span> stderr<span class="token-operator">,</span>
-                    <span class="token-operator">}</span>
-                <span class="token-operator">}</span>
-            <span class="token-operator">}</span>
+            <span class="token-keyword">return</span> <span class="token-function">complete_command_observation</span><span class="token-operator">(</span><span class="token-keyword">move</span> observation<span class="token-operator">,</span> mode<span class="token-operator">)</span><span class="token-operator">?</span>
         <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">run_command</span><span class="token-operator">(</span>command<span class="token-operator">:</span> <span class="token-type">Command</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> <span class="token-function">execute_command</span><span class="token-operator">(</span><span class="token-keyword">move</span> command<span class="token-operator">,</span> <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>inherited<span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-type">CompletedCommand</span><span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span>status<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> status <span class="token-operator">}</span>
+        <span class="token-type">CompletedCommand</span><span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">func</span> <span class="token-function">output_command</span><span class="token-operator">(</span>command<span class="token-operator">:</span> <span class="token-type">Command</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">match</span> <span class="token-function">execute_command</span><span class="token-operator">(</span><span class="token-keyword">move</span> command<span class="token-operator">,</span> <span class="token-type">CommandOutputMode</span><span class="token-operator">.</span>captured<span class="token-operator">)</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+        <span class="token-type">CompletedCommand</span><span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-function">capture_failed</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">CompletedCommand</span><span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span>output<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">move</span> output <span class="token-operator">}</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 

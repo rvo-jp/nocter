@@ -327,7 +327,7 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">suppress_pipe_writer_sigpipe</span><span class="token-operator">(</span>pipe<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">OwnedPipe</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">PipeConfigurationAttempt</span> <span class="token-operator">{</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">configure_pipe_writer_for_async_io</span><span class="token-operator">(</span>pipe<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">OwnedPipe</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">PipeConfigurationAttempt</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
         darwin<span class="token-operator">.</span><span class="token-type">SYS_FCNTL</span><span class="token-operator">,</span>
         <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
@@ -340,6 +340,41 @@
             <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
             darwin<span class="token-operator">.</span><span class="token-type">F_SETNOSIGPIPE</span><span class="token-operator">,</span>
             <span class="token-number">1</span><span class="token-operator">,</span>
+        <span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+
+    <span class="token-keyword">var</span> flags <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_FCNTL</span><span class="token-operator">,</span>
+        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">F_GETFL</span><span class="token-operator">,</span>
+        <span class="token-number">0</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-keyword">while</span> flags<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        flags <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_FCNTL</span><span class="token-operator">,</span>
+            <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+            darwin<span class="token-operator">.</span><span class="token-type">F_GETFL</span><span class="token-operator">,</span>
+            <span class="token-number">0</span><span class="token-operator">,</span>
+        <span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> flags<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>flags<span class="token-operator">.</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> configured_flags <span class="token-operator">=</span> flags<span class="token-operator">.</span>value
+    <span class="token-keyword">if</span> configured_flags <span class="token-operator">/</span> darwin<span class="token-operator">.</span><span class="token-type">O_NONBLOCK</span> % <span class="token-number">2</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        configured_flags <span class="token-operator">+</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">O_NONBLOCK</span>
+    <span class="token-operator">}</span>
+    result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_FCNTL</span><span class="token-operator">,</span>
+        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">F_SETFL</span><span class="token-operator">,</span>
+        configured_flags<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-keyword">while</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span>
+        result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+            darwin<span class="token-operator">.</span><span class="token-type">SYS_FCNTL</span><span class="token-operator">,</span>
+            <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+            darwin<span class="token-operator">.</span><span class="token-type">F_SETFL</span><span class="token-operator">,</span>
+            configured_flags<span class="token-operator">,</span>
         <span class="token-operator">)</span>
     <span class="token-operator">}</span>
     <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>

@@ -33,6 +33,13 @@ test command_io_classification_preserves_direction_and_broken_pipe {
         CommandIoWriteAttempt.malformed {}
         _ { return error.new("std.process.test", "oversized write became progress") }
     }
+    match classify_command_io_write(
+        SyscallResult { value: 0, errno: darwin.ERRNO_WOULD_BLOCK },
+        1,
+    ) {
+        CommandIoWriteAttempt.would_block {}
+        _ { return error.new("std.process.test", "would-block write changed classification") }
+    }
     return
 }
 
@@ -43,9 +50,9 @@ test command_io_poll_observes_writer_and_reader_together {
         }
         PipeAttempt.ready(input_pipe) {
             var input = move input_pipe
-            match suppress_pipe_writer_sigpipe(&input) {
+            match configure_pipe_writer_for_async_io(&input) {
                 PipeConfigurationAttempt.failed(_) {
-                    return error.new("std.process.test", "SIGPIPE suppression failed")
+                    return error.new("std.process.test", "asynchronous writer configuration failed")
                 }
                 PipeConfigurationAttempt.ready {}
             }

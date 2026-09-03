@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.32.0 Phase 3 Native Lifecycle Review](v0.32.0-phase-3.md)
 - [v0.32.0 Phase 2 Unified Command-I/O Review](v0.32.0-phase-2.md)
 - [v0.32.0 Phase 1 Owned Configuration and Prepared-plan Review](v0.32.0-phase-1.md)
 - [v0.32.0 Phase 0 Configured-subprocess Design Review](v0.32.0-phase-0.md)

@@ -30,6 +30,26 @@ struct CommandObservation {
 }
 
 #target: "arm64-darwin"
+enum CommandOutputMode {
+    inherited
+    captured
+}
+
+#target: "arm64-darwin"
+enum CompletedCommand {
+    status(value: ExitStatus)
+    output(value: Output)
+}
+
+#target: "arm64-darwin"
+noalloc func captures_command_output(mode: &CommandOutputMode): bool {
+    match mode {
+        CommandOutputMode.inherited { return false }
+        CommandOutputMode.captured { return true }
+    }
+}
+
+#target: "arm64-darwin"
 noalloc func spawn_failed(): error {
     return error.new("std.process.spawn_failed", "child process creation failed")
 }
@@ -152,39 +172,41 @@ func fork_prepared_command(command: Command, captures_output: bool): CommandFork
 }
 
 #target: "arm64-darwin"
-func run_command(command: Command): ExitStatus! {
-    match fork_prepared_command(move command, false)? {
-        CommandFork.child(prepared, report, io) {
-            exec_command_child(
-                prepared_path_address(&prepared),
-                prepared_argv_address(&prepared),
-                prepared_environment_address(&prepared),
-                prepared_working_directory_address(&prepared),
-                move report,
-                move io,
-            )
+func complete_command_observation(
+    observation: CommandObservation,
+    mode: CommandOutputMode,
+): CompletedCommand! {
+    let result = move observation
+    require_successful_launch(move result.launch)?
+    if result.io.capture_failed { return capture_failed() }
+    if result.io.input_failed { return input_failed() }
+    match move result.io.output {
+        CapturedCommandOutput.inherited {
+            match mode {
+                CommandOutputMode.inherited {
+                    return CompletedCommand.status(result.status)
+                }
+                CommandOutputMode.captured { return capture_failed() }
+            }
         }
-        CommandFork.parent(prepared, pid, report, io) {
-            let observation = observe_command_parent(
-                move prepared,
-                pid,
-                move report,
-                move io,
-            )?
-            require_successful_launch(move observation.launch)?
-            if observation.io.capture_failed { return capture_failed() }
-            if observation.io.input_failed { return input_failed() }
-            match move observation.io.output {
-                CapturedCommandOutput.inherited { return observation.status }
-                CapturedCommandOutput.captured(_, _) { return capture_failed() }
+        CapturedCommandOutput.captured(stdout, stderr) {
+            match mode {
+                CommandOutputMode.inherited { return capture_failed() }
+                CommandOutputMode.captured {
+                    return CompletedCommand.output(Output {
+                        status: result.status,
+                        stdout: move stdout,
+                        stderr: move stderr,
+                    })
+                }
             }
         }
     }
 }
 
 #target: "arm64-darwin"
-func output_command(command: Command): Output! {
-    match fork_prepared_command(move command, true)? {
+func execute_command(command: Command, mode: CommandOutputMode): CompletedCommand! {
+    match fork_prepared_command(move command, captures_command_output(&mode))? {
         CommandFork.child(prepared, report, io) {
             exec_command_child(
                 prepared_path_address(&prepared),
@@ -202,20 +224,24 @@ func output_command(command: Command): Output! {
                 move report,
                 move io,
             )?
-            require_successful_launch(move observation.launch)?
-            if observation.io.capture_failed { return capture_failed() }
-            if observation.io.input_failed { return input_failed() }
-            match move observation.io.output {
-                CapturedCommandOutput.inherited { return capture_failed() }
-                CapturedCommandOutput.captured(stdout, stderr) {
-                    return Output {
-                        status: observation.status,
-                        stdout: move stdout,
-                        stderr: move stderr,
-                    }
-                }
-            }
+            return complete_command_observation(move observation, mode)?
         }
+    }
+}
+
+#target: "arm64-darwin"
+func run_command(command: Command): ExitStatus! {
+    match execute_command(move command, CommandOutputMode.inherited)? {
+        CompletedCommand.status(status) { return status }
+        CompletedCommand.output(_) { return capture_failed() }
+    }
+}
+
+#target: "arm64-darwin"
+func output_command(command: Command): Output! {
+    match execute_command(move command, CommandOutputMode.captured)? {
+        CompletedCommand.status(_) { return capture_failed() }
+        CompletedCommand.output(output) { return move output }
     }
 }
 

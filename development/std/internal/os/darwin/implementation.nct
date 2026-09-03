@@ -176,6 +176,9 @@ const ERRNO_INTERRUPTED: i32 = 4
 const ERRNO_BROKEN_PIPE: i32 = 32
 
 #target: "arm64-darwin"
+const ERRNO_WOULD_BLOCK: i32 = 35
+
+#target: "arm64-darwin"
 const SYS_FCNTL: usize = 0x0200005c
 
 #target: "arm64-darwin"
@@ -185,10 +188,19 @@ const F_GETPATH: usize = 50
 const F_GETFD: usize = 1
 
 #target: "arm64-darwin"
+const F_GETFL: usize = 3
+
+#target: "arm64-darwin"
+const F_SETFL: usize = 4
+
+#target: "arm64-darwin"
 const F_DUPFD_CLOEXEC: usize = 67
 
 #target: "arm64-darwin"
 const F_SETNOSIGPIPE: usize = 73
+
+#target: "arm64-darwin"
+const O_NONBLOCK: usize = 4
 
 #target: "arm64-darwin"
 const FD_CLOEXEC: usize = 1

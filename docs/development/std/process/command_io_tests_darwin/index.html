@@ -228,6 +228,13 @@
         <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span><span class="token-operator">}</span>
         _ <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"oversized write became progress"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
     <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-function">classify_command_io_write</span><span class="token-operator">(</span>
+        <span class="token-type">SyscallResult</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span> errno<span class="token-operator">:</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_WOULD_BLOCK</span> <span class="token-operator">}</span><span class="token-operator">,</span>
+        <span class="token-number">1</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">CommandIoWriteAttempt</span><span class="token-operator">.</span>would_block <span class="token-operator">{</span><span class="token-operator">}</span>
+        _ <span class="token-operator">{</span> <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"would-block write changed classification"</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
@@ -238,9 +245,9 @@
         <span class="token-operator">}</span>
         <span class="token-type">PipeAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>input_pipe<span class="token-operator">)</span> <span class="token-operator">{</span>
             <span class="token-keyword">var</span> input <span class="token-operator">=</span> <span class="token-keyword">move</span> input_pipe
-            <span class="token-keyword">match</span> <span class="token-function">suppress_pipe_writer_sigpipe</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>input<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">match</span> <span class="token-function">configure_pipe_writer_for_async_io</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>input<span class="token-operator">)</span> <span class="token-operator">{</span>
                 <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>_<span class="token-operator">)</span> <span class="token-operator">{</span>
-                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"SIGPIPE suppression failed"</span><span class="token-operator">)</span>
+                    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.process.test"</span><span class="token-operator">,</span> <span class="token-string">"asynchronous writer configuration failed"</span><span class="token-operator">)</span>
                 <span class="token-operator">}</span>
                 <span class="token-type">PipeConfigurationAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
             <span class="token-operator">}</span>

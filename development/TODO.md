@@ -52,10 +52,10 @@ Implement [v0.32.0](milestones/v0.32.0.md) as one complete configured synchronou
 Phase 0 fixed the public contract and Darwin feasibility. Phase 1 now owns environment,
 working-directory, and input configuration plus one prepared launch plan without changing the
 compiler. Phase 2 replaced capture-only polling with one command-I/O session that composes finite
-writes and both captured reads. Phase 3 must now qualify the complete native lifecycle, including
-exact environment, directory setup, large bidirectional transfer, early input closure, and failure
-precedence. Later phases integrate one public example and close the entire practical use case before
-release preparation.
+writes and both captured reads. Phase 3 qualified the complete native lifecycle and replaced a
+blocking whole-remainder stdin write with an explicitly nonblocking progress transition. Phase 4
+must now integrate one public configured-command example and route formatter, editor, native, and
+installed-home qualification through its authored source before final release review.
 
 Preserve the v0.31.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

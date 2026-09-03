@@ -16,6 +16,7 @@ see ./command.nct
 see ./command_darwin.nct
 see ./launch_plan_darwin.nct
 see ./launch_report_darwin.nct
+see ./launch_report_tests_darwin.nct
 see ./pipe_darwin.nct
 see ./pipe_tests_darwin.nct
 see ./subprocess_darwin.nct

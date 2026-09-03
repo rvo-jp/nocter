@@ -40,6 +40,7 @@ enum CommandIoReadAttempt {
 enum CommandIoWriteAttempt {
     bytes(count: usize)
     broken_pipe
+    would_block
     interrupted
     failed(errno: i32)
     malformed
@@ -246,6 +247,7 @@ noalloc func classify_command_io_write(
     if available == 0 { return CommandIoWriteAttempt.malformed }
     if result.errno == darwin.ERRNO_INTERRUPTED { return CommandIoWriteAttempt.interrupted }
     if result.errno == darwin.ERRNO_BROKEN_PIPE { return CommandIoWriteAttempt.broken_pipe }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return CommandIoWriteAttempt.would_block }
     if result.errno != 0 { return CommandIoWriteAttempt.failed(result.errno) }
     if result.value == 0 || result.value > available { return CommandIoWriteAttempt.malformed }
     return CommandIoWriteAttempt.bytes(result.value)

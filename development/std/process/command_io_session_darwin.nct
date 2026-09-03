@@ -97,7 +97,7 @@ func create_input_channel(configured: bool): InputChannelPreparationAttempt {
             return InputChannelPreparationAttempt.failed(errno)
         }
         PipeAttempt.ready(pipe) {
-            match suppress_pipe_writer_sigpipe(&pipe) {
+            match configure_pipe_writer_for_async_io(&pipe) {
                 PipeConfigurationAttempt.ready {
                     return InputChannelPreparationAttempt.ready(
                         CommandInputChannel.configured(CommandInputState {
@@ -309,6 +309,7 @@ func write_ready_command_input(
                     close_pipe_write(&+state.pipe)
                     return StreamDrainAttempt.progress
                 }
+                CommandIoWriteAttempt.would_block { return StreamDrainAttempt.interrupted }
                 CommandIoWriteAttempt.interrupted { return StreamDrainAttempt.interrupted }
                 CommandIoWriteAttempt.failed(errno) { return StreamDrainAttempt.failed(errno) }
                 CommandIoWriteAttempt.malformed { return StreamDrainAttempt.malformed }

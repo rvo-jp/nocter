@@ -132,7 +132,7 @@ noalloc func close_pipe_write(pipe: &+OwnedPipe): void {
 }
 
 #target: "arm64-darwin"
-noalloc func suppress_pipe_writer_sigpipe(pipe: &OwnedPipe): PipeConfigurationAttempt {
+noalloc func configure_pipe_writer_for_async_io(pipe: &OwnedPipe): PipeConfigurationAttempt {
     var result = darwin.syscall3(
         darwin.SYS_FCNTL,
         pipe_write_fd(pipe),
@@ -145,6 +145,41 @@ noalloc func suppress_pipe_writer_sigpipe(pipe: &OwnedPipe): PipeConfigurationAt
             pipe_write_fd(pipe),
             darwin.F_SETNOSIGPIPE,
             1,
+        )
+    }
+    if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
+
+    var flags = darwin.syscall3(
+        darwin.SYS_FCNTL,
+        pipe_write_fd(pipe),
+        darwin.F_GETFL,
+        0,
+    )
+    while flags.errno == darwin.ERRNO_INTERRUPTED {
+        flags = darwin.syscall3(
+            darwin.SYS_FCNTL,
+            pipe_write_fd(pipe),
+            darwin.F_GETFL,
+            0,
+        )
+    }
+    if flags.errno != 0 { return PipeConfigurationAttempt.failed(flags.errno) }
+    var configured_flags = flags.value
+    if configured_flags / darwin.O_NONBLOCK % 2 == 0 {
+        configured_flags += darwin.O_NONBLOCK
+    }
+    result = darwin.syscall3(
+        darwin.SYS_FCNTL,
+        pipe_write_fd(pipe),
+        darwin.F_SETFL,
+        configured_flags,
+    )
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(
+            darwin.SYS_FCNTL,
+            pipe_write_fd(pipe),
+            darwin.F_SETFL,
+            configured_flags,
         )
     }
     if result.errno != 0 { return PipeConfigurationAttempt.failed(result.errno) }
