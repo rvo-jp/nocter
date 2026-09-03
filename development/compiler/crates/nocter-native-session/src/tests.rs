@@ -845,7 +845,138 @@ fn standard_process_internal_contracts_cross_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 5);
+    assert_eq!(case_count, 6);
+}
+
+#[test]
+fn standard_subprocess_failures_and_lifecycle_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let success = package_root.0.join("success-helper");
+    let nonzero = package_root.0.join("nonzero-helper");
+    let exit_127 = package_root.0.join("exit-127-helper");
+    let signaled = package_root.0.join("signal-helper");
+    let missing = package_root.0.join("missing-helper");
+    let denied = package_root.0.join("denied-helper");
+    let invalid = package_root.0.join("invalid-helper");
+    let arguments = package_root.0.join("argument-helper");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/process.{{Command, ExitStatus}}
+use std/string.String
+
+noalloc func exited_with(status: ExitStatus, expected: i32): bool {{
+    let code = status.code() otherwise {{ return false }}
+    let _signal = status.signal() otherwise {{ return code == expected }}
+    return false
+}}
+
+noalloc func signaled_with(status: ExitStatus, expected: i32): bool {{
+    let signal = status.signal() otherwise {{ return false }}
+    let _code = status.code() otherwise {{ return signal == expected }}
+    return false
+}}
+
+func fails_with(command: Command, code: &str): bool {{
+    let _status = command.status() catch failure {{ return failure.has_code(code) }}
+    return false
+}}
+
+func main(): i32 {{
+    let success = Command.new("{}") catch _ {{ return 1 }}
+    let success_status = success.status() catch _ {{ return 2 }}
+    if !success_status.success() || !exited_with(success_status, 0) {{ return 3 }}
+
+    let nonzero = Command.new("{}") catch _ {{ return 4 }}
+    let nonzero_status = nonzero.status() catch _ {{ return 5 }}
+    if nonzero_status.success() || !exited_with(nonzero_status, 23) {{ return 6 }}
+
+    let ordinary_127 = Command.new("{}") catch _ {{ return 7 }}
+    let ordinary_127_status = ordinary_127.status() catch _ {{ return 8 }}
+    if ordinary_127_status.success() || !exited_with(ordinary_127_status, 127) {{ return 9 }}
+
+    let signaled = Command.new("{}") catch _ {{ return 10 }}
+    let signal_status = signaled.status() catch _ {{ return 11 }}
+    if signal_status.success() || !signaled_with(signal_status, 15) {{ return 12 }}
+
+    let missing = Command.new("{}") catch _ {{ return 13 }}
+    if !fails_with(move missing, "std.process.not_found") {{ return 14 }}
+
+    let denied = Command.new("{}") catch _ {{ return 15 }}
+    if !fails_with(move denied, "std.process.permission_denied") {{ return 16 }}
+
+    let invalid = Command.new("{}") catch _ {{ return 17 }}
+    if !fails_with(move invalid, "std.process.invalid_input") {{ return 18 }}
+
+    let relative = Command.new("./relative-helper") catch _ {{ return 19 }}
+    let relative_status = relative.status() catch _ {{ return 20 }}
+    if !exited_with(relative_status, 31) {{ return 21 }}
+
+    var argument_command = Command.new("{}") catch _ {{ return 22 }}
+    argument_command.arg("") catch _ {{ return 23 }}
+    argument_command.arg("alpha beta") catch _ {{ return 24 }}
+    var rejected_nul = false
+    argument_command.arg("bad\0argument") catch failure {{
+        if !failure.has_code("std.process.invalid_input") {{ return 25 }}
+        rejected_nul = true
+    }}
+    if !rejected_nul {{ return 26 }}
+    let argument_status = argument_command.status() catch _ {{ return 27 }}
+    if !exited_with(argument_status, 0) {{ return 28 }}
+
+    var oversized = String.with_capacity(2097152)
+    var block: usize = 0
+    while block < 32768 {{
+        oversized.push_str("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+        block += 1
+    }}
+    var oversized_command = Command.new("{}") catch _ {{ return 29 }}
+    oversized_command.arg(&oversized as &str) catch _ {{ return 30 }}
+    if !fails_with(move oversized_command, "std.process.invalid_input") {{ return 31 }}
+
+    var attempt: usize = 0
+    while attempt < 96 {{
+        let repeated = Command.new("{}") catch _ {{ return 32 }}
+        if !fails_with(move repeated, "std.process.not_found") {{ return 33 }}
+        attempt += 1
+    }}
+
+    let final_success = Command.new("{}") catch _ {{ return 34 }}
+    let final_status = final_success.status() catch _ {{ return 35 }}
+    if !exited_with(final_status, 0) {{ return 36 }}
+    return 0
+}}
+"#,
+            success.display(),
+            nonzero.display(),
+            exit_127.display(),
+            signaled.display(),
+            missing.display(),
+            denied.display(),
+            invalid.display(),
+            arguments.display(),
+            success.display(),
+            missing.display(),
+            success.display(),
+        ),
+    );
+    compile_and_execute_subprocess_lifecycle(&package_root.0, &standard_root);
+}
+
+fn compile_and_execute_subprocess_lifecycle(package_root: &Path, standard_root: &Path) {
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.join("main.nct"),
+        package_graph(vec![resolved_standard(standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_subprocess_lifecycle_contract(image.image(), package_root);
 }
 
 #[test]
@@ -2622,6 +2753,50 @@ fn execute_subprocess_contract(image: &NativeImage, root: &Path) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_subprocess_lifecycle_contract(image: &NativeImage, root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join("subprocess-lifecycle-contract");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+
+    for (name, source) in [
+        ("success-helper", "#!/bin/sh\nexit 0\n"),
+        ("nonzero-helper", "#!/bin/sh\nexit 23\n"),
+        ("exit-127-helper", "#!/bin/sh\nexit 127\n"),
+        ("signal-helper", "#!/bin/sh\nkill -TERM $$\nexit 90\n"),
+        ("relative-helper", "#!/bin/sh\nexit 31\n"),
+        (
+            "argument-helper",
+            "#!/bin/sh\n[ \"$#\" -eq 2 ] || exit 40\n[ \"$1\" = \"\" ] || exit 41\n[ \"$2\" = \"alpha beta\" ] || exit 42\nexit 0\n",
+        ),
+    ] {
+        let path = root.join(name);
+        fs::write(&path, source).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    let denied = root.join("denied-helper");
+    fs::write(&denied, "#!/bin/sh\nexit 0\n").unwrap();
+    fs::set_permissions(&denied, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let invalid = root.join("invalid-helper");
+    fs::write(&invalid, "this is not an executable image\n").unwrap();
+    fs::set_permissions(&invalid, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "subprocess lifecycle contract exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn prepare_path_directory_fixture(root: &Path) {
     use std::os::unix::fs::symlink;
 
@@ -2645,6 +2820,9 @@ fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_contract(_image: &NativeImage, _root: &Path) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_subprocess_lifecycle_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn prepare_path_directory_fixture(_root: &Path) {}

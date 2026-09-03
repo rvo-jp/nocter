@@ -29,19 +29,20 @@ The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md)
 public contract and is published and externally audited. Its immutable
 [publication record](releases/v0.29.0.md) owns the final evidence.
 
-The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 2.
+The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 3.
 The public future-direction contract fixes an owning `Command`, synchronous child lifecycle, exact
 path and argument handling, inherited process state, unambiguous exec-failure reporting, and typed
-exit status. Its [Phase 2 review](reviews/v0.30.0-phase-2.md) closes owning C-compatible command
-storage, pre-fork argv preparation, fork/exec/wait orchestration, public failure selection, and the
-indirect ARM64 ABI required by the three-word pair-syscall result.
+exit status. Its [Phase 3 review](reviews/v0.30.0-phase-3.md) closes native success, nonzero, signal,
+missing, denied, invalid-image, relative-path, argument-boundary, launch-channel, repeated-failure,
+and reap-path qualification without adding a test-only subprocess model.
 
 ## Next Work
 
-Implement v0.30.0 Phase 3: qualify successful, nonzero, signaled, missing, denied, invalid-input,
-argument-boundary, interrupted-wait, and launch-channel cleanup behavior through complete native
-sessions. Use deterministic injection only where an operating-system event cannot be induced
-reliably. Every successfully created child must have an observed reap path.
+Implement v0.30.0 Phase 4: add one runnable package that invokes a repository-created helper by
+exact path and reports its typed status. Use that same public source to qualify formatter, hover,
+completion, declaration and implementation navigation, installed-home behavior, and public
+documentation. Do not create editor-only contract fixtures when the runnable package can own the
+evidence.
 
 Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
