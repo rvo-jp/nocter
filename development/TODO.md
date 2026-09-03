@@ -51,10 +51,11 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Complete v0.33.0 Phase 4 qualification and final responsibility review. Verify the complete locked
-workspace, warnings-denied Clippy, no-default-features build, formatter, generated documentation,
-public examples, installed-home behavior, repository integrity, tuple ABI, and native lifecycle.
-Do not publish until a separately authorized release-preparation and publication workflow.
+Complete the active [v0.33.0 release qualification](milestones/v0.33.0-release-preparation.md) and
+final responsibility review. Verify the complete locked workspace, warnings-denied Clippy,
+no-default-features build, formatter, generated documentation, public examples, installed-home
+behavior, repository integrity, tuple ABI, and native lifecycle. Do not tag, push, upload, or
+advance public latest-release links without separate publication authorization.
 Preserve the v0.32.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
 
