@@ -247,8 +247,10 @@ const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
         LexDiagnosticKind::UnterminatedByteLiteral => "unterminated_byte_literal",
         LexDiagnosticKind::ByteLiteralNewline => "byte_literal_newline",
         LexDiagnosticKind::InvalidByteLength => "invalid_byte_length",
-        LexDiagnosticKind::PlainSingleQuote => "plain_single_quote",
         LexDiagnosticKind::UnterminatedInterpolation => "unterminated_interpolation",
+        LexDiagnosticKind::UnterminatedCharacterLiteral => "unterminated_character_literal",
+        LexDiagnosticKind::CharacterLiteralNewline => "character_literal_newline",
+        LexDiagnosticKind::InvalidCharacterLength => "invalid_character_length",
     }
 }
 

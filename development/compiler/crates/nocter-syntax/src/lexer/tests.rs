@@ -90,6 +90,40 @@ fn invalid_unicode_escapes_preserve_source_character_boundaries() {
 }
 
 #[test]
+fn character_literals_are_one_lossless_token() {
+    assert_eq!(
+        kinds("'A' 'λ' '\\n' '\\u{1F600}'"),
+        vec![
+            TokenKind::CharacterLiteral,
+            TokenKind::CharacterLiteral,
+            TokenKind::CharacterLiteral,
+            TokenKind::CharacterLiteral,
+            TokenKind::Eof,
+        ]
+    );
+}
+
+#[test]
+fn character_literal_failures_have_closed_lexical_classes() {
+    for (source, expected) in [
+        ("''", LexDiagnosticKind::InvalidCharacterLength),
+        ("'ab'", LexDiagnosticKind::InvalidCharacterLength),
+        ("'\\u{D800}'", LexDiagnosticKind::InvalidCharacterLength),
+        ("'\\u{110000}'", LexDiagnosticKind::InvalidCharacterLength),
+        ("'\\q'", LexDiagnosticKind::InvalidEscape),
+        ("'a\n", LexDiagnosticKind::CharacterLiteralNewline),
+        ("'a", LexDiagnosticKind::UnterminatedCharacterLiteral),
+    ] {
+        let lexed = lex_text(source);
+        assert_eq!(
+            lexed.diagnostics.first().map(|diagnostic| diagnostic.kind),
+            Some(expected),
+            "{source:?}"
+        );
+    }
+}
+
+#[test]
 fn uses_longest_match_for_punctuation() {
     assert_eq!(
         kinds("&+ ..< ... == != <= >= && || << >> += -= *= /= %="),
@@ -291,7 +325,7 @@ fn reports_closed_lexical_error_classes_without_duplicate_eof() {
         ),
         ("b'ab", LexDiagnosticKind::UnterminatedByteLiteral),
         ("b'a\n", LexDiagnosticKind::ByteLiteralNewline),
-        ("'", LexDiagnosticKind::PlainSingleQuote),
+        ("'", LexDiagnosticKind::UnterminatedCharacterLiteral),
         ("@", LexDiagnosticKind::UnexpectedCharacter),
         (".5", LexDiagnosticKind::UnsupportedFloatLiteral),
     ];

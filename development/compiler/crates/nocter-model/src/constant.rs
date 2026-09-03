@@ -5,6 +5,7 @@
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum ConstantValue {
     Bool(bool),
+    Character(u32),
     Integer(i128),
     Text(Box<str>),
 }

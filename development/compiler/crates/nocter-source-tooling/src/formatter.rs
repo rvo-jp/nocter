@@ -519,6 +519,7 @@ const fn is_word(kind: TokenKind) -> bool {
             | TokenKind::Keyword(_)
             | TokenKind::IntegerLiteral
             | TokenKind::ByteLiteral
+            | TokenKind::CharacterLiteral
             | TokenKind::StringEnd(_)
     )
 }

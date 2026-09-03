@@ -155,6 +155,7 @@ fn lower_constant(
 ) -> Result<MachineConstant, MachineProgramError> {
     match constant {
         MirConstant::Bool(value) => Ok(MachineConstant::Bool(*value)),
+        MirConstant::Character(value) => Ok(MachineConstant::Character(*value)),
         MirConstant::Integer(value) => Ok(MachineConstant::Integer(*value)),
         MirConstant::Text(text) => data
             .text(text)

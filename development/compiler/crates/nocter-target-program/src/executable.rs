@@ -581,6 +581,7 @@ fn runtime_type_table(
         let runtime = match kind {
             TypeKind::Builtin(builtin) => RuntimeType::Primitive(match builtin {
                 BuiltinType::Bool => RuntimePrimitive::Bool,
+                BuiltinType::Char => RuntimePrimitive::Char,
                 BuiltinType::I8 => RuntimePrimitive::Signed(8),
                 BuiltinType::I16 => RuntimePrimitive::Signed(16),
                 BuiltinType::I32 => RuntimePrimitive::Signed(32),

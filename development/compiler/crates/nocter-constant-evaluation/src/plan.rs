@@ -4,8 +4,8 @@ use nocter_model::{BuiltinType, ConstantValue};
 use nocter_source::SourceFile;
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, Punctuation, SyntaxTree, TokenKind, decode_plain_string_expression,
-    direct_node, first_direct_token,
+    Keyword, NodeId, NodeKind, Punctuation, SyntaxTree, TokenKind, decode_character_literal,
+    decode_plain_string_expression, direct_node, first_direct_token,
 };
 
 use crate::model::{
@@ -78,6 +78,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 match token.kind() {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => ConstantScalarType::Bool,
+                    TokenKind::CharacterLiteral => ConstantScalarType::Character,
                     TokenKind::IntegerLiteral => expected
                         .filter(|ty| matches!(ty, ConstantScalarType::Integer(_)))
                         .unwrap_or(ConstantScalarType::Integer(BuiltinType::I32)),
@@ -132,7 +133,10 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 let right = self.analyze(operands[1], Some(left))?;
                 if left != right
                     || kind == NodeKind::OrderingExpression
-                        && !matches!(left, ConstantScalarType::Integer(_))
+                        && !matches!(
+                            left,
+                            ConstantScalarType::Integer(_) | ConstantScalarType::Character
+                        )
                 {
                     return Err(self.rule(ConstantPlanRule::TypeMismatch, node));
                 }
@@ -195,6 +199,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => {
                         Some(ConstantScalarType::Bool)
                     }
+                    TokenKind::CharacterLiteral => Some(ConstantScalarType::Character),
                     TokenKind::IntegerLiteral => None,
                     _ => {
                         return Err(self.rule(ConstantPlanRule::NonConstantExpression, node));
@@ -273,6 +278,18 @@ impl<R: ConstantResolver> Planner<'_, R> {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => ConstantOperation::Value(
                         ConstantValue::Bool(token.kind() == TokenKind::Keyword(Keyword::True)),
                     ),
+                    TokenKind::CharacterLiteral => {
+                        ConstantOperation::Value(ConstantValue::Character(
+                            decode_character_literal(
+                                self.source
+                                    .text_at(token.range())
+                                    .ok_or(ConstantPlanError::InvalidSyntax(node))?,
+                            )
+                            .ok_or_else(|| {
+                                self.rule(ConstantPlanRule::NonConstantExpression, node)
+                            })?,
+                        ))
+                    }
                     TokenKind::IntegerLiteral => ConstantOperation::IntegerLiteral(
                         parse_integer(
                             self.source

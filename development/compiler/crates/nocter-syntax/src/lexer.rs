@@ -1,6 +1,8 @@
 use nocter_source::{ByteOffset, SourceFile, SourceId, Span, TextRange};
 
-use crate::literal::{decode_escape, valid_integer};
+use crate::literal::{
+    CharacterDecodeError, decode_character_content, decode_escape, valid_integer,
+};
 use crate::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -64,7 +66,9 @@ pub enum LexDiagnosticKind {
     UnterminatedByteLiteral,
     ByteLiteralNewline,
     InvalidByteLength,
-    PlainSingleQuote,
+    UnterminatedCharacterLiteral,
+    CharacterLiteralNewline,
+    InvalidCharacterLength,
     UnterminatedInterpolation,
 }
 
@@ -210,10 +214,7 @@ impl<'source> Lexer<'source> {
                 b'/' if self.starts_with("/*") => self.lex_block_comment(),
                 b'b' if self.starts_with("b'") => self.lex_byte_literal(),
                 b'"' => self.lex_string(),
-                b'\'' => {
-                    self.cursor += 1;
-                    self.diagnostic(LexDiagnosticKind::PlainSingleQuote, start, self.cursor);
-                }
+                b'\'' => self.lex_character_literal(),
                 b'0'..=b'9' => self.lex_number(),
                 b'.' if self.bytes.get(start + 1).is_some_and(u8::is_ascii_digit)
                     && !self.can_lex_tuple_projection() =>
@@ -271,6 +272,7 @@ impl<'source> Lexer<'source> {
                 TokenKind::Identifier
                     | TokenKind::IntegerLiteral
                     | TokenKind::ByteLiteral
+                    | TokenKind::CharacterLiteral
                     | TokenKind::StringEnd(_)
                     | TokenKind::InterpolationEnd
                     | TokenKind::Keyword(Keyword::True | Keyword::False | Keyword::None)
@@ -638,6 +640,69 @@ impl<'source> Lexer<'source> {
 
         if valid && count != 1 {
             self.diagnostic(LexDiagnosticKind::InvalidByteLength, start, end);
+        }
+    }
+
+    fn lex_character_literal(&mut self) {
+        let start = self.cursor;
+        self.cursor += 1;
+        let content_start = self.cursor;
+
+        while self.cursor < self.bytes.len() {
+            match self.bytes[self.cursor] {
+                b'\'' => {
+                    let content_end = self.cursor;
+                    self.cursor += 1;
+                    self.push_token(TokenKind::CharacterLiteral, start, self.cursor);
+                    self.validate_character_content(content_start, content_end);
+                    return;
+                }
+                b'\n' => {
+                    self.diagnostic(
+                        LexDiagnosticKind::CharacterLiteralNewline,
+                        self.cursor,
+                        self.cursor + 1,
+                    );
+                    return;
+                }
+                b'\\' => self.cursor += self.character_escape_source_len(),
+                _ => self.cursor += self.next_char_len(),
+            }
+        }
+
+        self.diagnostic(
+            LexDiagnosticKind::UnterminatedCharacterLiteral,
+            start,
+            self.cursor,
+        );
+    }
+
+    fn character_escape_source_len(&self) -> usize {
+        let remaining = &self.text[self.cursor..];
+        if let Some(after_prefix) = remaining.strip_prefix("\\u{") {
+            return after_prefix
+                .find('}')
+                .map_or(remaining.len(), |offset| "\\u{".len() + offset + 1);
+        }
+        remaining
+            .chars()
+            .take(2)
+            .map(char::len_utf8)
+            .sum::<usize>()
+            .max(1)
+    }
+
+    fn validate_character_content(&mut self, start: usize, end: usize) {
+        match decode_character_content(&self.text[start..end]) {
+            Ok(_) => {}
+            Err(CharacterDecodeError::InvalidEscape { offset, length }) => self.diagnostic(
+                LexDiagnosticKind::InvalidEscape,
+                start + offset,
+                (start + offset + length).min(end),
+            ),
+            Err(CharacterDecodeError::InvalidLength) => {
+                self.diagnostic(LexDiagnosticKind::InvalidCharacterLength, start, end);
+            }
         }
     }
 

@@ -11,6 +11,7 @@ use nocter_model::{
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, SyntaxToken, TokenKind,
+    decode_byte_literal, decode_character_literal,
 };
 
 use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, body_source_access};
@@ -963,6 +964,30 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     node,
                     ty,
                     CheckedOperation::Constant(ConstantValue::Integer(i128::from(value))),
+                )?;
+                expected.map_or(Ok(checked), |expected| {
+                    self.apply_expected(node, checked, expected)
+                })
+            }
+            TokenKind::ByteLiteral => {
+                let value = decode_byte_literal(self.token_text(token)?)
+                    .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+                let checked = self.add_node(
+                    node,
+                    self.types.builtin(BuiltinType::U8),
+                    CheckedOperation::Constant(ConstantValue::Integer(i128::from(value))),
+                )?;
+                expected.map_or(Ok(checked), |expected| {
+                    self.apply_expected(node, checked, expected)
+                })
+            }
+            TokenKind::CharacterLiteral => {
+                let value = decode_character_literal(self.token_text(token)?)
+                    .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+                let checked = self.add_node(
+                    node,
+                    self.types.builtin(BuiltinType::Char),
+                    CheckedOperation::Constant(ConstantValue::Character(value)),
                 )?;
                 expected.map_or(Ok(checked), |expected| {
                     self.apply_expected(node, checked, expected)

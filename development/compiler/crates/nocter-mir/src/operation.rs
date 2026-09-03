@@ -7,6 +7,7 @@ use nocter_runtime_contract::PrimitiveRole;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirConstant {
     Bool(bool),
+    Character(u32),
     Integer(i128),
     Text(Box<str>),
 }

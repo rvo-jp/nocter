@@ -18,6 +18,7 @@ pub(super) fn primary(parser: &mut Parser<'_>, mode: ExpressionMode) -> Complete
         TokenKind::StringStart(_) => string_expression(parser),
         TokenKind::IntegerLiteral
         | TokenKind::ByteLiteral
+        | TokenKind::CharacterLiteral
         | TokenKind::Keyword(Keyword::True | Keyword::False | Keyword::None) => {
             scalar_literal(parser)
         }

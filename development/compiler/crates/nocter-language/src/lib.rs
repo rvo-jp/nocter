@@ -10,6 +10,7 @@ include!(concat!(env!("OUT_DIR"), "/diagnostic_code.rs"));
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BuiltinType {
     Bool,
+    Char,
     I8,
     I16,
     I32,
@@ -29,6 +30,7 @@ pub enum BuiltinType {
 impl BuiltinType {
     pub const ALL: &'static [Self] = &[
         Self::Bool,
+        Self::Char,
         Self::I8,
         Self::I16,
         Self::I32,
@@ -51,6 +53,7 @@ impl BuiltinType {
     pub fn from_spelling(text: &str) -> Option<Self> {
         match text {
             "bool" => Some(Self::Bool),
+            "char" => Some(Self::Char),
             "i8" => Some(Self::I8),
             "i16" => Some(Self::I16),
             "i32" => Some(Self::I32),
@@ -73,6 +76,7 @@ impl BuiltinType {
     pub const fn spelling(self) -> &'static str {
         match self {
             Self::Bool => "bool",
+            Self::Char => "char",
             Self::I8 => "i8",
             Self::I16 => "i16",
             Self::I32 => "i32",

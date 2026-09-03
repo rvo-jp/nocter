@@ -386,6 +386,9 @@ impl<'a> Renderer<'a> {
                     nocter_model::ConstantValue::Bool(value) => {
                         self.output.push_str(if *value { "true" } else { "false" });
                     }
+                    nocter_model::ConstantValue::Character(value) => {
+                        write_character_literal(&mut self.output, *value).ok()?;
+                    }
                     nocter_model::ConstantValue::Integer(value) => {
                         write!(self.output, "{value}").ok()?;
                     }
@@ -1352,6 +1355,23 @@ fn write_string_literal(output: &mut String, value: &str) -> fmt::Result {
         }
     }
     output.push('"');
+    Ok(())
+}
+
+fn write_character_literal(output: &mut String, value: u32) -> fmt::Result {
+    output.push('\'');
+    match char::from_u32(value) {
+        Some('\n') => output.push_str("\\n"),
+        Some('\r') => output.push_str("\\r"),
+        Some('\t') => output.push_str("\\t"),
+        Some('\0') => output.push_str("\\0"),
+        Some('\\') => output.push_str("\\\\"),
+        Some('\'') => output.push_str("\\'"),
+        Some(character) if !character.is_control() => output.push(character),
+        Some(_) => write!(output, "\\u{{{value:X}}}")?,
+        None => return Err(fmt::Error),
+    }
+    output.push('\'');
     Ok(())
 }
 

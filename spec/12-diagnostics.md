@@ -78,14 +78,18 @@ Source-backed lexical diagnostics:
 - `E0104`: a string literal is not terminated.
 - `E0105`: a single-line string contains a newline.
 - `E0106`: multiline string content begins on the opening-delimiter line.
-- `E0107`: a string or byte literal contains an invalid escape sequence.
+- `E0107`: a string, character, or byte literal contains an invalid escape sequence.
 - `E0108`: a string escape does not encode valid UTF-8.
 - `E0109`: multiline string indentation is inconsistent with its closing delimiter.
 - `E0110`: a byte literal is not terminated.
 - `E0111`: a byte literal contains a newline.
 - `E0112`: a byte literal does not encode exactly one byte.
-- `E0113`: a plain single-quoted literal is used instead of a string or `b'…'` byte literal.
+- `E0113`: retired; this code is not reassigned after character literals replaced the former
+  single-quote rejection.
 - `E0114`: a string interpolation is not terminated.
+- `E0115`: a character literal is not terminated.
+- `E0116`: a character literal contains a newline.
+- `E0117`: a character literal does not decode to exactly one valid Unicode scalar.
 
 Source-backed syntactic diagnostics:
 
@@ -612,13 +616,13 @@ Required diagnostic families:
   default target missing from the implemented target list.
 - Source file is not valid UTF-8.
 - Unsupported source line ending, such as a bare carriage return.
-- Unterminated block comment, string literal, or byte literal.
-- Invalid escape sequence in a string literal or byte literal.
+- Unterminated block comment, string literal, character literal, or byte literal.
+- Invalid escape sequence in a string literal, character literal, or byte literal.
 - Invalid integer literal syntax or digit separator placement.
 - A unary-negative integer literal outside the expected signed range. The primary span covers the
   unary `-` and grouped literal together, and the diagnostic reports the signed target range.
 - Unsupported float literal.
-- Plain single-quoted character literal.
+- Empty, multi-scalar, surrogate, or out-of-range character literal.
 - Semicolon used as a statement terminator.
 - Non-ASCII identifier or invalid module path segment.
 - Import path not found.

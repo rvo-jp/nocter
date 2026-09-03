@@ -169,6 +169,7 @@ impl BodyConstantResolver<'_, '_, '_> {
 fn scalar_type(types: &nocter_model::TypeStore, ty: TypeId) -> Option<ConstantScalarType> {
     match types.get(ty)? {
         TypeKind::Builtin(BuiltinType::Bool) => Some(ConstantScalarType::Bool),
+        TypeKind::Builtin(BuiltinType::Char) => Some(ConstantScalarType::Character),
         TypeKind::Builtin(builtin) if integer_builtin(*builtin) => {
             Some(ConstantScalarType::Integer(*builtin))
         }

@@ -234,6 +234,7 @@ impl<'a> FunctionLowerer<'a> {
     ) -> Result<MirValueId, MirLoweringError> {
         let constant = match constant {
             ConstantValue::Bool(value) => MirConstant::Bool(*value),
+            ConstantValue::Character(value) => MirConstant::Character(*value),
             ConstantValue::Integer(value) => MirConstant::Integer(*value),
             ConstantValue::Text(value) => MirConstant::Text(value.clone()),
         };

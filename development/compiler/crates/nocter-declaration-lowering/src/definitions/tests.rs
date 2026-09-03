@@ -14,6 +14,7 @@ const WIDE: u64 = 1
 const EQUAL: bool = 1 == WIDE
 const MINIMUM: i8 = -128
 const LABEL: &str = "nocter"
+const SCALAR: char = '\u{1F600}'
 type Bytes = [u8; ANSWER]
 
 #target: "arm64-darwin"
@@ -358,6 +359,7 @@ fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
             nocter_model::ConstantValue::Bool(true),
             nocter_model::ConstantValue::Integer(-128),
             nocter_model::ConstantValue::Text("nocter".into()),
+            nocter_model::ConstantValue::Character(0x1F600),
         ]
     );
     assert!(

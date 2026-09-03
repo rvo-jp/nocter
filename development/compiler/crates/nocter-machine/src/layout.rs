@@ -496,6 +496,7 @@ impl LayoutBuilder<'_> {
     ) -> Result<MachineLayout, MachineLayoutError> {
         let (size, alignment, kind) = match primitive {
             RuntimePrimitive::Bool => (1, 1, MachineLayoutKind::Scalar(MachineScalar::Bool)),
+            RuntimePrimitive::Char => integer(32, false)?,
             RuntimePrimitive::Signed(bits) => integer(bits, true)?,
             RuntimePrimitive::Unsigned(bits) => integer(bits, false)?,
             RuntimePrimitive::Isize => integer(64, true)?,

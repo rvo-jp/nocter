@@ -269,6 +269,7 @@ impl HeaderResolver<'_, '_> {
     ) -> Option<ConstantScalarType> {
         match self.bindings.kinds.get(ty.index())? {
             BoundTypeKind::Builtin(BuiltinType::Bool) => Some(ConstantScalarType::Bool),
+            BoundTypeKind::Builtin(BuiltinType::Char) => Some(ConstantScalarType::Character),
             BoundTypeKind::Builtin(builtin) if integer_builtin(*builtin) => {
                 Some(ConstantScalarType::Integer(*builtin))
             }

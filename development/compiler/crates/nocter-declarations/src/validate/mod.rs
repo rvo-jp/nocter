@@ -156,6 +156,10 @@ fn validate_constants(program: &DeclarationProgram) -> Result<(), ProgramIntegri
         require_type(program, constant.ty(), DeclarationDomain::Constant)?;
         let valid = match constant.value() {
             ConstantValue::Bool(_) => constant.ty() == program.types().builtin(BuiltinType::Bool),
+            ConstantValue::Character(value) => {
+                constant.ty() == program.types().builtin(BuiltinType::Char)
+                    && char::from_u32(*value).is_some()
+            }
             ConstantValue::Integer(value) => program
                 .types()
                 .get(constant.ty())

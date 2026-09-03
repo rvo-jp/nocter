@@ -21,8 +21,9 @@ pub use completeness::node_is_complete;
 pub use diagnostic::{ExpectedSyntax, ParseDiagnostic, ParseDiagnosticKind};
 pub use lexer::{Comment, CommentKind, LexDiagnostic, LexDiagnosticKind, LexedFile, lex};
 pub use literal::{
-    DecodedStringPart, decode_plain_string_expression, decode_string_expression,
-    decode_string_literal, decode_string_text,
+    DecodedStringPart, decode_byte_literal, decode_character_literal,
+    decode_plain_string_expression, decode_string_expression, decode_string_literal,
+    decode_string_text,
 };
 pub use navigation::{
     child_node_iter, child_nodes, descendant_identifier_iter, descendant_node_iter,

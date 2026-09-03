@@ -100,6 +100,95 @@ const fn hex_value(byte: u8) -> Option<u8> {
     }
 }
 
+/// Decodes one lexer-validated byte literal into its source-independent value.
+///
+/// The complete authored token, including `b'` and the closing quote, is required. Callers do not
+/// interpret escapes or count UTF-8 bytes themselves.
+#[must_use]
+pub fn decode_byte_literal(text: &str) -> Option<u8> {
+    let content = text.strip_prefix("b'")?.strip_suffix('\'')?;
+    if content.starts_with('\\') {
+        let (value, width) = decode_escape(content, 0, content.len()).ok()?;
+        (width == content.len()).then_some(value)
+    } else {
+        let bytes = content.as_bytes();
+        (bytes.len() == 1).then_some(bytes[0])
+    }
+}
+
+/// Decodes one lexer-validated character literal into its Unicode scalar value.
+///
+/// The complete authored token, including quotes, is required. This is the sole source-text
+/// interpretation boundary for character literals used by checking and constant evaluation.
+#[must_use]
+pub fn decode_character_literal(text: &str) -> Option<u32> {
+    let content = text.strip_prefix('\'')?.strip_suffix('\'')?;
+    decode_character_content(content).ok()
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum CharacterDecodeError {
+    InvalidEscape { offset: usize, length: usize },
+    InvalidLength,
+}
+
+pub(super) fn decode_character_content(text: &str) -> Result<u32, CharacterDecodeError> {
+    if let Some(escape) = text.strip_prefix('\\') {
+        let value = match escape.as_bytes() {
+            [b'n'] => '\n' as u32,
+            [b'r'] => '\r' as u32,
+            [b't'] => '\t' as u32,
+            [b'0'] => '\0' as u32,
+            [b'\\'] => '\\' as u32,
+            [b'"'] => '"' as u32,
+            [b'\''] => '\'' as u32,
+            bytes if bytes.first() == Some(&b'u') => decode_unicode_escape(text)?,
+            _ => {
+                return Err(CharacterDecodeError::InvalidEscape {
+                    offset: 0,
+                    length: text.len().max(1),
+                });
+            }
+        };
+        return Ok(value);
+    }
+
+    let mut characters = text.chars();
+    let Some(character) = characters.next() else {
+        return Err(CharacterDecodeError::InvalidLength);
+    };
+    if characters.next().is_some() {
+        return Err(CharacterDecodeError::InvalidLength);
+    }
+    Ok(character as u32)
+}
+
+fn decode_unicode_escape(text: &str) -> Result<u32, CharacterDecodeError> {
+    let Some(digits) = text
+        .strip_prefix("\\u{")
+        .and_then(|text| text.strip_suffix('}'))
+    else {
+        return Err(CharacterDecodeError::InvalidEscape {
+            offset: 0,
+            length: text.len().max(1),
+        });
+    };
+    if !(1..=6).contains(&digits.len()) || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(CharacterDecodeError::InvalidEscape {
+            offset: 0,
+            length: text.len(),
+        });
+    }
+    let value =
+        u32::from_str_radix(digits, 16).map_err(|_| CharacterDecodeError::InvalidEscape {
+            offset: 0,
+            length: text.len(),
+        })?;
+    char::from_u32(value)
+        .map(|character| character as u32)
+        .ok_or(CharacterDecodeError::InvalidLength)
+}
+
 /// Decodes one parser-validated, non-interpolated string literal.
 ///
 /// The syntax tree remains lossless; semantic consumers call this boundary rather than each
@@ -341,10 +430,23 @@ mod decode_tests {
     use nocter_source::{SourceMap, SourceName};
 
     use super::{
-        DecodedStringPart, decode_plain_string_expression, decode_string_expression,
-        decode_string_literal,
+        DecodedStringPart, decode_byte_literal, decode_character_literal,
+        decode_plain_string_expression, decode_string_expression, decode_string_literal,
     };
     use crate::{NodeId, NodeKind, ParseGoal, SyntaxElement, parse};
+
+    #[test]
+    fn quoted_scalar_decoding_has_one_syntax_owned_authority() {
+        assert_eq!(decode_byte_literal("b'A'"), Some(b'A'));
+        assert_eq!(decode_byte_literal("b'\\xFF'"), Some(0xFF));
+        assert_eq!(decode_byte_literal("b'λ'"), None);
+        assert_eq!(decode_character_literal("'A'"), Some(u32::from('A')));
+        assert_eq!(decode_character_literal("'λ'"), Some(u32::from('λ')));
+        assert_eq!(decode_character_literal("'\\n'"), Some(u32::from('\n')));
+        assert_eq!(decode_character_literal("'\\u{1F600}'"), Some(0x1F600));
+        assert_eq!(decode_character_literal("'\\u{D800}'"), None);
+        assert_eq!(decode_character_literal("'ab'"), None);
+    }
 
     #[test]
     fn decodes_single_and_multiline_string_syntax_once() {

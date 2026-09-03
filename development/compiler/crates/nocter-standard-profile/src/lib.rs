@@ -41,6 +41,7 @@ fn builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {
                 | BuiltinType::U64
                 | BuiltinType::Usize
                 | BuiltinType::Isize => "num",
+                BuiltinType::Char => "char",
                 BuiltinType::Str => "str",
                 BuiltinType::Error => "error",
                 BuiltinType::Void | BuiltinType::Never => "core",
@@ -155,6 +156,8 @@ pub const fn bundled_primitive_source_location(
         Role::SlicePointerAddress => (&["slice"], "slice_ptr_addr_raw"),
         Role::StringLength => (&["str"], "str_len_raw"),
         Role::StringPointerAddress => (&["str"], "str_ptr_addr_raw"),
+        Role::CharacterFromU32Unchecked => (&["char"], "char_from_u32_unchecked"),
+        Role::CharacterCodePoint => (&["char"], "char_code_point_raw"),
         Role::U8Truncate => (&["num"], "u8_truncate_raw"),
         Role::U16Truncate => (&["num"], "u16_truncate_raw"),
         Role::U32Truncate => (&["num"], "u32_truncate_raw"),

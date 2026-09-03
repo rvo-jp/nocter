@@ -412,6 +412,7 @@ impl CopyabilityTransaction {
         let condition = match kind {
             TypeKind::Builtin(
                 BuiltinType::Bool
+                | BuiltinType::Char
                 | BuiltinType::I8
                 | BuiltinType::I16
                 | BuiltinType::I32

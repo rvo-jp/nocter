@@ -9,6 +9,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineConstant {
     Bool(bool),
+    Character(u32),
     Integer(i128),
     Text(MachineDataId),
 }

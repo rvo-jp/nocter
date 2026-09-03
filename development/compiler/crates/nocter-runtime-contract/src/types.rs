@@ -6,6 +6,7 @@ use nocter_model::{BorrowCapability, TypeId};
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RuntimePrimitive {
     Bool,
+    Char,
     Signed(u16),
     Unsigned(u16),
     Isize,

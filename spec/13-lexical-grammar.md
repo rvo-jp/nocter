@@ -453,7 +453,7 @@ Rules:
 
 The type rules for integer literals are specified in [Values and Types](02-values-types.md#integer-literals).
 
-## String and Byte Literals
+## String, Character, and Byte Literals
 
 Single-line string literals use double quotes:
 
@@ -477,20 +477,31 @@ let newline: u8 = b'\n'
 let marker: u8 = b'\xFF'
 ```
 
+Character literals use one pair of single quotes:
+
+```nct
+let latin: char = 'A'
+let lambda: char = 'λ'
+let face: char = '\u{1F600}'
+```
+
 Rules:
 
 - A single-line string literal starts with `"` and ends at the next unescaped `"`.
 - A multi-line string literal starts with `"""` and ends at a closing `"""` delimiter.
 - A byte literal starts with `b'` and ends at the next unescaped `'`.
 - No whitespace is allowed between `b` and `'` in a byte literal.
-- Plain single-quoted literals such as `'a'` are invalid.
-- Raw newlines are invalid inside single-line string literals and byte literals.
+- A character literal starts with `'` and ends at the next unescaped `'`.
+- A character literal must decode to exactly one Unicode scalar value.
+- Raw newlines are invalid inside single-line string literals, character literals, and byte
+  literals.
 - Raw newlines are valid inside multi-line string literals.
-- Raw string literals and Unicode escape syntax are not supported.
+- Raw string literals are not supported. Unicode escapes are supported only in character literals.
 - Escapes are interpreted by the compiler before literal bytes are placed into the output executable.
 - A string literal must decode to valid UTF-8 after escapes are processed.
 - A byte literal must decode to exactly one byte.
-- Comments are not recognized inside single-line string literals, multi-line string literals, byte literals, or interpolation text segments.
+- Comments are not recognized inside single-line string literals, multi-line string literals,
+  character literals, byte literals, or interpolation text segments.
 
 Multi-line string literal rules:
 
@@ -584,7 +595,9 @@ Rules:
   [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-interpolation).
 - To include the literal characters `${` in string text, write `\${`.
 
-The type and storage rules for string and byte literals are specified in [Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-and-byte-literals).
+The type and storage rules for string and byte literals are specified in
+[Strings, Arrays, Views, and Pointers](07-strings-arrays-views-pointers.md#string-byte-and-character-literals).
+The complete scalar contract belongs to [Unicode Scalar Values](34-unicode-scalars.md).
 
 ## Unsupported Tokens and Forms
 
@@ -595,7 +608,6 @@ The following lexical features are intentionally unsupported:
 - semicolon statement terminators
 - float literals
 - integer type suffixes
-- plain character literals
 - raw string literals
-- Unicode escape syntax
+- Unicode escapes outside character literals
 - attribute syntax

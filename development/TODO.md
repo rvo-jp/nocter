@@ -43,10 +43,9 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Implement [v0.34.0](milestones/v0.34.0.md) from its completed Phase 0 Unicode-scalar authority
-design. Phase 1 must first close character and the already incomplete byte literal pipeline through
-syntax-owned decoded values, then carry distinct `char` identity through constants, runtime shape,
-layout, ABI, and ARM64. Do not add `Chars` until that scalar product is complete.
+Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 1 Unicode-scalar language and
+native product. Phase 2 must replace validation's private UTF-8 traversal with the shared decode-step
+authority before adding `Chars`; do not add a second leading-byte table in iterator source.
 
 Preserve the v0.33.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

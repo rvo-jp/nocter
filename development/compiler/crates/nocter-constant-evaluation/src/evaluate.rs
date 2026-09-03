@@ -254,16 +254,18 @@ fn evaluate_binary_values(
         | Punctuation::LessEqual
         | Punctuation::Greater
         | Punctuation::GreaterEqual => {
-            let (ConstantValue::Integer(left), ConstantValue::Integer(right)) =
-                (left.value, right.value)
-            else {
-                return Err(invalid(entry.origin));
+            let ordering = match (left.value, right.value) {
+                (ConstantValue::Integer(left), ConstantValue::Integer(right)) => left.cmp(&right),
+                (ConstantValue::Character(left), ConstantValue::Character(right)) => {
+                    left.cmp(&right)
+                }
+                _ => return Err(invalid(entry.origin)),
             };
             let value = match operator {
-                Punctuation::Less => left < right,
-                Punctuation::LessEqual => left <= right,
-                Punctuation::Greater => left > right,
-                Punctuation::GreaterEqual => left >= right,
+                Punctuation::Less => ordering.is_lt(),
+                Punctuation::LessEqual => !ordering.is_gt(),
+                Punctuation::Greater => ordering.is_gt(),
+                Punctuation::GreaterEqual => !ordering.is_lt(),
                 _ => unreachable!(),
             };
             Ok(TypedValue {

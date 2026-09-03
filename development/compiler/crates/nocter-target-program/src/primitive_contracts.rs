@@ -458,6 +458,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let u16 = || builtin(BuiltinType::U16);
     let u32 = || builtin(BuiltinType::U32);
     let u64 = || builtin(BuiltinType::U64);
+    let character = || builtin(BuiltinType::Char);
     let str_ref = || TypeContract::readonly(builtin(BuiltinType::Str));
     let byte_pointer = || TypeContract::pointer(u8());
     let readonly_bytes = || TypeContract::readonly(TypeContract::slice(u8()));
@@ -669,6 +670,12 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::StringLength | PrimitiveRole::StringPointerAddress => {
             make(0, vec![str_ref()], usize(), private, None, vec![])
+        }
+        PrimitiveRole::CharacterFromU32Unchecked => {
+            make(0, vec![u32()], character(), private, None, vec![])
+        }
+        PrimitiveRole::CharacterCodePoint => {
+            make(0, vec![character()], u32(), private, None, vec![])
         }
         PrimitiveRole::U8Truncate => make(0, vec![u64()], u8(), private, None, vec![]),
         PrimitiveRole::U16Truncate => make(0, vec![u64()], u16(), private, None, vec![]),

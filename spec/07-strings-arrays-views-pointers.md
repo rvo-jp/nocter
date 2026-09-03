@@ -619,7 +619,7 @@ Rules:
   their decoded contents are equal. String identity and equality use decoded bytes, not `ptr()`.
 - An empty string literal still carries a non-null `*u8`-compatible pointer and length zero. No byte
   is live or readable through that pointer.
-- Multi-line string literal indentation is removed by the lexical rules in [Lexical Grammar](13-lexical-grammar.md#string-and-byte-literals).
+- Multi-line string literal indentation is removed by the lexical rules in [Lexical Grammar](13-lexical-grammar.md#string-character-and-byte-literals).
 - Multi-line string literals do not add an implicit leading newline or trailing newline.
 - A multi-line string literal can include line breaks in its value.
 - The compiler must not allocate an owned `String` for a string literal.
@@ -720,7 +720,7 @@ standard-library operations in the current context, appending decoded text
 segments and formatted expression values in source order, then returning that
 owned value.
 
-## Byte Literals and Escapes
+## String, Byte, and Character Literals
 
 Byte literals use `b'...'` and have type `u8`.
 
@@ -735,10 +735,11 @@ Rules:
 - `b'...'` is a byte literal.
 - A byte literal has type `u8`.
 - A byte literal must decode to exactly one byte.
-- Byte literal lexical syntax is specified in [Lexical Grammar](13-lexical-grammar.md#string-and-byte-literals).
-- Plain single-quoted literals such as `'a'` are not supported.
-- The `char` type remains deferred.
-- Single quote syntax is reserved for a future `Char` or Unicode scalar design.
+- Byte and character lexical syntax is specified in
+  [Lexical Grammar](13-lexical-grammar.md#string-character-and-byte-literals).
+- Plain single-quoted literals such as `'a'` have built-in type `char` and decode exactly one
+  Unicode scalar value.
+- The full `char` contract belongs to [Unicode Scalar Values](34-unicode-scalars.md).
 - String literals use `"..."` or `"""..."""` and have built-in type `&str`.
 - String literals are UTF-8.
 - String literal length APIs report byte length unless a future Unicode API explicitly says otherwise.

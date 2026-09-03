@@ -58,6 +58,40 @@ fn checked_with_iteration_standard(
     check_prepared_program(&input, prepared)
 }
 
+#[test]
+fn byte_and_character_literals_close_as_distinct_typed_constants() {
+    let output = checked(
+        r"
+func byte_value(): u8 { return b'\\xFF' }
+func character_value(): char { return '\\u{1F600}' }
+",
+    );
+    let mut byte = false;
+    let mut character = false;
+    for (_, body) in output.program().bodies().iter() {
+        for (_, node) in body.nodes().iter() {
+            match node.operation() {
+                CheckedOperation::Constant(nocter_model::ConstantValue::Integer(255))
+                    if node.ty() == output.program().types().builtin(BuiltinType::U8) =>
+                {
+                    byte = true;
+                }
+                CheckedOperation::Constant(nocter_model::ConstantValue::Character(0x1F600))
+                    if node.ty() == output.program().types().builtin(BuiltinType::Char) =>
+                {
+                    character = true;
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(byte, "byte literal did not reach checking");
+    assert!(
+        character,
+        "character literal did not retain its distinct type and value"
+    );
+}
+
 fn iteration_standard(extra: &str) -> String {
     format!(
         r"

@@ -106,15 +106,25 @@ pub fn lexical_diagnostic(diagnostic: LexDiagnostic) -> SourceDiagnostic {
             "byte literal must contain exactly one byte",
             None,
         ),
-        LexDiagnosticKind::PlainSingleQuote => (
-            DiagnosticCode::E0113,
-            "plain single-quoted literals are not part of Nocter",
-            Some("use a string literal or a `b'…'` byte literal"),
-        ),
         LexDiagnosticKind::UnterminatedInterpolation => (
             DiagnosticCode::E0114,
             "unterminated string interpolation",
             Some("close the interpolation with `}`"),
+        ),
+        LexDiagnosticKind::UnterminatedCharacterLiteral => (
+            DiagnosticCode::E0115,
+            "unterminated character literal",
+            Some("close the character literal with `'`"),
+        ),
+        LexDiagnosticKind::CharacterLiteralNewline => (
+            DiagnosticCode::E0116,
+            "character literal contains a newline",
+            Some("write exactly one Unicode scalar before the closing `'`"),
+        ),
+        LexDiagnosticKind::InvalidCharacterLength => (
+            DiagnosticCode::E0117,
+            "character literal must contain exactly one Unicode scalar",
+            None,
         ),
     };
     source_diagnostic(code, message, diagnostic.span(), help)
@@ -191,6 +201,7 @@ fn token_expected_message(token: TokenKind) -> Box<str> {
         TokenKind::Keyword(keyword) => format!("expected `{}`", keyword.as_str()).into(),
         TokenKind::IntegerLiteral => "expected an integer literal".into(),
         TokenKind::ByteLiteral => "expected a byte literal".into(),
+        TokenKind::CharacterLiteral => "expected a character literal".into(),
         TokenKind::StringStart(_) | TokenKind::StringEnd(_) => "expected a string delimiter".into(),
         TokenKind::StringText => "expected string text".into(),
         TokenKind::InterpolationStart => "expected a string interpolation".into(),

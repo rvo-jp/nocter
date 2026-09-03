@@ -528,6 +528,10 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 let result = result.ok_or_else(mismatch)?;
                 let valid = match constant {
                     MirConstant::Bool(_) => result == self.types.builtin(BuiltinType::Bool),
+                    MirConstant::Character(value) => {
+                        result == self.types.builtin(BuiltinType::Char)
+                            && char::from_u32(*value).is_some()
+                    }
                     MirConstant::Integer(_) => is_integer(self.types, result),
                     MirConstant::Text(_) => matches!(
                         self.types.get(result),

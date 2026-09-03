@@ -30,6 +30,7 @@ fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryFailur
 
 const TEST_BUILTIN_SOURCE: &str = "\
 pub primitive type bool\n\
+pub primitive type char\n\
 pub primitive type i8\n\
 pub primitive type i16\n\
 pub primitive type i32\n\

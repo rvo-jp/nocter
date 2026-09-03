@@ -1263,6 +1263,39 @@ fn standard_string_concat_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn unicode_scalar_values_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        r"func main(): i32 {
+    let face: char = '\u{1F600}'
+    if face.code_point() != 128512 { return 1 }
+    if face.utf8_len() != 4 || face.is_ascii() { return 2 }
+    let digit = char.from_u32(57) otherwise { return 3 }
+    if !digit.is_ascii_digit() || digit != '9' { return 4 }
+    if !(digit < face) { return 5 }
+    let _surrogate = char.from_u32(55296) otherwise { return 0 }
+    return 6
+}
+",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "unicode-scalars");
+}
+
+#[test]
 fn standard_text_transformations_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

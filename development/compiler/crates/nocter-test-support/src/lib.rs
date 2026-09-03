@@ -195,6 +195,9 @@ instance str {
 pub func str_len_for_test(value: &str): usize { return str_len_raw(value) }
 pub func str_ptr_addr_for_test(value: &str): usize { return str_ptr_addr_raw(value) }
 ";
+const CHAR_SOURCE: &str = "\
+pub primitive type char
+";
 const NUM_SOURCE: &str = "\
 pub primitive type bool
 pub primitive type i8
@@ -550,6 +553,7 @@ impl CompilerFixture {
             (&["error"][..], ERROR_SOURCE),
             (&["core"][..], CORE_SOURCE),
             (&["num"][..], NUM_SOURCE),
+            (&["char"][..], CHAR_SOURCE),
             (&["mem"][..], MEM_SOURCE),
             (&["internal", "mem"][..], INTERNAL_MEM_SOURCE),
             (&["ptr"][..], PTR_SOURCE),
@@ -725,6 +729,7 @@ impl CompilerFixture {
             | BuiltinType::U64
             | BuiltinType::Usize
             | BuiltinType::Isize => &["num"],
+            BuiltinType::Char => &["char"],
             BuiltinType::Str => &["str"],
             BuiltinType::Error => &["error"],
             BuiltinType::Void | BuiltinType::Never => &["core"],

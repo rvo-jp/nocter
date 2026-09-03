@@ -7,6 +7,7 @@ use crate::ConstantExpressionRule;
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConstantScalarType {
     Bool,
+    Character,
     Integer(BuiltinType),
     Text,
 }

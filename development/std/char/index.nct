@@ -1,0 +1,31 @@
+//! Unicode scalar values.
+
+see ./scalar.nct
+
+/// One Unicode scalar value.
+pub primitive type char
+
+construct char {
+    /// Creates a character when `value` is one Unicode scalar value.
+    pub noalloc func from_u32(value: u32): Self?
+}
+
+instance char {
+    /// Returns this character's Unicode scalar value.
+    pub noalloc method self.code_point(): u32
+
+    /// Returns the number of bytes in this character's UTF-8 encoding.
+    pub noalloc method self.utf8_len(): usize
+
+    /// Reports whether this character belongs to ASCII.
+    pub noalloc method self.is_ascii(): bool
+
+    /// Reports whether this character is an ASCII decimal digit.
+    pub noalloc method self.is_ascii_digit(): bool
+
+    /// Compares Unicode scalar values.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders Unicode scalar values.
+    pub noalloc operator (&self < other: &Self): bool
+}
