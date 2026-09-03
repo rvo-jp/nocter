@@ -44,6 +44,7 @@ pub enum BodyRule {
     InvalidOpaqueWitness,
     InvalidArgumentPackUse,
     NoAllocationContractViolation,
+    UnknownTupleElement,
 }
 
 impl BodyRule {
@@ -89,6 +90,7 @@ impl BodyRule {
         Self::InvalidOpaqueWitness,
         Self::InvalidArgumentPackUse,
         Self::NoAllocationContractViolation,
+        Self::UnknownTupleElement,
     ];
 
     #[must_use]
@@ -135,6 +137,7 @@ impl BodyRule {
             Self::InvalidOpaqueWitness => DiagnosticCode::E0408,
             Self::InvalidArgumentPackUse => DiagnosticCode::E0409,
             Self::NoAllocationContractViolation => DiagnosticCode::E0411,
+            Self::UnknownTupleElement => DiagnosticCode::E0413,
         }
     }
 
@@ -162,6 +165,7 @@ impl BodyRule {
             | Self::InvalidMoveSource
             | Self::UninitializedPlace
             | Self::UnknownField
+            | Self::UnknownTupleElement
             | Self::InaccessibleField
             | Self::PartialMoveThroughDrop => self.value_message(),
             Self::InvalidSpreadAcquisition
@@ -219,6 +223,10 @@ impl BodyRule {
             Self::UnknownField => (
                 "type has no field with this name",
                 "select a field declared by the base struct",
+            ),
+            Self::UnknownTupleElement => (
+                "type has no tuple element at this position",
+                "use a canonical decimal position within the tuple's element range",
             ),
             Self::InaccessibleField => (
                 "field is not visible from this module",

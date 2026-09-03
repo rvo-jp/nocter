@@ -14,6 +14,7 @@ mod query;
 mod surface;
 mod token;
 mod tree;
+mod tuple;
 
 pub use body_surface::{BodySyntaxLocator, BodySyntaxProjection, BodySyntaxSurface};
 pub use completeness::node_is_complete;
@@ -43,6 +44,7 @@ pub use tree::{
     MissingSyntax, NodeId, NodeKind, PostfixSuffixKind, SyntaxElement, SyntaxNode, SyntaxToken,
     SyntaxTree, TokenId,
 };
+pub use tuple::{TupleElementIndex, TupleElementIndexError};
 
 /// Reports whether `text` is one complete source-level name.
 ///

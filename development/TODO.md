@@ -51,12 +51,11 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-v0.33.0 is qualified for publication. Its
-[release-preparation record](milestones/v0.33.0-release-preparation.md) fixes candidate commit
-`4e60e4ed238047b3054e5c39a9efd730e0b133a7`, and the
-[Phase 4 review](reviews/v0.33.0-phase-4.md) has no open finding. Do not rebuild the retained archive,
-tag, push, upload, or advance public latest-release links without separate publication
-authorization.
+v0.33.0 Phase 4 is reopened. The former candidate commit and retained archive are invalidated by a
+source-triggered tuple-position internal error found during adversarial follow-up. Complete the
+syntax-owned position-decoding boundary, exact source-diagnostic regressions, full qualification,
+and replacement final review before assigning another candidate. Do not tag, push, upload, or
+advance public latest-release links without separate publication authorization.
 Preserve the v0.32.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
 

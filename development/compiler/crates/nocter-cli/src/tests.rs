@@ -647,6 +647,40 @@ fn public_check_failure_uses_the_common_source_diagnostic_snapshot() {
 }
 
 #[test]
+fn tuple_projection_input_errors_remain_source_diagnostics() {
+    let tree = TempTree::new("check-tuple-projection-diagnostic");
+    let home = tree.installation("arm64-darwin", true);
+
+    for (name, suffix) in [
+        ("separator", "1_0"),
+        (
+            "overflow",
+            "999999999999999999999999999999999999999999999999999",
+        ),
+    ] {
+        let source_name = format!("{name}.nct");
+        fs::write(
+            tree.0.join(&source_name),
+            format!("func main(): i32 {{ let pair = (1, 2)\n return pair.{suffix} }}\n"),
+        )
+        .unwrap();
+
+        let error = execute_invocation(invocation(
+            ["check", &source_name, "--format=json"],
+            &tree.0,
+            &home,
+            "arm64-darwin",
+        ))
+        .unwrap_err();
+        let rendered = error.render_json_diagnostics().unwrap().unwrap();
+
+        assert_eq!(error.exit_code(), 1, "{rendered}");
+        assert!(rendered.contains("\"code\":\"E0413\""), "{rendered}");
+        assert!(!rendered.contains("\"code\":\"E0900\""), "{rendered}");
+    }
+}
+
+#[test]
 fn public_check_renders_every_declaration_validation_diagnostic() {
     let tree = TempTree::new("check-declaration-diagnostics");
     let home = tree.installation("arm64-darwin", true);

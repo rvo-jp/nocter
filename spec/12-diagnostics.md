@@ -361,6 +361,8 @@ Source-backed checked-body diagnostics:
 - `E0411`: a `noalloc` callable can reach an allocation operation, a callable without an
   allocation-free contract or body proof, a primitive whose registry effect is not
   allocation-free, or destruction whose allocation effect cannot be proven absent.
+- `E0413`: a tuple projection is not a canonical decimal position, the base is not a tuple, or the
+  selected position is outside the tuple's arity.
 
 Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
 the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and

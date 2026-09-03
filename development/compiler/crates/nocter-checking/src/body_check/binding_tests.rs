@@ -54,13 +54,35 @@ fn tuples_have_structural_types_positional_places_and_recursive_binding_plans() 
 
 #[test]
 fn tuple_binding_shape_and_projection_bounds_are_checked_semantically() {
-    for source in [
-        "func value(): void { let (first, second) = 1 }\n",
-        "func value(): void { let (first, second, third) = (1, 2) }\n",
-        "func value(): i32 { let pair = (1, 2)\n pair.2 }\n",
-        "func value(): i32 { let pair = (1, 2)\n pair.01 }\n",
+    for (source, expected) in [
+        (
+            "func value(): void { let (first, second) = 1 }\n",
+            BodyRule::TypeMismatch,
+        ),
+        (
+            "func value(): void { let (first, second, third) = (1, 2) }\n",
+            BodyRule::TypeMismatch,
+        ),
+        (
+            "func value(): i32 { let pair = (1, 2)\n pair.2 }\n",
+            BodyRule::UnknownTupleElement,
+        ),
+        (
+            "func value(): i32 { let pair = (1, 2)\n pair.01 }\n",
+            BodyRule::UnknownTupleElement,
+        ),
+        (
+            "func value(): i32 { let pair = (1, 2)\n pair.1_0 }\n",
+            BodyRule::UnknownTupleElement,
+        ),
+        (
+            "func value(): i32 { let pair = (1, 2)\n pair.999999999999999999999999999999999999999999999999999 }\n",
+            BodyRule::UnknownTupleElement,
+        ),
     ] {
-        assert!(check(source).is_err(), "{source}");
+        let error = check(source).unwrap_err();
+        assert_eq!(error.rule(), Some(expected), "{source}: {error:?}");
+        assert!(error.source_diagnostic().is_some(), "{source}: {error:?}");
     }
 }
 

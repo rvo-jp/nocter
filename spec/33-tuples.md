@@ -73,9 +73,10 @@ let first = pair.0
 let second = pair.1
 ```
 
-The index is part of the source syntax, must not contain leading zeroes, and must be in range for the
-known tuple type. It is not a runtime indexing operation. A tuple projection is a place, so ordinary
-read, move, borrow, mutable-borrow, and assignment rules apply to it.
+The index is part of the source syntax and uses only ASCII decimal digits. It must not contain digit
+separators, a radix prefix, a sign, or leading zeroes, and must be in range for the known tuple type.
+It is not a runtime indexing operation. A tuple projection is a place, so ordinary read, move,
+borrow, mutable-borrow, and assignment rules apply to it.
 
 ```nct
 let view = &pair.0

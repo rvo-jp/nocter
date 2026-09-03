@@ -1749,6 +1749,22 @@ mod tests {
         let response = definition.response().unwrap();
         assert!(response.contains("\"result\":null"), "{response}");
         assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let invalid = concat!(
+            "func inspect(): i32 {\n",
+            "    let pair = (1, true)\n",
+            "    pair.1_0\n",
+            "}\n",
+        );
+        let changed = set_completion_document(&mut server, &uri, invalid, 3);
+        let snapshot = changed.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::CompilationFailed
+        );
+        assert_eq!(snapshot.diagnostics().len(), 1);
+        assert_eq!(snapshot.diagnostics()[0].code(), "E0413");
+        assert!(changed.issue().is_none(), "{:?}", changed.issue());
     }
 
     #[test]

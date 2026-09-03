@@ -389,18 +389,15 @@ impl BodyChecker<'_, '_> {
             nocter_syntax::TokenKind::IntegerLiteral,
         )
         .ok_or(BodyCheckInternalError::InvalidSyntax(suffix))?;
-        let spelling = self.token_text(token)?;
-        if spelling.len() > 1 && spelling.starts_with('0') {
-            return Err(self.rule(BodyRule::UnknownField, suffix)?);
-        }
-        let index = spelling
-            .parse::<usize>()
-            .map_err(|_| BodyCheckInternalError::InvalidSyntax(suffix))?;
+        let index = match nocter_syntax::TupleElementIndex::from_spelling(self.token_text(token)?) {
+            Ok(index) => index.position(),
+            Err(_) => return Err(self.token_rule(BodyRule::UnknownTupleElement, token)?),
+        };
         let Some(TypeKind::Tuple(elements)) = self.types.get(base) else {
-            return Err(self.rule(BodyRule::UnknownField, suffix)?);
+            return Err(self.token_rule(BodyRule::UnknownTupleElement, token)?);
         };
         let Some(ty) = elements.get(index) else {
-            return Err(self.rule(BodyRule::UnknownField, suffix)?);
+            return Err(self.token_rule(BodyRule::UnknownTupleElement, token)?);
         };
         let origin = SourceOrigin::from_token(self.tree(), token)
             .map_err(|_| BodyCheckInternalError::InvalidSyntax(suffix))?;
