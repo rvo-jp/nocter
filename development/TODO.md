@@ -2,31 +2,23 @@
 
 ## Current State
 
-Nocter v0.32.0 is [published and externally audited](releases/v0.32.0.md). Its configured-subprocess
+Nocter v0.33.0 is [published and externally audited](releases/v0.33.0.md). Its structural-tuple
 contract, exact source, reproducible artifact, publication, and public re-download evidence are
-frozen. The `v0.32.0` tag and release asset must not be replaced.
+frozen. The `v0.33.0` tag and release asset must not be replaced.
 
-The [v0.32.0 configured-subprocess milestone](milestones/v0.32.0.md) is complete, published, and
-externally audited. One owning `Command` composes arguments, exact environment edits, working
-directory, and finite input with inherited-output `status` or captured `output`. One prepared
-launch plan and one fair three-direction I/O session preserve exact-child ownership, bounded
-progress, and deterministic failure precedence. The exact candidate commit passed two independent
-workspace and Clippy runs, explicit public-HTTPS acquisition, reproducible packaging, every public
-example and exact process contract, framed LSP verification, immutability checking, and tamper
-rejection. Its immutable [publication record](releases/v0.32.0.md) owns the tag, public asset, and
-re-download evidence.
+The [v0.33.0 structural-tuple milestone](milestones/v0.33.0.md) is complete, published, and
+externally audited. Tuples are anonymous ordered products across syntax, semantic identity,
+ownership, cleanup, MIR, runtime shape, machine layout, native execution, formatting, and semantic
+tooling. `str.split_once` and the public tuple example exercise the feature without replacing
+meaningful named records. The exact replacement candidate passed two independent workspace and
+Clippy runs, public-HTTPS acquisition, reproducible packaging, every public example, tuple-specific
+native behavior, framed LSP verification, immutability checking, and tamper rejection. Its
+immutable [publication record](releases/v0.33.0.md) owns the tag, public asset, and re-download
+evidence.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 milestone, release, and review records rather than this handoff.
-
-The [v0.33.0 structural-tuple milestone](milestones/v0.33.0.md) is active. Phases 0 through 3
-implement tuples as anonymous ordered products across syntax, semantic identity, checked ownership,
-MIR, runtime shape, machine layout and lowering, formatting, semantic tooling, `str.split_once`, and
-one public example. Their
-[implementation review](reviews/v0.33.0-phases-1-3.md) has no open finding. The
-[representation boundary](docs/tuple-design.md) prohibits synthetic nominal types, `PackEntry`
-reuse, backend shape reconstruction, and editor-specific parsing.
 
 The documentation-authority migration is complete: all workspace crates own local contracts,
 central design documents own cross-crate boundaries only, and generated documentation validates
@@ -51,13 +43,9 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Publish the already qualified v0.33.0 archive described by the
-[release-preparation record](milestones/v0.33.0-release-preparation.md). Publication is authorized:
-advance public latest links in a separate commit, tag that publication state once, upload exactly
-the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
-during publication.
-Preserve the v0.32.0 release record as immutable evidence; any correction requires a new version,
-candidate, tag, and archive.
+Define the next coherent practical or language boundary before changing compiler or standard-
+library behavior. Preserve the v0.33.0 release record as immutable evidence; any correction
+requires a new version, candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
