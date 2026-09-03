@@ -46,7 +46,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Associative Collections](27-associative-collections.md)
 - [JSON Values and Text](28-json.md) — v0.22.0 standard-library contract
 - [Monotonic Time](29-monotonic-time.md)
-- [Synchronous Subprocesses](30-subprocesses.md) — v0.30.0 candidate contract
+- [Synchronous Subprocesses](30-subprocesses.md) — v0.30.0 standard-library contract
 
 ## Supporting Material
 
@@ -55,8 +55,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the active v0.30.0 candidate extending the published v0.29.0 language,
-including the v0.20.0
+This working tree specifies the published v0.30.0 language, including the v0.20.0
 interface-prerequisite foundation, v0.21.0 associative collections, v0.22.0 JSON standard module,
 the complete v0.23.0 type-owned integer text surface, and explicit module subjects for external
 values. v0.25.0 adds the source-visible `noalloc` callable guarantee. v0.26.0 adds normalized
@@ -64,8 +63,7 @@ durations, monotonic elapsed-time measurement, and blocking sleep. v0.27.0 compl
 UTF-8 path inspection and explicit directory lifecycle operations. v0.28.0 adopts practical
 ASCII text transformations, a private scalar-formatting authority, and symmetric text output.
 v0.29.0 adds borrowed standard input and an exact child-argument channel for `nocter run`. v0.30.0
-adds the owning synchronous-subprocess contract. Published v0.29.0 artifacts do not contain that
-addition.
+adds the owning synchronous-subprocess contract.
 Implementation phases and qualification evidence belong only to contributor records and are
 intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository

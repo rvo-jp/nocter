@@ -39,10 +39,11 @@ audit with no open finding.
 
 ## Next Work
 
-Await explicit publication authority. Publication must reuse the retained qualified archive without
-rebuilding it, advance the public latest-release links in a separate commit, create one annotated
-`v0.30.0` tag, upload exactly one archive, verify the downloaded public bytes, and record immutable
-publication evidence under `development/releases/`.
+Publish the already qualified v0.30.0 archive described by the
+[release-preparation record](milestones/v0.30.0-release-preparation.md). Publication is authorized:
+advance public latest links in a separate commit, tag that publication state once, upload exactly
+the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
+during publication.
 
 Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

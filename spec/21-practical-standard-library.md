@@ -474,9 +474,9 @@ remains the allocating convenience that collects all arguments.
 
 ### Synchronous Subprocesses
 
-The v0.30.0 source-tree contract adds an owning command builder and synchronous status observation
-without a shell, `PATH` search, hidden child handle, or reconstructed environment. It is not part of
-published v0.29.0 artifacts. The complete surface and failure rules are centralized in
+The v0.30.0 contract adds an owning command builder and synchronous status observation without a
+shell, `PATH` search, hidden child handle, or reconstructed environment. The complete surface and
+failure rules are centralized in
 [Synchronous Subprocesses](30-subprocesses.md).
 
 ## Allocation and Failure
