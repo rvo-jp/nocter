@@ -807,6 +807,9 @@ fn standard_subprocess_output_crosses_the_complete_native_session() {
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
     let helper = package_root.0.join("capture-helper");
+    let empty = package_root.0.join("empty-capture-helper");
+    let text = package_root.0.join("text-capture-helper");
+    let signaled = package_root.0.join("signal-capture-helper");
     let missing = package_root.0.join("missing-capture-helper");
     package_root.source(
         "main.nct",
@@ -841,30 +844,66 @@ func main(): i32 {{
     if !matches_stream(stdout, 79, 262144, 0, 255) {{ return 5 }}
     if !matches_stream(stderr, 69, 262144, 0, 254) {{ return 6 }}
 
-    let missing = Command.new("{}") catch _ {{ return 7 }}
+    let empty = Command.new("{}") catch _ {{ return 7 }}
+    let empty_output = empty.output() catch _ {{ return 8 }}
+    if !empty_output.status.success() || empty_output.stdout.len() != 0
+        || empty_output.stderr.len() != 0 {{ return 9 }}
+
+    let text = Command.new("{}") catch _ {{ return 10 }}
+    let text_output = text.output() catch _ {{ return 11 }}
+    if !text_output.status.success() || text_output.stdout.len() != 6
+        || text_output.stdout[0] != 104 || text_output.stdout[1] != 101
+        || text_output.stdout[2] != 108 || text_output.stdout[3] != 108
+        || text_output.stdout[4] != 111 || text_output.stdout[5] != 10
+        || text_output.stderr.len() != 8 || text_output.stderr[0] != 119
+        || text_output.stderr[1] != 97 || text_output.stderr[2] != 114
+        || text_output.stderr[3] != 110 || text_output.stderr[4] != 105
+        || text_output.stderr[5] != 110 || text_output.stderr[6] != 103
+        || text_output.stderr[7] != 10 {{ return 12 }}
+
+    let signaled = Command.new("{}") catch _ {{ return 13 }}
+    let signal_output = signaled.output() catch _ {{ return 14 }}
+    let signal = signal_output.status.signal() otherwise {{ return 15 }}
+    if signal != 15 || signal_output.stdout.len() != 10
+        || signal_output.stdout[0] != 115 || signal_output.stdout[1] != 105
+        || signal_output.stdout[2] != 103 || signal_output.stdout[3] != 110
+        || signal_output.stdout[4] != 97 || signal_output.stdout[5] != 108
+        || signal_output.stdout[6] != 45 || signal_output.stdout[7] != 111
+        || signal_output.stdout[8] != 117 || signal_output.stdout[9] != 116
+        || signal_output.stderr.len() != 12 || signal_output.stderr[0] != 115
+        || signal_output.stderr[1] != 105 || signal_output.stderr[2] != 103
+        || signal_output.stderr[3] != 110 || signal_output.stderr[4] != 97
+        || signal_output.stderr[5] != 108 || signal_output.stderr[6] != 45
+        || signal_output.stderr[7] != 101 || signal_output.stderr[8] != 114
+        || signal_output.stderr[9] != 114 || signal_output.stderr[10] != 111
+        || signal_output.stderr[11] != 114 {{ return 16 }}
+
+    var attempt: usize = 0
+    while attempt < 48 {{
+        let repeated = Command.new("{}") catch _ {{ return 17 }}
+        let repeated_output = repeated.output() catch _ {{ return 18 }}
+        if !repeated_output.status.success() || repeated_output.stdout.len() != 0
+            || repeated_output.stderr.len() != 0 {{ return 19 }}
+        attempt += 1
+    }}
+
+    let missing = Command.new("{}") catch _ {{ return 20 }}
     let _missing_output = missing.output() catch failure {{
         if failure.has_code("std.process.not_found") {{ return 0 }}
-        return 8
+        return 21
     }}
-    return 9
+    return 22
 }}
 "#,
             helper.display(),
+            empty.display(),
+            text.display(),
+            signaled.display(),
+            empty.display(),
             missing.display(),
         ),
     );
-    let standard_package = PackageIdentity::new("toolchain:std");
-    let unit = discover(DiscoveryRequest::single_file(
-        CompilationTarget::Arm64Darwin,
-        package_root.0.join("main.nct"),
-        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
-        bundled_standard_toolchain(&standard_package),
-    ))
-    .unwrap();
-
-    let compiled = compile_for_test(unit);
-    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
-    execute_subprocess_output_contract(image.image(), &package_root.0);
+    compile_and_execute_subprocess_output(&package_root.0, &standard_root);
 }
 
 #[test]
@@ -911,7 +950,7 @@ fn standard_process_internal_contracts_cross_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 10);
+    assert_eq!(case_count, 11);
 }
 
 #[test]
@@ -1043,6 +1082,20 @@ fn compile_and_execute_subprocess_lifecycle(package_root: &Path, standard_root: 
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_subprocess_lifecycle_contract(image.image(), package_root);
+}
+
+fn compile_and_execute_subprocess_output(package_root: &Path, standard_root: &Path) {
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.join("main.nct"),
+        package_graph(vec![resolved_standard(standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_subprocess_output_contract(image.image(), package_root);
 }
 
 #[test]
@@ -2845,15 +2898,47 @@ fn execute_subprocess_output_contract(image: &NativeImage, root: &Path) {
     .unwrap();
     fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
 
-    let status = Command::new(&executable)
-        .current_dir(root)
-        .status()
-        .unwrap();
-    assert_eq!(
-        status.code(),
-        Some(0),
-        "subprocess output contract exited with {status:?}"
-    );
+    for (name, source) in [
+        ("empty-capture-helper", "#!/bin/sh\nexit 0\n"),
+        (
+            "text-capture-helper",
+            "#!/bin/sh\nprintf 'hello\\n'\nprintf 'warning\\n' >&2\nexit 0\n",
+        ),
+        (
+            "signal-capture-helper",
+            "#!/bin/sh\nprintf 'signal-out'\nprintf 'signal-error' >&2\nkill -TERM $$\nexit 90\n",
+        ),
+    ] {
+        let path = root.join(name);
+        fs::write(&path, source).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    for (name, shell) in [
+        ("ordinary", None),
+        ("closed-stdout", Some("exec 1>&-; exec \"$1\"")),
+        ("closed-stderr", Some("exec 2>&-; exec \"$1\"")),
+    ] {
+        let status = match shell {
+            Some(script) => Command::new("/bin/sh")
+                .current_dir(root)
+                .arg("-c")
+                .arg(script)
+                .arg("nocter-capture-test")
+                .arg(&executable)
+                .status()
+                .unwrap(),
+            None => Command::new(&executable)
+                .current_dir(root)
+                .status()
+                .unwrap(),
+        };
+        assert_eq!(
+            status.code(),
+            Some(0),
+            "subprocess output contract {name} exited with {status:?}"
+        );
+    }
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

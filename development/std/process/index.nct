@@ -8,6 +8,7 @@ use /string.String
 use /vec.Vec
 see ./capture_darwin.nct
 see ./capture_launch_darwin.nct
+see ./capture_launch_tests_darwin.nct
 see ./capture_session_darwin.nct
 see ./capture_session_tests_darwin.nct
 see ./capture_tests_darwin.nct
