@@ -110,6 +110,35 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "subprocess-configured",
+        package_identity: "workspace:subprocess-configured",
+        executable: "subprocess-configured",
+        fixtures: &[
+            PublicExampleFixture::ExecutableFile {
+                path: "workspace/helper.sh",
+                contents: include_bytes!(
+                    "../../../../../examples/subprocess-configured/workspace/helper.sh"
+                ),
+            },
+            PublicExampleFixture::File {
+                path: "workspace/working-directory-marker",
+                contents: include_bytes!(
+                    "../../../../../examples/subprocess-configured/workspace/working-directory-marker"
+                ),
+            },
+        ],
+        runs: &[PublicExampleRun {
+            name: "configured-command",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: include_bytes!(
+                "../../../../../examples/subprocess-configured/sample-output.txt"
+            ),
+            stderr: b"",
+        }],
+    },
+    PublicPackageExample {
         directory: "subprocess-output",
         package_identity: "workspace:subprocess-output",
         executable: "subprocess-output",

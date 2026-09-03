@@ -78,6 +78,17 @@ nocter run examples/elapsed.nct
 
 ## Package Examples
 
+[subprocess-configured/index.nct](subprocess-configured/index.nct) configures an exact child
+environment and working directory, replaces finite standard input, captures both output streams,
+and observes the terminal status as one synchronous operation. Repeated `env` calls demonstrate
+last-write-wins replacement; `clear_env` and `remove_env` make the final child environment exact.
+
+```sh
+cd examples/subprocess-configured
+nocter check
+nocter run
+```
+
 [subprocess-output/index.nct](subprocess-output/index.nct) captures complete standard output and
 standard error from the repository-owned `helper.sh`, validates both byte streams as UTF-8 text,
 and inspects the helper's typed nonzero exit status. Capture preserves arbitrary bytes; the example

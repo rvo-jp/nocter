@@ -978,7 +978,11 @@ fn public_invocation_builds_through_the_installed_standard_library() {
 fn public_subprocess_examples_run_through_the_installed_standard_library() {
     let tree = TempTree::new("subprocess-examples");
     let home = tree.installation("arm64-darwin", true);
-    for name in ["subprocess-status", "subprocess-output"] {
+    for name in [
+        "subprocess-status",
+        "subprocess-output",
+        "subprocess-configured",
+    ] {
         let contract = nocter_test_support::PUBLIC_PACKAGE_EXAMPLES
             .iter()
             .find(|contract| contract.directory() == name)

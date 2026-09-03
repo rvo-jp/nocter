@@ -48,7 +48,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Monotonic Time](29-monotonic-time.md)
 - [Synchronous Subprocesses](30-subprocesses.md) — v0.30.0 standard-library contract
 - [Captured Subprocess Output](31-subprocess-output.md) — v0.31.0 standard-library contract
-- [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 future direction
+- [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 candidate contract
 
 ## Supporting Material
 
@@ -73,9 +73,9 @@ intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
 
-The adopted [v0.32.0 future direction](32-configured-subprocesses.md) completes configured
+The implemented [v0.32.0 candidate contract](32-configured-subprocesses.md) completes configured
 synchronous commands with child environment, working-directory, and finite-input ownership. It is
-not implemented behavior while that chapter retains its explicit future-direction label.
+qualified in the current tree but remains unavailable in published v0.31.0 artifacts.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise

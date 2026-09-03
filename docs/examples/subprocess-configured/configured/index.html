@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>examples/subprocess-configured/configured.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for examples/subprocess-configured/configured.nct.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/examples/subprocess-configured/configured/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="examples/subprocess-configured/configured.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for examples/subprocess-configured/configured.nct.">
+    <meta property="og:url" content="https://nocter.dev/examples/subprocess-configured/configured/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="examples/subprocess-configured/configured.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for examples/subprocess-configured/configured.nct.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/subprocess-configured/configured.nct - Nocter","description":"Nocter source code for examples/subprocess-configured/configured.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/subprocess-configured/configured/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Subprocess Configured","item":"https://nocter.dev/examples/subprocess-configured/"},{"@type":"ListItem","position":4,"name":"Configured","item":"https://nocter.dev/examples/subprocess-configured/configured/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">examples/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../hello/index.html#content">hello.nct</a></li>
+                <li><a href="../../custom-format/index.html#content">custom-format.nct</a></li>
+                <li><a href="../../equality/index.html#content">equality.nct</a></li>
+                <li><a href="../../indexing/index.html#content">indexing.nct</a></li>
+                <li><a href="../../recovery/index.html#content">recovery.nct</a></li>
+                <li><a href="../../mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
+                <li><a href="../../ordering/index.html#content">ordering.nct</a></li>
+                <li><a href="../../elapsed/index.html#content">elapsed.nct</a></li>
+                <li><a href="../index/index.html#content">subprocess-configured/index.nct</a></li>
+                <li><a href="../../subprocess-output/index/index.html#content">subprocess-output/index.nct</a></li>
+                <li><a href="../../subprocess-status/index/index.html#content">subprocess-status/index.nct</a></li>
+                <li><a href="../../text-banner/index/index.html#content">text-banner/index.nct</a></li>
+                <li><a href="../../text-banner/banner/index.html#content">banner.nct</a></li>
+                <li><a href="../../stdin-prefix/index/index.html#content">stdin-prefix/index.nct</a></li>
+                <li><a href="../../stdin-prefix/prefix/index.html#content">prefix.nct</a></li>
+                <li><a href="../../json-normalize/index/index.html#content">json-normalize/index.nct</a></li>
+                <li><a href="../../json-normalize/normalize/index.html#content">normalize.nct</a></li>
+                <li><a href="../../line-frequency/index/index.html#content">line-frequency/index.nct</a></li>
+                <li><a href="../../line-frequency/frequency/index.html#content">frequency.nct</a></li>
+                <li><a href="../../file-summary/index/index.html#content">file-summary/index.nct</a></li>
+                <li><a href="../../file-summary/summary/index.html#content">summary.nct</a></li>
+                <li><a href="../../text-report/index/index.html#content">text-report/index.nct</a></li>
+                <li><a href="../../text-report/report/index/index.html#content">report/index.nct</a></li>
+                <li><a href="../../text-report/report/analysis/index.html#content">analysis.nct</a></li>
+                <li><a href="../../text-search/index/index.html#content">text-search/index.nct</a></li>
+                <li><a href="../../text-search/index.html#content">README</a></li>
+                <li><a href="../../../spec/index.html#content">language specification</a></li>
+                <li><a href="./index.html#content" aria-current="page">subprocess-configured/configured.nct</a></li>
+                <li><a href="../../subprocess-output/capture/index.html#content">subprocess-output/capture.nct</a></li>
+                <li><a href="../../subprocess-status/status/index.html#content">subprocess-status/status.nct</a></li>
+                <li><a href="../../text-search/search/index.html#content">text-search/search.nct</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/examples/subprocess-configured/configured.nct</span>
+            </div>
+            <div class="markdown-body">
+                <h1>configured.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span><span class="token-type">Command</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+
+<span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> command <span class="token-operator">=</span> <span class="token-type">Command</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"./helper.sh"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    command<span class="token-operator">.</span><span class="token-function">current_dir</span><span class="token-operator">(</span><span class="token-string">"./workspace"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    command<span class="token-operator">.</span><span class="token-function">clear_env</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    command<span class="token-operator">.</span><span class="token-function">env</span><span class="token-operator">(</span><span class="token-string">"MODE"</span><span class="token-operator">,</span> <span class="token-string">"ignored"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    command<span class="token-operator">.</span><span class="token-function">env</span><span class="token-operator">(</span><span class="token-string">"MODE"</span><span class="token-operator">,</span> <span class="token-string">"configured"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    command<span class="token-operator">.</span><span class="token-function">env</span><span class="token-operator">(</span><span class="token-string">"REMOVED"</span><span class="token-operator">,</span> <span class="token-string">"temporary"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    command<span class="token-operator">.</span><span class="token-function">remove_env</span><span class="token-operator">(</span><span class="token-string">"REMOVED"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    command<span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span><span class="token-string">"input\n"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+
+    <span class="token-keyword">let</span> output <span class="token-operator">=</span> command<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>output<span class="token-operator">.</span>status<span class="token-operator">.</span><span class="token-function">success</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.subprocess.status"</span><span class="token-operator">,</span> <span class="token-string">"configured helper failed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> stdout <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">from_utf8</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">.</span>stdout<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> stderr <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">from_utf8</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">.</span>stderr<span class="token-operator">)</span><span class="token-operator">?</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"stdout: "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>stdout<span class="token-operator">)</span><span class="token-operator">?</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"stderr: "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>stderr<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span>
+</code></pre>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

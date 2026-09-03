@@ -1,10 +1,10 @@
 # Configured Synchronous Subprocesses
 
-**Future Direction — v0.32.0.** This chapter records the adopted contract for completing the
-synchronous `Command` use case. The declarations described here are not available in published
-v0.31.0 artifacts until this future-direction label is removed.
+**v0.32.0 candidate standard-library contract.** The declarations and behavior in this chapter are
+implemented and qualified in the current source tree. They are not available in published v0.31.0
+artifacts; publication status remains owned by the [release index](../releases/README.md).
 
-The completed operation will let one owning command select its working directory, construct an
+The completed operation lets one owning command select its working directory, construct an
 exact child environment, and provide finite standard-input bytes while retaining the closed
 `status` and `output` lifecycles. It will not introduce an independently owned child process.
 

@@ -1,0 +1,26 @@
+use std/io
+use std/process.Command
+use std/string.String
+
+func run(): i32! {
+    var command = Command.new("./helper.sh")?
+    command.current_dir("./workspace")?
+    command.clear_env()
+    command.env("MODE", "ignored")?
+    command.env("MODE", "configured")?
+    command.env("REMOVED", "temporary")?
+    command.remove_env("REMOVED")?
+    command.input("input\n".bytes())
+
+    let output = command.output()?
+    if !output.status.success() {
+        return error.new("example.subprocess.status", "configured helper failed")
+    }
+    let stdout = String.from_utf8(&output.stdout)?
+    let stderr = String.from_utf8(&output.stderr)?
+    io.print("stdout: ")?
+    io.print(&stdout)?
+    io.print("stderr: ")?
+    io.print(&stderr)?
+    return 0
+}
