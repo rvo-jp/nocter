@@ -46,13 +46,19 @@ unambiguous exec-failure reporting, and typed exit status pass native, editor, f
 complete-workspace, reproducible-package, installed-home, and public-asset qualification. Its
 [Phase 5 review](reviews/v0.30.0-phase-5.md) has no open finding.
 
+The [v0.32.0 configured-subprocess milestone](milestones/v0.32.0.md) is complete and reviewed. Its
+exact release-content commit passed two independent complete workspace and Clippy runs, explicit
+public-HTTPS acquisition, reproducible optimized packaging, fresh installed-home execution of every
+public example and exact process contract, framed LSP verification, immutability checking, and
+tamper rejection. The retained candidate and its hashes are recorded in the
+[release-preparation record](milestones/v0.32.0-release-preparation.md).
+
 ## Next Work
 
-Commit the prepared [v0.32.0](milestones/v0.32.0.md) release content, then qualify that exact clean
-commit through two independent workspace targets, reproducible archive generation, and an isolated
-installed home. Record the exact source commit, test count, archive identity, compiler and
-standard-tree digests, and installed-home evidence before requesting publication authority. The
-[release-preparation record](milestones/v0.32.0-release-preparation.md) owns this boundary.
+Publish v0.32.0 only after explicit user authorization. Publication must reuse the retained
+qualified archive without rebuilding it, advance public latest-release links in a separate commit,
+create and push one new annotated tag, upload exactly one archive, and verify the public asset byte
+for byte. Existing release tags and assets remain immutable.
 
 Preserve the v0.31.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
