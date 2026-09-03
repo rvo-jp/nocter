@@ -1,0 +1,35 @@
+use std/io
+use std/process.Command
+use std/string.String
+
+func run(): i32! {
+    var command = Command.new("./helper.sh")?
+    command.arg("Nocter capture")?
+    let output = command.output()?
+    if output.status.success() {
+        return error.new("example.subprocess.status", "helper unexpectedly succeeded")
+    }
+    let code = output.status.code() otherwise {
+        return error.new("example.subprocess.signal", "helper terminated by a signal")
+    }
+    if code != 23 {
+        return error.new("example.subprocess.status", "helper returned an unexpected exit code")
+    }
+
+    let stdout = String.from_utf8(&output.stdout)?
+    let stderr = String.from_utf8(&output.stderr)?
+    if (&stdout as &str) != "helper stdout\n" {
+        return error.new("example.subprocess.stdout", "helper returned unexpected stdout")
+    }
+    if (&stderr as &str) != "helper warning\n" {
+        return error.new("example.subprocess.stderr", "helper returned unexpected stderr")
+    }
+
+    let heading = "helper exit ${code}"
+    io.println(&heading)?
+    io.print("stdout: ")?
+    io.print(&stdout)?
+    io.print("stderr: ")?
+    io.print(&stderr)?
+    return 0
+}

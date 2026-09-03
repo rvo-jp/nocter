@@ -6,13 +6,15 @@ Nocter v0.30.0 is [published and externally audited](releases/v0.30.0.md). Its s
 subprocess contract, exact source, reproducible artifact, publication, and public re-download
 evidence are frozen. The `v0.30.0` tag and release asset must not be replaced.
 
-The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is active through Phase 3. `Output`
+The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is active through Phase 4. `Output`
 and consuming `Command.output` are implemented, and one private Darwin lifecycle composes
 normalized launch and capture pipes, exact descriptor installation, staged launch reports,
 two-stream polling, owning byte buffers, and exact-child observation. Public and private native
 qualification now covers empty and exact text output, arbitrary bytes, nonzero and signal
 termination, setup and exec rejection, repeated cleanup, and initially closed parent standard
-descriptors. Its [Phase 3 review](reviews/v0.31.0-phase-3.md) has no open finding.
+descriptors. The public `subprocess-output` package now crosses formatter, editor, native, command,
+and installed-home boundaries through one shared execution contract. Its
+[Phase 4 review](reviews/v0.31.0-phase-4.md) has no open finding.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -41,10 +43,10 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Implement v0.31.0 Phase 4 tooling and practical integration. Add one public package that invokes a
-repository-owned helper, validates captured text explicitly, and consumes `Output` in ordinary
-application code. Qualify formatter and editor features against the authored declarations, then
-qualify the same package through native execution and an installed Nocter home.
+Implement v0.31.0 Phase 5 qualification and final review. Run every repository, native,
+installation, packaging, editor, formatter, documentation, and reproducibility gate, then review
+the complete capture path for duplicate descriptor authority, caller-discipline cleanup, target
+ABI leakage, obsolete compatibility surface, and source-of-truth drift before release preparation.
 
 Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

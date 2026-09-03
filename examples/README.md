@@ -78,6 +78,17 @@ nocter run examples/elapsed.nct
 
 ## Package Examples
 
+[subprocess-output/index.nct](subprocess-output/index.nct) captures complete standard output and
+standard error from the repository-owned `helper.sh`, validates both byte streams as UTF-8 text,
+and inspects the helper's typed nonzero exit status. Capture preserves arbitrary bytes; the example
+chooses text conversion explicitly because it knows the helper's output contract.
+
+```sh
+cd examples/subprocess-output
+nocter check
+nocter run
+```
+
 [subprocess-status/index.nct](subprocess-status/index.nct) launches the repository-owned
 `helper.sh` by the exact relative path `./helper.sh`, passes one
 whitespace-bearing argument, waits synchronously, and reports the resulting typed nonzero exit

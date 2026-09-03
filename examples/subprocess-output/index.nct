@@ -1,0 +1,14 @@
+#package: {
+    name: "subprocess-output",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "subprocess-output",
+}
+
+see ./capture.nct
+
+func main(): i32! {
+    return run()
+}

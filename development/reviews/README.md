@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.31.0 Phase 4 Tooling and Practical Integration Review](v0.31.0-phase-4.md)
 - [v0.31.0 Phase 3 Native Failure and Lifecycle Review](v0.31.0-phase-3.md)
 - [v0.31.0 Phase 2 Owning Output Lifecycle Review](v0.31.0-phase-2.md)
 - [v0.31.0 Phase 1 Raw Descriptor and Readiness Review](v0.31.0-phase-1.md)

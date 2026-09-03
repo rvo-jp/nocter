@@ -110,6 +110,23 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "subprocess-output",
+        package_identity: "workspace:subprocess-output",
+        executable: "subprocess-output",
+        fixtures: &[PublicExampleFixture::ExecutableFile {
+            path: "helper.sh",
+            contents: include_bytes!("../../../../../examples/subprocess-output/helper.sh"),
+        }],
+        runs: &[PublicExampleRun {
+            name: "captured-text",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: b"helper exit 23\nstdout: helper stdout\nstderr: helper warning\n",
+            stderr: b"",
+        }],
+    },
+    PublicPackageExample {
         directory: "subprocess-status",
         package_identity: "workspace:subprocess-status",
         executable: "subprocess-status",
