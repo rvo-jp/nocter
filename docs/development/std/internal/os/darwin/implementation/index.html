@@ -282,6 +282,12 @@
 <span class="token-keyword">const</span> <span class="token-type">SYS_EXECVE</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200003b
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">SYS_DUP2</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x0200005a
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">SYS_POLL</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x020000e6
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> <span class="token-type">SYS_RENAME</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0x02000080
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
@@ -365,10 +371,16 @@
 <span class="token-keyword">const</span> <span class="token-type">F_GETPATH</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">50</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
-<span class="token-keyword">const</span> <span class="token-type">F_SETFD</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">2</span>
+<span class="token-keyword">const</span> <span class="token-type">F_GETFD</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">F_DUPFD_CLOEXEC</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">67</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> <span class="token-type">FD_CLOEXEC</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">FIRST_PRIVATE_FD</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">3</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">const</span> <span class="token-type">MAX_PATH_LEN</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">1024</span>

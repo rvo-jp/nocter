@@ -1,0 +1,263 @@
+//! Native qualification for two-stream poll records and bounded capture reads.
+
+see ./capture_darwin.nct
+see ./pipe_darwin.nct
+
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+use /internal/ptr as internal_ptr
+use /ptr
+
+noalloc func descriptor_is_absent(value: i32?): bool {
+    let _ = value otherwise { return true }
+    return false
+}
+
+test capture_transitions_preserve_raw_results_two_stream_progress_and_eof {
+    let ignored = descriptor_i32(0, false) otherwise {
+        return error.new("std.process.test", "inactive descriptor was rejected")
+    }
+    if ignored != -1 || !descriptor_is_absent(descriptor_i32(2147483648, true)) {
+        return error.new("std.process.test", "poll descriptor conversion changed")
+    }
+    if events_are_known(2) || !events_are_known(57) {
+        return error.new("std.process.test", "poll event vocabulary changed")
+    }
+
+    match classify_poll_syscall(SyscallResult { value: 1, errno: 0 }) {
+        PollSyscallAttempt.ready {}
+        PollSyscallAttempt.interrupted { return error.new("std.process.test", "ready poll became interruption") }
+        PollSyscallAttempt.failed(_) { return error.new("std.process.test", "ready poll became failure") }
+        PollSyscallAttempt.malformed { return error.new("std.process.test", "ready poll became malformed") }
+    }
+    match classify_poll_syscall(SyscallResult { value: 0, errno: darwin.ERRNO_INTERRUPTED }) {
+        PollSyscallAttempt.interrupted {}
+        PollSyscallAttempt.ready { return error.new("std.process.test", "poll interruption became ready") }
+        PollSyscallAttempt.failed(_) { return error.new("std.process.test", "poll interruption became failure") }
+        PollSyscallAttempt.malformed { return error.new("std.process.test", "poll interruption became malformed") }
+    }
+    match classify_poll_syscall(SyscallResult { value: 0, errno: 9 }) {
+        PollSyscallAttempt.failed(errno) {
+            if errno != 9 { return error.new("std.process.test", "poll failure errno changed") }
+        }
+        PollSyscallAttempt.ready { return error.new("std.process.test", "poll failure became ready") }
+        PollSyscallAttempt.interrupted { return error.new("std.process.test", "poll failure became interruption") }
+        PollSyscallAttempt.malformed { return error.new("std.process.test", "poll failure became malformed") }
+    }
+    match classify_poll_syscall(SyscallResult { value: 3, errno: 0 }) {
+        PollSyscallAttempt.malformed {}
+        PollSyscallAttempt.ready { return error.new("std.process.test", "oversized poll count became ready") }
+        PollSyscallAttempt.interrupted { return error.new("std.process.test", "oversized poll became interruption") }
+        PollSyscallAttempt.failed(_) { return error.new("std.process.test", "oversized poll became failure") }
+    }
+
+    match classify_capture_read(SyscallResult { value: 1, errno: 0 }, 1) {
+        CaptureReadAttempt.bytes(count) {
+            if count != 1 { return error.new("std.process.test", "capture byte count changed") }
+        }
+        CaptureReadAttempt.end { return error.new("std.process.test", "capture bytes became eof") }
+        CaptureReadAttempt.interrupted { return error.new("std.process.test", "capture bytes became interruption") }
+        CaptureReadAttempt.failed(_) { return error.new("std.process.test", "capture bytes became failure") }
+        CaptureReadAttempt.malformed { return error.new("std.process.test", "capture bytes became malformed") }
+    }
+    match classify_capture_read(SyscallResult { value: 0, errno: darwin.ERRNO_INTERRUPTED }, 1) {
+        CaptureReadAttempt.interrupted {}
+        CaptureReadAttempt.bytes(_) { return error.new("std.process.test", "capture interruption became bytes") }
+        CaptureReadAttempt.end { return error.new("std.process.test", "capture interruption became eof") }
+        CaptureReadAttempt.failed(_) { return error.new("std.process.test", "capture interruption became failure") }
+        CaptureReadAttempt.malformed { return error.new("std.process.test", "capture interruption became malformed") }
+    }
+    match classify_capture_read(SyscallResult { value: 0, errno: 9 }, 1) {
+        CaptureReadAttempt.failed(errno) {
+            if errno != 9 { return error.new("std.process.test", "capture failure errno changed") }
+        }
+        CaptureReadAttempt.bytes(_) { return error.new("std.process.test", "capture failure became bytes") }
+        CaptureReadAttempt.end { return error.new("std.process.test", "capture failure became eof") }
+        CaptureReadAttempt.interrupted { return error.new("std.process.test", "capture failure became interruption") }
+        CaptureReadAttempt.malformed { return error.new("std.process.test", "capture failure became malformed") }
+    }
+    match classify_capture_read(SyscallResult { value: 2, errno: 0 }, 1) {
+        CaptureReadAttempt.malformed {}
+        CaptureReadAttempt.bytes(_) { return error.new("std.process.test", "oversized capture became bytes") }
+        CaptureReadAttempt.end { return error.new("std.process.test", "oversized capture became eof") }
+        CaptureReadAttempt.interrupted { return error.new("std.process.test", "oversized capture became interruption") }
+        CaptureReadAttempt.failed(_) { return error.new("std.process.test", "oversized capture became failure") }
+    }
+    match classify_capture_read(SyscallResult { value: 0, errno: 0 }, 1) {
+        CaptureReadAttempt.end {}
+        CaptureReadAttempt.bytes(_) { return error.new("std.process.test", "capture eof became bytes") }
+        CaptureReadAttempt.interrupted { return error.new("std.process.test", "capture eof became interruption") }
+        CaptureReadAttempt.failed(_) { return error.new("std.process.test", "capture eof became failure") }
+        CaptureReadAttempt.malformed { return error.new("std.process.test", "capture eof became malformed") }
+    }
+
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(_) {
+            return error.new("std.process.test", "first capture pipe creation failed")
+        }
+        PipeAttempt.ready(first) {
+            var first_pipe = move first
+            match create_cloexec_pipe() {
+                PipeAttempt.failed(_) {
+                    return error.new("std.process.test", "second capture pipe creation failed")
+                }
+                PipeAttempt.ready(second) {
+                    var second_pipe = move second
+                    let first_byte: u8 = 31
+                    let first_write = darwin.syscall3(
+                        darwin.SYS_WRITE,
+                        pipe_write_fd(&first_pipe),
+                        ptr.addr(ptr.from_ref(&first_byte)),
+                        1,
+                    )
+                    if first_write.errno != 0 || first_write.value != 1 {
+                        return error.new("std.process.test", "first capture write failed")
+                    }
+
+                    match poll_captures_once(
+                        pipe_read_fd(&first_pipe),
+                        true,
+                        pipe_read_fd(&second_pipe),
+                        true,
+                    ) {
+                        CapturePollAttempt.ready(first_events, second_events) {
+                            if !first_events.readable || first_events.invalid
+                                || second_events.readable || second_events.error
+                                || second_events.hangup || second_events.invalid {
+                                return error.new("std.process.test", "poll selected the wrong capture stream")
+                            }
+                        }
+                        CapturePollAttempt.interrupted {
+                            return error.new("std.process.test", "poll was unexpectedly interrupted")
+                        }
+                        CapturePollAttempt.failed(_) {
+                            return error.new("std.process.test", "poll failed")
+                        }
+                        CapturePollAttempt.malformed {
+                            return error.new("std.process.test", "poll result was malformed")
+                        }
+                    }
+
+                    var received: u8 = 0
+                    let receive_buffer = internal_ptr.slice_from_raw_parts_mut(
+                        ptr.from_ref_mut(&+received),
+                        1,
+                    )
+                    match read_capture_once(pipe_read_fd(&first_pipe), receive_buffer) {
+                        CaptureReadAttempt.bytes(count) {
+                            if count != 1 || received != first_byte {
+                                return error.new("std.process.test", "capture read changed bytes")
+                            }
+                        }
+                        CaptureReadAttempt.end {
+                            return error.new("std.process.test", "capture data became eof")
+                        }
+                        CaptureReadAttempt.interrupted {
+                            return error.new("std.process.test", "capture read was unexpectedly interrupted")
+                        }
+                        CaptureReadAttempt.failed(_) {
+                            return error.new("std.process.test", "capture read failed")
+                        }
+                        CaptureReadAttempt.malformed {
+                            return error.new("std.process.test", "capture read result was malformed")
+                        }
+                    }
+
+                    close_pipe_write(&+first_pipe)
+                    match poll_captures_once(
+                        pipe_read_fd(&first_pipe),
+                        true,
+                        pipe_read_fd(&second_pipe),
+                        true,
+                    ) {
+                        CapturePollAttempt.ready(first_events, _) {
+                            if !first_events.hangup {
+                                return error.new("std.process.test", "closed capture writer did not report hangup")
+                            }
+                        }
+                        CapturePollAttempt.interrupted {
+                            return error.new("std.process.test", "hangup poll was interrupted")
+                        }
+                        CapturePollAttempt.failed(_) {
+                            return error.new("std.process.test", "hangup poll failed")
+                        }
+                        CapturePollAttempt.malformed {
+                            return error.new("std.process.test", "hangup poll was malformed")
+                        }
+                    }
+                    match read_capture_once(pipe_read_fd(&first_pipe), receive_buffer) {
+                        CaptureReadAttempt.end {}
+                        CaptureReadAttempt.bytes(_) {
+                            return error.new("std.process.test", "drained capture did not reach eof")
+                        }
+                        CaptureReadAttempt.interrupted {
+                            return error.new("std.process.test", "eof read was interrupted")
+                        }
+                        CaptureReadAttempt.failed(_) {
+                            return error.new("std.process.test", "eof read failed")
+                        }
+                        CaptureReadAttempt.malformed {
+                            return error.new("std.process.test", "eof read was malformed")
+                        }
+                    }
+
+                    let second_byte: u8 = 47
+                    let second_write = darwin.syscall3(
+                        darwin.SYS_WRITE,
+                        pipe_write_fd(&second_pipe),
+                        ptr.addr(ptr.from_ref(&second_byte)),
+                        1,
+                    )
+                    if second_write.errno != 0 || second_write.value != 1 {
+                        return error.new("std.process.test", "second capture write failed")
+                    }
+                    match poll_captures_once(
+                        pipe_read_fd(&first_pipe),
+                        false,
+                        pipe_read_fd(&second_pipe),
+                        true,
+                    ) {
+                        CapturePollAttempt.ready(first_events, second_events) {
+                            if first_events.readable || first_events.error || first_events.hangup
+                                || first_events.invalid || !second_events.readable {
+                                return error.new("std.process.test", "inactive capture descriptor affected poll")
+                            }
+                        }
+                        CapturePollAttempt.interrupted {
+                            return error.new("std.process.test", "inactive poll was interrupted")
+                        }
+                        CapturePollAttempt.failed(_) {
+                            return error.new("std.process.test", "inactive poll failed")
+                        }
+                        CapturePollAttempt.malformed {
+                            return error.new("std.process.test", "inactive poll was malformed")
+                        }
+                    }
+
+                    let closed_read = pipe_read_fd(&second_pipe)
+                    close_pipe_read(&+second_pipe)
+                    match read_capture_once(closed_read, receive_buffer) {
+                        CaptureReadAttempt.failed(errno) {
+                            if errno == 0 { return error.new("std.process.test", "capture failure lost errno") }
+                        }
+                        CaptureReadAttempt.bytes(_) {
+                            return error.new("std.process.test", "closed capture returned bytes")
+                        }
+                        CaptureReadAttempt.end {
+                            return error.new("std.process.test", "closed capture became eof")
+                        }
+                        CaptureReadAttempt.interrupted {
+                            return error.new("std.process.test", "closed capture became interruption")
+                        }
+                        CaptureReadAttempt.malformed {
+                            return error.new("std.process.test", "closed capture became malformed")
+                        }
+                    }
+                    drop second_pipe
+                    drop first_pipe
+                }
+            }
+        }
+    }
+    return
+}

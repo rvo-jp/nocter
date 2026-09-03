@@ -6,11 +6,16 @@
 use /mem.TryAllocator
 use /string.String
 use /vec.Vec
+see ./capture_darwin.nct
+see ./capture_tests_darwin.nct
 see ./darwin.nct
 see ./command.nct
 see ./command_darwin.nct
+see ./launch_report_darwin.nct
+see ./launch_report_tests_darwin.nct
+see ./pipe_darwin.nct
+see ./pipe_tests_darwin.nct
 see ./subprocess_darwin.nct
-see ./subprocess_tests_darwin.nct
 
 /// An owning exact-path subprocess request.
 pub struct Command

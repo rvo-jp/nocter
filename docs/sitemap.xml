@@ -951,6 +951,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.31.0-phase-1/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/core/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1431,6 +1436,16 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/std/process/capture_darwin/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/process/capture_tests_darwin/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/process/command_darwin/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1451,12 +1466,27 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/process/subprocess_darwin/</loc>
+    <loc>https://nocter.dev/development/std/process/launch_report_darwin/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/process/subprocess_tests_darwin/</loc>
+    <loc>https://nocter.dev/development/std/process/launch_report_tests_darwin/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/process/pipe_darwin/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/process/pipe_tests_darwin/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/process/subprocess_darwin/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

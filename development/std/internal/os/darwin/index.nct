@@ -57,6 +57,12 @@ pub(/) const SYS_PIPE: usize
 pub(/) const SYS_EXECVE: usize
 
 #target: "arm64-darwin"
+pub(/) const SYS_DUP2: usize
+
+#target: "arm64-darwin"
+pub(/) const SYS_POLL: usize
+
+#target: "arm64-darwin"
 pub(/) const SYS_RENAME: usize
 
 #target: "arm64-darwin"
@@ -126,10 +132,16 @@ pub(/) const SYS_FCNTL: usize
 pub(/) const F_GETPATH: usize
 
 #target: "arm64-darwin"
-pub(/) const F_SETFD: usize
+pub(/) const F_GETFD: usize
+
+#target: "arm64-darwin"
+pub(/) const F_DUPFD_CLOEXEC: usize
 
 #target: "arm64-darwin"
 pub(/) const FD_CLOEXEC: usize
+
+#target: "arm64-darwin"
+pub(/) const FIRST_PRIVATE_FD: usize
 
 #target: "arm64-darwin"
 pub(/) const MAX_PATH_LEN: usize

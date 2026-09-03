@@ -1,0 +1,181 @@
+//! Native qualification for the staged close-on-exec launch report.
+
+see ./launch_report_darwin.nct
+see ./pipe_darwin.nct
+
+use /internal/os/darwin
+use /ptr
+
+func authored_launch_report(
+    stage: i32,
+    errno: i32,
+    byte_count: usize,
+): LaunchReportAttempt! {
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(_) {
+            return error.new("std.process.test", "launch report pipe creation failed")
+        }
+        PipeAttempt.ready(pipe) {
+            var channel = move pipe
+            let payload = LaunchFailurePayload { stage: stage, errno: errno }
+            let result = darwin.syscall3(
+                darwin.SYS_WRITE,
+                pipe_write_fd(&channel),
+                ptr.addr(ptr.from_ref(&payload)),
+                byte_count,
+            )
+            close_pipe_write(&+channel)
+            if result.errno != 0 || result.value != byte_count {
+                return error.new("std.process.test", "launch report write failed")
+            }
+            return read_launch_report(move channel)
+        }
+    }
+}
+
+func closed_launch_report(): LaunchReportAttempt! {
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(_) {
+            return error.new("std.process.test", "closed report pipe creation failed")
+        }
+        PipeAttempt.ready(pipe) {
+            var channel = move pipe
+            close_pipe_write(&+channel)
+            return read_launch_report(move channel)
+        }
+    }
+}
+
+func failed_launch_report(): LaunchReportAttempt! {
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(_) {
+            return error.new("std.process.test", "failed report pipe creation failed")
+        }
+        PipeAttempt.ready(pipe) {
+            var channel = move pipe
+            close_pipe_read(&+channel)
+            return read_launch_report(move channel)
+        }
+    }
+}
+
+test launch_report_channel_distinguishes_every_stage_and_protocol_failure {
+    match closed_launch_report()? {
+        LaunchReportAttempt.executed {}
+        LaunchReportAttempt.setup_rejected(_) {
+            return error.new("std.process.test", "closed report became setup failure")
+        }
+        LaunchReportAttempt.exec_rejected(_) {
+            return error.new("std.process.test", "closed report became exec failure")
+        }
+        LaunchReportAttempt.channel_failed(_) {
+            return error.new("std.process.test", "closed report became channel failure")
+        }
+        LaunchReportAttempt.malformed {
+            return error.new("std.process.test", "closed report became malformed")
+        }
+    }
+
+    match authored_launch_report(LAUNCH_STAGE_SETUP, 9, LAUNCH_REPORT_BYTES)? {
+        LaunchReportAttempt.setup_rejected(errno) {
+            if errno != 9 { return error.new("std.process.test", "setup errno changed") }
+        }
+        LaunchReportAttempt.executed {
+            return error.new("std.process.test", "setup failure became success")
+        }
+        LaunchReportAttempt.exec_rejected(_) {
+            return error.new("std.process.test", "setup failure became exec failure")
+        }
+        LaunchReportAttempt.channel_failed(_) {
+            return error.new("std.process.test", "setup failure became channel failure")
+        }
+        LaunchReportAttempt.malformed {
+            return error.new("std.process.test", "setup failure became malformed")
+        }
+    }
+
+    match authored_launch_report(LAUNCH_STAGE_EXEC, 13, LAUNCH_REPORT_BYTES)? {
+        LaunchReportAttempt.exec_rejected(errno) {
+            if errno != 13 { return error.new("std.process.test", "exec errno changed") }
+        }
+        LaunchReportAttempt.executed {
+            return error.new("std.process.test", "exec failure became success")
+        }
+        LaunchReportAttempt.setup_rejected(_) {
+            return error.new("std.process.test", "exec failure became setup failure")
+        }
+        LaunchReportAttempt.channel_failed(_) {
+            return error.new("std.process.test", "exec failure became channel failure")
+        }
+        LaunchReportAttempt.malformed {
+            return error.new("std.process.test", "exec failure became malformed")
+        }
+    }
+
+    match authored_launch_report(99, 13, LAUNCH_REPORT_BYTES)? {
+        LaunchReportAttempt.malformed {}
+        LaunchReportAttempt.executed {
+            return error.new("std.process.test", "unknown report stage became success")
+        }
+        LaunchReportAttempt.setup_rejected(_) {
+            return error.new("std.process.test", "unknown report stage became setup failure")
+        }
+        LaunchReportAttempt.exec_rejected(_) {
+            return error.new("std.process.test", "unknown report stage became exec failure")
+        }
+        LaunchReportAttempt.channel_failed(_) {
+            return error.new("std.process.test", "unknown report stage became channel failure")
+        }
+    }
+
+    match authored_launch_report(LAUNCH_STAGE_EXEC, 0, LAUNCH_REPORT_BYTES)? {
+        LaunchReportAttempt.malformed {}
+        LaunchReportAttempt.executed {
+            return error.new("std.process.test", "zero errno report became success")
+        }
+        LaunchReportAttempt.setup_rejected(_) {
+            return error.new("std.process.test", "zero errno report became setup failure")
+        }
+        LaunchReportAttempt.exec_rejected(_) {
+            return error.new("std.process.test", "zero errno report became exec failure")
+        }
+        LaunchReportAttempt.channel_failed(_) {
+            return error.new("std.process.test", "zero errno report became channel failure")
+        }
+    }
+
+    match authored_launch_report(LAUNCH_STAGE_EXEC, 13, 2)? {
+        LaunchReportAttempt.malformed {}
+        LaunchReportAttempt.executed {
+            return error.new("std.process.test", "partial report became success")
+        }
+        LaunchReportAttempt.setup_rejected(_) {
+            return error.new("std.process.test", "partial report became setup failure")
+        }
+        LaunchReportAttempt.exec_rejected(_) {
+            return error.new("std.process.test", "partial report became exec failure")
+        }
+        LaunchReportAttempt.channel_failed(_) {
+            return error.new("std.process.test", "partial report became channel failure")
+        }
+    }
+
+    match failed_launch_report()? {
+        LaunchReportAttempt.channel_failed(errno) {
+            if errno == 0 { return error.new("std.process.test", "channel failure lost errno") }
+        }
+        LaunchReportAttempt.executed {
+            return error.new("std.process.test", "failed channel became success")
+        }
+        LaunchReportAttempt.setup_rejected(_) {
+            return error.new("std.process.test", "failed channel became setup failure")
+        }
+        LaunchReportAttempt.exec_rejected(_) {
+            return error.new("std.process.test", "failed channel became exec failure")
+        }
+        LaunchReportAttempt.malformed {
+            return error.new("std.process.test", "failed channel became malformed")
+        }
+    }
+    return
+}

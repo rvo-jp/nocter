@@ -1,0 +1,183 @@
+//! Darwin two-stream capture readiness and bounded-read transitions.
+//!
+//! This source owns the poll record layout and translates every raw result into a closed typed
+//! fact. It does not allocate output buffers or choose public process failures.
+
+see ./index.nct
+
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+use /internal/ptr as internal_ptr
+use /ptr
+
+#target: "arm64-darwin"
+copy struct DescriptorEvents {
+    readable: bool
+    error: bool
+    hangup: bool
+    invalid: bool
+}
+
+#target: "arm64-darwin"
+enum CapturePollAttempt {
+    ready(first: DescriptorEvents, second: DescriptorEvents)
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+#target: "arm64-darwin"
+enum CaptureReadAttempt {
+    bytes(count: usize)
+    end
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+#target: "arm64-darwin"
+enum PollSyscallAttempt {
+    ready
+    interrupted
+    failed(errno: i32)
+    malformed
+}
+
+#target: "arm64-darwin"
+copy struct PollDescriptor {
+    fd: i32
+    events: u16
+    returned_events: u16
+}
+
+#target: "arm64-darwin"
+const POLL_INPUT: u16 = 1
+
+#target: "arm64-darwin"
+const POLL_ERROR: u16 = 8
+
+#target: "arm64-darwin"
+const POLL_HANGUP: u16 = 16
+
+#target: "arm64-darwin"
+const POLL_INVALID: u16 = 32
+
+#target: "arm64-darwin"
+const POLL_IGNORED_FD_WORD: usize = 0xffffffffffffffff
+
+#target: "arm64-darwin"
+const POLL_INFINITE_TIMEOUT: usize = 0xffffffffffffffff
+
+#target: "arm64-darwin"
+noalloc func descriptor_i32(fd: usize, active: bool): i32? {
+    var raw = fd
+    if !active { raw = POLL_IGNORED_FD_WORD }
+    if active && raw > 2147483647 { return none }
+    let pointer: *i32 = internal_ptr.from_addr(ptr.addr(ptr.from_ref(&raw)))
+    return internal_ptr.take_value_at_ptr(pointer, 0)
+}
+
+#target: "arm64-darwin"
+noalloc func event_is_set(events: u16, flag: u16): bool {
+    return events / flag % 2 == 1
+}
+
+#target: "arm64-darwin"
+noalloc func descriptor_events(events: u16): DescriptorEvents {
+    return DescriptorEvents {
+        readable: event_is_set(events, POLL_INPUT),
+        error: event_is_set(events, POLL_ERROR),
+        hangup: event_is_set(events, POLL_HANGUP),
+        invalid: event_is_set(events, POLL_INVALID),
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func events_are_known(events: u16): bool {
+    var known: u16 = 0
+    if event_is_set(events, POLL_INPUT) { known += POLL_INPUT }
+    if event_is_set(events, POLL_ERROR) { known += POLL_ERROR }
+    if event_is_set(events, POLL_HANGUP) { known += POLL_HANGUP }
+    if event_is_set(events, POLL_INVALID) { known += POLL_INVALID }
+    return known == events
+}
+
+#target: "arm64-darwin"
+noalloc func classify_poll_syscall(result: SyscallResult): PollSyscallAttempt {
+    if result.errno == darwin.ERRNO_INTERRUPTED { return PollSyscallAttempt.interrupted }
+    if result.errno != 0 { return PollSyscallAttempt.failed(result.errno) }
+    if result.value == 0 || result.value > 2 { return PollSyscallAttempt.malformed }
+    return PollSyscallAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func poll_captures_once(
+    first_fd: usize,
+    first_active: bool,
+    second_fd: usize,
+    second_active: bool,
+): CapturePollAttempt {
+    if !first_active && !second_active { return CapturePollAttempt.malformed }
+    let first = descriptor_i32(first_fd, first_active) otherwise {
+        return CapturePollAttempt.malformed
+    }
+    let second = descriptor_i32(second_fd, second_active) otherwise {
+        return CapturePollAttempt.malformed
+    }
+    var descriptors: [PollDescriptor; 2] = [
+        PollDescriptor { fd: first, events: POLL_INPUT, returned_events: 0 },
+        PollDescriptor { fd: second, events: POLL_INPUT, returned_events: 0 },
+    ]
+    let result = darwin.syscall3(
+        darwin.SYS_POLL,
+        ptr.addr(ptr.from_ref_mut(&+descriptors[0])),
+        2,
+        POLL_INFINITE_TIMEOUT,
+    )
+    match classify_poll_syscall(result) {
+        PollSyscallAttempt.ready {}
+        PollSyscallAttempt.interrupted { return CapturePollAttempt.interrupted }
+        PollSyscallAttempt.failed(errno) { return CapturePollAttempt.failed(errno) }
+        PollSyscallAttempt.malformed { return CapturePollAttempt.malformed }
+    }
+    if !first_active && descriptors[0].returned_events != 0 {
+        return CapturePollAttempt.malformed
+    }
+    if !second_active && descriptors[1].returned_events != 0 {
+        return CapturePollAttempt.malformed
+    }
+    if !events_are_known(descriptors[0].returned_events)
+        || !events_are_known(descriptors[1].returned_events) {
+        return CapturePollAttempt.malformed
+    }
+    var observed: usize = 0
+    if descriptors[0].returned_events != 0 { observed += 1 }
+    if descriptors[1].returned_events != 0 { observed += 1 }
+    if observed != result.value { return CapturePollAttempt.malformed }
+    return CapturePollAttempt.ready(
+        descriptor_events(descriptors[0].returned_events),
+        descriptor_events(descriptors[1].returned_events),
+    )
+}
+
+#target: "arm64-darwin"
+noalloc func read_capture_once(fd: usize, buffer: &+[u8]): CaptureReadAttempt {
+    if buffer.len() == 0 { return CaptureReadAttempt.malformed }
+    let result = darwin.syscall3(
+        darwin.SYS_READ,
+        fd,
+        ptr.addr(buffer.ptr()),
+        buffer.len(),
+    )
+    return classify_capture_read(result, buffer.len())
+}
+
+#target: "arm64-darwin"
+noalloc func classify_capture_read(result: SyscallResult, capacity: usize): CaptureReadAttempt {
+    if capacity == 0 { return CaptureReadAttempt.malformed }
+    if result.errno == darwin.ERRNO_INTERRUPTED { return CaptureReadAttempt.interrupted }
+    if result.errno != 0 { return CaptureReadAttempt.failed(result.errno) }
+    if result.value > capacity { return CaptureReadAttempt.malformed }
+    if result.value == 0 { return CaptureReadAttempt.end }
+    return CaptureReadAttempt.bytes(result.value)
+}

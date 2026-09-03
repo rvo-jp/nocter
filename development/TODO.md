@@ -6,11 +6,11 @@ Nocter v0.30.0 is [published and externally audited](releases/v0.30.0.md). Its s
 subprocess contract, exact source, reproducible artifact, publication, and public re-download
 evidence are frozen. The `v0.30.0` tag and release asset must not be replaced.
 
-The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is active. Phase 0 fixes the future
-`Output` and `Command.output` contracts, simultaneous two-stream drain rule, staged child-launch
-failure report, descriptor-normalization invariant, and allocation and lifecycle boundaries. Its
-[design review](reviews/v0.31.0-phase-0.md) has no open finding. No v0.31.0 implementation or public
-declaration is available yet.
+The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is active through Phase 1. The future
+`Output` and `Command.output` contract is fixed, and the private Darwin boundary now owns normalized
+close-on-exec pipes, exact descriptor installation, staged child-launch reports, two-stream poll
+readiness, and bounded capture reads. Its [Phase 1 review](reviews/v0.31.0-phase-1.md) has no open
+finding. No v0.31.0 public declaration is available yet.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -39,10 +39,10 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Implement v0.31.0 Phase 1 without publishing the future public surface: introduce one normalized
-close-on-exec pipe owner, migrate launch reporting to it, add target-owned `dup2` and `poll` facts,
-and expose typed one-attempt readiness, capture-read, and staged-report transitions. Qualify every
-descriptor and interruption edge before `Command.output` consumes the boundary in Phase 2.
+Implement v0.31.0 Phase 2: add the bodyless public `Output` and consuming `Command.output`
+contracts, then compose three `OwnedPipe` values into one parent lifecycle. Keep simultaneous drain,
+capture-buffer ownership, public failure selection, and exact-child observation in process policy;
+do not expose raw descriptor or poll representations through the public types.
 
 Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

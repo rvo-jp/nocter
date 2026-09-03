@@ -1,0 +1,116 @@
+//! Darwin child launch and staged failure-report transitions.
+//!
+//! Clean close-on-exec EOF proves successful image replacement. A complete payload preserves the
+//! exact setup or exec stage selected in the child without relying on an exit-code convention.
+
+see ./darwin.nct
+see ./pipe_darwin.nct
+
+use /internal/os/darwin
+use /ptr
+
+#target: "arm64-darwin"
+enum LaunchReportAttempt {
+    executed
+    setup_rejected(errno: i32)
+    exec_rejected(errno: i32)
+    channel_failed(errno: i32)
+    malformed
+}
+
+#target: "arm64-darwin"
+copy struct LaunchFailurePayload {
+    stage: i32
+    errno: i32
+}
+
+#target: "arm64-darwin"
+const LAUNCH_REPORT_BYTES: usize = 8
+
+#target: "arm64-darwin"
+const LAUNCH_STAGE_SETUP: i32 = 1
+
+#target: "arm64-darwin"
+const LAUNCH_STAGE_EXEC: i32 = 2
+
+#target: "arm64-darwin"
+noalloc func write_launch_failure_and_exit(
+    report: &+OwnedPipe,
+    stage: i32,
+    errno: i32,
+): never {
+    let payload = LaunchFailurePayload { stage: stage, errno: errno }
+    let address = ptr.addr(ptr.from_ref(&payload))
+    var offset: usize = 0
+    while offset < LAUNCH_REPORT_BYTES {
+        let result = darwin.syscall3(
+            darwin.SYS_WRITE,
+            pipe_write_fd(report),
+            address + offset,
+            LAUNCH_REPORT_BYTES - offset,
+        )
+        if result.errno == darwin.ERRNO_INTERRUPTED {
+        } else if result.errno != 0 || result.value == 0
+            || result.value > LAUNCH_REPORT_BYTES - offset {
+            exit_raw(127)
+        } else {
+            offset += result.value
+        }
+    }
+    close_pipe_write(report)
+    exit_raw(127)
+}
+
+#target: "arm64-darwin"
+noalloc func exec_child(
+    path_address: usize,
+    argv_address: usize,
+    environment_address: usize,
+    report: OwnedPipe,
+): never {
+    var channel = move report
+    close_pipe_read(&+channel)
+    let result = darwin.syscall3(
+        darwin.SYS_EXECVE,
+        path_address,
+        argv_address,
+        environment_address,
+    )
+    write_launch_failure_and_exit(&+channel, LAUNCH_STAGE_EXEC, result.errno)
+}
+
+#target: "arm64-darwin"
+noalloc func read_launch_report(report: OwnedPipe): LaunchReportAttempt {
+    var channel = move report
+    close_pipe_write(&+channel)
+    var payload = LaunchFailurePayload { stage: 0, errno: 0 }
+    let address = ptr.addr(ptr.from_ref_mut(&+payload))
+    var offset: usize = 0
+    while offset < LAUNCH_REPORT_BYTES {
+        let result = darwin.syscall3(
+            darwin.SYS_READ,
+            pipe_read_fd(&channel),
+            address + offset,
+            LAUNCH_REPORT_BYTES - offset,
+        )
+        if result.errno == darwin.ERRNO_INTERRUPTED {
+        } else if result.errno != 0 {
+            return LaunchReportAttempt.channel_failed(result.errno)
+        } else if result.value == 0 {
+            if offset == 0 { return LaunchReportAttempt.executed }
+            return LaunchReportAttempt.malformed
+        } else if result.value > LAUNCH_REPORT_BYTES - offset {
+            return LaunchReportAttempt.malformed
+        } else {
+            offset += result.value
+        }
+    }
+    if payload.errno == 0 { return LaunchReportAttempt.malformed }
+    if payload.stage == LAUNCH_STAGE_SETUP {
+        return LaunchReportAttempt.setup_rejected(payload.errno)
+    }
+    if payload.stage == LAUNCH_STAGE_EXEC {
+        return LaunchReportAttempt.exec_rejected(payload.errno)
+    }
+    return LaunchReportAttempt.malformed
+}

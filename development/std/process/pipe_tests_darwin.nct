@@ -1,0 +1,110 @@
+//! Native qualification for owning, normalized Darwin pipes and descriptor installation.
+
+see ./pipe_darwin.nct
+
+use /internal/os/darwin
+use /ptr
+
+test owned_pipe_normalizes_cloexec_descriptors_and_closes_them_once {
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(_) {
+            return error.new("std.process.test", "normalized pipe creation failed")
+        }
+        PipeAttempt.ready(pipe) {
+            var owned = move pipe
+            let read_fd = pipe_read_fd(&owned)
+            let write_fd = pipe_write_fd(&owned)
+            if read_fd < darwin.FIRST_PRIVATE_FD || write_fd < darwin.FIRST_PRIVATE_FD
+                || read_fd == write_fd {
+                return error.new("std.process.test", "pipe descriptors were not normalized")
+            }
+
+            let read_flags = darwin.syscall3(darwin.SYS_FCNTL, read_fd, darwin.F_GETFD, 0)
+            let write_flags = darwin.syscall3(darwin.SYS_FCNTL, write_fd, darwin.F_GETFD, 0)
+            if read_flags.errno != 0 || write_flags.errno != 0
+                || read_flags.value % 2 != darwin.FD_CLOEXEC
+                || write_flags.value % 2 != darwin.FD_CLOEXEC {
+                return error.new("std.process.test", "pipe descriptors are not close-on-exec")
+            }
+
+            close_pipe_read(&+owned)
+            close_pipe_read(&+owned)
+            let closed = darwin.syscall3(darwin.SYS_FCNTL, read_fd, darwin.F_GETFD, 0)
+            if closed.errno == 0 {
+                return error.new("std.process.test", "closed pipe read descriptor remained open")
+            }
+            drop owned
+            let dropped_write = darwin.syscall3(darwin.SYS_FCNTL, write_fd, darwin.F_GETFD, 0)
+            if dropped_write.errno == 0 {
+                return error.new("std.process.test", "dropped pipe write descriptor remained open")
+            }
+        }
+    }
+    return
+}
+
+test descriptor_installation_replaces_exactly_the_requested_descriptor {
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(_) {
+            return error.new("std.process.test", "source pipe creation failed")
+        }
+        PipeAttempt.ready(source) {
+            var source_pipe = move source
+            match create_cloexec_pipe() {
+                PipeAttempt.failed(_) {
+                    return error.new("std.process.test", "target pipe creation failed")
+                }
+                PipeAttempt.ready(target) {
+                    var target_pipe = move target
+                    let source_write = pipe_write_fd(&source_pipe)
+                    let target_write = pipe_write_fd(&target_pipe)
+                    match install_descriptor(source_write, target_write) {
+                        DescriptorInstallAttempt.ready {}
+                        DescriptorInstallAttempt.failed(_) {
+                            return error.new("std.process.test", "descriptor installation failed")
+                        }
+                        DescriptorInstallAttempt.invalid {
+                            return error.new("std.process.test", "descriptor installation returned another descriptor")
+                        }
+                    }
+                    close_pipe_write(&+source_pipe)
+
+                    let sent: u8 = 83
+                    let written = darwin.syscall3(
+                        darwin.SYS_WRITE,
+                        target_write,
+                        ptr.addr(ptr.from_ref(&sent)),
+                        1,
+                    )
+                    var received: u8 = 0
+                    let read = darwin.syscall3(
+                        darwin.SYS_READ,
+                        pipe_read_fd(&source_pipe),
+                        ptr.addr(ptr.from_ref_mut(&+received)),
+                        1,
+                    )
+                    if written.errno != 0 || written.value != 1 || read.errno != 0
+                        || read.value != 1 || received != sent {
+                        return error.new("std.process.test", "installed descriptor did not share the source pipe")
+                    }
+                    match install_descriptor(source_write, target_write) {
+                        DescriptorInstallAttempt.failed(errno) {
+                            if errno == 0 {
+                                return error.new("std.process.test", "descriptor failure lost errno")
+                            }
+                        }
+                        DescriptorInstallAttempt.ready {
+                            return error.new("std.process.test", "closed source descriptor was installed")
+                        }
+                        DescriptorInstallAttempt.invalid {
+                            return error.new("std.process.test", "closed source descriptor became invalid success")
+                        }
+                    }
+                    drop target_pipe
+                    drop source_pipe
+                }
+            }
+        }
+    }
+    return
+}

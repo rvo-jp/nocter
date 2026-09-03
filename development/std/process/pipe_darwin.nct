@@ -1,0 +1,133 @@
+//! Owning Darwin pipe endpoints.
+//!
+//! This source is the sole owner of close-on-exec pipe creation, descriptor normalization, and
+//! endpoint closure. Consumers receive one owner rather than unrelated raw descriptor integers.
+
+see ./index.nct
+
+use /internal/os/darwin.SyscallPairResult
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+
+#target: "arm64-darwin"
+struct OwnedPipe {
+    read_fd: usize
+    write_fd: usize
+    read_open: bool
+    write_open: bool
+}
+
+#target: "arm64-darwin"
+enum PipeAttempt {
+    ready(pipe: OwnedPipe)
+    failed(errno: i32)
+}
+
+#target: "arm64-darwin"
+enum DescriptorInstallAttempt {
+    ready
+    failed(errno: i32)
+    invalid
+}
+
+#target: "arm64-darwin"
+noalloc func duplicate_cloexec(fd: usize): SyscallResult {
+    var result = darwin.syscall3(
+        darwin.SYS_FCNTL,
+        fd,
+        darwin.F_DUPFD_CLOEXEC,
+        darwin.FIRST_PRIVATE_FD,
+    )
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(
+            darwin.SYS_FCNTL,
+            fd,
+            darwin.F_DUPFD_CLOEXEC,
+            darwin.FIRST_PRIVATE_FD,
+        )
+    }
+    return result
+}
+
+#target: "arm64-darwin"
+noalloc func close_raw_fd(fd: usize): void {
+    // A failed close is never retried. Darwin may already have consumed the descriptor, and a
+    // retry could close an unrelated descriptor allocated in the meantime.
+    let _ = darwin.syscall1(darwin.SYS_CLOSE, fd)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func create_cloexec_pipe(): PipeAttempt {
+    let raw: SyscallPairResult = darwin.syscall_pair0(darwin.SYS_PIPE)
+    if raw.errno != 0 { return PipeAttempt.failed(raw.errno) }
+
+    let normalized_read = duplicate_cloexec(raw.first)
+    if normalized_read.errno != 0 {
+        close_raw_fd(raw.first)
+        close_raw_fd(raw.second)
+        return PipeAttempt.failed(normalized_read.errno)
+    }
+
+    let normalized_write = duplicate_cloexec(raw.second)
+    if normalized_write.errno != 0 {
+        close_raw_fd(normalized_read.value)
+        close_raw_fd(raw.first)
+        close_raw_fd(raw.second)
+        return PipeAttempt.failed(normalized_write.errno)
+    }
+
+    close_raw_fd(raw.first)
+    close_raw_fd(raw.second)
+    return PipeAttempt.ready(OwnedPipe {
+        read_fd: normalized_read.value,
+        write_fd: normalized_write.value,
+        read_open: true,
+        write_open: true,
+    })
+}
+
+#target: "arm64-darwin"
+noalloc func pipe_read_fd(pipe: &OwnedPipe): usize {
+    return pipe.read_fd
+}
+
+#target: "arm64-darwin"
+noalloc func pipe_write_fd(pipe: &OwnedPipe): usize {
+    return pipe.write_fd
+}
+
+#target: "arm64-darwin"
+noalloc func close_pipe_read(pipe: &+OwnedPipe): void {
+    if pipe.read_open {
+        close_raw_fd(pipe.read_fd)
+        pipe.read_open = false
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func close_pipe_write(pipe: &+OwnedPipe): void {
+    if pipe.write_open {
+        close_raw_fd(pipe.write_fd)
+        pipe.write_open = false
+    }
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func install_descriptor(source_fd: usize, target_fd: usize): DescriptorInstallAttempt {
+    var result = darwin.syscall2(darwin.SYS_DUP2, source_fd, target_fd)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall2(darwin.SYS_DUP2, source_fd, target_fd)
+    }
+    if result.errno != 0 { return DescriptorInstallAttempt.failed(result.errno) }
+    if result.value != target_fd { return DescriptorInstallAttempt.invalid }
+    return DescriptorInstallAttempt.ready
+}
+
+noalloc drop OwnedPipe(&+self) {
+    close_pipe_read(self)
+    close_pipe_write(self)
+    return
+}

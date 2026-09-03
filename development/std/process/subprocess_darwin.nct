@@ -1,8 +1,7 @@
-//! Raw Darwin subprocess transitions.
+//! Raw Darwin fork and terminal-observation transitions.
 //!
-//! This source is the sole owner of fork result classification, launch-channel setup and
-//! protocol reads, and terminal wait-status decoding. Public Command policy is layered above
-//! these typed outcomes.
+//! This source is the sole owner of fork result classification and wait-status decoding. Launch
+//! reporting, pipe ownership, and capture readiness are separate responsibilities.
 
 see ./darwin.nct
 
@@ -15,12 +14,6 @@ use /ptr
 enum ForkAttempt {
     parent(pid: usize)
     child
-    failed(errno: i32)
-}
-
-#target: "arm64-darwin"
-enum LaunchPipeAttempt {
-    ready(read_fd: usize, write_fd: usize)
     failed(errno: i32)
 }
 
@@ -42,17 +35,6 @@ enum WaitOutcome {
 }
 
 #target: "arm64-darwin"
-enum ExecReportAttempt {
-    executed
-    rejected(errno: i32)
-    channel_failed(errno: i32)
-    malformed
-}
-
-#target: "arm64-darwin"
-const EXEC_REPORT_BYTES: usize = 4
-
-#target: "arm64-darwin"
 noalloc func classify_fork_attempt(result: SyscallPairResult): ForkAttempt {
     if result.errno != 0 { return ForkAttempt.failed(result.errno) }
     if result.second != 0 { return ForkAttempt.child }
@@ -60,103 +42,8 @@ noalloc func classify_fork_attempt(result: SyscallPairResult): ForkAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func create_launch_pipe(): LaunchPipeAttempt {
-    let result = darwin.syscall_pair0(darwin.SYS_PIPE)
-    if result.errno != 0 { return LaunchPipeAttempt.failed(result.errno) }
-
-    var flags = darwin.syscall3(
-        darwin.SYS_FCNTL,
-        result.second,
-        darwin.F_SETFD,
-        darwin.FD_CLOEXEC,
-    )
-    while flags.errno == darwin.ERRNO_INTERRUPTED {
-        flags = darwin.syscall3(
-            darwin.SYS_FCNTL,
-            result.second,
-            darwin.F_SETFD,
-            darwin.FD_CLOEXEC,
-        )
-    }
-    if flags.errno != 0 {
-        let _ = darwin.syscall1(darwin.SYS_CLOSE, result.first)
-        let _ = darwin.syscall1(darwin.SYS_CLOSE, result.second)
-        return LaunchPipeAttempt.failed(flags.errno)
-    }
-    return LaunchPipeAttempt.ready(result.first, result.second)
-}
-
-#target: "arm64-darwin"
 noalloc func fork_process(): ForkAttempt {
     return classify_fork_attempt(darwin.syscall_pair0(darwin.SYS_FORK))
-}
-
-#target: "arm64-darwin"
-noalloc func write_exec_rejection_and_exit(fd: usize, errno: i32): never {
-    let address = ptr.addr(ptr.from_ref(&errno))
-    var offset: usize = 0
-    while offset < EXEC_REPORT_BYTES {
-        let result = darwin.syscall3(
-            darwin.SYS_WRITE,
-            fd,
-            address + offset,
-            EXEC_REPORT_BYTES - offset,
-        )
-        if result.errno == darwin.ERRNO_INTERRUPTED {
-        } else if result.errno != 0 || result.value == 0
-            || result.value > EXEC_REPORT_BYTES - offset {
-            exit_raw(127)
-        } else {
-            offset += result.value
-        }
-    }
-    let _ = darwin.syscall1(darwin.SYS_CLOSE, fd)
-    exit_raw(127)
-}
-
-#target: "arm64-darwin"
-noalloc func exec_child(
-    path_address: usize,
-    argv_address: usize,
-    environment_address: usize,
-    read_fd: usize,
-    report_fd: usize,
-): never {
-    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-    let result = darwin.syscall3(
-        darwin.SYS_EXECVE,
-        path_address,
-        argv_address,
-        environment_address,
-    )
-    write_exec_rejection_and_exit(report_fd, result.errno)
-}
-
-#target: "arm64-darwin"
-noalloc func read_exec_report(fd: usize): ExecReportAttempt {
-    var payload: i32 = 0
-    let address = ptr.addr(ptr.from_ref_mut(&+payload))
-    var offset: usize = 0
-    while offset < EXEC_REPORT_BYTES {
-        let result = darwin.syscall3(
-            darwin.SYS_READ,
-            fd,
-            address + offset,
-            EXEC_REPORT_BYTES - offset,
-        )
-        if result.errno == darwin.ERRNO_INTERRUPTED {
-        } else if result.errno != 0 {
-            return ExecReportAttempt.channel_failed(result.errno)
-        } else if result.value == 0 {
-            if offset == 0 { return ExecReportAttempt.executed }
-            return ExecReportAttempt.malformed
-        } else if result.value > EXEC_REPORT_BYTES - offset {
-            return ExecReportAttempt.malformed
-        } else {
-            offset += result.value
-        }
-    }
-    return ExecReportAttempt.rejected(payload)
 }
 
 #target: "arm64-darwin"
@@ -257,79 +144,6 @@ test raw_subprocess_results_have_one_typed_interpretation {
 
     if env_vector_raw() == 0 {
         return error.new("std.process.test", "environment vector is absent")
-    }
-
-    match create_launch_pipe() {
-        LaunchPipeAttempt.ready(read_fd, write_fd) {
-            let write_close = darwin.syscall1(darwin.SYS_CLOSE, write_fd)
-            if write_close.errno != 0 {
-                let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-                return error.new("std.process.test", "launch pipe write close failed")
-            }
-            match read_exec_report(read_fd) {
-                ExecReportAttempt.executed {}
-                ExecReportAttempt.rejected(_) {
-                    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-                    return error.new("std.process.test", "closed report channel became rejection")
-                }
-                ExecReportAttempt.channel_failed(_) {
-                    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-                    return error.new("std.process.test", "closed report channel became failure")
-                }
-                ExecReportAttempt.malformed {
-                    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-                    return error.new("std.process.test", "closed report channel became malformed")
-                }
-            }
-            let read_close = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-            if read_close.errno != 0 {
-                return error.new("std.process.test", "launch pipe read close failed")
-            }
-        }
-        LaunchPipeAttempt.failed(_) {
-            return error.new("std.process.test", "launch pipe creation failed")
-        }
-    }
-
-    match create_launch_pipe() {
-        LaunchPipeAttempt.ready(read_fd, write_fd) {
-            let expected_errno: i32 = 13
-            let write_result = darwin.syscall3(
-                darwin.SYS_WRITE,
-                write_fd,
-                ptr.addr(ptr.from_ref(&expected_errno)),
-                EXEC_REPORT_BYTES,
-            )
-            let write_close = darwin.syscall1(darwin.SYS_CLOSE, write_fd)
-            if write_result.errno != 0 || write_result.value != EXEC_REPORT_BYTES || write_close.errno != 0 {
-                let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-                return error.new("std.process.test", "exec rejection report write failed")
-            }
-            let report = read_exec_report(read_fd)
-            let read_close = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-            if read_close.errno != 0 {
-                return error.new("std.process.test", "exec rejection report close failed")
-            }
-            match move report {
-                ExecReportAttempt.rejected(errno) {
-                    if errno != expected_errno {
-                        return error.new("std.process.test", "exec rejection errno changed")
-                    }
-                }
-                ExecReportAttempt.executed {
-                    return error.new("std.process.test", "exec rejection became success")
-                }
-                ExecReportAttempt.channel_failed(_) {
-                    return error.new("std.process.test", "exec rejection became channel failure")
-                }
-                ExecReportAttempt.malformed {
-                    return error.new("std.process.test", "exec rejection became malformed")
-                }
-            }
-        }
-        LaunchPipeAttempt.failed(_) {
-            return error.new("std.process.test", "rejection report pipe creation failed")
-        }
     }
     return
 }

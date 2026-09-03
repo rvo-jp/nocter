@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>development/std/process/capture_darwin.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/process/capture_darwin.nct.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/std/process/capture_darwin/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="development/std/process/capture_darwin.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/process/capture_darwin.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/process/capture_darwin/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="development/std/process/capture_darwin.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/process/capture_darwin.nct.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/capture_darwin.nct - Nocter","description":"Nocter source code for development/std/process/capture_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/capture_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Capture_darwin","item":"https://nocter.dev/development/std/process/capture_darwin/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/std/process/capture_darwin.nct</span>
+            </div>
+            <div class="markdown-body">
+                <h1>capture_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Darwin two-stream capture readiness and bounded-read transitions.</span>
+<span class="token-comment">//!</span>
+<span class="token-comment">//! This source owns the poll record layout and translates every raw result into a closed typed</span>
+<span class="token-comment">//! fact. It does not allocate output buffers or choose public process failures.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin<span class="token-operator">.</span><span class="token-type">SyscallResult</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr <span class="token-keyword">as</span> internal_ptr
+<span class="token-keyword">use</span> <span class="token-operator">/</span>ptr
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+copy <span class="token-keyword">struct</span> <span class="token-type">DescriptorEvents</span> <span class="token-operator">{</span>
+    readable<span class="token-operator">:</span> <span class="token-type">bool</span>
+    error<span class="token-operator">:</span> <span class="token-type">bool</span>
+    hangup<span class="token-operator">:</span> <span class="token-type">bool</span>
+    invalid<span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CapturePollAttempt</span> <span class="token-operator">{</span>
+    <span class="token-function">ready</span><span class="token-operator">(</span>first<span class="token-operator">:</span> <span class="token-type">DescriptorEvents</span><span class="token-operator">,</span> second<span class="token-operator">:</span> <span class="token-type">DescriptorEvents</span><span class="token-operator">)</span>
+    interrupted
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    malformed
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">CaptureReadAttempt</span> <span class="token-operator">{</span>
+    <span class="token-function">bytes</span><span class="token-operator">(</span>count<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span>
+    end
+    interrupted
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    malformed
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">enum</span> <span class="token-type">PollSyscallAttempt</span> <span class="token-operator">{</span>
+    ready
+    interrupted
+    <span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+    malformed
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+copy <span class="token-keyword">struct</span> <span class="token-type">PollDescriptor</span> <span class="token-operator">{</span>
+    fd<span class="token-operator">:</span> <span class="token-type">i32</span>
+    events<span class="token-operator">:</span> <span class="token-type">u16</span>
+    returned_events<span class="token-operator">:</span> <span class="token-type">u16</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">POLL_INPUT</span><span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">1</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">POLL_ERROR</span><span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">8</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">POLL_HANGUP</span><span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">16</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">POLL_INVALID</span><span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">32</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">POLL_IGNORED_FD_WORD</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0xffffffffffffffff
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">const</span> <span class="token-type">POLL_INFINITE_TIMEOUT</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> 0xffffffffffffffff
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">descriptor_i32</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> active<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> raw <span class="token-operator">=</span> fd
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>active <span class="token-operator">{</span> raw <span class="token-operator">=</span> <span class="token-type">POLL_IGNORED_FD_WORD</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> active <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> raw <span class="token-operator">&gt;</span> <span class="token-number">2147483647</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-keyword">none</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> pointer<span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">i32</span> <span class="token-operator">=</span> internal_ptr<span class="token-operator">.</span><span class="token-function">from_addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>raw<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> internal_ptr<span class="token-operator">.</span><span class="token-function">take_value_at_ptr</span><span class="token-operator">(</span>pointer<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span> flag<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> events <span class="token-operator">/</span> flag % <span class="token-number">2</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">descriptor_events</span><span class="token-operator">(</span>events<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">DescriptorEvents</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">DescriptorEvents</span> <span class="token-operator">{</span>
+        readable<span class="token-operator">:</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_INPUT</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        error<span class="token-operator">:</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_ERROR</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        hangup<span class="token-operator">:</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_HANGUP</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        invalid<span class="token-operator">:</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_INVALID</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">events_are_known</span><span class="token-operator">(</span>events<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> known<span class="token-operator">:</span> <span class="token-type">u16</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">if</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_INPUT</span><span class="token-operator">)</span> <span class="token-operator">{</span> known <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-type">POLL_INPUT</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_ERROR</span><span class="token-operator">)</span> <span class="token-operator">{</span> known <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-type">POLL_ERROR</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_HANGUP</span><span class="token-operator">)</span> <span class="token-operator">{</span> known <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-type">POLL_HANGUP</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-function">event_is_set</span><span class="token-operator">(</span>events<span class="token-operator">,</span> <span class="token-type">POLL_INVALID</span><span class="token-operator">)</span> <span class="token-operator">{</span> known <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-type">POLL_INVALID</span> <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> known <span class="token-operator">=</span><span class="token-operator">=</span> events
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">classify_poll_syscall</span><span class="token-operator">(</span>result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">PollSyscallAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> || result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> <span class="token-number">2</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span>ready
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">poll_captures_once</span><span class="token-operator">(</span>
+    first_fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    first_active<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+    second_fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    second_active<span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CapturePollAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>first_active <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> <span class="token-operator">!</span>second_active <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-function">descriptor_i32</span><span class="token-operator">(</span>first_fd<span class="token-operator">,</span> first_active<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> second <span class="token-operator">=</span> <span class="token-function">descriptor_i32</span><span class="token-operator">(</span>second_fd<span class="token-operator">,</span> second_active<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> descriptors<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">PollDescriptor</span>; <span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">[</span>
+        <span class="token-type">PollDescriptor</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> first<span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-type">POLL_INPUT</span><span class="token-operator">,</span> returned_events<span class="token-operator">:</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">,</span>
+        <span class="token-type">PollDescriptor</span> <span class="token-operator">{</span> fd<span class="token-operator">:</span> second<span class="token-operator">,</span> events<span class="token-operator">:</span> <span class="token-type">POLL_INPUT</span><span class="token-operator">,</span> returned_events<span class="token-operator">:</span> <span class="token-number">0</span> <span class="token-operator">}</span><span class="token-operator">,</span>
+    <span class="token-operator">]</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_POLL</span><span class="token-operator">,</span>
+        ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">from_ref_mut</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>descriptors<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-number">2</span><span class="token-operator">,</span>
+        <span class="token-type">POLL_INFINITE_TIMEOUT</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-keyword">match</span> <span class="token-function">classify_poll_syscall</span><span class="token-operator">(</span>result<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">}</span>
+        <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+        <span class="token-type">PollSyscallAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>first_active <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> descriptors<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span>second_active <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> descriptors<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> <span class="token-operator">!</span><span class="token-function">events_are_known</span><span class="token-operator">(</span>descriptors<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events<span class="token-operator">)</span>
+        || <span class="token-operator">!</span><span class="token-function">events_are_known</span><span class="token-operator">(</span>descriptors<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> observed<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">if</span> descriptors<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> observed <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> descriptors<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> observed <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> observed <span class="token-operator">!</span><span class="token-operator">=</span> result<span class="token-operator">.</span>value <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">CapturePollAttempt</span><span class="token-operator">.</span><span class="token-function">ready</span><span class="token-operator">(</span>
+        <span class="token-function">descriptor_events</span><span class="token-operator">(</span>descriptors<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events<span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-function">descriptor_events</span><span class="token-operator">(</span>descriptors<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span><span class="token-operator">.</span>returned_events<span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">read_capture_once</span><span class="token-operator">(</span>fd<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span> buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CaptureReadAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CaptureReadAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
+        darwin<span class="token-operator">.</span><span class="token-type">SYS_READ</span><span class="token-operator">,</span>
+        fd<span class="token-operator">,</span>
+        ptr<span class="token-operator">.</span><span class="token-function">addr</span><span class="token-operator">(</span>buffer<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-function">classify_capture_read</span><span class="token-operator">(</span>result<span class="token-operator">,</span> buffer<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">classify_capture_read</span><span class="token-operator">(</span>result<span class="token-operator">:</span> <span class="token-type">SyscallResult</span><span class="token-operator">,</span> capacity<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">CaptureReadAttempt</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> capacity <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CaptureReadAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">=</span><span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-type">ERRNO_INTERRUPTED</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CaptureReadAttempt</span><span class="token-operator">.</span>interrupted <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>errno <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CaptureReadAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>result<span class="token-operator">.</span>errno<span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">&gt;</span> capacity <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CaptureReadAttempt</span><span class="token-operator">.</span>malformed <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> result<span class="token-operator">.</span>value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-type">CaptureReadAttempt</span><span class="token-operator">.</span>end <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-type">CaptureReadAttempt</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span>result<span class="token-operator">.</span>value<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../../script.js" defer></script>
+</body>
+</html>

@@ -87,6 +87,12 @@ const SYS_PIPE: usize = 0x0200002a
 const SYS_EXECVE: usize = 0x0200003b
 
 #target: "arm64-darwin"
+const SYS_DUP2: usize = 0x0200005a
+
+#target: "arm64-darwin"
+const SYS_POLL: usize = 0x020000e6
+
+#target: "arm64-darwin"
 const SYS_RENAME: usize = 0x02000080
 
 #target: "arm64-darwin"
@@ -170,10 +176,16 @@ const SYS_FCNTL: usize = 0x0200005c
 const F_GETPATH: usize = 50
 
 #target: "arm64-darwin"
-const F_SETFD: usize = 2
+const F_GETFD: usize = 1
+
+#target: "arm64-darwin"
+const F_DUPFD_CLOEXEC: usize = 67
 
 #target: "arm64-darwin"
 const FD_CLOEXEC: usize = 1
+
+#target: "arm64-darwin"
+const FIRST_PRIVATE_FD: usize = 3
 
 #target: "arm64-darwin"
 const MAX_PATH_LEN: usize = 1024

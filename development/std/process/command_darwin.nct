@@ -7,6 +7,8 @@
 see ./index.nct
 see ./command.nct
 see ./darwin.nct
+see ./launch_report_darwin.nct
+see ./pipe_darwin.nct
 see ./subprocess_darwin.nct
 
 use /internal/os.{OSErrorKind}
@@ -54,35 +56,32 @@ noalloc func status_from_wait(outcome: WaitOutcome): ExitStatus! {
 func observe_parent(
     prepared: PreparedCommand,
     pid: usize,
-    read_fd: usize,
-    write_fd: usize,
+    report: OwnedPipe,
 ): ExitStatus! {
-    let _ = darwin.syscall1(darwin.SYS_CLOSE, write_fd)
-    let report = read_exec_report(read_fd)
-    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
+    let launch = read_launch_report(move report)
 
     // Waiting precedes public failure selection so every successfully created child is reaped,
     // including children whose exec request was rejected or whose report channel was malformed.
     let terminal = status_from_wait(wait_for_child(pid))?
     drop prepared
-    match move report {
-        ExecReportAttempt.executed { return terminal }
-        ExecReportAttempt.rejected(errno) { return exec_failed(errno) }
-        ExecReportAttempt.channel_failed(_) { return spawn_failed() }
-        ExecReportAttempt.malformed { return spawn_failed() }
+    match move launch {
+        LaunchReportAttempt.executed { return terminal }
+        LaunchReportAttempt.setup_rejected(_) { return spawn_failed() }
+        LaunchReportAttempt.exec_rejected(errno) { return exec_failed(errno) }
+        LaunchReportAttempt.channel_failed(_) { return spawn_failed() }
+        LaunchReportAttempt.malformed { return spawn_failed() }
     }
 }
 
 #target: "arm64-darwin"
 func run_command(command: Command): ExitStatus! {
     let prepared = prepare_command(move command)
-    match create_launch_pipe() {
-        LaunchPipeAttempt.failed(_) { return spawn_failed() }
-        LaunchPipeAttempt.ready(read_fd, write_fd) {
+    match create_cloexec_pipe() {
+        PipeAttempt.failed(_) { return spawn_failed() }
+        PipeAttempt.ready(report) {
             match fork_process() {
                 ForkAttempt.failed(_) {
-                    let _ = darwin.syscall1(darwin.SYS_CLOSE, read_fd)
-                    let _ = darwin.syscall1(darwin.SYS_CLOSE, write_fd)
+                    drop report
                     return spawn_failed()
                 }
                 ForkAttempt.child {
@@ -90,12 +89,11 @@ func run_command(command: Command): ExitStatus! {
                         prepared_path_address(&prepared),
                         prepared_argv_address(&prepared),
                         env_vector_raw(),
-                        read_fd,
-                        write_fd,
+                        move report,
                     )
                 }
                 ForkAttempt.parent(pid) {
-                    return observe_parent(move prepared, pid, read_fd, write_fd)?
+                    return observe_parent(move prepared, pid, move report)?
                 }
             }
         }
