@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.32.0 Phase 1 Owned Configuration and Prepared-plan Review](v0.32.0-phase-1.md)
 - [v0.32.0 Phase 0 Configured-subprocess Design Review](v0.32.0-phase-0.md)
 - [v0.31.0 Phase 5 Qualification and Final Review](v0.31.0-phase-5.md)
 - [v0.31.0 Phase 4 Tooling and Practical Integration Review](v0.31.0-phase-4.md)

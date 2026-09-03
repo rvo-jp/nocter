@@ -1,0 +1,185 @@
+//! Darwin prepared command addresses and exact child environment construction.
+//!
+//! This source is the sole authority that projects owned Command state into stable post-fork
+//! addresses. Child setup consumes only this completed plan and never revisits source configuration.
+
+see ./command.nct
+see ./configuration.nct
+see ./darwin.nct
+
+use /internal/mem
+use /internal/ptr as internal_ptr
+use /ptr
+use /vec.Vec
+
+#target: "arm64-darwin"
+struct PreparedCommand {
+    command: Command
+    argv: Vec<usize>
+    environment: Vec<usize>
+}
+
+#target: "arm64-darwin"
+noalloc func has_environment_change(command: &Command, name: &str): bool {
+    var index: usize = 0
+    while index < command.environment_changes.len() {
+        if environment_change_name(&command.environment_changes[index]) == name { return true }
+        index += 1
+    }
+    return false
+}
+
+#target: "arm64-darwin"
+noalloc func has_later_environment_change(command: &Command, change_index: usize): bool {
+    let name = environment_change_name(&command.environment_changes[change_index])
+    var index = change_index + 1
+    while index < command.environment_changes.len() {
+        if environment_change_name(&command.environment_changes[index]) == name { return true }
+        index += 1
+    }
+    return false
+}
+
+#target: "arm64-darwin"
+func prepare_environment(command: &Command): Vec<usize> {
+    let inherited_count = if command.inherit_environment { env_count_raw() } else { 0 }
+    let partial_capacity = mem.checked_add(inherited_count, command.environment_changes.len()) otherwise {
+        return mem.allocation_abort()
+    }
+    let capacity = mem.checked_add(partial_capacity, 1) otherwise {
+        return mem.allocation_abort()
+    }
+    var environment_vector: Vec<usize> = Vec.with_capacity(capacity)
+
+    var inherited_index: usize = 0
+    while inherited_index < inherited_count {
+        let name = env_name_raw(inherited_index)
+        if !has_environment_change(command, name) {
+            environment_vector.push(ptr.addr(name.bytes().ptr()))
+        }
+        inherited_index += 1
+    }
+
+    var change_index: usize = 0
+    while change_index < command.environment_changes.len() {
+        if !has_later_environment_change(command, change_index) {
+            let entry_address = environment_change_entry_address(
+                &command.environment_changes[change_index],
+            ) otherwise {
+                change_index += 1
+                continue
+            }
+            environment_vector.push(entry_address)
+        }
+        change_index += 1
+    }
+    environment_vector.push(0)
+    return move environment_vector
+}
+
+#target: "arm64-darwin"
+func prepare_command(command: Command): PreparedCommand {
+    var source = move command
+    let argv_capacity = mem.checked_add(source.arguments.len(), 2) otherwise {
+        return mem.allocation_abort()
+    }
+    var argv: Vec<usize> = Vec.with_capacity(argv_capacity)
+    argv.push(process_text_address(&source.path))
+    for argument in &source.arguments {
+        argv.push(process_text_address(argument))
+    }
+    argv.push(0)
+    let environment_vector = prepare_environment(&source)
+    return PreparedCommand {
+        command: move source,
+        argv: move argv,
+        environment: move environment_vector,
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func prepared_path_address(command: &PreparedCommand): usize {
+    return process_text_address(&command.command.path)
+}
+
+#target: "arm64-darwin"
+noalloc func prepared_argv_address(command: &PreparedCommand): usize {
+    let values: &[usize] = &command.argv
+    return ptr.addr(values.ptr())
+}
+
+#target: "arm64-darwin"
+noalloc func prepared_environment_address(command: &PreparedCommand): usize {
+    let values: &[usize] = &command.environment
+    return ptr.addr(values.ptr())
+}
+
+#target: "arm64-darwin"
+noalloc func prepared_working_directory_address(command: &PreparedCommand): usize {
+    let path = working_directory_view(&command.command.working_directory) otherwise { return 0 }
+    return ptr.addr(path.bytes().ptr())
+}
+
+#target: "arm64-darwin"
+noalloc func prepared_has_input(command: &PreparedCommand): bool {
+    let _ = command_input_view(&command.command.standard_input) otherwise { return false }
+    return true
+}
+
+#target: "arm64-darwin"
+noalloc func prepared_input(command: &PreparedCommand): &[u8]? {
+    return command_input_view(&command.command.standard_input)?
+}
+
+test prepared_launch_plan_owns_exact_vectors_and_configuration {
+    var command = Command.new("./helper")?
+    command.arg("one")?
+    command.current_dir("workspace")?
+    command.clear_env()
+    command.env("FIRST", "ignored")?
+    command.env("SECOND", "kept")?
+    command.remove_env("FIRST")?
+    command.env("SECOND", "final")?
+    let empty_input: Vec<u8> = Vec.empty()
+    command.input(&empty_input)
+
+    let prepared = prepare_command(move command)
+    if prepared.argv.len() != 3 || prepared.argv[2] != 0 {
+        return error.new("std.process.test", "prepared argv is not exact")
+    }
+    if prepared.environment.len() != 2 || prepared.environment[1] != 0 {
+        return error.new("std.process.test", "prepared environment retained overridden entries")
+    }
+    let entry_pointer: *u8 = internal_ptr.from_addr(prepared.environment[0])
+    let entry = internal_ptr.str_from_raw_parts(entry_pointer, 12)
+    if entry != "SECOND=final" {
+        return error.new("std.process.test", "prepared environment changed the final entry")
+    }
+    let directory_pointer: *u8 = internal_ptr.from_addr(prepared_working_directory_address(&prepared))
+    let directory = internal_ptr.str_from_raw_parts(directory_pointer, 9)
+    let input = prepared_input(&prepared) otherwise {
+        return error.new("std.process.test", "prepared input was absent")
+    }
+    if directory != "workspace" || !prepared_has_input(&prepared) || input.len() != 0 {
+        return error.new("std.process.test", "prepared configuration changed")
+    }
+    return
+}
+
+test default_launch_plan_preserves_raw_environment_entries {
+    let prepared = prepare_command(Command.new("/usr/bin/example")?)
+    if prepared.environment.len() != env_count_raw() + 1 {
+        return error.new("std.process.test", "inherited environment count changed")
+    }
+    var index: usize = 0
+    while index < env_count_raw() {
+        if prepared.environment[index] != ptr.addr(env_name_raw(index).bytes().ptr()) {
+            return error.new("std.process.test", "inherited environment address changed")
+        }
+        index += 1
+    }
+    if prepared.environment[index] != 0 {
+        return error.new("std.process.test", "environment vector is not terminated")
+    }
+    return
+}

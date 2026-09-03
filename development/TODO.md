@@ -49,11 +49,12 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 ## Next Work
 
 Implement [v0.32.0](milestones/v0.32.0.md) as one complete configured synchronous-command release.
-Phase 0 has fixed the public contract and Darwin feasibility. Phase 1 must add owned environment,
+Phase 0 fixed the public contract and Darwin feasibility. Phase 1 now owns environment,
 working-directory, and input configuration plus one prepared launch plan without changing the
-compiler. Later phases generalize the command I/O session, qualify every configuration with both
-terminal methods, integrate one public example, and close the entire practical use case before
-release preparation.
+compiler. Phase 2 must replace capture-only polling with one command-I/O session that composes
+finite writes and both captured reads. Later phases qualify every configuration with both terminal
+methods, integrate one public example, and close the entire practical use case before release
+preparation.
 
 Preserve the v0.31.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

@@ -10,6 +10,7 @@ see ./capture_launch_darwin.nct
 see ./capture_session_darwin.nct
 see ./darwin.nct
 see ./launch_report_darwin.nct
+see ./launch_plan_darwin.nct
 see ./pipe_darwin.nct
 see ./subprocess_darwin.nct
 
@@ -155,7 +156,7 @@ func run_command(command: Command): ExitStatus! {
             exec_child(
                 prepared_path_address(&prepared),
                 prepared_argv_address(&prepared),
-                env_vector_raw(),
+                prepared_environment_address(&prepared),
                 move report,
             )
         }
@@ -175,7 +176,7 @@ func output_command(command: Command): Output! {
                     exec_captured_child(
                         prepared_path_address(&prepared),
                         prepared_argv_address(&prepared),
-                        env_vector_raw(),
+                        prepared_environment_address(&prepared),
                         move report,
                         move captures,
                     )

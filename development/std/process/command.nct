@@ -20,19 +20,33 @@ struct OwnedProcessText {
     storage: RawBuffer
 }
 
+enum EnvironmentChange {
+    set(name: OwnedProcessText, entry: OwnedProcessText)
+    remove(name: OwnedProcessText)
+}
+
+enum WorkingDirectory {
+    inherited
+    configured(path: OwnedProcessText)
+}
+
+enum CommandInput {
+    inherited
+    configured(value: Vec<u8>)
+}
+
 struct Command {
     path: OwnedProcessText
     arguments: Vec<OwnedProcessText>
+    inherit_environment: bool
+    environment_changes: Vec<EnvironmentChange>
+    working_directory: WorkingDirectory
+    standard_input: CommandInput
 }
 
 copy struct ExitStatus {
     kind: i32
     value: i32
-}
-
-struct PreparedCommand {
-    command: Command
-    argv: Vec<usize>
 }
 
 func invalid_command_input(): error {
@@ -71,27 +85,9 @@ noalloc func process_text_address(value: &OwnedProcessText): usize {
     return ptr.addr(value.storage.bytes().ptr())
 }
 
-func prepare_command(command: Command): PreparedCommand {
-    var source = move command
-    let argv_capacity = internal_mem.checked_add(source.arguments.len(), 2) otherwise {
-        return internal_mem.allocation_abort()
-    }
-    var argv: Vec<usize> = Vec.with_capacity(argv_capacity)
-    argv.push(process_text_address(&source.path))
-    for argument in &source.arguments {
-        argv.push(process_text_address(argument))
-    }
-    argv.push(0)
-    return PreparedCommand { command: move source, argv: move argv }
-}
-
-noalloc func prepared_path_address(command: &PreparedCommand): usize {
-    return process_text_address(&command.command.path)
-}
-
-noalloc func prepared_argv_address(command: &PreparedCommand): usize {
-    let values: &[usize] = &command.argv
-    return ptr.addr(values.ptr())
+noalloc func process_text_view(value: &OwnedProcessText): &str {
+    let bytes = value.storage.bytes()
+    return internal_ptr.str_from_raw_parts(bytes.ptr(), bytes.len() - 1)
 }
 
 noalloc func exited_status(code: i32): ExitStatus {
@@ -112,6 +108,10 @@ construct Command {
         return Command {
             path: own_process_text(path, true)?,
             arguments: Vec.empty(),
+            inherit_environment: true,
+            environment_changes: Vec.empty(),
+            working_directory: WorkingDirectory.inherited,
+            standard_input: CommandInput.inherited,
         }
     }
 }
@@ -140,19 +140,15 @@ instance ExitStatus {
     }
 }
 
-test command_storage_is_owned_validated_and_prepared_exactly {
+test command_storage_is_owned_and_validated_exactly {
     var command = Command.new("/usr/bin/example")?
     command.arg("first")?
     command.arg("")?
 
-    let path_address = process_text_address(&command.path)
-    let first_address = process_text_address(&command.arguments[0])
-    let second_address = process_text_address(&command.arguments[1])
-    let prepared = prepare_command(move command)
-    let argv: &[usize] = &prepared.argv
-    if argv.len() != 4 || argv[0] != path_address || argv[1] != first_address
-        || argv[2] != second_address || argv[3] != 0 {
-        return error.new("std.process.test", "prepared argv changed command arguments")
+    if process_text_view(&command.path) != "/usr/bin/example"
+        || process_text_view(&command.arguments[0]) != "first"
+        || process_text_view(&command.arguments[1]) != "" {
+        return error.new("std.process.test", "owned command text changed")
     }
 
     var rejected = Command.new("/usr/bin/example")?
@@ -162,9 +158,7 @@ test command_storage_is_owned_validated_and_prepared_exactly {
             return error.new("std.process.test", "invalid argument returned the wrong error")
         }
     }
-    let rejected_prepared = prepare_command(move rejected)
-    let rejected_argv: &[usize] = &rejected_prepared.argv
-    if rejected_argv.len() != 3 || rejected_argv[2] != 0 {
+    if rejected.arguments.len() != 1 || process_text_view(&rejected.arguments[0]) != "kept" {
         return error.new("std.process.test", "invalid argument partially changed command state")
     }
 

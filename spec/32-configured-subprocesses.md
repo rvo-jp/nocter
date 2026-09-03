@@ -24,7 +24,7 @@ instance Command {
     pub method &+self.remove_env(name: &str): void!
 
     /// Removes every inherited and explicitly configured environment entry.
-    pub noalloc method &+self.clear_env(): void
+    pub method &+self.clear_env(): void
 
     /// Copies finite bytes that will replace inherited standard input.
     pub method &+self.input(value: &[u8]): void
@@ -106,7 +106,7 @@ the specific cause of a rejected launch.
 
 Configuration copies use the current allocation context and follow the ordinary allocation-abort
 policy. The `T!` results report invalid process text or operating-system failures, not recoverable
-allocation exhaustion. `clear_env` publishes `noalloc`; the other new methods do not.
+allocation exhaustion. The new configuration methods do not publish `noalloc`.
 
 Both terminal operations may block until the child terminates. `output` may additionally wait for
 descendants that inherited a captured output descriptor. Finite input does not create a public

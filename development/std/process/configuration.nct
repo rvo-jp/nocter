@@ -1,0 +1,189 @@
+//! Owning child-process configuration and failure-atomic request mutation.
+//!
+//! This source owns environment-name rules, exact environment entries, working-directory state,
+//! and copied finite input. Pointer-vector construction and target setup remain separate.
+
+see ./command.nct
+
+use /internal/mem as internal_mem
+use /internal/ptr
+use /mem as mem_module
+use /string
+use /vec.Vec
+
+noalloc func valid_environment_name_for_command(name: &str): bool {
+    if name.len() == 0 || !string.is_valid_utf8(name.bytes()) { return false }
+    let bytes = name.bytes()
+    var index: usize = 0
+    while index < bytes.len() {
+        if bytes[index] == 0 || bytes[index] == 61 { return false }
+        index += 1
+    }
+    return true
+}
+
+noalloc func valid_environment_value_for_command(value: &str): bool {
+    if !string.is_valid_utf8(value.bytes()) { return false }
+    let bytes = value.bytes()
+    var index: usize = 0
+    while index < bytes.len() {
+        if bytes[index] == 0 { return false }
+        index += 1
+    }
+    return true
+}
+
+func own_environment_entry(name: &str, value: &str): OwnedProcessText {
+    let prefix_len = internal_mem.checked_add(name.len(), 1) otherwise {
+        return internal_mem.allocation_abort()
+    }
+    let text_len = internal_mem.checked_add(prefix_len, value.len()) otherwise {
+        return internal_mem.allocation_abort()
+    }
+    let allocation_size = internal_mem.checked_add(text_len, 1) otherwise {
+        return internal_mem.allocation_abort()
+    }
+    var allocator = mem_module.current_allocator()
+    let storage = allocator.alloc(allocation_size, 1)
+    ptr.copy_str_to_ptr(storage.bytes().ptr(), 0, name)
+    ptr.store_u8_to_ptr(storage.bytes().ptr(), name.len(), 61)
+    ptr.copy_str_to_ptr(storage.bytes().ptr(), prefix_len, value)
+    ptr.store_u8_to_ptr(storage.bytes().ptr(), text_len, 0)
+    return OwnedProcessText { storage: move storage }
+}
+
+noalloc func environment_change_name(change: &EnvironmentChange): &str {
+    match change {
+        EnvironmentChange.set(name, _) { return process_text_view(name) }
+        EnvironmentChange.remove(name) { return process_text_view(name) }
+    }
+}
+
+noalloc func environment_change_entry_address(change: &EnvironmentChange): usize? {
+    match change {
+        EnvironmentChange.set(_, entry) { return process_text_address(entry) }
+        EnvironmentChange.remove(_) { return none }
+    }
+}
+
+noalloc func working_directory_view(value: &WorkingDirectory): &str? {
+    match value {
+        WorkingDirectory.inherited { return none }
+        WorkingDirectory.configured(path) { return process_text_view(path) }
+    }
+}
+
+noalloc func command_input_view(value: &CommandInput): &[u8]? {
+    match value {
+        CommandInput.inherited { return none }
+        CommandInput.configured(bytes) {
+            let view: &[u8] = bytes
+            return view
+        }
+    }
+}
+
+func replace_working_directory(command: &+Command, value: WorkingDirectory): void {
+    let previous = ptr.replace_value(&+command.working_directory, move value)
+    drop previous
+    return
+}
+
+func replace_command_input(command: &+Command, value: CommandInput): void {
+    let previous = ptr.replace_value(&+command.standard_input, move value)
+    drop previous
+    return
+}
+
+instance Command {
+    method &+self.current_dir(path: &str): void! {
+        let owned = own_process_text(path, true)?
+        replace_working_directory(self, WorkingDirectory.configured(move owned))
+        return
+    }
+
+    method &+self.env(name: &str, value: &str): void! {
+        if !valid_environment_name_for_command(name)
+            || !valid_environment_value_for_command(value) {
+            return invalid_command_input()
+        }
+        let owned_name = own_process_text(name, true)?
+        let entry = own_environment_entry(name, value)
+        self.environment_changes.push(EnvironmentChange.set(move owned_name, move entry))
+        return
+    }
+
+    method &+self.remove_env(name: &str): void! {
+        if !valid_environment_name_for_command(name) { return invalid_command_input() }
+        let owned_name = own_process_text(name, true)?
+        self.environment_changes.push(EnvironmentChange.remove(move owned_name))
+        return
+    }
+
+    method &+self.clear_env(): void {
+        self.environment_changes.clear()
+        self.inherit_environment = false
+        return
+    }
+
+    method &+self.input(value: &[u8]): void {
+        let owned = Vec.from_slice(value)
+        replace_command_input(self, CommandInput.configured(move owned))
+        return
+    }
+}
+
+test command_configuration_is_owned_and_failure_atomic {
+    var command = Command.new("/usr/bin/example")?
+    command.current_dir("first")?
+    command.current_dir("second")?
+    let first_directory = working_directory_view(&command.working_directory) otherwise {
+        return error.new("std.process.test", "working directory was not retained")
+    }
+    if first_directory != "second" {
+        return error.new("std.process.test", "working directory replacement changed")
+    }
+
+    command.current_dir("bad\0path") catch _ {}
+    let retained_directory = working_directory_view(&command.working_directory) otherwise {
+        return error.new("std.process.test", "invalid directory removed prior state")
+    }
+    if retained_directory != "second" {
+        return error.new("std.process.test", "invalid directory changed prior state")
+    }
+
+    command.env("MODE", "first")?
+    command.env("MODE", "second=value")?
+    command.remove_env("REMOVED")?
+    let change_count = command.environment_changes.len()
+    command.env("BAD=NAME", "value") catch _ {}
+    command.env("GOOD", "bad\0value") catch _ {}
+    command.remove_env("") catch _ {}
+    if command.environment_changes.len() != change_count {
+        return error.new("std.process.test", "invalid environment input changed prior state")
+    }
+
+    var source: Vec<u8> = Vec.empty()
+    let first: u8 = 1
+    let second: u8 = 2
+    let third: u8 = 3
+    let replacement: u8 = 9
+    source.push(first)
+    source.push(second)
+    source.push(third)
+    command.input(&source)
+    source[0] = replacement
+    let retained_input = command_input_view(&command.standard_input) otherwise {
+        return error.new("std.process.test", "configured input was not retained")
+    }
+    if retained_input.len() != 3 || retained_input[0] != first
+        || retained_input[1] != second || retained_input[2] != third {
+        return error.new("std.process.test", "configured input was not copied")
+    }
+
+    command.clear_env()
+    if command.inherit_environment || command.environment_changes.len() != 0 {
+        return error.new("std.process.test", "clear_env retained environment state")
+    }
+    return
+}
