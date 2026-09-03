@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Captured Subprocess Output - Nocter</title>
-    <meta name="description" content="Future Direction for v0.31.0. This chapter records an adopted contract that is not available in published v0.30.0 artifacts. The declarations become curren">
+    <meta name="description" content="v0.31.0 standard-library contract. The declarations and behavior in this chapter are available in the current source tree. Publication status remains owned">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/spec/31-subprocess-output/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Captured Subprocess Output - Nocter">
-    <meta property="og:description" content="Future Direction for v0.31.0. This chapter records an adopted contract that is not available in published v0.30.0 artifacts. The declarations become curren">
+    <meta property="og:description" content="v0.31.0 standard-library contract. The declarations and behavior in this chapter are available in the current source tree. Publication status remains owned">
     <meta property="og:url" content="https://nocter.dev/spec/31-subprocess-output/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Captured Subprocess Output - Nocter">
-    <meta name="twitter:description" content="Future Direction for v0.31.0. This chapter records an adopted contract that is not available in published v0.30.0 artifacts. The declarations become curren">
+    <meta name="twitter:description" content="v0.31.0 standard-library contract. The declarations and behavior in this chapter are available in the current source tree. Publication status remains owned">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Captured Subprocess Output - Nocter","description":"Future Direction for v0.31.0. This chapter records an adopted contract that is not available in published v0.30.0 artifacts. The declarations become curren","url":"https://nocter.dev/spec/31-subprocess-output/","mainEntityOfPage":"https://nocter.dev/spec/31-subprocess-output/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"31 Subprocess Output","item":"https://nocter.dev/spec/31-subprocess-output/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Captured Subprocess Output - Nocter","description":"v0.31.0 standard-library contract. The declarations and behavior in this chapter are available in the current source tree. Publication status remains owned","url":"https://nocter.dev/spec/31-subprocess-output/","mainEntityOfPage":"https://nocter.dev/spec/31-subprocess-output/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"31 Subprocess Output","item":"https://nocter.dev/spec/31-subprocess-output/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -217,7 +217,7 @@
                 <span class="markdown-path-text">/spec/31-subprocess-output.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="captured-subprocess-output">Captured Subprocess Output</h1><p><strong>Future Direction for v0.31.0.</strong> This chapter records an adopted contract that is not available in published v0.30.0 artifacts. The declarations become current behavior only after implementation, qualification, and publication are complete.</p><p>This chapter extends the owning synchronous operation in <code>std/process</code> with simultaneous standard- output and standard-error capture. It does not add an independently owned child process.</p><h2 id="public-surface">Public Surface</h2><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Output</span> <span class="token-operator">{</span>
+                <h1 id="captured-subprocess-output">Captured Subprocess Output</h1><p><strong>v0.31.0 standard-library contract.</strong> The declarations and behavior in this chapter are available in the current source tree. Publication status remains owned by the release index; v0.30.0 remains the latest published release until v0.31.0 publication is complete.</p><p>This chapter extends the owning synchronous operation in <code>std/process</code> with simultaneous standard- output and standard-error capture. It does not add an independently owned child process.</p><h2 id="public-surface">Public Surface</h2><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Output</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> status<span class="token-operator">:</span> <span class="token-type">ExitStatus</span>
     <span class="token-keyword">pub</span> stdout<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
     <span class="token-keyword">pub</span> stderr<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>

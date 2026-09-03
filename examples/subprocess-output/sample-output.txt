@@ -1,0 +1,3 @@
+helper exit 23
+stdout: helper stdout
+stderr: helper warning

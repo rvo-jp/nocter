@@ -122,7 +122,7 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
             arguments: &[],
             stdin: b"",
             status: 0,
-            stdout: b"helper exit 23\nstdout: helper stdout\nstderr: helper warning\n",
+            stdout: include_bytes!("../../../../../examples/subprocess-output/sample-output.txt"),
             stderr: b"",
         }],
     },

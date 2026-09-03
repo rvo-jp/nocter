@@ -6,15 +6,16 @@ Nocter v0.30.0 is [published and externally audited](releases/v0.30.0.md). Its s
 subprocess contract, exact source, reproducible artifact, publication, and public re-download
 evidence are frozen. The `v0.30.0` tag and release asset must not be replaced.
 
-The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is active through Phase 4. `Output`
+The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is complete through Phase 5. `Output`
 and consuming `Command.output` are implemented, and one private Darwin lifecycle composes
 normalized launch and capture pipes, exact descriptor installation, staged launch reports,
 two-stream polling, owning byte buffers, and exact-child observation. Public and private native
 qualification now covers empty and exact text output, arbitrary bytes, nonzero and signal
 termination, setup and exec rejection, repeated cleanup, and initially closed parent standard
 descriptors. The public `subprocess-output` package now crosses formatter, editor, native, command,
-and installed-home boundaries through one shared execution contract. Its
-[Phase 4 review](reviews/v0.31.0-phase-4.md) has no open finding.
+and installed-home boundaries through one shared execution contract. Complete workspace,
+warnings-denied, no-default-features, documentation, packaging-input, and repository qualification
+passes. Its [Phase 5 review](reviews/v0.31.0-phase-5.md) has no open finding.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -43,10 +44,9 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Implement v0.31.0 Phase 5 qualification and final review. Run every repository, native,
-installation, packaging, editor, formatter, documentation, and reproducibility gate, then review
-the complete capture path for duplicate descriptor authority, caller-discipline cleanup, target
-ABI leakage, obsolete compatibility surface, and source-of-truth drift before release preparation.
+Prepare the completed v0.31.0 source tree for release. Assign the release identity, construct and
+qualify the reproducible local archive, update public release records, and publish only after the
+candidate matches its recorded hashes and installed-home behavior.
 
 Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

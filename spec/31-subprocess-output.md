@@ -1,8 +1,8 @@
 # Captured Subprocess Output
 
-**Future Direction for v0.31.0.** This chapter records an adopted contract that is not available in
-published v0.30.0 artifacts. The declarations become current behavior only after implementation,
-qualification, and publication are complete.
+**v0.31.0 standard-library contract.** The declarations and behavior in this chapter are available
+in the current source tree. Publication status remains owned by the release index; v0.30.0 remains
+the latest published release until v0.31.0 publication is complete.
 
 This chapter extends the owning synchronous operation in `std/process` with simultaneous standard-
 output and standard-error capture. It does not add an independently owned child process.

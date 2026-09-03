@@ -26,11 +26,11 @@ development/packaging/qualify-local-release.sh
 Qualification covers manifest-bound compiler and standard-library content, version, installation
 diagnosis, help, package initialization, locked and
 offline checking, native tests, deterministic JSON graphs, native run and build, direct execution,
-every public example, exact child arguments with piped standard input, and LSP analysis of installed
-standard-library contract and implementation sources. It also proves that these commands do not
-mutate the installed home and that changing either the installed compiler or one standard-library
-source invalidates the home. Only after every check passes does it replace the generated candidate
-outputs in `dist/`.
+every public example, exact child arguments with piped standard input, exact synchronous subprocess
+status and captured-output behavior, and LSP analysis of installed standard-library contract and
+implementation sources. It also proves that these commands do not mutate the installed home and
+that changing either the installed compiler or one standard-library source invalidates the home.
+Only after every check passes does it replace the generated candidate outputs in `dist/`.
 
 Generated repository-root `dist/.nocter/`, `dist/SHA256SUMS`, and
 `dist/nocter-v<version>-arm64-darwin.tar.gz` outputs are not committed to git. Packaging and
