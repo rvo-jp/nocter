@@ -2,24 +2,19 @@
 
 ## Current State
 
-Nocter v0.31.0 is [published and externally audited](releases/v0.31.0.md). Its captured-subprocess
+Nocter v0.32.0 is [published and externally audited](releases/v0.32.0.md). Its configured-subprocess
 contract, exact source, reproducible artifact, publication, and public re-download evidence are
-frozen. The `v0.31.0` tag and release asset must not be replaced.
+frozen. The `v0.32.0` tag and release asset must not be replaced.
 
-The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is complete, published, and
-externally audited. `Output` and consuming `Command.output` are implemented, and one private Darwin
-lifecycle composes
-normalized launch and capture pipes, exact descriptor installation, staged launch reports,
-two-stream polling, owning byte buffers, and exact-child observation. Public and private native
-qualification now covers empty and exact text output, arbitrary bytes, nonzero and signal
-termination, setup and exec rejection, repeated cleanup, and initially closed parent standard
-descriptors. The public `subprocess-output` package now crosses formatter, editor, native, command,
-and installed-home boundaries through one shared execution contract. Complete workspace,
-warnings-denied, no-default-features, documentation, packaging-input, and repository qualification
-passes. Its [Phase 5 review](reviews/v0.31.0-phase-5.md) has no open finding. The exact candidate
-commit passed two independent workspace and Clippy runs, reproducible packaging, installed-home
-execution, framed LSP verification, and tamper rejection. Its immutable
-[publication record](releases/v0.31.0.md) owns the tag, public asset, and re-download evidence.
+The [v0.32.0 configured-subprocess milestone](milestones/v0.32.0.md) is complete, published, and
+externally audited. One owning `Command` composes arguments, exact environment edits, working
+directory, and finite input with inherited-output `status` or captured `output`. One prepared
+launch plan and one fair three-direction I/O session preserve exact-child ownership, bounded
+progress, and deterministic failure precedence. The exact candidate commit passed two independent
+workspace and Clippy runs, explicit public-HTTPS acquisition, reproducible packaging, every public
+example and exact process contract, framed LSP verification, immutability checking, and tamper
+rejection. Its immutable [publication record](releases/v0.32.0.md) owns the tag, public asset, and
+re-download evidence.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -46,23 +41,11 @@ unambiguous exec-failure reporting, and typed exit status pass native, editor, f
 complete-workspace, reproducible-package, installed-home, and public-asset qualification. Its
 [Phase 5 review](reviews/v0.30.0-phase-5.md) has no open finding.
 
-The [v0.32.0 configured-subprocess milestone](milestones/v0.32.0.md) is complete and reviewed. Its
-exact release-content commit passed two independent complete workspace and Clippy runs, explicit
-public-HTTPS acquisition, reproducible optimized packaging, fresh installed-home execution of every
-public example and exact process contract, framed LSP verification, immutability checking, and
-tamper rejection. The retained candidate and its hashes are recorded in the
-[release-preparation record](milestones/v0.32.0-release-preparation.md).
-
 ## Next Work
 
-Publish the already qualified v0.32.0 archive described by the
-[release-preparation record](milestones/v0.32.0-release-preparation.md). Publication is authorized:
-advance public latest links in a separate commit, tag that publication state once, upload exactly
-the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
-during publication.
-
-Preserve the v0.31.0 release record as immutable evidence; any correction requires a new version,
-candidate, tag, and archive.
+Define the next practical application boundary before changing compiler or standard-library
+behavior. Preserve the v0.32.0 release record as immutable evidence; any correction requires a new
+version, candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
