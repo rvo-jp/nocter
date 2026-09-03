@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Current Candidate
 
 - [v0.30.0: Synchronous Subprocess Execution](v0.30.0.md)
+- [v0.30.0 Release Preparation](v0.30.0-release-preparation.md)
 
 ## Recent Milestones
 

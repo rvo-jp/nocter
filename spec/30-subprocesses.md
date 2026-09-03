@@ -1,7 +1,7 @@
 # Synchronous Subprocesses
 
-**v0.30.0 contract.** The declarations and behavior in this chapter are current for the development
-source tree. Published v0.29.0 artifacts do not provide `Command` or `ExitStatus`; publication
+**v0.30.0 candidate contract.** The declarations and behavior in this chapter are current for the
+active candidate. Published v0.29.0 artifacts do not provide `Command` or `ExitStatus`; publication
 status remains owned by the [release index](../releases/README.md).
 
 This chapter defines the first subprocess boundary in `std/process`. It deliberately starts with

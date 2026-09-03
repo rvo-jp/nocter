@@ -29,8 +29,7 @@ The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md)
 public contract and is published and externally audited. Its immutable
 [publication record](releases/v0.29.0.md) owns the final evidence.
 
-The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 5
-and is ready for release preparation.
+The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 5.
 The public contract fixes an owning `Command`, synchronous child lifecycle, exact path and argument
 handling, inherited process state, unambiguous exec-failure reporting, and typed exit status. Its
 [Phase 5 review](reviews/v0.30.0-phase-5.md) closes complete repository
@@ -39,10 +38,11 @@ audit with no open finding.
 
 ## Next Work
 
-Prepare the v0.30.0 release without widening its completed feature boundary. Assign the exact
-release identity, build a fresh external archive, qualify the extracted home against the public
-subprocess example, commit the release record and distribution image, then publish and
-independently re-download the immutable artifact only when explicitly authorized.
+Commit the prepared [v0.30.0 release content](milestones/v0.30.0-release-preparation.md), then
+qualify that exact clean commit through two independent workspace targets, reproducible archive
+generation, and an isolated installed home. Record the exact source commit, test count, archive
+identity, compiler and standard-tree digests, and installed-home evidence before requesting
+publication authority.
 
 Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

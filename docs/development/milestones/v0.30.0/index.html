@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.30.0: Synchronous Subprocess Execution - Nocter</title>
-    <meta name="description" content="Status: complete and ready for release preparation. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications a">
+    <meta name="description" content="Status: complete and reviewed; release qualification is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line appl">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/milestones/v0.30.0/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.30.0: Synchronous Subprocess Execution - Nocter">
-    <meta property="og:description" content="Status: complete and ready for release preparation. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications a">
+    <meta property="og:description" content="Status: complete and reviewed; release qualification is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line appl">
     <meta property="og:url" content="https://nocter.dev/development/milestones/v0.30.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.30.0: Synchronous Subprocess Execution - Nocter">
-    <meta name="twitter:description" content="Status: complete and ready for release preparation. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications a">
+    <meta name="twitter:description" content="Status: complete and reviewed; release qualification is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line appl">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.30.0: Synchronous Subprocess Execution - Nocter","description":"Status: complete and ready for release preparation. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications a","url":"https://nocter.dev/development/milestones/v0.30.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.30.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.30.0","item":"https://nocter.dev/development/milestones/v0.30.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.30.0: Synchronous Subprocess Execution - Nocter","description":"Status: complete and reviewed; release qualification is next. v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line appl","url":"https://nocter.dev/development/milestones/v0.30.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.30.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.30.0","item":"https://nocter.dev/development/milestones/v0.30.0/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -177,6 +177,7 @@
                 <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="./index.html#content" aria-current="page">v0.30.0: Synchronous Subprocess Execution</a></li>
+                <li><a href="../v0.30.0-release-preparation/index.html#content">v0.30.0 Release Preparation</a></li>
                 <li><a href="../v0.29.0/index.html#content">v0.29.0: Standard Input and Run Invocation</a></li>
                 <li><a href="../v0.29.0-release-preparation/index.html#content">v0.29.0 Release Preparation</a></li>
                 <li><a href="../v0.28.0/index.html#content">v0.28.0: Practical Text, Formatting, and Output</a></li>
@@ -225,7 +226,7 @@
                 <span class="markdown-path-text">/development/milestones/v0.30.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-30-0-synchronous-subprocess-execution">v0.30.0: Synchronous Subprocess Execution</h1><p><strong>Status: complete and ready for release preparation.</strong> v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications and has a closed ownership model: an owning <code>Command</code> launches one exact executable path with owned arguments, inherits process state, waits, and returns a typed terminal status. It does not introduce a shell, <code>PATH</code> search, output capture, or an independently discardable child handle.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Command.new</code> validates and owns an exact executable-path spelling;</li><li><code>Command.arg</code> validates and owns arguments in insertion order without partially applying an
+                <h1 id="v0-30-0-synchronous-subprocess-execution">v0.30.0: Synchronous Subprocess Execution</h1><p><strong>Status: complete and reviewed; release qualification is next.</strong> v0.30.0 targets the smallest subprocess boundary that is useful to ordinary command-line applications and has a closed ownership model: an owning <code>Command</code> launches one exact executable path with owned arguments, inherits process state, waits, and returns a typed terminal status. It does not introduce a shell, <code>PATH</code> search, output capture, or an independently discardable child handle.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>Command.new</code> validates and owns an exact executable-path spelling;</li><li><code>Command.arg</code> validates and owns arguments in insertion order without partially applying an
   invalid input;</li><li><code>Command.status</code> creates exactly one child, passes exact argument bytes, inherits environment,
   working directory, and standard streams, and reaps that child;</li><li><code>ExitStatus</code> distinguishes ordinary exit from signal termination and defines success as exit
   code zero;</li><li>exec failure is reported to the parent independently of any child exit status;</li><li>inherited environment bytes cross process creation without public UTF-8 decoding or

@@ -132,6 +132,21 @@ expected_stdin_prefix_stderr="$temporary_root/stdin-prefix.expected.stderr"
 cmp "$repository_root/examples/stdin-prefix/sample-output.txt" "$stdin_prefix_stdout"
 cmp "$expected_stdin_prefix_stderr" "$stdin_prefix_stderr"
 
+subprocess_status_stdout="$temporary_root/subprocess-status.stdout"
+subprocess_status_stderr="$temporary_root/subprocess-status.stderr"
+expected_subprocess_status_stdout="$temporary_root/subprocess-status.expected.stdout"
+expected_subprocess_status_stderr="$temporary_root/subprocess-status.expected.stderr"
+printf 'helper exited with code 17\n' > "$expected_subprocess_status_stdout"
+: > "$expected_subprocess_status_stderr"
+"${environment[@]}" "$home/nocter" run \
+  --root "$repository_root/examples/subprocess-status" \
+  --locked \
+  --offline \
+  > "$subprocess_status_stdout" \
+  2> "$subprocess_status_stderr"
+cmp "$expected_subprocess_status_stdout" "$subprocess_status_stdout"
+cmp "$expected_subprocess_status_stderr" "$subprocess_status_stderr"
+
 first_graph="$temporary_root/graph-1.json"
 second_graph="$temporary_root/graph-2.json"
 "${environment[@]}" "$home/nocter" graph --root "$package" --locked --offline --format json > "$first_graph"
