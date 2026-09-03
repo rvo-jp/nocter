@@ -49,10 +49,11 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Publish v0.31.0 only after separate user authorization. Publication must reuse the retained
-qualified archive without rebuilding it, advance public latest-release links in a separate commit,
-create one annotated `v0.31.0` tag, upload exactly one archive, and verify the public asset byte for
-byte before recording immutable publication evidence.
+Publish the already qualified v0.31.0 archive described by the
+[release-preparation record](milestones/v0.31.0-release-preparation.md). Publication is authorized:
+advance public latest links in a separate commit, tag that publication state once, upload exactly
+the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
+during publication.
 
 Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
