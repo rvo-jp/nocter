@@ -293,6 +293,11 @@
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">pipe_read_is_open</span><span class="token-operator">(</span>pipe<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">OwnedPipe</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> pipe<span class="token-operator">.</span>read_open
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
 <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">close_pipe_read</span><span class="token-operator">(</span>pipe<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> pipe<span class="token-operator">.</span>read_open <span class="token-operator">{</span>
         <span class="token-function">close_raw_fd</span><span class="token-operator">(</span>pipe<span class="token-operator">.</span>read_fd<span class="token-operator">)</span>

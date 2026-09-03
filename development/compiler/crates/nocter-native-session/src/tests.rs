@@ -802,6 +802,72 @@ func main(): i32 {{
 }
 
 #[test]
+fn standard_subprocess_output_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let helper = package_root.0.join("capture-helper");
+    let missing = package_root.0.join("missing-capture-helper");
+    package_root.source(
+        "main.nct",
+        &format!(
+            r#"use std/process.Command
+
+noalloc func matches_stream(
+    bytes: &[u8],
+    repeated: u8,
+    repeated_len: usize,
+    first_tail: u8,
+    second_tail: u8,
+): bool {{
+    if bytes.len() != repeated_len + 2 {{ return false }}
+    var index: usize = 0
+    while index < repeated_len {{
+        if bytes[index] != repeated {{ return false }}
+        index += 1
+    }}
+    return bytes[repeated_len] == first_tail
+        && bytes[repeated_len + 1] == second_tail
+}}
+
+func main(): i32 {{
+    let command = Command.new("{}") catch _ {{ return 1 }}
+    let output = command.output() catch _ {{ return 2 }}
+    let code = output.status.code() otherwise {{ return 3 }}
+    if output.status.success() || code != 23 {{ return 4 }}
+
+    let stdout: &[u8] = &output.stdout as &[u8]
+    let stderr: &[u8] = &output.stderr as &[u8]
+    if !matches_stream(stdout, 79, 262144, 0, 255) {{ return 5 }}
+    if !matches_stream(stderr, 69, 262144, 0, 254) {{ return 6 }}
+
+    let missing = Command.new("{}") catch _ {{ return 7 }}
+    let _missing_output = missing.output() catch failure {{
+        if failure.has_code("std.process.not_found") {{ return 0 }}
+        return 8
+    }}
+    return 9
+}}
+"#,
+            helper.display(),
+            missing.display(),
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_subprocess_output_contract(image.image(), &package_root.0);
+}
+
+#[test]
 fn standard_process_internal_contracts_cross_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
@@ -845,7 +911,7 @@ fn standard_process_internal_contracts_cross_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 9);
+    assert_eq!(case_count, 10);
 }
 
 #[test]
@@ -2753,6 +2819,44 @@ fn execute_subprocess_contract(image: &NativeImage, root: &Path) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_subprocess_output_contract(image: &NativeImage, root: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join("subprocess-output-contract");
+    let helper = root.join("capture-helper");
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::write(
+        &helper,
+        concat!(
+            "#!/bin/sh\n",
+            "i=0\n",
+            "while [ \"$i\" -lt 4096 ]; do\n",
+            "  printf 'OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO'\n",
+            "  printf 'EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE' >&2\n",
+            "  i=$((i + 1))\n",
+            "done\n",
+            "printf '\\000\\377'\n",
+            "printf '\\000\\376' >&2\n",
+            "exit 23\n",
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "subprocess output contract exited with {status:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_subprocess_lifecycle_contract(image: &NativeImage, root: &Path) {
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
@@ -2820,6 +2924,9 @@ fn execute_native_test(_image: &NativeImage, _root: &Path, _name: &str) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_contract(_image: &NativeImage, _root: &Path) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_subprocess_output_contract(_image: &NativeImage, _root: &Path) {}
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_subprocess_lifecycle_contract(_image: &NativeImage, _root: &Path) {}

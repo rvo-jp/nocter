@@ -70,13 +70,28 @@ noalloc func exec_child(
 ): never {
     var channel = move report
     close_pipe_read(&+channel)
+    exec_child_after_setup(
+        path_address,
+        argv_address,
+        environment_address,
+        &+channel,
+    )
+}
+
+#target: "arm64-darwin"
+noalloc func exec_child_after_setup(
+    path_address: usize,
+    argv_address: usize,
+    environment_address: usize,
+    report: &+OwnedPipe,
+): never {
     let result = darwin.syscall3(
         darwin.SYS_EXECVE,
         path_address,
         argv_address,
         environment_address,
     )
-    write_launch_failure_and_exit(&+channel, LAUNCH_STAGE_EXEC, result.errno)
+    write_launch_failure_and_exit(report, LAUNCH_STAGE_EXEC, result.errno)
 }
 
 #target: "arm64-darwin"

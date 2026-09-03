@@ -7,6 +7,9 @@ use /mem.TryAllocator
 use /string.String
 use /vec.Vec
 see ./capture_darwin.nct
+see ./capture_launch_darwin.nct
+see ./capture_session_darwin.nct
+see ./capture_session_tests_darwin.nct
 see ./capture_tests_darwin.nct
 see ./darwin.nct
 see ./command.nct
@@ -23,6 +26,18 @@ pub struct Command
 /// One observed terminal state of a reaped child process.
 pub copy struct ExitStatus
 
+/// Complete owned output from one synchronously observed child process.
+pub struct Output {
+    /// The child's observed terminal state.
+    pub status: ExitStatus
+
+    /// Every byte captured from the child's standard output, in stream order.
+    pub stdout: Vec<u8>
+
+    /// Every byte captured from the child's standard error, in stream order.
+    pub stderr: Vec<u8>
+}
+
 construct Command {
     /// Copies and validates one exact executable path.
     pub func new(path: &str): Self!
@@ -34,6 +49,9 @@ instance Command {
 
     /// Launches the command, waits for its child, and consumes all command storage.
     pub method self.status(): ExitStatus!
+
+    /// Launches the command and returns its terminal state and complete output streams.
+    pub method self.output(): Output!
 }
 
 instance ExitStatus {

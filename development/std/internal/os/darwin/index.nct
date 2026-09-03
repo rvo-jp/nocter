@@ -144,6 +144,12 @@ pub(/) const FD_CLOEXEC: usize
 pub(/) const FIRST_PRIVATE_FD: usize
 
 #target: "arm64-darwin"
+pub(/) const STANDARD_OUTPUT_FD: usize
+
+#target: "arm64-darwin"
+pub(/) const STANDARD_ERROR_FD: usize
+
+#target: "arm64-darwin"
 pub(/) const MAX_PATH_LEN: usize
 
 #target: "arm64-darwin"

@@ -202,6 +202,9 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_launch_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_session_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_session_tests_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_tests_darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>darwin<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>command<span class="token-operator">.</span>nct
@@ -218,6 +221,18 @@
 <span class="token-comment">/// One observed terminal state of a reaped child process.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">ExitStatus</span>
 
+<span class="token-comment">/// Complete owned output from one synchronously observed child process.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Output</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// The child's observed terminal state.</span>
+    <span class="token-keyword">pub</span> status<span class="token-operator">:</span> <span class="token-type">ExitStatus</span>
+
+    <span class="token-comment">/// Every byte captured from the child's standard output, in stream order.</span>
+    <span class="token-keyword">pub</span> stdout<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
+
+    <span class="token-comment">/// Every byte captured from the child's standard error, in stream order.</span>
+    <span class="token-keyword">pub</span> stderr<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">construct</span> <span class="token-type">Command</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Copies and validates one exact executable path.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
@@ -229,6 +244,9 @@
 
     <span class="token-comment">/// Launches the command, waits for its child, and consumes all command storage.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Launches the command and returns its terminal state and complete output streams.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">ExitStatus</span> <span class="token-operator">{</span>

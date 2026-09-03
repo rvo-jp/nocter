@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.27.0 Phase 4 Filesystem and Path Review - Nocter</title>
-    <meta name="description" content="Status: remediation and full-workspace qualification complete (2026-09-02). The review found and corrected two observable contract defects. No open defect ">
+    <title>development/std/process/capture_launch_darwin.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/process/capture_launch_darwin.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.27.0-phase-4/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/std/process/capture_launch_darwin/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.27.0 Phase 4 Filesystem and Path Review - Nocter">
-    <meta property="og:description" content="Status: remediation and full-workspace qualification complete (2026-09-02). The review found and corrected two observable contract defects. No open defect ">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.27.0-phase-4/">
+    <meta property="og:title" content="development/std/process/capture_launch_darwin.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/process/capture_launch_darwin.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/process/capture_launch_darwin/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.27.0 Phase 4 Filesystem and Path Review - Nocter">
-    <meta name="twitter:description" content="Status: remediation and full-workspace qualification complete (2026-09-02). The review found and corrected two observable contract defects. No open defect ">
+    <meta name="twitter:title" content="development/std/process/capture_launch_darwin.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/process/capture_launch_darwin.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.27.0 Phase 4 Filesystem and Path Review - Nocter","description":"Status: remediation and full-workspace qualification complete (2026-09-02). The review found and corrected two observable contract defects. No open defect ","url":"https://nocter.dev/development/reviews/v0.27.0-phase-4/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.27.0-phase-4/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.27.0 Phase 4","item":"https://nocter.dev/development/reviews/v0.27.0-phase-4/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/process/capture_launch_darwin.nct - Nocter","description":"Nocter source code for development/std/process/capture_launch_darwin.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/process/capture_launch_darwin/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Process","item":"https://nocter.dev/development/std/process/"},{"@type":"ListItem","position":5,"name":"Capture_launch_darwin","item":"https://nocter.dev/development/std/process/capture_launch_darwin/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,70 +172,106 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/reviews/</p>
+            <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.31.0-phase-1/index.html#content">v0.31.0 Phase 1 Raw Descriptor and Readiness Review</a></li>
-                <li><a href="../v0.31.0-phase-2/index.html#content">v0.31.0 Phase 2 Owning Output Lifecycle Review</a></li>
-                <li><a href="../v0.31.0-phase-0/index.html#content">v0.31.0 Phase 0 Captured-output Design Review</a></li>
-                <li><a href="../v0.30.0-phase-5/index.html#content">v0.30.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.30.0-phase-4/index.html#content">v0.30.0 Phase 4 Tooling and Practical Integration Review</a></li>
-                <li><a href="../v0.30.0-phase-3/index.html#content">v0.30.0 Phase 3 Native Failure and Lifecycle Review</a></li>
-                <li><a href="../v0.30.0-phase-2/index.html#content">v0.30.0 Phase 2 Owning Command and Status Review</a></li>
-                <li><a href="../v0.30.0-phase-1/index.html#content">v0.30.0 Phase 1 Process-context and Raw-target Review</a></li>
-                <li><a href="../v0.30.0-phase-0/index.html#content">v0.30.0 Phase 0 Synchronous-subprocess Design Review</a></li>
-                <li><a href="../v0.29.0-phase-5/index.html#content">v0.29.0 Phase 5 Standard Input and Run Invocation Review</a></li>
-                <li><a href="../v0.28.0-phase-5/index.html#content">v0.28.0 Phase 5 Text, Formatting, and Output Review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.27.0 Phase 4 Filesystem and Path Review</a></li>
-                <li><a href="../v0.26.0-phase-5/index.html#content">v0.26.0 Phase 5 Monotonic-time Qualification Review</a></li>
-                <li><a href="../v0.25.0-query-authority-closure/index.html#content">v0.25.0 Query Authority Closure Review</a></li>
-                <li><a href="../v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li>
-                <li><a href="../v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
-                <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
-                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
-                <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
-                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
-                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
-                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
-                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
-                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li>
-                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li>
-                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li>
-                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li>
-                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li>
-                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li>
-                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li>
-                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li>
-                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li>
-                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li>
-                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li>
-                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li>
-                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li>
-                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
-                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
-                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
-                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li>
-                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
-                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
-                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
-                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li>
-                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li>
-                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li>
-                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li>
-                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li>
-                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li>
-                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li>
-                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li>
-                <li><a href="../v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li>
-                <li><a href="../v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li>
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.27.0-phase-4.md</span>
+                <span class="markdown-path-text">/development/std/process/capture_launch_darwin.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-27-0-phase-4-filesystem-and-path-review">v0.27.0 Phase 4 Filesystem and Path Review</h1><p><strong>Status: remediation and full-workspace qualification complete (2026-09-02).</strong> The review found and corrected two observable contract defects. No open defect or near-term structural blocker remains in the reviewed boundary.</p><h2 id="reviewed-boundary">Reviewed Boundary</h2><p>The review traced lexical path queries from the public <code>Utf8Path</code> contracts to borrowed UTF-8 views, and directory mutation from public policy through native path preparation, Darwin target attempts, raw errno classification, and stable built-in errors. It also traced the declarations through formatter inspection, semantic editor queries, native compilation, and authored-standard test discovery.</p><p>The adversarial search covered duplicate separator scanners, duplicate syscall or errno facts, public target leakage, mutation retries, recursive-delete residue, public-error re-interpretation, source-only editor models, compatibility wrappers, and unchecked caller assumptions.</p><h2 id="findings-and-remediation">Findings and Remediation</h2><p><code>create_dir_all</code> originally called the public <code>metadata</code> function after <code>mkdir</code> reported an existing prefix. A dangling symbolic link therefore escaped as <code>std.io.not_found</code> instead of the specified existing non-directory prefix. The call also made internal policy depend on a public sibling API and would have required re-interpreting a public error to distinguish the target state. <code>std/fs/darwin</code> now owns one narrow <code>existing_path_is_directory_target</code> observation. It shares the canonical stat decoding helper, follows links to directories, classifies dangling or non-directory resolution as false, and preserves unrelated target failures. The public policy consumes that typed observation without inspecting a public error.</p><p>The extension scan originally excluded the final byte before choosing the rightmost dot. Names such as <code>name..</code> and <code>...</code> could therefore treat an earlier dot as an extension separator even though the actual last dot was trailing. The lexical authority now selects the actual rightmost dot first and applies the specification's first-or-last-position rule once. Permanent source tests cover both repeated trailing dots and all-dot names.</p><p>Native application coverage now distinguishes dangling links, links to directories, and final link removal. It proves that recursive creation accepts a link that resolves to a directory, rejects a dangling link as a non-directory prefix, and never lets <code>remove_dir</code> follow a final link. Root-only recursive creation is also exercised without mutation.</p><h2 id="authority-and-residue-review">Authority and Residue Review</h2><p><code>std/path/lexical.nct</code> is the only producer of separator, component, and extension boundaries. Every query remains <code>noalloc</code>, returns a view into the owned spelling, and performs no filesystem observation or dot-component normalization. The optional UTF-8 slice result is checked rather than assumed; its boundary is derived only from ASCII separators or dots, so no caller supplies an unchecked offset.</p><p><code>std/internal/os/darwin</code> is the sole source of raw syscall numbers, mode constants, and errno classification. <code>std/internal/path</code> is the sole native path-argument encoder. <code>std/fs/darwin</code> performs target observations and exactly one mutation attempt, while <code>std/fs</code> owns portable left-to-right policy. Stable <code>std.io.*</code> construction remains centralized in <code>std/internal/io</code>. No public module sees a raw errno, syscall number, target buffer layout, or internal outcome type.</p><p><code>create_dir_all</code> validates the complete spelling before its first mutation so a later embedded NUL cannot leave avoidable partial state. Native path preparation still validates each argument at its own boundary. This is intentional independent input validation, not a second semantic decision: removing it would make target correctness depend on every caller remembering a hidden precondition. Completed directories remain visible only for failures that arise after mutation has legitimately started, as specified.</p><p>No mutation path retries after interruption. The retry loop remains confined to the observational stat query. No recursive deletion implementation, compatibility alias, target-neutral forwarding wrapper, duplicate path scanner, or obsolete public contract remains.</p><p>Formatter, hover, completion, definition, and implementation tests consume the ordinary syntax and semantic-query authorities. The editor integration has no path-specific parser or declaration table. The native application compiles against the physical standard package used by installed toolchains and exercises only public APIs.</p><h2 id="qualification">Qualification</h2><ul><li>complete compiler workspace tests pass, with the existing network integration case ignored;</li><li>complete workspace Clippy passes with warnings denied;</li><li>workspace formatting and repository diff checks pass;</li><li>generated documentation builds deterministically;</li><li>focused native path, filesystem, formatter, and language-server scenarios pass;</li><li>architecture and authored-standard dependency tests pass as part of the complete workspace.</li></ul><p>Release packaging and publication are deliberately not part of this implementation review.</p>
+                <h1>capture_launch_darwin.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Darwin child setup for captured standard output and standard error.</span>
+<span class="token-comment">//!</span>
+<span class="token-comment">//! This source is the only bridge between owning capture pipes and standard descriptor</span>
+<span class="token-comment">//! installation. It reports every rejected setup before raw child exit and delegates executable</span>
+<span class="token-comment">//! replacement to the launch-report authority.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>capture_session_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>launch_report_darwin<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>pipe_darwin<span class="token-operator">.</span>nct
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>os<span class="token-operator">/</span>darwin
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">reject_capture_setup</span><span class="token-operator">(</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+    captures<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CaptureSession</span><span class="token-operator">,</span>
+    errno<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-function">close_all_capture_ends</span><span class="token-operator">(</span>captures<span class="token-operator">)</span>
+    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_SETUP</span><span class="token-operator">,</span> errno<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">reject_malformed_capture_setup</span><span class="token-operator">(</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+    captures<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">CaptureSession</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-comment">// An impossible successful dup2 result must not become clean launch EOF. An unknown stage is</span>
+    <span class="token-comment">// deliberately decoded as a malformed launch report by the parent.</span>
+    <span class="token-function">close_all_capture_ends</span><span class="token-operator">(</span>captures<span class="token-operator">)</span>
+    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">exec_captured_child</span><span class="token-operator">(</span>
+    path_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    argv_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    environment_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    report<span class="token-operator">:</span> <span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+    captures<span class="token-operator">:</span> <span class="token-type">CaptureSession</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> launch_report <span class="token-operator">=</span> <span class="token-keyword">move</span> report
+    <span class="token-keyword">var</span> capture <span class="token-operator">=</span> <span class="token-keyword">move</span> captures
+    <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">)</span>
+    <span class="token-function">close_capture_reads</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
+
+    <span class="token-keyword">match</span> <span class="token-function">install_descriptor</span><span class="token-operator">(</span>
+        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>capture<span class="token-operator">.</span>stdout_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">STANDARD_OUTPUT_FD</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-function">reject_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">,</span> errno<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+            <span class="token-function">reject_malformed_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">match</span> <span class="token-function">install_descriptor</span><span class="token-operator">(</span>
+        <span class="token-function">pipe_write_fd</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>capture<span class="token-operator">.</span>stderr_pipe<span class="token-operator">)</span><span class="token-operator">,</span>
+        darwin<span class="token-operator">.</span><span class="token-type">STANDARD_ERROR_FD</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>ready <span class="token-operator">{</span><span class="token-operator">}</span>
+        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span><span class="token-function">failed</span><span class="token-operator">(</span>errno<span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-function">reject_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">,</span> errno<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        <span class="token-type">DescriptorInstallAttempt</span><span class="token-operator">.</span>invalid <span class="token-operator">{</span>
+            <span class="token-function">reject_malformed_capture_setup</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span> <span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-function">close_capture_writes</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>capture<span class="token-operator">)</span>
+    <span class="token-function">exec_child_after_setup</span><span class="token-operator">(</span>
+        path_address<span class="token-operator">,</span>
+        argv_address<span class="token-operator">,</span>
+        environment_address<span class="token-operator">,</span>
+        <span class="token-operator">&amp;+</span>launch_report<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -251,6 +287,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../../../script.js" defer></script>
 </body>
 </html>

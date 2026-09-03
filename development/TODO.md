@@ -6,11 +6,11 @@ Nocter v0.30.0 is [published and externally audited](releases/v0.30.0.md). Its s
 subprocess contract, exact source, reproducible artifact, publication, and public re-download
 evidence are frozen. The `v0.30.0` tag and release asset must not be replaced.
 
-The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is active through Phase 1. The future
-`Output` and `Command.output` contract is fixed, and the private Darwin boundary now owns normalized
-close-on-exec pipes, exact descriptor installation, staged child-launch reports, two-stream poll
-readiness, and bounded capture reads. Its [Phase 1 review](reviews/v0.31.0-phase-1.md) has no open
-finding. No v0.31.0 public declaration is available yet.
+The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is active through Phase 2. `Output`
+and consuming `Command.output` are implemented, and one private Darwin lifecycle now composes
+normalized launch and capture pipes, exact descriptor installation, staged launch reports,
+two-stream polling, owning byte buffers, and exact-child observation. Its
+[Phase 2 review](reviews/v0.31.0-phase-2.md) has no open finding.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -39,10 +39,10 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Implement v0.31.0 Phase 2: add the bodyless public `Output` and consuming `Command.output`
-contracts, then compose three `OwnedPipe` values into one parent lifecycle. Keep simultaneous drain,
-capture-buffer ownership, public failure selection, and exact-child observation in process policy;
-do not expose raw descriptor or poll representations through the public types.
+Implement v0.31.0 Phase 3 failure and lifecycle qualification. Add native cases for empty output,
+ordinary text, signal termination with retained bytes, setup rejection, descriptor cleanup, and a
+parent process launched with standard output or error initially closed. Retain the Phase 2
+simultaneous large-stream case as the deadlock regression authority.
 
 Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

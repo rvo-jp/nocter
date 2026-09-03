@@ -265,13 +265,28 @@ copy <span class="token-keyword">struct</span> <span class="token-type">LaunchFa
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> channel <span class="token-operator">=</span> <span class="token-keyword">move</span> report
     <span class="token-function">close_pipe_read</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>channel<span class="token-operator">)</span>
+    <span class="token-function">exec_child_after_setup</span><span class="token-operator">(</span>
+        path_address<span class="token-operator">,</span>
+        argv_address<span class="token-operator">,</span>
+        environment_address<span class="token-operator">,</span>
+        <span class="token-operator">&amp;+</span>channel<span class="token-operator">,</span>
+    <span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+#target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">exec_child_after_setup</span><span class="token-operator">(</span>
+    path_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    argv_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    environment_address<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+    report<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">OwnedPipe</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> result <span class="token-operator">=</span> darwin<span class="token-operator">.</span><span class="token-function">syscall3</span><span class="token-operator">(</span>
         darwin<span class="token-operator">.</span><span class="token-type">SYS_EXECVE</span><span class="token-operator">,</span>
         path_address<span class="token-operator">,</span>
         argv_address<span class="token-operator">,</span>
         environment_address<span class="token-operator">,</span>
     <span class="token-operator">)</span>
-    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>channel<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_EXEC</span><span class="token-operator">,</span> result<span class="token-operator">.</span>errno<span class="token-operator">)</span>
+    <span class="token-function">write_launch_failure_and_exit</span><span class="token-operator">(</span>report<span class="token-operator">,</span> <span class="token-type">LAUNCH_STAGE_EXEC</span><span class="token-operator">,</span> result<span class="token-operator">.</span>errno<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
 #target<span class="token-operator">:</span> <span class="token-string">"arm64-darwin"</span>

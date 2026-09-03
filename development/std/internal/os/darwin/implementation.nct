@@ -188,6 +188,12 @@ const FD_CLOEXEC: usize = 1
 const FIRST_PRIVATE_FD: usize = 3
 
 #target: "arm64-darwin"
+const STANDARD_OUTPUT_FD: usize = 1
+
+#target: "arm64-darwin"
+const STANDARD_ERROR_FD: usize = 2
+
+#target: "arm64-darwin"
 const MAX_PATH_LEN: usize = 1024
 
 #target: "arm64-darwin"

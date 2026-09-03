@@ -98,6 +98,11 @@ noalloc func pipe_write_fd(pipe: &OwnedPipe): usize {
 }
 
 #target: "arm64-darwin"
+noalloc func pipe_read_is_open(pipe: &OwnedPipe): bool {
+    return pipe.read_open
+}
+
+#target: "arm64-darwin"
 noalloc func close_pipe_read(pipe: &+OwnedPipe): void {
     if pipe.read_open {
         close_raw_fd(pipe.read_fd)
