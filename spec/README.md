@@ -58,8 +58,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the v0.33.0 language and standard-library contract, extending the
-published v0.32.0 contract. It includes the v0.20.0
+This working tree specifies the published v0.33.0 language and standard-library contract. It
+includes the v0.20.0
 interface-prerequisite foundation, v0.21.0 associative collections, v0.22.0 JSON standard module,
 the complete v0.23.0 type-owned integer text surface, and explicit module subjects for external
 values. v0.25.0 adds the source-visible `noalloc` callable guarantee. v0.26.0 adds normalized

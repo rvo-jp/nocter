@@ -51,12 +51,11 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-v0.33.0 is qualified for publication. Its
-[release-preparation record](milestones/v0.33.0-release-preparation.md) fixes candidate commit
-`9fedd9a4be12d748f055da777436295021a4466a`, and the
-[Phase 4 review](reviews/v0.33.0-phase-4.md) has no open finding. Do not rebuild the retained archive,
-tag, push, upload, or advance public latest-release links without separate publication
-authorization.
+Publish the already qualified v0.33.0 archive described by the
+[release-preparation record](milestones/v0.33.0-release-preparation.md). Publication is authorized:
+advance public latest links in a separate commit, tag that publication state once, upload exactly
+the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
+during publication.
 Preserve the v0.32.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
 
