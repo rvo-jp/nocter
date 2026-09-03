@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.32.0 Phase 5 Qualification and Final Review](v0.32.0-phase-5.md)
 - [v0.32.0 Phase 4 Tooling and Practical Integration Review](v0.32.0-phase-4.md)
 - [v0.32.0 Phase 3 Native Lifecycle Review](v0.32.0-phase-3.md)
 - [v0.32.0 Phase 2 Unified Command-I/O Review](v0.32.0-phase-2.md)

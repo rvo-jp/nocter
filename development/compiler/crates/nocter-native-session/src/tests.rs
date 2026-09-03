@@ -906,6 +906,40 @@ func main(): i32 {{
     compile_and_execute_subprocess_output(&package_root.0, &standard_root);
 }
 
+const CONFIGURED_SUBPROCESS_HELPERS_SOURCE: &str = r"use std/process.Command
+use std/vec.Vec
+
+func repeated(byte: u8, count: usize): Vec<u8> {
+    var bytes: Vec<u8> = Vec.with_capacity(count)
+    var index: usize = 0
+    while index < count {
+        bytes.push(byte)
+        index += 1
+    }
+    return move bytes
+}
+
+noalloc func range_matches(bytes: &[u8], start: usize, count: usize, byte: u8): bool {
+    if start + count > bytes.len() { return false }
+    var index: usize = 0
+    while index < count {
+        if bytes[start + index] != byte { return false }
+        index += 1
+    }
+    return true
+}
+
+func status_fails_with(command: Command, code: &str): bool {
+    let _status = command.status() catch failure { return failure.has_code(code) }
+    return false
+}
+
+func output_fails_with(command: Command, code: &str): bool {
+    let _output = command.output() catch failure { return failure.has_code(code) }
+    return false
+}
+";
+
 #[test]
 fn configured_subprocess_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -920,39 +954,7 @@ fn configured_subprocess_crosses_the_complete_native_session() {
     package_root.source(
         "main.nct",
         &format!(
-            r#"use std/process.Command
-use std/vec.Vec
-
-func repeated(byte: u8, count: usize): Vec<u8> {{
-    var bytes: Vec<u8> = Vec.with_capacity(count)
-    var index: usize = 0
-    while index < count {{
-        bytes.push(byte)
-        index += 1
-    }}
-    return move bytes
-}}
-
-noalloc func range_matches(bytes: &[u8], start: usize, count: usize, byte: u8): bool {{
-    if start + count > bytes.len() {{ return false }}
-    var index: usize = 0
-    while index < count {{
-        if bytes[start + index] != byte {{ return false }}
-        index += 1
-    }}
-    return true
-}}
-
-func status_fails_with(command: Command, code: &str): bool {{
-    let _status = command.status() catch failure {{ return failure.has_code(code) }}
-    return false
-}}
-
-func output_fails_with(command: Command, code: &str): bool {{
-    let _output = command.output() catch failure {{ return failure.has_code(code) }}
-    return false
-}}
-
+            r#"{CONFIGURED_SUBPROCESS_HELPERS_SOURCE}
 func main(): i32 {{
     var exact = Command.new("./environment-helper") catch _ {{ return 1 }}
     exact.current_dir("{}") catch _ {{ return 2 }}

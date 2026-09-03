@@ -55,8 +55,9 @@ compiler. Phase 2 replaced capture-only polling with one command-I/O session tha
 writes and both captured reads. Phase 3 qualified the complete native lifecycle and replaced a
 blocking whole-remainder stdin write with an explicitly nonblocking progress transition. Phase 4
 integrated one public configured-command example as the shared formatter, editor, native, and
-installed-home fixture. Phase 5 must now run the complete release gate and review the full
-configured-command path before release preparation.
+installed-home fixture. Phase 5 passed the complete source-tree release gate and final design
+review. v0.32.0 is ready for release preparation; candidate identity, reproducible optimized
+archives, fresh extraction, and publication remain separate work.
 
 Preserve the v0.31.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
