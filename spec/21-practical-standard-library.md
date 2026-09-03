@@ -472,12 +472,12 @@ pub noalloc func env(name: &str): &str?!
 Out-of-range indexed queries return `none`; invalid process encoding returns `error`. `args`
 remains the allocating convenience that collects all arguments.
 
-### Future Direction: Synchronous Subprocesses
+### Synchronous Subprocesses
 
-The adopted v0.30.0 direction adds an owning command builder and synchronous status observation
+The v0.30.0 source-tree contract adds an owning command builder and synchronous status observation
 without a shell, `PATH` search, hidden child handle, or reconstructed environment. It is not part of
-the published v0.29.0 library. The complete proposed surface, failure rules, and responsibility
-boundaries are centralized in [Synchronous Subprocesses](30-subprocesses.md).
+published v0.29.0 artifacts. The complete surface and failure rules are centralized in
+[Synchronous Subprocesses](30-subprocesses.md).
 
 ## Allocation and Failure
 

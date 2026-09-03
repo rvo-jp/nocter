@@ -29,20 +29,20 @@ The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md)
 public contract and is published and externally audited. Its immutable
 [publication record](releases/v0.29.0.md) owns the final evidence.
 
-The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 4.
-The public future-direction contract fixes an owning `Command`, synchronous child lifecycle, exact
-path and argument handling, inherited process state, unambiguous exec-failure reporting, and typed
-exit status. Its [Phase 4 review](reviews/v0.30.0-phase-4.md) closes practical use through one public
-package, repository-owned executable fixture, formatter, semantic editor features, and an installed
-standard-library home without adding tooling-only source contracts.
+The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 5
+and is ready for release preparation.
+The public contract fixes an owning `Command`, synchronous child lifecycle, exact path and argument
+handling, inherited process state, unambiguous exec-failure reporting, and typed exit status. Its
+[Phase 5 review](reviews/v0.30.0-phase-5.md) closes complete repository
+qualification and the final launch, resource-lifecycle, target-boundary, and caller-discipline
+audit with no open finding.
 
 ## Next Work
 
-Implement v0.30.0 Phase 5: run the complete locked workspace, warnings-denied Clippy,
-no-default-features, formatting, generated-documentation reproducibility, native, installation,
-and repository gates. Review the complete subprocess boundary for duplicate authority, child-side
-Nocter execution, descriptor and child leaks, wait races, target ABI leakage, source-visible
-compiler knowledge, and caller-discipline assumptions. Release preparation remains separate.
+Prepare the v0.30.0 release without widening its completed feature boundary. Assign the exact
+release identity, build a fresh external archive, qualify the extracted home against the public
+subprocess example, commit the release record and distribution image, then publish and
+independently re-download the immutable artifact only when explicitly authorized.
 
 Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

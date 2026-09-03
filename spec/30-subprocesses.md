@@ -1,8 +1,8 @@
 # Synchronous Subprocesses
 
-**Future Direction — adopted for v0.30.0, not yet implemented.** The declarations and behavior in
-this chapter become current only when the v0.30.0 implementation and qualification phases close.
-Until then, the published v0.29.0 standard library does not provide `Command` or `ExitStatus`.
+**v0.30.0 contract.** The declarations and behavior in this chapter are current for the development
+source tree. Published v0.29.0 artifacts do not provide `Command` or `ExitStatus`; publication
+status remains owned by the [release index](../releases/README.md).
 
 This chapter defines the first subprocess boundary in `std/process`. It deliberately starts with
 synchronous execution over inherited process state. A command owns its executable-path and
