@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.16.0 Release Preparation - Nocter</title>
-    <meta name="description" content="Status: release candidate qualified and published (2026-08-24). This record owns the completed preparation of v0.16.0. Final publication and downloaded-ass">
+    <title>Nocter v0.31.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.31.0 adds complete standard-output and standard-error capture to the synchronous subprocess API. A consumed Command now returns an owning Output ">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.16.0-release-preparation/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/releases/v0.31.0/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.16.0 Release Preparation - Nocter">
-    <meta property="og:description" content="Status: release candidate qualified and published (2026-08-24). This record owns the completed preparation of v0.16.0. Final publication and downloaded-ass">
-    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.16.0-release-preparation/">
+    <meta property="og:title" content="Nocter v0.31.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.31.0 adds complete standard-output and standard-error capture to the synchronous subprocess API. A consumed Command now returns an owning Output ">
+    <meta property="og:url" content="https://nocter.dev/releases/v0.31.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.16.0 Release Preparation - Nocter">
-    <meta name="twitter:description" content="Status: release candidate qualified and published (2026-08-24). This record owns the completed preparation of v0.16.0. Final publication and downloaded-ass">
+    <meta name="twitter:title" content="Nocter v0.31.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.31.0 adds complete standard-output and standard-error capture to the synchronous subprocess API. A consumed Command now returns an owning Output ">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.16.0 Release Preparation - Nocter","description":"Status: release candidate qualified and published (2026-08-24). This record owns the completed preparation of v0.16.0. Final publication and downloaded-ass","url":"https://nocter.dev/development/milestones/v0.16.0-release-preparation/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.16.0-release-preparation/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.16.0 Release Preparation","item":"https://nocter.dev/development/milestones/v0.16.0-release-preparation/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.31.0 Release Notes - Nocter","description":"Nocter v0.31.0 adds complete standard-output and standard-error capture to the synchronous subprocess API. A consumed Command now returns an owning Output ","url":"https://nocter.dev/releases/v0.31.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.31.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.31.0","item":"https://nocter.dev/releases/v0.31.0/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,84 +172,53 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/milestones/</p>
+            <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.31.0/index.html#content">v0.31.0: Captured Synchronous Subprocess Output</a></li>
-                <li><a href="../v0.31.0-release-preparation/index.html#content">v0.31.0 Release Preparation</a></li>
-                <li><a href="../v0.30.0/index.html#content">v0.30.0: Synchronous Subprocess Execution</a></li>
-                <li><a href="../v0.30.0-release-preparation/index.html#content">v0.30.0 Release Preparation</a></li>
-                <li><a href="../v0.29.0/index.html#content">v0.29.0: Standard Input and Run Invocation</a></li>
-                <li><a href="../v0.29.0-release-preparation/index.html#content">v0.29.0 Release Preparation</a></li>
-                <li><a href="../v0.28.0/index.html#content">v0.28.0: Practical Text, Formatting, and Output</a></li>
-                <li><a href="../v0.28.0-release-preparation/index.html#content">v0.28.0 Release Preparation</a></li>
-                <li><a href="../v0.27.0/index.html#content">v0.27.0: Filesystem and Path Completion</a></li>
-                <li><a href="../v0.27.0-release-preparation/index.html#content">v0.27.0 Release Preparation</a></li>
-                <li><a href="../v0.26.0/index.html#content">v0.26.0: Monotonic Time Foundation</a></li>
-                <li><a href="../v0.26.0-release-preparation/index.html#content">v0.26.0 Release Preparation</a></li>
-                <li><a href="../v0.25.0/index.html#content">v0.25.0: No-allocation Contracts</a></li>
-                <li><a href="../v0.25.0-release-preparation/index.html#content">v0.25.0 Release Preparation</a></li>
-                <li><a href="../v0.24.0/index.html#content">v0.24.0</a></li>
-                <li><a href="../v0.24.0-release-preparation/index.html#content">v0.24.0 Release Preparation</a></li>
-                <li><a href="../v0.23.0/index.html#content">v0.23.0</a></li>
-                <li><a href="../v0.22.0/index.html#content">v0.22.0</a></li>
-                <li><a href="../v0.22.0-release-preparation/index.html#content">v0.22.0 Release Preparation</a></li>
-                <li><a href="../v0.21.0/index.html#content">v0.21.0</a></li>
-                <li><a href="../v0.21.0-release-preparation/index.html#content">v0.21.0 Release Preparation</a></li>
-                <li><a href="../v0.20.0/index.html#content">v0.20.0</a></li>
-                <li><a href="../v0.19.0/index.html#content">v0.19.0</a></li>
-                <li><a href="../v0.19.0-release-preparation/index.html#content">v0.19.0 Release Preparation</a></li>
-                <li><a href="../v0.18.0/index.html#content">v0.18.0</a></li>
-                <li><a href="../v0.18.0-release-preparation/index.html#content">v0.18.0 Release Preparation</a></li>
-                <li><a href="../v0.17.0/index.html#content">v0.17.0</a></li>
-                <li><a href="../v0.17.0-release-preparation/index.html#content">v0.17.0 Release Preparation</a></li>
-                <li><a href="../v0.16.0/index.html#content">v0.16.0</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.16.0 Release Preparation</a></li>
-                <li><a href="../v0.15.0/index.html#content">v0.15.0</a></li>
-                <li><a href="../v0.15.0-release-preparation/index.html#content">v0.15.0 Release Preparation</a></li>
-                <li><a href="../v0.14.0/index.html#content">v0.14.0</a></li>
-                <li><a href="../v0.14.0-qualification/index.html#content">v0.14.0 Qualification</a></li>
-                <li><a href="../v0.14.0-release-preparation/index.html#content">v0.14.0 Release Preparation</a></li>
-                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
-                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="../v0.10.0-phase-1/index.html#content">v0.10.0 Phase 1</a></li>
-                <li><a href="../v0.10.0-phase-2/index.html#content">v0.10.0 Phase 2</a></li>
-                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
-                <li><a href="../v0.8.0/index.html#content">v0.8.0</a></li>
-                <li><a href="../v0.7.0/index.html#content">v0.7.0</a></li>
+                <li><a href="../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.30.0/index.html#content">Read the v0.30.0 release notes</a></li>
+                <li><a href="../v0.29.0/index.html#content">Nocter v0.29.0</a></li>
+                <li><a href="../v0.28.0/index.html#content">Nocter v0.28.0</a></li>
+                <li><a href="../v0.27.0/index.html#content">Nocter v0.27.0</a></li>
+                <li><a href="../v0.26.0/index.html#content">Nocter v0.26.0</a></li>
+                <li><a href="../v0.25.0/index.html#content">Nocter v0.25.0</a></li>
+                <li><a href="../v0.24.0/index.html#content">Nocter v0.24.0</a></li>
+                <li><a href="../v0.22.0/index.html#content">Nocter v0.22.0</a></li>
+                <li><a href="../v0.21.0/index.html#content">Nocter v0.21.0</a></li>
+                <li><a href="../v0.19.0/index.html#content">Nocter v0.19.0</a></li>
+                <li><a href="../v0.18.0/index.html#content">Nocter v0.18.0</a></li>
+                <li><a href="../v0.17.0/index.html#content">Nocter v0.17.0</a></li>
+                <li><a href="../v0.16.0/index.html#content">Nocter v0.16.0</a></li>
+                <li><a href="../v0.15.0/index.html#content">Nocter v0.15.0</a></li>
+                <li><a href="../v0.14.0/index.html#content">Nocter v0.14.0</a></li>
+                <li><a href="../v0.13.0/index.html#content">Nocter v0.13.0</a></li>
+                <li><a href="../v0.12.0/index.html#content">Nocter v0.12.0</a></li>
+                <li><a href="../v0.11.0/index.html#content">Nocter v0.11.0</a></li>
+                <li><a href="../v0.10.0/index.html#content">Nocter v0.10.0</a></li>
+                <li><a href="../v0.9.0/index.html#content">Nocter v0.9.0</a></li>
+                <li><a href="../v0.8.0/index.html#content">Nocter v0.8.0</a></li>
+                <li><a href="../v0.7.0/index.html#content">Nocter v0.7.0</a></li>
+                <li><a href="../v0.6.0/index.html#content">Nocter v0.6.0</a></li>
+                <li><a href="../v0.5.0/index.html#content">Nocter v0.5.0</a></li>
+                <li><a href="../v0.4.0/index.html#content">Nocter v0.4.0</a></li>
+                <li><a href="../v0.3.0/index.html#content">Nocter v0.3.0</a></li>
+                <li><a href="../v0.2.0/index.html#content">Nocter v0.2.0</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/milestones/v0.16.0-release-preparation.md</span>
+                <span class="markdown-path-text">/releases/v0.31.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-16-0-release-preparation">v0.16.0 Release Preparation</h1><p><strong>Status: release candidate qualified and published (2026-08-24).</strong> This record owns the completed preparation of v0.16.0. Final publication and downloaded-asset evidence is frozen in the <a href="../../releases/v0.16.0/index.html#content">immutable release record</a>.</p><h2 id="release-blocker-audit">Release Blocker Audit</h2><p>The preparation audit found no remaining <code>TODO</code>, <code>FIXME</code>, <code>todo!</code>, or <code>unimplemented!</code> marker in the active compiler, standard library, specification, public examples, or release notes. Phase 0 and Phase 1 have complete scope and focused evidence in the <a href="../v0.16.0/index.html#content">v0.16.0 milestone</a>. The public specification contains no unlabeled proposed behavior in those completed scopes.</p><p>The candidate closes the practical failure-value and trusted-runtime gaps found after v0.15.0:</p><ul><li>one move-only owned <code>error</code> handle safely snapshots dynamic text, preserves root classification,
-  attaches context, reports without allocation, and cleans up exactly once;</li><li>one source-independent runtime schema owns error layout, node kinds, fields, static nodes, and
-  report scratch for Machine and ARM64 consumers;</li><li>a closed primitive registry validates exact trusted exposure without reopening ordinary source
-  visibility in target or backend stages;</li><li>the physical bundled standard library qualifies dynamic and static errors, propagation,
-  recovery, context, reporting, and cleanup through public APIs;</li><li>installed standard-library contract and implementation sources share one toolchain identity in
-  editor analysis instead of colliding with a second path package.</li></ul><h2 id="candidate-identity">Candidate Identity</h2><p>The tracked release inputs now identify v0.16.0:</p><ul><li><code>development/packaging/VERSION</code> contains <code>0.16.0</code>;</li><li><code>development/packaging/MANIFEST.json</code> names release <code>0.16.0</code> and
-  <code>nocter-v0.16.0-arm64-darwin.tar.gz</code>;</li><li><code>development/std/nocter.nct</code> declares standard package version <code>0.16.0</code>;</li><li>compiler and LSP reports derive that identity from the validated installed home.</li></ul><p>The public candidate notes are prepared in <a href="../../../releases/v0.16.0/index.html#content"><code>../../releases/v0.16.0.md</code></a>. The release index and download instructions remain on v0.15.0 until publication.</p><h2 id="qualification-contract">Qualification Contract</h2><p>Release qualification must run from a clean release-content commit. It must complete:</p><ol><li>1. incremental workspace tests, strict Clippy, formatting, documentation generation, manifest
-   validation, and textual consistency checks;</li><li>clean tests and strict Clippy with distinct temporary external Cargo target directories;</li><li>the explicit public-HTTPS acquisition test;</li><li>two independent optimized package generations, each in its own temporary Cargo target, with
-   byte-identical compressed archives and recursively identical extracted homes;</li><li>installed-home identity, diagnosis, help, initialization, locked/offline check and native test,
-   deterministic JSON graph, run, explicit build, direct Mach-O execution, and framed LSP analysis
-   of installed standard contract and implementation sources;</li><li>proof that the installed home remains unchanged throughout the smoke matrix.</li></ol><p>The retained candidate record must include its exact release-content commit, byte size, SHA-256, and standard-library file count. Any subsequent compiler, standard-library, packaging, release- identity, or normative specification change invalidates that evidence and requires the complete matrix again.</p><p>Release packaging uses disposable external Cargo targets. Qualification must leave no repository- local <code>target/</code> cache and must not retain its temporary build roots.</p><h2 id="source-requalification">Source Requalification</h2><p>Release-content commit <code>1d656283f27fb02a61f9ff1b1593040989e54cf2</code> passed the complete source matrix on ARM64 macOS:</p><ul><li>workspace <code>cargo test --workspace --quiet</code> in a disposable external target: 1,229 passed, zero
-  failed, and one ignored public-HTTPS test;</li><li>the same workspace test from a distinct clean external target: the same 1,229 passed, zero
-  failed, and one ignored;</li><li>the explicit <code>clones_resolves_and_materializes_without_external_git</code> public-HTTPS test: one
-  passed;</li><li>warnings-denied workspace Clippy in the first target and again from a third distinct clean
-  external target: passed;</li><li><code>cargo fmt --all --check</code>: passed;</li><li>packaging manifest validation: passed;</li><li><code>node docs/build-docs.js</code>: generated 161 pages with no tracked difference;</li><li><code>git diff --check</code>: passed.</li></ul><p>All three Cargo targets were outside the repository and were removed after the source matrix. The successful clean rerun also proved that the public example corpus and Git worktree remained unchanged. No repository-local Cargo target was recreated.</p><h2 id="artifact-qualification">Artifact Qualification</h2><p><code>development/packaging/qualify-local-release.sh</code> generated the optimized archive twice from the clean release-content commit. Each generation used a separate disposable Cargo target. The two gzip archives matched byte for byte, and their extracted <code>.nocter/</code> trees matched recursively. The retained second archive is:</p><ul><li>release-content commit: <code>1d656283f27fb02a61f9ff1b1593040989e54cf2</code>;</li><li>path: <code>dist/nocter-v0.16.0-arm64-darwin.tar.gz</code>;</li><li>root: <code>.nocter/</code>;</li><li>byte size: 7,140,438;</li><li>SHA-256: <code>516b212138f8af2d1fef8d7b6a7c3577a670608d86b02c31ed6ca48d006f37b0</code>;</li><li>compiler: ARM64 Mach-O reporting release <code>0.16.0</code>;</li><li>contents: compiler, exact tracked metadata and legal files, and all 46 tracked standard-library
-  files.</li></ul><p>Without inherited <code>NOCTER_HOME</code>, the fresh extraction passed exact version reporting, <code>doctor</code>, top-level help, package initialization, locked/offline check and native test, two byte-identical JSON package graphs, locked/offline run, explicit build, and direct generated-Mach-O execution. The framed LSP opened installed <code>std/error/index.nct</code> and <code>std/error/construction.nct</code> from outside the user workspace, produced semantic tokens for both, reported no diagnostics, and completed the initialize/initialized/shutdown/exit lifecycle as version <code>0.16.0</code>. A recursive comparison before and after the smoke matrix proved that the installed Nocter home was not mutated.</p><h2 id="final-boundary-review">Final Boundary Review</h2><p>The final adversarial review found no release blocker:</p><ul><li><code>nocter-runtime-contract</code> remains the only numeric owner of error handle, node, static-leaf, and
-  reporting-buffer layout; Machine and ARM64 consume its accessors;</li><li>MIR, Machine, ARM64, and Mach-O contain no source visibility, source index, or semantic type-store
-  lookup with which to reopen an earlier decision;</li><li>target validation alone maps the closed primitive exposure class to normalized declaration
-  visibility, while later stages receive selected primitive roles;</li><li>editor presentation contains only the ordinary rendering of the built-in type spelling and
-  source-backed standard members, with no synthetic error API;</li><li>the installed standard package is selected once even when its physical source is opened outside
-  the initialized user workspace;</li><li>release packaging leaves no persistent compiler target and qualifies the exact tracked standard
-  package rather than the previously installed <code>dist/.nocter</code> tree.</li></ul><h2 id="publication-boundary">Publication Boundary</h2><p>Preparation does not authorize an annotated tag, push, GitHub release, asset upload, public latest- release update, or replacement of the v0.15.0 download link. The qualified archive is now frozen; those operations require explicit user authorization.</p>
+                <h1 id="nocter-v0-31-0-release-notes">Nocter v0.31.0 Release Notes</h1><p>Nocter v0.31.0 adds complete standard-output and standard-error capture to the synchronous subprocess API. A consumed <code>Command</code> now returns an owning <code>Output</code> containing arbitrary bytes from both streams and the child's typed terminal status. The only implemented host and native target remains <code>arm64-darwin</code>.</p><h2 id="captured-commands">Captured Commands</h2><p><code>std/process</code> now exposes:</p><pre><code class="language-nct"><span class="token-keyword">use</span> std<span class="token-operator">/</span>process<span class="token-operator">.</span><span class="token-type">Command</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+
+<span class="token-keyword">var</span> command <span class="token-operator">=</span> <span class="token-type">Command</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"./helper"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+command<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span><span class="token-string">"one argument"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-keyword">let</span> output <span class="token-operator">=</span> command<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+
+<span class="token-keyword">let</span> stdout <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">from_utf8</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">.</span>stdout<span class="token-operator">)</span><span class="token-operator">?</span>
+<span class="token-keyword">let</span> stderr <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">from_utf8</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>output<span class="token-operator">.</span>stderr<span class="token-operator">)</span><span class="token-operator">?</span>
+</code></pre><p><code>Command.output</code> inherits standard input, the environment, and the working directory. It creates exactly one child, captures stdout and stderr simultaneously, waits for that exact child, and returns only after both byte streams reach end of file and the terminal state is observed. The returned <code>Output</code> owns all three values and contains no live descriptor or process handle.</p><p>The streams are <code>Vec&lt;u8&gt;</code> rather than <code>String</code> because process output need not be UTF-8. A caller that knows a text contract validates it explicitly with <code>String.from_utf8</code>. Each stream preserves its own byte order; no ordering between stdout and stderr is invented.</p><h2 id="closed-capture-lifecycle">Closed Capture Lifecycle</h2><p>Both finite pipes are drained through one fair readiness loop while the child can still run. This prevents a child that fills either stream from deadlocking behind a sequential whole-stream read. Hangup does not discard buffered bytes, interrupted operations are retried, and descriptors are normalized away from standard descriptors before child setup.</p><p>A private close-on-exec report distinguishes standard-descriptor setup failure from executable rejection without reserving a child exit code. Every representable post-fork error path closes owned descriptors and attempts to observe the exact child before returning. Nonzero exit and signal termination remain successful observations and retain all bytes written before termination.</p><h2 id="practical-integration">Practical Integration</h2><p>The new <code>subprocess-output</code> package example invokes a repository-owned helper, passes one whitespace-bearing argument, verifies a typed nonzero exit, converts both streams explicitly to UTF-8, and prints a deterministic report. The same authored source crosses native execution, formatter checks, semantic diagnostics, hover, completion, declaration and implementation navigation, and installed-home qualification.</p><h2 id="compatibility-and-non-goals">Compatibility and Non-goals</h2><p>This release adds API without changing <code>Command.status</code> or existing process argument, environment, current-directory, exit, and abort behavior. It does not add an asynchronous child handle, incremental stream access, input redirection, caller-provided descriptors, merged output, bounded capture, timeout, <code>PATH</code> search, shell execution, environment edits, working-directory overrides, or another native target.</p><h2 id="candidate-qualification">Candidate Qualification</h2><p>The release-content commit must pass two independent locked workspace runs, warnings-denied all-target Clippy, explicit public-HTTPS acquisition, deterministic documentation, reproducible archive generation, and isolated installed-home execution before publication. Final commit, archive, digest, and installed-home evidence will be recorded after those gates complete.</p>
             </div>
         </main>
     </div>
@@ -265,6 +234,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

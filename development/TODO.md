@@ -15,7 +15,9 @@ termination, setup and exec rejection, repeated cleanup, and initially closed pa
 descriptors. The public `subprocess-output` package now crosses formatter, editor, native, command,
 and installed-home boundaries through one shared execution contract. Complete workspace,
 warnings-denied, no-default-features, documentation, packaging-input, and repository qualification
-passes. Its [Phase 5 review](reviews/v0.31.0-phase-5.md) has no open finding.
+passes. Its [Phase 5 review](reviews/v0.31.0-phase-5.md) has no open finding. Release content now
+identifies v0.31.0, and the
+[release-preparation record](milestones/v0.31.0-release-preparation.md) owns candidate qualification.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -44,9 +46,10 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Prepare the completed v0.31.0 source tree for release. Assign the release identity, construct and
-qualify the reproducible local archive, update public release records, and publish only after the
-candidate matches its recorded hashes and installed-home behavior.
+Commit the prepared v0.31.0 release content, then qualify that exact clean commit through two
+independent workspace targets, reproducible archive generation, and an isolated installed home.
+Record the exact source commit, test count, archive identity, compiler and standard-tree digests,
+and installed-home evidence before requesting publication authority.
 
 Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
