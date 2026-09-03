@@ -27,7 +27,8 @@ Qualification covers manifest-bound compiler and standard-library content, versi
 diagnosis, help, package initialization, locked and
 offline checking, native tests, deterministic JSON graphs, native run and build, direct execution,
 every public example, exact child arguments with piped standard input, exact synchronous subprocess
-status and captured-output behavior, and LSP analysis of installed standard-library contract and
+status, captured-output behavior, and configured environment, working-directory, finite-input, and
+captured-output behavior, plus LSP analysis of installed standard-library contract and
 implementation sources. It also proves that these commands do not mutate the installed home and
 that changing either the installed compiler or one standard-library source invalidates the home.
 Only after every check passes does it replace the generated candidate outputs in `dist/`.

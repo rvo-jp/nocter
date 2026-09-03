@@ -48,16 +48,11 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Implement [v0.32.0](milestones/v0.32.0.md) as one complete configured synchronous-command release.
-Phase 0 fixed the public contract and Darwin feasibility. Phase 1 now owns environment,
-working-directory, and input configuration plus one prepared launch plan without changing the
-compiler. Phase 2 replaced capture-only polling with one command-I/O session that composes finite
-writes and both captured reads. Phase 3 qualified the complete native lifecycle and replaced a
-blocking whole-remainder stdin write with an explicitly nonblocking progress transition. Phase 4
-integrated one public configured-command example as the shared formatter, editor, native, and
-installed-home fixture. Phase 5 passed the complete source-tree release gate and final design
-review. v0.32.0 is ready for release preparation; candidate identity, reproducible optimized
-archives, fresh extraction, and publication remain separate work.
+Commit the prepared [v0.32.0](milestones/v0.32.0.md) release content, then qualify that exact clean
+commit through two independent workspace targets, reproducible archive generation, and an isolated
+installed home. Record the exact source commit, test count, archive identity, compiler and
+standard-tree digests, and installed-home evidence before requesting publication authority. The
+[release-preparation record](milestones/v0.32.0-release-preparation.md) owns this boundary.
 
 Preserve the v0.31.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
