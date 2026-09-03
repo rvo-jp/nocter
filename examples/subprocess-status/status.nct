@@ -1,0 +1,28 @@
+use std/io
+use std/process.{Command, ExitStatus}
+
+func run(): i32! {
+    var command = Command.new("./helper.sh")?
+    command.arg("Nocter subprocess")?
+    let status = command.status()?
+    report(status)?
+    return 0
+}
+
+func report(status: ExitStatus): void! {
+    if status.success() {
+        io.println("helper exited successfully")?
+        return
+    }
+    let code = status.code() otherwise {
+        let signal = status.signal() otherwise {
+            return error.new("example.subprocess.invalid_status", "terminal status is incomplete")
+        }
+        let message = "helper terminated by signal ${signal}"
+        io.println(&message)?
+        return
+    }
+    let message = "helper exited with code ${code}"
+    io.println(&message)?
+    return
+}

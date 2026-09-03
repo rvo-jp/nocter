@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Synchronous Subprocesses - Nocter</title>
-    <meta name="description" content="Future Direction — adopted for v0.30.0, not yet implemented. The declarations and behavior in this chapter become current only when the v0.30.0 implementat">
+    <title>v0.30.0 Phase 4 Tooling and Practical Integration Review - Nocter</title>
+    <meta name="description" content="Status: complete with no open finding (2026-09-03). Phase 4 qualifies the published synchronous subprocess contract through one runnable user package, the ">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/spec/30-subprocesses/">
-    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.30.0-phase-4/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Synchronous Subprocesses - Nocter">
-    <meta property="og:description" content="Future Direction — adopted for v0.30.0, not yet implemented. The declarations and behavior in this chapter become current only when the v0.30.0 implementat">
-    <meta property="og:url" content="https://nocter.dev/spec/30-subprocesses/">
+    <meta property="og:title" content="v0.30.0 Phase 4 Tooling and Practical Integration Review - Nocter">
+    <meta property="og:description" content="Status: complete with no open finding (2026-09-03). Phase 4 qualifies the published synchronous subprocess contract through one runnable user package, the ">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.30.0-phase-4/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Synchronous Subprocesses - Nocter">
-    <meta name="twitter:description" content="Future Direction — adopted for v0.30.0, not yet implemented. The declarations and behavior in this chapter become current only when the v0.30.0 implementat">
+    <meta name="twitter:title" content="v0.30.0 Phase 4 Tooling and Practical Integration Review - Nocter">
+    <meta name="twitter:description" content="Status: complete with no open finding (2026-09-03). Phase 4 qualifies the published synchronous subprocess contract through one runnable user package, the ">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Synchronous Subprocesses - Nocter","description":"Future Direction — adopted for v0.30.0, not yet implemented. The declarations and behavior in this chapter become current only when the v0.30.0 implementat","url":"https://nocter.dev/spec/30-subprocesses/","mainEntityOfPage":"https://nocter.dev/spec/30-subprocesses/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"30 Subprocesses","item":"https://nocter.dev/spec/30-subprocesses/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.30.0 Phase 4 Tooling and Practical Integration Review - Nocter","description":"Status: complete with no open finding (2026-09-03). Phase 4 qualifies the published synchronous subprocess contract through one runnable user package, the ","url":"https://nocter.dev/development/reviews/v0.30.0-phase-4/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.30.0-phase-4/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.30.0 Phase 4","item":"https://nocter.dev/development/reviews/v0.30.0-phase-4/"}]}]</script>
 
-    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,70 +172,67 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">spec/</p>
+            <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
-                <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
-                <li><a href="../00-overview/index.html#content">Overview</a></li>
-                <li><a href="../01-modules-use/index.html#content">Modules, Use Declarations, and Source Visibility</a></li>
-                <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
-                <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
-                <li><a href="../04-errors-optionals/index.html#content">Errors and Optionals</a></li>
-                <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
-                <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
-                <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
-                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
-                <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
-                <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
-                <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
-                <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
-                <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
-                <li><a href="../25-syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
-                <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
-                <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
-                <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
-                <li><a href="../17-argument-packs-literals-sequence-spread/index.html#content">Argument Packs, Literal Definitions, and Sequence Spread</a></li>
-                <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
-                <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
-                <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
-                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
-                <li><a href="../22-borrow-coercions/index.html#content">Borrow Coercions</a></li>
-                <li><a href="../23-expansion-operators/index.html#content">Expansion Operators</a></li>
-                <li><a href="../24-ordering-operators/index.html#content">Strict Ordering Operators</a></li>
-                <li><a href="../26-constants/index.html#content">Compile-Time Constants</a></li>
-                <li><a href="../27-associative-collections/index.html#content">Associative Collections</a></li>
-                <li><a href="../28-json/index.html#content">JSON Values and Text</a></li>
-                <li><a href="../29-monotonic-time/index.html#content">Monotonic Time</a></li>
-                <li><a href="./index.html#content" aria-current="page">Synchronous Subprocesses</a></li>
-                <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
-                <li><a href="./index.html#content" aria-current="page">synchronous subprocess chapter</a></li>
-                <li><a href="../../releases/index.html#content">release index</a></li>
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.30.0 Phase 4 Tooling and Practical Integration Review</a></li>
+                <li><a href="../v0.30.0-phase-3/index.html#content">v0.30.0 Phase 3 Native Failure and Lifecycle Review</a></li>
+                <li><a href="../v0.30.0-phase-2/index.html#content">v0.30.0 Phase 2 Owning Command and Status Review</a></li>
+                <li><a href="../v0.30.0-phase-1/index.html#content">v0.30.0 Phase 1 Process-context and Raw-target Review</a></li>
+                <li><a href="../v0.30.0-phase-0/index.html#content">v0.30.0 Phase 0 Synchronous-subprocess Design Review</a></li>
+                <li><a href="../v0.29.0-phase-5/index.html#content">v0.29.0 Phase 5 Standard Input and Run Invocation Review</a></li>
+                <li><a href="../v0.28.0-phase-5/index.html#content">v0.28.0 Phase 5 Text, Formatting, and Output Review</a></li>
+                <li><a href="../v0.27.0-phase-4/index.html#content">v0.27.0 Phase 4 Filesystem and Path Review</a></li>
+                <li><a href="../v0.26.0-phase-5/index.html#content">v0.26.0 Phase 5 Monotonic-time Qualification Review</a></li>
+                <li><a href="../v0.25.0-query-authority-closure/index.html#content">v0.25.0 Query Authority Closure Review</a></li>
+                <li><a href="../v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li>
+                <li><a href="../v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
+                <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
+                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
+                <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
+                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
+                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
+                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
+                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
+                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li>
+                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li>
+                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li>
+                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li>
+                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li>
+                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li>
+                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li>
+                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li>
+                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li>
+                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li>
+                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li>
+                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li>
+                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li>
+                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
+                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
+                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li>
+                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
+                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
+                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
+                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li>
+                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li>
+                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li>
+                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li>
+                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li>
+                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li>
+                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li>
+                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li>
+                <li><a href="../v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li>
+                <li><a href="../v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/spec/30-subprocesses.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.30.0-phase-4.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="synchronous-subprocesses">Synchronous Subprocesses</h1><p><strong>Future Direction — adopted for v0.30.0, not yet implemented.</strong> The declarations and behavior in this chapter become current only when the v0.30.0 implementation and qualification phases close. Until then, the published v0.29.0 standard library does not provide <code>Command</code> or <code>ExitStatus</code>.</p><p>This chapter defines the first subprocess boundary in <code>std/process</code>. It deliberately starts with synchronous execution over inherited process state. A command owns its executable-path and argument spellings, launches exactly one child, and waits for that child to terminate.</p><h2 id="public-surface">Public Surface</h2><pre><code class="language-nct"><span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Command</span>
-
-<span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">ExitStatus</span>
-
-<span class="token-keyword">construct</span> <span class="token-type">Command</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">Command</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">arg</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
-<span class="token-operator">}</span>
-
-<span class="token-keyword">instance</span> <span class="token-type">ExitStatus</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">success</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">code</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">signal</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span>
-<span class="token-operator">}</span>
-</code></pre><p><code>Command.new</code> copies one exact executable-path spelling. The spelling must be nonempty, valid UTF-8, and free of NUL bytes. It is interpreted relative to the child working directory when it is not absolute. The standard library does not search <code>PATH</code>; a spelling such as <code>tool</code> therefore means the relative path <code>tool</code>, while <code>./tool</code> names the same-directory executable explicitly.</p><p><code>arg</code> validates and copies one exact argument. A rejected argument leaves the command unchanged. The child receives the command path as argument zero and the added values in insertion order as later arguments. The argument vector is terminated according to the target ABI, but the terminator is not a source-visible argument.</p><p><code>status</code> consumes the command, starts one child, and waits for that child to terminate. The child inherits the parent's current working directory, environment byte vector, standard input, standard output, and standard error as they exist at launch. Environment entries are inherited without UTF-8 decoding or reconstruction. No shell parses the path or arguments, and no text is joined into a command line.</p><p>The initial API has no independently owned <code>Child</code> handle. This makes waiting part of the operation that creates the child, so ordinary source cannot accidentally discard a live child or leave a terminated child unreaped. It also keeps process creation distinct from future pipe and nonblocking-process contracts.</p><h2 id="exit-status">Exit Status</h2><p><code>ExitStatus</code> represents one observed terminal state. <code>success</code> is true exactly when <code>code</code> is present and equal to zero. <code>code</code> contains the target-reported ordinary exit code and returns <code>none</code> when a signal terminated the child. <code>signal</code> contains the terminating signal number and returns <code>none</code> after ordinary exit. Exactly one of <code>code</code> and <code>signal</code> is present.</p><p>The standard library waits only for the child it created. An interrupted wait is retried. Stopped or continued states are not returned as terminal statuses.</p><h2 id="failure-boundary">Failure Boundary</h2><p>Invalid source text is rejected before process creation with <code>std.process.invalid_input</code>. Failure to create the private launch-report channel or child returns <code>std.process.spawn_failed</code>. If the child cannot execute the requested path, the parent receives that failure through the private channel and returns one of:</p><ul><li><code>std.process.not_found</code> when the executable path does not resolve;</li><li><code>std.process.permission_denied</code> when execution is denied;</li><li><code>std.process.invalid_input</code> when the target rejects the executable or argument representation;</li><li><code>std.process.spawn_failed</code> for another launch failure.</li></ul><p>A nonzero child exit and signal termination are successful observations represented by <code>ExitStatus</code>; they are not <code>T!</code> failures. Failure to observe the already-created child's terminal state returns <code>std.process.wait_failed</code>.</p><p>The launch-report channel is close-on-exec. A successful exec closes it without a payload. A failed exec writes only the target error fact needed by the parent and then terminates without returning to Nocter destruction, allocation, or user code. Consequently, an intentional child exit code cannot be mistaken for an exec failure.</p><h2 id="allocation-and-blocking">Allocation and Blocking</h2><p>Construction and <code>arg</code> own their copied text in the current allocation context and follow the ordinary allocation-abort policy. Their <code>T!</code> layer reports validation, not recoverable allocation. <code>status</code> may allocate launch metadata before creating the child and may block until termination; it does not publish <code>noalloc</code> or a nonblocking guarantee. <code>ExitStatus</code> inspection is allocation-free.</p><p>No child is created until all target arguments, pointers, and the launch-report channel can be prepared. After process creation, the child path performs only target operations required to close descriptors, execute the new image, report exec failure, and terminate.</p><h2 id="runnable-example">Runnable Example</h2><p>The repository <a href="../../examples/subprocess-status/index/index.html#content">subprocess-status example</a> constructs an exact <code>./helper.sh</code> command, passes one argument without command-line joining, waits, and reports the typed nonzero exit status. Its helper is a repository-owned executable fixture rather than a program selected through <code>PATH</code>.</p><h2 id="responsibility-boundaries">Responsibility Boundaries</h2><p><code>std/process</code> owns <code>Command</code>, argument validation and ownership, synchronous launch policy, public errors, wait retry, and status decoding. Target-specific standard-library source owns raw process syscall constants, close-on-exec channel layout, and one-attempt fork, exec, wait, read, and write facts. The compiler owns only process-entry context access and generic target syscall lowering; it does not know <code>Command</code>, <code>ExitStatus</code>, public error codes, or wait-status encoding.</p><p>The inherited environment-vector address is an immutable process-entry fact. It may cross one private compiler-owned primitive role into trusted standard-library source so <code>exec</code> can preserve entries byte for byte. User packages cannot access that address, and the standard library must not reconstruct the inherited environment through the UTF-8 public query API.</p><h2 id="non-goals">Non-goals</h2><p>The v0.30.0 boundary does not add <code>PATH</code> search, shell execution, environment edits, working- directory overrides, standard-stream redirection, pipes, output capture, an asynchronous <code>Child</code> handle, polling, signals sent by the parent, process groups, terminal control, or another target. Each requires a separate ownership and failure contract rather than an option added speculatively to this synchronous operation.</p>
+                <h1 id="v0-30-0-phase-4-tooling-and-practical-integration-review">v0.30.0 Phase 4 Tooling and Practical Integration Review</h1><p><strong>Status: complete with no open finding (2026-09-03).</strong> Phase 4 qualifies the published synchronous subprocess contract through one runnable user package, the canonical formatter path, semantic editor features, and a copied installed standard-library home. It adds no subprocess API and no tooling-only source fixture.</p><h2 id="shared-public-evidence">Shared Public Evidence</h2><p><code>examples/subprocess-status</code> is the only authored source for this qualification. Its implementation constructs <code>Command.new("./helper.sh")</code>, appends one whitespace-bearing argument, waits through <code>status</code>, and renders the resulting <code>ExitStatus</code>. The repository-owned helper verifies that exact argument and exits with code 17. The example consequently distinguishes successful process launch from successful child exit without reproducing launch policy or interpreting raw wait bits.</p><p>The public-example catalog owns the executable name, fixture bytes, invocation, status, stdout, and stderr once. Native-session and command tests already consume that catalog. The installed-home test compiles the actual example against a copied standard library, launches the resulting image in the example directory, and compares its observation with the same catalog entry. Host code grants the helper executable permission as a filesystem precondition; it does not perform or model the Nocter child launch.</p><h2 id="tooling-boundary">Tooling Boundary</h2><p>The formatter's existing repository example discovery reads both authored <code>.nct</code> files directly. The language-server qualification opens <code>status.nct</code> as a normal package source and verifies:</p><ul><li><code>Command.status</code> hover uses the public method signature;</li><li>declaration navigation reaches <code>std/process/index.nct</code>;</li><li>implementation navigation reaches the target implementation source;</li><li>incomplete <code>ExitStatus</code> member syntax completes <code>code</code>, <code>signal</code>, and <code>success</code> from recovered
+  semantic capabilities.</li></ul><p>No editor-only declaration, alternate standard profile, copied example source, or formatter fixture was added. Declaration and implementation navigation intentionally observe different products: the public contract is the declaration authority, while target source is the implementation authority.</p><h2 id="architecture-review">Architecture Review</h2><p>The new executable-fixture variant extends only the public-example filesystem contract. Permission materialization remains in the command test harness beside ordinary files, directories, and symlinks; subprocess semantics remain in standard source. No compiler crate learns the helper argument, exit code, output sentence, or <code>Command</code> lifecycle.</p><p>The example does not use <code>PATH</code>, a shell API, environment mutation, redirection, or an exposed child handle. It relies only on the documented inherited working directory and exact-path behavior. No caller must retain borrowed command inputs, close launch descriptors, distinguish exec rejection from exit code 127, or reap a child.</p><h2 id="qualification">Qualification</h2><p>Focused qualification passes public example execution, complete native-session compilation, source formatting, semantic hover/completion/navigation, and build-and-run through a copied installed standard library. Rust formatting and diff whitespace validation also pass. Complete repository qualification remains the explicit Phase 5 boundary.</p><p>No Phase 4 remediation remains.</p>
             </div>
         </main>
     </div>
@@ -251,6 +248,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

@@ -330,6 +330,87 @@ fn stdin_prefix_uses_public_process_and_input_editor_semantics_end_to_end() {
     assert!(completion.issue().is_none(), "{:?}", completion.issue());
 }
 
+#[test]
+fn subprocess_status_uses_one_public_contract_across_editor_features() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/subprocess-status");
+    let source = root.join("status.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (status_line, status_source) = source_line(&text, "command.status()");
+    let status_character = status_source.rfind("status").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        status_line,
+        status_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub method Command.status(): ExitStatus!"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        status_line,
+        status_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/process/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        status_line,
+        status_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(
+        response.contains("/std/process/command_darwin.nct"),
+        "{response}"
+    );
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let incomplete = text.replace("if status.success()", "if status.");
+    let mut incomplete_json = String::new();
+    nocter_json::write_string(&mut incomplete_json, &incomplete);
+    let changed = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\",\"version\":2}},\"contentChanges\":[{{\"text\":{incomplete_json}}}]}}}}",
+        source.display()
+    ));
+    assert_eq!(
+        changed.analysis().unwrap().snapshot().unwrap().status(),
+        nocter_analysis::AnalysisStatus::SyntaxFailed
+    );
+    let (completion_line, completion_source) = source_line(&incomplete, "if status.");
+    let completion_character = completion_source.find("status.").unwrap() + "status.".len();
+    let completion = server.receive(&position_request(
+        5,
+        "textDocument/completion",
+        &source,
+        completion_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in ["code", "signal", "success"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
 fn open_package_source(root: &Path, source: &Path) -> (super::LanguageServer, String) {
     let text = fs::read_to_string(source).unwrap();
     let mut server = semantic_server(root);

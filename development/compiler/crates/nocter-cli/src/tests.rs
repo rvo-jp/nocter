@@ -973,6 +973,41 @@ fn public_invocation_builds_through_the_installed_standard_library() {
     assert_eq!(&fs::read(output).unwrap()[..4], &[0xcf, 0xfa, 0xed, 0xfe]);
 }
 
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+#[test]
+fn public_subprocess_example_runs_through_the_installed_standard_library() {
+    let contract = nocter_test_support::PUBLIC_PACKAGE_EXAMPLES
+        .iter()
+        .find(|contract| contract.directory() == "subprocess-status")
+        .unwrap();
+    let run = contract.runs().first().unwrap();
+    let tree = TempTree::new("subprocess-example");
+    let home = tree.installation("arm64-darwin", true);
+    let example =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/subprocess-status");
+    let output = tree.0.join("subprocess-status");
+    let outcome = execute_invocation(invocation(
+        [
+            OsString::from("build"),
+            OsString::from("-o"),
+            output.as_os_str().to_owned(),
+        ],
+        &example,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+
+    assert!(matches!(&outcome, InvocationOutcome::Build(_)));
+    let executed = std::process::Command::new(&output)
+        .current_dir(&example)
+        .output()
+        .unwrap();
+    assert_eq!(executed.status.code(), Some(run.status()));
+    assert_eq!(executed.stdout, run.stdout());
+    assert_eq!(executed.stderr, run.stderr());
+}
+
 fn copy_directory(source: &Path, destination: &Path) {
     fs::create_dir(destination).unwrap();
     for entry in fs::read_dir(source).unwrap() {

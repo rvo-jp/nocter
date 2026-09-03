@@ -94,6 +94,13 @@ No child is created until all target arguments, pointers, and the launch-report 
 prepared. After process creation, the child path performs only target operations required to close
 descriptors, execute the new image, report exec failure, and terminate.
 
+## Runnable Example
+
+The repository [subprocess-status example](../examples/subprocess-status/index.nct) constructs an
+exact `./helper.sh` command, passes one argument without command-line joining, waits, and reports
+the typed nonzero exit status. Its helper is a repository-owned executable fixture rather than a
+program selected through `PATH`.
+
 ## Responsibility Boundaries
 
 `std/process` owns `Command`, argument validation and ownership, synchronous launch policy, public

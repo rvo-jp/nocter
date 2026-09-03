@@ -1133,6 +1133,21 @@ fn materialize_public_example_fixtures(root: &Path, fixtures: &[PublicExampleFix
                 }
                 fs::write(destination, contents).unwrap();
             }
+            PublicExampleFixture::ExecutableFile { path, contents } => {
+                let destination = fixture_destination(root, path);
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).unwrap();
+                }
+                fs::write(&destination, contents).unwrap();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+
+                    fs::set_permissions(destination, fs::Permissions::from_mode(0o755)).unwrap();
+                }
+                #[cfg(not(unix))]
+                panic!("public executable-file fixtures require a Unix host");
+            }
             PublicExampleFixture::Directory { path } => {
                 fs::create_dir_all(fixture_destination(root, path)).unwrap();
             }

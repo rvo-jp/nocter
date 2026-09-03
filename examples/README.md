@@ -78,6 +78,17 @@ nocter run examples/elapsed.nct
 
 ## Package Examples
 
+[subprocess-status/index.nct](subprocess-status/index.nct) launches the repository-owned
+`helper.sh` by the exact relative path `./helper.sh`, passes one
+whitespace-bearing argument, waits synchronously, and reports the resulting typed nonzero exit
+status. The example does not invoke a shell API or perform `PATH` lookup.
+
+```sh
+cd examples/subprocess-status
+nocter check
+nocter run
+```
+
 [text-banner/index.nct](text-banner/index.nct) turns one command-line argument into a compact text
 report. Its [banner.nct](text-banner/banner.nct) implementation composes borrowed ASCII trimming,
 owned replacement and repetition, interpolation, integer formatting, and symmetric line output.
@@ -173,6 +184,7 @@ nocter build
 - Single-file examples must pass explicit file-mode `nocter check`; package examples must pass
   package-mode `nocter check` with the distributed standard library.
 - Runnable examples must remain buildable and executable on the implemented target.
+- Executable fixtures are repository-owned files and must retain their executable mode.
 - Source uses the canonical formatter style.
 - Examples demonstrate behavior defined by the [language specification](../spec/README.md); they do
   not define additional language rules.

@@ -1,0 +1,14 @@
+#package: {
+    name: "subprocess-status",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "subprocess-status",
+}
+
+see ./status.nct
+
+func main(): i32! {
+    return run()
+}

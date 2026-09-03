@@ -29,20 +29,20 @@ The [v0.29.0 standard input and run invocation milestone](milestones/v0.29.0.md)
 public contract and is published and externally audited. Its immutable
 [publication record](releases/v0.29.0.md) owns the final evidence.
 
-The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 3.
+The active [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) has completed Phase 4.
 The public future-direction contract fixes an owning `Command`, synchronous child lifecycle, exact
 path and argument handling, inherited process state, unambiguous exec-failure reporting, and typed
-exit status. Its [Phase 3 review](reviews/v0.30.0-phase-3.md) closes native success, nonzero, signal,
-missing, denied, invalid-image, relative-path, argument-boundary, launch-channel, repeated-failure,
-and reap-path qualification without adding a test-only subprocess model.
+exit status. Its [Phase 4 review](reviews/v0.30.0-phase-4.md) closes practical use through one public
+package, repository-owned executable fixture, formatter, semantic editor features, and an installed
+standard-library home without adding tooling-only source contracts.
 
 ## Next Work
 
-Implement v0.30.0 Phase 4: add one runnable package that invokes a repository-created helper by
-exact path and reports its typed status. Use that same public source to qualify formatter, hover,
-completion, declaration and implementation navigation, installed-home behavior, and public
-documentation. Do not create editor-only contract fixtures when the runnable package can own the
-evidence.
+Implement v0.30.0 Phase 5: run the complete locked workspace, warnings-denied Clippy,
+no-default-features, formatting, generated-documentation reproducibility, native, installation,
+and repository gates. Review the complete subprocess boundary for duplicate authority, child-side
+Nocter execution, descriptor and child leaks, wait races, target ABI leakage, source-visible
+compiler knowledge, and caller-discipline assumptions. Release preparation remains separate.
 
 Preserve the v0.29.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

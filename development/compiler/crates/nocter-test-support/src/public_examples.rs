@@ -14,6 +14,10 @@ pub enum PublicExampleFixture {
         path: &'static str,
         contents: &'static [u8],
     },
+    ExecutableFile {
+        path: &'static str,
+        contents: &'static [u8],
+    },
     Directory {
         path: &'static str,
     },
@@ -105,6 +109,23 @@ impl PublicPackageExample {
 
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
+    PublicPackageExample {
+        directory: "subprocess-status",
+        package_identity: "workspace:subprocess-status",
+        executable: "subprocess-status",
+        fixtures: &[PublicExampleFixture::ExecutableFile {
+            path: "helper.sh",
+            contents: include_bytes!("../../../../../examples/subprocess-status/helper.sh"),
+        }],
+        runs: &[PublicExampleRun {
+            name: "nonzero-status",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: b"helper exited with code 17\n",
+            stderr: b"",
+        }],
+    },
     PublicPackageExample {
         directory: "json-normalize",
         package_identity: "workspace:json-normalize",

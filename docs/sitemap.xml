@@ -921,6 +921,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.30.0-phase-4/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/core/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1692,6 +1697,16 @@
   </url>
   <url>
     <loc>https://nocter.dev/examples/stdin-prefix/prefix/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/examples/subprocess-status/index/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/examples/subprocess-status/status/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
