@@ -1,8 +1,8 @@
 # Configured Synchronous Subprocesses
 
-**v0.32.0 candidate standard-library contract.** The declarations and behavior in this chapter are
-implemented and qualified in the current source tree. They are not available in published v0.31.0
-artifacts; publication status remains owned by the [release index](../releases/README.md).
+**v0.32.0 standard-library contract.** The declarations and behavior in this chapter are available
+in published v0.32.0 artifacts. Publication status remains owned by the
+[release index](../releases/README.md).
 
 The completed operation lets one owning command select its working directory, construct an
 exact child environment, and provide finite standard-input bytes while retaining the closed

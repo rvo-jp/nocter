@@ -48,7 +48,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Monotonic Time](29-monotonic-time.md)
 - [Synchronous Subprocesses](30-subprocesses.md) — v0.30.0 standard-library contract
 - [Captured Subprocess Output](31-subprocess-output.md) — v0.31.0 standard-library contract
-- [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 candidate contract
+- [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 standard-library contract
 
 ## Supporting Material
 
@@ -57,7 +57,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the published v0.31.0 language and standard-library contract,
+This working tree specifies the published v0.32.0 language and standard-library contract,
 including the v0.20.0
 interface-prerequisite foundation, v0.21.0 associative collections, v0.22.0 JSON standard module,
 the complete v0.23.0 type-owned integer text surface, and explicit module subjects for external
@@ -67,15 +67,13 @@ UTF-8 path inspection and explicit directory lifecycle operations. v0.28.0 adopt
 ASCII text transformations, a private scalar-formatting authority, and symmetric text output.
 v0.29.0 adds borrowed standard input and an exact child-argument channel for `nocter run`. v0.30.0
 adds the owning synchronous-subprocess contract. v0.31.0 adds simultaneous stdout and stderr
-capture to that closed synchronous lifecycle. Publication status belongs to the release index.
+capture to that closed synchronous lifecycle. v0.32.0 completes configured commands with child
+environment, working-directory, and finite-input ownership. Publication status belongs to the
+release index.
 Implementation phases and qualification evidence belong only to contributor records and are
 intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
-
-The implemented [v0.32.0 candidate contract](32-configured-subprocesses.md) completes configured
-synchronous commands with child environment, working-directory, and finite-input ownership. It is
-qualified in the current tree but remains unavailable in published v0.31.0 artifacts.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise

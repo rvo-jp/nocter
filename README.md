@@ -21,7 +21,7 @@ See the [language specification](spec/README.md) and
 
 ## One Directory Install
 
-[Download nocter-v0.31.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.31.0/nocter-v0.31.0-arm64-darwin.tar.gz)
+[Download nocter-v0.32.0-arm64-darwin.tar.gz](https://github.com/rvo-jp/nocter/releases/download/v0.32.0/nocter-v0.32.0-arm64-darwin.tar.gz)
 
 Nocter compiles source directly to native executables without requiring LLVM,
 `clang`, `as`, `ld`, Xcode Command Line Tools, or an external runtime library
@@ -47,7 +47,7 @@ Install by placing `.nocter/` somewhere stable, for example under your home
 directory, then linking the compiler into a directory already on `PATH`:
 
 ```sh
-tar -xzf nocter-v0.31.0-arm64-darwin.tar.gz -C "$HOME"
+tar -xzf nocter-v0.32.0-arm64-darwin.tar.gz -C "$HOME"
 ln -s "$HOME/.nocter/nocter" /usr/local/bin/nocter
 nocter doctor
 ```
@@ -116,7 +116,7 @@ module, use package mode as demonstrated by
 
 ## Current Release
 
-The v0.31.0 compiler parses, checks, builds, and runs the supported language on `arm64-darwin` and
+The v0.32.0 compiler parses, checks, builds, and runs the supported language on `arm64-darwin` and
 emits ARM64 Mach-O executables directly. Unsupported runtime forms are rejected with source-backed
 diagnostics before machine code is emitted.
 
