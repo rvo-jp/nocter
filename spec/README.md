@@ -49,6 +49,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Synchronous Subprocesses](30-subprocesses.md) — v0.30.0 standard-library contract
 - [Captured Subprocess Output](31-subprocess-output.md) — v0.31.0 standard-library contract
 - [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 standard-library contract
+- [Tuples](33-tuples.md) — adopted v0.33.0 future direction
 
 ## Supporting Material
 
@@ -74,6 +75,9 @@ Implementation phases and qualification evidence belong only to contributor reco
 intentionally not restated in the public specification. The
 [release index](../releases/README.md) owns current publication and download status, and repository
 tags preserve the exact specification for every published release.
+
+The [tuple chapter](33-tuples.md) records the adopted v0.33.0 direction as an explicitly future
+contract. It does not describe behavior implemented or published by v0.32.0.
 
 A chapter states current behavior unless a section is explicitly labeled **Future Direction** or
 **Non-goal**. Development phases and compiler work order do not change the meaning of an otherwise

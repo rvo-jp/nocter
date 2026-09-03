@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tuples - Nocter</title>
+    <meta name="description" content="Future Direction — adopted for v0.33.0, not implemented by v0.32.0.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/spec/33-tuples/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Tuples - Nocter">
+    <meta property="og:description" content="Future Direction — adopted for v0.33.0, not implemented by v0.32.0.">
+    <meta property="og:url" content="https://nocter.dev/spec/33-tuples/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Tuples - Nocter">
+    <meta name="twitter:description" content="Future Direction — adopted for v0.33.0, not implemented by v0.32.0.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Tuples - Nocter","description":"Future Direction — adopted for v0.33.0, not implemented by v0.32.0.","url":"https://nocter.dev/spec/33-tuples/","mainEntityOfPage":"https://nocter.dev/spec/33-tuples/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"33 Tuples","item":"https://nocter.dev/spec/33-tuples/"}]}]</script>
+
+    <link rel="stylesheet" href="../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">spec/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../00-design-principles/index.html#content">Design Principles</a></li>
+                <li><a href="../00-overview/index.html#content">Overview</a></li>
+                <li><a href="../01-modules-use/index.html#content">Modules, Use Declarations, and Source Visibility</a></li>
+                <li><a href="../02-values-types/index.html#content">Values and Types</a></li>
+                <li><a href="../03-control-flow/index.html#content">Control Flow</a></li>
+                <li><a href="../04-errors-optionals/index.html#content">Errors and Optionals</a></li>
+                <li><a href="../05-ownership-borrowing-drop/index.html#content">Ownership, Borrowing, and Drop</a></li>
+                <li><a href="../06-memory-region-allocator/index.html#content">Memory, Regions, and Allocators</a></li>
+                <li><a href="../07-strings-arrays-views-pointers/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
+                <li><a href="../08-generics-interfaces-embedding-methods/index.html#content">Generics, Interfaces, and Methods</a></li>
+                <li><a href="../09-abi-layout/index.html#content">ABI and Layout</a></li>
+                <li><a href="../10-targets-distribution/index.html#content">Targets and Distribution</a></li>
+                <li><a href="../11-stdlib-primitives-os/index.html#content">Standard Library, Primitives, and OS</a></li>
+                <li><a href="../12-diagnostics/index.html#content">Diagnostics</a></li>
+                <li><a href="../13-lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="../25-syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
+                <li><a href="../14-tooling-editor-integration/index.html#content">Tooling and Editor Integration</a></li>
+                <li><a href="../15-command-line-interface/index.html#content">Command Line Interface</a></li>
+                <li><a href="../16-source-style-formatting/index.html#content">Source Style and Formatting</a></li>
+                <li><a href="../17-argument-packs-literals-sequence-spread/index.html#content">Argument Packs, Literal Definitions, and Sequence Spread</a></li>
+                <li><a href="../18-callables-default-methods/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../19-construction-surfaces/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../20-native-testing/index.html#content">Native Testing</a></li>
+                <li><a href="../21-practical-standard-library/index.html#content">Practical Standard Library</a></li>
+                <li><a href="../22-borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="../23-expansion-operators/index.html#content">Expansion Operators</a></li>
+                <li><a href="../24-ordering-operators/index.html#content">Strict Ordering Operators</a></li>
+                <li><a href="../26-constants/index.html#content">Compile-Time Constants</a></li>
+                <li><a href="../27-associative-collections/index.html#content">Associative Collections</a></li>
+                <li><a href="../28-json/index.html#content">JSON Values and Text</a></li>
+                <li><a href="../29-monotonic-time/index.html#content">Monotonic Time</a></li>
+                <li><a href="../30-subprocesses/index.html#content">Synchronous Subprocesses</a></li>
+                <li><a href="../31-subprocess-output/index.html#content">Captured Subprocess Output</a></li>
+                <li><a href="../32-configured-subprocesses/index.html#content">Configured Synchronous Subprocesses</a></li>
+                <li><a href="./index.html#content" aria-current="page">Tuples</a></li>
+                <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
+                <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
+                <li><a href="../../releases/index.html#content">release index</a></li>
+                <li><a href="./index.html#content" aria-current="page">tuple chapter</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/spec/33-tuples.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="tuples">Tuples</h1><p><strong>Future Direction — adopted for v0.33.0, not implemented by v0.32.0.</strong></p><p>Tuples are anonymous, structural products. They group a fixed number of values when names would not improve the meaning of the data. A tuple is not a shortened struct declaration and does not acquire a nominal identity.</p><pre><code class="language-nct"><span class="token-keyword">let</span> result<span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">,</span> <span class="token-type">usize</span><span class="token-operator">)</span> <span class="token-operator">=</span> <span class="token-operator">(</span>text<span class="token-operator">,</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> name <span class="token-operator">=</span> result<span class="token-operator">.</span><span class="token-number">0</span>
+<span class="token-keyword">let</span> length <span class="token-operator">=</span> result<span class="token-operator">.</span><span class="token-number">1</span>
+</code></pre><p>Use a struct when fields carry domain meaning, the value needs a stable public name, or behavior belongs to the aggregate. <code>MapEntry&lt;K, V&gt;</code>, <code>ProcessOutput</code>, and other documented records therefore remain structs even after tuples become available.</p><h2 id="type-and-value-syntax">Type and Value Syntax</h2><p>A tuple type contains at least two comma-separated element types:</p><pre><code class="language-nct"><span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">,</span> <span class="token-type">usize</span><span class="token-operator">)</span>
+<span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> <span class="token-type">bool</span><span class="token-operator">,</span> <span class="token-type">i32</span><span class="token-operator">)</span>
+</code></pre><p>A tuple expression contains at least two comma-separated expressions:</p><pre><code class="language-nct"><span class="token-operator">(</span>name<span class="token-operator">,</span> count<span class="token-operator">)</span>
+<span class="token-operator">(</span><span class="token-function">left</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-function">middle</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-function">right</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+</code></pre><p>The comma, not the parentheses alone, identifies a tuple. <code>(T)</code> remains a grouped type and <code>(value)</code> remains a grouped expression. Nocter does not have zero-element or one-element tuples: <code>()</code> and <code>(value,)</code> are invalid. <code>void</code> remains the type and value for the absence of a result.</p><p>A tuple with two or more elements may retain a trailing comma. The formatter writes short tuples on one line with one space after each comma. It writes a multiline tuple with one element per line and a trailing comma.</p><h2 id="structural-identity">Structural Identity</h2><p>Tuple identity is determined only by arity and the ordered element types. Two tuple types are the same type exactly when every element at the same position has the same type.</p><pre><code class="language-nct"><span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">,</span> <span class="token-type">usize</span><span class="token-operator">)</span> <span class="token-comment">// different from (usize, String)</span>
+</code></pre><p>Element names, declaration sites, and source modules do not participate in identity. There is no implicit conversion between a tuple and a struct with the same element types.</p><h2 id="evaluation-and-inference">Evaluation and Inference</h2><p>Tuple elements are evaluated from left to right, exactly once. The resulting value stores elements in the same order.</p><p>Without an expected type, each element is inferred independently. An expected tuple type supplies an expected type to the corresponding expression and must have the same arity.</p><pre><code class="language-nct"><span class="token-keyword">let</span> pair<span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">,</span> <span class="token-type">usize</span><span class="token-operator">)</span> <span class="token-operator">=</span> <span class="token-operator">(</span><span class="token-type">String</span> <span class="token-string">"name"</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">)</span>
+</code></pre><h2 id="element-access">Element Access</h2><p>A decimal projection selects a tuple element by its zero-based position:</p><pre><code class="language-nct"><span class="token-keyword">let</span> first <span class="token-operator">=</span> pair<span class="token-operator">.</span><span class="token-number">0</span>
+<span class="token-keyword">let</span> second <span class="token-operator">=</span> pair<span class="token-operator">.</span><span class="token-number">1</span>
+</code></pre><p>The index is part of the source syntax, must not contain leading zeroes, and must be in range for the known tuple type. It is not a runtime indexing operation. A tuple projection is a place, so ordinary read, move, borrow, mutable-borrow, and assignment rules apply to it.</p><pre><code class="language-nct"><span class="token-keyword">let</span> view <span class="token-operator">=</span> <span class="token-operator">&amp;</span>pair<span class="token-operator">.</span><span class="token-number">0</span>
+
+<span class="token-keyword">var</span> counters <span class="token-operator">=</span> <span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">)</span>
+counters<span class="token-operator">.</span><span class="token-number">1</span> <span class="token-operator">=</span> counters<span class="token-operator">.</span><span class="token-number">1</span> <span class="token-operator">+</span> <span class="token-number">1</span>
+</code></pre><p>Different tuple positions are disjoint places. Borrowing one position therefore does not borrow a different position.</p><h2 id="binding-destructuring">Binding Destructuring</h2><p>Local bindings may destructure a tuple:</p><pre><code class="language-nct"><span class="token-keyword">let</span> <span class="token-operator">(</span>name<span class="token-operator">,</span> length<span class="token-operator">)</span> <span class="token-operator">=</span> <span class="token-keyword">move</span> result
+<span class="token-keyword">let</span> <span class="token-operator">(</span>head<span class="token-operator">,</span> <span class="token-operator">(</span>_<span class="token-operator">,</span> tail<span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">=</span> <span class="token-keyword">move</span> nested
+<span class="token-keyword">let</span> <span class="token-operator">(</span>_<span class="token-operator">,</span> status<span class="token-operator">)</span> <span class="token-operator">=</span> <span class="token-keyword">move</span> response
+</code></pre><p>The right-hand expression is evaluated once. The binding pattern must have the same structure and arity as its tuple value. <code>_</code> discards one element while preserving its ordinary destruction obligation. <code>var (left, right)</code> creates mutable local bindings; <code>let</code> creates immutable bindings. An annotation, when present, describes the complete value:</p><pre><code class="language-nct"><span class="token-keyword">let</span> <span class="token-operator">(</span>name<span class="token-operator">,</span> length<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">String</span><span class="token-operator">,</span> <span class="token-type">usize</span><span class="token-operator">)</span> <span class="token-operator">=</span> <span class="token-function">make_result</span><span class="token-operator">(</span><span class="token-operator">)</span>
+</code></pre><p>Moving or copying from an existing place follows the same explicit ownership rules as a non-destructuring binding. Parameter, closure-parameter, <code>for</code>, and <code>match</code> patterns remain outside the v0.33.0 tuple contract; code may bind the tuple first and destructure it in a local statement.</p><h2 id="ownership-storage-and-destruction">Ownership, Storage, and Destruction</h2><p>Tuple ownership is structural:</p><ul><li>a tuple is copyable exactly when every element is copyable;</li><li>moving the whole tuple moves every element;</li><li>a moved element is unavailable while other unmoved positions remain independently usable;</li><li>destruction visits all still-initialized elements in reverse element order;</li><li>borrowing and storage provenance are derived position by position.</li></ul><p>A tuple introduces no storage origin of its own. A result containing borrowed elements carries the origins of those elements under the ordinary <code>from</code> rules. Editor presentation may summarize this as an aggregate result, but that summary does not become source syntax.</p><h2 id="interfaces-and-behavior">Interfaces and Behavior</h2><p>Tuples have no declaration on which to place <code>construct</code>, <code>instance</code>, or <code>destruction</code> blocks. v0.33.0 does not synthesize equality, ordering, hashing, formatting, iteration, coercion, or interface conformance merely because the elements provide those operations. Programs that need a public behavioral abstraction should define a named type.</p><p>Structural copy and destruction are compiler-owned value semantics, not synthesized interface implementations.</p><h2 id="layout-and-calling-convention">Layout and Calling Convention</h2><p>Tuple elements use source order. Target layout computes alignment, padding, size, and element offsets once from the ordered element types, using the same aggregate ABI rules used for ordered struct fields. Calls and returns consume that frozen target layout; later lowering must not recompute it from tuple syntax.</p><p>Nocter does not promise that tuple layout is interchangeable with a source struct or with a foreign language tuple. Foreign interfaces must use an explicitly specified ABI surface.</p><h2 id="tooling">Tooling</h2><p>Hover, completion detail, inlay hints, and diagnostics render tuple types canonically as <code>(A, B, C)</code> from semantic type identity. Tooling must not reconstruct tuple types from source text. Go-to-definition has no target for the tuple type itself; references inside its element types retain their ordinary targets.</p><p>The formatter preserves the distinction among grouped syntax, closure syntax, callable types, and tuples. Numeric projections are highlighted and resolved as tuple elements, not struct fields.</p><h2 id="non-goals-for-v0-33-0">Non-goals for v0.33.0</h2><ul><li>zero-element or one-element tuples;</li><li>named tuple elements;</li><li>runtime or dynamic tuple indexing;</li><li>implicit tuple-to-struct or struct-to-tuple conversion;</li><li>expansion of <code>...</code> into or out of tuples;</li><li>tuple patterns in parameters, closures, <code>for</code>, or <code>match</code>;</li><li>synthesized operators, coercions, or interface implementations;</li><li>replacing public semantic records with positional tuples;</li><li>a stable foreign ABI for tuple values.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../script.js" defer></script>
+</body>
+</html>

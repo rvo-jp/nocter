@@ -20,6 +20,12 @@ The active compiler is under `development/compiler/`. Current architecture belon
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
 milestone, release, and review records rather than this handoff.
 
+The [v0.33.0 structural-tuple milestone](milestones/v0.33.0.md) is active. Phase 0 fixes tuples as
+anonymous ordered products across syntax, semantic identity, checked ownership, MIR, runtime shape,
+machine layout and lowering, formatting, and semantic tooling. The
+[representation boundary](docs/tuple-design.md) prohibits synthetic nominal types, `PackEntry`
+reuse, backend shape reconstruction, and editor-specific parsing.
+
 The documentation-authority migration is complete: all workspace crates own local contracts,
 central design documents own cross-crate boundaries only, and generated documentation validates
 that every workspace member carries the required README contract sections.
@@ -43,8 +49,11 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Define the next practical application boundary before changing compiler or standard-library
-behavior. Preserve the v0.32.0 release record as immutable evidence; any correction requires a new
+Implement v0.33.0 Phase 1 as one semantic-product change: tuple type and expression syntax, numeric
+projection, recursive local binding patterns, interned structural identity, checked positional
+places and binding plans, stable diagnostics, formatter support, and canonical semantic
+presentation. Do not commit a parser-only tuple subset or manufacture nominal declarations and
+fields. Preserve the v0.32.0 release record as immutable evidence; any correction requires a new
 version, candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can

@@ -25,6 +25,7 @@ milestones, not in current design documents.
 - [Incremental Computation Boundary](incremental-computation-design.md)
 - [Associative Collection Implementation Boundary](associative-collection-implementation.md)
 - [JSON Implementation Boundary](json-implementation.md)
+- [Tuple Representation Boundary](tuple-design.md)
 
 ## Maintenance Contracts
 
