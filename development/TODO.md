@@ -2,12 +2,12 @@
 
 ## Current State
 
-Nocter v0.30.0 is [published and externally audited](releases/v0.30.0.md). Its synchronous
-subprocess contract, exact source, reproducible artifact, publication, and public re-download
-evidence are frozen. The `v0.30.0` tag and release asset must not be replaced.
+Nocter v0.31.0 is [published and externally audited](releases/v0.31.0.md). Its captured-subprocess
+contract, exact source, reproducible artifact, publication, and public re-download evidence are
+frozen. The `v0.31.0` tag and release asset must not be replaced.
 
-The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is complete, reviewed, and
-release-qualified. `Output` and consuming `Command.output` are implemented, and one private Darwin
+The [v0.31.0 captured-output milestone](milestones/v0.31.0.md) is complete, published, and
+externally audited. `Output` and consuming `Command.output` are implemented, and one private Darwin
 lifecycle composes
 normalized launch and capture pipes, exact descriptor installation, staged launch reports,
 two-stream polling, owning byte buffers, and exact-child observation. Public and private native
@@ -18,9 +18,8 @@ and installed-home boundaries through one shared execution contract. Complete wo
 warnings-denied, no-default-features, documentation, packaging-input, and repository qualification
 passes. Its [Phase 5 review](reviews/v0.31.0-phase-5.md) has no open finding. The exact candidate
 commit passed two independent workspace and Clippy runs, reproducible packaging, installed-home
-execution, framed LSP verification, and tamper rejection. The
-[release-preparation record](milestones/v0.31.0-release-preparation.md) owns its retained archive
-identity and qualification evidence.
+execution, framed LSP verification, and tamper rejection. Its immutable
+[publication record](releases/v0.31.0.md) owns the tag, public asset, and re-download evidence.
 
 The active compiler is under `development/compiler/`. Current architecture belongs to
 `development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
@@ -49,14 +48,9 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Publish the already qualified v0.31.0 archive described by the
-[release-preparation record](milestones/v0.31.0-release-preparation.md). Publication is authorized:
-advance public latest links in a separate commit, tag that publication state once, upload exactly
-the retained archive, and audit its public bytes. Do not rebuild, replace, or add feature scope
-during publication.
-
-Preserve the v0.30.0 release record as immutable evidence; any correction requires a new version,
-candidate, tag, and archive.
+Define the next practical application boundary before changing compiler or standard-library
+behavior. Preserve the v0.31.0 release record as immutable evidence; any correction requires a new
+version, candidate, tag, and archive.
 
 Do not add another source-visible guarantee merely because the internal effect representation can
 express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
