@@ -320,7 +320,6 @@ fn one_shot_command_demands_the_closed_semantic_query_graph() {
     compiler.compile(&unit).unwrap();
 
     let statistics = compiler.statistics();
-    assert!(statistics.source_text_executions > 0);
     assert!(statistics.parse_executions > 0);
     assert!(statistics.declaration_surface_executions > 0);
     assert!(statistics.module_surface_executions > 0);

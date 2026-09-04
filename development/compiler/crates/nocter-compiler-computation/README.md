@@ -18,7 +18,7 @@ requests.
 
 ## Internal Responsibilities
 
-- source-text, parse, declaration-surface, and module-surface queries
+- content-addressed parse, declaration-surface, and module-surface queries
 - stable body-input collection from declaration surfaces
 - atomic semantic-scope publication
 - private declaration, preparation, body, finalization, and unit query graph
@@ -29,7 +29,11 @@ requests.
 ## Invariants
 
 - Command and workspace callers differ only in owner lifetime, not query providers or stage order.
-- Source parsing used by discovery and declaration surfaces comes from the same query product.
+- Discovery supplies one already-ingested normalized source value to the parse query. The query key
+  owns that exact text; compiler computation never reopens a source path.
+- Declaration-surface queries consume the same content-addressed parse product. Module-surface
+  queries consume declaration surfaces rather than raw source identity, so body-only edits do not
+  invalidate module contracts.
 - A source token from another owner or an earlier source revision is rejected before any query is
   supplied or semantic input is published.
 - Semantic input publication may advance the internal database without invalidating the current
@@ -50,7 +54,8 @@ requests.
 - The crate schedules checking through `ReusableCheckingQuery`, but does not construct its internal
   join. Checking itself owns the paired declaration recipe and materializes the exact-current
   bindings, spellings, and source projection behind one safe transition.
-- Old overlay bytes, semantic inputs, and query products cannot accumulate beyond the retained
-  source-revision window.
+- Source admission fingerprints an overlay without duplicating its bytes into the query database.
+  Old semantic inputs and query products cannot accumulate beyond the retained source-revision
+  window.
 - The crate owns no filesystem topology, package acquisition, session, target, native, or protocol
   policy.

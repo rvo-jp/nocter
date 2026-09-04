@@ -712,16 +712,21 @@ fn load_source(
     goal: ParseGoal,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<usize, DiscoveryError> {
-    let bytes = source_overlay
-        .read(path)
+    let observed = source_overlay
+        .observe_file(path)
         .map_err(|error| DiscoveryError::Filesystem {
             operation: "read",
             path: path.into(),
             error,
+        })?
+        .ok_or_else(|| DiscoveryError::Filesystem {
+            operation: "read",
+            path: path.into(),
+            error: io::Error::new(io::ErrorKind::NotFound, "source is not a regular file"),
         })?;
-    let name = canonical_text(path)?;
+    let name = canonical_text(observed.canonical_path())?;
     let source = sources
-        .add_bytes(SourceName::new(name.as_ref()), &bytes)
+        .add_bytes(SourceName::new(name.as_ref()), observed.bytes())
         .map_err(|error| DiscoveryError::Source {
             path: path.into(),
             error,

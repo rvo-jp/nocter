@@ -1,8 +1,6 @@
-use std::collections::BTreeSet;
-use std::path::Path;
-
 use nocter_computation::{ComputationError, Database};
 use nocter_discovery::DiscoveredUnit;
+use std::collections::BTreeSet;
 
 use crate::semantic::BodySourcePublication;
 
@@ -21,7 +19,11 @@ pub(crate) fn collect(
     }
     let mut publications = Vec::new();
     for path in sources {
-        let surface = crate::source_syntax::declaration_surface(database, Path::new(path))?;
+        let source = unit
+            .sources()
+            .find_by_name(path)
+            .expect("a discovered source resolves in its owning source map");
+        let surface = crate::source_syntax::declaration_surface(database, source)?;
         publications.extend(
             surface
                 .body_surfaces()

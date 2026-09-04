@@ -150,10 +150,6 @@ impl WorkspaceAnalyses {
     }
 
     #[cfg(test)]
-    fn source_text_execution_count(&self) -> u64 {
-        self.computation.statistics().source_text_executions
-    }
-
     #[cfg(test)]
     fn declaration_surface_counts(&self) -> (u64, u64, u64) {
         let statistics = self.computation.statistics();
@@ -851,7 +847,6 @@ mod tests {
             .analyze(documents.open(&root, 1, root_text).unwrap())
             .unwrap();
         let after_initial = analyses.source_parse_counts();
-        let source_text_after_initial = analyses.source_text_execution_count();
         let surfaces_after_initial = analyses.declaration_surface_counts();
         let declarations_after_initial = analyses.declaration_query_counts();
         assert!(after_initial.0 > 0);
@@ -866,10 +861,6 @@ mod tests {
         let surfaces_after_root_change = analyses.declaration_surface_counts();
         let declarations_after_root_change = analyses.declaration_query_counts();
         assert_eq!(after_root_change.0, after_initial.0 + 1);
-        assert_eq!(
-            analyses.source_text_execution_count(),
-            source_text_after_initial + 1
-        );
         assert!(after_root_change.1 > after_initial.1);
         assert_eq!(surfaces_after_root_change.0, surfaces_after_initial.0 + 1);
         assert_eq!(surfaces_after_root_change.1, surfaces_after_initial.1);
@@ -884,7 +875,6 @@ mod tests {
             .analyze(documents.open(&helper, 1, helper_text).unwrap())
             .unwrap();
         let before_helper_change = analyses.source_parse_counts();
-        let source_text_before_helper_change = analyses.source_text_execution_count();
         let surfaces_before_helper_change = analyses.declaration_surface_counts();
         let declarations_before_helper_change = analyses.declaration_query_counts();
         let DocumentWorkspaceChange::Accepted(helper_revision) =
@@ -897,10 +887,6 @@ mod tests {
         let surfaces_after_helper_change = analyses.declaration_surface_counts();
         let declarations_after_helper_change = analyses.declaration_query_counts();
         assert_eq!(after_helper_change.0, before_helper_change.0 + 1);
-        assert_eq!(
-            analyses.source_text_execution_count(),
-            source_text_before_helper_change + 1
-        );
         assert_eq!(
             surfaces_after_helper_change.0,
             surfaces_before_helper_change.0 + 1

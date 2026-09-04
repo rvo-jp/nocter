@@ -9,7 +9,7 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// The editor version attached to one open document.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -104,14 +104,63 @@ impl OverlayEntry {
     }
 }
 
-/// A read-only map of canonical absolute source paths to immutable byte overrides.
+/// A generation-local source view over immutable overrides and first disk observations.
 ///
 /// An entry may additionally retain a real accepted editor version. Clones share the complete
-/// immutable map. Reads of paths absent from the map fall back to disk; writes, fetches, and lock
-/// generation deliberately have no API here.
+/// override map and the disk observations made through it. Reads of paths absent from the map
+/// observe disk once; writes, fetches, and lock generation deliberately have no API here.
 #[derive(Clone, Debug, Default)]
 pub struct SourceOverlay {
     entries: Arc<BTreeMap<PathBuf, OverlayEntry>>,
+    observations: Arc<Mutex<BTreeMap<PathBuf, FileObservation>>>,
+}
+
+#[derive(Clone, Debug)]
+enum FileObservation {
+    File {
+        canonical_path: PathBuf,
+        bytes: Arc<[u8]>,
+    },
+    NotFile,
+    Failed {
+        kind: io::ErrorKind,
+        message: Arc<str>,
+    },
+}
+
+impl FileObservation {
+    fn result(&self) -> io::Result<Option<ObservedSource>> {
+        match self {
+            Self::File {
+                canonical_path,
+                bytes,
+            } => Ok(Some(ObservedSource {
+                canonical_path: canonical_path.clone(),
+                bytes: Arc::clone(bytes),
+            })),
+            Self::NotFile => Ok(None),
+            Self::Failed { kind, message } => Err(io::Error::new(*kind, message.to_string())),
+        }
+    }
+}
+
+/// One file value observed exactly once by a source view.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ObservedSource {
+    canonical_path: PathBuf,
+    bytes: Arc<[u8]>,
+}
+
+impl ObservedSource {
+    #[must_use]
+    pub fn canonical_path(&self) -> &Path {
+        &self.canonical_path
+    }
+
+    #[must_use]
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
 }
 
 impl SourceOverlay {
@@ -153,16 +202,64 @@ impl SourceOverlay {
         self.entries.is_empty()
     }
 
-    /// Reads the selected override bytes or falls back to the corresponding disk file.
+    /// Resolves and reads one regular source file as a single immutable observation.
+    ///
+    /// The first result, including absence or failure, is retained by every clone of this source
+    /// view. This makes filesystem fallback obey the same generation semantics as editor
+    /// overrides: later disk mutation cannot change bytes already admitted to the generation.
     ///
     /// # Errors
     ///
-    /// Returns the disk read error when no open document owns `path`.
-    pub fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
-        if let Some(entry) = self.entries.get(path) {
-            return Ok(entry.source().bytes().to_vec());
+    /// Returns the first metadata, canonicalization, or read failure observed for `path`.
+    pub fn observe_file(&self, path: &Path) -> io::Result<Option<ObservedSource>> {
+        if let Some((canonical_path, entry)) = self.entries.get_key_value(path) {
+            return Ok(Some(ObservedSource {
+                canonical_path: canonical_path.clone(),
+                bytes: Arc::clone(&entry.source().bytes),
+            }));
         }
-        fs::read(path)
+
+        let mut observations = self
+            .observations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(observation) = observations.get(path) {
+            return observation.result();
+        }
+
+        let observation = match fs::metadata(path) {
+            Ok(metadata) if metadata.is_file() => match fs::canonicalize(path) {
+                Ok(canonical_path) => {
+                    if let Some(entry) = self.entries.get(&canonical_path) {
+                        FileObservation::File {
+                            canonical_path,
+                            bytes: Arc::clone(&entry.source().bytes),
+                        }
+                    } else if let Some(observation) = observations.get(&canonical_path) {
+                        observation.clone()
+                    } else {
+                        match fs::read(&canonical_path) {
+                            Ok(bytes) => FileObservation::File {
+                                canonical_path,
+                                bytes: bytes.into(),
+                            },
+                            Err(error) => cached_error(&error),
+                        }
+                    }
+                }
+                Err(error) => cached_error(&error),
+            },
+            Ok(_) => FileObservation::NotFile,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => FileObservation::NotFile,
+            Err(error) => cached_error(&error),
+        };
+        observations.insert(path.to_path_buf(), observation.clone());
+        if let FileObservation::File { canonical_path, .. } = &observation {
+            observations
+                .entry(canonical_path.clone())
+                .or_insert_with(|| observation.clone());
+        }
+        observation.result()
     }
 
     /// Reports whether `path` is an overlaid file or a regular disk file.
@@ -171,14 +268,7 @@ impl SourceOverlay {
     ///
     /// Returns a disk metadata error other than absence when `path` is not overlaid.
     pub fn is_file(&self, path: &Path) -> io::Result<bool> {
-        if self.entries.contains_key(path) {
-            return Ok(true);
-        }
-        match fs::metadata(path) {
-            Ok(metadata) => Ok(metadata.is_file()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(error),
-        }
+        Ok(self.observe_file(path)?.is_some())
     }
 
     /// Resolves a disk path, or accepts an exact canonical virtual-document path.
@@ -191,7 +281,22 @@ impl SourceOverlay {
         if let Some((canonical_path, _)) = self.entries.get_key_value(path) {
             return Ok(canonical_path.clone());
         }
+        let observations = self
+            .observations
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(FileObservation::File { canonical_path, .. }) = observations.get(path) {
+            return Ok(canonical_path.clone());
+        }
+        drop(observations);
         fs::canonicalize(path)
+    }
+}
+
+fn cached_error(error: &io::Error) -> FileObservation {
+    FileObservation::Failed {
+        kind: error.kind(),
+        message: error.to_string().into(),
     }
 }
 
@@ -249,6 +354,7 @@ impl SourceOverlayBuilder {
     pub fn finish(self) -> SourceOverlay {
         SourceOverlay {
             entries: Arc::new(self.entries),
+            observations: Arc::default(),
         }
     }
 }
@@ -326,7 +432,10 @@ mod tests {
             .unwrap();
         let overlay = builder.finish();
 
-        assert_eq!(overlay.read(&path).unwrap(), b"editor");
+        assert_eq!(
+            overlay.observe_file(&path).unwrap().unwrap().bytes(),
+            b"editor"
+        );
         assert_eq!(
             overlay.document(&path).unwrap().version(),
             DocumentVersion::new(7)
@@ -351,10 +460,70 @@ mod tests {
             .unwrap();
         let overlay = builder.finish();
 
-        assert_eq!(overlay.read(&disk).unwrap(), b"disk");
-        assert_eq!(overlay.read(&virtual_path).unwrap(), b"virtual");
+        assert_eq!(
+            overlay.observe_file(&disk).unwrap().unwrap().bytes(),
+            b"disk"
+        );
+        assert_eq!(
+            overlay
+                .observe_file(&virtual_path)
+                .unwrap()
+                .unwrap()
+                .bytes(),
+            b"virtual"
+        );
         assert!(overlay.is_file(&virtual_path).unwrap());
         assert_eq!(overlay.canonicalize(&virtual_path).unwrap(), virtual_path);
+    }
+
+    #[test]
+    fn disk_bytes_are_frozen_across_clones_after_the_first_observation() {
+        let directory = TemporaryDirectory::new();
+        let path = directory.path().join("source.nct");
+        fs::write(&path, b"first").unwrap();
+        let path = fs::canonicalize(path).unwrap();
+        let overlay = SourceOverlay::empty();
+
+        assert_eq!(
+            overlay.observe_file(&path).unwrap().unwrap().bytes(),
+            b"first"
+        );
+        fs::write(&path, b"second").unwrap();
+
+        assert_eq!(
+            overlay.observe_file(&path).unwrap().unwrap().bytes(),
+            b"first"
+        );
+        assert_eq!(
+            overlay
+                .clone()
+                .observe_file(&path)
+                .unwrap()
+                .unwrap()
+                .bytes(),
+            b"first"
+        );
+        assert_eq!(
+            SourceOverlay::empty()
+                .observe_file(&path)
+                .unwrap()
+                .unwrap()
+                .bytes(),
+            b"second"
+        );
+    }
+
+    #[test]
+    fn an_absent_file_remains_absent_for_one_source_view() {
+        let directory = TemporaryDirectory::new();
+        let path = directory.path().join("later.nct");
+        let overlay = SourceOverlay::empty();
+
+        assert!(!overlay.is_file(&path).unwrap());
+        fs::write(&path, b"later").unwrap();
+
+        assert!(!overlay.is_file(&path).unwrap());
+        assert!(SourceOverlay::empty().is_file(&path).unwrap());
     }
 
     #[test]
@@ -387,7 +556,10 @@ mod tests {
         let overlay = builder.finish();
 
         assert_eq!(overlay.source(&path).unwrap().bytes(), b"candidate");
-        assert_eq!(overlay.read(&path).unwrap(), b"candidate");
+        assert_eq!(
+            overlay.observe_file(&path).unwrap().unwrap().bytes(),
+            b"candidate"
+        );
         assert!(overlay.document(&path).is_none());
     }
 

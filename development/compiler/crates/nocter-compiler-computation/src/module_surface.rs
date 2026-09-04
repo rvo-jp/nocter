@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use nocter_compile_input::{ModuleIdentity, ModuleSourceKind};
 use nocter_computation::{
     ComputationError, ComputationKey, Database, Fingerprint, Query, QueryValue,
@@ -17,25 +15,38 @@ struct ModuleSurfaceKey {
 }
 
 impl ModuleSurfaceKey {
-    fn new(target: CompilationTarget, module: &DiscoveredModule) -> Self {
+    fn new(
+        database: &Database,
+        target: CompilationTarget,
+        module: &DiscoveredModule,
+        unit: &DiscoveredUnit,
+    ) -> Result<Self, ComputationError> {
         let mut sources = module
             .sources()
             .iter()
-            .map(|source| ModuleSourceKey {
-                path: source.canonical_path().into(),
-                kind: source.kind(),
+            .map(|source| {
+                let source_file = unit
+                    .sources()
+                    .find_by_name(source.canonical_path())
+                    .expect("a discovered source resolves in its owning source map");
+                let surface = source_syntax::declaration_surface(database, source_file)?;
+                Ok(ModuleSourceKey {
+                    path: source.canonical_path().into(),
+                    kind: source.kind(),
+                    surface: surface.semantic_fingerprint(),
+                })
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, ComputationError>>()?;
         sources.sort_unstable_by(|left, right| {
             source_kind_code(left.kind)
                 .cmp(&source_kind_code(right.kind))
                 .then_with(|| left.path.cmp(&right.path))
         });
-        Self {
+        Ok(Self {
             target,
             module: module.identity().clone(),
             sources: sources.into_boxed_slice(),
-        }
+        })
     }
 }
 
@@ -51,6 +62,7 @@ impl ComputationKey for ModuleSurfaceKey {
         for source in &self.sources {
             identity.push(source_kind_code(source.kind));
             encode(source.path.as_bytes(), &mut identity);
+            identity.extend_from_slice(&source.surface.digest());
         }
         identity.into_boxed_slice()
     }
@@ -60,6 +72,7 @@ impl ComputationKey for ModuleSurfaceKey {
 struct ModuleSourceKey {
     path: Box<str>,
     kind: ModuleSourceKind,
+    surface: Fingerprint,
 }
 
 struct ModuleSurfaceQuery;
@@ -84,16 +97,9 @@ impl Query for ModuleSurfaceQuery {
     type Key = ModuleSurfaceKey;
     type Value = ModuleSurfaceProduct;
 
-    fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
-        let mut semantic = key.stable_bytes().into_vec();
-        for source in &key.sources {
-            let surface = source_syntax::declaration_surface(database, Path::new(&*source.path))?;
-            let (tag, bytes) = surface.semantic_bytes();
-            semantic.push(tag);
-            encode(bytes, &mut semantic);
-        }
+    fn execute(_database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         Ok(ModuleSurfaceProduct {
-            fingerprint: Fingerprint::from_bytes(&semantic),
+            fingerprint: Fingerprint::from_bytes(&key.stable_bytes()),
         })
     }
 }
@@ -107,8 +113,8 @@ pub(crate) fn fingerprint(
     modules.sort_unstable_by_key(|module| module.identity());
     let mut semantic = Vec::new();
     for module in modules {
-        let surface =
-            database.query::<ModuleSurfaceQuery>(ModuleSurfaceKey::new(unit.target(), module))?;
+        let key = ModuleSurfaceKey::new(database, unit.target(), module, unit)?;
+        let surface = database.query::<ModuleSurfaceQuery>(key)?;
         semantic.extend_from_slice(&surface.semantic_fingerprint().digest());
     }
     Ok(Fingerprint::from_bytes(&semantic))

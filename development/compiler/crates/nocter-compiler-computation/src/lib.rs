@@ -59,8 +59,7 @@ impl CompilerComputation {
         overlay: &SourceOverlay,
         filesystem_epoch: u64,
     ) -> Result<CompilerSourceRevision, CompilerComputationError> {
-        let publication = source_syntax::SourceRevisionPublication::new(overlay, filesystem_epoch);
-        let source_view = publication.fingerprint();
+        let source_view = source_syntax::source_view_fingerprint(overlay, filesystem_epoch);
         let changed = self.source_view != Some(source_view);
         let source_revision = if changed {
             self.source_revision
@@ -69,7 +68,7 @@ impl CompilerComputation {
         } else {
             self.source_revision
         };
-        let checkpoint = publication.publish(&mut self.database)?;
+        let checkpoint = self.database.advance_revision()?.commit();
         if changed {
             self.retain_source_checkpoint(checkpoint);
         }
@@ -172,7 +171,6 @@ impl CompilerComputation {
         let semantic = semantic::statistics(&self.database);
         CompilerComputationStatistics {
             retained_entries: self.database.retained_entry_count(),
-            source_text_executions: source_syntax::source_text_execution_count(&self.database),
             parse_executions: source_syntax::execution_count(&self.database),
             parse_reuses: source_syntax::reuse_count(&self.database),
             declaration_surface_executions: source_syntax::declaration_surface_execution_count(
@@ -278,7 +276,6 @@ impl std::error::Error for CompilerSourceRevisionError {}
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct CompilerComputationStatistics {
     pub retained_entries: usize,
-    pub source_text_executions: u64,
     pub parse_executions: u64,
     pub parse_reuses: u64,
     pub declaration_surface_executions: u64,
@@ -406,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn source_retention_bounds_obsolete_overlay_inputs() {
+    fn source_admission_does_not_duplicate_overlay_bytes_as_database_inputs() {
         let mut computation = CompilerComputation::new();
         for revision in 0..(RETAINED_SOURCE_REVISIONS + 8) {
             let mut overlay = SourceOverlay::builder();
@@ -423,9 +420,6 @@ mod tests {
                 .unwrap();
         }
 
-        assert_eq!(
-            computation.statistics().retained_entries,
-            RETAINED_SOURCE_REVISIONS + 2
-        );
+        assert_eq!(computation.statistics().retained_entries, 0);
     }
 }

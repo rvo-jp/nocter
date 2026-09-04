@@ -131,34 +131,24 @@ impl PackageRootCatalogBuilder {
         source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<Option<PackageRootSource>, PackageRootProbeError> {
         let requested_path = directory.join("index.nct");
-        if !self
+        let Some(observed) = self
             .catalog
             .source_overlay
-            .is_file(&requested_path)
+            .observe_file(&requested_path)
             .map_err(|source| PackageRootProbeError::Filesystem {
                 path: requested_path.clone(),
                 source,
             })?
-        {
+        else {
             return Ok(None);
-        }
-        let path = self
-            .catalog
-            .source_overlay
-            .canonicalize(&requested_path)
-            .map_err(|source| PackageRootProbeError::Filesystem {
-                path: requested_path,
-                source,
-            })?;
-        let bytes = self.catalog.source_overlay.read(&path).map_err(|source| {
-            PackageRootProbeError::Filesystem {
-                path: path.clone(),
-                source,
-            }
-        })?;
+        };
+        let path = observed.canonical_path().to_path_buf();
         let mut sources = SourceMap::new();
         let source = sources
-            .add_bytes(SourceName::new(path.to_string_lossy().as_ref()), &bytes)
+            .add_bytes(
+                SourceName::new(path.to_string_lossy().as_ref()),
+                observed.bytes(),
+            )
             .map_err(|source| PackageRootProbeError::Source {
                 path: path.clone(),
                 source,
@@ -178,7 +168,7 @@ impl PackageRootCatalogBuilder {
         let is_package = has_package_directive(source_file, &tree);
         Ok(Some(PackageRootSource {
             path,
-            bytes: bytes.into(),
+            bytes: observed.bytes().into(),
             is_package,
             syntax,
         }))
