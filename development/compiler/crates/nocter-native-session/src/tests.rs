@@ -1922,7 +1922,10 @@ fn standard_str_contract_crosses_native_tests() {
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
-    root_source.push_str("\n#test: { name: \"str\", module: \"./str\" }\n");
+    root_source.push_str(concat!(
+        "\n#test: { name: \"str\", module: \"./str\" }\n",
+        "#test: { name: \"string\", module: \"./string\" }\n",
+    ));
     let mut overlay = SourceOverlay::builder();
     overlay
         .insert_source(
@@ -1939,6 +1942,7 @@ fn standard_str_contract_crosses_native_tests() {
         vec![
             ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(standard_package.clone(), ["str"]),
+            ModuleIdentity::new(standard_package.clone(), ["string"]),
         ],
         bundled_standard_toolchain(&standard_package),
     ))
@@ -1946,15 +1950,19 @@ fn standard_str_contract_crosses_native_tests() {
 
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
-    assert_eq!(compiled.targets().len(), 1);
-    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("standard str tests failed native compilation")
-    };
-    assert_eq!(cases.len(), 5);
+    assert_eq!(compiled.targets().len(), 2);
     let output = TempPackage::new();
-    for case in cases {
-        execute_native_test(case.image(), &output.0, case.identity().name());
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("standard text tests failed native compilation")
+        };
+        for case in cases {
+            case_count += 1;
+            execute_native_test(case.image(), &output.0, case.identity().name());
+        }
     }
+    assert_eq!(case_count, 10);
 }
 
 #[test]
@@ -2247,6 +2255,22 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
         "    }\n",
         "    return error.new(\"std.string.allocator\", \"invalid allocator succeeded\")\n",
         "}\n",
+        "test recoverable_lowercase_propagates_allocator_failure {\n",
+        "    var allocator = mem.failing_try_allocator_for_test()\n",
+        "    let _text = \"İ\".try_to_lowercase(&+allocator) catch failure {\n",
+        "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+        "        return error.new(\"std.str.allocator\", \"wrong lowercase allocator failure\")\n",
+        "    }\n",
+        "    return error.new(\"std.str.allocator\", \"invalid allocator lowercased text\")\n",
+        "}\n",
+        "test recoverable_uppercase_propagates_allocator_failure {\n",
+        "    var allocator = mem.failing_try_allocator_for_test()\n",
+        "    let _text = \"ß\".try_to_uppercase(&+allocator) catch failure {\n",
+        "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+        "        return error.new(\"std.str.allocator\", \"wrong uppercase allocator failure\")\n",
+        "    }\n",
+        "    return error.new(\"std.str.allocator\", \"invalid allocator uppercased text\")\n",
+        "}\n",
     );
 
     let mut overlay = SourceOverlay::builder();
@@ -2285,7 +2309,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("allocator failure numeric tests failed native compilation")
     };
-    assert_eq!(cases.len(), 10);
+    assert_eq!(cases.len(), 12);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

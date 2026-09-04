@@ -1,0 +1,58 @@
+//! Owned UTF-8 suffix-removal contract tests.
+
+see ./index.nct
+
+test pop_removes_complete_scalars_without_reallocating {
+    var text = String.copy("Aλ😀")
+    let capacity = text.capacity()
+    let face = text.pop() otherwise {
+        return error.new("std.string.test", "final scalar was absent")
+    }
+    let lambda = text.pop() otherwise {
+        return error.new("std.string.test", "middle scalar was absent")
+    }
+    let ascii = text.pop() otherwise {
+        return error.new("std.string.test", "first scalar was absent")
+    }
+    if face != '😀' || lambda != 'λ' || ascii != 'A' {
+        return error.new("std.string.test", "pop changed scalar order")
+    }
+    if text.capacity() != capacity || (&text as &str) != "" {
+        return error.new("std.string.test", "pop changed capacity or remaining text")
+    }
+    let _extra = text.pop() otherwise { return }
+    return error.new("std.string.test", "empty String produced a scalar")
+}
+
+test truncate_accepts_boundaries_and_preserves_capacity {
+    var text = String.copy("Aλ😀")
+    let capacity = text.capacity()
+    text.truncate(3)?
+    if (&text as &str) != "Aλ" || text.capacity() != capacity {
+        return error.new("std.string.test", "boundary truncation changed storage")
+    }
+    text.truncate(100)?
+    if (&text as &str) != "Aλ" {
+        return error.new("std.string.test", "oversized truncation changed text")
+    }
+    text.truncate(0)?
+    if (&text as &str) != "" || text.capacity() != capacity {
+        return error.new("std.string.test", "zero truncation changed capacity")
+    }
+    return
+}
+
+test truncate_failure_leaves_the_string_unchanged {
+    var text = String.copy("éx")
+    let capacity = text.capacity()
+    text.truncate(1) catch failure {
+        if !failure.has_code("std.string.not_char_boundary") {
+            return error.new("std.string.test", "truncate returned the wrong error")
+        }
+        if (&text as &str) != "éx" || text.capacity() != capacity {
+            return error.new("std.string.test", "failed truncate changed the String")
+        }
+        return
+    }
+    return error.new("std.string.test", "non-boundary truncation succeeded")
+}

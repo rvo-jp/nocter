@@ -15,6 +15,8 @@
 use /mem.TryAllocator
 see ./construction.nct
 see ./mutation.nct
+see ./suffix.nct
+see ./suffix_tests.nct
 see ./storage.nct
 see ./utf8.nct
 
@@ -89,4 +91,10 @@ instance String {
 
     /// Validates and appends UTF-8 bytes with recoverable allocation failure.
     pub method &+self.try_push_utf8(value: &[u8]): void!
+
+    /// Removes and returns the final Unicode scalar, if present.
+    pub noalloc method &+self.pop(): char?
+
+    /// Retains the prefix ending at `byte_len` when it is a Unicode scalar boundary.
+    pub noalloc method &+self.truncate(byte_len: usize): void!
 }

@@ -1146,6 +1146,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.35.0-phase-4/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/char/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1786,6 +1791,16 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/std/str/casing_tests/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/str/casing/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/str/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1857,6 +1872,16 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/string/storage/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/string/suffix_tests/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/string/suffix/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

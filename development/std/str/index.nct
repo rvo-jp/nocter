@@ -6,12 +6,15 @@
 //! algorithms in `owned.nct`.
 
 use /iter.{Iterator, ViewIter}
+use /mem.TryAllocator
 use /string.String
 use /vec.Vec
 see ./text.nct
 see ./views.nct
 see ./owned.nct
 see ./scalar_iteration.nct
+see ./casing.nct
+see ./casing_tests.nct
 see ./trim.nct
 see ./unicode_trim.nct
 see ./transform.nct
@@ -112,6 +115,22 @@ instance str {
 
     /// Removes Unicode whitespace from both ends and returns a borrowed view.
     pub noalloc method &self.trim(): &str from self
+
+    /// Converts this text with Unicode full default lowercase casing.
+    pub method &self.to_lowercase(): String
+
+    /// Converts this text with Unicode full default uppercase casing.
+    pub method &self.to_uppercase(): String
+
+    /// Converts this text to lowercase using recoverable storage from `allocator`.
+    pub method &self.try_to_lowercase(
+        allocator: &+TryAllocator,
+    ): String! from allocator
+
+    /// Converts this text to uppercase using recoverable storage from `allocator`.
+    pub method &self.try_to_uppercase(
+        allocator: &+TryAllocator,
+    ): String! from allocator
 
     pub method &self.split(separator: &str): Vec<String>!
 

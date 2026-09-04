@@ -1,0 +1,41 @@
+//! Unicode default case-conversion contract tests.
+
+see ./index.nct
+
+use /mem
+
+test default_casing_handles_full_and_contextual_mappings {
+    let dotted_i = "İ".to_lowercase()
+    if (&dotted_i as &str) != "i\xCC\x87" {
+        return error.new("std.str.test", "full lowercase mapping changed")
+    }
+
+    let sharp_s = "ß".to_uppercase()
+    if (&sharp_s as &str) != "SS" {
+        return error.new("std.str.test", "full uppercase mapping changed")
+    }
+
+    let final_sigma = "ΟΣ".to_lowercase()
+    let medial_sigma = "ΟΣΑ".to_lowercase()
+    if (&final_sigma as &str) != "ος" || (&medial_sigma as &str) != "οσα" {
+        return error.new("std.str.test", "Final_Sigma context changed")
+    }
+
+    let ignored_before = "Ο\xCC\x81Σ".to_lowercase()
+    let ignored_after = "ΟΣ\xCC\x81".to_lowercase()
+    if (&ignored_before as &str) != "ο\xCC\x81ς"
+        || (&ignored_after as &str) != "ος\xCC\x81" {
+        return error.new("std.str.test", "case-ignorable context changed")
+    }
+    return
+}
+
+test recoverable_casing_uses_the_selected_allocator {
+    var allocator = mem.page_try_allocator()
+    let lower = "İΣ".try_to_lowercase(&+allocator)?
+    let upper = "ﬃß".try_to_uppercase(&+allocator)?
+    if (&lower as &str) != "i\xCC\x87ς" || (&upper as &str) != "FFISS" {
+        return error.new("std.str.test", "recoverable default casing changed")
+    }
+    return
+}

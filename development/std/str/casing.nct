@@ -1,0 +1,133 @@
+//! Unicode 17.0.0 full default case conversion.
+
+see ./index.nct
+
+use /internal/character
+use /internal/mem
+use /internal/safety
+use /internal/unicode
+use /internal/utf8
+use /iter.Iterator
+use /mem as mem_module
+use /mem.TryAllocator
+use /string.String
+
+func try_append_mapping(output: &+String, mapping: &[u32]): void! {
+    var index: usize = 0
+    while index < mapping.len() {
+        output.try_push(character.char_from_u32_unchecked(mapping[index]))?
+        index += 1
+    }
+    return
+}
+
+func try_append_lowercase(
+    output: &+String,
+    scalar: char,
+    final_sigma: bool,
+): void! {
+    let mapping = unicode.lowercase_mapping(scalar.code_point(), final_sigma) otherwise {
+        output.try_push(scalar)?
+        return
+    }
+    try_append_mapping(output, mapping)?
+    return
+}
+
+func try_append_uppercase(output: &+String, scalar: char): void! {
+    let mapping = unicode.uppercase_mapping(scalar.code_point()) otherwise {
+        output.try_push(scalar)?
+        return
+    }
+    try_append_mapping(output, mapping)?
+    return
+}
+
+noalloc func has_following_cased(text: &str, offset: usize): bool {
+    let bytes = text.bytes()
+    var next = offset
+    while next < bytes.len() {
+        let step = utf8.decode_scalar(bytes, next) otherwise {
+            return safety.invariant_abort()
+        }
+        if !unicode.is_case_ignorable(step.scalar) {
+            return unicode.is_cased(step.scalar)
+        }
+        next += step.width
+    }
+    return false
+}
+
+func try_to_lowercase(
+    text: &str,
+    allocator: &+TryAllocator,
+): String! from allocator {
+    var output = String.try_with_capacity(allocator, text.len())?
+    var chars = text.chars()
+    var next_offset: usize = 0
+    var preceded_by_cased = false
+    while true {
+        let scalar = chars.next() otherwise { return move output }
+        let value = scalar.code_point()
+        next_offset += scalar.utf8_len()
+        let final_sigma = value == 0x03A3
+            && preceded_by_cased
+            && !has_following_cased(text, next_offset)
+        try_append_lowercase(&+output, scalar, final_sigma)?
+        if unicode.is_cased(value) {
+            preceded_by_cased = true
+        } else if !unicode.is_case_ignorable(value) {
+            preceded_by_cased = false
+        }
+    }
+    return move output
+}
+
+func try_to_uppercase(
+    text: &str,
+    allocator: &+TryAllocator,
+): String! from allocator {
+    var output = String.try_with_capacity(allocator, text.len())?
+    var chars = text.chars()
+    while true {
+        let scalar = chars.next() otherwise { return move output }
+        try_append_uppercase(&+output, scalar)?
+    }
+    return move output
+}
+
+func to_lowercase(text: &str): String {
+    var allocator = mem_module.current_try_allocator()
+    return try_to_lowercase(text, &+allocator) catch _ {
+        return mem.allocation_abort()
+    }
+}
+
+func to_uppercase(text: &str): String {
+    var allocator = mem_module.current_try_allocator()
+    return try_to_uppercase(text, &+allocator) catch _ {
+        return mem.allocation_abort()
+    }
+}
+
+instance str {
+    method &self.to_lowercase(): String {
+        return to_lowercase(self)
+    }
+
+    method &self.to_uppercase(): String {
+        return to_uppercase(self)
+    }
+
+    method &self.try_to_lowercase(
+        allocator: &+TryAllocator,
+    ): String! from allocator {
+        return try_to_lowercase(self, allocator)?
+    }
+
+    method &self.try_to_uppercase(
+        allocator: &+TryAllocator,
+    ): String! from allocator {
+        return try_to_uppercase(self, allocator)?
+    }
+}

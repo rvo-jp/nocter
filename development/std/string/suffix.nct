@@ -1,0 +1,52 @@
+//! Boundary-safe owned UTF-8 suffix removal.
+
+see ./index.nct
+see ./storage.nct
+
+use /internal/character
+use /internal/safety
+use /internal/utf8
+
+noalloc func pop(text: &+String): char? {
+    if text.len == 0 { return none }
+    let current = view(text)
+    var start = text.len - 1
+    while !current.is_char_boundary(start) {
+        start -= 1
+    }
+    let step = utf8.decode_scalar(current.bytes(), start) otherwise {
+        return safety.invariant_abort()
+    }
+    if start + step.width != text.len {
+        return safety.invariant_abort()
+    }
+    text.len = start
+    return character.char_from_u32_unchecked(step.scalar)
+}
+
+noalloc func truncate(text: &+String, byte_len: usize): void! {
+    if byte_len >= text.len { return }
+    if !view(text).is_char_boundary(byte_len) {
+        return not_char_boundary_error()
+    }
+    text.len = byte_len
+    return
+}
+
+noalloc func not_char_boundary_error(): error {
+    return error.new(
+        "std.string.not_char_boundary",
+        "string truncation index is not a Unicode scalar boundary",
+    )
+}
+
+instance String {
+    noalloc method &+self.pop(): char? {
+        return pop(self)?
+    }
+
+    noalloc method &+self.truncate(byte_len: usize): void! {
+        truncate(self, byte_len)?
+        return
+    }
+}
