@@ -38,6 +38,10 @@ instance bool {
     impl Hash
 }
 
+instance char {
+    impl Hash
+}
+
 instance i8 {
     impl Hash
 }

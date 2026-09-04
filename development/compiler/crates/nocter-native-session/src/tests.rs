@@ -1289,8 +1289,12 @@ func main(): i32 {
     if !digit.is_ascii_digit() || digit != '9' { return 4 }
     if !(digit < face) { return 5 }
     if !scalar_iteration_is_exact() { return 6 }
+    var text = String.copy("A")
+    text.push('λ')
+    text.try_push('\u{1F600}') catch _ { return 7 }
+    if (&text as &str) != "Aλ😀" { return 8 }
     let _surrogate = char.from_u32(55296) otherwise { return 0 }
-    return 7
+    return 9
 }
 "#,
     );
@@ -1928,7 +1932,7 @@ fn standard_hash_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard hash tests failed native compilation")
     };
-    assert_eq!(cases.len(), 4);
+    assert_eq!(cases.len(), 5);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -2135,7 +2139,7 @@ fn standard_time_value_contract_crosses_native_tests() {
 }
 
 #[test]
-fn integer_text_propagates_recoverable_allocator_failure() {
+fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -2160,6 +2164,7 @@ fn integer_text_propagates_recoverable_allocator_failure() {
     let num_failure_tests = concat!(
         "see ./index.nct\n",
         "use /mem\n",
+        "use /string.String\n",
         "test recoverable_integer_text_propagates_allocator_failure {\n",
         "    var allocator = mem.failing_try_allocator_for_test()\n",
         "    let value: i64 = -9223372036854775808\n",
@@ -2168,6 +2173,20 @@ fn integer_text_propagates_recoverable_allocator_failure() {
         "        return error.new(\"std.num.allocator\", \"wrong allocator failure\")\n",
         "    }\n",
         "    return error.new(\"std.num.allocator\", \"invalid allocator succeeded\")\n",
+        "}\n",
+        "test recoverable_character_append_is_transactional {\n",
+        "    var allocator = mem.failing_try_allocator_for_test()\n",
+        "    var text = String.try_with_capacity(&+allocator, 0)?\n",
+        "    text.try_push('\\u{1F600}') catch failure {\n",
+        "        if !failure.has_code(\"std.mem.invalid_argument\") {\n",
+        "            return error.new(\"std.string.allocator\", \"wrong allocator failure\")\n",
+        "        }\n",
+        "        if (&text as &str) != \"\" {\n",
+        "            return error.new(\"std.string.atomicity\", \"failed scalar append changed text\")\n",
+        "        }\n",
+        "        return\n",
+        "    }\n",
+        "    return error.new(\"std.string.allocator\", \"invalid allocator succeeded\")\n",
         "}\n",
     );
 
@@ -2207,7 +2226,7 @@ fn integer_text_propagates_recoverable_allocator_failure() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("allocator failure numeric tests failed native compilation")
     };
-    assert_eq!(cases.len(), 9);
+    assert_eq!(cases.len(), 10);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

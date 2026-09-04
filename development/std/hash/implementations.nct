@@ -76,6 +76,21 @@ test equal_primitive_and_text_values_hash_equally {
     return
 }
 
+test equal_character_values_hash_equally {
+    var left = HashState.from_seed(13)
+    var right = HashState.from_seed(13)
+    let direct = '\u{1F600}'
+    let constructed = char.from_u32(128512) otherwise {
+        return error.new("std.hash.character", "valid scalar construction failed")
+    }
+    direct.hash_into(&+left)
+    constructed.hash_into(&+right)
+    if left.finish() != right.finish() {
+        return error.new("std.hash.incoherent", "equal character values produced different hashes")
+    }
+    return
+}
+
 test byte_writes_are_streaming {
     var joined = HashState.from_seed(11)
     var split = HashState.from_seed(11)

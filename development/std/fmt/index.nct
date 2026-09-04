@@ -30,6 +30,10 @@ instance bool {
     impl Format
 }
 
+instance char {
+    impl Format
+}
+
 instance i8 {
     impl Format
 }

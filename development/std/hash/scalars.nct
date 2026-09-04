@@ -2,6 +2,7 @@
 
 see ./index.nct
 
+use /internal/character
 use /internal/ptr
 use /ptr as ptr_module
 
@@ -84,6 +85,14 @@ func write_usize(state: &+HashState, value: &usize): void {
 instance bool {
     noalloc method &self.hash_into(state: &+HashState): void {
         write_bool(state, self)
+        return
+    }
+}
+
+instance char {
+    noalloc method &self.hash_into(state: &+HashState): void {
+        let value = character.char_code_point_raw(ptr.copy_value(self))
+        write_u32(state, &value)
         return
     }
 }

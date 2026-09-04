@@ -271,6 +271,21 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
+<span class="token-keyword">test</span> equal_character_values_hash_equally <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> left <span class="token-operator">=</span> <span class="token-type">HashState</span><span class="token-operator">.</span><span class="token-function">from_seed</span><span class="token-operator">(</span><span class="token-number">13</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> right <span class="token-operator">=</span> <span class="token-type">HashState</span><span class="token-operator">.</span><span class="token-function">from_seed</span><span class="token-operator">(</span><span class="token-number">13</span><span class="token-operator">)</span>
+    <span class="token-keyword">let</span> direct <span class="token-operator">=</span> <span class="token-string">'\u{1F600}'</span>
+    <span class="token-keyword">let</span> constructed <span class="token-operator">=</span> char<span class="token-operator">.</span><span class="token-function">from_u32</span><span class="token-operator">(</span><span class="token-number">128512</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.hash.character"</span><span class="token-operator">,</span> <span class="token-string">"valid scalar construction failed"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    direct<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>left<span class="token-operator">)</span>
+    constructed<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>right<span class="token-operator">)</span>
+    <span class="token-keyword">if</span> left<span class="token-operator">.</span><span class="token-function">finish</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> right<span class="token-operator">.</span><span class="token-function">finish</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"std.hash.incoherent"</span><span class="token-operator">,</span> <span class="token-string">"equal character values produced different hashes"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">test</span> byte_writes_are_streaming <span class="token-operator">{</span>
     <span class="token-keyword">var</span> joined <span class="token-operator">=</span> <span class="token-type">HashState</span><span class="token-operator">.</span><span class="token-function">from_seed</span><span class="token-operator">(</span><span class="token-number">11</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> split <span class="token-operator">=</span> <span class="token-type">HashState</span><span class="token-operator">.</span><span class="token-function">from_seed</span><span class="token-operator">(</span><span class="token-number">11</span><span class="token-operator">)</span>

@@ -197,6 +197,7 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>character
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr
 <span class="token-keyword">use</span> <span class="token-operator">/</span>ptr <span class="token-keyword">as</span> ptr_module
 
@@ -279,6 +280,14 @@
 <span class="token-keyword">instance</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
     <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
         <span class="token-function">write_bool</span><span class="token-operator">(</span>state<span class="token-operator">,</span> self<span class="token-operator">)</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> char <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">hash_into</span><span class="token-operator">(</span>state<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">HashState</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> value <span class="token-operator">=</span> character<span class="token-operator">.</span><span class="token-function">char_code_point_raw</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-function">write_u32</span><span class="token-operator">(</span>state<span class="token-operator">,</span> <span class="token-operator">&amp;</span>value<span class="token-operator">)</span>
         <span class="token-keyword">return</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>

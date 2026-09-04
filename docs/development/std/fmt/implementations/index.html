@@ -225,6 +225,13 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
+<span class="token-keyword">instance</span> char <span class="token-operator">{</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push</span><span class="token-operator">(</span>ptr<span class="token-operator">.</span><span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">instance</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
     <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
         <span class="token-function">try_format_signed</span><span class="token-operator">(</span>output<span class="token-operator">,</span> ptr<span class="token-operator">.</span><span class="token-function">copy_value</span><span class="token-operator">(</span>self<span class="token-operator">)</span> <span class="token-keyword">as</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">?</span>

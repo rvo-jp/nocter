@@ -30,6 +30,13 @@ instance bool {
     }
 }
 
+instance char {
+    method &self.try_format_into(output: &+String): void! {
+        output.try_push(ptr.copy_value(self))?
+        return
+    }
+}
+
 instance i8 {
     method &self.try_format_into(output: &+String): void! {
         try_format_signed(output, ptr.copy_value(self) as i64)?

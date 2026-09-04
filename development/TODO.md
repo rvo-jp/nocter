@@ -43,9 +43,10 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 2 shared UTF-8 decoder and
-borrowed scalar iteration. Phase 3 must add transactional owned-string scalar append, then derive
-`Format` and `Hash` from that scalar identity without introducing another encoder or byte table.
+Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 3 owned-text, formatting, and
+hashing integration. Phase 4 must close formatter, structural output, semantic editor queries,
+malformed-source recovery, public examples, and installed-standard-source behavior without adding
+an editor-local literal decoder.
 
 Preserve the v0.33.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

@@ -4,7 +4,9 @@ see ./index.nct
 see ./storage.nct
 
 use /internal/mem as internal_mem
+use /internal/character
 use /internal/ptr
+use /internal/safety
 use /internal/utf8
 use /mem
 
@@ -51,8 +53,7 @@ func push_str(text: &+String, value: &str): void {
     return
 }
 
-func try_push_utf8(text: &+String, value: &[u8]): void! {
-    utf8.validate_utf8(value)?
+func try_push_valid_utf8(text: &+String, value: &[u8]): void! {
     let old_len = text.len
     let next_len: usize = try_reserve(text, value.len())?
     let destination = text.storage.bytes().ptr()
@@ -62,6 +63,28 @@ func try_push_utf8(text: &+String, value: &[u8]): void! {
         index += 1
     }
     text.len = next_len
+    return
+}
+
+func try_push_utf8(text: &+String, value: &[u8]): void! {
+    utf8.validate_utf8(value)?
+    try_push_valid_utf8(text, value)?
+    return
+}
+
+func try_push(text: &+String, value: char): void! {
+    let scalar = character.char_code_point_raw(value)
+    let encoding = utf8.encode_scalar(scalar) otherwise {
+        return safety.invariant_abort()
+    }
+    try_push_valid_utf8(text, encoding.bytes())?
+    return
+}
+
+func push(text: &+String, value: char): void {
+    try_push(text, value) catch allocation_error {
+        return internal_mem.allocation_abort()
+    }
     return
 }
 
@@ -88,6 +111,16 @@ instance String {
 
     method &+self.try_push_str(value: &str): void! {
         try_push_str(self, value)?
+        return
+    }
+
+    method &+self.push(value: char): void {
+        push(self, value)
+        return
+    }
+
+    method &+self.try_push(value: char): void! {
+        try_push(self, value)?
         return
     }
 

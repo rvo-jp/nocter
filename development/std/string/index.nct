@@ -81,6 +81,12 @@ instance String {
     /// Appends borrowed UTF-8 text with recoverable allocation failure.
     pub method &+self.try_push_str(value: &str): void!
 
+    /// Appends one Unicode scalar value.
+    pub method &+self.push(value: char): void
+
+    /// Appends one Unicode scalar value with recoverable allocation failure.
+    pub method &+self.try_push(value: char): void!
+
     /// Validates and appends UTF-8 bytes with recoverable allocation failure.
     pub method &+self.try_push_utf8(value: &[u8]): void!
 }
