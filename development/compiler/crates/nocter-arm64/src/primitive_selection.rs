@@ -110,11 +110,9 @@ pub(crate) fn select(
             validate_register_abi(operation, target, &[2], 1)?;
             validate_view_type_arguments(operation, target)
         }
-        PrimitiveRole::CharacterFromU32Unchecked | PrimitiveRole::CharacterCodePoint => {
-            validate_register_abi(operation, target, &[1], 1)?;
-            validate_type_arguments(operation, target, 0)
-        }
-        PrimitiveRole::U8Truncate
+        PrimitiveRole::CharacterFromU32Unchecked
+        | PrimitiveRole::CharacterCodePoint
+        | PrimitiveRole::U8Truncate
         | PrimitiveRole::U16Truncate
         | PrimitiveRole::U32Truncate
         | PrimitiveRole::I8Truncate
