@@ -2,22 +2,20 @@
 
 see ./index.nct
 
+use /internal/character
 use /internal/ptr
-
-noalloc primitive func char_from_u32_unchecked(value: u32): char
-noalloc primitive func char_code_point_raw(value: char): u32
 
 construct char {
     noalloc func from_u32(value: u32): Self? {
         if value > 1114111 { return none }
         if value >= 55296 && value <= 57343 { return none }
-        return char_from_u32_unchecked(value)
+        return character.char_from_u32_unchecked(value)
     }
 }
 
 instance char {
     noalloc method self.code_point(): u32 {
-        return char_code_point_raw(self)
+        return character.char_code_point_raw(self)
     }
 
     noalloc method self.utf8_len(): usize {
@@ -38,10 +36,12 @@ instance char {
     }
 
     noalloc operator (&self == other: &Self): bool {
-        return char_code_point_raw(ptr.copy_value(self)) == char_code_point_raw(ptr.copy_value(other))
+        return character.char_code_point_raw(ptr.copy_value(self))
+            == character.char_code_point_raw(ptr.copy_value(other))
     }
 
     noalloc operator (&self < other: &Self): bool {
-        return char_code_point_raw(ptr.copy_value(self)) < char_code_point_raw(ptr.copy_value(other))
+        return character.char_code_point_raw(ptr.copy_value(self))
+            < character.char_code_point_raw(ptr.copy_value(other))
     }
 }

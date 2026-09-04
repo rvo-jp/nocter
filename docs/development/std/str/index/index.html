@@ -206,6 +206,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>text<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>views<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>owned<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>scalar_iteration<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>trim<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>transform<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>transformation_tests<span class="token-operator">.</span>nct
@@ -219,6 +220,9 @@
 
 <span class="token-comment">/// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">LinesIter</span>
+
+<span class="token-comment">/// Allocation-free iterator over Unicode scalar values.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Chars</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">SplitIter</span> <span class="token-operator">{</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>
@@ -239,6 +243,10 @@
     <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
+<span class="token-keyword">instance</span> <span class="token-type">Chars</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Iterator</span> <span class="token-operator">{</span> <span class="token-operator">.</span><span class="token-type">Item</span> <span class="token-operator">=</span> char <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
 <span class="token-keyword">instance</span> <span class="token-type">str</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Compares UTF-8 encoding bytes without allocation.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
@@ -253,6 +261,12 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">ptr</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">*</span><span class="token-type">u8</span>
 
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span>
+
+    <span class="token-comment">/// Iterates over Unicode scalar values in source order without allocation.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">chars</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Chars</span> from self
+
+    <span class="token-comment">/// Counts Unicode scalar values without allocation.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">char_count</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
 
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">is_char_boundary</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 

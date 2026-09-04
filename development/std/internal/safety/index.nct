@@ -3,3 +3,6 @@
 see ./darwin.nct
 
 pub(/) noalloc func bounds_abort(): never
+
+/// Terminates after detecting an internal standard-library invariant violation.
+pub(/) noalloc func invariant_abort(): never

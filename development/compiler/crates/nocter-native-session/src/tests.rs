@@ -1269,17 +1269,30 @@ fn unicode_scalar_values_cross_the_complete_native_session() {
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        r"func main(): i32 {
+        r#"noalloc func scalar_iteration_is_exact(): bool {
+    let text: &str = "Aλ😀"
+    if text.len() != 7 || text.char_count() != 3 { return false }
+    var chars = text.chars()
+    let first = chars.next() otherwise { return false }
+    let second = chars.next() otherwise { return false }
+    let third = chars.next() otherwise { return false }
+    if first != 'A' || second != 'λ' || third != '\u{1F600}' { return false }
+    let _extra = chars.next() otherwise { return true }
+    return false
+}
+
+func main(): i32 {
     let face: char = '\u{1F600}'
     if face.code_point() != 128512 { return 1 }
     if face.utf8_len() != 4 || face.is_ascii() { return 2 }
     let digit = char.from_u32(57) otherwise { return 3 }
     if !digit.is_ascii_digit() || digit != '9' { return 4 }
     if !(digit < face) { return 5 }
+    if !scalar_iteration_is_exact() { return 6 }
     let _surrogate = char.from_u32(55296) otherwise { return 0 }
-    return 6
+    return 7
 }
-",
+"#,
     );
     let standard_package = PackageIdentity::new("toolchain:std");
     let unit = discover(DiscoveryRequest::single_file(
@@ -2247,7 +2260,7 @@ fn standard_json_phase_three_contract_crosses_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 19);
+    assert_eq!(case_count, 21);
 }
 
 #[test]

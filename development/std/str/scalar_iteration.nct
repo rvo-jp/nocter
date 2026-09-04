@@ -1,0 +1,49 @@
+//! Borrowed Unicode scalar iteration over valid UTF-8 text.
+
+see ./index.nct
+
+use /internal/character
+use /internal/safety
+use /internal/utf8
+
+struct Chars {
+    text: &str
+    next_offset: usize
+}
+
+construct Chars {
+    noalloc func new(text: &str): Self {
+        return Chars { text: text, next_offset: 0 }
+    }
+}
+
+instance Chars {
+    noalloc method &+self.next(): char? {
+        if self.next_offset == self.text.len() { return none }
+        let step = utf8.decode_scalar(self.text.bytes(), self.next_offset) otherwise {
+            return safety.invariant_abort()
+        }
+        self.next_offset += step.width
+        return character.char_from_u32_unchecked(step.scalar)
+    }
+}
+
+noalloc func char_count(text: &str): usize {
+    var chars = Chars.new(text)
+    var count: usize = 0
+    while true {
+        let _character = chars.next() otherwise { return count }
+        count += 1
+    }
+    return count
+}
+
+instance str {
+    noalloc method &self.chars(): Chars from self {
+        return Chars.new(self)
+    }
+
+    noalloc method &self.char_count(): usize {
+        return char_count(self)
+    }
+}

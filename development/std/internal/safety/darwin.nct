@@ -1,4 +1,4 @@
-//! Darwin implementation of the standard bounds-style termination boundary.
+//! Darwin implementation of standard-library safety termination boundaries.
 
 see ./index.nct
 
@@ -6,5 +6,10 @@ use /internal/os/darwin
 
 #target: "arm64-darwin"
 noalloc func bounds_abort(): never {
+    return darwin.trap()
+}
+
+#target: "arm64-darwin"
+noalloc func invariant_abort(): never {
     return darwin.trap()
 }

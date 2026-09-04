@@ -1,0 +1,106 @@
+//! Single UTF-8 scalar decode-step authority.
+
+see ./index.nct
+
+use /internal/ptr
+use /ptr as ptr_module
+
+noalloc func decode_scalar(
+    candidate: &[u8],
+    offset: usize,
+): ScalarDecodeStep? {
+    if offset >= candidate.len() { return none }
+    let leading: u8 = candidate[offset]
+    if leading < 128 {
+        return ScalarDecodeStep { scalar: leading as u32, width: 1 }
+    }
+    if leading >= 194 && leading <= 223 {
+        if offset + 1 >= candidate.len() { return none }
+        let second: u8 = candidate[offset + 1]
+        if !is_continuation(second) { return none }
+        return ScalarDecodeStep {
+            scalar: (leading as u32 - 192) * 64 + (second as u32 - 128),
+            width: 2,
+        }
+    }
+    if leading >= 224 && leading <= 239 {
+        if offset + 2 >= candidate.len() { return none }
+        let second: u8 = candidate[offset + 1]
+        let third: u8 = candidate[offset + 2]
+        if !is_continuation(second) || !is_continuation(third) { return none }
+        if leading == 224 && second < 160 { return none }
+        if leading == 237 && second >= 160 { return none }
+        return ScalarDecodeStep {
+            scalar: (leading as u32 - 224) * 4096
+                + (second as u32 - 128) * 64
+                + (third as u32 - 128),
+            width: 3,
+        }
+    }
+    if leading >= 240 && leading <= 244 {
+        if offset + 3 >= candidate.len() { return none }
+        let second: u8 = candidate[offset + 1]
+        let third: u8 = candidate[offset + 2]
+        let fourth: u8 = candidate[offset + 3]
+        if !is_continuation(second)
+            || !is_continuation(third)
+            || !is_continuation(fourth) {
+            return none
+        }
+        if leading == 240 && second < 144 { return none }
+        if leading == 244 && second >= 144 { return none }
+        return ScalarDecodeStep {
+            scalar: (leading as u32 - 240) * 262144
+                + (second as u32 - 128) * 4096
+                + (third as u32 - 128) * 64
+                + (fourth as u32 - 128),
+            width: 4,
+        }
+    }
+    return none
+}
+
+noalloc func is_continuation(byte: u8): bool {
+    return byte >= 128 && byte <= 191
+}
+
+test decode_step_accepts_every_scalar_width {
+    let bytes: [u8; 10] = [65, 194, 128, 224, 160, 128, 240, 144, 128, 128]
+    let view = ptr.slice_from_raw_parts_value(ptr_module.from_ref(&bytes[0]), 10)
+    let one = decode_scalar(view, 0) otherwise {
+        return error.new("std.utf8.decode", "ASCII was rejected")
+    }
+    let two = decode_scalar(view, 1) otherwise {
+        return error.new("std.utf8.decode", "two-byte scalar was rejected")
+    }
+    let three = decode_scalar(view, 3) otherwise {
+        return error.new("std.utf8.decode", "three-byte scalar was rejected")
+    }
+    let four = decode_scalar(view, 6) otherwise {
+        return error.new("std.utf8.decode", "four-byte scalar was rejected")
+    }
+    if one.scalar != 65 || one.width != 1
+        || two.scalar != 128 || two.width != 2
+        || three.scalar != 2048 || three.width != 3
+        || four.scalar != 65536 || four.width != 4 {
+        return error.new("std.utf8.decode", "decoded scalar or width changed")
+    }
+    return
+}
+
+test decode_step_rejects_invalid_sequences {
+    let overlong: [u8; 2] = [192, 128]
+    let surrogate: [u8; 3] = [237, 160, 128]
+    let too_large: [u8; 4] = [244, 144, 128, 128]
+    let overlong_view = ptr.slice_from_raw_parts_value(ptr_module.from_ref(&overlong[0]), 2)
+    let surrogate_view = ptr.slice_from_raw_parts_value(ptr_module.from_ref(&surrogate[0]), 3)
+    let too_large_view = ptr.slice_from_raw_parts_value(ptr_module.from_ref(&too_large[0]), 4)
+    let _first = decode_scalar(overlong_view, 0) otherwise {
+        let _second = decode_scalar(surrogate_view, 0) otherwise {
+            let _third = decode_scalar(too_large_view, 0) otherwise { return }
+            return error.new("std.utf8.decode", "out-of-range scalar was accepted")
+        }
+        return error.new("std.utf8.decode", "surrogate scalar was accepted")
+    }
+    return error.new("std.utf8.decode", "overlong sequence was accepted")
+}

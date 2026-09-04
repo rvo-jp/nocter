@@ -672,10 +672,10 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             make(0, vec![str_ref()], usize(), private, None, vec![])
         }
         PrimitiveRole::CharacterFromU32Unchecked => {
-            make(0, vec![u32()], character(), private, None, vec![])
+            make(0, vec![u32()], character(), package, None, vec![])
         }
         PrimitiveRole::CharacterCodePoint => {
-            make(0, vec![character()], u32(), private, None, vec![])
+            make(0, vec![character()], u32(), package, None, vec![])
         }
         PrimitiveRole::U8Truncate => make(0, vec![u64()], u8(), private, None, vec![]),
         PrimitiveRole::U16Truncate => make(0, vec![u64()], u16(), private, None, vec![]),

@@ -1,0 +1,8 @@
+//! Trusted representation bridge for Unicode scalar values.
+//!
+//! Callers must establish scalar validity before using the unchecked constructor.
+//! Public `char` APIs keep that policy outside this representation-only boundary.
+
+pub(/) noalloc primitive func char_from_u32_unchecked(value: u32): char
+
+pub(/) noalloc primitive func char_code_point_raw(value: char): u32

@@ -62,8 +62,8 @@ fn checked_with_iteration_standard(
 fn byte_and_character_literals_close_as_distinct_typed_constants() {
     let output = checked(
         r"
-func byte_value(): u8 { return b'\\xFF' }
-func character_value(): char { return '\\u{1F600}' }
+func byte_value(): u8 { return b'\xFF' }
+func character_value(): char { return '\u{1F600}' }
 ",
     );
     let mut byte = false;

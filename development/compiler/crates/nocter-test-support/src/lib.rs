@@ -198,6 +198,10 @@ pub func str_ptr_addr_for_test(value: &str): usize { return str_ptr_addr_raw(val
 const CHAR_SOURCE: &str = "\
 pub primitive type char
 ";
+const INTERNAL_CHARACTER_SOURCE: &str = "\
+pub(/) primitive func char_from_u32_unchecked(value: u32): char
+pub(/) primitive func char_code_point_raw(value: char): u32
+";
 const NUM_SOURCE: &str = "\
 pub primitive type bool
 pub primitive type i8
@@ -554,6 +558,7 @@ impl CompilerFixture {
             (&["core"][..], CORE_SOURCE),
             (&["num"][..], NUM_SOURCE),
             (&["char"][..], CHAR_SOURCE),
+            (&["internal", "character"][..], INTERNAL_CHARACTER_SOURCE),
             (&["mem"][..], MEM_SOURCE),
             (&["internal", "mem"][..], INTERNAL_MEM_SOURCE),
             (&["ptr"][..], PTR_SOURCE),

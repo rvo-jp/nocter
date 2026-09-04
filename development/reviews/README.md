@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.34.0 Phase 2 UTF-8 Iteration Review](v0.34.0-phase-2.md)
 - [v0.34.0 Phase 1 Scalar-product Review](v0.34.0-phase-1.md)
 - [v0.34.0 Phase 0 Unicode-scalar Design Review](v0.34.0-phase-0.md)
 - [v0.33.0 Phase 4 Qualification and Final Review](v0.33.0-phase-4.md)

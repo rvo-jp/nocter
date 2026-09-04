@@ -33,9 +33,11 @@ The public `char.from_u32` implementation checks the scalar range in ordinary No
 calling that primitive. The inverse package-internal primitive exposes the exact scalar as `u32`.
 Both primitive roles are pure scalar transport; they do not own Unicode validity policy.
 
-The primitive declarations live in the standard `char` module, the bundled standard profile names
-their exact physical locations, Target validates their signatures once, and ARM64 implements them as
-representation-preserving scalar moves. User packages cannot declare or call the unchecked role.
+The primitive declarations live in `std/internal/character`, not in the public `char` module. This
+keeps unchecked representation capability separate from the user-facing constructor. The bundled
+standard profile names their exact physical locations, Target validates their signatures once, and
+ARM64 implements them as representation-preserving scalar moves. User packages cannot declare or
+call the unchecked role.
 
 ## UTF-8 Authority
 
@@ -45,8 +47,9 @@ validation repeatedly consumes this operation, and `Chars` consumes the same ope
 borrowed valid `str`. Encoding remains owned by the existing `encode_scalar` operation.
 
 The decoder returns `u32`, not `char`, to keep the low-level UTF-8 module independent of the public
-`char` module. `Chars` converts the already validated scalar through `char.from_u32`; failure there is
-an internal invariant violation, not an alternate end-of-iteration result.
+`char` API. `Chars` passes the already validated scalar through the package-internal representation
+bridge. Decoder failure over a stored `str` is an internal invariant violation, not an alternate
+end-of-iteration result.
 
 `String.try_push(char)` encodes first, reserves complete capacity second, writes all initialized
 bytes third, and publishes the new logical length last. Allocation failure therefore cannot expose

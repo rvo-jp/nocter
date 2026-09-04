@@ -196,13 +196,26 @@
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Package-internal UTF-8 validation and stable failure construction.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>encoding<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>decoding<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>validation<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// One validated Unicode scalar encoded into its initialized UTF-8 prefix.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">ScalarEncoding</span>
 
+<span class="token-comment">/// One decoded scalar and its exact UTF-8 byte width.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> copy <span class="token-keyword">struct</span> <span class="token-type">ScalarDecodeStep</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> scalar<span class="token-operator">:</span> <span class="token-type">u32</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> width<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-operator">}</span>
+
 <span class="token-comment">/// Encodes one Unicode scalar value, or returns none for a surrogate or out-of-range value.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">encode_scalar</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ScalarEncoding</span><span class="token-operator">?</span>
+
+<span class="token-comment">/// Decodes one scalar beginning at `offset`, or returns none for an invalid or absent sequence.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">decode_scalar</span><span class="token-operator">(</span>
+    candidate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">,</span>
+    offset<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ScalarDecodeStep</span><span class="token-operator">?</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">ScalarEncoding</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Returns exactly the initialized UTF-8 encoding bytes.</span>

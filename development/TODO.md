@@ -43,9 +43,9 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 1 Unicode-scalar language and
-native product. Phase 2 must replace validation's private UTF-8 traversal with the shared decode-step
-authority before adding `Chars`; do not add a second leading-byte table in iterator source.
+Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 2 shared UTF-8 decoder and
+borrowed scalar iteration. Phase 3 must add transactional owned-string scalar append, then derive
+`Format` and `Hash` from that scalar identity without introducing another encoder or byte table.
 
 Preserve the v0.33.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

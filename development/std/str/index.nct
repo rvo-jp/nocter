@@ -11,6 +11,7 @@ use /vec.Vec
 see ./text.nct
 see ./views.nct
 see ./owned.nct
+see ./scalar_iteration.nct
 see ./trim.nct
 see ./transform.nct
 see ./transformation_tests.nct
@@ -24,6 +25,9 @@ pub struct SplitIter
 
 /// Allocation-free iterator over LF- or CRLF-terminated borrowed lines.
 pub struct LinesIter
+
+/// Allocation-free iterator over Unicode scalar values.
+pub struct Chars
 
 construct SplitIter {
     pub noalloc func new(
@@ -44,6 +48,10 @@ instance LinesIter {
     impl Iterator { .Item = &str }
 }
 
+instance Chars {
+    impl Iterator { .Item = char }
+}
+
 instance str {
     /// Compares UTF-8 encoding bytes without allocation.
     pub noalloc operator (&self == other: &Self): bool
@@ -58,6 +66,12 @@ instance str {
     pub noalloc method &self.ptr(): *u8
 
     pub noalloc method &self.bytes(): &[u8]
+
+    /// Iterates over Unicode scalar values in source order without allocation.
+    pub noalloc method &self.chars(): Chars from self
+
+    /// Counts Unicode scalar values without allocation.
+    pub noalloc method &self.char_count(): usize
 
     pub noalloc method &self.is_char_boundary(index: usize): bool
 
