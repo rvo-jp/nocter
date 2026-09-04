@@ -185,11 +185,12 @@ candidates. A candidate whose added module edge would create an import cycle is 
 top-level and block imports both participate in that proof.
 
 Automatic import presentation follows the language namespace contract. A type candidate is
-inserted as an unqualified selected import. A function or constant candidate is presented as
-`module.member` and inserts a namespace import. If the default module name already denotes another
-visible entity, the compiler derives and inserts a deterministic namespace alias. Local values do
-not suppress a same-spelled qualified candidate, because `member` and `module.member` occupy
-different use-site shapes. Completion and code actions consume this same compiler-owned plan.
+inserted as an unqualified selected import. A function, constant, or static candidate is presented
+as `module.member` and inserts a namespace import. If the default module name already denotes
+another visible entity, the compiler derives and inserts a deterministic namespace alias. Local
+values do not suppress a same-spelled qualified candidate, because `member` and `module.member`
+occupy different use-site shapes. Completion and code actions consume this same compiler-owned
+plan.
 
 Member completion for a generic receiver combines its declared capability set. Distinct interfaces
 with the same applicable member name are ambiguous; order never chooses one.

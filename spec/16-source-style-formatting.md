@@ -16,10 +16,10 @@ Rules:
 - Specification snippets, root documentation examples, `spec/guides/ai.md`, and packages under
   `examples/` should use formatter output as the canonical presentation.
 - The formatter belongs in the compiler toolchain, not in editor extensions.
-- Constant declarations use `UPPER_SNAKE_CASE`; ordinary functions, parameters, and local
-  bindings use `lower_snake_case`.
-- External functions and constants retain their imported module as the call-site subject, such as
-  `io.print(...)` and `limits.MAX_SIZE`. Selected imports are reserved for type names.
+- Constant and static declarations use `UPPER_SNAKE_CASE`; ordinary functions, parameters, and
+  local bindings use `lower_snake_case`.
+- External functions, constants, and statics retain their imported module as the call-site subject,
+  such as `io.print(...)` and `limits.MAX_SIZE`. Selected imports are reserved for type names.
 
 This keeps the language pleasant to write by hand while avoiding multiple competing styles in documentation, generated examples, diagnostics, AI-generated code, and future editor tooling.
 
@@ -34,7 +34,8 @@ Keep these forms in `index.nct`:
 - public and restricted-public type contracts;
 - fields or variants intentionally exposed as stable data representation;
 - bodyless callable, construction, instance-operation, and interface-default contracts;
-- bodyless constant contracts when their initializer belongs in an implementation source;
+- bodyless constant and static contracts when their initializer belongs in an implementation
+  source;
 - bodyless `impl Interface` members with their associated bindings, without repeated interface
   method signatures;
 - short inline behavior whose implementation is itself the clearest contract.

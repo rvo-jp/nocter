@@ -49,10 +49,11 @@ Rules for generated code:
 - Never use string-literal addresses as identity. Distinct occurrences may share pooled static
   bytes or use separate storage; compare `str` contents instead.
 - Use `let` for immutable bindings and `var` for mutable bindings.
-- Use `const NAME: Type = expression` only for storage-independent `bool`, integer, or static
-  readonly `&str` values. A constant is a value, not a place; do not borrow, assign, move, or drop
-  it. Constant names must use ASCII `UPPER_SNAKE_CASE`. Fixed-array lengths may use the same
-  constant-expression subset.
+- Use `const NAME: Type = expression` only for storage-independent `bool`, integer, or
+  literal-backed readonly `&str` values. A constant is a value, not a place; do not borrow, assign,
+  move, or drop it. Use `static NAME: Type = expression` only when immutable data needs an address
+  or indexed storage. Static data is readonly: never move, mutate, mutably borrow, or drop it.
+  Constant and static names must use ASCII `UPPER_SNAKE_CASE`.
 - Use `&T` for readonly borrow and `&+T` for readwrite borrow.
 - Move only from owned bindings, owned parameters, owned closure captures, or their named struct
   fields. `&+` permits mutation but never permits moving ownership out of the borrowed value.
@@ -125,8 +126,8 @@ Rules:
 - Do not write `use std/prelude` in generated user code; source-level prelude imports are invalid.
 - Files inside the active Nocter home `std/` tree do not receive the synthetic prelude.
 - `use path` imports a module namespace using the path's default name.
-- `use path.Name` imports a selected public type name. Functions, constants, and other values stay
-  qualified through a module namespace.
+- `use path.Name` imports a selected public type name. Functions, constants, statics, and other
+  values stay qualified through a module namespace.
 - `use path as name` imports a namespace alias.
 - `use` resolves directory modules and never physical source files. Relative module paths may use
   `./` or `../` and omit both `index.nct` and `.nct`.

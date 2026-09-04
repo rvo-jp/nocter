@@ -210,6 +210,7 @@
                 <li><a href="../32-configured-subprocesses/index.html#content">Configured Synchronous Subprocesses</a></li>
                 <li><a href="../33-tuples/index.html#content">Tuples</a></li>
                 <li><a href="../34-unicode-scalars/index.html#content">Unicode Scalar Values</a></li>
+                <li><a href="../35-static-unicode-text/index.html#content">Static Data and Unicode Text</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
                 <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
                 <li><a href="../../releases/index.html#content">release index</a></li>
@@ -300,6 +301,7 @@ RelativeModulePath = ("." "/" | ("." "." "/")+) ModuleSegment ("/" ModuleSegment
 
 TargetableItem = FunctionDeclaration
                | ConstantDeclaration
+               | StaticDeclaration
                | PrimitiveTypeDeclaration
                | TypeAliasDeclaration
                | StructDeclaration
@@ -308,7 +310,8 @@ TargetableItem = FunctionDeclaration
 
 TargetDirective = "#" "target" ":" StringLiteral newline+
 </code></pre><pre><code class="language-text">ConstantDeclaration = Visibility? "const" Name ":" Type ("=" Expression)?
-</code></pre><p>A constant's <code>Name</code> must satisfy the semantic <code>UPPER_SNAKE_CASE</code> rule in <a href="../26-constants/index.html#declaration">Compile-Time Constants</a>. The lexer keeps one identifier token class; the parser does not duplicate the naming-policy check.</p><p>A constant without an initializer is a module-root contract and must join exactly one private initializer definition. Every other constant declaration has an initializer.</p><p>The grammar makes the <code>#target</code> attachment structural: it prefixes exactly one targetable item. It cannot prefix a <code>use</code>, <code>construct</code>, <code>instance</code>, <code>drop</code>, or <code>test</code>, and it cannot occur without a following targetable item. Target and standard-library authority checks happen after parsing.</p><h2 id="shared-declaration-parts">Shared Declaration Parts</h2><p>The following productions are reused by declarations and member containers:</p><pre><code class="language-text">GenericParameters = "&lt;" NonEmptyList(Name) "&gt;"
+StaticDeclaration = Visibility? "static" Name ":" Type ("=" StaticExpression)?
+</code></pre><p>A constant's <code>Name</code> must satisfy the semantic <code>UPPER_SNAKE_CASE</code> rule in <a href="../26-constants/index.html#declaration">Compile-Time Constants</a>. The lexer keeps one identifier token class; the parser does not duplicate the naming-policy check.</p><p>A constant without an initializer is a module-root contract and must join exactly one private initializer definition. Every other constant declaration has an initializer.</p><p>A static without an initializer is likewise a module-root contract and must join exactly one private definition. <code>StaticExpression</code> is the recursively frozen initializer language defined by <a href="../35-static-unicode-text/index.html#immutable-static-data">Static Data and Unicode Text</a>; it is deliberately narrower than an ordinary runtime expression.</p><p>The grammar makes the <code>#target</code> attachment structural: it prefixes exactly one targetable item. It cannot prefix a <code>use</code>, <code>construct</code>, <code>instance</code>, <code>drop</code>, or <code>test</code>, and it cannot occur without a following targetable item. Target and standard-library authority checks happen after parsing.</p><h2 id="shared-declaration-parts">Shared Declaration Parts</h2><p>The following productions are reused by declarations and member containers:</p><pre><code class="language-text">GenericParameters = "&lt;" NonEmptyList(Name) "&gt;"
 
 Parameters = "(" List(Parameter) ")"
 Parameter  = "..."? Name ":" Type

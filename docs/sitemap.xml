@@ -321,6 +321,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/docs/unicode-text-data-design/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/milestones/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -562,6 +567,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/milestones/v0.34.0/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/milestones/v0.35.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1112,6 +1122,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/reviews/v0.34.0-phase-5/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/reviews/v0.35.0-phase-0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -2392,6 +2407,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/34-unicode-scalars/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/spec/35-static-unicode-text/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

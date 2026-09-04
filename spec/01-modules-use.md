@@ -86,7 +86,8 @@ func parse_text(text: &str): parser.Value! {
 ```
 
 Selected imports accept only names in the type namespace: built-in or nominal types, type aliases,
-and interfaces. Functions, constants, and other values remain owned by their module namespace:
+and interfaces. Functions, constants, statics, and other values remain owned by their module
+namespace:
 
 ```nct
 use std/io.File
@@ -384,8 +385,8 @@ Rules:
 - re-exported names participate in ordinary collision checks
 - wildcard and namespace-alias re-exports are invalid
 - selected-name re-exports do not also create a namespace alias
-- functions, constants, and other values cannot be selected or re-exported without their module
-  namespace
+- functions, constants, statics, and other values cannot be selected or re-exported without their
+  module namespace
 
 ## Synthetic Standard Prelude
 

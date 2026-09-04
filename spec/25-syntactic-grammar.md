@@ -184,6 +184,7 @@ Item = TargetDirective? TargetableItem
 
 TargetableItem = FunctionDeclaration
                | ConstantDeclaration
+               | StaticDeclaration
                | PrimitiveTypeDeclaration
                | TypeAliasDeclaration
                | StructDeclaration
@@ -195,6 +196,7 @@ TargetDirective = "#" "target" ":" StringLiteral newline+
 
 ```text
 ConstantDeclaration = Visibility? "const" Name ":" Type ("=" Expression)?
+StaticDeclaration = Visibility? "static" Name ":" Type ("=" StaticExpression)?
 ```
 
 A constant's `Name` must satisfy the semantic `UPPER_SNAKE_CASE` rule in
@@ -203,6 +205,11 @@ the parser does not duplicate the naming-policy check.
 
 A constant without an initializer is a module-root contract and must join exactly one private
 initializer definition. Every other constant declaration has an initializer.
+
+A static without an initializer is likewise a module-root contract and must join exactly one
+private definition. `StaticExpression` is the recursively frozen initializer language defined by
+[Static Data and Unicode Text](35-static-unicode-text.md#immutable-static-data); it is deliberately
+narrower than an ordinary runtime expression.
 
 The grammar makes the `#target` attachment structural: it prefixes exactly one targetable item.
 It cannot prefix a `use`, `construct`, `instance`, `drop`, or `test`, and it cannot occur

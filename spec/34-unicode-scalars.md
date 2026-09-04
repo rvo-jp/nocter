@@ -1,7 +1,7 @@
 # Unicode Scalar Values
 
 **v0.34.0 language and standard-library contract.** Publication status belongs to the
-release index; this chapter defines the implemented candidate behavior.
+release index; this chapter defines the published behavior.
 
 Nocter's `char` type represents one Unicode scalar value. A scalar is an integer in
 `U+0000..=U+10FFFF` excluding the surrogate range `U+D800..=U+DFFF`. It is not a UTF-8 byte, an

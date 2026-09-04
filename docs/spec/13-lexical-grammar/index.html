@@ -210,6 +210,7 @@
                 <li><a href="../32-configured-subprocesses/index.html#content">Configured Synchronous Subprocesses</a></li>
                 <li><a href="../33-tuples/index.html#content">Tuples</a></li>
                 <li><a href="../34-unicode-scalars/index.html#content">Unicode Scalar Values</a></li>
+                <li><a href="../35-static-unicode-text/index.html#content">Static Data and Unicode Text</a></li>
                 <li><a href="../guides/ai/index.html#content">AI Guide</a></li>
                 <li><a href="../../examples/index.html#content">Runnable Examples</a></li>
                 <li><a href="../../releases/index.html#content">release index</a></li>
@@ -241,7 +242,9 @@
   contextually as an <code>instance</code> member declaration.</li><li><code>default</code> is not a reserved keyword. It is emitted as an identifier token and recognized
   contextually between a construction member's visibility and its <code>func</code> or <code>literal</code> keyword.</li><li><code>drop</code> is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
   it contextually in top-level <code>drop Type(&amp;+self) { ... }</code> declarations and statement-position
-  <code>drop name</code> forms.</li><li><code>self</code> is not a reserved keyword. It is emitted as an identifier token and recognized
+  <code>drop name</code> forms.</li><li><code>static</code> is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
+  it contextually at the start of a top-level static declaration and after <code>from</code> in a result
+  provenance clause. Outside those positions it remains an ordinary identifier spelling.</li><li><code>self</code> is not a reserved keyword. It is emitted as an identifier token and recognized
   contextually as the fixed receiver in method, operator, coercion, and drop declaration forms.
   Outside a receiver position it is an ordinary identifier spelling unless a semantic namespace
   rule rejects that use.</li><li><code>interface</code> is a reserved keyword.</li><li><code>from</code> and <code>import</code> are not reserved keywords. They are emitted as

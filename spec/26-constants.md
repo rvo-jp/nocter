@@ -120,6 +120,7 @@ semantic highlight is readonly.
 ## Future Direction
 
 This chapter does not define constant functions, associated or interface constants, constant
-generic parameters, named static storage, addressable globals, or compile-time construction of
-owned `String` and `Vec` values. Those features require separate storage and evaluation contracts;
-they are not compatibility aliases for `const`.
+generic parameters, or compile-time construction of owned `String` and `Vec` values. Named
+immutable static storage has its separate storage contract in
+[Static Data and Unicode Text](35-static-unicode-text.md); it is not a compatibility alias for
+`const`. Mutable globals remain outside the language.

@@ -82,6 +82,9 @@ Rules:
 - `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
   it contextually in top-level `drop Type(&+self) { ... }` declarations and statement-position
   `drop name` forms.
+- `static` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
+  it contextually at the start of a top-level static declaration and after `from` in a result
+  provenance clause. Outside those positions it remains an ordinary identifier spelling.
 - `self` is not a reserved keyword. It is emitted as an identifier token and recognized
   contextually as the fixed receiver in method, operator, coercion, and drop declaration forms.
   Outside a receiver position it is an ordinary identifier spelling unless a semantic namespace

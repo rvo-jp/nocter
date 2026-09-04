@@ -5,16 +5,16 @@
 Nocter v0.34.0 is [published and externally audited](releases/v0.34.0.md). Its tag and release asset
 are immutable.
 
-The current implementation is the published v0.34.0 Unicode-scalar foundation. Its implementation,
-qualification, and public evidence belong to the [milestone](milestones/v0.34.0.md), its
-[reviews](reviews/README.md), the
-[release-preparation record](milestones/v0.34.0-release-preparation.md), and the release audit.
+The current implementation is the published v0.34.0 Unicode-scalar foundation. v0.35.0 Phase 0 has
+fixed the candidate static-data and practical Unicode-text contract. Its active scope belongs to the
+[v0.35.0 milestone](milestones/v0.35.0.md) and
+[Phase 0 review](reviews/v0.35.0-phase-0.md).
 
 ## Next Work
 
-Begin v0.35.0 as one coherent Unicode text API area. Fix the public contract and Unicode data
-authority before implementing character properties, text case mapping, and boundary-safe owned
-String mutation. Do not alter the immutable v0.34.0 tag or release asset.
+Implement v0.35.0 Phase 1 as one immutable-static product from syntax through readonly Mach-O data
+and semantic tooling. Do not add Unicode-specific compiler primitives or generated control-flow
+tables. Do not alter the immutable v0.34.0 tag or release asset.
 
 ## Blockers
 

@@ -120,7 +120,7 @@ Source-backed namespace diagnostics:
 - `E0241`: declarations or imports introduce the same name more than once in one namespace.
 - `E0242`: an authored visibility boundary uses more `../` components than its declaring module
   has ancestors.
-- `E0243`: a constant declaration name does not use ASCII `UPPER_SNAKE_CASE`.
+- `E0243`: a constant or static declaration name does not use ASCII `UPPER_SNAKE_CASE`.
 
 Source-backed import diagnostics:
 
@@ -211,10 +211,11 @@ Source-backed declaration-definition diagnostics:
 - `E0318`: an interface implementation binding names no associated type declared by its interface.
 - `E0319`: an interface implementation repeats an associated-type binding. The later binding name is primary and
   the first is related.
-- `E0321`: a constant uses a type outside `bool`, the built-in integers, and readonly `&str`.
-- `E0322`: a constant expression contains an operation unavailable during compile-time evaluation.
-- `E0323`: a constant expression does not produce the type required by its declaration or type
-  context.
+- `E0321`: a constant or static declaration uses a type outside its closed compile-time domain.
+- `E0322`: a constant or static initializer expression contains an operation unavailable during
+  compile-time evaluation.
+- `E0323`: a constant or static initializer expression does not produce the type required by its
+  declaration or type context.
 - `E0324`: the complete authored constant dependency graph contains a cycle.
 - `E0325`: evaluated constant arithmetic overflows, divides by zero, uses an invalid shift count, or
   performs an integer conversion whose result is not representable.
@@ -225,7 +226,7 @@ Source-backed declaration-definition diagnostics:
   types with the same effective member name.
 
 `E0321` and `E0326` are selected while normalized header information is converted into declaration
-definitions. `E0322` through `E0325` are the shared constant-expression family and may also be
+definitions. `E0322` through `E0325` are the shared compile-time-expression family and may also be
 selected for a fixed-array length in a body annotation. Their exact syntax subjects are retained in
 the failure value; the production diagnostic adapter does not reconstruct them from a rendered
 declaration.
@@ -389,10 +390,11 @@ Source-backed declaration contract diagnostics:
 - `E0258`: a represented nominal declaration is completed again.
 - `E0259`: an implementation interface fragment supplies a default body without one exact default
   method contract in the reciprocally seen `index.nct` interface.
-- `E0272`: a bodyless public constant contract has no private initializer definition.
-- `E0273`: a private constant initializer does not exactly match its public contract.
-- `E0274`: more than one private initializer matches the same public constant contract.
-- `E0275`: a constant omits its initializer outside a visible root contract in `index.nct`.
+- `E0272`: a bodyless public constant or static contract has no private initializer definition.
+- `E0273`: a private constant or static initializer does not exactly match its public contract.
+- `E0274`: more than one private initializer matches the same public constant or static contract.
+- `E0275`: a constant or static omits its initializer outside a visible root contract in
+  `index.nct`.
 
 Source-backed declaration-header diagnostics:
 

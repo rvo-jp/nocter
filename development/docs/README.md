@@ -27,6 +27,7 @@ milestones, not in current design documents.
 - [JSON Implementation Boundary](json-implementation.md)
 - [Tuple Representation Boundary](tuple-design.md)
 - [Unicode Scalar Representation Boundary](unicode-scalar-design.md)
+- [Static Unicode Data Boundary](unicode-text-data-design.md)
 
 ## Maintenance Contracts
 
