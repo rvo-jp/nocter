@@ -50,7 +50,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Captured Subprocess Output](31-subprocess-output.md) — v0.31.0 standard-library contract
 - [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 standard-library contract
 - [Tuples](33-tuples.md) — v0.33.0 language contract
-- [Unicode Scalar Values](34-unicode-scalars.md) — v0.34.0 candidate language contract
+- [Unicode Scalar Values](34-unicode-scalars.md) — v0.34.0 language contract
 
 ## Supporting Material
 
@@ -59,9 +59,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree specifies the v0.34.0 release-candidate language and standard-library contract.
-The latest published version remains identified only by the release index. The specification
-includes the v0.20.0
+This working tree specifies the published v0.34.0 language and standard-library contract. The
+specification includes the v0.20.0
 interface-prerequisite foundation, v0.21.0 associative collections, v0.22.0 JSON standard module,
 the complete v0.23.0 type-owned integer text surface, and explicit module subjects for external
 values. v0.25.0 adds the source-visible `noalloc` callable guarantee. v0.26.0 adds normalized

@@ -13,8 +13,10 @@ Current implementation and evidence belong to the [milestone](milestones/v0.34.0
 
 ## Next Work
 
-Await explicit publication authorization. Tag creation, push, upload, and public latest-release
-changes remain outside the current authorization.
+Publish the already qualified v0.34.0 archive described by the
+[release-preparation record](milestones/v0.34.0-release-preparation.md). Publication is authorized:
+advance public latest links in a separate commit, tag that publication state once, upload exactly
+the retained archive, and audit its public bytes. Do not rebuild or replace the candidate.
 
 ## Blockers
 
