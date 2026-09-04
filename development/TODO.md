@@ -41,12 +41,17 @@ unambiguous exec-failure reporting, and typed exit status pass native, editor, f
 complete-workspace, reproducible-package, installed-home, and public-asset qualification. Its
 [Phase 5 review](reviews/v0.30.0-phase-5.md) has no open finding.
 
+The [v0.34.0 Unicode-scalar milestone](milestones/v0.34.0.md) and implementation are complete. The
+exact release-content commit passed the full qualification matrix, performance comparison, and
+final authority review. Its retained reproducible archive is ready for publication, but v0.34.0
+is not published and no tag, push, upload, or public latest-release change is authorized yet.
+
 ## Next Work
 
-Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 4 tooling and practical
-integration. Phase 5 must qualify the whole candidate, record cold compiler and editor baselines,
-review scalar authorities for duplication, and prepare the release candidate only if every gate
-passes.
+Await explicit publication authorization for the qualified [v0.34.0
+candidate](milestones/v0.34.0-release-preparation.md). Publication must reuse the retained archive
+without rebuilding it, update the public latest-release surfaces in a separate commit, create one
+annotated tag, upload exactly one asset, and verify the public download byte for byte.
 
 Preserve the v0.33.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.
