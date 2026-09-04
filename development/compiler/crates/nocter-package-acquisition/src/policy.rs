@@ -11,7 +11,7 @@ pub(crate) fn public_https_url(
     if url.scheme() != "https" {
         return Err(PackageAcquisitionError::invalid_url(
             authored,
-            "v0.14.0 supports public HTTPS sources only",
+            "package sources must use public HTTPS",
         ));
     }
     if !url.username().is_empty() || url.password().is_some() {
@@ -62,6 +62,12 @@ mod tests {
         assert!(public_https_url("ssh://example.test/pkg.git", false).is_err());
         assert!(public_https_url("https://user@example.test/pkg.git", false).is_err());
         assert!(public_https_url("https://example.test/pkg.zip", true).is_err());
+        assert!(
+            public_https_url("http://example.test/pkg.git", false)
+                .unwrap_err()
+                .to_string()
+                .contains("package sources must use public HTTPS")
+        );
     }
 
     #[test]

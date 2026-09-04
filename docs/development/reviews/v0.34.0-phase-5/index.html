@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>v0.34.0 Phase 5 Qualification and Final Review - Nocter</title>
-    <meta name="description" content="Result: complete with no open finding (2026-09-04). This review qualifies the exact Unicode scalar release-content commit and checks the complete participa">
+    <meta name="description" content="Result: reopened (2026-09-04). The first qualification evidence remains below as a record of the superseded candidate. Corrective commits changed source-ge">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/reviews/v0.34.0-phase-5/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="v0.34.0 Phase 5 Qualification and Final Review - Nocter">
-    <meta property="og:description" content="Result: complete with no open finding (2026-09-04). This review qualifies the exact Unicode scalar release-content commit and checks the complete participa">
+    <meta property="og:description" content="Result: reopened (2026-09-04). The first qualification evidence remains below as a record of the superseded candidate. Corrective commits changed source-ge">
     <meta property="og:url" content="https://nocter.dev/development/reviews/v0.34.0-phase-5/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="v0.34.0 Phase 5 Qualification and Final Review - Nocter">
-    <meta name="twitter:description" content="Result: complete with no open finding (2026-09-04). This review qualifies the exact Unicode scalar release-content commit and checks the complete participa">
+    <meta name="twitter:description" content="Result: reopened (2026-09-04). The first qualification evidence remains below as a record of the superseded candidate. Corrective commits changed source-ge">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.34.0 Phase 5 Qualification and Final Review - Nocter","description":"Result: complete with no open finding (2026-09-04). This review qualifies the exact Unicode scalar release-content commit and checks the complete participa","url":"https://nocter.dev/development/reviews/v0.34.0-phase-5/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.34.0-phase-5/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.34.0 Phase 5","item":"https://nocter.dev/development/reviews/v0.34.0-phase-5/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.34.0 Phase 5 Qualification and Final Review - Nocter","description":"Result: reopened (2026-09-04). The first qualification evidence remains below as a record of the superseded candidate. Corrective commits changed source-ge","url":"https://nocter.dev/development/reviews/v0.34.0-phase-5/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.34.0-phase-5/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.34.0 Phase 5","item":"https://nocter.dev/development/reviews/v0.34.0-phase-5/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -253,7 +253,7 @@
                 <span class="markdown-path-text">/development/reviews/v0.34.0-phase-5.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-34-0-phase-5-qualification-and-final-review">v0.34.0 Phase 5 Qualification and Final Review</h1><p><strong>Result: complete with no open finding (2026-09-04).</strong> This review qualifies the exact Unicode scalar release-content commit and checks the complete participating design for duplicate authority. It makes no publication claim and authorizes no tag, push, upload, or public latest-release change.</p><h2 id="end-to-end-responsibility-review">End-to-End Responsibility Review</h2><p>The final review followed a scalar through every participating responsibility:</p><ul><li>syntax alone recognizes and decodes character spelling, escapes, scalar bounds, surrogate
+                <h1 id="v0-34-0-phase-5-qualification-and-final-review">v0.34.0 Phase 5 Qualification and Final Review</h1><p><strong>Result: reopened (2026-09-04).</strong> The first qualification evidence remains below as a record of the superseded candidate. Corrective commits changed source-generation, Unicode, and verification-cache authority, so a new exact release-content commit must pass the complete gate before this review can close again. No tag, push, upload, or public latest-release change is authorized.</p><h2 id="end-to-end-responsibility-review">End-to-End Responsibility Review</h2><p>The final review followed a scalar through every participating responsibility:</p><ul><li>syntax alone recognizes and decodes character spelling, escapes, scalar bounds, surrogate
   rejection, and exact source diagnostics;</li><li>declaration lowering and body checking consume the syntax decoder and publish the one
   <code>ConstantValue::Character(u32)</code> semantic value rather than interpreting quote text themselves;</li><li><code>BuiltinType::Char</code> owns semantic type identity, while the closed runtime contract maps it once
   to the distinct <code>RuntimePrimitive::Char</code> representation;</li><li>checked ownership treats <code>char</code> as an ordinary copy scalar, and MIR transports the checked
@@ -269,7 +269,7 @@
   and package example, deterministic graph, exact process contracts, native run/build/direct
   execution, and framed LSP analysis from a fresh extraction;</li><li>installed-home immutability and rejection of independently tampered compiler and standard
   library copies.</li></ul><p>The retained local candidate is:</p><ul><li>archive: <code>dist/nocter-v0.34.0-arm64-darwin.tar.gz</code>;</li><li>size: 8,340,036 bytes;</li><li>archive SHA-256: <code>ee17851cc52eaf92ff2c419ac1820e281362a4ffac5aa8bfc4897206db35f77d</code>;</li><li>compiler SHA-256: <code>d243f65d7353446760a9b38ecff4196f8a8a1d1ee112420529c4ff7e5afe9d42</code>;</li><li>standard-library tree SHA-256:
-  <code>0cd354fef34d4a5544b634e08fc90aa66848b07add9076f20ab9a64c98bfcbb4</code>;</li><li>standard-library regular files: 153.</li></ul><p>v0.34.0 is ready for separately authorized publication. Publication must reuse this exact archive without rebuilding it.</p>
+  <code>0cd354fef34d4a5544b634e08fc90aa66848b07add9076f20ab9a64c98bfcbb4</code>;</li><li>standard-library regular files: 153.</li></ul><p>This archive is obsolete and must not be published. A replacement candidate requires a new exact qualification record.</p>
             </div>
         </main>
     </div>

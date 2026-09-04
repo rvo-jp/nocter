@@ -14,6 +14,7 @@ available through Git history only and is not a design input.
 - [Compiler architecture](docs/architecture.md) — pipeline and cross-crate authority boundaries
 - [Architecture and maintenance documents](docs/README.md)
 - [Compiler workspace](compiler/README.md)
+- [Development verification](verification/README.md) — disposable complete compiler gates
 
 The active compiler workspace is under `development/compiler/`. The previous compiler is preserved
 by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or implementation
@@ -57,7 +58,8 @@ development/
 ├── packaging/         # release identity, deterministic assembly, and artifact qualification
 ├── reviews/           # cross-cutting design criteria, findings, and remediation evidence
 ├── releases/          # immutable published qualification records
-└── std/               # standard-library contracts and implementation sources
+├── std/               # standard-library contracts and implementation sources
+└── verification/      # disposable development verification entry points
 ```
 
 Rust, Cargo, and Node.js are development requirements for the workspace and release qualification.

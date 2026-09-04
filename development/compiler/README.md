@@ -57,23 +57,25 @@ workspace manifest, rather than a copied crate list, remains the membership auth
 
 ## Verification
 
-Run from the repository root:
+Run the complete gate from the repository root:
 
 ```sh
-cargo fmt --manifest-path development/compiler/Cargo.toml --all --check
-cargo clippy --manifest-path development/compiler/Cargo.toml --workspace --all-targets -- -D warnings
-cargo test --manifest-path development/compiler/Cargo.toml --workspace
+development/verification/verify-compiler.sh
 ```
 
-Cargo writes build artifacts to `development/compiler/target/`. The directory is ignored by Git and
-is a disposable cache, not repository state. Workspace-owned development and test profiles retain
-line-table debugging while disabling incremental object graphs, which removes the largest
-edit-history-dependent part of the many-crate cache. Reclaim stale build generations without
-touching source or release artifacts with:
+The gate shares one temporary external Cargo target across formatting, warnings-denied Clippy,
+workspace tests, no-default-features checking, and Rust documentation, then removes it. Complete
+verification therefore cannot accumulate obsolete hash generations in the workspace.
+
+Focused Cargo commands may use `development/compiler/target/` for a fast inner loop. The directory
+is ignored by Git and is a disposable cache, not repository state. Development builds retain line
+tables, test executables omit debug payload, and both profiles disable incremental object graphs.
+Reclaim stale local generations without touching source or release artifacts with:
 
 ```sh
 cargo clean --manifest-path development/compiler/Cargo.toml
 ```
 
-Release qualification uses a fresh external `CARGO_TARGET_DIR` and removes it after verification so
-clean-build evidence does not become a second persistent workspace cache.
+The [development verification contract](../verification/README.md) owns this cache lifecycle.
+Release qualification independently uses fresh external targets and removes them after verification
+so clean-build evidence does not become a persistent workspace cache.

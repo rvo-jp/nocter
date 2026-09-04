@@ -29,14 +29,14 @@ enum CachedArtifact {
     Git(PathBuf),
 }
 
-/// The v0.14.0 in-process public HTTPS package acquisition authority.
+/// The in-process public HTTPS package acquisition authority.
 pub struct EmbeddedPackageAcquisition {
     http: HttpsClient,
     cache: BTreeMap<ExactDependencyLock, CachedArtifact>,
 }
 
 impl EmbeddedPackageAcquisition {
-    /// Builds an authority with the fixed v0.14.0 TLS, redirect, and resource policy.
+    /// Builds an authority with the fixed TLS, redirect, and resource policy.
     ///
     /// # Errors
     ///

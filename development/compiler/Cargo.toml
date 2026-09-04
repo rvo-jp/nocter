@@ -58,13 +58,14 @@ license = "MIT"
 # The workspace has many small responsibility crates. Full debuginfo and per-crate incremental
 # object graphs consume substantially more disk than the compiler itself, while release
 # qualification already uses a separate clean target directory. Keep ordinary development caches
-# compact and reproducible; backtraces retain file and line information.
+# compact and reproducible. The development compiler retains line tables for debugger use; bulk
+# test executables omit debug payload because complete gates run in disposable external targets.
 [profile.dev]
 debug = "line-tables-only"
 incremental = false
 
 [profile.test]
-debug = "line-tables-only"
+debug = 0
 incremental = false
 
 [workspace.lints.rust]

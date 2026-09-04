@@ -2,67 +2,22 @@
 
 ## Current State
 
-Nocter v0.33.0 is [published and externally audited](releases/v0.33.0.md). Its structural-tuple
-contract, exact source, reproducible artifact, publication, and public re-download evidence are
-frozen. The `v0.33.0` tag and release asset must not be replaced.
+Nocter v0.33.0 is [published and externally audited](releases/v0.33.0.md). Its tag and release asset
+are immutable.
 
-The [v0.33.0 structural-tuple milestone](milestones/v0.33.0.md) is complete, published, and
-externally audited. Tuples are anonymous ordered products across syntax, semantic identity,
-ownership, cleanup, MIR, runtime shape, machine layout, native execution, formatting, and semantic
-tooling. `str.split_once` and the public tuple example exercise the feature without replacing
-meaningful named records. The exact replacement candidate passed two independent workspace and
-Clippy runs, public-HTTPS acquisition, reproducible packaging, every public example, tuple-specific
-native behavior, framed LSP verification, immutability checking, and tamper rejection. Its
-immutable [publication record](releases/v0.33.0.md) owns the tag, public asset, and re-download
-evidence.
-
-The active compiler is under `development/compiler/`. Current architecture belongs to
-`development/docs/` and colocated crate `README.md` files. Completed scope and evidence belong to
-milestone, release, and review records rather than this handoff.
-
-The documentation-authority migration is complete: all workspace crates own local contracts,
-central design documents own cross-crate boundaries only, and generated documentation validates
-that every workspace member carries the required README contract sections.
-
-The [v0.25.0 architecture follow-up](reviews/v0.25.0-architecture-follow-up.md) closes the remaining
-recovery-product reconstruction, executable-specialization lineage, duplicate topology-builder,
-and development-catalog authority gaps found by the full-workspace review.
-
-The reopened [query authority review](reviews/v0.25.0-query-authority-closure.md) replaces
-policy-restricted checking friend APIs with checking-owned transition products and removes source
-projection from target validation. Query correctness now follows from ownership and crate
-dependencies rather than source-text assertions or Clippy method bans. Its final closure also
-retains typed incomplete-declaration failures and seals exact body source input inside the
-checking-owned context.
-
-The [v0.30.0 synchronous subprocess milestone](milestones/v0.30.0.md) is complete, published, and
-externally audited. Its owning `Command`, exact launch behavior, synchronous child lifecycle,
-unambiguous exec-failure reporting, and typed exit status pass native, editor, formatter,
-complete-workspace, reproducible-package, installed-home, and public-asset qualification. Its
-[Phase 5 review](reviews/v0.30.0-phase-5.md) has no open finding.
-
-The [v0.34.0 Unicode-scalar milestone](milestones/v0.34.0.md) and implementation are complete. The
-exact release-content commit passed the full qualification matrix, performance comparison, and
-final authority review. Its retained reproducible archive is ready for publication, but v0.34.0
-is not published and no tag, push, upload, or public latest-release change is authorized yet.
+The v0.34.0 Unicode-scalar implementation is complete, but its release candidate is reopened after
+the final structural review found source-generation, scalar-validation, and build-cache authority
+problems. The old retained archive predates the corrective commits and must not be published.
+Current implementation and evidence belong to the [milestone](milestones/v0.34.0.md), its
+[reviews](reviews/README.md), and the
+[release-preparation record](milestones/v0.34.0-release-preparation.md).
 
 ## Next Work
 
-Await explicit publication authorization for the qualified [v0.34.0
-candidate](milestones/v0.34.0-release-preparation.md). Publication must reuse the retained archive
-without rebuilding it, update the public latest-release surfaces in a separate commit, create one
-annotated tag, upload exactly one asset, and verify the public download byte for byte.
-
-Preserve the v0.33.0 release record as immutable evidence; any correction requires a new version,
-candidate, tag, and archive.
-
-Do not add another source-visible guarantee merely because the internal effect representation can
-express it. `notrap`, `noblock`, `nosuspend`, `realtime`, and a general effect list remain deferred
-until a concrete user-facing contract needs them.
-
-Do not cache `NodeId`, `SourceId`, frontend bindings, or `SourceIndex` as if they were reusable
-semantic programs. Stable declaration identities, module-local semantic queries, feature-demand
-editor analysis, cancellation, parallelism, and persistent caches remain later work.
+Finish the reopened v0.34.0 qualification gate. Create a new release-content commit, run the full
+disposable compiler verification and release qualification, replace the obsolete local candidate,
+and record its exact identity. Stop before tag creation, push, upload, or public latest-release
+changes unless the user separately authorizes publication.
 
 ## Blockers
 
