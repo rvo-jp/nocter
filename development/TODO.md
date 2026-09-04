@@ -6,17 +6,18 @@ Nocter v0.34.0 is [published and externally audited](releases/v0.34.0.md). Its t
 are immutable.
 
 The current implementation is the published v0.34.0 Unicode-scalar foundation plus the complete
-v0.35.0 immutable-static product. Its active scope belongs to the
+v0.35.0 immutable-static and generated Unicode-data products. Its active scope belongs to the
 [v0.35.0 milestone](milestones/v0.35.0.md),
 [Phase 0 design review](reviews/v0.35.0-phase-0.md), and
-[Phase 1 implementation review](reviews/v0.35.0-phase-1.md).
+[Phase 1 implementation review](reviews/v0.35.0-phase-1.md), and
+[Phase 2 implementation review](reviews/v0.35.0-phase-2.md).
 
 ## Next Work
 
-Implement v0.35.0 Phase 2 as one reproducible Unicode 17.0.0 data generator and one package-private
-lookup contract over generated immutable-static tables. Do not add Unicode-specific compiler
-primitives or generated control-flow trees. Do not alter the immutable v0.34.0 tag or release
-asset.
+Implement v0.35.0 Phase 3 character properties and borrowed Unicode whitespace trimming through
+the existing `std/internal/unicode` contract. Promote only lookup functions that acquire an actual
+cross-module consumer. Keep ASCII APIs direct and unchanged, and do not alter the immutable
+v0.34.0 tag or release asset.
 
 ## Blockers
 

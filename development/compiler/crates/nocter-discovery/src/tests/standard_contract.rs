@@ -104,6 +104,8 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("internal/utf8", "internal/character"),
     ("internal/utf8", "internal/ptr"),
     ("internal/utf8", "ptr"),
+    ("internal/unicode", "internal/ptr"),
+    ("internal/unicode", "ptr"),
     ("io", "internal/io"),
     ("io", "internal/os/darwin"),
     ("io", "internal/path"),

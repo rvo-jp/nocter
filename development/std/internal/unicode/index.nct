@@ -1,0 +1,29 @@
+//! Package-private Unicode 17.0.0 property and default-casing lookup.
+//!
+//! Generated representation stays behind this semantic contract. Public text modules consume
+//! property answers and scalar mappings without knowing table names, ranges, or offset encoding.
+
+see ./lookup.nct
+
+pub(./) noalloc func is_whitespace(value: u32): bool
+
+pub(./) noalloc func is_alphabetic(value: u32): bool
+
+pub(./) noalloc func is_lowercase(value: u32): bool
+
+pub(./) noalloc func is_uppercase(value: u32): bool
+
+pub(./) noalloc func is_decimal_digit(value: u32): bool
+
+/// Internal support for the Unicode `Final_Sigma` context predicate.
+pub(./) noalloc func is_cased(value: u32): bool
+
+/// Internal support for skipping Unicode case-ignorable scalars in contextual casing.
+pub(./) noalloc func is_case_ignorable(value: u32): bool
+
+/// Returns the full default lowercase mapping, or `none` when the scalar is unchanged.
+/// `final_sigma` selects the locale-independent `Final_Sigma` rule when it applies.
+pub(./) noalloc func lowercase_mapping(value: u32, final_sigma: bool): &[u32]?
+
+/// Returns the full default uppercase mapping, or `none` when the scalar is unchanged.
+pub(./) noalloc func uppercase_mapping(value: u32): &[u32]?

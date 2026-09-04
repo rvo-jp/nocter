@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "unicodeVersion": "17.0.0",
+  "inputs": [
+    {
+      "role": "unicodeData",
+      "file": "UnicodeData.txt",
+      "source": "https://www.unicode.org/Public/17.0.0/ucd/UnicodeData.txt",
+      "bytes": 2198209,
+      "sha256": "2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c"
+    },
+    {
+      "role": "derivedCoreProperties",
+      "file": "DerivedCoreProperties.txt",
+      "source": "https://www.unicode.org/Public/17.0.0/ucd/DerivedCoreProperties.txt",
+      "bytes": 1134783,
+      "sha256": "24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08"
+    },
+    {
+      "role": "propertyList",
+      "file": "PropList.txt",
+      "source": "https://www.unicode.org/Public/17.0.0/ucd/PropList.txt",
+      "bytes": 145465,
+      "sha256": "130dcddcaadaf071008bdfce1e7743e04fdfbc910886f017d9f9ac931d8c64dd"
+    },
+    {
+      "role": "specialCasing",
+      "file": "SpecialCasing.txt",
+      "source": "https://www.unicode.org/Public/17.0.0/ucd/SpecialCasing.txt",
+      "bytes": 17049,
+      "sha256": "efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588"
+    },
+    {
+      "role": "license",
+      "file": "LICENSE.txt",
+      "source": "https://www.unicode.org/license.txt",
+      "bytes": 1995,
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+    }
+  ]
+}

@@ -53,6 +53,8 @@ before generated files are committed.
 The generator writes temporary output, verifies it completely, and atomically replaces the tracked
 product only when bytes differ. Running it twice over the same inputs must produce identical bytes.
 Repository builds consume the committed product and never download Unicode data.
+The development-only generator, checked manifest, and regeneration commands are owned by
+[`development/unicode/README.md`](../unicode/README.md).
 
 ## Compiler Boundary
 

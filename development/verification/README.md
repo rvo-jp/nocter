@@ -14,9 +14,11 @@ Run the complete compiler gate from any directory:
 development/verification/verify-compiler.sh
 ```
 
-The script creates one target under `/tmp`, shares it across formatting, warnings-denied Clippy,
-workspace tests, feature checking, and Rust documentation, then removes it on exit. A complete gate
-therefore cannot add another Cargo hash generation to `development/compiler/target/`.
+The script first verifies the pinned Unicode-data manifest, its mutation guard, and the exact
+generated standard-library tables without network access. It then creates one target under `/tmp`,
+shares it across formatting, warnings-denied Clippy, workspace tests, feature checking, and Rust
+documentation, and removes it on exit. A complete gate therefore cannot add another Cargo hash
+generation to `development/compiler/target/`.
 
 Use the workspace target only for focused inner-loop commands. It is a disposable cache; reclaim it
 without affecting source or release artifacts with:

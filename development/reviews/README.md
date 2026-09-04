@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.35.0 Phase 2 Unicode-data and Lookup Review](v0.35.0-phase-2.md)
 - [v0.35.0 Phase 1 Immutable-static Implementation Review](v0.35.0-phase-1.md)
 - [v0.35.0 Phase 0 Static-data and Unicode-text Design Review](v0.35.0-phase-0.md)
 - [v0.34.0 Phase 5 Qualification and Final Review](v0.34.0-phase-5.md)

@@ -1,0 +1,177 @@
+//! Representation-independent Unicode table lookup.
+
+see ./index.nct
+see ./tables.nct
+
+use /internal/ptr
+use /ptr as ptr_module
+
+noalloc func u32_view(first: &u32, len: usize): &[u32] {
+    return ptr.slice_from_raw_parts_value(ptr_module.from_ref(first), len)
+}
+
+noalloc func usize_view(first: &usize, len: usize): &[usize] {
+    return ptr.slice_from_raw_parts_value(ptr_module.from_ref(first), len)
+}
+
+noalloc func contains_range(ranges: &[u32], value: u32): bool {
+    var low: usize = 0
+    var high: usize = ranges.len() / 2
+    while low < high {
+        let middle = low + (high - low) / 2
+        let start = ranges[middle * 2]
+        let end = ranges[middle * 2 + 1]
+        if value < start {
+            high = middle
+        } else if value > end {
+            low = middle + 1
+        } else {
+            return true
+        }
+    }
+    return false
+}
+
+noalloc func mapping_index(points: &[u32], value: u32): usize? {
+    var low: usize = 0
+    var high: usize = points.len()
+    while low < high {
+        let middle = low + (high - low) / 2
+        let candidate = points[middle]
+        if candidate < value {
+            low = middle + 1
+        } else {
+            high = middle
+        }
+    }
+    if low < points.len() && points[low] == value {
+        return low
+    }
+    return none
+}
+
+noalloc func mapping_view(
+    offsets: &[usize],
+    scalars: &[u32],
+    index: usize,
+): &[u32] {
+    let start = offsets[index]
+    let end = offsets[index + 1]
+    return u32_view(&scalars[start], end - start)
+}
+
+noalloc func property_contains(first: &u32, len: usize, value: u32): bool {
+    return contains_range(u32_view(first, len), value)
+}
+
+noalloc func is_whitespace(value: u32): bool {
+    return property_contains(&WHITE_SPACE_RANGES[0], WHITE_SPACE_RANGES_LEN, value)
+}
+
+noalloc func is_alphabetic(value: u32): bool {
+    return property_contains(&ALPHABETIC_RANGES[0], ALPHABETIC_RANGES_LEN, value)
+}
+
+noalloc func is_lowercase(value: u32): bool {
+    return property_contains(&LOWERCASE_RANGES[0], LOWERCASE_RANGES_LEN, value)
+}
+
+noalloc func is_uppercase(value: u32): bool {
+    return property_contains(&UPPERCASE_RANGES[0], UPPERCASE_RANGES_LEN, value)
+}
+
+noalloc func is_decimal_digit(value: u32): bool {
+    return property_contains(&DECIMAL_DIGIT_RANGES[0], DECIMAL_DIGIT_RANGES_LEN, value)
+}
+
+noalloc func is_cased(value: u32): bool {
+    return property_contains(&CASED_RANGES[0], CASED_RANGES_LEN, value)
+}
+
+noalloc func is_case_ignorable(value: u32): bool {
+    return property_contains(&CASE_IGNORABLE_RANGES[0], CASE_IGNORABLE_RANGES_LEN, value)
+}
+
+noalloc func lowercase_mapping(value: u32, final_sigma: bool): &[u32]? {
+    if final_sigma {
+        let contextual_points = u32_view(
+            &FINAL_SIGMA_LOWER_POINTS[0],
+            FINAL_SIGMA_LOWER_POINTS_LEN,
+        )
+        let contextual_index = mapping_index(contextual_points, value) otherwise {
+            return ordinary_lowercase_mapping(value)
+        }
+        let contextual_offsets = usize_view(
+            &FINAL_SIGMA_LOWER_OFFSETS[0],
+            FINAL_SIGMA_LOWER_OFFSETS_LEN,
+        )
+        let contextual_scalars = u32_view(
+            &FINAL_SIGMA_LOWER_SCALARS[0],
+            FINAL_SIGMA_LOWER_SCALARS_LEN,
+        )
+        return mapping_view(contextual_offsets, contextual_scalars, contextual_index)
+    }
+    return ordinary_lowercase_mapping(value)
+}
+
+noalloc func ordinary_lowercase_mapping(value: u32): &[u32]? {
+    let points = u32_view(&CASE_POINTS[0], CASE_POINTS_LEN)
+    let index = mapping_index(points, value)?
+    let offsets = usize_view(&CASE_LOWER_OFFSETS[0], CASE_LOWER_OFFSETS_LEN)
+    let scalars = u32_view(&CASE_LOWER_SCALARS[0], CASE_LOWER_SCALARS_LEN)
+    let mapping = mapping_view(offsets, scalars, index)
+    if mapping.len() == 1 && mapping[0] == value {
+        return none
+    }
+    return mapping
+}
+
+noalloc func uppercase_mapping(value: u32): &[u32]? {
+    let points = u32_view(&CASE_POINTS[0], CASE_POINTS_LEN)
+    let index = mapping_index(points, value)?
+    let offsets = usize_view(&CASE_UPPER_OFFSETS[0], CASE_UPPER_OFFSETS_LEN)
+    let scalars = u32_view(&CASE_UPPER_SCALARS[0], CASE_UPPER_SCALARS_LEN)
+    let mapping = mapping_view(offsets, scalars, index)
+    if mapping.len() == 1 && mapping[0] == value {
+        return none
+    }
+    return mapping
+}
+
+test unicode_property_boundaries_use_generated_ranges {
+    if !is_whitespace(0x3000) || is_whitespace(0x3001) {
+        return error.new("std.unicode.property", "White_Space lookup changed")
+    }
+    if !is_alphabetic(0x03A9) || is_alphabetic(0x0030) {
+        return error.new("std.unicode.property", "Alphabetic lookup changed")
+    }
+    if !is_lowercase(0x00DF) || !is_uppercase(0x0130) {
+        return error.new("std.unicode.property", "case property lookup changed")
+    }
+    if !is_decimal_digit(0x0665) || is_decimal_digit(0x00B2) {
+        return error.new("std.unicode.property", "Decimal_Number lookup changed")
+    }
+    return
+}
+
+test unicode_full_and_contextual_mappings_are_projected {
+    let dotted_i = lowercase_mapping(0x0130, false) otherwise {
+        return error.new("std.unicode.mapping", "full lowercase mapping is absent")
+    }
+    if dotted_i.len() != 2 || dotted_i[0] != 0x0069 || dotted_i[1] != 0x0307 {
+        return error.new("std.unicode.mapping", "full lowercase mapping changed")
+    }
+    let sharp_s = uppercase_mapping(0x00DF) otherwise {
+        return error.new("std.unicode.mapping", "full uppercase mapping is absent")
+    }
+    if sharp_s.len() != 2 || sharp_s[0] != 0x0053 || sharp_s[1] != 0x0053 {
+        return error.new("std.unicode.mapping", "full uppercase mapping changed")
+    }
+    let sigma = lowercase_mapping(0x03A3, true) otherwise {
+        return error.new("std.unicode.mapping", "Final_Sigma mapping is absent")
+    }
+    if sigma.len() != 1 || sigma[0] != 0x03C2 {
+        return error.new("std.unicode.mapping", "Final_Sigma mapping changed")
+    }
+    return
+}

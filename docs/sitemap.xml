@@ -1136,6 +1136,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.35.0-phase-2/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/char/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -1367,6 +1372,21 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/internal/time/index/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/internal/unicode/index/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/internal/unicode/lookup/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/std/internal/unicode/tables/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1897,6 +1917,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/std/vec/storage/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/unicode/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
