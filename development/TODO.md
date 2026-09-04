@@ -2,21 +2,19 @@
 
 ## Current State
 
-Nocter v0.33.0 is [published and externally audited](releases/v0.33.0.md). Its tag and release asset
+Nocter v0.34.0 is [published and externally audited](releases/v0.34.0.md). Its tag and release asset
 are immutable.
 
-The v0.34.0 Unicode-scalar implementation and corrective review are complete. Release-content
-commit `b876301201105e061000e2d48c8d18246d11814d` has a locally qualified, reproducible candidate.
-Current implementation and evidence belong to the [milestone](milestones/v0.34.0.md), its
-[reviews](reviews/README.md), and the
-[release-preparation record](milestones/v0.34.0-release-preparation.md).
+The current implementation is the published v0.34.0 Unicode-scalar foundation. Its implementation,
+qualification, and public evidence belong to the [milestone](milestones/v0.34.0.md), its
+[reviews](reviews/README.md), the
+[release-preparation record](milestones/v0.34.0-release-preparation.md), and the release audit.
 
 ## Next Work
 
-Publish the already qualified v0.34.0 archive described by the
-[release-preparation record](milestones/v0.34.0-release-preparation.md). Publication is authorized:
-advance public latest links in a separate commit, tag that publication state once, upload exactly
-the retained archive, and audit its public bytes. Do not rebuild or replace the candidate.
+Begin v0.35.0 as one coherent Unicode text API area. Fix the public contract and Unicode data
+authority before implementing character properties, text case mapping, and boundary-safe owned
+String mutation. Do not alter the immutable v0.34.0 tag or release asset.
 
 ## Blockers
 
