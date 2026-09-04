@@ -674,6 +674,7 @@ impl<'a> SemanticQueryContext<'a> {
             SemanticEntity::Interface(id) => declarations.interfaces().get(id).is_some(),
             SemanticEntity::AssociatedType(id) => declarations.associated_types().get(id).is_some(),
             SemanticEntity::Constant(id) => declarations.constants().get(id).is_some(),
+            SemanticEntity::Static(id) => declarations.statics().get(id).is_some(),
             SemanticEntity::Callable(id) => declarations.callables().get(id).is_some(),
             SemanticEntity::Construction(id) => declarations.constructions().get(id).is_some(),
             SemanticEntity::Instance(id) => declarations.instances().get(id).is_some(),

@@ -15,6 +15,8 @@ const EQUAL: bool = 1 == WIDE
 const MINIMUM: i8 = -128
 const LABEL: &str = "nocter"
 const SCALAR: char = '\u{1F600}'
+static LIMITS: [u32; 2] = [65, 90]
+static LABELS: [&str; 2] = ["first", "second"]
 type Bytes = [u8; ANSWER]
 
 #target: "arm64-darwin"
@@ -64,7 +66,7 @@ use crate::{
     CompileUnitInput, DefinitionRule, ModuleIdentity, ModuleInput, ModuleSourceInput,
     ModuleSourceKind, PackageIdentity, PackageInput, PackageMode, UseResolutionInput,
     apply_toolchain_profile, bind_header_type_syntax, collect_declaration_surface,
-    evaluate_header_constants, normalize_header_types, prepare_authored_imports,
+    evaluate_compile_time_values, normalize_header_types, prepare_authored_imports,
     prepare_declaration_headers, prepare_generic_binders, reserve_declaration_identities,
 };
 
@@ -162,7 +164,7 @@ fn try_lower<'syntax>(
     let imports = prepare_authored_imports(generics).unwrap();
     let namespaces = apply_toolchain_profile(imports).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
-    let bound = evaluate_header_constants(bound)?;
+    let bound = evaluate_compile_time_values(bound)?;
     let normalized = normalize_header_types(bound).unwrap();
     define_declaration_headers_recovering(normalized).map_err(|failure| failure.into_parts().0)
 }
@@ -216,7 +218,7 @@ fn definition_error(source_text: &str) -> super::HeaderDefinitionError {
     let imports = prepare_authored_imports(generics).unwrap();
     let namespaces = apply_toolchain_profile(imports).unwrap();
     let bound = bind_header_type_syntax(namespaces).unwrap();
-    let bound = match evaluate_header_constants(bound) {
+    let bound = match evaluate_compile_time_values(bound) {
         Ok(bound) => bound,
         Err(error) => return error,
     };
@@ -234,6 +236,7 @@ fn freezes_complete_header_graph_with_exact_leaf_ownership() {
     let declarations = program.declarations();
 
     assert_header_constants(program);
+    assert_header_statics(program);
 
     assert_eq!(declarations.nominal_types().len(), 2);
     assert_eq!(declarations.fields().len(), 1);
@@ -367,6 +370,32 @@ fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
             .types()
             .iter()
             .any(|(_, ty)| matches!(ty, nocter_model::TypeKind::FixedArray { length: 42, .. }))
+    );
+}
+
+fn assert_header_statics(program: &nocter_declarations::DeclarationProgram) {
+    let values = program
+        .declarations()
+        .statics()
+        .iter()
+        .map(|(_, declaration)| declaration.value().clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        values,
+        [
+            nocter_model::FrozenValue::FixedArray(Box::new([
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(65)),
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Integer(90)),
+            ])),
+            nocter_model::FrozenValue::FixedArray(Box::new([
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Text(
+                    "first".into(),
+                )),
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Text(
+                    "second".into(),
+                )),
+            ])),
+        ]
     );
 }
 
@@ -541,11 +570,11 @@ fn rejects_argument_packs_outside_the_single_final_callable_position() {
 }
 
 #[test]
-fn rejects_invalid_constant_contracts_without_runtime_fallback() {
+fn rejects_invalid_compile_time_value_contracts_without_runtime_fallback() {
     let cases = [
         (
             "const INVALID: str = \"value\"\n",
-            DefinitionRule::InvalidConstantType,
+            DefinitionRule::InvalidCompileTimeValueType,
         ),
         (
             "func make(): i32 { return 1 }\nconst INVALID: i32 = make()\n",
@@ -553,23 +582,35 @@ fn rejects_invalid_constant_contracts_without_runtime_fallback() {
         ),
         (
             "const INVALID: bool = 1\n",
-            DefinitionRule::ConstantTypeMismatch,
+            DefinitionRule::CompileTimeTypeMismatch,
         ),
         (
             "const FIRST: i32 = SECOND\nconst SECOND: i32 = FIRST\n",
-            DefinitionRule::ConstantCycle,
+            DefinitionRule::CompileTimeCycle,
         ),
         (
             "const INVALID: bool = false && 1\n",
-            DefinitionRule::ConstantTypeMismatch,
+            DefinitionRule::CompileTimeTypeMismatch,
         ),
         (
             "const INVALID: bool = false && INVALID\n",
-            DefinitionRule::ConstantCycle,
+            DefinitionRule::CompileTimeCycle,
         ),
         (
             "const INVALID: u8 = 255 + 1\n",
-            DefinitionRule::ConstantArithmeticFailure,
+            DefinitionRule::CompileTimeArithmeticFailure,
+        ),
+        (
+            "static INVALID: &+str = \"value\"\n",
+            DefinitionRule::InvalidCompileTimeValueType,
+        ),
+        (
+            "static INVALID: [i32; 2] = [1]\n",
+            DefinitionRule::CompileTimeTypeMismatch,
+        ),
+        (
+            "func make(): i32 { return 1 }\nstatic INVALID: [i32; 1] = [make()]\n",
+            DefinitionRule::NonConstantExpression,
         ),
     ];
     for (source, rule) in cases {

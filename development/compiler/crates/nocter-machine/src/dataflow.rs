@@ -429,7 +429,7 @@ fn add_address_inputs(
         .address(address_id)
         .ok_or(MachineDataflowError::UnknownAddress(address_id))?;
     match address.root() {
-        MachineAddressRoot::Stack(_) => {}
+        MachineAddressRoot::Stack(_) | MachineAddressRoot::Data(_) => {}
         MachineAddressRoot::Pointer { value } | MachineAddressRoot::View { value, .. } => {
             insert_value(body, value, inputs)?;
         }

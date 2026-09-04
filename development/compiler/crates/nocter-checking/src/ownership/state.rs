@@ -68,10 +68,18 @@ impl MovePath {
         Some(path)
     }
 
-    /// Returns the owned named prefix that must remain initialized while evaluating a dynamic
-    /// place. Projections after the first dynamic selection belong to externally addressed
-    /// storage and do not become local move-path identities.
-    pub(crate) fn initialized_base(place: &CheckedPlace) -> Self {
+    /// Returns the flow-tracked prefix that must remain initialized while using `place`.
+    ///
+    /// Static roots are immutable program storage, not invocation-owned storage. They are always
+    /// available and therefore deliberately have no entry in `OwnershipState`.
+    pub(crate) fn required_initialized(place: &CheckedPlace) -> Option<Self> {
+        if matches!(place.root(), PlaceRoot::Static(_)) {
+            return None;
+        }
+        if let Some(path) = Self::from_place(place) {
+            return Some(path);
+        }
+
         let mut path = Self::root(place.root());
         for projection in place.projections() {
             match projection {
@@ -83,7 +91,7 @@ impl MovePath {
                 | PlaceProjection::SelectedIndex { .. } => break,
             }
         }
-        path
+        Some(path)
     }
 
     pub(crate) fn root_identity(&self) -> PlaceRoot {

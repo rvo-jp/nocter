@@ -230,6 +230,7 @@ impl<'a> Renderer<'a> {
             }
             SemanticEntity::GenericParameter(_)
             | SemanticEntity::Constant(_)
+            | SemanticEntity::Static(_)
             | SemanticEntity::Parameter(_)
             | SemanticEntity::LocalBinding(..)
             | SemanticEntity::Capture(..)
@@ -396,6 +397,14 @@ impl<'a> Renderer<'a> {
                         write_string_literal(&mut self.output, value).ok()?;
                     }
                 }
+            }
+            SemanticEntity::Static(id) => {
+                let declaration = declarations.statics().get(id)?;
+                self.visibility(declaration.site())?;
+                self.output.push_str("static ");
+                self.output.push_str(self.symbol(declaration.name())?);
+                self.output.push_str(": ");
+                self.ty(declaration.ty())?;
             }
             SemanticEntity::GenericParameter(id) => {
                 let parameter = declarations.generic_parameters().get(id)?;

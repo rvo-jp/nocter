@@ -332,6 +332,38 @@ fn constants_remain_values_in_place_only_contexts() {
 }
 
 #[test]
+fn statics_are_readonly_places_outside_invocation_ownership_state() {
+    let output = check(
+        "static VALUES: [i32; 2] = [40, 2]\n\
+         func answer(): i32 {\n    let view = &VALUES\n    let _ = view\n    return VALUES[1]\n}\n",
+    )
+    .unwrap();
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.places()
+            .iter()
+            .any(|(_, place)| matches!(place.root(), crate::PlaceRoot::Static(_)))
+    }));
+
+    let cases = [
+        (
+            "static VALUE: i32 = 1\nfunc invalid(): void {\n    let _ = &+VALUE\n    return\n}\n",
+            BodyRule::InvalidReadWriteBorrow,
+        ),
+        (
+            "static VALUE: i32 = 1\nfunc invalid(): void {\n    let _ = move VALUE\n    return\n}\n",
+            BodyRule::MoveCopyValue,
+        ),
+        (
+            "static VALUE: i32 = 1\nfunc invalid(): void {\n    VALUE = 2\n    return\n}\n",
+            BodyRule::InvalidAssignmentTarget,
+        ),
+    ];
+    for (source, rule) in cases {
+        assert_eq!(check(source).unwrap_err().rule(), Some(rule));
+    }
+}
+
+#[test]
 fn annotation_uses_the_common_one_step_expected_conversion_boundary() {
     let output = check(
         "struct Box<T> { value: T }\n\

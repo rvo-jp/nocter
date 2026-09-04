@@ -10,7 +10,8 @@ use nocter_syntax::{
 
 use crate::model::{
     ConstantExpressionPlan, ConstantOperation, ConstantPlanError, ConstantPlanRule,
-    ConstantReference, ConstantResolver, ConstantScalarType, PlanNode, PlanNodeId,
+    ConstantReference, ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,
+    PlanNode, PlanNodeId,
 };
 use crate::support::{
     direct_punctuation, expression_children, integer_spec, one_expression_child, parse_integer,
@@ -57,6 +58,69 @@ pub fn plan_expression<R: ConstantResolver>(
         nodes: planner.nodes,
         root,
     })
+}
+
+/// Produces one closed plan for a scalar or recursively fixed-array static initializer.
+///
+/// Aggregate structure is validated here while every scalar leaf goes through [`plan_expression`],
+/// preserving one authority for compile-time arithmetic, conversions, and constant references.
+///
+/// # Errors
+///
+/// Returns the same authored and caller-context failures as scalar planning. A wrong aggregate
+/// shape is reported as a type mismatch at the initializer node.
+pub fn plan_frozen_expression<R: ConstantResolver>(
+    source: &SourceFile,
+    tree: &SyntaxTree,
+    expression: NodeId,
+    expected: &FrozenType,
+    resolver: &mut R,
+) -> Result<FrozenExpressionPlan, ConstantPlanError<R::Error>> {
+    let semantic =
+        unwrap_expression(tree, expression).ok_or(ConstantPlanError::InvalidSyntax(expression))?;
+    match expected {
+        FrozenType::Scalar(expected) => {
+            plan_expression(source, tree, expression, *expected, resolver)
+                .map(FrozenExpressionPlan::Scalar)
+        }
+        FrozenType::FixedArray { element, length } => {
+            if tree.node(semantic).map(nocter_syntax::SyntaxNode::kind)
+                != Some(NodeKind::ArrayLiteral)
+            {
+                return Err(ConstantPlanError::Rule {
+                    rule: ConstantPlanRule::TypeMismatch,
+                    origin: SyntaxOrigin::Node(expression),
+                });
+            }
+            let children = expression_children(tree, semantic);
+            if children.len() != *length {
+                return Err(ConstantPlanError::Rule {
+                    rule: ConstantPlanRule::TypeMismatch,
+                    origin: SyntaxOrigin::Node(expression),
+                });
+            }
+            let elements = children
+                .into_iter()
+                .map(|child| plan_frozen_expression(source, tree, child, element, resolver))
+                .collect::<Result<Vec<_>, _>>()?
+                .into_boxed_slice();
+            Ok(FrozenExpressionPlan::FixedArray {
+                ty: expected.clone(),
+                elements,
+            })
+        }
+    }
+}
+
+fn unwrap_expression(tree: &SyntaxTree, mut node: NodeId) -> Option<NodeId> {
+    loop {
+        match tree.node(node)?.kind() {
+            NodeKind::Expression | NodeKind::GroupedExpression => {
+                node = one_expression_child(tree, node)?;
+            }
+            _ => return Some(node),
+        }
+    }
 }
 
 impl<R: ConstantResolver> Planner<'_, R> {

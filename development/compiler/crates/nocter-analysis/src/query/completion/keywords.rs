@@ -7,8 +7,8 @@ use crate::AnalysisSnapshot;
 /// Returns syntax-owned keywords whose grammar context is fixed at the cursor.
 ///
 /// This layer deliberately does not enumerate declarations or infer semantic targets. It supplies
-/// the contextual words that cannot enter the declaration/name indexes, including `test` and the
-/// intrinsic `copy` requirement.
+/// the contextual words that cannot enter the declaration/name indexes, including declaration
+/// introducers and the intrinsic `copy` requirement.
 pub(super) fn completions(
     snapshot: &AnalysisSnapshot,
     source: SourceId,
@@ -38,12 +38,21 @@ pub(super) fn completions(
         )]);
     }
 
-    if is_top_level_test_position(tree, source_file, offset) {
-        return Box::new([SemanticCompletion::new(
-            "test",
-            SemanticCompletionKind::Keyword,
-            Some("test name { ... }".into()),
-        )]);
+    if let Some(prefix) = top_level_declaration_prefix(tree, source_file, offset) {
+        return [
+            ("static", "static NAME: Type = value"),
+            ("test", "test name { ... }"),
+        ]
+        .into_iter()
+        .filter(|(keyword, _)| keyword.starts_with(prefix))
+        .map(|(keyword, detail)| {
+            SemanticCompletion::new(
+                keyword,
+                SemanticCompletionKind::Keyword,
+                Some(detail.into()),
+            )
+        })
+        .collect();
     }
 
     if noalloc_modifier_prefix(tree, source_file, offset)
@@ -158,23 +167,21 @@ fn has_visible_generic_syntax(tree: &SyntaxTree, where_clause: NodeId) -> bool {
     })
 }
 
-fn is_top_level_test_position(
+fn top_level_declaration_prefix<'a>(
     tree: &SyntaxTree,
-    source: &nocter_source::SourceFile,
+    source: &'a nocter_source::SourceFile,
     offset: ByteOffset,
-) -> bool {
+) -> Option<&'a str> {
     if tree.nodes().any(|(_, node)| {
         (node.kind() == NodeKind::Block || declaration_container(node.kind()))
             && node.range().contains_cursor(offset)
     }) {
-        return false;
+        return None;
     }
     let Ok(end) = usize::try_from(offset.get()) else {
-        return false;
+        return None;
     };
-    let Some(before) = source.text().get(..end) else {
-        return false;
-    };
+    let before = source.text().get(..end)?;
     let prefix = before
         .rsplit_once('\n')
         .map_or(before, |(_, line)| line)
@@ -182,7 +189,7 @@ fn is_top_level_test_position(
     prefix
         .chars()
         .all(|character| character == '_' || character.is_ascii_alphanumeric())
-        && "test".starts_with(prefix)
+        .then_some(prefix)
 }
 
 fn innermost_node(tree: &SyntaxTree, offset: ByteOffset, kind: NodeKind) -> Option<NodeId> {

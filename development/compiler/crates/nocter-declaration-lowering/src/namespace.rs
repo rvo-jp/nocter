@@ -7,7 +7,7 @@ pub enum NamespaceRule {
     ReservedName,
     NameCollision,
     VisibilityAbovePackageRoot,
-    InvalidConstantName,
+    InvalidCompileTimeValueName,
 }
 
 impl NamespaceRule {
@@ -17,7 +17,7 @@ impl NamespaceRule {
             Self::ReservedName => DiagnosticCode::E0240,
             Self::NameCollision => DiagnosticCode::E0241,
             Self::VisibilityAbovePackageRoot => DiagnosticCode::E0242,
-            Self::InvalidConstantName => DiagnosticCode::E0243,
+            Self::InvalidCompileTimeValueName => DiagnosticCode::E0243,
         }
     }
 
@@ -27,7 +27,7 @@ impl NamespaceRule {
             Self::ReservedName => "name is reserved and cannot be introduced into this namespace",
             Self::NameCollision => "name is introduced more than once in the same namespace",
             Self::VisibilityAbovePackageRoot => "visibility boundary moves above the package root",
-            Self::InvalidConstantName => "constant name is not UPPER_SNAKE_CASE",
+            Self::InvalidCompileTimeValueName => "compile-time value name is not UPPER_SNAKE_CASE",
         }
     }
 
@@ -39,8 +39,8 @@ impl NamespaceRule {
             Self::VisibilityAbovePackageRoot => {
                 "use fewer ../ components or use pub(/) for package visibility"
             }
-            Self::InvalidConstantName => {
-                "rename the constant with uppercase ASCII letters, digits, and single underscores"
+            Self::InvalidCompileTimeValueName => {
+                "rename the const or static with uppercase ASCII letters, digits, and single underscores"
             }
         }
     }
@@ -49,9 +49,9 @@ impl NamespaceRule {
     pub const fn related_message(self) -> Option<&'static str> {
         match self {
             Self::NameCollision => Some("the first introduction of this name is here"),
-            Self::ReservedName | Self::VisibilityAbovePackageRoot | Self::InvalidConstantName => {
-                None
-            }
+            Self::ReservedName
+            | Self::VisibilityAbovePackageRoot
+            | Self::InvalidCompileTimeValueName => None,
         }
     }
 }
@@ -93,9 +93,9 @@ impl NamespaceViolation {
     }
 
     #[must_use]
-    pub const fn invalid_constant_name(name: SyntaxOrigin) -> Self {
+    pub const fn invalid_compile_time_value_name(name: SyntaxOrigin) -> Self {
         Self {
-            rule: NamespaceRule::InvalidConstantName,
+            rule: NamespaceRule::InvalidCompileTimeValueName,
             primary: name,
             related: None,
         }

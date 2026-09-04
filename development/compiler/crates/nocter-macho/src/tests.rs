@@ -56,7 +56,7 @@ fn image_is_deterministic_and_owns_all_required_load_commands() {
         0x0100_000c
     );
     assert_eq!(u32::from_le_bytes(bytes[12..16].try_into().unwrap()), 2);
-    assert_eq!(u32::from_le_bytes(bytes[16..20].try_into().unwrap()), 9);
+    assert_eq!(u32::from_le_bytes(bytes[16..20].try_into().unwrap()), 11);
     assert!(
         bytes
             .windows(b"/usr/lib/dyld\0".len())

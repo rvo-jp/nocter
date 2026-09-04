@@ -14,6 +14,7 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 ## Internal Responsibilities
 
 - stored layout and aggregate representation
+- immutable-static serialization and data-to-data relocation construction
 - call/result ABI classification and transport
 - stack objects, machine control flow, and dataflow
 - structural copy/destruction expansion
@@ -25,6 +26,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Machine code cannot reach checking or target-program storage.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
+- Each reachable static retains its declaration identity as one addressable data object; text
+  payloads may be shared, but equal static values cannot be merged.
 
 The cross-stage boundary is documented in
 [Machine Program and Native Target Design](../../../docs/machine-program-design.md).

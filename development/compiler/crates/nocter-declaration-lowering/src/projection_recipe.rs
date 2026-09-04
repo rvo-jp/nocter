@@ -786,6 +786,7 @@ const fn source_entity(entity: nocter_declarations::ExportedEntity) -> SemanticE
         nocter_declarations::ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
         nocter_declarations::ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
         nocter_declarations::ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
+        nocter_declarations::ExportedEntity::Static(id) => SemanticEntity::Static(id),
         nocter_declarations::ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
     }
 }

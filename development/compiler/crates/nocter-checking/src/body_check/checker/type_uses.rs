@@ -992,6 +992,7 @@ impl BodyChecker<'_, '_> {
             ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
             ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
             ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
+            ExportedEntity::Static(id) => SemanticEntity::Static(id),
             ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
         };
         self.project_type_entity(token, entity)

@@ -19,6 +19,7 @@ mod path;
 mod program;
 mod requirement;
 mod standard;
+mod static_value;
 mod target;
 mod validate;
 mod visibility;
@@ -53,6 +54,7 @@ pub use requirement::{
     ExpansionCapability, Requirement, RequirementKind, RequirementOwner, RequirementSubject,
 };
 pub use standard::{StandardDeclaration, StandardLibrary};
+pub use static_value::StaticDeclaration;
 pub use target::PackageTarget;
 pub use validate::{
     DeclarationDomain, DeclarationRule, DeclarationValidationReport, DeclarationViolation,

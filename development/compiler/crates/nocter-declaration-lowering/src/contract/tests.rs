@@ -139,6 +139,47 @@ fn constant_contract_joins_exactly_one_reciprocal_private_initializer() {
 }
 
 #[test]
+fn static_contract_joins_exactly_one_reciprocal_private_initializer() {
+    let mut sources = SourceMap::new();
+    let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+    let root_id = add_source(
+        &mut sources,
+        "/app/index.nct",
+        "see ./tables.nct\npub static VALUES: [u32; 2]\n",
+    );
+    let implementation_id = add_source(
+        &mut sources,
+        "/app/tables.nct",
+        "see ./index.nct\nstatic VALUES: [u32; 2] = [65, 90]\n",
+    );
+    let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
+    let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+    let implementation = parse_source(&sources, implementation_id, ParseGoal::SourceFile);
+    let surface = surface(
+        &sources,
+        &manifest,
+        vec![
+            ModuleSourceInput::new("/app/index.nct", ModuleSourceKind::Root, &root),
+            ModuleSourceInput::new(
+                "/app/tables.nct",
+                ModuleSourceKind::Implementation,
+                &implementation,
+            ),
+        ],
+        vec![
+            source_see(&root, 0, "/app/tables.nct"),
+            source_see(&implementation, 0, "/app/index.nct"),
+        ],
+    );
+
+    let contracts = analyze_declaration_contracts(&surface).unwrap();
+    assert_eq!(
+        contracts.representative(SurfaceDeclarationId::from_index(1)),
+        SurfaceDeclarationId::from_index(0)
+    );
+}
+
+#[test]
 fn constant_contract_rejects_a_different_initializer_header() {
     let mut sources = SourceMap::new();
     let manifest_id = add_source(&mut sources, "/app/index.nct", "");
@@ -174,7 +215,7 @@ fn constant_contract_rejects_a_different_initializer_header() {
 
     assert!(matches!(
         analyze_declaration_contracts(&surface),
-        Err(DeclarationContractError::MismatchedConstantInitializer { .. })
+        Err(DeclarationContractError::MismatchedCompileTimeInitializer { .. })
     ));
 }
 

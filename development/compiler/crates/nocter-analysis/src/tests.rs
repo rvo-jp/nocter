@@ -319,6 +319,35 @@ fn noalloc_keyword_completion_is_available_at_callable_modifier_positions() {
 }
 
 #[test]
+fn contextual_declaration_keyword_completion_includes_static() {
+    let tree = TempTree::new();
+    let source_text = "sta";
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(70));
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let completions = snapshot
+        .semantic_completions(
+            source.id(),
+            ByteOffset::new(u32::try_from(source_text.len()).unwrap()),
+        )
+        .unwrap();
+
+    assert!(completions.values().iter().any(|completion| {
+        completion.label() == "static"
+            && completion.kind() == crate::SemanticCompletionKind::Keyword
+    }));
+    assert!(
+        !completions
+            .values()
+            .iter()
+            .any(|completion| completion.label() == "test")
+    );
+}
+
+#[test]
 fn bundled_standard_noalloc_contract_is_usable_from_an_application() {
     let tree = TempTree::new();
     let (_, snapshot) = bundled_snapshot(
@@ -649,6 +678,83 @@ fn unicode_scalars_share_checked_presentation_navigation_highlighting_and_inlays
         )
         .unwrap();
     assert!(hints.iter().any(|hint| hint.label() == ": char"));
+}
+
+#[test]
+fn immutable_static_identity_drives_editor_features_without_rendering_its_value() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "static VALUES: [i32; 2] = [40, 2]\n",
+        "func main(): i32 {\n",
+        "    return VALUES[1]\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(69));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "static fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let reference = source_text.rfind("VALUES").unwrap();
+    let reference = ByteOffset::new(u32::try_from(reference).unwrap());
+    let subject = snapshot
+        .semantic_subject(source.id(), reference)
+        .unwrap()
+        .expect("static reference subject");
+    assert_eq!(subject.presentation().code(), "static VALUES: [i32; 2]");
+    assert_eq!(
+        snapshot
+            .semantic_definition(source.id(), reference)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let declaration = ByteOffset::new(u32::try_from(source_text.find("VALUES").unwrap()).unwrap());
+    let rename = snapshot
+        .semantic_rename(source.id(), declaration, "TABLE")
+        .unwrap()
+        .expect("static rename plan");
+    assert_eq!(rename.edits().len(), 2);
+    assert!(
+        rename
+            .entities()
+            .iter()
+            .all(|entity| matches!(entity, nocter_source_index::SemanticEntity::Static(_)))
+    );
+
+    let highlights = snapshot.semantic_highlights(source.id()).unwrap();
+    let keyword = highlights.values().iter().find(|highlight| {
+        highlight.kind() == SemanticHighlightKind::Keyword
+            && source.text_at(highlight.range()) == Some("static")
+    });
+    assert!(keyword.is_some(), "contextual static keyword highlight");
+    assert_eq!(
+        highlights
+            .values()
+            .iter()
+            .filter(|highlight| {
+                highlight.kind() == SemanticHighlightKind::Variable
+                    && source.text_at(highlight.range()) == Some("VALUES")
+                    && highlight.is_readonly()
+            })
+            .count(),
+        2
+    );
+
+    let completions = snapshot
+        .semantic_completions(source.id(), reference)
+        .unwrap();
+    assert!(completions.values().iter().any(|completion| {
+        completion.label() == "VALUES"
+            && completion.kind() == crate::SemanticCompletionKind::Constant
+    }));
 }
 
 #[test]

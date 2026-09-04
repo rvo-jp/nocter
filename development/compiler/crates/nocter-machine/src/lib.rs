@@ -35,7 +35,7 @@ pub use context::{
 pub use control::{
     MachineBlock, MachineBranchTarget, MachineSwitchCase, MachineSwitchValue, MachineTerminator,
 };
-pub use data::{MachineData, MachineDataTable};
+pub use data::{MachineData, MachineDataRelocation, MachineDataTable};
 pub use dataflow::{
     MachineBlockDataflow, MachineDataflowError, MachineFunctionDataflow, MachineOperationDataflow,
 };

@@ -14,6 +14,7 @@ mod primitive_dependency;
 mod program;
 mod program_validation;
 mod schema;
+mod static_data;
 mod validate;
 mod validation_call;
 mod validation_closure;
@@ -51,6 +52,7 @@ pub use schema::{
     MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator, MirTestRoot, MirValue,
     MirValueDefinition,
 };
+pub use static_data::MirStatic;
 pub use validate::validate_function;
 pub use validation_environment::MirValidationEnvironment;
 pub use validation_error::MirValidationError;

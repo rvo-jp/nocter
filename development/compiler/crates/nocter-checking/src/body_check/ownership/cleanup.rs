@@ -375,6 +375,7 @@ impl<'program> CleanupPlanner<'program> {
                 .get(value)
                 .map(crate::CheckedNode::ty)
                 .ok_or(BodyCheckInternalError::CleanupPlanning),
+            PlaceRoot::Static(_) => Err(BodyCheckInternalError::CleanupPlanning),
         }
     }
 

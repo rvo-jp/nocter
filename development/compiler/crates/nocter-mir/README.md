@@ -7,9 +7,9 @@ Lower one closed executable program into concrete target-independent semantic co
 ## Contract
 
 MIR consumes monomorphized items, selected operations, concrete representations, cleanup plans, and
-runtime roles. It publishes validated functions, places, values, blocks, operations, packs, and
-primitive dependencies. It does not inspect syntax, resolve names, prove requirements, or assign a
-machine ABI.
+runtime roles. It publishes validated functions, immutable static identities and frozen values,
+places, values, blocks, operations, packs, and primitive dependencies. It does not inspect syntax,
+resolve names, prove requirements, or assign a machine ABI.
 
 ## Internal Responsibilities
 

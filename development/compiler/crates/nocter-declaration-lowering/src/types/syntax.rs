@@ -272,6 +272,7 @@ fn bind_entity(
         ExportedEntity::Module(_)
         | ExportedEntity::Interface(_)
         | ExportedEntity::Constant(_)
+        | ExportedEntity::Static(_)
         | ExportedEntity::Callable(_) => Err(TypeBindingError::rule(
             TypeBindingRule::InvalidTypeEntity,
             SyntaxOrigin::Token(token),

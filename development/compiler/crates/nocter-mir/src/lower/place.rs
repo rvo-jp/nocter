@@ -37,6 +37,11 @@ impl FunctionLowerer<'_> {
                     .ok_or(MirLoweringError::MissingInput(parameter))?,
             ),
             PlaceRoot::Local(local) => MirPlaceRoot::Local(self.ensure_local(local)?),
+            PlaceRoot::Static(source) => MirPlaceRoot::Static(
+                self.executable
+                    .static_id(source)
+                    .ok_or(MirLoweringError::UnknownStatic(source))?,
+            ),
             PlaceRoot::Capture(capture) => {
                 let mut path = self.lower_capture_path(capture)?;
                 path.projections.reserve(checked.projections().len());
@@ -92,6 +97,12 @@ impl FunctionLowerer<'_> {
                 .local_type(local)
                 .ok_or(MirLoweringError::UnknownPlace(place))?,
             MirPlaceRoot::Dereference { .. } => unreachable!("checked roots start from locals"),
+            MirPlaceRoot::Static(id) => self
+                .executable
+                .statics()
+                .get(id)
+                .map(nocter_target_program::ExecutableStatic::ty)
+                .ok_or(MirLoweringError::UnknownPlace(place))?,
         };
         let path = LoweredPlacePath {
             root,

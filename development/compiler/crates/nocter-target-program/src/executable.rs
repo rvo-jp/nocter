@@ -7,8 +7,8 @@ use nocter_checking::{
     ResolvedPrimitiveDispatch, StaticSelection, is_concrete_type,
 };
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, BorrowCapability, ClosureId, ExecutableItemId, PackageTargetId,
-    TestId, TypeId, TypeStore,
+    Arena, BodyId, BodyNodeId, BorrowCapability, ClosureId, ExecutableItemId, ExecutableStaticId,
+    PackageTargetId, StaticId, TestId, TypeId, TypeStore,
 };
 use nocter_runtime_contract::{
     RuntimeEnvironment, RuntimeEnvironmentError, RuntimeTypeTableBuildError,
@@ -277,6 +277,7 @@ pub struct ExecutableBody {
     types: Box<[ExecutableTypeEdge]>,
     prepared_borrows: Box<[ExecutableBorrowEdge]>,
     destructions: Box<[ExecutableDestructionEdge]>,
+    statics: Box<[StaticId]>,
     pack_literals: Box<[ExecutablePackLiteralPlan]>,
     argument_packs: Box<[ExecutableArgumentPackPlan]>,
 }
@@ -398,6 +399,11 @@ impl ExecutableBody {
             .ok()
             .map(|index| &self.argument_packs[index])
     }
+
+    #[must_use]
+    pub const fn statics(&self) -> &[StaticId] {
+        &self.statics
+    }
 }
 
 /// One dense executable item and the body facts frozen for MIR lowering.
@@ -482,6 +488,8 @@ pub struct ExecutableProgram {
     types: TypeStore,
     checked_bodies: BTreeMap<BodyId, nocter_checking::CheckedBody>,
     items: Arena<ExecutableItemId, ExecutableItem>,
+    statics: Arena<ExecutableStaticId, ExecutableStatic>,
+    static_ids: BTreeMap<StaticId, ExecutableStaticId>,
     runtime: RuntimeEnvironment,
     root: ExecutableRoot,
 }
@@ -534,6 +542,16 @@ impl ExecutableProgram {
     }
 
     #[must_use]
+    pub const fn statics(&self) -> &Arena<ExecutableStaticId, ExecutableStatic> {
+        &self.statics
+    }
+
+    #[must_use]
+    pub fn static_id(&self, source: StaticId) -> Option<ExecutableStaticId> {
+        self.static_ids.get(&source).copied()
+    }
+
+    #[must_use]
     pub fn closure_layout(&self, item: ExecutableItemId) -> Option<&ExecutableClosureLayout> {
         self.items.get(item)?.closure_layout()
     }
@@ -552,6 +570,25 @@ impl ExecutableProgram {
     #[must_use]
     pub fn into_runtime_environment(self) -> RuntimeEnvironment {
         self.runtime
+    }
+}
+
+/// One reachable immutable static after semantic evaluation and before machine layout.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExecutableStatic {
+    pub(crate) ty: TypeId,
+    pub(crate) value: nocter_model::FrozenValue,
+}
+
+impl ExecutableStatic {
+    #[must_use]
+    pub const fn ty(&self) -> TypeId {
+        self.ty
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> &nocter_model::FrozenValue {
+        &self.value
     }
 }
 
@@ -649,6 +686,7 @@ pub enum ExecutableProgramError {
     Destruction(ConcreteDestructionError),
     DuplicateGeneric(nocter_model::GenericParameterId),
     UnknownBody(BodyId),
+    UnknownStatic(StaticId),
     UnknownItem(ExecutableItemKey),
     BodylessCallable(nocter_model::CallableId),
     MissingTestName(TestId),
@@ -694,6 +732,7 @@ impl std::error::Error for ExecutableProgramError {
             Self::RuntimeEnvironment(error) => Some(error),
             Self::DuplicateGeneric(_)
             | Self::UnknownBody(_)
+            | Self::UnknownStatic(_)
             | Self::UnknownItem(_)
             | Self::BodylessCallable(_)
             | Self::MissingTestName(_)

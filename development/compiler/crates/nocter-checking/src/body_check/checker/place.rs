@@ -286,7 +286,7 @@ impl BodyChecker<'_, '_> {
                 .captures()
                 .get(capture)
                 .is_some_and(|capture| capture.mode() == crate::CaptureMode::ReadWrite),
-            PlaceRoot::Parameter(_) | PlaceRoot::Value(_) => false,
+            PlaceRoot::Parameter(_) | PlaceRoot::Value(_) | PlaceRoot::Static(_) => false,
         };
         let access = match root {
             PlaceRoot::Capture(capture) => match self
@@ -313,6 +313,7 @@ impl BodyChecker<'_, '_> {
             PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Value(_) => {
                 PlaceAccess::Owned
             }
+            PlaceRoot::Static(_) => PlaceAccess::Borrowed(BorrowCapability::Readonly),
         };
         Ok(PlaceDraft {
             root,
@@ -644,6 +645,16 @@ impl BodyChecker<'_, '_> {
                     .capture_type(capture)
                     .ok_or(BodyCheckInternalError::MissingCaptureType(capture))?,
             ),
+            NameTarget::Exported(nocter_declarations::ExportedEntity::Static(id)) => {
+                let ty = self
+                    .graph
+                    .declarations()
+                    .statics()
+                    .get(id)
+                    .map(nocter_declarations::StaticDeclaration::ty)
+                    .ok_or(BodyCheckInternalError::UnsupportedNameTarget(node, target))?;
+                (PlaceRoot::Static(id), ty)
+            }
             NameTarget::Exported(_) => {
                 return Err(BodyCheckInternalError::UnsupportedNameTarget(node, target).into());
             }

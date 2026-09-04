@@ -150,6 +150,7 @@ impl FunctionLowerer<'_> {
                     ty: lowered.ty(),
                 }
             }
+            PlaceRoot::Static(_) => return Err(MirLoweringError::InvalidCleanup(owner)),
         };
         for projection in path.projections().iter().copied() {
             let kind = match projection {

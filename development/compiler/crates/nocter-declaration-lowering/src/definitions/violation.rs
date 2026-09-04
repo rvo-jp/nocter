@@ -5,11 +5,11 @@ use nocter_syntax::SyntaxOrigin;
 /// Stable source-level rule selected while completing declaration definitions.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DefinitionRule {
-    InvalidConstantType,
+    InvalidCompileTimeValueType,
     NonConstantExpression,
-    ConstantTypeMismatch,
-    ConstantCycle,
-    ConstantArithmeticFailure,
+    CompileTimeTypeMismatch,
+    CompileTimeCycle,
+    CompileTimeArithmeticFailure,
     UnknownResultProvenanceOrigin,
     DuplicateResultProvenanceOrigin,
     AmbiguousBodylessResultProvenance,
@@ -20,11 +20,11 @@ pub enum DefinitionRule {
 
 impl DefinitionRule {
     pub const ALL: [Self; 11] = [
-        Self::InvalidConstantType,
+        Self::InvalidCompileTimeValueType,
         Self::NonConstantExpression,
-        Self::ConstantTypeMismatch,
-        Self::ConstantCycle,
-        Self::ConstantArithmeticFailure,
+        Self::CompileTimeTypeMismatch,
+        Self::CompileTimeCycle,
+        Self::CompileTimeArithmeticFailure,
         Self::UnknownResultProvenanceOrigin,
         Self::DuplicateResultProvenanceOrigin,
         Self::AmbiguousBodylessResultProvenance,
@@ -36,11 +36,11 @@ impl DefinitionRule {
     #[must_use]
     pub const fn code(self) -> DiagnosticCode {
         match self {
-            Self::InvalidConstantType => DiagnosticCode::E0321,
+            Self::InvalidCompileTimeValueType => DiagnosticCode::E0321,
             Self::NonConstantExpression => ConstantExpressionRule::NonConstantExpression.code(),
-            Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.code(),
-            Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.code(),
-            Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.code(),
+            Self::CompileTimeTypeMismatch => ConstantExpressionRule::TypeMismatch.code(),
+            Self::CompileTimeCycle => ConstantExpressionRule::DependencyCycle.code(),
+            Self::CompileTimeArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.code(),
             Self::UnknownResultProvenanceOrigin => DiagnosticCode::E0315,
             Self::DuplicateResultProvenanceOrigin => DiagnosticCode::E0316,
             Self::AmbiguousBodylessResultProvenance => DiagnosticCode::E0317,
@@ -53,13 +53,15 @@ impl DefinitionRule {
     #[must_use]
     pub const fn message(self) -> &'static str {
         match self {
-            Self::InvalidConstantType => {
-                "constant type is not supported by compile-time value semantics"
+            Self::InvalidCompileTimeValueType => {
+                "type is not supported by compile-time value semantics"
             }
             Self::NonConstantExpression => ConstantExpressionRule::NonConstantExpression.message(),
-            Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.message(),
-            Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.message(),
-            Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.message(),
+            Self::CompileTimeTypeMismatch => ConstantExpressionRule::TypeMismatch.message(),
+            Self::CompileTimeCycle => ConstantExpressionRule::DependencyCycle.message(),
+            Self::CompileTimeArithmeticFailure => {
+                ConstantExpressionRule::ArithmeticFailure.message()
+            }
             Self::UnknownResultProvenanceOrigin => {
                 "result provenance names no receiver or parameter of this callable"
             }
@@ -82,11 +84,13 @@ impl DefinitionRule {
     #[must_use]
     pub const fn help(self) -> &'static str {
         match self {
-            Self::InvalidConstantType => "use bool, an integer type, or readonly &str",
+            Self::InvalidCompileTimeValueType => {
+                "use bool, an integer type, char, readonly &str, or a fixed array of those types"
+            }
             Self::NonConstantExpression => ConstantExpressionRule::NonConstantExpression.help(),
-            Self::ConstantTypeMismatch => ConstantExpressionRule::TypeMismatch.help(),
-            Self::ConstantCycle => ConstantExpressionRule::DependencyCycle.help(),
-            Self::ConstantArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.help(),
+            Self::CompileTimeTypeMismatch => ConstantExpressionRule::TypeMismatch.help(),
+            Self::CompileTimeCycle => ConstantExpressionRule::DependencyCycle.help(),
+            Self::CompileTimeArithmeticFailure => ConstantExpressionRule::ArithmeticFailure.help(),
             Self::UnknownResultProvenanceOrigin => {
                 "name self, a parameter of this callable, or static"
             }
@@ -112,11 +116,11 @@ impl DefinitionRule {
                 Some("the first associated type binding is declared here")
             }
             Self::UnknownResultProvenanceOrigin
-            | Self::InvalidConstantType
+            | Self::InvalidCompileTimeValueType
             | Self::NonConstantExpression
-            | Self::ConstantTypeMismatch
-            | Self::ConstantCycle
-            | Self::ConstantArithmeticFailure
+            | Self::CompileTimeTypeMismatch
+            | Self::CompileTimeCycle
+            | Self::CompileTimeArithmeticFailure
             | Self::AmbiguousBodylessResultProvenance
             | Self::UnknownAssociatedTypeBinding
             | Self::InvalidArgumentPackParameter => None,

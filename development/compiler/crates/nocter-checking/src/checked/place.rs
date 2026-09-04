@@ -1,5 +1,5 @@
 use nocter_model::{
-    BodyNodeId, BorrowCapability, CaptureId, FieldId, LocalBindingId, ParameterId, TypeId,
+    BodyNodeId, BorrowCapability, CaptureId, FieldId, LocalBindingId, ParameterId, StaticId, TypeId,
 };
 
 use super::StaticSelection;
@@ -9,6 +9,7 @@ pub enum PlaceRoot {
     Parameter(ParameterId),
     Local(LocalBindingId),
     Capture(CaptureId),
+    Static(StaticId),
     /// A checked expression whose result is a borrow value projected as a place.
     Value(BodyNodeId),
 }
@@ -151,7 +152,10 @@ impl CheckedPlace {
     pub(crate) fn evaluation_nodes(&self) -> impl Iterator<Item = BodyNodeId> + '_ {
         let root = match self.root {
             PlaceRoot::Value(value) => Some(value),
-            PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Capture(_) => None,
+            PlaceRoot::Parameter(_)
+            | PlaceRoot::Local(_)
+            | PlaceRoot::Capture(_)
+            | PlaceRoot::Static(_) => None,
         };
         root.into_iter().chain(
             self.projections

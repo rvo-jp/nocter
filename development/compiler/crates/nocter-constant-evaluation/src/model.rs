@@ -12,6 +12,16 @@ pub enum ConstantScalarType {
     Text,
 }
 
+/// The closed recursive type domain admitted for immutable static initializers.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum FrozenType {
+    Scalar(ConstantScalarType),
+    FixedArray {
+        element: Box<FrozenType>,
+        length: usize,
+    },
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ConstantReference {
     id: ConstantId,
@@ -137,6 +147,26 @@ pub(crate) enum ConstantOperation {
 pub struct ConstantExpressionPlan {
     pub(crate) nodes: Vec<PlanNode>,
     pub(crate) root: PlanNodeId,
+}
+
+/// One syntax-independent plan for a recursively typed immutable static initializer.
+#[derive(Clone, Debug)]
+pub enum FrozenExpressionPlan {
+    Scalar(ConstantExpressionPlan),
+    FixedArray {
+        ty: FrozenType,
+        elements: Box<[FrozenExpressionPlan]>,
+    },
+}
+
+impl FrozenExpressionPlan {
+    #[must_use]
+    pub fn result_type(&self) -> FrozenType {
+        match self {
+            Self::Scalar(plan) => FrozenType::Scalar(plan.result_type()),
+            Self::FixedArray { ty, .. } => ty.clone(),
+        }
+    }
 }
 
 impl ConstantExpressionPlan {

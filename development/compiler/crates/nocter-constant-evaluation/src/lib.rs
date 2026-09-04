@@ -15,13 +15,13 @@ use nocter_language::DiagnosticCode;
 
 pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_constant_plans,
-    evaluate_expression_plan,
+    evaluate_expression_plan, evaluate_frozen_expression_plan,
 };
 pub use model::{
     ConstantExpressionPlan, ConstantPlanError, ConstantPlanRule, ConstantReference,
-    ConstantResolver, ConstantScalarType,
+    ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,
 };
-pub use plan::plan_expression;
+pub use plan::{plan_expression, plan_frozen_expression};
 
 /// Public constant-expression diagnostic family shared by header and body semantic adapters.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -47,11 +47,11 @@ impl ConstantExpressionRule {
     pub const fn message(self) -> &'static str {
         match self {
             Self::NonConstantExpression => {
-                "constant expression contains an operation unavailable at compile time"
+                "compile-time expression contains an unavailable operation"
             }
-            Self::TypeMismatch => "constant expression does not produce its required type",
-            Self::DependencyCycle => "constant dependency graph contains a cycle",
-            Self::ArithmeticFailure => "constant arithmetic has no valid typed value",
+            Self::TypeMismatch => "compile-time expression does not produce its required type",
+            Self::DependencyCycle => "compile-time dependency graph contains a cycle",
+            Self::ArithmeticFailure => "compile-time arithmetic has no valid typed value",
         }
     }
 
@@ -62,7 +62,7 @@ impl ConstantExpressionRule {
                 "use literals, constants, grouping, built-in operators, or a representable integer conversion"
             }
             Self::TypeMismatch => "make the expression and its required type agree",
-            Self::DependencyCycle => "remove one reference in the constant dependency cycle",
+            Self::DependencyCycle => "remove one reference in the compile-time dependency cycle",
             Self::ArithmeticFailure => {
                 "change the expression so it cannot overflow, divide by zero, or use an invalid shift"
             }

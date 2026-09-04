@@ -1,6 +1,6 @@
 use nocter_model::{
-    BorrowCapability, CaptureId, FieldId, MirLocalId, MirValueId, OpaqueTypeId, ParameterId,
-    TypeId, VariantId,
+    BorrowCapability, CaptureId, ExecutableStaticId, FieldId, MirLocalId, MirValueId, OpaqueTypeId,
+    ParameterId, TypeId, VariantId,
 };
 
 /// Why one MIR-body-local storage slot exists.
@@ -46,6 +46,7 @@ impl MirLocal {
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum MirPlaceRoot {
     Local(MirLocalId),
+    Static(ExecutableStaticId),
     Dereference {
         value: MirValueId,
         capability: BorrowCapability,

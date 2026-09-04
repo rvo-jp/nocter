@@ -34,8 +34,8 @@ pub use executable::{
     ExecutableInputSource, ExecutableItem, ExecutableItemKey, ExecutableOpaqueReceiver,
     ExecutablePackInput, ExecutablePackLiteralPlan, ExecutablePackSegment, ExecutablePackSpread,
     ExecutablePrimitiveCall, ExecutablePrimitiveDependency, ExecutableProgram,
-    ExecutableProgramError, ExecutableRoot, ExecutableSignature, ExecutableTestCase,
-    ExecutableTypeEdge,
+    ExecutableProgramError, ExecutableRoot, ExecutableSignature, ExecutableStatic,
+    ExecutableTestCase, ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 use nocter_runtime_contract::{

@@ -118,6 +118,47 @@ fn executable_closure_contains_only_reachable_bodies_and_recursive_drop_work() {
     );
 }
 
+#[test]
+fn executable_closure_retains_only_reachable_static_values() {
+    let target = build_target_program(&Fixture::with_app(
+        "static LIVE: [i32; 2] = [40, 2]\n\
+         static DEAD: [i32; 2] = [1, 2]\n\
+         func unused(): i32 { return DEAD[0] }\n\
+         func main(): i32 { return LIVE[1] }\n",
+    ));
+    let target = Arc::new(target);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let graph = target.checked().graph();
+    let live = graph
+        .declarations()
+        .statics()
+        .iter()
+        .find_map(|(id, value)| {
+            (graph.symbols().spelling(value.name()) == Some("LIVE")).then_some(id)
+        })
+        .unwrap();
+    let dead = graph
+        .declarations()
+        .statics()
+        .iter()
+        .find_map(|(id, value)| {
+            (graph.symbols().spelling(value.name()) == Some("DEAD")).then_some(id)
+        })
+        .unwrap();
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+
+    assert_eq!(executable.statics().len(), 1);
+    assert!(executable.static_id(live).is_some());
+    assert!(executable.static_id(dead).is_none());
+}
+
 fn assert_reached_bodies_are_frozen(
     executable: &ExecutableProgram,
     unreachable: nocter_model::BodyId,

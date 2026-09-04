@@ -1,6 +1,6 @@
 use nocter_model::TypeId;
 
-use crate::{MachineStackId, MachineValueId};
+use crate::{MachineDataId, MachineStackId, MachineValueId};
 
 /// Why one abstract stack object exists before physical frame placement.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -43,6 +43,7 @@ impl MachineDropFlag {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineAddressRoot {
     Stack(MachineStackId),
+    Data(MachineDataId),
     Pointer {
         value: MachineValueId,
     },

@@ -91,6 +91,46 @@ struct Arm64ProgramContents {
     data_alignment: u64,
     function_address_fixups: Box<[Arm64FunctionAddressFixup]>,
     data_fixups: Box<[Arm64DataAddressFixup]>,
+    data_pointer_fixups: Box<[Arm64DataPointerFixup]>,
+}
+
+/// One absolute pointer in read-only data that an executable image loader must rebase with the
+/// image slide after section-local relocation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Arm64DataPointerFixup {
+    location_offset: u64,
+    target_offset: u64,
+}
+
+impl Arm64DataPointerFixup {
+    #[must_use]
+    pub const fn location_offset(self) -> u64 {
+        self.location_offset
+    }
+
+    #[must_use]
+    pub const fn target_offset(self) -> u64 {
+        self.target_offset
+    }
+}
+
+/// Final section bytes after virtual-address-dependent references are resolved.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Arm64RelocatedSections {
+    text: Box<[u8]>,
+    read_only_data: Box<[u8]>,
+}
+
+impl Arm64RelocatedSections {
+    #[must_use]
+    pub const fn text(&self) -> &[u8] {
+        &self.text
+    }
+
+    #[must_use]
+    pub const fn read_only_data(&self) -> &[u8] {
+        &self.read_only_data
+    }
 }
 
 /// One independently executable entry over immutable target code and data. Test entries from the
@@ -127,6 +167,12 @@ impl Arm64Program {
         &self.contents.data_fixups
     }
 
+    /// Absolute data pointers that require executable-loader rebasing under ASLR.
+    #[must_use]
+    pub fn data_pointer_fixups(&self) -> &[Arm64DataPointerFixup] {
+        &self.contents.data_pointer_fixups
+    }
+
     #[must_use]
     pub fn read_only_data_alignment(&self) -> u64 {
         self.contents.data_alignment
@@ -153,11 +199,11 @@ impl Arm64Program {
     ///
     /// Rejects virtual-address arithmetic overflow, a malformed fixup offset, or a page
     /// displacement outside ARM64's signed 21-bit page range.
-    pub fn relocate_addresses(
+    pub fn relocate_sections(
         &self,
         text_virtual_address: u64,
         data_virtual_address: u64,
-    ) -> Result<Box<[u8]>, Arm64ProgramError> {
+    ) -> Result<Arm64RelocatedSections, Arm64ProgramError> {
         let mut text = self.contents.text.to_vec();
         for fixup in &self.contents.function_address_fixups {
             let instruction_address = text_virtual_address
@@ -189,13 +235,38 @@ impl Arm64Program {
                 fixup.destination,
             )?;
         }
-        Ok(text.into_boxed_slice())
+        let mut read_only_data = self.contents.read_only_data.to_vec();
+        for fixup in &self.contents.data_pointer_fixups {
+            let target = data_virtual_address
+                .checked_add(fixup.target_offset)
+                .ok_or(Arm64ProgramError::AddressOverflow)?;
+            let start = usize::try_from(fixup.location_offset)
+                .map_err(|_| Arm64ProgramError::OffsetOverflow)?;
+            let end = start
+                .checked_add(8)
+                .ok_or(Arm64ProgramError::OffsetOverflow)?;
+            read_only_data
+                .get_mut(start..end)
+                .ok_or(Arm64ProgramError::InvalidFixupOffset(fixup.location_offset))?
+                .copy_from_slice(&target.to_le_bytes());
+        }
+        Ok(Arm64RelocatedSections {
+            text: text.into_boxed_slice(),
+            read_only_data: read_only_data.into_boxed_slice(),
+        })
     }
 }
 
 struct DataDefinition {
     bytes: Box<[u8]>,
     alignment: u64,
+    relocations: Vec<DataPointerDefinition>,
+}
+
+#[derive(Clone, Copy)]
+struct DataPointerDefinition {
+    offset: u64,
+    target: Arm64DataId,
 }
 
 /// Consuming builder for a single native executable image.
@@ -262,8 +333,52 @@ impl Arm64ProgramBuilder {
         self.data.push(DataDefinition {
             bytes: bytes.into(),
             alignment,
+            relocations: Vec::new(),
         });
         Ok(id)
+    }
+
+    /// Adds one pointer-sized reference between already declared read-only data objects.
+    ///
+    /// # Errors
+    ///
+    /// Rejects an unknown object, a reference outside the source object, or overlapping pointer
+    /// fields. The ARM64 data contract uses one eight-byte pointer representation.
+    pub fn add_data_relocation(
+        &mut self,
+        source: Arm64DataId,
+        offset: u64,
+        target: Arm64DataId,
+    ) -> Result<(), Arm64ProgramError> {
+        if self.data.get(target.0).is_none() {
+            return Err(Arm64ProgramError::UnknownData(target));
+        }
+        let definition = self
+            .data
+            .get_mut(source.0)
+            .ok_or(Arm64ProgramError::UnknownData(source))?;
+        let end = offset
+            .checked_add(8)
+            .ok_or(Arm64ProgramError::OffsetOverflow)?;
+        let source_size =
+            u64::try_from(definition.bytes.len()).map_err(|_| Arm64ProgramError::OffsetOverflow)?;
+        if end > source_size {
+            return Err(Arm64ProgramError::InvalidDataRelocation(offset));
+        }
+        if let Some(existing) = definition.relocations.iter().find(|existing| {
+            let existing_end = existing.offset + 8;
+            offset < existing_end && existing.offset < end
+        }) {
+            return Err(Arm64ProgramError::OverlappingDataRelocation {
+                source,
+                first: existing.offset,
+                second: offset,
+            });
+        }
+        definition
+            .relocations
+            .push(DataPointerDefinition { offset, target });
+        Ok(())
     }
 
     /// Selects the unique native entry function.
@@ -313,6 +428,7 @@ impl Arm64ProgramBuilder {
         let read_only_data = laid_out_data.bytes;
         let data = laid_out_data.ranges;
         let data_alignment = laid_out_data.alignment;
+        let data_pointer_fixups = laid_out_data.pointer_fixups;
         let mut function_address_fixups = Vec::new();
         let mut data_fixups = Vec::new();
         for fixup in code_fixups {
@@ -367,6 +483,7 @@ impl Arm64ProgramBuilder {
                 data_alignment,
                 function_address_fixups: function_address_fixups.into_boxed_slice(),
                 data_fixups: data_fixups.into_boxed_slice(),
+                data_pointer_fixups,
             }),
             entry,
         })
@@ -492,13 +609,15 @@ struct LaidOutData {
     bytes: Box<[u8]>,
     ranges: Box<[Arm64DataRange]>,
     alignment: u64,
+    pointer_fixups: Box<[Arm64DataPointerFixup]>,
 }
 
 fn layout_data(definitions: Vec<DataDefinition>) -> Result<LaidOutData, Arm64ProgramError> {
     let mut bytes = Vec::new();
     let mut ranges = Vec::with_capacity(definitions.len());
     let mut section_alignment = 1;
-    for definition in definitions {
+    let mut pending_fixups = Vec::new();
+    for (source, definition) in definitions.into_iter().enumerate() {
         section_alignment = section_alignment.max(definition.alignment);
         let current = u64::try_from(bytes.len()).map_err(|_| Arm64ProgramError::OffsetOverflow)?;
         let offset = align_up(current, definition.alignment)?;
@@ -513,11 +632,40 @@ fn layout_data(definitions: Vec<DataDefinition>) -> Result<LaidOutData, Arm64Pro
             size,
             alignment: definition.alignment,
         });
+        for relocation in definition.relocations {
+            pending_fixups.push((Arm64DataId(source), relocation));
+        }
     }
+    let pointer_fixups = pending_fixups
+        .into_iter()
+        .map(|(source, relocation)| {
+            let source = ranges
+                .get(source.0)
+                .ok_or(Arm64ProgramError::UnknownData(source))?;
+            let target = ranges
+                .get(relocation.target.0)
+                .ok_or(Arm64ProgramError::UnknownData(relocation.target))?;
+            let end = relocation
+                .offset
+                .checked_add(8)
+                .ok_or(Arm64ProgramError::OffsetOverflow)?;
+            if end > source.size {
+                return Err(Arm64ProgramError::InvalidDataRelocation(relocation.offset));
+            }
+            Ok(Arm64DataPointerFixup {
+                location_offset: source
+                    .offset
+                    .checked_add(relocation.offset)
+                    .ok_or(Arm64ProgramError::OffsetOverflow)?,
+                target_offset: target.offset,
+            })
+        })
+        .collect::<Result<Vec<_>, Arm64ProgramError>>()?;
     Ok(LaidOutData {
         bytes: bytes.into_boxed_slice(),
         ranges: ranges.into_boxed_slice(),
         alignment: section_alignment,
+        pointer_fixups: pointer_fixups.into_boxed_slice(),
     })
 }
 
@@ -539,6 +687,12 @@ pub enum Arm64ProgramError {
     MissingEntry,
     DuplicateEntry,
     InvalidFixupOffset(u64),
+    InvalidDataRelocation(u64),
+    OverlappingDataRelocation {
+        source: Arm64DataId,
+        first: u64,
+        second: u64,
+    },
     OffsetOverflow,
     AddressOverflow,
     Encoding(Arm64EncodingError),
@@ -562,6 +716,8 @@ impl std::error::Error for Arm64ProgramError {
             | Self::MissingEntry
             | Self::DuplicateEntry
             | Self::InvalidFixupOffset(_)
+            | Self::InvalidDataRelocation(_)
+            | Self::OverlappingDataRelocation { .. }
             | Self::OffsetOverflow
             | Self::AddressOverflow => None,
         }

@@ -71,6 +71,7 @@ impl Analyzer<'_, '_> {
                 .get(&value)
                 .cloned()
                 .unwrap_or_else(|| ValueProvenance::from_source(ProvenanceSource::Unknown)),
+            PlaceRoot::Static(_) => ValueProvenance::independent(),
         };
         for projection in place.projections() {
             match projection {
@@ -95,6 +96,7 @@ impl Analyzer<'_, '_> {
             PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Capture(_) => {
                 state.value(root)
             }
+            PlaceRoot::Static(_) => ValueProvenance::independent(),
         }
     }
 

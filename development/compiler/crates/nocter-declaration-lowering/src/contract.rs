@@ -8,7 +8,7 @@ use crate::{
     SurfaceDeclarationKind,
 };
 
-mod constant;
+mod compile_time_value;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub(super) struct HeaderFingerprint(pub(super) Box<[Box<str>]>);
@@ -71,16 +71,16 @@ impl DeclarationContracts {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DeclarationContractError {
-    MissingConstantInitializer(NodeId),
-    MismatchedConstantInitializer {
+    MissingCompileTimeInitializer(NodeId),
+    MismatchedCompileTimeInitializer {
         contract: NodeId,
         definition: NodeId,
     },
-    DuplicateConstantInitializer {
+    DuplicateCompileTimeInitializer {
         contract: NodeId,
         definition: NodeId,
     },
-    InvalidConstantOmission(NodeId),
+    InvalidCompileTimeOmission(NodeId),
     MissingBody(NodeId),
     MismatchedBody {
         contract: NodeId,
@@ -112,27 +112,27 @@ pub enum DeclarationContractError {
 impl fmt::Display for DeclarationContractError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingConstantInitializer(contract) => write!(
+            Self::MissingCompileTimeInitializer(contract) => write!(
                 formatter,
-                "constant contract {contract:?} has no initializer definition"
+                "compile-time value contract {contract:?} has no initializer definition"
             ),
-            Self::MismatchedConstantInitializer {
+            Self::MismatchedCompileTimeInitializer {
                 contract,
                 definition,
             } => write!(
                 formatter,
-                "constant initializer {definition:?} does not match contract {contract:?}"
+                "compile-time initializer {definition:?} does not match contract {contract:?}"
             ),
-            Self::DuplicateConstantInitializer {
+            Self::DuplicateCompileTimeInitializer {
                 contract,
                 definition,
             } => write!(
                 formatter,
-                "constant contract {contract:?} has duplicate initializer {definition:?}"
+                "compile-time value contract {contract:?} has duplicate initializer {definition:?}"
             ),
-            Self::InvalidConstantOmission(node) => write!(
+            Self::InvalidCompileTimeOmission(node) => write!(
                 formatter,
-                "constant {node:?} omits its initializer outside an eligible public root contract"
+                "compile-time value {node:?} omits its initializer outside an eligible public root contract"
             ),
             Self::MissingBody(contract) => {
                 write!(
@@ -219,7 +219,7 @@ pub fn analyze_declaration_contracts(
         &mut representatives,
         &mut representations,
     )?;
-    constant::join(surface, &mut representatives)?;
+    compile_time_value::join(surface, &mut representatives)?;
     let candidates = collect_body_candidates(surface)?;
     let joined = join_contracts(surface, &candidates, &mut representatives)?;
     join_implementation_containers(
@@ -632,8 +632,10 @@ pub(super) fn fingerprint(
                     .kind();
                 if kind == NodeKind::Visibility
                     || kind == NodeKind::Block
-                    || declaration.kind() == SurfaceDeclarationKind::Constant
-                        && kind == NodeKind::Expression
+                    || matches!(
+                        declaration.kind(),
+                        SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static
+                    ) && kind == NodeKind::Expression
                     || is_member_declaration(kind)
                 {
                     continue;
@@ -652,8 +654,10 @@ pub(super) fn fingerprint(
                 let spelling = source.text_at(token.range()).ok_or(
                     DeclarationContractError::InconsistentSurface(declaration.node()),
                 )?;
-                if declaration.kind() == SurfaceDeclarationKind::Constant
-                    && depth == 0
+                if matches!(
+                    declaration.kind(),
+                    SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static
+                ) && depth == 0
                     && spelling == "="
                 {
                     continue;
@@ -792,6 +796,7 @@ const fn is_member_declaration(kind: NodeKind) -> bool {
         kind,
         NodeKind::FunctionDeclaration
             | NodeKind::ConstantDeclaration
+            | NodeKind::StaticDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration
             | NodeKind::StructField

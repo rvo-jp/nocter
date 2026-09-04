@@ -1134,6 +1134,7 @@ const fn semantic_entity(body: nocter_model::BodyId, target: NameTarget) -> Sema
             ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
             ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
             ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
+            ExportedEntity::Static(id) => SemanticEntity::Static(id),
             ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
         },
     }

@@ -50,9 +50,10 @@ are rejected. Every readonly string reference in a static initializer refers to 
 text.
 
 The compiler evaluates a static initializer once during semantic construction and publishes one
-frozen data object to target lowering. Target layout owns size and alignment. The executable-format
-layer places the resulting bytes in readonly mapped data and performs no source-level evaluation.
-The backend cannot inspect initializer syntax or reconstruct aggregate values.
+typed frozen value to executable lowering. The selected machine layout owns its size, alignment,
+and byte encoding. The executable-format layer places the resulting bytes in readonly mapped data
+and performs no source-level evaluation. The backend cannot inspect initializer syntax or
+reconstruct aggregate values.
 
 `const` remains a storage-independent value and does not become an alias for `static`. `static`
 exists for immutable data whose address and indexed storage are part of execution.

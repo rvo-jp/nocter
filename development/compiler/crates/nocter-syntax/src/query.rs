@@ -13,6 +13,10 @@ pub fn declaration_name_token(tree: &SyntaxTree, declaration: NodeId) -> Option<
         NodeKind::ConstantDeclaration => identifier_after(&tokens, |token| {
             token.kind() == TokenKind::Keyword(Keyword::Const)
         }),
+        NodeKind::StaticDeclaration => {
+            let introducer = declaration_contextual_keyword_token(tree, declaration)?;
+            identifier_after(&tokens, |token| token == introducer)
+        }
         NodeKind::FunctionDeclaration | NodeKind::ConstructionFunction => {
             identifier_after(&tokens, |token| {
                 token.kind() == TokenKind::Keyword(Keyword::Func)
@@ -47,6 +51,27 @@ pub fn declaration_name_token(tree: &SyntaxTree, declaration: NodeId) -> Option<
             .iter()
             .copied()
             .find(|token| token.kind() == TokenKind::Identifier),
+        _ => None,
+    }
+}
+
+/// Returns the exact contextual-keyword token owned by a declaration grammar production.
+///
+/// Contextual words remain identifiers in the lexer so they can still be ordinary names outside
+/// their grammar position. Structural tooling must query the parser-owned role instead of
+/// duplicating source-text tests.
+#[must_use]
+pub fn declaration_contextual_keyword_token(
+    tree: &SyntaxTree,
+    declaration: NodeId,
+) -> Option<SyntaxToken> {
+    match tree.node(declaration)?.kind() {
+        NodeKind::StaticDeclaration => tree.children(declaration).iter().find_map(|element| {
+            let crate::SyntaxElement::Token(token) = element else {
+                return None;
+            };
+            (token.kind() == TokenKind::Identifier).then_some(*token)
+        }),
         _ => None,
     }
 }

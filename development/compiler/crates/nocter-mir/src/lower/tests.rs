@@ -2111,6 +2111,20 @@ fn place_has_capture_projection(place: &crate::MirPlace) -> bool {
         .any(|projection| matches!(projection.kind(), MirProjectionKind::ClosureCapture(_)))
 }
 
+#[test]
+fn lowers_reachable_static_places_without_local_storage() {
+    let program =
+        lower_fixture("static VALUES: [i32; 2] = [40, 2]\nfunc main(): i32 { return VALUES[1] }\n")
+            .unwrap();
+    assert_eq!(program.statics().len(), 1);
+    assert!(program.functions().iter().any(|(_, function)| {
+        function
+            .places()
+            .iter()
+            .any(|(_, place)| matches!(place.root(), crate::MirPlaceRoot::Static(_)))
+    }));
+}
+
 fn lower_fixture(source: &str) -> Result<crate::MirProgram, MirLoweringError> {
     lower_compiler_fixture(&CompilerFixture::with_app(source))
 }

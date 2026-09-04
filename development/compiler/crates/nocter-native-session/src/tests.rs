@@ -2412,6 +2412,40 @@ fn constants_cross_fixed_array_checking_and_native_lowering() {
 }
 
 #[test]
+fn immutable_static_arrays_cross_readonly_data_and_native_relocation() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        concat!(
+            "static VALUES: [u32; 2] = [65, 90]\n",
+            "static LABELS: [&str; 2] = [\"first\", \"second\"]\n",
+            "func main(): i32 {\n",
+            "    if VALUES[1] != 90 { return 1 }\n",
+            "    let first = LABELS[0]\n",
+            "    let second = LABELS[1]\n",
+            "    if first != \"first\" { return 2 }\n",
+            "    if second != \"second\" { return 3 }\n",
+            "    return 0\n",
+            "}\n",
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_test(image.image(), &package_root.0, "immutable-static-data");
+}
+
+#[test]
 fn body_failure_retains_preparation_and_exact_typed_interruption() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

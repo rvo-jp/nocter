@@ -269,7 +269,8 @@ fn documentable_nodes(syntax: &SyntaxTree, parents: &[Option<NodeId>]) -> Vec<Do
 const fn is_documentable(kind: NodeKind) -> bool {
     matches!(
         kind,
-        NodeKind::FunctionDeclaration
+        NodeKind::StaticDeclaration
+            | NodeKind::FunctionDeclaration
             | NodeKind::PrimitiveTypeDeclaration
             | NodeKind::TypeAliasDeclaration
             | NodeKind::StructDeclaration

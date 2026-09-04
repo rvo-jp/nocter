@@ -1,13 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use nocter_model::{ConstantId, ConstantValue};
+use nocter_model::{ConstantId, ConstantValue, FrozenValue};
 use nocter_syntax::Punctuation;
 use nocter_syntax::SyntaxOrigin;
 
 use crate::ConstantExpressionRule;
 use crate::model::{
-    ConstantExpressionPlan, ConstantOperation, ConstantScalarType, PlanNode, PlanNodeId,
+    ConstantExpressionPlan, ConstantOperation, ConstantScalarType, FrozenExpressionPlan, PlanNode,
+    PlanNodeId,
 };
 use crate::support::{integer_spec, shift};
 
@@ -74,6 +75,27 @@ pub fn evaluate_expression_plan(
         lookup: |id| Ok(lookup(id)),
     };
     evaluator.evaluate(plan.root).map(|value| value.value)
+}
+
+/// Evaluates one closed scalar-or-array plan without recovering aggregate structure from syntax.
+///
+/// # Errors
+///
+/// Returns the first scalar leaf evaluation failure.
+pub fn evaluate_frozen_expression_plan(
+    plan: &FrozenExpressionPlan,
+    lookup: &mut impl FnMut(ConstantId) -> Option<ConstantValue>,
+) -> Result<FrozenValue, ConstantEvaluationError> {
+    match plan {
+        FrozenExpressionPlan::Scalar(plan) => {
+            evaluate_expression_plan(plan, lookup).map(FrozenValue::Scalar)
+        }
+        FrozenExpressionPlan::FixedArray { elements, .. } => elements
+            .iter()
+            .map(|element| evaluate_frozen_expression_plan(element, lookup))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|values| FrozenValue::FixedArray(values.into_boxed_slice())),
+    }
 }
 
 /// Evaluates a complete constant dependency graph after rejecting every authored cycle.

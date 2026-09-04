@@ -35,7 +35,7 @@ pub use nocter_language::BuiltinType;
 pub use origin::SyntaxOrigin;
 pub use parser::{ParseGoal, ParsedSyntax, parse, parse_reusable};
 pub use provider::{DirectSourceSyntax, SourceSyntaxError, SourceSyntaxProvider};
-pub use query::declaration_name_token;
+pub use query::{declaration_contextual_keyword_token, declaration_name_token};
 pub use surface::{
     DeclarationSyntaxLocator, DeclarationSyntaxProjection, DeclarationSyntaxSurface,
     project_declaration_syntax,

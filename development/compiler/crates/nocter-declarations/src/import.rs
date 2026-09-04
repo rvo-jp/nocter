@@ -1,5 +1,6 @@
 use nocter_model::{
-    BuiltinType, CallableId, ConstantId, InterfaceId, ModuleId, NominalTypeId, Symbol, TypeAliasId,
+    BuiltinType, CallableId, ConstantId, InterfaceId, ModuleId, NominalTypeId, StaticId, Symbol,
+    TypeAliasId,
 };
 
 use crate::Visibility;
@@ -13,6 +14,7 @@ pub enum ExportedEntity {
     Interface(InterfaceId),
     Callable(CallableId),
     Constant(ConstantId),
+    Static(StaticId),
 }
 
 impl ExportedEntity {

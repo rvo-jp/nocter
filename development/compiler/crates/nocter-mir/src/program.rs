@@ -1,6 +1,8 @@
 use std::fmt;
 
-use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, MirPlaceId, TestId, TypeId};
+use nocter_model::{
+    Arena, ArenaBuilder, ExecutableItemId, ExecutableStaticId, MirPlaceId, TestId, TypeId,
+};
 use nocter_runtime_contract::{
     RuntimeAbiIdentity, RuntimeEnvironment, RuntimeTypeRepresentationTable, RuntimeTypeTable,
 };
@@ -8,13 +10,14 @@ use nocter_target_program::{ExecutableProgram, ExecutableRoot};
 
 use crate::program_validation::validate_program;
 use crate::validate::validate_root;
-use crate::{MirFunction, MirRoot, MirValidationError, validate_function};
+use crate::{MirFunction, MirRoot, MirStatic, MirValidationError, validate_function};
 
 /// One closed executable with one function per executable item and its compiler-owned roots.
 #[derive(Debug)]
 pub struct MirProgram {
     runtime: RuntimeEnvironment,
     functions: Arena<ExecutableItemId, MirFunction>,
+    statics: Arena<ExecutableStaticId, MirStatic>,
     root: MirRoot,
 }
 
@@ -40,6 +43,11 @@ impl MirProgram {
     }
 
     #[must_use]
+    pub const fn statics(&self) -> &Arena<ExecutableStaticId, MirStatic> {
+        &self.statics
+    }
+
+    #[must_use]
     pub const fn root(&self) -> &MirRoot {
         &self.root
     }
@@ -49,6 +57,7 @@ impl MirProgram {
 #[derive(Debug)]
 pub struct MirProgramBuilder {
     executable: ExecutableProgram,
+    statics: Arena<ExecutableStaticId, MirStatic>,
     functions: ArenaBuilder<ExecutableItemId, Option<MirFunction>>,
     root: Option<MirRoot>,
 }
@@ -60,8 +69,13 @@ impl MirProgramBuilder {
         for _ in executable.items().iter() {
             functions.insert(None);
         }
+        let mut statics = ArenaBuilder::new();
+        for (_, value) in executable.statics().iter() {
+            statics.insert(MirStatic::new(value.ty(), value.value().clone()));
+        }
         Self {
             executable,
+            statics: statics.finish(),
             functions,
             root: None,
         }
@@ -137,6 +151,7 @@ impl MirProgramBuilder {
         Ok(MirProgram {
             runtime,
             functions,
+            statics: self.statics,
             root,
         })
     }

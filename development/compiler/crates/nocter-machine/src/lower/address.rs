@@ -1,5 +1,5 @@
-use nocter_mir::{MirBody, MirPlace, MirPlaceRoot, MirProjectionKind};
-use nocter_model::{MirPlaceId, TypeId};
+use nocter_mir::{MirBody, MirPlace, MirPlaceRoot, MirProjectionKind, MirStatic};
+use nocter_model::{Arena, ExecutableStaticId, MirPlaceId, TypeId};
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::body::BodyIdentities;
@@ -11,31 +11,47 @@ use crate::{
 
 pub(super) fn lower_addresses(
     body: &MirBody,
+    statics: &Arena<ExecutableStaticId, MirStatic>,
     types: &RuntimeTypeTable,
     layouts: &MachineLayoutPlan,
+    data: &crate::data::MachineDataPlan,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineAddress>, MachineProgramError> {
+    let context = AddressLoweringContext {
+        body,
+        statics,
+        types,
+        layouts,
+        data,
+        ids,
+    };
     body.places()
         .iter()
-        .map(|(place, value)| lower_address(place, value, body, types, layouts, ids))
+        .map(|(place, value)| lower_address(place, value, context))
         .collect()
+}
+
+#[derive(Clone, Copy)]
+struct AddressLoweringContext<'a> {
+    body: &'a MirBody,
+    statics: &'a Arena<ExecutableStaticId, MirStatic>,
+    types: &'a RuntimeTypeTable,
+    layouts: &'a MachineLayoutPlan,
+    data: &'a crate::data::MachineDataPlan,
+    ids: &'a BodyIdentities,
 }
 
 fn lower_address(
     place: MirPlaceId,
     value: &MirPlace,
-    body: &MirBody,
-    types: &RuntimeTypeTable,
-    layouts: &MachineLayoutPlan,
-    ids: &BodyIdentities,
+    lowering: AddressLoweringContext<'_>,
 ) -> Result<MachineAddress, MachineProgramError> {
-    let (root, mut current, mut current_view) =
-        lower_root(place, value.root(), body, types, layouts, ids)?;
+    let (root, mut current, mut current_view) = lower_root(place, value.root(), lowering)?;
     let context = ProjectionContext {
         place,
-        types,
-        layouts,
-        ids,
+        types: lowering.types,
+        layouts: lowering.layouts,
+        ids: lowering.ids,
     };
     let mut state = AddressState {
         steps: Vec::with_capacity(value.projections().len()),
@@ -49,25 +65,26 @@ fn lower_address(
     let steps = state.steps;
     if current != value.ty() {
         return Err(address_error(
-            ids,
+            lowering.ids,
             place,
             MachineAddressError::InvalidProjection,
         ));
     }
     if current_view {
         if !matches!(
-            types.get(value.ty()),
+            lowering.types.get(value.ty()),
             Some(RuntimeType::Primitive(RuntimePrimitive::Text) | RuntimeType::Slice(_))
         ) {
             return Err(address_error(
-                ids,
+                lowering.ids,
                 place,
                 MachineAddressError::InvalidProjection,
             ));
         }
         return Ok(MachineAddress::new_view(value.ty(), root, steps));
     }
-    let layout = layouts
+    let layout = lowering
+        .layouts
         .get(value.ty())
         .ok_or(MachineProgramError::MissingStoredLayout(value.ty()))?;
     Ok(MachineAddress::new(
@@ -82,41 +99,48 @@ fn lower_address(
 fn lower_root(
     place: MirPlaceId,
     root: MirPlaceRoot,
-    body: &MirBody,
-    types: &RuntimeTypeTable,
-    layouts: &MachineLayoutPlan,
-    ids: &BodyIdentities,
+    context: AddressLoweringContext<'_>,
 ) -> Result<(MachineAddressRoot, TypeId, bool), MachineProgramError> {
     match root {
         MirPlaceRoot::Local(local) => {
             let source = local;
-            let local = body
-                .locals()
-                .get(source)
-                .copied()
-                .ok_or_else(|| address_error(ids, place, MachineAddressError::InvalidRoot))?;
+            let local = context.body.locals().get(source).copied().ok_or_else(|| {
+                address_error(context.ids, place, MachineAddressError::InvalidRoot)
+            })?;
             Ok((
-                MachineAddressRoot::Stack(ids.stack(source)?),
+                MachineAddressRoot::Stack(context.ids.stack(source)?),
                 local.ty(),
                 false,
             ))
         }
+        MirPlaceRoot::Static(id) => {
+            let definition = context.data.static_value(id).ok_or_else(|| {
+                address_error(context.ids, place, MachineAddressError::InvalidRoot)
+            })?;
+            let ty = context.statics.get(id).map(MirStatic::ty).ok_or_else(|| {
+                address_error(context.ids, place, MachineAddressError::InvalidRoot)
+            })?;
+            Ok((MachineAddressRoot::Data(definition), ty, false))
+        }
         MirPlaceRoot::Dereference { value, .. } => {
-            let source = body
-                .values()
-                .get(value)
-                .copied()
-                .ok_or_else(|| address_error(ids, place, MachineAddressError::InvalidRoot))?;
-            let Some(RuntimeType::Borrow { referent, .. }) = types.get(source.ty()) else {
-                return Err(address_error(ids, place, MachineAddressError::InvalidRoot));
+            let source = context.body.values().get(value).copied().ok_or_else(|| {
+                address_error(context.ids, place, MachineAddressError::InvalidRoot)
+            })?;
+            let Some(RuntimeType::Borrow { referent, .. }) = context.types.get(source.ty()) else {
+                return Err(address_error(
+                    context.ids,
+                    place,
+                    MachineAddressError::InvalidRoot,
+                ));
             };
-            let layout = layouts
+            let layout = context
+                .layouts
                 .get(source.ty())
                 .ok_or(MachineProgramError::MissingStoredLayout(source.ty()))?;
             match layout.kind() {
                 MachineLayoutKind::Pointer => Ok((
                     MachineAddressRoot::Pointer {
-                        value: ids.value(value)?,
+                        value: context.ids.value(value)?,
                     },
                     *referent,
                     false,
@@ -126,14 +150,18 @@ fn lower_root(
                     length_offset,
                 } => Ok((
                     MachineAddressRoot::View {
-                        value: ids.value(value)?,
+                        value: context.ids.value(value)?,
                         pointer_offset: *pointer_offset,
                         length_offset: *length_offset,
                     },
                     *referent,
                     true,
                 )),
-                _ => Err(address_error(ids, place, MachineAddressError::InvalidRoot)),
+                _ => Err(address_error(
+                    context.ids,
+                    place,
+                    MachineAddressError::InvalidRoot,
+                )),
             }
         }
     }

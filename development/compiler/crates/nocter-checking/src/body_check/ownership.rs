@@ -669,8 +669,9 @@ impl OwnershipAnalyzer<'_> {
         }
         if !matches!(place.root(), crate::PlaceRoot::Value(_))
             && (place.has_dynamic_evaluation() || place.access() != PlaceAccess::Owned)
+            && let Some(required) = MovePath::required_initialized(&place)
         {
-            self.require_path_initialized(node, &MovePath::initialized_base(&place), state)?;
+            self.require_path_initialized(node, &required, state)?;
         }
         let actions = match place.access() {
             PlaceAccess::Owned => {
@@ -728,9 +729,9 @@ impl OwnershipAnalyzer<'_> {
         if !self.visit_place_evaluation(&place, state)? {
             return Ok(false);
         }
-        if !matches!(place.root(), crate::PlaceRoot::Value(_)) {
-            let required =
-                MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
+        if !matches!(place.root(), crate::PlaceRoot::Value(_))
+            && let Some(required) = MovePath::required_initialized(&place)
+        {
             self.require_path_initialized(node, &required, state)?;
         }
         Ok(true)
@@ -765,9 +766,9 @@ impl OwnershipAnalyzer<'_> {
         if !self.visit_place_evaluation(&place, state)? {
             return Ok(false);
         }
-        if !matches!(place.root(), crate::PlaceRoot::Value(_)) {
-            let required =
-                MovePath::from_place(&place).unwrap_or_else(|| MovePath::initialized_base(&place));
+        if !matches!(place.root(), crate::PlaceRoot::Value(_))
+            && let Some(required) = MovePath::required_initialized(&place)
+        {
             self.require_path_initialized(node, &required, state)?;
         }
         Ok(true)

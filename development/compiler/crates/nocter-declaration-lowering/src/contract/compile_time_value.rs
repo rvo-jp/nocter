@@ -13,61 +13,61 @@ use super::{
 };
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct ConstantKey {
+struct CompileTimeValueKey {
     module: ModuleIdentity,
+    kind: SurfaceDeclarationKind,
     header: HeaderFingerprint,
 }
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-struct LooseConstantKey {
+struct LooseCompileTimeValueKey {
     module: ModuleIdentity,
+    kind: SurfaceDeclarationKind,
     name: Box<str>,
 }
 
-/// Joins one public root constant contract to one private initializer definition.
+/// Joins one public root const or static contract to one private initializer definition.
 pub(super) fn join(
     surface: &DeclarationSurface<'_>,
     representatives: &mut [SurfaceDeclarationId],
 ) -> Result<(), DeclarationContractError> {
-    let mut exact = BTreeMap::<ConstantKey, Vec<SurfaceDeclarationId>>::new();
-    let mut loose = BTreeMap::<LooseConstantKey, Vec<SurfaceDeclarationId>>::new();
+    let mut exact = BTreeMap::<CompileTimeValueKey, Vec<SurfaceDeclarationId>>::new();
+    let mut loose = BTreeMap::<LooseCompileTimeValueKey, Vec<SurfaceDeclarationId>>::new();
     for (index, declaration) in surface.declarations().iter().copied().enumerate() {
-        if declaration.kind() != SurfaceDeclarationKind::Constant
+        if !is_compile_time_value(declaration.kind())
             || source_kind(surface, declaration)? != ModuleSourceKind::Implementation
         {
             continue;
         }
         if !has_initializer(surface, declaration)? {
-            return Err(DeclarationContractError::InvalidConstantOmission(
+            return Err(DeclarationContractError::InvalidCompileTimeOmission(
                 declaration.node(),
             ));
         }
         let id = SurfaceDeclarationId::from_index(index);
         exact
-            .entry(constant_key(surface, declaration)?)
+            .entry(compile_time_value_key(surface, declaration)?)
             .or_default()
             .push(id);
         loose
-            .entry(loose_constant_key(surface, declaration)?)
+            .entry(loose_compile_time_value_key(surface, declaration)?)
             .or_default()
             .push(id);
     }
 
     let mut used = BTreeSet::new();
     for (index, contract) in surface.declarations().iter().copied().enumerate() {
-        if contract.kind() != SurfaceDeclarationKind::Constant
-            || has_initializer(surface, contract)?
-        {
+        if !is_compile_time_value(contract.kind()) || has_initializer(surface, contract)? {
             continue;
         }
         if !is_eligible_contract(surface, contract)? {
-            return Err(DeclarationContractError::InvalidConstantOmission(
+            return Err(DeclarationContractError::InvalidCompileTimeOmission(
                 contract.node(),
             ));
         }
         let contract_id = SurfaceDeclarationId::from_index(index);
         let candidates = exact
-            .get(&constant_key(surface, contract)?)
+            .get(&compile_time_value_key(surface, contract)?)
             .map(Vec::as_slice)
             .unwrap_or_default()
             .iter()
@@ -83,7 +83,7 @@ pub(super) fn join(
         match candidates.as_slice() {
             [] => {
                 if let Some(definition) = loose
-                    .get(&loose_constant_key(surface, contract)?)
+                    .get(&loose_compile_time_value_key(surface, contract)?)
                     .and_then(|definitions| {
                         definitions.iter().find(|definition| {
                             has_reciprocal_source_visibility(
@@ -94,18 +94,18 @@ pub(super) fn join(
                         })
                     })
                 {
-                    return Err(DeclarationContractError::MismatchedConstantInitializer {
+                    return Err(DeclarationContractError::MismatchedCompileTimeInitializer {
                         contract: contract.node(),
                         definition: surface.declarations()[definition.index()].node(),
                     });
                 }
-                return Err(DeclarationContractError::MissingConstantInitializer(
+                return Err(DeclarationContractError::MissingCompileTimeInitializer(
                     contract.node(),
                 ));
             }
             [definition] => {
                 if !used.insert(*definition) {
-                    return Err(DeclarationContractError::DuplicateConstantInitializer {
+                    return Err(DeclarationContractError::DuplicateCompileTimeInitializer {
                         contract: contract.node(),
                         definition: surface.declarations()[definition.index()].node(),
                     });
@@ -113,7 +113,7 @@ pub(super) fn join(
                 representatives[definition.index()] = contract_id;
             }
             [_, duplicate, ..] => {
-                return Err(DeclarationContractError::DuplicateConstantInitializer {
+                return Err(DeclarationContractError::DuplicateCompileTimeInitializer {
                     contract: contract.node(),
                     definition: surface.declarations()[duplicate.index()].node(),
                 });
@@ -123,23 +123,24 @@ pub(super) fn join(
     Ok(())
 }
 
-fn constant_key(
+fn compile_time_value_key(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
-) -> Result<ConstantKey, DeclarationContractError> {
+) -> Result<CompileTimeValueKey, DeclarationContractError> {
     let source = surface.sources().get(declaration.source().index()).ok_or(
         DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
-    Ok(ConstantKey {
+    Ok(CompileTimeValueKey {
         module: source.module().clone(),
+        kind: declaration.kind(),
         header: fingerprint(surface, declaration)?,
     })
 }
 
-fn loose_constant_key(
+fn loose_compile_time_value_key(
     surface: &DeclarationSurface<'_>,
     declaration: SurfaceDeclaration,
-) -> Result<LooseConstantKey, DeclarationContractError> {
+) -> Result<LooseCompileTimeValueKey, DeclarationContractError> {
     let source = surface.sources().get(declaration.source().index()).ok_or(
         DeclarationContractError::InconsistentSurface(declaration.node()),
     )?;
@@ -155,10 +156,18 @@ fn loose_constant_key(
         .ok_or(DeclarationContractError::InconsistentSurface(
             declaration.node(),
         ))?;
-    Ok(LooseConstantKey {
+    Ok(LooseCompileTimeValueKey {
         module: source.module().clone(),
+        kind: declaration.kind(),
         name: text.into(),
     })
+}
+
+const fn is_compile_time_value(kind: SurfaceDeclarationKind) -> bool {
+    matches!(
+        kind,
+        SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static
+    )
 }
 
 fn has_initializer(

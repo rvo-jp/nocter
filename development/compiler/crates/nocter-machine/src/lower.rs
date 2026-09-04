@@ -38,7 +38,7 @@ impl MachineProgram {
         let layouts = MachineLayoutPlan::build(program)?;
         let abi = MachineAbiPlan::build(program, &layouts)?;
         let linkage = MachineLinkagePlan::build(program)?;
-        let data = crate::data::MachineDataPlan::build(program);
+        let data = crate::data::MachineDataPlan::build(program, &layouts)?;
         let source_functions = crate::function_domain::MachineFunctionDomain::new(&linkage);
         let destructions =
             MachineDestructionPlanTable::build(program, &layouts, &linkage, source_functions)?;
@@ -67,6 +67,7 @@ impl MachineProgram {
                         linkage_id,
                         body,
                         ProgramLoweringContext {
+                            statics: program.statics(),
                             types: program.types(),
                             layouts: &layouts,
                             abi: &abi,
@@ -229,6 +230,7 @@ pub enum MachineProgramError {
     MissingGeneratedDestruction(MachineLinkageId, MirOperationId),
     MissingStoredLayout(TypeId),
     MissingStaticText(Box<str>),
+    InvalidStaticData(nocter_model::ExecutableStaticId),
     MissingBodyIdentity {
         owner: MachineLinkageId,
         source: Box<str>,
@@ -303,6 +305,7 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingGeneratedDestruction(_, _)
             | Self::MissingStoredLayout(_)
             | Self::MissingStaticText(_)
+            | Self::InvalidStaticData(_)
             | Self::MissingBodyIdentity { .. }
             | Self::Address { .. }
             | Self::Aggregate { .. }

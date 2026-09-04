@@ -6,7 +6,7 @@ use nocter_frontend_bindings::DuplicateBlockImport;
 use nocter_model::{
     AssociatedTypeId, BuiltinType, CallableId, ConstantId, ConstructionId, DropId, InstanceId,
     InterfaceId, InterfaceImplementationId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
-    TestId, TypeAliasId, VariantId,
+    StaticId, TestId, TypeAliasId, VariantId,
 };
 use nocter_runtime_contract::PrimitiveBinding;
 use nocter_source::{SourceId, SourceMap};
@@ -31,6 +31,7 @@ pub enum ReservedEntity {
     Interface(InterfaceId),
     AssociatedType(AssociatedTypeId),
     Constant(ConstantId),
+    Static(StaticId),
     Callable(CallableId),
     Construction(ConstructionId),
     Instance(InstanceId),
@@ -102,6 +103,7 @@ impl ReservedEntity {
             Self::Interface(id) => SemanticEntity::Interface(id),
             Self::AssociatedType(id) => SemanticEntity::AssociatedType(id),
             Self::Constant(id) => SemanticEntity::Constant(id),
+            Self::Static(id) => SemanticEntity::Static(id),
             Self::Callable(id) => SemanticEntity::Callable(id),
             Self::Construction(id) => SemanticEntity::Construction(id),
             Self::Instance(id) => SemanticEntity::Instance(id),
@@ -685,6 +687,9 @@ fn reserve_entity(
         SurfaceDeclarationKind::Constant => {
             Some(ReservedEntity::Constant(declarations.reserve_constant()))
         }
+        SurfaceDeclarationKind::Static => {
+            Some(ReservedEntity::Static(declarations.reserve_static()))
+        }
         SurfaceDeclarationKind::Function
         | SurfaceDeclarationKind::PrimitiveFunction
         | SurfaceDeclarationKind::InterfaceMethod
@@ -766,6 +771,7 @@ fn validate_owner(
             })
         }),
         SurfaceDeclarationKind::Constant
+        | SurfaceDeclarationKind::Static
         | SurfaceDeclarationKind::Function
         | SurfaceDeclarationKind::PrimitiveFunction
         | SurfaceDeclarationKind::TypeAlias

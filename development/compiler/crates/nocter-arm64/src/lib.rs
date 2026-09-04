@@ -79,8 +79,8 @@ pub use pack_layout::{
     Arm64PackDescriptorLayout, Arm64PackLayoutError, Arm64PackSegmentLayout, Arm64PackStateLayout,
 };
 pub use program::{
-    Arm64DataAddressFixup, Arm64DataRange, Arm64FunctionRange, Arm64Program, Arm64ProgramBuilder,
-    Arm64ProgramError,
+    Arm64DataAddressFixup, Arm64DataPointerFixup, Arm64DataRange, Arm64FunctionRange, Arm64Program,
+    Arm64ProgramBuilder, Arm64ProgramError, Arm64RelocatedSections,
 };
 pub use register::{
     Arm64AddSubtractDestination, Arm64BaseRegister, Arm64DataRegister, Arm64Register,

@@ -146,7 +146,23 @@ fn lower_machine_entry(
         if source.index() != data.len() {
             return Err(Arm64LoweringError::NonDenseData(source));
         }
-        data.push((source, builder.add_data(definition.bytes(), 1)?));
+        data.push((
+            source,
+            builder.add_data(definition.bytes(), definition.alignment())?,
+        ));
+    }
+    for (source, definition) in machine.data().iter() {
+        let source_target = data
+            .get(source.index())
+            .and_then(|(actual, target)| (*actual == source).then_some(*target))
+            .ok_or(Arm64LoweringError::NonDenseData(source))?;
+        for relocation in definition.relocations() {
+            let target = data
+                .get(relocation.target().index())
+                .and_then(|(actual, target)| (*actual == relocation.target()).then_some(*target))
+                .ok_or(Arm64LoweringError::NonDenseData(relocation.target()))?;
+            builder.add_data_relocation(source_target, relocation.offset(), target)?;
+        }
     }
     for function in &selected {
         let target = functions

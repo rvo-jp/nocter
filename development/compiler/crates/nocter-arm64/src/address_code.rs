@@ -10,6 +10,7 @@ use crate::{
 pub(crate) fn emit_resolve(
     function: &Arm64SelectedFunction,
     calculation: &Arm64SelectedAddressCalculation,
+    data: &[(nocter_machine::MachineDataId, crate::Arm64DataId)],
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
     let address = crate::address_selection::runtime_address_register();
@@ -18,6 +19,13 @@ pub(crate) fn emit_resolve(
         Arm64SelectedAddressRoot::Stack(root) => {
             let offset = crate::selected_code::stack_offset(function, root, 0)?;
             crate::frame_access::form_stack_address(code, address, offset);
+        }
+        Arm64SelectedAddressRoot::Data(source) => {
+            let target = data
+                .get(source.index())
+                .and_then(|(actual, target)| (*actual == source).then_some(*target))
+                .ok_or(Arm64MaterializationError::UnknownData(source))?;
+            code.load_data_address(target, address);
         }
         Arm64SelectedAddressRoot::Pointer(pointer) => {
             move_selected(function, pointer, address, code)?;

@@ -52,6 +52,7 @@ impl Analyzer<'_, '_> {
             PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Capture(_) => {
                 state.value(&LiveSlot::Place(LivePlace::from_checked(place)))
             }
+            PlaceRoot::Static(_) => LoanValue::independent(),
         })
     }
 
@@ -191,6 +192,7 @@ impl Analyzer<'_, '_> {
             PlaceRoot::Parameter(_) | PlaceRoot::Local(_) | PlaceRoot::Capture(_) => state.value(
                 &LiveSlot::Place(LivePlace::from_parts(place.root(), prefix)),
             ),
+            PlaceRoot::Static(_) => LoanValue::independent(),
         };
         let parents = carrier.all_loans();
         let suffix = Self::loan_projections(&place.projections()[dereference + 1..]);

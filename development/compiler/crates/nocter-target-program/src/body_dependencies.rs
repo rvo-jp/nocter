@@ -11,7 +11,7 @@ use nocter_checking::{
 };
 use nocter_model::{
     BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, DropId, LocalBindingId, LoopId,
-    ParameterId, PlaceId, TypeId, VariantId,
+    ParameterId, PlaceId, StaticId, TypeId, VariantId,
 };
 
 use crate::TargetProgram;
@@ -30,6 +30,7 @@ pub struct CheckedBodyDependencies {
     types: Box<[TypeId]>,
     prepared_borrows: Box<[PreparedBorrow]>,
     destructions: Box<[CheckedDestruction]>,
+    statics: Box<[StaticId]>,
 }
 
 impl CheckedBodyDependencies {
@@ -70,6 +71,11 @@ impl CheckedBodyDependencies {
     #[must_use]
     pub const fn destructions(&self) -> &[CheckedDestruction] {
         &self.destructions
+    }
+
+    #[must_use]
+    pub const fn statics(&self) -> &[StaticId] {
+        &self.statics
     }
 }
 
@@ -177,6 +183,8 @@ struct DependencyCollector<'program> {
     types: Vec<TypeId>,
     prepared_borrows: Vec<PreparedBorrow>,
     destructions: Vec<CheckedDestruction>,
+    static_set: HashSet<StaticId>,
+    statics: Vec<StaticId>,
 }
 
 impl<'program> DependencyCollector<'program> {
@@ -201,6 +209,8 @@ impl<'program> DependencyCollector<'program> {
             types: Vec::new(),
             prepared_borrows: Vec::new(),
             destructions: Vec::new(),
+            static_set: HashSet::new(),
+            statics: Vec::new(),
         }
     }
 
@@ -213,6 +223,7 @@ impl<'program> DependencyCollector<'program> {
             types: self.types.into_boxed_slice(),
             prepared_borrows: self.prepared_borrows.into_boxed_slice(),
             destructions: self.destructions.into_boxed_slice(),
+            statics: self.statics.into_boxed_slice(),
         }
     }
 
@@ -669,6 +680,11 @@ impl<'program> DependencyCollector<'program> {
             }
             nocter_checking::PlaceRoot::Parameter(_) => {}
             nocter_checking::PlaceRoot::Value(value) => self.visit_node(value)?,
+            nocter_checking::PlaceRoot::Static(id) => {
+                if self.static_set.insert(id) {
+                    self.statics.push(id);
+                }
+            }
         }
         for projection in place.projections() {
             self.record_type(projection.ty())?;

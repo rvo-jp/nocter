@@ -49,6 +49,7 @@ impl SurfaceSourceId {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum SurfaceDeclarationKind {
     Constant,
+    Static,
     Function,
     PrimitiveFunction,
     PrimitiveType,
@@ -876,6 +877,7 @@ fn contains_child_kind(tree: &SyntaxTree, root: NodeId, expected: NodeKind) -> b
 fn top_level_kind(tree: &SyntaxTree, node: NodeId) -> Option<SurfaceDeclarationKind> {
     match tree.node(node)?.kind() {
         NodeKind::ConstantDeclaration => Some(SurfaceDeclarationKind::Constant),
+        NodeKind::StaticDeclaration => Some(SurfaceDeclarationKind::Static),
         NodeKind::FunctionDeclaration => Some(
             if contains_direct_keyword(tree, node, nocter_syntax::Keyword::Primitive) {
                 SurfaceDeclarationKind::PrimitiveFunction

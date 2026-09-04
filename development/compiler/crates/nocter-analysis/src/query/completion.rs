@@ -783,6 +783,9 @@ fn exported_candidate(graph: &DeclarationGraph, exported: ExportedEntity) -> Opt
             SemanticEntity::Constant(constant),
             SemanticCompletionKind::Constant,
         ),
+        ExportedEntity::Static(id) => {
+            (SemanticEntity::Static(id), SemanticCompletionKind::Constant)
+        }
         ExportedEntity::Callable(callable) => (
             SemanticEntity::Callable(callable),
             SemanticCompletionKind::Function,
@@ -799,6 +802,7 @@ const fn exported_entity(entity: SemanticEntity) -> Option<ExportedEntity> {
         SemanticEntity::TypeAlias(id) => Some(ExportedEntity::TypeAlias(id)),
         SemanticEntity::Interface(id) => Some(ExportedEntity::Interface(id)),
         SemanticEntity::Constant(id) => Some(ExportedEntity::Constant(id)),
+        SemanticEntity::Static(id) => Some(ExportedEntity::Static(id)),
         SemanticEntity::Callable(id) => Some(ExportedEntity::Callable(id)),
         _ => None,
     }

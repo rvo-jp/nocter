@@ -11,7 +11,7 @@ use crate::{
     ReservationError, SourceDiagnostic, SurfaceDiagnostic, SurfaceError, ToolchainError,
     TopologyDiagnostic, TypeBindingDiagnostic, TypeBindingError, TypeNormalizationDiagnostic,
     TypeNormalizationError, analyze_declaration_contracts, apply_toolchain_profile,
-    bind_header_type_syntax, collect_declaration_surface, evaluate_header_constants,
+    bind_header_type_syntax, collect_declaration_surface, evaluate_compile_time_values,
     normalize_header_types, prepare_authored_imports, prepare_declaration_headers,
     prepare_generic_binders,
 };
@@ -323,15 +323,15 @@ fn prepare_compile_unit_declarations_from<'syntax>(
     };
     let namespaces = prepare_toolchain_namespaces(imports, input)?;
     let bound = bind_types(namespaces, input)?;
-    let bound = evaluate_constants(bound, input)?;
+    let bound = evaluate_compile_time_values_for_pipeline(bound, input)?;
     normalize_types(bound, input)
 }
 
-fn evaluate_constants<'syntax>(
+fn evaluate_compile_time_values_for_pipeline<'syntax>(
     bound: PreparedTypeBindings<'syntax>,
     input: &CompileUnitInput<'syntax>,
 ) -> Result<PreparedTypeBindings<'syntax>, DeclarationLoweringError> {
-    match evaluate_header_constants(bound) {
+    match evaluate_compile_time_values(bound) {
         Ok(bound) => Ok(bound),
         Err(HeaderDefinitionError::Rule(violation)) => {
             match DefinitionDiagnostic::project(violation, input) {
@@ -812,7 +812,10 @@ mod tests {
         let DeclarationLoweringError::Namespace(diagnostic) = error else {
             panic!("invalid constant name did not produce a namespace diagnostic");
         };
-        assert_eq!(diagnostic.rule(), NamespaceRule::InvalidConstantName);
+        assert_eq!(
+            diagnostic.rule(),
+            NamespaceRule::InvalidCompileTimeValueName
+        );
         assert_eq!(diagnostic.source().code(), "E0243");
         assert_eq!(diagnostic.source().primary().source(), root_id);
         assert!(diagnostic.source().primary().token().is_some());

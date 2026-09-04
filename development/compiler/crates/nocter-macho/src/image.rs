@@ -17,6 +17,13 @@ const LC_MAIN: u32 = 0x8000_0028;
 const LC_LOAD_DYLIB: u32 = 0x0c;
 const LC_CODE_SIGNATURE: u32 = 0x1d;
 const LC_UUID: u32 = 0x1b;
+const LC_DYLD_INFO_ONLY: u32 = 0x8000_0022;
+
+const REBASE_TYPE_POINTER: u8 = 1;
+const REBASE_OPCODE_SET_TYPE_IMM: u8 = 0x10;
+const REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB: u8 = 0x20;
+const REBASE_OPCODE_DO_REBASE_IMM_TIMES: u8 = 0x50;
+const DATA_CONST_SEGMENT_INDEX: u8 = 2;
 
 const SEGMENT_COMMAND_SIZE: u32 = 72;
 const SECTION_SIZE: u32 = 80;
@@ -24,6 +31,7 @@ const LINKEDIT_DATA_COMMAND_SIZE: u32 = 16;
 const MAIN_COMMAND_SIZE: u32 = 24;
 const BUILD_VERSION_COMMAND_SIZE: u32 = 24;
 const UUID_COMMAND_SIZE: u32 = 24;
+const DYLD_INFO_COMMAND_SIZE: u32 = 48;
 
 const CODE_DIRECTORY_MAGIC: u32 = 0xfade_0c02;
 const EMBEDDED_SIGNATURE_MAGIC: u32 = 0xfade_0cc0;
@@ -53,22 +61,26 @@ impl MachOImage {
     /// relocation failure, and file layouts that exceed 32-bit Mach-O command offsets.
     pub fn build(program: &Arm64Program) -> Result<Self, MachOError> {
         let layout = ImageLayout::new(program)?;
-        let relocated_text = program.relocate_addresses(
+        let relocated = program.relocate_sections(
             checked_add(VM_BASE, layout.text_offset)?,
             checked_add(VM_BASE, layout.data_offset)?,
         )?;
         let uuid = image_uuid(
-            &relocated_text,
-            program.read_only_data(),
+            relocated.text(),
+            relocated.read_only_data(),
             layout.entry_offset,
         );
         let mut bytes = Vec::with_capacity(layout.file_size()?);
         write_header(&mut bytes, &layout);
         write_load_commands(&mut bytes, &layout, uuid);
         resize_to(&mut bytes, layout.text_offset)?;
-        bytes.extend_from_slice(&relocated_text);
+        bytes.extend_from_slice(relocated.text());
         resize_to(&mut bytes, layout.data_offset)?;
-        bytes.extend_from_slice(program.read_only_data());
+        bytes.extend_from_slice(relocated.read_only_data());
+        if !layout.rebase_info.is_empty() {
+            resize_to(&mut bytes, layout.rebase_offset)?;
+            bytes.extend_from_slice(&layout.rebase_info);
+        }
         resize_to(&mut bytes, layout.signature_offset)?;
         let signature = code_signature(
             &bytes,
@@ -101,8 +113,12 @@ struct ImageLayout {
     data_offset: u64,
     data_size: u64,
     data_alignment_power: u32,
+    rebase_offset: u64,
+    rebase_info: Box<[u8]>,
+    linkedit_offset: u64,
     signature_offset: u64,
     signature_size: u32,
+    linkedit_file_size: u64,
     linkedit_virtual_size: u64,
     entry_offset: u64,
     dylinker_command_size: u32,
@@ -113,15 +129,17 @@ impl ImageLayout {
     fn new(program: &Arm64Program) -> Result<Self, MachOError> {
         let dylinker_command_size = string_command_size(12, b"/usr/lib/dyld\0")?;
         let dylib_command_size = string_command_size(24, b"/usr/lib/libSystem.B.dylib\0")?;
-        let command_count = 9;
+        let command_count = 11;
         let command_size = SEGMENT_COMMAND_SIZE
-            .checked_add(SEGMENT_COMMAND_SIZE + 2 * SECTION_SIZE)
+            .checked_add(SEGMENT_COMMAND_SIZE + SECTION_SIZE)
+            .and_then(|size| size.checked_add(SEGMENT_COMMAND_SIZE + SECTION_SIZE))
             .and_then(|size| size.checked_add(SEGMENT_COMMAND_SIZE))
             .and_then(|size| size.checked_add(dylinker_command_size))
             .and_then(|size| size.checked_add(BUILD_VERSION_COMMAND_SIZE))
             .and_then(|size| size.checked_add(UUID_COMMAND_SIZE))
             .and_then(|size| size.checked_add(MAIN_COMMAND_SIZE))
             .and_then(|size| size.checked_add(dylib_command_size))
+            .and_then(|size| size.checked_add(DYLD_INFO_COMMAND_SIZE))
             .and_then(|size| size.checked_add(LINKEDIT_DATA_COMMAND_SIZE))
             .ok_or(MachOError::OffsetOverflow)?;
         let text_offset = align_up(checked_add(MACH_HEADER_SIZE, u64::from(command_size))?, 16)?;
@@ -133,14 +151,30 @@ impl ImageLayout {
             return Err(MachOError::InvalidDataAlignment(data_alignment));
         }
         let data_alignment_power = data_alignment.trailing_zeros();
-        let data_offset = align_up(text_end, data_alignment)?;
+        let data_offset = align_up(text_end, SEGMENT_ALIGNMENT)?;
         let data_size = u64::try_from(program.read_only_data().len())
             .map_err(|_| MachOError::OffsetOverflow)?;
         let content_end = checked_add(data_offset, data_size)?;
-        let signature_offset = align_up(content_end, SEGMENT_ALIGNMENT)?;
+        let linkedit_offset = align_up(content_end, SEGMENT_ALIGNMENT)?;
+        let rebase_info = encode_rebase_info(program);
+        let rebase_offset = if rebase_info.is_empty() {
+            0
+        } else {
+            linkedit_offset
+        };
+        let rebase_end = checked_add(
+            linkedit_offset,
+            u64::try_from(rebase_info.len()).map_err(|_| MachOError::OffsetOverflow)?,
+        )?;
+        let signature_offset = align_up(rebase_end, CODE_SIGNATURE_ALIGNMENT)?;
         require_u32(signature_offset)?;
+        require_u32(rebase_offset)?;
+        require_u32(u64::try_from(rebase_info.len()).map_err(|_| MachOError::OffsetOverflow)?)?;
         let signature_size = signature_size(signature_offset)?;
-        let linkedit_virtual_size = align_up(u64::from(signature_size), SEGMENT_ALIGNMENT)?;
+        let linkedit_file_size = checked_add(signature_offset, u64::from(signature_size))?
+            .checked_sub(linkedit_offset)
+            .ok_or(MachOError::OverlappingLayout)?;
+        let linkedit_virtual_size = align_up(linkedit_file_size, SEGMENT_ALIGNMENT)?;
         let entry = program
             .function(program.entry())
             .ok_or(MachOError::MissingEntryFunction)?;
@@ -153,8 +187,12 @@ impl ImageLayout {
             data_offset,
             data_size,
             data_alignment_power,
+            rebase_offset,
+            rebase_info,
+            linkedit_offset,
             signature_offset,
             signature_size,
+            linkedit_file_size,
             linkedit_virtual_size,
             entry_offset,
             dylinker_command_size,
@@ -194,21 +232,24 @@ fn write_load_commands(bytes: &mut Vec<u8>, layout: &ImageLayout, uuid: [u8; 16]
             maximum_protection: 0,
             initial_protection: 0,
             section_count: 0,
+            flags: 0,
         },
     );
     write_text_segment(bytes, layout);
+    write_data_const_segment(bytes, layout);
     write_segment(
         bytes,
         SegmentCommand {
             name: "__LINKEDIT",
-            virtual_address: checked_add(VM_BASE, layout.signature_offset)
+            virtual_address: checked_add(VM_BASE, layout.linkedit_offset)
                 .expect("validated layout"),
             virtual_size: layout.linkedit_virtual_size,
-            file_offset: layout.signature_offset,
-            file_size: u64::from(layout.signature_size),
+            file_offset: layout.linkedit_offset,
+            file_size: layout.linkedit_file_size,
             maximum_protection: 1,
             initial_protection: 1,
             section_count: 0,
+            flags: 0,
         },
     );
     write_string_command(
@@ -232,6 +273,19 @@ fn write_load_commands(bytes: &mut Vec<u8>, layout: &ImageLayout, uuid: [u8; 16]
     push_u64(bytes, layout.entry_offset);
     push_u64(bytes, 0);
     write_dylib_command(bytes, layout.dylib_command_size);
+    push_u32(bytes, LC_DYLD_INFO_ONLY);
+    push_u32(bytes, DYLD_INFO_COMMAND_SIZE);
+    push_u32(
+        bytes,
+        u32::try_from(layout.rebase_offset).expect("validated 32-bit rebase offset"),
+    );
+    push_u32(
+        bytes,
+        u32::try_from(layout.rebase_info.len()).expect("validated 32-bit rebase size"),
+    );
+    for _ in 0..8 {
+        push_u32(bytes, 0);
+    }
     push_u32(bytes, LC_CODE_SIGNATURE);
     push_u32(bytes, LINKEDIT_DATA_COMMAND_SIZE);
     push_u32(
@@ -239,6 +293,40 @@ fn write_load_commands(bytes: &mut Vec<u8>, layout: &ImageLayout, uuid: [u8; 16]
         u32::try_from(layout.signature_offset).expect("validated 32-bit file offset"),
     );
     push_u32(bytes, layout.signature_size);
+}
+
+/// Encodes the classic dyld rebase stream for absolute pointers in `__DATA_CONST,__const`.
+///
+/// Code references remain PC-relative and need no loader metadata. Each data pointer has already
+/// been relocated to its preferred virtual address by ARM64 lowering; dyld adds the single image
+/// slide described by this stream when loading a PIE image.
+fn encode_rebase_info(program: &Arm64Program) -> Box<[u8]> {
+    if program.data_pointer_fixups().is_empty() {
+        return Box::new([]);
+    }
+
+    let mut output = vec![REBASE_OPCODE_SET_TYPE_IMM | REBASE_TYPE_POINTER];
+    for fixup in program.data_pointer_fixups() {
+        output.push(REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB | DATA_CONST_SEGMENT_INDEX);
+        push_uleb128(&mut output, fixup.location_offset());
+        output.push(REBASE_OPCODE_DO_REBASE_IMM_TIMES | 1);
+    }
+    output.push(0);
+    output.into_boxed_slice()
+}
+
+fn push_uleb128(output: &mut Vec<u8>, mut value: u64) {
+    loop {
+        let mut byte = (value & 0x7f) as u8;
+        value >>= 7;
+        if value != 0 {
+            byte |= 0x80;
+        }
+        output.push(byte);
+        if value == 0 {
+            return;
+        }
+    }
 }
 
 fn image_uuid(text: &[u8], data: &[u8], entry_offset: u64) -> [u8; 16] {
@@ -259,12 +347,13 @@ fn write_text_segment(bytes: &mut Vec<u8>, layout: &ImageLayout) {
         SegmentCommand {
             name: "__TEXT",
             virtual_address: VM_BASE,
-            virtual_size: layout.signature_offset,
+            virtual_size: layout.data_offset,
             file_offset: 0,
-            file_size: layout.signature_offset,
+            file_size: layout.data_offset,
             maximum_protection: 5,
             initial_protection: 5,
-            section_count: 2,
+            section_count: 1,
+            flags: 0,
         },
     );
     write_section(
@@ -279,11 +368,28 @@ fn write_text_segment(bytes: &mut Vec<u8>, layout: &ImageLayout) {
             flags: 0x8000_0400,
         },
     );
+}
+
+fn write_data_const_segment(bytes: &mut Vec<u8>, layout: &ImageLayout) {
+    write_segment(
+        bytes,
+        SegmentCommand {
+            name: "__DATA_CONST",
+            virtual_address: VM_BASE + layout.data_offset,
+            virtual_size: layout.linkedit_offset - layout.data_offset,
+            file_offset: layout.data_offset,
+            file_size: layout.linkedit_offset - layout.data_offset,
+            maximum_protection: 3,
+            initial_protection: 3,
+            section_count: 1,
+            flags: 0x10,
+        },
+    );
     write_section(
         bytes,
         SectionRecord {
             section: "__const",
-            segment: "__TEXT",
+            segment: "__DATA_CONST",
             address: VM_BASE + layout.data_offset,
             size: layout.data_size,
             offset: layout.data_offset,
@@ -303,6 +409,7 @@ struct SegmentCommand<'name> {
     maximum_protection: u32,
     initial_protection: u32,
     section_count: u32,
+    flags: u32,
 }
 
 fn write_segment(bytes: &mut Vec<u8>, segment: SegmentCommand<'_>) {
@@ -319,7 +426,7 @@ fn write_segment(bytes: &mut Vec<u8>, segment: SegmentCommand<'_>) {
     push_u32(bytes, segment.maximum_protection);
     push_u32(bytes, segment.initial_protection);
     push_u32(bytes, segment.section_count);
-    push_u32(bytes, 0);
+    push_u32(bytes, segment.flags);
 }
 
 #[derive(Clone, Copy)]

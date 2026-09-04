@@ -664,7 +664,8 @@ fn linkage_uses_semantic_owners_and_static_text_uses_sorted_byte_identity() {
              return\n\
          }\n",
     );
-    let data = crate::data::MachineDataPlan::build(&program);
+    let layouts = crate::MachineLayoutPlan::build(&program).unwrap();
+    let data = crate::data::MachineDataPlan::build(&program, &layouts).unwrap();
     assert!(data.text("a").is_some());
     assert!(data.text("z").is_some());
     assert_ne!(data.text("a"), data.text("z"));
@@ -703,6 +704,59 @@ fn linkage_uses_semantic_owners_and_static_text_uses_sorted_byte_identity() {
         Some(*entry),
         linkage.id(MachineLinkageKey::Item(root.entry()))
     );
+}
+
+#[test]
+fn immutable_statics_use_typed_layout_and_explicit_text_relocations() {
+    let mir = lower_fixture(
+        "static VALUES: [u32; 2] = [65, 90]\n\
+         static LABELS: [&str; 2] = [\"first\", \"second\"]\n\
+         func main(): i32 {\n    let _ = LABELS[0]\n    let _ = VALUES[1]\n    return 0\n}\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let entries = program
+        .data()
+        .iter()
+        .map(|(_, value)| value)
+        .collect::<Vec<_>>();
+
+    assert!(entries.iter().any(|entry| {
+        entry.alignment() == 4
+            && entry.bytes() == [65, 0, 0, 0, 90, 0, 0, 0]
+            && entry.relocations().is_empty()
+    }));
+    let labels = entries
+        .iter()
+        .find(|entry| entry.alignment() == 8 && entry.relocations().len() == 2)
+        .expect("static text-view array");
+    assert_eq!(labels.bytes().len(), 32);
+    assert_eq!(
+        labels
+            .relocations()
+            .iter()
+            .map(|relocation| relocation.offset())
+            .collect::<Vec<_>>(),
+        [0, 16]
+    );
+    for relocation in labels.relocations() {
+        assert!(program.data().get(relocation.target()).is_some());
+    }
+}
+
+#[test]
+fn equal_static_values_retain_distinct_addressable_objects() {
+    let mir = lower_fixture(
+        "static FIRST: [u32; 2] = [65, 90]\n\
+         static SECOND: [u32; 2] = [65, 90]\n\
+         func main(): i32 {\n    let _ = FIRST[0]\n    let _ = SECOND[0]\n    return 0\n}\n",
+    );
+    let layouts = crate::MachineLayoutPlan::build(&mir).unwrap();
+    let plan = crate::data::MachineDataPlan::build(&mir, &layouts).unwrap();
+    let statics = mir.statics().iter().map(|(id, _)| id).collect::<Vec<_>>();
+
+    assert_eq!(statics.len(), 2);
+    assert_ne!(plan.static_value(statics[0]), plan.static_value(statics[1]),);
+    assert_eq!(plan.finish().len(), 2);
 }
 
 #[test]

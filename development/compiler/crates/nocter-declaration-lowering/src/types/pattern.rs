@@ -101,6 +101,7 @@ fn bind(
         ExportedEntity::Module(_)
         | ExportedEntity::TypeAlias(_)
         | ExportedEntity::Constant(_)
+        | ExportedEntity::Static(_)
         | ExportedEntity::Callable(_) => Err(TypeBindingError::rule(
             TypeBindingRule::InvalidTypeEntity,
             SyntaxOrigin::Token(head),

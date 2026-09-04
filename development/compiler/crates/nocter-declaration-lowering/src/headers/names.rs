@@ -45,8 +45,14 @@ fn resolve_name(
     if spelling == "Self" {
         return Err(NamespaceViolation::reserved_name(SyntaxOrigin::Token(token)).into());
     }
-    if declaration.kind() == SurfaceDeclarationKind::Constant && !is_upper_snake_case(spelling) {
-        return Err(NamespaceViolation::invalid_constant_name(SyntaxOrigin::Token(token)).into());
+    if matches!(
+        declaration.kind(),
+        SurfaceDeclarationKind::Constant | SurfaceDeclarationKind::Static
+    ) && !is_upper_snake_case(spelling)
+    {
+        return Err(
+            NamespaceViolation::invalid_compile_time_value_name(SyntaxOrigin::Token(token)).into(),
+        );
     }
     reserved
         .program
@@ -194,6 +200,7 @@ const fn occupies_module_namespace(kind: SurfaceDeclarationKind) -> bool {
     matches!(
         kind,
         SurfaceDeclarationKind::Constant
+            | SurfaceDeclarationKind::Static
             | SurfaceDeclarationKind::Function
             | SurfaceDeclarationKind::PrimitiveFunction
             | SurfaceDeclarationKind::PrimitiveType
@@ -208,6 +215,7 @@ const fn requires_name(kind: SurfaceDeclarationKind) -> bool {
     matches!(
         kind,
         SurfaceDeclarationKind::Constant
+            | SurfaceDeclarationKind::Static
             | SurfaceDeclarationKind::Function
             | SurfaceDeclarationKind::PrimitiveFunction
             | SurfaceDeclarationKind::PrimitiveType

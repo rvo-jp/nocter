@@ -206,6 +206,10 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 let local = self.require_local(local)?;
                 local.ty()
             }
+            MirPlaceRoot::Static(id) => self
+                .environment
+                .static_type(id)
+                .ok_or(MirValidationError::UnknownStatic(id))?,
             MirPlaceRoot::Dereference { value, capability } => {
                 let source = self.value_type(value)?;
                 match self.types.get(source) {

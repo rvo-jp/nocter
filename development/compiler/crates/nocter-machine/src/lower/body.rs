@@ -36,7 +36,14 @@ pub(super) fn lower_body(
         .iter()
         .map(|(_, flag)| MachineDropFlag::new(flag.initially_initialized()))
         .collect::<Vec<_>>();
-    let addresses = lower_addresses(body, context.types, context.layouts, &ids)?;
+    let addresses = lower_addresses(
+        body,
+        context.statics,
+        context.types,
+        context.layouts,
+        context.data,
+        &ids,
+    )?;
     let values = lower_values(body, context.types, context.layouts, &ids)?;
     let packs = lower_packs(body, &addresses, context, &ids)?;
     let operations = lower_operations(body, context, &ids)?;

@@ -16,7 +16,7 @@ does not inspect MIR semantics, declaration identities, source, or package state
 - call, aggregate, pack, primitive, error, and region lowering
 - frame layout and register allocation
 - parallel-copy resolution
-- branch/data fixups and instruction encoding
+- branch, code-to-data, and data-to-data fixups and instruction encoding
 
 ## Invariants
 
@@ -25,6 +25,8 @@ does not inspect MIR semantics, declaration identities, source, or package state
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
 - Every primitive expansion is selected by closed runtime role.
+- Data-pointer fixups identify exact eight-byte fields and section-local targets; executable image
+  policy remains outside this crate.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.

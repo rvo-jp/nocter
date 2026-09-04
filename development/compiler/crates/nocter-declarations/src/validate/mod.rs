@@ -1,8 +1,8 @@
 use std::{collections::HashSet, fmt, hash::Hash};
 
 use nocter_model::{
-    BorrowCapability, BuiltinType, CallableCapability, ConstantValue, GenericParameterId, ModuleId,
-    Symbol, TypeId, TypeKind,
+    BorrowCapability, BuiltinType, CallableCapability, ConstantValue, FrozenValue,
+    GenericParameterId, ModuleId, Symbol, TypeId, TypeKind,
 };
 
 use crate::{
@@ -42,6 +42,7 @@ pub enum DeclarationDomain {
     Interface,
     AssociatedType,
     Constant,
+    Static,
     Callable,
     Construction,
     Instance,
@@ -125,6 +126,7 @@ pub(crate) fn validate_integrity(
     types::validate_nominal_types(program)?;
     types::validate_aliases_interfaces(program)?;
     validate_constants(program)?;
+    validate_statics(program)?;
     callables::validate(program)?;
     validate_constructions_instances_interface_implementations(program)?;
     validate_drops_tests(program)?;
@@ -154,35 +156,64 @@ fn validate_constants(program: &DeclarationProgram) -> Result<(), ProgramIntegri
         require_site(program, constant.site(), DeclarationDomain::Constant)?;
         require_symbol(program, constant.name(), DeclarationDomain::Constant)?;
         require_type(program, constant.ty(), DeclarationDomain::Constant)?;
-        let valid = match constant.value() {
-            ConstantValue::Bool(_) => constant.ty() == program.types().builtin(BuiltinType::Bool),
-            ConstantValue::Character(value) => {
-                constant.ty() == program.types().builtin(BuiltinType::Char)
-                    && char::from_u32(*value).is_some()
-            }
-            ConstantValue::Integer(value) => program
-                .types()
-                .get(constant.ty())
-                .and_then(|ty| match ty {
-                    TypeKind::Builtin(builtin) => Some(*builtin),
-                    _ => None,
-                })
-                .is_some_and(|builtin| constant_integer_fits(*value, builtin)),
-            ConstantValue::Text(_) => matches!(
-                program.types().get(constant.ty()),
-                Some(TypeKind::Borrow {
-                    capability: BorrowCapability::Readonly,
-                    referent,
-                }) if *referent == program.types().builtin(BuiltinType::Str)
-            ),
-        };
-        if !valid {
+        if !constant_value_matches(program, constant.ty(), constant.value()) {
             return Err(ProgramIntegrityError::InvalidDeclarationShape(
                 DeclarationDomain::Constant,
             ));
         }
     }
     Ok(())
+}
+
+fn validate_statics(program: &DeclarationProgram) -> Result<(), ProgramIntegrityError> {
+    for (_, static_value) in program.declarations().statics().iter() {
+        require_site(program, static_value.site(), DeclarationDomain::Static)?;
+        require_symbol(program, static_value.name(), DeclarationDomain::Static)?;
+        require_type(program, static_value.ty(), DeclarationDomain::Static)?;
+        if !frozen_value_matches(program, static_value.ty(), static_value.value()) {
+            return Err(ProgramIntegrityError::InvalidDeclarationShape(
+                DeclarationDomain::Static,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn frozen_value_matches(program: &DeclarationProgram, ty: TypeId, value: &FrozenValue) -> bool {
+    match (program.types().get(ty), value) {
+        (_, FrozenValue::Scalar(value)) => constant_value_matches(program, ty, value),
+        (Some(TypeKind::FixedArray { element, length }), FrozenValue::FixedArray(values)) => {
+            usize::try_from(*length) == Ok(values.len())
+                && values
+                    .iter()
+                    .all(|value| frozen_value_matches(program, *element, value))
+        }
+        _ => false,
+    }
+}
+
+fn constant_value_matches(program: &DeclarationProgram, ty: TypeId, value: &ConstantValue) -> bool {
+    match value {
+        ConstantValue::Bool(_) => ty == program.types().builtin(BuiltinType::Bool),
+        ConstantValue::Character(value) => {
+            ty == program.types().builtin(BuiltinType::Char) && char::from_u32(*value).is_some()
+        }
+        ConstantValue::Integer(value) => program
+            .types()
+            .get(ty)
+            .and_then(|ty| match ty {
+                TypeKind::Builtin(builtin) => Some(*builtin),
+                _ => None,
+            })
+            .is_some_and(|builtin| constant_integer_fits(*value, builtin)),
+        ConstantValue::Text(_) => matches!(
+            program.types().get(ty),
+            Some(TypeKind::Borrow {
+                capability: BorrowCapability::Readonly,
+                referent,
+            }) if *referent == program.types().builtin(BuiltinType::Str)
+        ),
+    }
 }
 
 fn constant_integer_fits(value: i128, builtin: BuiltinType) -> bool {

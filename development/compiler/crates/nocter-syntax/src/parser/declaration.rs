@@ -19,6 +19,7 @@ pub(super) fn item(parser: &mut Parser<'_>) {
 fn declaration(parser: &mut Parser<'_>) {
     match declaration_kind(parser) {
         Some(DeclarationKind::Constant) => constant(parser),
+        Some(DeclarationKind::Static) => static_declaration(parser),
         Some(DeclarationKind::Function) => function(parser, false),
         Some(DeclarationKind::PrimitiveFunction) => function(parser, true),
         Some(DeclarationKind::PrimitiveType) => primitive_type(parser),
@@ -53,6 +54,7 @@ fn target_directive(parser: &mut Parser<'_>) {
 fn targetable_item(parser: &mut Parser<'_>) {
     match targetable_kind(parser) {
         Some(DeclarationKind::Constant) => constant(parser),
+        Some(DeclarationKind::Static) => static_declaration(parser),
         Some(DeclarationKind::Function) => function(parser, false),
         Some(DeclarationKind::PrimitiveFunction) => function(parser, true),
         Some(DeclarationKind::PrimitiveType) => primitive_type(parser),
@@ -67,6 +69,7 @@ fn targetable_item(parser: &mut Parser<'_>) {
 #[derive(Clone, Copy)]
 enum DeclarationKind {
     Constant,
+    Static,
     Function,
     PrimitiveFunction,
     PrimitiveType,
@@ -114,6 +117,11 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
 
     match parser.tokens[cursor].kind() {
         TokenKind::Keyword(Keyword::Const) => Some(DeclarationKind::Constant),
+        TokenKind::Identifier
+            if parser.source.text_at(parser.tokens[cursor].span().range()) == Some("static") =>
+        {
+            Some(DeclarationKind::Static)
+        }
         TokenKind::Keyword(Keyword::Func) => Some(DeclarationKind::Function),
         TokenKind::Keyword(Keyword::Primitive)
             if parser.tokens[cursor + 1].kind() == TokenKind::Keyword(Keyword::Func) =>
@@ -144,6 +152,19 @@ fn constant(parser: &mut Parser<'_>) {
         expression::expression(parser, expression::ExpressionMode::Header);
     }
     parser.complete(marker, NodeKind::ConstantDeclaration);
+}
+
+fn static_declaration(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    optional_visibility(parser);
+    parser.expect_identifier_text("static");
+    parser.expect_name();
+    parser.expect_punctuation(Punctuation::Colon);
+    types::type_(parser);
+    if parser.eat_punctuation(Punctuation::Equal) {
+        expression::expression(parser, expression::ExpressionMode::Header);
+    }
+    parser.complete(marker, NodeKind::StaticDeclaration);
 }
 
 pub(super) fn skip_visibility(parser: &Parser<'_>, mut cursor: usize) -> usize {

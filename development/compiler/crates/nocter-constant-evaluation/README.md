@@ -7,8 +7,9 @@ Plan and evaluate the closed compile-time expression subset used by declaration 
 ## Contract
 
 The crate consumes syntax-owned constant expressions plus explicit semantic support and produces
-typed constant values or source-backed evaluation failures. It does not perform general body
-checking, runtime execution, name lookup, or target code generation.
+typed scalar constants or recursively fixed-array frozen values, plus source-backed evaluation
+failures. It does not perform general body checking, runtime execution, name lookup, or target code
+generation.
 
 ## Invariants
 

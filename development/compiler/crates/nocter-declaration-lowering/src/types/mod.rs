@@ -1,5 +1,5 @@
 mod binding_arena;
-mod constants;
+mod compile_time_values;
 mod context;
 mod interface_application;
 mod names;
@@ -89,7 +89,7 @@ impl BoundCallableType {
     }
 }
 
-pub use constants::evaluate as evaluate_header_constants;
+pub use compile_time_values::evaluate as evaluate_compile_time_values;
 pub use normalization::{
     NormalizedDeclarationPattern, NormalizedOpaqueResult, PreparedTypes, TypeNormalizationError,
     TypeNormalizationRule, TypeNormalizationViolation, normalize_header_types,
@@ -278,6 +278,7 @@ pub struct PreparedTypeBindings<'syntax> {
     requirements: Box<[Box<[BoundRequirementKind]>]>,
     normalization_origins: normalization_origins::NormalizationOrigins,
     constant_values: HashMap<nocter_model::ConstantId, PreparedConstantValue>,
+    static_values: HashMap<nocter_model::StaticId, PreparedStaticValue>,
     array_lengths: HashMap<NodeId, u64>,
 }
 
@@ -285,6 +286,12 @@ pub struct PreparedTypeBindings<'syntax> {
 pub(crate) struct PreparedConstantValue {
     pub(crate) declaration: SurfaceDeclarationId,
     pub(crate) value: nocter_model::ConstantValue,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PreparedStaticValue {
+    pub(crate) declaration: SurfaceDeclarationId,
+    pub(crate) value: nocter_model::FrozenValue,
 }
 
 impl PreparedTypeBindings<'_> {
@@ -447,6 +454,7 @@ pub fn bind_header_type_syntax(
         requirements: requirements.into_boxed_slice(),
         normalization_origins: arena.origins,
         constant_values: HashMap::new(),
+        static_values: HashMap::new(),
         array_lengths: HashMap::new(),
     })
 }

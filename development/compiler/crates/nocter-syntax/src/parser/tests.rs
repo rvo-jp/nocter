@@ -457,6 +457,16 @@ fn parses_fixed_array_lengths_as_constant_expressions() {
 }
 
 #[test]
+fn parses_contextual_static_declarations_without_reserving_the_name() {
+    let tree = assert_syntax_ok(
+        "static LIMITS: [u32; 2] = [65, 90]\npub static MARKERS: [u8; 3]\nfunc static(): void { return }\n",
+        ParseGoal::SourceFile,
+    );
+    assert_eq!(count_node_kind(&tree, NodeKind::StaticDeclaration), 2);
+    assert_eq!(count_node_kind(&tree, NodeKind::FunctionDeclaration), 1);
+}
+
+#[test]
 fn parses_module_namespace_aliases_in_top_level_and_block_imports() {
     let tree = assert_syntax_ok(
         "use std/io as console\nuse / as root\nfunc main(): void {\n    use ./support as local_support\n\n    return\n}\n",

@@ -1,4 +1,4 @@
-use nocter_model::{ExecutableItemId, NominalTypeId, TypeId, TypeStore};
+use nocter_model::{ExecutableItemId, ExecutableStaticId, NominalTypeId, TypeId, TypeStore};
 use nocter_runtime_contract::RuntimeTypeRepresentation;
 use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
 
@@ -9,6 +9,9 @@ use nocter_target_program::{ExecutableClosureLayout, ExecutableProgram};
 pub trait MirValidationEnvironment {
     fn types(&self) -> &TypeStore;
     fn contains_item(&self, item: ExecutableItemId) -> bool;
+    fn static_type(&self, _id: ExecutableStaticId) -> Option<TypeId> {
+        None
+    }
     fn item_pack_input(&self, _item: ExecutableItemId) -> Option<(TypeId, TypeId)> {
         None
     }
@@ -28,6 +31,12 @@ impl MirValidationEnvironment for ExecutableProgram {
 
     fn contains_item(&self, item: ExecutableItemId) -> bool {
         self.items().get(item).is_some()
+    }
+
+    fn static_type(&self, id: ExecutableStaticId) -> Option<TypeId> {
+        self.statics()
+            .get(id)
+            .map(nocter_target_program::ExecutableStatic::ty)
     }
 
     fn item_pack_input(&self, item: ExecutableItemId) -> Option<(TypeId, TypeId)> {

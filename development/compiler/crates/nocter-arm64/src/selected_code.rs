@@ -151,7 +151,7 @@ fn emit_instruction(
             code,
         ),
         Arm64SelectedInstruction::ResolveAddress(address) => {
-            emit_resolved_address(function, address, code)
+            emit_resolved_address(function, address, context.data, code)
         }
         Arm64SelectedInstruction::IndexAddress {
             destination,
@@ -340,13 +340,14 @@ fn emit_indirect_call(
 fn emit_resolved_address(
     function: &Arm64SelectedFunction,
     address: nocter_machine::MachineAddressId,
+    data: &[(MachineDataId, crate::Arm64DataId)],
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
     let calculation = function
         .addresses()
         .calculation(address)
         .ok_or(Arm64MaterializationError::UnknownSelectedAddress(address))?;
-    crate::address_code::emit_resolve(function, calculation, code)
+    crate::address_code::emit_resolve(function, calculation, data, code)
 }
 
 fn emit_unary(

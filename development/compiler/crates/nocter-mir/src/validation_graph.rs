@@ -4,7 +4,7 @@ use crate::{MirBranchTarget, MirPlace, MirPlaceRoot, MirProjectionKind, MirTermi
 
 pub(crate) fn place_values(place: &MirPlace) -> impl Iterator<Item = MirValueId> + '_ {
     let root = match place.root() {
-        MirPlaceRoot::Local(_) => None,
+        MirPlaceRoot::Local(_) | MirPlaceRoot::Static(_) => None,
         MirPlaceRoot::Dereference { value, .. } => Some(value),
     };
     root.into_iter()

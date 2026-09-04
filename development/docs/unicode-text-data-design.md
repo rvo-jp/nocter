@@ -20,7 +20,9 @@ final Unicode 17.0.0 data files + recorded SHA-256 digests
     -> deterministic development-only generator
     -> generated Nocter fixed-array definitions
     -> checked immutable-static product
-    -> target-owned layout and bytes
+    -> executable reachability selection
+    -> MIR static identity and frozen value
+    -> machine-owned layout and bytes
     -> read-only Mach-O data
     -> std/internal/unicode lookup contract
     -> char/str/String public source implementations
@@ -55,9 +57,11 @@ Repository builds consume the committed product and never download Unicode data.
 ## Compiler Boundary
 
 Declaration lowering and constant evaluation admit the closed static initializer domain and publish
-one typed frozen aggregate. Checked ownership exposes a readonly static place; there is no move,
-drop, mutable loan, allocator, or runtime initializer. Target lowering converts that aggregate to
-layout-owned bytes exactly once. Machine and Mach-O layers receive data objects with fixed alignment
+one typed frozen aggregate. Executable selection retains only reachable static identities. MIR
+transports those identities and frozen values without choosing an ABI representation. Machine
+layout serializes every retained value exactly once and owns its size and alignment. Checked
+ownership exposes a readonly static place; there is no move, drop, mutable loan, allocator, or
+runtime initializer. ARM64 and Mach-O receive already encoded data objects with explicit alignment
 and relocation requirements and cannot access syntax or semantic stores.
 
 The static product is generic infrastructure. No type, field, or enum variant in it mentions

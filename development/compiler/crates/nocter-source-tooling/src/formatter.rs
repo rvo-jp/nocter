@@ -628,6 +628,18 @@ mod tests {
     }
 
     #[test]
+    fn formats_static_declarations_without_reserving_the_contextual_keyword() {
+        let formatted = format(
+            "pub static VALUES:[u32;2]\nstatic LABELS:[&str;2]=[\"first\",\"second\"]\nfunc static():void { return }\n",
+        );
+        assert_eq!(
+            formatted,
+            "pub static VALUES: [u32; 2]\n\nstatic LABELS: [&str; 2] = [\"first\", \"second\"]\n\nfunc static(): void { return }\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn preserves_canonical_character_literal_spelling_while_formatting_its_expression() {
         let formatted = format("func scalar():char { let face='\\u{1F600}'\nreturn face\n}\n");
         assert_eq!(

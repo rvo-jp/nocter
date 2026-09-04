@@ -311,6 +311,7 @@ const fn interactive_entity(entity: SemanticEntity) -> bool {
         | SemanticEntity::AssociatedType(_)
         | SemanticEntity::Callable(_)
         | SemanticEntity::Constant(_)
+        | SemanticEntity::Static(_)
         | SemanticEntity::Field(_)
         | SemanticEntity::Variant(_)
         | SemanticEntity::GenericParameter(_)

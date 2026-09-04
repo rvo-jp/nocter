@@ -96,6 +96,7 @@ const fn exported_entity(entity: SemanticEntity) -> Option<ExportedEntity> {
         SemanticEntity::TypeAlias(id) => Some(ExportedEntity::TypeAlias(id)),
         SemanticEntity::Interface(id) => Some(ExportedEntity::Interface(id)),
         SemanticEntity::Constant(id) => Some(ExportedEntity::Constant(id)),
+        SemanticEntity::Static(id) => Some(ExportedEntity::Static(id)),
         SemanticEntity::Callable(id) => Some(ExportedEntity::Callable(id)),
         _ => None,
     }

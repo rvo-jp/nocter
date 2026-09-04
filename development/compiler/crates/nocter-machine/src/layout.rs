@@ -270,6 +270,9 @@ impl MachineLayoutPlan {
             roots.insert(function.result());
             collect_body_types(function.body(), program.types(), &mut roots);
         }
+        for (_, value) in program.statics().iter() {
+            roots.insert(value.ty());
+        }
         match program.root() {
             MirRoot::Process(root) => {
                 collect_body_types(root.body(), program.types(), &mut roots);

@@ -23,14 +23,15 @@ mod type_transaction;
 pub use arena::{Arena, ArenaBuilder, ArenaCheckpoint};
 pub use attachment_family::AttachmentFamily;
 pub use closure_sequence::{ClosureSequence, ClosureSequenceIter, UnknownClosureSequenceId};
-pub use constant::ConstantValue;
+pub use constant::{ConstantValue, FrozenValue};
 pub use id::{
     AssociatedTypeId, BodyId, BodyNodeId, BodyScopeId, CallableId, CapabilityEvidenceId, CaptureId,
-    ClosureId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId, FieldId,
-    GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
-    LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId, MirOperationId, MirPlaceId,
-    MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId,
-    PlaceId, RequirementId, TestId, TypeAliasId, TypeId, VariantId,
+    ClosureId, ConstantId, ConstructionId, DeclarationSiteId, DropId, ExecutableItemId,
+    ExecutableStaticId, FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId,
+    InterfaceImplementationId, LocalBindingId, LoopId, MirBlockId, MirDropFlagId, MirLocalId,
+    MirOperationId, MirPlaceId, MirValueId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
+    PackageTargetId, ParameterId, PlaceId, RequirementId, StaticId, TestId, TypeAliasId, TypeId,
+    VariantId,
 };
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;

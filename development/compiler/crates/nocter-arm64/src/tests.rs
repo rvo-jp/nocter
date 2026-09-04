@@ -1194,7 +1194,7 @@ fn empty_test_target_produces_no_synthetic_entry() {
 }
 
 #[test]
-fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
+fn program_layout_resolves_calls_and_section_addresses() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let target = builder.declare_function();
     let caller = builder.declare_function();
@@ -1248,9 +1248,10 @@ fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     assert_eq!(program.data_fixups()[0].destination(), x(3));
 
     let relocated = program
-        .relocate_addresses(0x1_0000_0250, 0x1_0000_2000)
+        .relocate_sections(0x1_0000_0250, 0x1_0000_2000)
         .unwrap();
     let relocated_words = relocated
+        .text()
         .chunks_exact(4)
         .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
         .collect::<Vec<_>>();
@@ -1284,10 +1285,58 @@ fn program_layout_resolves_calls_and_retains_only_section_address_fixups() {
     assert_eq!(relocated_words[5], 0xd000_0003);
     assert_eq!(relocated_words[6], 0x9100_2063);
     assert_eq!(
-        program.relocate_addresses(0, 1_u64 << 32),
+        program.relocate_sections(0, 1_u64 << 32),
         Err(crate::Arm64ProgramError::Encoding(
             Arm64EncodingError::PageAddressOutOfRange
         ))
+    );
+}
+
+#[test]
+fn data_pointer_relocations_resolve_section_local_targets() {
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let target = builder.add_data([9], 8).unwrap();
+    let pointer = builder.add_data([0; 8], 8).unwrap();
+    builder.add_data_relocation(pointer, 0, target).unwrap();
+    let entry = builder.declare_function();
+    let mut code = crate::Arm64CodeBuilder::new();
+    code.append(Arm64Instruction::Return { target: x(30) });
+    builder
+        .define_function(entry, code.finish().unwrap())
+        .unwrap();
+    builder.set_entry(entry).unwrap();
+
+    let program = builder.finish().unwrap();
+    assert_eq!(program.data(target).unwrap().offset(), 0);
+    assert_eq!(program.data(pointer).unwrap().offset(), 8);
+    assert_eq!(program.data_pointer_fixups()[0].location_offset(), 8);
+    assert_eq!(program.data_pointer_fixups()[0].target_offset(), 0);
+
+    let relocated = program.relocate_sections(0, 0x1_0000_2000).unwrap();
+    assert_eq!(
+        &relocated.read_only_data()[8..16],
+        &(0x1_0000_2000_u64).to_le_bytes()
+    );
+}
+
+#[test]
+fn data_relocations_are_validated_at_the_builder_boundary() {
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let target = builder.add_data([1], 1).unwrap();
+    let source = builder.add_data([0; 16], 8).unwrap();
+
+    assert_eq!(
+        builder.add_data_relocation(source, 9, target),
+        Err(crate::Arm64ProgramError::InvalidDataRelocation(9))
+    );
+    builder.add_data_relocation(source, 0, target).unwrap();
+    assert_eq!(
+        builder.add_data_relocation(source, 4, target),
+        Err(crate::Arm64ProgramError::OverlappingDataRelocation {
+            source,
+            first: 0,
+            second: 4,
+        })
     );
 }
 

@@ -2,7 +2,7 @@ use nocter_declarations::{CallableKind, NominalShape, ParameterRole};
 use nocter_model::CallableCapability;
 use nocter_source::{SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceBinding, SourceRole};
-use nocter_syntax::TokenKind;
+use nocter_syntax::{NodeKind, TokenKind};
 
 use crate::AnalysisSnapshot;
 use crate::query::evidence::{
@@ -107,6 +107,22 @@ impl AnalysisSnapshot {
             .find(|syntax| syntax.source() == source)
         {
             highlights.extend(
+                nocter_syntax::descendant_node_iter(syntax, syntax.root_id())
+                    .filter(|node| {
+                        syntax.node(*node).map(nocter_syntax::SyntaxNode::kind)
+                            == Some(NodeKind::StaticDeclaration)
+                    })
+                    .filter_map(|node| {
+                        nocter_syntax::declaration_contextual_keyword_token(syntax, node)
+                    })
+                    .map(|token| SemanticHighlight {
+                        range: token.range(),
+                        kind: SemanticHighlightKind::Keyword,
+                        declaration: false,
+                        readonly: false,
+                    }),
+            );
+            highlights.extend(
                 syntax
                     .lexed()
                     .tokens()
@@ -180,7 +196,7 @@ fn classify(
         }
         SemanticEntity::Interface(_) => SemanticHighlightKind::Interface,
         SemanticEntity::GenericParameter(_) => SemanticHighlightKind::TypeParameter,
-        SemanticEntity::Constant(_) => {
+        SemanticEntity::Constant(_) | SemanticEntity::Static(_) => {
             return Ok(Some((SemanticHighlightKind::Variable, true)));
         }
         SemanticEntity::Parameter(id) => {

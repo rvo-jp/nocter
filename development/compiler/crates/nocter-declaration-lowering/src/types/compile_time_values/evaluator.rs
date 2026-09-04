@@ -2,11 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use nocter_constant_evaluation::{
     ConstantEvaluationError, ConstantEvaluationRule, ConstantExpressionPlan, ConstantPlanError,
-    ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType,
-    evaluate_constant_plans, evaluate_expression_plan, plan_expression,
+    ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType, FrozenType,
+    evaluate_constant_plans, evaluate_expression_plan, evaluate_frozen_expression_plan,
+    plan_expression, plan_frozen_expression,
 };
 use nocter_declarations::ExportedEntity;
-use nocter_model::{BorrowCapability, BuiltinType, ConstantId, ConstantValue, ModuleId};
+use nocter_model::{BorrowCapability, BuiltinType, ConstantId, ConstantValue, ModuleId, StaticId};
 use nocter_source::SourceId;
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
@@ -20,10 +21,19 @@ use crate::{
     SurfaceDeclarationKind,
 };
 
-use super::super::{BoundTypeId, BoundTypeKind, PreparedConstantValue, PreparedTypeBindings};
+use super::super::{
+    BoundTypeId, BoundTypeKind, PreparedConstantValue, PreparedStaticValue, PreparedTypeBindings,
+};
 
 #[derive(Clone, Copy)]
 struct ConstantSource {
+    declaration: SurfaceDeclarationId,
+    initializer: NodeId,
+    ty: BoundTypeId,
+}
+
+#[derive(Clone, Copy)]
+struct StaticSource {
     declaration: SurfaceDeclarationId,
     initializer: NodeId,
     ty: BoundTypeId,
@@ -37,7 +47,7 @@ struct HeaderResolver<'a, 'syntax> {
     reference_projections: HashMap<SyntaxToken, (ExportedEntity, SourceOrigin)>,
 }
 
-/// Plans and evaluates every header constant before structural type normalization.
+/// Plans and evaluates every header const and static before structural type normalization.
 ///
 /// The shared constant-evaluation crate owns expression typing, arithmetic, short-circuiting, and
 /// dependency cycles. This adapter owns only declaration namespaces, bound header types, and
@@ -51,6 +61,7 @@ pub fn evaluate(
     mut bindings: PreparedTypeBindings<'_>,
 ) -> Result<PreparedTypeBindings<'_>, HeaderDefinitionError> {
     let sources = collect_sources(&bindings)?;
+    let static_sources = collect_static_sources(&bindings)?;
     let source_ids = bindings
         .namespaces
         .imports
@@ -75,48 +86,16 @@ pub fn evaluate(
         reference_projections: HashMap::new(),
     };
 
-    let mut plans = HashMap::<ConstantId, ConstantExpressionPlan>::new();
-    let mut ids = sources.keys().copied().collect::<Vec<_>>();
-    ids.sort_unstable();
-    for id in ids {
-        let source = sources[&id];
-        let expected = resolver
-            .scalar_type(source.ty, &mut HashSet::new())
-            .ok_or_else(|| {
-                rule_at(
-                    DefinitionRule::InvalidConstantType,
-                    SyntaxOrigin::Node(source.initializer),
-                )
-            })?;
-        let (file, tree) = syntax_input(&bindings, &source_ids, source.initializer)?;
-        let plan = plan_expression(file, tree, source.initializer, expected, &mut resolver)
-            .map_err(plan_error)?;
-        plans.insert(id, plan);
-    }
-    let values = evaluate_constant_plans(&plans).map_err(evaluation_error)?;
-
-    let usize_ty = ConstantScalarType::Integer(BuiltinType::Usize);
-    let mut array_lengths = HashMap::new();
-    for expression in collect_array_expressions(&bindings) {
-        let (file, tree) = syntax_input(&bindings, &source_ids, expression)?;
-        let plan =
-            plan_expression(file, tree, expression, usize_ty, &mut resolver).map_err(plan_error)?;
-        let value = evaluate_expression_plan(&plan, |id| values.get(&id).cloned())
-            .map_err(evaluation_error)?;
-        let ConstantValue::Integer(value) = value else {
-            return Err(rule_at(
-                DefinitionRule::ConstantTypeMismatch,
-                SyntaxOrigin::Node(expression),
-            ));
-        };
-        let length = u64::try_from(value).map_err(|_| {
-            rule_at(
-                DefinitionRule::ConstantArithmeticFailure,
-                SyntaxOrigin::Node(expression),
-            )
-        })?;
-        array_lengths.insert(expression, length);
-    }
+    let values = evaluate_constants(&bindings, &source_ids, &sources, &mut resolver)?;
+    let array_lengths = evaluate_array_lengths(&bindings, &source_ids, &values, &mut resolver)?;
+    let static_values = evaluate_statics(
+        &bindings,
+        &source_ids,
+        &static_sources,
+        &values,
+        &array_lengths,
+        &mut resolver,
+    )?;
 
     let constant_values = values
         .into_iter()
@@ -134,8 +113,164 @@ pub fn evaluate(
     drop(resolver);
     project_references(&mut bindings, projections);
     bindings.constant_values = constant_values;
+    bindings.static_values = static_values;
     bindings.array_lengths = array_lengths;
     Ok(bindings)
+}
+
+fn evaluate_constants(
+    bindings: &PreparedTypeBindings<'_>,
+    source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
+    sources: &HashMap<ConstantId, ConstantSource>,
+    resolver: &mut HeaderResolver<'_, '_>,
+) -> Result<HashMap<ConstantId, ConstantValue>, HeaderDefinitionError> {
+    let mut plans = HashMap::<ConstantId, ConstantExpressionPlan>::new();
+    let mut ids = sources.keys().copied().collect::<Vec<_>>();
+    ids.sort_unstable();
+    for id in ids {
+        let source = sources[&id];
+        let expected = resolver
+            .scalar_type(source.ty, &mut HashSet::new())
+            .ok_or_else(|| {
+                rule_at(
+                    DefinitionRule::InvalidCompileTimeValueType,
+                    SyntaxOrigin::Node(source.initializer),
+                )
+            })?;
+        let (file, tree) = syntax_input(bindings, source_ids, source.initializer)?;
+        let plan = plan_expression(file, tree, source.initializer, expected, resolver)
+            .map_err(plan_error)?;
+        plans.insert(id, plan);
+    }
+    evaluate_constant_plans(&plans).map_err(evaluation_error)
+}
+
+fn evaluate_array_lengths(
+    bindings: &PreparedTypeBindings<'_>,
+    source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
+    values: &HashMap<ConstantId, ConstantValue>,
+    resolver: &mut HeaderResolver<'_, '_>,
+) -> Result<HashMap<NodeId, u64>, HeaderDefinitionError> {
+    let usize_ty = ConstantScalarType::Integer(BuiltinType::Usize);
+    let mut array_lengths = HashMap::new();
+    for expression in collect_array_expressions(bindings) {
+        let (file, tree) = syntax_input(bindings, source_ids, expression)?;
+        let plan =
+            plan_expression(file, tree, expression, usize_ty, resolver).map_err(plan_error)?;
+        let value = evaluate_expression_plan(&plan, |id| values.get(&id).cloned())
+            .map_err(evaluation_error)?;
+        let ConstantValue::Integer(value) = value else {
+            return Err(rule_at(
+                DefinitionRule::CompileTimeTypeMismatch,
+                SyntaxOrigin::Node(expression),
+            ));
+        };
+        let length = u64::try_from(value).map_err(|_| {
+            rule_at(
+                DefinitionRule::CompileTimeArithmeticFailure,
+                SyntaxOrigin::Node(expression),
+            )
+        })?;
+        array_lengths.insert(expression, length);
+    }
+    Ok(array_lengths)
+}
+
+fn evaluate_statics(
+    bindings: &PreparedTypeBindings<'_>,
+    source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
+    sources: &HashMap<StaticId, StaticSource>,
+    values: &HashMap<ConstantId, ConstantValue>,
+    array_lengths: &HashMap<NodeId, u64>,
+    resolver: &mut HeaderResolver<'_, '_>,
+) -> Result<HashMap<StaticId, PreparedStaticValue>, HeaderDefinitionError> {
+    let mut static_values = HashMap::new();
+    let mut static_ids = sources.keys().copied().collect::<Vec<_>>();
+    static_ids.sort_unstable();
+    for id in static_ids {
+        let source = sources[&id];
+        let expected = resolver
+            .frozen_type(source.ty, array_lengths, &mut HashSet::new())
+            .ok_or_else(|| {
+                rule_at(
+                    DefinitionRule::InvalidCompileTimeValueType,
+                    SyntaxOrigin::Node(source.initializer),
+                )
+            })?;
+        let (file, tree) = syntax_input(bindings, source_ids, source.initializer)?;
+        let plan = plan_frozen_expression(file, tree, source.initializer, &expected, resolver)
+            .map_err(plan_error)?;
+        let value =
+            evaluate_frozen_expression_plan(&plan, &mut |constant| values.get(&constant).cloned())
+                .map_err(evaluation_error)?;
+        static_values.insert(
+            id,
+            PreparedStaticValue {
+                declaration: source.declaration,
+                value,
+            },
+        );
+    }
+    Ok(static_values)
+}
+
+fn collect_static_sources(
+    bindings: &PreparedTypeBindings<'_>,
+) -> Result<HashMap<StaticId, StaticSource>, HeaderDefinitionError> {
+    let reserved = &bindings.namespaces.imports.generics.headers.reserved;
+    let mut result = HashMap::new();
+    for (index, entity) in reserved.entities().iter().copied().enumerate() {
+        let Some(ReservedEntity::Static(id)) = entity else {
+            continue;
+        };
+        let declaration = SurfaceDeclarationId::from_index(index);
+        let surface = reserved.declarations[index];
+        if surface.kind() != SurfaceDeclarationKind::Static {
+            return Err(HeaderDefinitionError::InvalidSurface(declaration));
+        }
+        let tree = reserved
+            .sources
+            .get(surface.source().index())
+            .ok_or(HeaderDefinitionError::InvalidSurface(declaration))?
+            .syntax();
+        let Some(initializer) = direct_node(tree, surface.node(), NodeKind::Expression) else {
+            continue;
+        };
+        let representative = reserved.contracts.representative(declaration);
+        let representative_surface = reserved.declarations[representative.index()];
+        let representative_tree = reserved
+            .sources
+            .get(representative_surface.source().index())
+            .ok_or(HeaderDefinitionError::InvalidSurface(representative))?
+            .syntax();
+        let ty_node = direct_node(
+            representative_tree,
+            representative_surface.node(),
+            NodeKind::Type,
+        )
+        .ok_or(HeaderDefinitionError::MissingType(
+            representative_surface.node(),
+        ))?;
+        let ty = bindings
+            .roots
+            .get(&ty_node)
+            .copied()
+            .ok_or(HeaderDefinitionError::MissingType(ty_node))?;
+        if result
+            .insert(
+                id,
+                StaticSource {
+                    declaration: representative,
+                    initializer,
+                    ty,
+                },
+            )
+            .is_some()
+        {
+            return Err(HeaderDefinitionError::InvalidSurface(declaration));
+        }
+    }
+    Ok(result)
 }
 
 fn collect_array_expressions(bindings: &PreparedTypeBindings<'_>) -> Vec<NodeId> {
@@ -233,7 +368,7 @@ impl ConstantResolver for HeaderResolver<'_, '_> {
             .scalar_type(source.ty, &mut HashSet::new())
             .ok_or_else(|| {
                 rule_at(
-                    DefinitionRule::InvalidConstantType,
+                    DefinitionRule::InvalidCompileTimeValueType,
                     SyntaxOrigin::Node(node),
                 )
             })?;
@@ -262,6 +397,30 @@ impl ConstantResolver for HeaderResolver<'_, '_> {
 }
 
 impl HeaderResolver<'_, '_> {
+    fn frozen_type(
+        &self,
+        ty: BoundTypeId,
+        array_lengths: &HashMap<NodeId, u64>,
+        active_aliases: &mut HashSet<nocter_model::TypeAliasId>,
+    ) -> Option<FrozenType> {
+        match self.bindings.kinds.get(ty.index())? {
+            BoundTypeKind::FixedArray { element, length } => Some(FrozenType::FixedArray {
+                element: Box::new(self.frozen_type(*element, array_lengths, active_aliases)?),
+                length: usize::try_from(*array_lengths.get(length)?).ok()?,
+            }),
+            BoundTypeKind::Alias {
+                definition,
+                arguments,
+            } if arguments.is_empty() && active_aliases.insert(*definition) => {
+                let target = self.bindings.alias_targets.get(definition).copied()?;
+                let result = self.frozen_type(target, array_lengths, active_aliases);
+                active_aliases.remove(definition);
+                result
+            }
+            _ => self.scalar_type(ty, active_aliases).map(FrozenType::Scalar),
+        }
+    }
+
     fn scalar_type(
         &self,
         ty: BoundTypeId,
@@ -427,7 +586,7 @@ fn plan_error(error: ConstantPlanError<HeaderDefinitionError>) -> HeaderDefiniti
         ConstantPlanError::Rule { rule, origin } => rule_at(
             match rule {
                 ConstantPlanRule::NonConstantExpression => DefinitionRule::NonConstantExpression,
-                ConstantPlanRule::TypeMismatch => DefinitionRule::ConstantTypeMismatch,
+                ConstantPlanRule::TypeMismatch => DefinitionRule::CompileTimeTypeMismatch,
             },
             origin,
         ),
@@ -438,10 +597,10 @@ fn plan_error(error: ConstantPlanError<HeaderDefinitionError>) -> HeaderDefiniti
 fn evaluation_error(error: ConstantEvaluationError) -> HeaderDefinitionError {
     match error.rule() {
         ConstantEvaluationRule::ArithmeticFailure => {
-            rule_at(DefinitionRule::ConstantArithmeticFailure, error.origin())
+            rule_at(DefinitionRule::CompileTimeArithmeticFailure, error.origin())
         }
         ConstantEvaluationRule::DependencyCycle => {
-            rule_at(DefinitionRule::ConstantCycle, error.origin())
+            rule_at(DefinitionRule::CompileTimeCycle, error.origin())
         }
         ConstantEvaluationRule::MissingConstant | ConstantEvaluationRule::InvalidPlan => {
             match error.origin() {
@@ -509,6 +668,7 @@ const fn semantic_entity(entity: ExportedEntity) -> SemanticEntity {
         ExportedEntity::TypeAlias(id) => SemanticEntity::TypeAlias(id),
         ExportedEntity::Interface(id) => SemanticEntity::Interface(id),
         ExportedEntity::Constant(id) => SemanticEntity::Constant(id),
+        ExportedEntity::Static(id) => SemanticEntity::Static(id),
         ExportedEntity::Callable(id) => SemanticEntity::Callable(id),
     }
 }

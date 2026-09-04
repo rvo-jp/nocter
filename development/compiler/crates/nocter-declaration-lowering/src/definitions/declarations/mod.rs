@@ -21,6 +21,7 @@ use super::{DefinitionRule, DefinitionViolation, HeaderDefinitionError, projecti
 mod callable;
 mod constant;
 mod provenance;
+mod static_value;
 mod target;
 
 pub(super) fn define(
@@ -28,13 +29,18 @@ pub(super) fn define(
     allocated: &mut AllocatedHeaders,
 ) -> Result<(), HeaderDefinitionError> {
     constant::define_all(types)?;
+    static_value::define_all(types)?;
     for index in 0..surface_count(types) {
         let declaration = SurfaceDeclarationId::from_index(index);
         if representative(types, declaration) != declaration {
             continue;
         }
         match entity(types, declaration) {
-            Some(ReservedEntity::BuiltinType(_) | ReservedEntity::Constant(_)) => {}
+            Some(
+                ReservedEntity::BuiltinType(_)
+                | ReservedEntity::Constant(_)
+                | ReservedEntity::Static(_),
+            ) => {}
             Some(ReservedEntity::NominalType(id)) => {
                 define_nominal(types, allocated, declaration, id)?;
             }

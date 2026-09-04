@@ -27,6 +27,13 @@ pub(crate) fn place_facts(
                 false,
             )
         }
+        MirPlaceRoot::Static(_) => (
+            PlaceFacts {
+                writable: false,
+                movable: false,
+            },
+            false,
+        ),
         MirPlaceRoot::Dereference { capability, .. } => (
             PlaceFacts {
                 writable: capability == BorrowCapability::ReadWrite,

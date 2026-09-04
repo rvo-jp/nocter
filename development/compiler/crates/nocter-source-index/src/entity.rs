@@ -3,7 +3,7 @@ use nocter_model::{
     CapabilityEvidenceId, CaptureId, ConstantId, ConstructionId, DeclarationSiteId, DropId,
     FieldId, GenericParameterId, ImportId, InstanceId, InterfaceId, InterfaceImplementationId,
     LocalBindingId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId, PackageTargetId, ParameterId,
-    PlaceId, RequirementId, TestId, TypeAliasId, VariantId,
+    PlaceId, RequirementId, StaticId, TestId, TypeAliasId, VariantId,
 };
 
 /// A syntax-independent identity that can have source projections.
@@ -24,6 +24,7 @@ pub enum SemanticEntity {
     Interface(InterfaceId),
     AssociatedType(AssociatedTypeId),
     Constant(ConstantId),
+    Static(StaticId),
     Callable(CallableId),
     Construction(ConstructionId),
     Instance(InstanceId),

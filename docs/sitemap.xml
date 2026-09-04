@@ -1131,6 +1131,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/reviews/v0.35.0-phase-1/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/char/index/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

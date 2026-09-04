@@ -1,6 +1,6 @@
 use nocter_machine::{
-    MachineAddressId, MachineAddressRoot, MachineAddressStep, MachineFunction, MachineIndex,
-    MachineIndexBound, MachineValueId,
+    MachineAddressId, MachineAddressRoot, MachineAddressStep, MachineDataId, MachineFunction,
+    MachineIndex, MachineIndexBound, MachineValueId,
 };
 
 use crate::{
@@ -12,6 +12,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedAddressRoot {
     Stack(Arm64SelectedStackAddress),
+    Data(MachineDataId),
     Pointer(Arm64SelectedRegister),
     View {
         pointer: Arm64SelectedRegister,
@@ -262,6 +263,7 @@ fn select_root(
             Arm64SelectedAddressRoot::Stack(crate::memory_selection::frame_stack(frame, stack, 0)?),
             false,
         )),
+        MachineAddressRoot::Data(data) => Ok((Arm64SelectedAddressRoot::Data(data), false)),
         MachineAddressRoot::Pointer { value } => Ok((
             Arm64SelectedAddressRoot::Pointer(one_word(values, value)?),
             false,
