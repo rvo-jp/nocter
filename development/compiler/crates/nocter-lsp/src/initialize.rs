@@ -281,7 +281,7 @@ mod tests {
                 "\"semanticTokensProvider\":{\"legend\":{",
                 "\"tokenTypes\":[\"namespace\",\"type\",\"struct\",\"enum\",",
                 "\"interface\",\"typeParameter\",\"parameter\",\"variable\",",
-                "\"property\",\"enumMember\",\"function\",\"method\",\"keyword\"],",
+                "\"property\",\"enumMember\",\"function\",\"method\",\"keyword\",\"string\"],",
                 "\"tokenModifiers\":[\"declaration\",\"readonly\"]},\"full\":true}},",
                 "\"serverInfo\":{\"name\":\"Nocter\",\"version\":\"0.14.0-dev\"}}"
             )

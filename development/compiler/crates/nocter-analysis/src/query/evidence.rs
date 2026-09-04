@@ -887,6 +887,34 @@ impl<'a> SemanticQueryContext<'a> {
         Ok(SemanticFact::Available(node.operation()))
     }
 
+    /// Returns the checked type of one source scalar literal without exposing checked-node storage
+    /// or requiring the caller to interpret operation variants.
+    pub(super) fn scalar_literal_type(
+        &self,
+        body: BodyId,
+        node: BodyNodeId,
+    ) -> Result<SemanticFact<Option<TypeId>>, EvidenceIntegrityError> {
+        let typed = match self.typed_body_evidence(body)? {
+            TypedBodyEvidence::Available(body) => body,
+            TypedBodyEvidence::Unavailable(reason) => {
+                return Ok(SemanticFact::Unavailable(reason));
+            }
+        };
+        let node = typed
+            .nodes()
+            .get(node)
+            .ok_or(EvidenceIntegrityError::MissingBodyNode { body, node })?;
+        let is_scalar = matches!(
+            node.operation(),
+            nocter_checking::CheckedOperation::Constant(
+                nocter_model::ConstantValue::Bool(_)
+                    | nocter_model::ConstantValue::Character(_)
+                    | nocter_model::ConstantValue::Integer(_)
+            )
+        );
+        Ok(SemanticFact::Available(is_scalar.then_some(node.ty())))
+    }
+
     pub(in crate::query) fn body_scope_fact(
         &self,
         body: BodyId,

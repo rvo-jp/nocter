@@ -679,6 +679,159 @@ mod tests {
     }
 
     #[test]
+    fn unicode_scalar_editor_surface_uses_the_compiler_literal_and_builtin_authorities() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "const FACE: char = '\\u{1F600}'\n",
+            "func main(): i32 {\n",
+            "    let scalar = FACE\n",
+            "    if scalar.code_point() == 128512 && scalar == '😀' { return 0 }\n",
+            "    return 1\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}}}}}}"
+        ));
+        assert!(
+            hover
+                .response()
+                .is_some_and(|response| response.contains("const FACE: char = '😀'")),
+            "{:?}",
+            hover.response()
+        );
+
+        let literal_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":51}}}}}}"
+        ));
+        assert!(
+            literal_hover
+                .response()
+                .is_some_and(|response| response.contains("```nocter\\nchar\\n```")),
+            "{:?}",
+            literal_hover.response()
+        );
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens
+                .response()
+                .is_some_and(|response| response.contains(",13,0")),
+            "{:?}",
+            tokens.response()
+        );
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":4,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":6,\"character\":0}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        assert!(
+            hints
+                .response()
+                .is_some_and(|response| response.contains("\"label\":\": char\"")),
+            "{:?}",
+            hints.response()
+        );
+
+        let incomplete = concat!(
+            "const FACE: char = '\\u{1F600}'\n",
+            "func main(): i32 {\n",
+            "    let scalar = FACE\n",
+            "    scalar.\n",
+            "    return 0\n",
+            "}\n",
+        );
+        set_completion_document(&mut server, &uri, incomplete, 2);
+        let completion = request_completion(&mut server, &uri, 5, 3, 11);
+        let response = completion.response().unwrap();
+        assert!(response.contains("\"label\":\"code_point\""), "{response}");
+        assert!(response.contains("\"label\":\"utf8_len\""), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+        assert!(
+            literal_hover.issue().is_none(),
+            "{:?}",
+            literal_hover.issue()
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
+    fn malformed_character_literal_keeps_a_source_diagnostic_across_editor_queries() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let opened = set_completion_document(
+            &mut server,
+            &uri,
+            "func scalar(): char { return '\\u{D800}' }\n",
+            1,
+        );
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        assert!(
+            snapshot
+                .diagnostics()
+                .iter()
+                .any(|diagnostic| diagnostic.code() == "E0117")
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":0,\"character\":31}}}}}}"
+        ));
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert_eq!(
+            hover.response(),
+            Some(r#"{"jsonrpc":"2.0","id":2,"result":null}"#)
+        );
+        assert!(
+            tokens
+                .response()
+                .is_some_and(|response| response.contains("\"data\":[]")),
+            "{:?}",
+            tokens.response()
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+    }
+
+    #[test]
     fn separated_constant_selects_its_contract_and_initializer() {
         let temporary = TemporaryDirectory::new();
         std::fs::write(

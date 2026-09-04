@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.19.0 Phase 2 Collection Ordering Review - Nocter</title>
-    <meta name="description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
+    <title>v0.34.0 Phase 4 Unicode-scalar Tooling Review - Nocter</title>
+    <meta name="description" content="Result: complete with no open finding (2026-09-04). Compiler structural output, semantic tooling, runnable examples, and an installed-standard-library invo">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.19.0-phase-2/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.34.0-phase-4/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.19.0 Phase 2 Collection Ordering Review - Nocter">
-    <meta property="og:description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.19.0-phase-2/">
+    <meta property="og:title" content="v0.34.0 Phase 4 Unicode-scalar Tooling Review - Nocter">
+    <meta property="og:description" content="Result: complete with no open finding (2026-09-04). Compiler structural output, semantic tooling, runnable examples, and an installed-standard-library invo">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.34.0-phase-4/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.19.0 Phase 2 Collection Ordering Review - Nocter">
-    <meta name="twitter:description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
+    <meta name="twitter:title" content="v0.34.0 Phase 4 Unicode-scalar Tooling Review - Nocter">
+    <meta name="twitter:description" content="Result: complete with no open finding (2026-09-04). Compiler structural output, semantic tooling, runnable examples, and an installed-standard-library invo">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.19.0 Phase 2 Collection Ordering Review - Nocter","description":"Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de","url":"https://nocter.dev/development/reviews/v0.19.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.19.0-phase-2/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.19.0 Phase 2","item":"https://nocter.dev/development/reviews/v0.19.0-phase-2/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.34.0 Phase 4 Unicode-scalar Tooling Review - Nocter","description":"Result: complete with no open finding (2026-09-04). Compiler structural output, semantic tooling, runnable examples, and an installed-standard-library invo","url":"https://nocter.dev/development/reviews/v0.34.0-phase-4/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.34.0-phase-4/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.34.0 Phase 4","item":"https://nocter.dev/development/reviews/v0.34.0-phase-4/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -175,7 +175,7 @@
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.34.0-phase-4/index.html#content">v0.34.0 Phase 4 Unicode-scalar Tooling Review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.34.0 Phase 4 Unicode-scalar Tooling Review</a></li>
                 <li><a href="../v0.34.0-phase-3/index.html#content">v0.34.0 Phase 3 Owned-scalar Integration Review</a></li>
                 <li><a href="../v0.34.0-phase-2/index.html#content">v0.34.0 Phase 2 UTF-8 Iteration Review</a></li>
                 <li><a href="../v0.34.0-phase-1/index.html#content">v0.34.0 Phase 1 Scalar-product Review</a></li>
@@ -231,7 +231,7 @@
                 <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
                 <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
                 <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.19.0 Phase 2 Collection Ordering Review</a></li>
+                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li>
                 <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
                 <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
                 <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
@@ -249,31 +249,11 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.19.0-phase-2.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.34.0-phase-4.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-19-0-phase-2-collection-ordering-review">v0.19.0 Phase 2 Collection Ordering Review</h1><p><strong>Result: passed (2026-08-28).</strong> This review covers the public readwrite-slice <code>sort</code> contract, strict-order selection, in-place movement of move-only values, destruction, Vec coercion reuse, complexity and allocation bounds, module responsibility, native behavior, and editor behavior introduced by v0.19.0 Phase 2.</p><h2 id="review-criteria">Review Criteria</h2><p>The review traced:</p><ul><li>every comparison from the generic <code>(&amp;T &lt; &amp;T): bool</code> requirement to the concrete selected
-  operation;</li><li>every owner moved out of and back into a slice slot, including duplicate-key and early-return
-  paths;</li><li>arithmetic used for heap children and element byte offsets;</li><li>the public declaration selected for explicit slice views and coerced Vec receivers;</li><li>all new standard-library source and module dependencies;</li><li>public contract and implementation-source hover, member completion, and navigation;</li><li>duplicate algorithms, Vec forwarding methods, unnecessary private wrappers, allocation,
-  compatibility behavior, new compiler primitives, and editor-only reconstruction.</li></ul><h2 id="findings-and-remediation">Findings and Remediation</h2><h3 id="stability-would-conflict-with-the-bounded-storage-goal">Stability would conflict with the bounded-storage goal</h3><p>A stable general-purpose sort either needs additional owned storage or a substantially more complex in-place merge algorithm. Neither cost should be hidden behind a first practical ordering API. The accepted contract explicitly permits equivalent elements to move, guarantees constant auxiliary storage and <code>O(n log n)</code> worst-case work, and leaves a future stable operation as a separate contract. The method name remains <code>sort</code>; instability is a documented semantic property, not an implementation accident.</p><h3 id="ordering-initially-entered-the-slice-observation-source">Ordering initially entered the slice observation source</h3><p>The first body was added to <code>slice/views.nct</code>, which would have made borrowed observation and owner-moving mutation share one source responsibility. The completed structure places all heap ordering and raw movement in <code>slice/ordering.nct</code>. <code>slice/views.nct</code> retains only length, pointer, borrowed search, equality, and lexicographic comparison.</p><h3 id="the-first-completed-method-retained-a-redundant-private-forwarding-function">The first completed method retained a redundant private forwarding function</h3><p>An intermediate implementation placed the heap loops in a private free <code>sort</code> function and made the method body forward to it. Since no second consumer existed, that wrapper added another name without defining a boundary. The loops now live directly in the contract-completing method body; only <code>sift_down</code> and <code>swap_elements</code>, which each isolate reused invariants, remain helpers.</p><h3 id="fixed-array-unsizing-is-an-independent-language-capability">Fixed-array unsizing is an independent language capability</h3><p>Nocter currently has no public fixed-array-to-slice conversion. Adding one would affect coercion, provenance, method selection, and the language specification beyond collection ordering. Phase 2 does not add an implicit conversion merely to broaden a test. Direct slice behavior is exercised through an explicit Vec readwrite view, while ordinary Vec method syntax separately proves the existing receiver coercion. Fixed-array unsizing can be designed independently if a practical consumer requires it.</p><h3 id="the-native-fixture-obscured-its-orchestration-function">The native fixture obscured its orchestration function</h3><p>Embedding the complete Nocter acceptance package inside the Rust test function crossed the workspace line-count guard. The source is now an immutable file-scope fixture, while the test function owns only temporary package creation, discovery, compilation, and execution. No lint exception was added.</p><h2 id="final-boundary-assessment">Final Boundary Assessment</h2><ul><li><code>spec/21-practical-standard-library.md</code> exclusively owns ascending result, instability,
-  complexity, failure, allocation, and ownership behavior.</li><li><code>std/slice/index.nct</code> owns the sole public declaration. <code>std/slice/ordering.nct</code> owns the sole
-  algorithm and raw movement; <code>std/vec</code> contains no <code>sort</code> declaration or wrapper.</li><li>strict-order selection remains the existing compiler-checked generic operation. The algorithm
-  calls <code>&lt;</code> directly and does not reconstruct dispatch, call equality, or accept a parallel
-  comparator abstraction.</li><li>every comparison runs while the complete slice is initialized. <code>swap_elements</code> performs no user
-  call or fallible operation after opening its first slot and fills both slots before returning.</li><li>valid slice layout makes element offsets representable. The <code>root &lt; end / 2</code> condition makes
-  <code>root * 2 + 1</code> representable and within the active heap.</li><li>the algorithm allocates no storage and introduces no recoverable failure. Two moved locals are
-  its only element-sized auxiliary owners.</li><li>native acceptance proves reverse and mixed integer order, empty and one-element inputs, already
-  ordered input, duplicate keys, String ordering through coercion, move-only values, and exactly
-  one destruction per original owner.</li><li>LSP completion exposes <code>sort</code> on Vec, and definition navigation reaches the slice contract rather
-  than an invented Vec declaration. Contract and body hover use the same checked program as native
-  compilation.</li><li>no compiler source, primitive registry, compatibility path, or reviewed module dependency set
-  changed.</li></ul><p>No unresolved correctness or responsibility-boundary finding remains in Phase 2 scope.</p><h2 id="verification">Verification</h2><p>The completed tree passed with <code>/private/tmp/nocter-v019-phase2</code> as the external Cargo target:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--workspace</span>
-<span class="token-function">cargo</span> clippy <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml \
-  <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
-<span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--all</span> -- <span class="token-option">--check</span>
-<span class="token-function">node</span> docs/build-docs.js
-<span class="token-function">git</span> diff <span class="token-option">--check</span>
-</code></pre>
+                <h1 id="v0-34-0-phase-4-unicode-scalar-tooling-review">v0.34.0 Phase 4 Unicode-scalar Tooling Review</h1><p><strong>Result: complete with no open finding (2026-09-04).</strong> Compiler structural output, semantic tooling, runnable examples, and an installed-standard-library invocation now exercise the same Unicode-scalar product established by Phases 1 through 3.</p><h2 id="closed-product">Closed Product</h2><p>Tokens and AST JSON preserve <code>character_literal</code> as a category distinct from byte and string literals and retain the exact authored spelling. The formatter treats the literal as one lossless token, normalizes only surrounding layout, and proves concrete-syntax equivalence after rewriting. Malformed scalar spellings remain <code>E0117</code> source diagnostics in structural and language-server requests.</p><p>Semantic presentation renders character constants through the existing checked constant value and canonical source renderer. Hover on a checked scalar literal obtains its type through an explicit analysis capability over a <code>BodyNode</code> identity; the query layer neither inspects checker storage nor decodes quote text. Inferred bindings display <code>char</code>, the built-in type navigates to the selected standard declaration, and ordinary member completion exposes <code>char</code> instance methods.</p><p>Semantic highlighting merges exact source-index bindings with accepted syntax-owned character tokens in one sorted compiler result. The language-server adapter maps the protocol-independent <code>CharacterLiteral</code> category to the standard LSP <code>string</code> token kind and performs no literal parsing. The readonly modifier remains reserved for binding/place mutability and is not attached to the literal token.</p><h2 id="practical-integration">Practical Integration</h2><p><code>examples/unicode-text.nct</code> distinguishes byte length from scalar count, traverses borrowed UTF-8, copies scalars into owned text, and constructs a scalar from a code point. The complete native single-file example gate accepts it. The CLI installed-toolchain gate copies the physical standard package into an isolated Nocter home, compiles and executes mixed-width scalar iteration through that installation, and therefore detects omitted standard sources or stale profile locations.</p><h2 id="authority-review">Authority Review</h2><ul><li>source tooling consumes lexer/parser tokens and never decodes a character literal;</li><li>analysis receives scalar-literal type facts through its semantic-evidence adapter rather than
+  exposing <code>CheckedBody</code> internals to hover;</li><li>LSP owns only UTF-16 coordinate and protocol-token projection;</li><li>completion and navigation use the ordinary declaration and instance indexes;</li><li>no editor, example, or installed-home test introduces a second Unicode validity or UTF-8 table.</li></ul><p>Phase 5 remains responsible for the complete qualification matrix, performance evidence, release candidate packaging, and final duplicate-authority review.</p>
             </div>
         </main>
     </div>

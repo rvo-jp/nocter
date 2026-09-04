@@ -2,6 +2,7 @@ use nocter_declarations::{CallableKind, NominalShape, ParameterRole};
 use nocter_model::CallableCapability;
 use nocter_source::{SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceAccess, SourceBinding, SourceRole};
+use nocter_syntax::TokenKind;
 
 use crate::AnalysisSnapshot;
 use crate::query::evidence::{
@@ -40,7 +41,7 @@ impl SemanticHighlight {
     }
 }
 
-/// Closed semantic categories independent of any editor protocol's numeric legend.
+/// Closed compiler-owned highlight categories independent of any editor protocol's numeric legend.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum SemanticHighlightKind {
     Namespace,
@@ -56,10 +57,12 @@ pub enum SemanticHighlightKind {
     Function,
     Method,
     Keyword,
+    CharacterLiteral,
 }
 
 impl AnalysisSnapshot {
-    /// Classifies every exact semantic binding available from the deepest current authority.
+    /// Classifies every exact semantic binding plus accepted syntax-owned scalar literal available
+    /// from the deepest current authority.
     ///
     /// # Errors
     ///
@@ -98,6 +101,29 @@ impl AnalysisSnapshot {
             }
             start = end;
         }
+        if let Some(syntax) = self
+            .syntax_trees()
+            .iter()
+            .find(|syntax| syntax.source() == source)
+        {
+            highlights.extend(
+                syntax
+                    .lexed()
+                    .tokens()
+                    .iter()
+                    .copied()
+                    .filter(|token| token.kind() == TokenKind::CharacterLiteral)
+                    .map(|token| SemanticHighlight {
+                        range: token.span().range(),
+                        kind: SemanticHighlightKind::CharacterLiteral,
+                        declaration: false,
+                        readonly: false,
+                    }),
+            );
+        }
+        highlights.sort_unstable_by_key(|highlight| {
+            (highlight.range.start().get(), highlight.range.end().get())
+        });
         Ok(SemanticQuerySet::new(
             highlights.into_boxed_slice(),
             coverage,

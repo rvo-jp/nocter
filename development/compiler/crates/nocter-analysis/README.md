@@ -25,6 +25,8 @@ results. Protocol crates receive result values only.
 - Feature modules cannot inspect session phase variants or raw `SourceIndex`.
 - Presentation and signature queries consume exclusive semantic inputs instead of optional evidence
   combinations.
+- Semantic highlighting joins exact semantic bindings with syntax-owned accepted scalar-literal
+  tokens; it never decodes literal text or guesses unresolved names.
 - Presentation renders authored callable guarantees from declaration or structural-type contracts;
   it never infers source modifiers from checked effects.
 - Every semantic/source join uses one sealed generation.

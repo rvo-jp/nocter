@@ -1,0 +1,25 @@
+use std/io
+use std/string.String
+
+func main(): i32! {
+    let text: &str = "Aλ😀"
+    if text.len() != 7 || text.char_count() != 3 {
+        return 1
+    }
+
+    var copied = String.empty()
+    for scalar in text.chars() {
+        copied.push(scalar)
+    }
+    copied.push('!')
+
+    let face = char.from_u32(128512) otherwise {
+        return 2
+    }
+    if face != '😀' || face.utf8_len() != 4 {
+        return 3
+    }
+
+    io.println(&copied)?
+    return 0
+}

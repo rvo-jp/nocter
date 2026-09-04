@@ -464,4 +464,41 @@ mod tests {
         assert!(json.contains("\"kind\":\"source_file\""));
         assert!(json.contains("\"kind\":\"package_directive\""));
     }
+
+    #[test]
+    fn structural_projections_preserve_character_literal_identity_and_spelling() {
+        let inspection = SourceInspection::new(
+            SourceName::new("/tmp/scalars.nct"),
+            b"const FACE: char = '\\u{1F600}'\n",
+            InspectionGoal::SourceFile,
+        )
+        .unwrap();
+
+        let tokens = inspection.render_tokens_json().unwrap();
+        let ast = inspection.render_ast_json().unwrap();
+
+        for projection in [&tokens, &ast] {
+            assert!(
+                projection.contains("\"kind\":\"character_literal\",\"text\":\"'\\\\u{1F600}'\"")
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_character_literals_remain_structural_diagnostics() {
+        let inspection = SourceInspection::new(
+            SourceName::new("/tmp/scalars.nct"),
+            b"func scalar(): char { return '\\u{D800}' }\n",
+            InspectionGoal::SourceFile,
+        )
+        .unwrap();
+
+        let tokens = inspection.render_tokens_json().unwrap();
+        let ast = inspection.render_ast_json().unwrap();
+
+        assert!(tokens.contains("\"ok\":false"));
+        assert!(tokens.contains("\"code\":\"E0117\""));
+        assert!(ast.contains("\"ok\":false"));
+        assert!(ast.contains("\"code\":\"E0117\""));
+    }
 }

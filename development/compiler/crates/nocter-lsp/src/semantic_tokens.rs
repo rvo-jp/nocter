@@ -19,6 +19,7 @@ pub const SEMANTIC_TOKEN_TYPES: &[&str] = &[
     "function",
     "method",
     "keyword",
+    "string",
 ];
 
 pub const SEMANTIC_TOKEN_MODIFIERS: &[&str] = &["declaration", "readonly"];
@@ -38,6 +39,7 @@ pub enum SemanticTokenType {
     Function,
     Method,
     Keyword,
+    String,
 }
 
 impl SemanticTokenType {
@@ -56,6 +58,7 @@ impl SemanticTokenType {
             Self::Function => 10,
             Self::Method => 11,
             Self::Keyword => 12,
+            Self::String => 13,
         }
     }
 }

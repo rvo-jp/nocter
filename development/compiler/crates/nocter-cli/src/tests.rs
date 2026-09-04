@@ -987,7 +987,22 @@ fn json_test_keeps_target_local_source_failure_beside_later_runs() {
 fn public_invocation_builds_through_the_installed_standard_library() {
     let tree = TempTree::new("build");
     let home = tree.installation("arm64-darwin", true);
-    fs::write(tree.0.join("app.nct"), "func main(): i32 { return 0 }\n").unwrap();
+    fs::write(
+        tree.0.join("app.nct"),
+        concat!(
+            "func main(): i32 {\n",
+            "    let text: &str = \"Aλ😀\"\n",
+            "    var count: usize = 0\n",
+            "    for scalar in text.chars() {\n",
+            "        if scalar == '\\u{1F600}' && scalar.utf8_len() != 4 { return 1 }\n",
+            "        count += 1\n",
+            "    }\n",
+            "    if count != 3 { return 2 }\n",
+            "    return 0\n",
+            "}\n",
+        ),
+    )
+    .unwrap();
     let output = tree.0.join("app-bin");
     let outcome = execute_invocation(invocation(
         [
@@ -1004,7 +1019,11 @@ fn public_invocation_builds_through_the_installed_standard_library() {
 
     assert!(matches!(&outcome, InvocationOutcome::Build(_)));
     assert_eq!(outcome.exit_code(), 0);
-    assert_eq!(&fs::read(output).unwrap()[..4], &[0xcf, 0xfa, 0xed, 0xfe]);
+    assert_eq!(&fs::read(&output).unwrap()[..4], &[0xcf, 0xfa, 0xed, 0xfe]);
+    assert_eq!(
+        std::process::Command::new(output).status().unwrap().code(),
+        Some(0)
+    );
 }
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]

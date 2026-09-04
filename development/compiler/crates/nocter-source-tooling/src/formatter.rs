@@ -628,6 +628,16 @@ mod tests {
     }
 
     #[test]
+    fn preserves_canonical_character_literal_spelling_while_formatting_its_expression() {
+        let formatted = format("func scalar():char { let face='\\u{1F600}'\nreturn face\n}\n");
+        assert_eq!(
+            formatted,
+            "func scalar(): char { let face = '\\u{1F600}'\n    return face\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn distinguishes_attached_parentheses_from_grouping_and_closure_heads() {
         assert_eq!(
             format(

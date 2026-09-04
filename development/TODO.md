@@ -43,10 +43,10 @@ complete-workspace, reproducible-package, installed-home, and public-asset quali
 
 ## Next Work
 
-Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 3 owned-text, formatting, and
-hashing integration. Phase 4 must close formatter, structural output, semantic editor queries,
-malformed-source recovery, public examples, and installed-standard-source behavior without adding
-an editor-local literal decoder.
+Continue [v0.34.0](milestones/v0.34.0.md) from its completed Phase 4 tooling and practical
+integration. Phase 5 must qualify the whole candidate, record cold compiler and editor baselines,
+review scalar authorities for duplication, and prepare the release candidate only if every gate
+passes.
 
 Preserve the v0.33.0 release record as immutable evidence; any correction requires a new version,
 candidate, tag, and archive.

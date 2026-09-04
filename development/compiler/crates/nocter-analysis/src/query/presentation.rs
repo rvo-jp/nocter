@@ -1383,4 +1383,18 @@ mod tests {
         super::write_string_literal(&mut output, "line\n\u{7f}\"${値}").unwrap();
         assert_eq!(output, "\"line\\n\\x7F\\\"\\${値}\"");
     }
+
+    #[test]
+    fn constant_character_presentation_is_valid_canonical_nocter_source() {
+        for (value, expected) in [
+            (u32::from('λ'), "'λ'"),
+            (u32::from('\''), "'\\\''"),
+            (u32::from('\u{7f}'), "'\\u{7F}'"),
+            (0x1F600, "'😀'"),
+        ] {
+            let mut output = String::new();
+            super::write_character_literal(&mut output, value).unwrap();
+            assert_eq!(output, expected);
+        }
+    }
 }

@@ -85,6 +85,15 @@ nocter check examples/elapsed.nct
 nocter run examples/elapsed.nct
 ```
 
+[unicode-text.nct](unicode-text.nct) distinguishes UTF-8 byte length from Unicode-scalar count,
+iterates borrowed text as `char` values, appends those scalars transactionally to an owned
+`String`, and constructs a scalar from its code point.
+
+```sh
+nocter check examples/unicode-text.nct
+nocter run examples/unicode-text.nct
+```
+
 ## Package Examples
 
 [subprocess-configured/index.nct](subprocess-configured/index.nct) configures an exact child

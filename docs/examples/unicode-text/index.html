@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.19.0 Phase 2 Collection Ordering Review - Nocter</title>
-    <meta name="description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
+    <title>examples/unicode-text.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for examples/unicode-text.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.19.0-phase-2/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/examples/unicode-text/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.19.0 Phase 2 Collection Ordering Review - Nocter">
-    <meta property="og:description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.19.0-phase-2/">
+    <meta property="og:title" content="examples/unicode-text.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for examples/unicode-text.nct.">
+    <meta property="og:url" content="https://nocter.dev/examples/unicode-text/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.19.0 Phase 2 Collection Ordering Review - Nocter">
-    <meta name="twitter:description" content="Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de">
+    <meta name="twitter:title" content="examples/unicode-text.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for examples/unicode-text.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.19.0 Phase 2 Collection Ordering Review - Nocter","description":"Result: passed (2026-08-28). This review covers the public readwrite-slice sort contract, strict-order selection, in-place movement of move-only values, de","url":"https://nocter.dev/development/reviews/v0.19.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.19.0-phase-2/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.19.0 Phase 2","item":"https://nocter.dev/development/reviews/v0.19.0-phase-2/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/unicode-text.nct - Nocter","description":"Nocter source code for examples/unicode-text.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/unicode-text/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Unicode Text","item":"https://nocter.dev/examples/unicode-text/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,107 +172,73 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/reviews/</p>
+            <p class="directory-toc-title">examples/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.34.0-phase-4/index.html#content">v0.34.0 Phase 4 Unicode-scalar Tooling Review</a></li>
-                <li><a href="../v0.34.0-phase-3/index.html#content">v0.34.0 Phase 3 Owned-scalar Integration Review</a></li>
-                <li><a href="../v0.34.0-phase-2/index.html#content">v0.34.0 Phase 2 UTF-8 Iteration Review</a></li>
-                <li><a href="../v0.34.0-phase-1/index.html#content">v0.34.0 Phase 1 Scalar-product Review</a></li>
-                <li><a href="../v0.34.0-phase-0/index.html#content">v0.34.0 Phase 0 Unicode-scalar Design Review</a></li>
-                <li><a href="../v0.33.0-phase-4/index.html#content">v0.33.0 Phase 4 Qualification and Final Review</a></li>
-                <li><a href="../v0.33.0-phases-1-3/index.html#content">v0.33.0 Phases 1–3 Structural-tuple Implementation Review</a></li>
-                <li><a href="../v0.33.0-phase-0/index.html#content">v0.33.0 Phase 0 Structural-tuple Design Review</a></li>
-                <li><a href="../v0.32.0-phase-5/index.html#content">v0.32.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.32.0-phase-4/index.html#content">v0.32.0 Phase 4 Tooling and Practical Integration Review</a></li>
-                <li><a href="../v0.32.0-phase-3/index.html#content">v0.32.0 Phase 3 Native Lifecycle Review</a></li>
-                <li><a href="../v0.32.0-phase-2/index.html#content">v0.32.0 Phase 2 Unified Command-I/O Review</a></li>
-                <li><a href="../v0.32.0-phase-1/index.html#content">v0.32.0 Phase 1 Owned Configuration and Prepared-plan Review</a></li>
-                <li><a href="../v0.32.0-phase-0/index.html#content">v0.32.0 Phase 0 Configured-subprocess Design Review</a></li>
-                <li><a href="../v0.31.0-phase-5/index.html#content">v0.31.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.31.0-phase-4/index.html#content">v0.31.0 Phase 4 Tooling and Practical Integration Review</a></li>
-                <li><a href="../v0.31.0-phase-3/index.html#content">v0.31.0 Phase 3 Native Failure and Lifecycle Review</a></li>
-                <li><a href="../v0.31.0-phase-2/index.html#content">v0.31.0 Phase 2 Owning Output Lifecycle Review</a></li>
-                <li><a href="../v0.31.0-phase-1/index.html#content">v0.31.0 Phase 1 Raw Descriptor and Readiness Review</a></li>
-                <li><a href="../v0.31.0-phase-0/index.html#content">v0.31.0 Phase 0 Captured-output Design Review</a></li>
-                <li><a href="../v0.30.0-phase-5/index.html#content">v0.30.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.30.0-phase-4/index.html#content">v0.30.0 Phase 4 Tooling and Practical Integration Review</a></li>
-                <li><a href="../v0.30.0-phase-3/index.html#content">v0.30.0 Phase 3 Native Failure and Lifecycle Review</a></li>
-                <li><a href="../v0.30.0-phase-2/index.html#content">v0.30.0 Phase 2 Owning Command and Status Review</a></li>
-                <li><a href="../v0.30.0-phase-1/index.html#content">v0.30.0 Phase 1 Process-context and Raw-target Review</a></li>
-                <li><a href="../v0.30.0-phase-0/index.html#content">v0.30.0 Phase 0 Synchronous-subprocess Design Review</a></li>
-                <li><a href="../v0.29.0-phase-5/index.html#content">v0.29.0 Phase 5 Standard Input and Run Invocation Review</a></li>
-                <li><a href="../v0.28.0-phase-5/index.html#content">v0.28.0 Phase 5 Text, Formatting, and Output Review</a></li>
-                <li><a href="../v0.27.0-phase-4/index.html#content">v0.27.0 Phase 4 Filesystem and Path Review</a></li>
-                <li><a href="../v0.26.0-phase-5/index.html#content">v0.26.0 Phase 5 Monotonic-time Qualification Review</a></li>
-                <li><a href="../v0.25.0-query-authority-closure/index.html#content">v0.25.0 Query Authority Closure Review</a></li>
-                <li><a href="../v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li>
-                <li><a href="../v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
-                <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
-                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
-                <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
-                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
-                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
-                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
-                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
-                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li>
-                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li>
-                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li>
-                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li>
-                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li>
-                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li>
-                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li>
-                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li>
-                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li>
-                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li>
-                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li>
-                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li>
-                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li>
-                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
-                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
-                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.19.0 Phase 2 Collection Ordering Review</a></li>
-                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
-                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
-                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
-                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li>
-                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li>
-                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li>
-                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li>
-                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li>
-                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li>
-                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li>
-                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li>
-                <li><a href="../v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li>
-                <li><a href="../v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li>
+                <li><a href="../hello/index.html#content">hello.nct</a></li>
+                <li><a href="../custom-format/index.html#content">custom-format.nct</a></li>
+                <li><a href="../equality/index.html#content">equality.nct</a></li>
+                <li><a href="../indexing/index.html#content">indexing.nct</a></li>
+                <li><a href="../recovery/index.html#content">recovery.nct</a></li>
+                <li><a href="../mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
+                <li><a href="../ordering/index.html#content">ordering.nct</a></li>
+                <li><a href="../tuples/index.html#content">tuples.nct</a></li>
+                <li><a href="../elapsed/index.html#content">elapsed.nct</a></li>
+                <li><a href="./index.html#content" aria-current="page">unicode-text.nct</a></li>
+                <li><a href="../subprocess-configured/index/index.html#content">subprocess-configured/index.nct</a></li>
+                <li><a href="../subprocess-output/index/index.html#content">subprocess-output/index.nct</a></li>
+                <li><a href="../subprocess-status/index/index.html#content">subprocess-status/index.nct</a></li>
+                <li><a href="../text-banner/index/index.html#content">text-banner/index.nct</a></li>
+                <li><a href="../text-banner/banner/index.html#content">banner.nct</a></li>
+                <li><a href="../stdin-prefix/index/index.html#content">stdin-prefix/index.nct</a></li>
+                <li><a href="../stdin-prefix/prefix/index.html#content">prefix.nct</a></li>
+                <li><a href="../json-normalize/index/index.html#content">json-normalize/index.nct</a></li>
+                <li><a href="../json-normalize/normalize/index.html#content">normalize.nct</a></li>
+                <li><a href="../line-frequency/index/index.html#content">line-frequency/index.nct</a></li>
+                <li><a href="../line-frequency/frequency/index.html#content">frequency.nct</a></li>
+                <li><a href="../file-summary/index/index.html#content">file-summary/index.nct</a></li>
+                <li><a href="../file-summary/summary/index.html#content">summary.nct</a></li>
+                <li><a href="../text-report/index/index.html#content">text-report/index.nct</a></li>
+                <li><a href="../text-report/report/index/index.html#content">report/index.nct</a></li>
+                <li><a href="../text-report/report/analysis/index.html#content">analysis.nct</a></li>
+                <li><a href="../text-search/index/index.html#content">text-search/index.nct</a></li>
+                <li><a href="../text-search/index.html#content">README</a></li>
+                <li><a href="../../spec/index.html#content">language specification</a></li>
+                <li><a href="../subprocess-configured/configured/index.html#content">subprocess-configured/configured.nct</a></li>
+                <li><a href="../subprocess-output/capture/index.html#content">subprocess-output/capture.nct</a></li>
+                <li><a href="../subprocess-status/status/index.html#content">subprocess-status/status.nct</a></li>
+                <li><a href="../text-search/search/index.html#content">text-search/search.nct</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.19.0-phase-2.md</span>
+                <span class="markdown-path-text">/examples/unicode-text.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-19-0-phase-2-collection-ordering-review">v0.19.0 Phase 2 Collection Ordering Review</h1><p><strong>Result: passed (2026-08-28).</strong> This review covers the public readwrite-slice <code>sort</code> contract, strict-order selection, in-place movement of move-only values, destruction, Vec coercion reuse, complexity and allocation bounds, module responsibility, native behavior, and editor behavior introduced by v0.19.0 Phase 2.</p><h2 id="review-criteria">Review Criteria</h2><p>The review traced:</p><ul><li>every comparison from the generic <code>(&amp;T &lt; &amp;T): bool</code> requirement to the concrete selected
-  operation;</li><li>every owner moved out of and back into a slice slot, including duplicate-key and early-return
-  paths;</li><li>arithmetic used for heap children and element byte offsets;</li><li>the public declaration selected for explicit slice views and coerced Vec receivers;</li><li>all new standard-library source and module dependencies;</li><li>public contract and implementation-source hover, member completion, and navigation;</li><li>duplicate algorithms, Vec forwarding methods, unnecessary private wrappers, allocation,
-  compatibility behavior, new compiler primitives, and editor-only reconstruction.</li></ul><h2 id="findings-and-remediation">Findings and Remediation</h2><h3 id="stability-would-conflict-with-the-bounded-storage-goal">Stability would conflict with the bounded-storage goal</h3><p>A stable general-purpose sort either needs additional owned storage or a substantially more complex in-place merge algorithm. Neither cost should be hidden behind a first practical ordering API. The accepted contract explicitly permits equivalent elements to move, guarantees constant auxiliary storage and <code>O(n log n)</code> worst-case work, and leaves a future stable operation as a separate contract. The method name remains <code>sort</code>; instability is a documented semantic property, not an implementation accident.</p><h3 id="ordering-initially-entered-the-slice-observation-source">Ordering initially entered the slice observation source</h3><p>The first body was added to <code>slice/views.nct</code>, which would have made borrowed observation and owner-moving mutation share one source responsibility. The completed structure places all heap ordering and raw movement in <code>slice/ordering.nct</code>. <code>slice/views.nct</code> retains only length, pointer, borrowed search, equality, and lexicographic comparison.</p><h3 id="the-first-completed-method-retained-a-redundant-private-forwarding-function">The first completed method retained a redundant private forwarding function</h3><p>An intermediate implementation placed the heap loops in a private free <code>sort</code> function and made the method body forward to it. Since no second consumer existed, that wrapper added another name without defining a boundary. The loops now live directly in the contract-completing method body; only <code>sift_down</code> and <code>swap_elements</code>, which each isolate reused invariants, remain helpers.</p><h3 id="fixed-array-unsizing-is-an-independent-language-capability">Fixed-array unsizing is an independent language capability</h3><p>Nocter currently has no public fixed-array-to-slice conversion. Adding one would affect coercion, provenance, method selection, and the language specification beyond collection ordering. Phase 2 does not add an implicit conversion merely to broaden a test. Direct slice behavior is exercised through an explicit Vec readwrite view, while ordinary Vec method syntax separately proves the existing receiver coercion. Fixed-array unsizing can be designed independently if a practical consumer requires it.</p><h3 id="the-native-fixture-obscured-its-orchestration-function">The native fixture obscured its orchestration function</h3><p>Embedding the complete Nocter acceptance package inside the Rust test function crossed the workspace line-count guard. The source is now an immutable file-scope fixture, while the test function owns only temporary package creation, discovery, compilation, and execution. No lint exception was added.</p><h2 id="final-boundary-assessment">Final Boundary Assessment</h2><ul><li><code>spec/21-practical-standard-library.md</code> exclusively owns ascending result, instability,
-  complexity, failure, allocation, and ownership behavior.</li><li><code>std/slice/index.nct</code> owns the sole public declaration. <code>std/slice/ordering.nct</code> owns the sole
-  algorithm and raw movement; <code>std/vec</code> contains no <code>sort</code> declaration or wrapper.</li><li>strict-order selection remains the existing compiler-checked generic operation. The algorithm
-  calls <code>&lt;</code> directly and does not reconstruct dispatch, call equality, or accept a parallel
-  comparator abstraction.</li><li>every comparison runs while the complete slice is initialized. <code>swap_elements</code> performs no user
-  call or fallible operation after opening its first slot and fills both slots before returning.</li><li>valid slice layout makes element offsets representable. The <code>root &lt; end / 2</code> condition makes
-  <code>root * 2 + 1</code> representable and within the active heap.</li><li>the algorithm allocates no storage and introduces no recoverable failure. Two moved locals are
-  its only element-sized auxiliary owners.</li><li>native acceptance proves reverse and mixed integer order, empty and one-element inputs, already
-  ordered input, duplicate keys, String ordering through coercion, move-only values, and exactly
-  one destruction per original owner.</li><li>LSP completion exposes <code>sort</code> on Vec, and definition navigation reaches the slice contract rather
-  than an invented Vec declaration. Contract and body hover use the same checked program as native
-  compilation.</li><li>no compiler source, primitive registry, compatibility path, or reviewed module dependency set
-  changed.</li></ul><p>No unresolved correctness or responsibility-boundary finding remains in Phase 2 scope.</p><h2 id="verification">Verification</h2><p>The completed tree passed with <code>/private/tmp/nocter-v019-phase2</code> as the external Cargo target:</p><pre><code class="language-sh"><span class="token-function">cargo</span> <span class="token-function">test</span> <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--workspace</span>
-<span class="token-function">cargo</span> clippy <span class="token-option">--locked</span> <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml \
-  <span class="token-option">--workspace</span> <span class="token-option">--all-targets</span> -- <span class="token-option">-D</span> warnings
-<span class="token-function">cargo</span> fmt <span class="token-option">--manifest-path</span> development/compiler/Cargo.toml <span class="token-option">--all</span> -- <span class="token-option">--check</span>
-<span class="token-function">node</span> docs/build-docs.js
-<span class="token-function">git</span> diff <span class="token-option">--check</span>
+                <h1>unicode-text.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">=</span> <span class="token-string">"Aλ😀"</span>
+    <span class="token-keyword">if</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">7</span> || text<span class="token-operator">.</span><span class="token-function">char_count</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">3</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">var</span> copied <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">for</span> scalar <span class="token-keyword">in</span> text<span class="token-operator">.</span><span class="token-function">chars</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+        copied<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span>scalar<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    copied<span class="token-operator">.</span><span class="token-function">push</span><span class="token-operator">(</span><span class="token-string">'!'</span><span class="token-operator">)</span>
+
+    <span class="token-keyword">let</span> face <span class="token-operator">=</span> char<span class="token-operator">.</span><span class="token-function">from_u32</span><span class="token-operator">(</span><span class="token-number">128512</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">2</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> face <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-string">'😀'</span> || face<span class="token-operator">.</span><span class="token-function">utf8_len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">4</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">3</span>
+    <span class="token-operator">}</span>
+
+    io<span class="token-operator">.</span><span class="token-function">println</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>copied<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span>
 </code></pre>
             </div>
         </main>
@@ -289,6 +255,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

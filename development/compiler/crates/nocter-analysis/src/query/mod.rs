@@ -3,8 +3,8 @@ use std::fmt;
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceBinding, SourceRole};
 
-use self::evidence::SemanticQueryContext;
-use self::source_selection::select_source_binding;
+use self::evidence::{SemanticFact, SemanticQueryContext};
+use self::source_selection::{select_source_binding, select_source_candidates};
 use crate::AnalysisSnapshot;
 
 mod callable_source;
@@ -163,13 +163,42 @@ impl AnalysisSnapshot {
             return Ok(None);
         };
         let index = authority.source_index();
-        let Some(binding) = selected_binding(index, source, offset) else {
-            return Ok(None);
-        };
         let module = authority.module_for_source(source)?;
         let spellings = self
             .queries
             .source_spellings(authority.graph(), module, index, source);
+        let Some(binding) = selected_binding(index, source, offset) else {
+            let mut literals = Vec::new();
+            for binding in index.bindings_at(source, offset) {
+                let SemanticEntity::BodyNode(body, node) = binding.entity() else {
+                    continue;
+                };
+                if let SemanticFact::Available(Some(ty)) =
+                    authority.scalar_literal_type(body, node)?
+                {
+                    literals.push((*binding, (*binding, ty)));
+                }
+            }
+            let Some((binding, ty)) = select_source_candidates(literals.into_iter()).unique()
+            else {
+                return Ok(None);
+            };
+            let Some(presentation) = presentation::type_presentation_with_spellings(
+                authority.graph(),
+                authority.types(),
+                ty,
+                &spellings,
+            ) else {
+                return Ok(None);
+            };
+            return Ok(Some(SemanticSubject {
+                entity: binding.entity(),
+                role: binding.role(),
+                range: binding.origin().span().range(),
+                presentation,
+                documentation: None,
+            }));
+        };
         let Some(presentation) = authority.presentation(binding.entity(), &spellings, source)?
         else {
             return Ok(None);

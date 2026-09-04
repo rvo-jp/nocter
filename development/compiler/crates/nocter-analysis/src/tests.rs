@@ -567,6 +567,91 @@ fn named_builtin_uses_present_and_navigate_through_the_selected_declaration() {
 }
 
 #[test]
+fn unicode_scalars_share_checked_presentation_navigation_highlighting_and_inlays() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "const FACE: char = '\\u{1F600}'\n",
+        "func main(): i32 {\n",
+        "    let scalar = FACE\n",
+        "    if scalar.code_point() == 128512 && scalar == '😀' { return 0 }\n",
+        "    return 1\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(68));
+
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "Unicode scalar fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+
+    let face_reference = source_text.rfind("FACE").unwrap();
+    let subject = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(face_reference).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(subject.presentation().code(), "const FACE: char = '😀'");
+
+    let literal = source_text.rfind("'😀'").unwrap() + 1;
+    let literal_subject = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(literal).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(literal_subject.presentation().code(), "char");
+
+    let char_type = source_text.find("char").unwrap();
+    let definitions = snapshot
+        .semantic_definition(
+            source.id(),
+            ByteOffset::new(u32::try_from(char_type).unwrap()),
+        )
+        .unwrap();
+    assert_eq!(definitions.len(), 1);
+    assert!(
+        snapshot
+            .sources()
+            .get(definitions[0].source())
+            .unwrap()
+            .name()
+            .as_str()
+            .ends_with("/std/char/index.nct")
+    );
+
+    let highlights = snapshot.semantic_highlights(source.id()).unwrap();
+    let scalar_literals = highlights
+        .iter()
+        .filter(|highlight| highlight.kind() == SemanticHighlightKind::CharacterLiteral)
+        .collect::<Vec<_>>();
+    assert_eq!(scalar_literals.len(), 2);
+    assert_eq!(
+        source.text_at(scalar_literals[0].range()),
+        Some("'\\u{1F600}'")
+    );
+    assert_eq!(source.text_at(scalar_literals[1].range()), Some("'😀'"));
+    assert!(scalar_literals.iter().all(|literal| !literal.is_readonly()));
+
+    let hints = snapshot
+        .semantic_inlay_hints(
+            source.id(),
+            TextRange::new(ByteOffset::new(0), source.len()),
+        )
+        .unwrap();
+    assert!(hints.iter().any(|hint| hint.label() == ": char"));
+}
+
+#[test]
 fn declaration_diagnostics_are_complete_while_safe_body_semantics_remain_available() {
     let tree = TempTree::new();
     let source_text = concat!(

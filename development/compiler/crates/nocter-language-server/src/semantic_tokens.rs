@@ -69,6 +69,7 @@ const fn token_type(kind: SemanticHighlightKind) -> SemanticTokenType {
         SemanticHighlightKind::Function => SemanticTokenType::Function,
         SemanticHighlightKind::Method => SemanticTokenType::Method,
         SemanticHighlightKind::Keyword => SemanticTokenType::Keyword,
+        SemanticHighlightKind::CharacterLiteral => SemanticTokenType::String,
     }
 }
 
