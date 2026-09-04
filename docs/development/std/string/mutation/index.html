@@ -199,9 +199,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>mem <span class="token-keyword">as</span> internal_mem
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>character
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>ptr
-<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>safety
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>utf8
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem
 
@@ -268,10 +266,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">try_push</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">,</span> value<span class="token-operator">:</span> char<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> scalar <span class="token-operator">=</span> character<span class="token-operator">.</span><span class="token-function">char_code_point_raw</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
-    <span class="token-keyword">let</span> encoding <span class="token-operator">=</span> utf8<span class="token-operator">.</span><span class="token-function">encode_scalar</span><span class="token-operator">(</span>scalar<span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
-        <span class="token-keyword">return</span> safety<span class="token-operator">.</span><span class="token-function">invariant_abort</span><span class="token-operator">(</span><span class="token-operator">)</span>
-    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> encoding <span class="token-operator">=</span> utf8<span class="token-operator">.</span><span class="token-function">encode_scalar</span><span class="token-operator">(</span>value<span class="token-operator">)</span>
     <span class="token-function">try_push_valid_utf8</span><span class="token-operator">(</span>text<span class="token-operator">,</span> encoding<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>

@@ -4,7 +4,6 @@ see ./cursor.nct
 see ./errors.nct
 see ./failure.nct
 
-use /internal/utf8
 use /mem.TryAllocator
 use /mem
 use /string.String
@@ -35,13 +34,13 @@ func read_hex_quad(cursor: &+Cursor): u32? {
     return value
 }
 
-func decoded_scalar(cursor: &+Cursor): u32? {
+func decoded_character(cursor: &+Cursor): char? {
     let high = read_hex_quad(cursor)?
     if high >= 56320 && high <= 57343 {
         return none
     }
     if high < 55296 || high > 56319 {
-        return high
+        return char.from_u32(high)
     }
     if !cursor.next_is(92) {
         return none
@@ -55,18 +54,19 @@ func decoded_scalar(cursor: &+Cursor): u32? {
     if low < 56320 || low > 57343 {
         return none
     }
-    return 65536 + (high - 55296) * 1024 + (low - 56320)
+    let scalar: u32 = 65536 + (high - 55296) * 1024 + (low - 56320)
+    return char.from_u32(scalar)
 }
 
-func escaped_ascii(byte: u8): u8? {
-    if byte == 34 { return 34 }
-    if byte == 92 { return 92 }
-    if byte == 47 { return 47 }
-    if byte == 98 { return 8 }
-    if byte == 102 { return 12 }
-    if byte == 110 { return 10 }
-    if byte == 114 { return 13 }
-    if byte == 116 { return 9 }
+func escaped_character(byte: u8): char? {
+    if byte == 34 { return '\u{22}' }
+    if byte == 92 { return '\u{5C}' }
+    if byte == 47 { return '\u{2F}' }
+    if byte == 98 { return '\u{8}' }
+    if byte == 102 { return '\u{C}' }
+    if byte == 110 { return '\u{A}' }
+    if byte == 114 { return '\u{D}' }
+    if byte == 116 { return '\u{9}' }
     return none
 }
 
@@ -127,23 +127,17 @@ func decode_string(
             return invalid_syntax(allocator, cursor.offset())
         }
         if escape == 117 {
-            let scalar = decoded_scalar(cursor) otherwise {
+            let character = decoded_character(cursor) otherwise {
                 return invalid_syntax(allocator, cursor.offset())
             }
-            let encoded = utf8.encode_scalar(scalar) otherwise {
-                return invalid_syntax(allocator, cursor.offset())
-            }
-            output.try_push_utf8(encoded.bytes()) catch failure {
+            output.try_push(character) catch failure {
                 return Attempt.allocation(move failure)
             }
         } else {
-            let scalar = escaped_ascii(escape) otherwise {
+            let character = escaped_character(escape) otherwise {
                 return invalid_syntax(allocator, cursor.offset() - 1)
             }
-            let encoded = utf8.encode_scalar(scalar as u32) otherwise {
-                return invalid_syntax(allocator, cursor.offset() - 1)
-            }
-            output.try_push_utf8(encoded.bytes()) catch failure {
+            output.try_push(character) catch failure {
                 return Attempt.allocation(move failure)
             }
         }

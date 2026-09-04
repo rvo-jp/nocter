@@ -44,7 +44,8 @@ call the unchecked role.
 `std/internal/utf8` owns one decode step over a byte view and offset. The result distinguishes a
 decoded scalar and width from failure; callers test end-of-input before requesting a step. Complete
 validation repeatedly consumes this operation, and `Chars` consumes the same operation over a
-borrowed valid `str`. Encoding remains owned by the existing `encode_scalar` operation.
+borrowed valid `str`. Encoding accepts `char` and is infallible because scalar validity has already
+been established by the type.
 
 The decoder returns `u32`, not `char`, to keep the low-level UTF-8 module independent of the public
 `char` API. `Chars` passes the already validated scalar through the package-internal representation
@@ -53,12 +54,15 @@ end-of-iteration result.
 
 `String.try_push(char)` encodes first, reserves complete capacity second, writes all initialized
 bytes third, and publishes the new logical length last. Allocation failure therefore cannot expose
-a partial scalar. Formatting delegates to this operation and does not encode UTF-8 independently.
+a partial scalar. JSON decoding converts escaped integer code points through `char.from_u32`, then
+delegates to this operation. Formatting and JSON do not encode UTF-8 independently.
 
 ## Required Invariants
 
 - `char` and `u32` never share semantic or runtime primitive identity.
 - Every stored `char` is a Unicode scalar.
+- Integer-to-scalar validation exists only at `char` construction; UTF-8 encoding cannot reject a
+  value that already has type `char`.
 - Syntax decoding is the only interpretation of authored character and byte literal text.
 - UTF-8 leading-byte, continuation, overlong, surrogate, and maximum-value rules have one standard-
   library implementation.

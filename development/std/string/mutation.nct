@@ -4,9 +4,7 @@ see ./index.nct
 see ./storage.nct
 
 use /internal/mem as internal_mem
-use /internal/character
 use /internal/ptr
-use /internal/safety
 use /internal/utf8
 use /mem
 
@@ -73,10 +71,7 @@ func try_push_utf8(text: &+String, value: &[u8]): void! {
 }
 
 func try_push(text: &+String, value: char): void! {
-    let scalar = character.char_code_point_raw(value)
-    let encoding = utf8.encode_scalar(scalar) otherwise {
-        return safety.invariant_abort()
-    }
+    let encoding = utf8.encode_scalar(value)
     try_push_valid_utf8(text, encoding.bytes())?
     return
 }
