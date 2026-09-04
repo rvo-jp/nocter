@@ -22,6 +22,34 @@ test ascii_trim_preserves_utf8_and_named_edges {
     return
 }
 
+test unicode_trim_uses_scalar_properties_and_preserves_views {
+    // U+3000, U+00A0, and U+0085 are Unicode White_Space scalars.
+    let text: &str = "\xE3\x80\x80\xC2\xA0Nocter\xC2\x85\xE3\x80\x80"
+    if text.trim_start() != "Nocter\xC2\x85\xE3\x80\x80" {
+        return error.new("std.str.test", "Unicode start trim changed the wrong edge")
+    }
+    if text.trim_end() != "\xE3\x80\x80\xC2\xA0Nocter" {
+        return error.new("std.str.test", "Unicode end trim changed the wrong edge")
+    }
+    if text.trim() != "Nocter" {
+        return error.new("std.str.test", "Unicode two-sided trim changed text")
+    }
+
+    // U+200B ZERO WIDTH SPACE does not have the White_Space property.
+    let non_whitespace: &str = "Nocter\xE2\x80\x8B"
+    if non_whitespace.trim() != non_whitespace {
+        return error.new("std.str.test", "non-White_Space scalar was removed")
+    }
+
+    let whitespace: &str = "\xE3\x80\x80\xC2\xA0\xC2\x85"
+    if whitespace.trim_start().len() != 0
+        || whitespace.trim_end().len() != 0
+        || whitespace.trim().len() != 0 {
+        return error.new("std.str.test", "all-Unicode-whitespace trim was not empty")
+    }
+    return
+}
+
 test repeat_and_replace_have_exact_owned_spelling {
     let repeated = "ab".repeat(3)
     if (&repeated as &str) != "ababab" {

@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter</title>
-    <meta name="description" content="Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta">
+    <title>development/std/str/unicode_trim.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for development/std/str/unicode_trim.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.35.0-phase-0/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/std/str/unicode_trim/">
+    <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter">
-    <meta property="og:description" content="Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.35.0-phase-0/">
+    <meta property="og:title" content="development/std/str/unicode_trim.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for development/std/str/unicode_trim.nct.">
+    <meta property="og:url" content="https://nocter.dev/development/std/str/unicode_trim/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter">
-    <meta name="twitter:description" content="Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta">
+    <meta name="twitter:title" content="development/std/str/unicode_trim.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for development/std/str/unicode_trim.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter","description":"Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta","url":"https://nocter.dev/development/reviews/v0.35.0-phase-0/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.35.0-phase-0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.35.0 Phase 0","item":"https://nocter.dev/development/reviews/v0.35.0-phase-0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"development/std/str/unicode_trim.nct - Nocter","description":"Nocter source code for development/std/str/unicode_trim.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/development/std/str/unicode_trim/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Std","item":"https://nocter.dev/development/std/"},{"@type":"ListItem","position":4,"name":"Str","item":"https://nocter.dev/development/std/str/"},{"@type":"ListItem","position":5,"name":"Unicode_trim","item":"https://nocter.dev/development/std/str/unicode_trim/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,93 +172,109 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/reviews/</p>
+            <p class="directory-toc-title">development/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.35.0-phase-3/index.html#content">v0.35.0 Phase 3 Character-property and Borrowed-trim Review</a></li>
-                <li><a href="../v0.35.0-phase-2/index.html#content">v0.35.0 Phase 2 Unicode-data and Lookup Review</a></li>
-                <li><a href="../v0.35.0-phase-1/index.html#content">v0.35.0 Phase 1 Immutable-static Implementation Review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.35.0 Phase 0 Static-data and Unicode-text Design Review</a></li>
-                <li><a href="../v0.34.0-phase-5/index.html#content">v0.34.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.34.0-phase-4/index.html#content">v0.34.0 Phase 4 Unicode-scalar Tooling Review</a></li>
-                <li><a href="../v0.34.0-phase-3/index.html#content">v0.34.0 Phase 3 Owned-scalar Integration Review</a></li>
-                <li><a href="../v0.34.0-phase-2/index.html#content">v0.34.0 Phase 2 UTF-8 Iteration Review</a></li>
-                <li><a href="../v0.34.0-phase-1/index.html#content">v0.34.0 Phase 1 Scalar-product Review</a></li>
-                <li><a href="../v0.34.0-phase-0/index.html#content">v0.34.0 Phase 0 Unicode-scalar Design Review</a></li>
-                <li><a href="../v0.33.0-phase-4/index.html#content">v0.33.0 Phase 4 Qualification and Final Review</a></li>
-                <li><a href="../v0.33.0-phases-1-3/index.html#content">v0.33.0 Phases 1–3 Structural-tuple Implementation Review</a></li>
-                <li><a href="../v0.33.0-phase-0/index.html#content">v0.33.0 Phase 0 Structural-tuple Design Review</a></li>
-                <li><a href="../v0.32.0-phase-5/index.html#content">v0.32.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.32.0-phase-4/index.html#content">v0.32.0 Phase 4 Tooling and Practical Integration Review</a></li>
-                <li><a href="../v0.32.0-phase-3/index.html#content">v0.32.0 Phase 3 Native Lifecycle Review</a></li>
-                <li><a href="../v0.32.0-phase-2/index.html#content">v0.32.0 Phase 2 Unified Command-I/O Review</a></li>
-                <li><a href="../v0.32.0-phase-1/index.html#content">v0.32.0 Phase 1 Owned Configuration and Prepared-plan Review</a></li>
-                <li><a href="../v0.32.0-phase-0/index.html#content">v0.32.0 Phase 0 Configured-subprocess Design Review</a></li>
-                <li><a href="../v0.31.0-phase-5/index.html#content">v0.31.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.31.0-phase-4/index.html#content">v0.31.0 Phase 4 Tooling and Practical Integration Review</a></li>
-                <li><a href="../v0.31.0-phase-3/index.html#content">v0.31.0 Phase 3 Native Failure and Lifecycle Review</a></li>
-                <li><a href="../v0.31.0-phase-2/index.html#content">v0.31.0 Phase 2 Owning Output Lifecycle Review</a></li>
-                <li><a href="../v0.31.0-phase-1/index.html#content">v0.31.0 Phase 1 Raw Descriptor and Readiness Review</a></li>
-                <li><a href="../v0.31.0-phase-0/index.html#content">v0.31.0 Phase 0 Captured-output Design Review</a></li>
-                <li><a href="../v0.30.0-phase-5/index.html#content">v0.30.0 Phase 5 Qualification and Final Review</a></li>
-                <li><a href="../v0.30.0-phase-4/index.html#content">v0.30.0 Phase 4 Tooling and Practical Integration Review</a></li>
-                <li><a href="../v0.30.0-phase-3/index.html#content">v0.30.0 Phase 3 Native Failure and Lifecycle Review</a></li>
-                <li><a href="../v0.30.0-phase-2/index.html#content">v0.30.0 Phase 2 Owning Command and Status Review</a></li>
-                <li><a href="../v0.30.0-phase-1/index.html#content">v0.30.0 Phase 1 Process-context and Raw-target Review</a></li>
-                <li><a href="../v0.30.0-phase-0/index.html#content">v0.30.0 Phase 0 Synchronous-subprocess Design Review</a></li>
-                <li><a href="../v0.29.0-phase-5/index.html#content">v0.29.0 Phase 5 Standard Input and Run Invocation Review</a></li>
-                <li><a href="../v0.28.0-phase-5/index.html#content">v0.28.0 Phase 5 Text, Formatting, and Output Review</a></li>
-                <li><a href="../v0.27.0-phase-4/index.html#content">v0.27.0 Phase 4 Filesystem and Path Review</a></li>
-                <li><a href="../v0.26.0-phase-5/index.html#content">v0.26.0 Phase 5 Monotonic-time Qualification Review</a></li>
-                <li><a href="../v0.25.0-query-authority-closure/index.html#content">v0.25.0 Query Authority Closure Review</a></li>
-                <li><a href="../v0.25.0-architecture-follow-up/index.html#content">v0.25.0 Architecture Follow-up Review</a></li>
-                <li><a href="../v0.25.0-noalloc-contracts/index.html#content">v0.25.0 No-allocation Contract Review</a></li>
-                <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
-                <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
-                <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
-                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
-                <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
-                <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
-                <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
-                <li><a href="../v0.22.0-phase-3/index.html#content">v0.22.0 Phase 3 Shared Generator Review</a></li>
-                <li><a href="../v0.22.0-phase-2/index.html#content">v0.22.0 Phase 2 Owning DOM Parser Review</a></li>
-                <li><a href="../v0.22.0-phase-1/index.html#content">v0.22.0 Phase 1 Lexical and Unicode Review</a></li>
-                <li><a href="../v0.22.0-phase-0/index.html#content">v0.22.0 Phase 0 JSON Design Review</a></li>
-                <li><a href="../v0.21.0-phase-5/index.html#content">v0.21.0 Phase 5 Practical Qualification Review</a></li>
-                <li><a href="../v0.21.0-phase-4/index.html#content">v0.21.0 Phase 4 Iteration and Set Review</a></li>
-                <li><a href="../v0.21.0-phase-3/index.html#content">v0.21.0 Phase 3 Private-table and Map Review</a></li>
-                <li><a href="../v0.21.0-phase-2/index.html#content">v0.21.0 Phase 2 Hash-foundation Review</a></li>
-                <li><a href="../v0.21.0-phase-1/index.html#content">v0.21.0 Phase 1 Keyed-pack and Hashing-prerequisite Review</a></li>
-                <li><a href="../v0.21.0-phase-0/index.html#content">v0.21.0 Phase 0 Associative-collection Design Review</a></li>
-                <li><a href="../v0.20.0-phase-3/index.html#content">v0.20.0 Phase 3 Dependency-local Exact-selection Review</a></li>
-                <li><a href="../v0.20.0-phase-2/index.html#content">v0.20.0 Phase 2 Unified Query-entry Review</a></li>
-                <li><a href="../v0.20.0-phase-1/index.html#content">v0.20.0 Phase 1 Incremental Semantic-computation Review</a></li>
-                <li><a href="../v0.20.0-phase-0/index.html#content">v0.20.0 Phase 0 Interface-prerequisite Review</a></li>
-                <li><a href="../v0.19.0-phase-4/index.html#content">v0.19.0 Phase 4 Stabilization Review</a></li>
-                <li><a href="../v0.19.0-phase-3/index.html#content">v0.19.0 Phase 3 Recursive Text-search Review</a></li>
-                <li><a href="../v0.19.0-phase-2/index.html#content">v0.19.0 Phase 2 Collection Ordering Review</a></li>
-                <li><a href="../v0.19.0-phase-1/index.html#content">v0.19.0 Phase 1 Streaming Text-input Review</a></li>
-                <li><a href="../v0.19.0-phase-0/index.html#content">v0.19.0 Phase 0 Filesystem Traversal Review</a></li>
-                <li><a href="../v0.18.0-semantic-tooling-reconstruction/index.html#content">v0.18.0 Semantic Tooling Reconstruction Record</a></li>
-                <li><a href="../v0.18.0-persistent-semantic-authority/index.html#content">v0.18.0 Persistent Semantic Authority Record</a></li>
-                <li><a href="../v0.18.0-phase-3/index.html#content">v0.18.0 Phase 3 Persistent Authority Review</a></li>
-                <li><a href="../v0.18.0-phase-2/index.html#content">v0.18.0 Phase 2 Interface Implementation Review</a></li>
-                <li><a href="../v0.18.0-phase-1/index.html#content">v0.18.0 Phase 1 Builtin Declaration Review</a></li>
-                <li><a href="../v0.18.0-phase-0/index.html#content">v0.18.0 Phase 0 Construction Review</a></li>
-                <li><a href="../v0.17.0-analysis-authority/index.html#content">v0.17.0 Analysis Authority Reconstruction</a></li>
-                <li><a href="../v0.14.0-final-design/index.html#content">v0.14.0 Final Design Review</a></li>
-                <li><a href="../v0.14.0-grammar-audit/index.html#content">v0.14.0 Grammar Closure Audit</a></li>
-                <li><a href="../v0.14.0-boundary-inventory/index.html#content">v0.14.0 Boundary Inventory</a></li>
-                <li><a href="../v0.14.0-findings/index.html#content">v0.14.0 Findings</a></li>
+                <li><a href="../../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../../../milestones/index.html#content">Milestone catalog</a></li>
+                <li><a href="../../../reviews/index.html#content">Design review catalog</a></li>
+                <li><a href="../../../releases/index.html#content">Publication catalog</a></li>
+                <li><a href="../../../docs/architecture/index.html#content">Compiler architecture</a></li>
+                <li><a href="../../../docs/index.html#content">Architecture and maintenance documents</a></li>
+                <li><a href="../../../compiler/index.html#content">Compiler workspace</a></li>
+                <li><a href="../../../verification/index.html#content">Development verification</a></li>
+                <li><a href="../../../milestones/v0.14.0/index.html#content">Rewrite milestone</a></li>
+                <li><a href="../../../milestones/v0.14.0-qualification/index.html#content">Implementation qualification</a></li>
+                <li><a href="../../../reviews/v0.14.0-final-design/index.html#content">Final design review</a></li>
+                <li><a href="../../../milestones/v0.14.0-release-preparation/index.html#content">Release preparation</a></li>
+                <li><a href="../../../releases/v0.14.0/index.html#content">Publication and audit</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.35.0-phase-0.md</span>
+                <span class="markdown-path-text">/development/std/str/unicode_trim.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-35-0-phase-0-static-data-and-unicode-text-design-review">v0.35.0 Phase 0 Static-data and Unicode-text Design Review</h1><p><strong>Result: complete with no open design finding (2026-09-04).</strong> This review fixes the architecture before implementation and does not claim that candidate syntax or APIs are available.</p><h2 id="findings">Findings</h2><p>The published compiler can embed static string literal bytes but has no typed, addressable, immutable aggregate declaration. Unicode property and casing data therefore cannot be represented directly by the current language.</p><p>Generating thousands of <code>if</code> branches would preserve behavior but force every standard-library analysis to parse implementation-shaped data and would couple lookup cost to generated control flow. Adding primitives such as <code>char_is_alphabetic</code> would move Unicode versioning and properties into compiler and backend registries. Both approaches create a second authority and are rejected.</p><p>The accepted prerequisite is a general <code>static</code> product. Constant evaluation freezes a narrow, destructor-free initializer domain once; checked semantics expose only a readonly static place; target lowering owns layout and bytes; executable lowering owns readonly placement. Unicode is one client and does not appear in those compiler contracts.</p><p><a href="https://www.unicode.org/releases/index.html">Unicode 17.0.0 is the latest final standard</a> at this design point. <a href="https://www.unicode.org/versions/beta-18.0.0.html">Unicode 18.0.0 remains beta</a>, and the beta guidance says implementations should not be released based on beta data. v0.35.0 therefore pins 17.0.0 rather than a moving <code>latest</code> URL.</p><p>Full default casing is defined on text rather than <code>char</code> because one scalar can expand to multiple scalars. Locale-specific mappings, normalization, and case folding remain distinct future features. Unicode trim returns borrowed views, while owned suffix removal mutates only at proven scalar boundaries.</p><h2 id="responsibility-test">Responsibility Test</h2><ul><li>Unicode data can change in a later release without changing parser, checker, or backend code;</li><li>the generator can change internally while producing byte-identical checked table definitions;</li><li>static layout can change for another target without changing initializer evaluation;</li><li>standard lookup representation can change without changing public <code>char</code>, <code>str</code>, or <code>String</code>
-  contracts;</li><li>editor presentation can change without reading generated tables;</li><li>ASCII APIs can remain stable when the pinned Unicode property sets change.</li></ul><p>Each substitution crosses an exported typed product. No step depends on a caller remembering to revalidate data, preserve initialization order, or keep a second range table synchronized.</p>
+                <h1>unicode_trim.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Allocation-free Unicode whitespace edge trimming.</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>views<span class="token-operator">.</span>nct
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-type">Iterator</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">unicode_trim_start</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> chars <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">chars</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> start<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> <span class="token-keyword">true</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> scalar <span class="token-operator">=</span> chars<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> start <span class="token-operator">}</span>
+        <span class="token-keyword">if</span> <span class="token-operator">!</span>scalar<span class="token-operator">.</span><span class="token-function">is_whitespace</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> start <span class="token-operator">}</span>
+        start <span class="token-operator">+</span><span class="token-operator">=</span> scalar<span class="token-operator">.</span><span class="token-function">utf8_len</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> start
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">unicode_trim_end</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> chars <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">chars</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> end<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">while</span> <span class="token-keyword">true</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> scalar <span class="token-operator">=</span> chars<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-keyword">return</span> end <span class="token-operator">}</span>
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> scalar<span class="token-operator">.</span><span class="token-function">utf8_len</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">if</span> <span class="token-operator">!</span>scalar<span class="token-operator">.</span><span class="token-function">is_whitespace</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> end <span class="token-operator">=</span> offset <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> end
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">trim_start</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> start <span class="token-operator">=</span> <span class="token-function">unicode_trim_start</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>text<span class="token-operator">,</span> start<span class="token-operator">,</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> - start<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">trim_end</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> end <span class="token-operator">=</span> <span class="token-function">unicode_trim_end</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>text<span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">,</span> end<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">trim</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from text <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> <span class="token-operator">(</span>start<span class="token-operator">,</span> end<span class="token-operator">)</span> <span class="token-operator">=</span> <span class="token-function">unicode_trim_bounds</span><span class="token-operator">(</span>text<span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-function">str_subview_unchecked</span><span class="token-operator">(</span>text<span class="token-operator">,</span> start<span class="token-operator">,</span> end - start<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">unicode_trim_bounds</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">usize</span><span class="token-operator">,</span> <span class="token-type">usize</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> chars <span class="token-operator">=</span> text<span class="token-operator">.</span><span class="token-function">chars</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> offset<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> start<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> end<span class="token-operator">:</span> <span class="token-type">usize</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+    <span class="token-keyword">var</span> found_content <span class="token-operator">=</span> <span class="token-keyword">false</span>
+    <span class="token-keyword">while</span> <span class="token-keyword">true</span> <span class="token-operator">{</span>
+        <span class="token-keyword">let</span> scalar <span class="token-operator">=</span> chars<span class="token-operator">.</span><span class="token-function">next</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">otherwise</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> found_content <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-operator">(</span>start<span class="token-operator">,</span> end<span class="token-operator">)</span> <span class="token-operator">}</span>
+            <span class="token-keyword">return</span> <span class="token-operator">(</span>text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> text<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
+        <span class="token-operator">}</span>
+        offset <span class="token-operator">+</span><span class="token-operator">=</span> scalar<span class="token-operator">.</span><span class="token-function">utf8_len</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        <span class="token-keyword">if</span> scalar<span class="token-operator">.</span><span class="token-function">is_whitespace</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+            <span class="token-keyword">if</span> <span class="token-operator">!</span>found_content <span class="token-operator">{</span> start <span class="token-operator">=</span> offset <span class="token-operator">}</span>
+        <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
+            found_content <span class="token-operator">=</span> <span class="token-keyword">true</span>
+            end <span class="token-operator">=</span> offset
+        <span class="token-operator">}</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-operator">(</span>start<span class="token-operator">,</span> end<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">trim_start</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">trim_start</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">trim_end</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">trim_end</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">trim</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-function">trim</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -274,6 +290,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../../../script.js" defer></script>
 </body>
 </html>

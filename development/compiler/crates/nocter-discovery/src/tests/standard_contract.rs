@@ -61,6 +61,7 @@ pub(super) fn assert_standard_root_visibility_boundaries(unit: &crate::Discovere
 const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("char", "internal/character"),
     ("char", "internal/ptr"),
+    ("char", "internal/unicode"),
     ("fmt", "internal/mem"),
     ("fmt", "internal/ptr"),
     ("fmt", "string"),

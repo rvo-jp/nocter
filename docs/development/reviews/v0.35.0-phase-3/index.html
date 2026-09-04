@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter</title>
-    <meta name="description" content="Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta">
+    <title>v0.35.0 Phase 3 Character-property and Borrowed-trim Review - Nocter</title>
+    <meta name="description" content="Result: complete with no open Phase 3 finding (2026-09-05). Unicode 17.0.0 character properties and borrowed Unicode whitespace trimming are implemented as">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.35.0-phase-0/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.35.0-phase-3/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter">
-    <meta property="og:description" content="Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.35.0-phase-0/">
+    <meta property="og:title" content="v0.35.0 Phase 3 Character-property and Borrowed-trim Review - Nocter">
+    <meta property="og:description" content="Result: complete with no open Phase 3 finding (2026-09-05). Unicode 17.0.0 character properties and borrowed Unicode whitespace trimming are implemented as">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.35.0-phase-3/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter">
-    <meta name="twitter:description" content="Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta">
+    <meta name="twitter:title" content="v0.35.0 Phase 3 Character-property and Borrowed-trim Review - Nocter">
+    <meta name="twitter:description" content="Result: complete with no open Phase 3 finding (2026-09-05). Unicode 17.0.0 character properties and borrowed Unicode whitespace trimming are implemented as">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.35.0 Phase 0 Static-data and Unicode-text Design Review - Nocter","description":"Result: complete with no open design finding (2026-09-04). This review fixes the architecture before implementation and does not claim that candidate synta","url":"https://nocter.dev/development/reviews/v0.35.0-phase-0/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.35.0-phase-0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.35.0 Phase 0","item":"https://nocter.dev/development/reviews/v0.35.0-phase-0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.35.0 Phase 3 Character-property and Borrowed-trim Review - Nocter","description":"Result: complete with no open Phase 3 finding (2026-09-05). Unicode 17.0.0 character properties and borrowed Unicode whitespace trimming are implemented as","url":"https://nocter.dev/development/reviews/v0.35.0-phase-3/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.35.0-phase-3/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.35.0 Phase 3","item":"https://nocter.dev/development/reviews/v0.35.0-phase-3/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -175,10 +175,10 @@
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.35.0-phase-3/index.html#content">v0.35.0 Phase 3 Character-property and Borrowed-trim Review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.35.0 Phase 3 Character-property and Borrowed-trim Review</a></li>
                 <li><a href="../v0.35.0-phase-2/index.html#content">v0.35.0 Phase 2 Unicode-data and Lookup Review</a></li>
                 <li><a href="../v0.35.0-phase-1/index.html#content">v0.35.0 Phase 1 Immutable-static Implementation Review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.35.0 Phase 0 Static-data and Unicode-text Design Review</a></li>
+                <li><a href="../v0.35.0-phase-0/index.html#content">v0.35.0 Phase 0 Static-data and Unicode-text Design Review</a></li>
                 <li><a href="../v0.34.0-phase-5/index.html#content">v0.34.0 Phase 5 Qualification and Final Review</a></li>
                 <li><a href="../v0.34.0-phase-4/index.html#content">v0.34.0 Phase 4 Unicode-scalar Tooling Review</a></li>
                 <li><a href="../v0.34.0-phase-3/index.html#content">v0.34.0 Phase 3 Owned-scalar Integration Review</a></li>
@@ -254,11 +254,24 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.35.0-phase-0.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.35.0-phase-3.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-35-0-phase-0-static-data-and-unicode-text-design-review">v0.35.0 Phase 0 Static-data and Unicode-text Design Review</h1><p><strong>Result: complete with no open design finding (2026-09-04).</strong> This review fixes the architecture before implementation and does not claim that candidate syntax or APIs are available.</p><h2 id="findings">Findings</h2><p>The published compiler can embed static string literal bytes but has no typed, addressable, immutable aggregate declaration. Unicode property and casing data therefore cannot be represented directly by the current language.</p><p>Generating thousands of <code>if</code> branches would preserve behavior but force every standard-library analysis to parse implementation-shaped data and would couple lookup cost to generated control flow. Adding primitives such as <code>char_is_alphabetic</code> would move Unicode versioning and properties into compiler and backend registries. Both approaches create a second authority and are rejected.</p><p>The accepted prerequisite is a general <code>static</code> product. Constant evaluation freezes a narrow, destructor-free initializer domain once; checked semantics expose only a readonly static place; target lowering owns layout and bytes; executable lowering owns readonly placement. Unicode is one client and does not appear in those compiler contracts.</p><p><a href="https://www.unicode.org/releases/index.html">Unicode 17.0.0 is the latest final standard</a> at this design point. <a href="https://www.unicode.org/versions/beta-18.0.0.html">Unicode 18.0.0 remains beta</a>, and the beta guidance says implementations should not be released based on beta data. v0.35.0 therefore pins 17.0.0 rather than a moving <code>latest</code> URL.</p><p>Full default casing is defined on text rather than <code>char</code> because one scalar can expand to multiple scalars. Locale-specific mappings, normalization, and case folding remain distinct future features. Unicode trim returns borrowed views, while owned suffix removal mutates only at proven scalar boundaries.</p><h2 id="responsibility-test">Responsibility Test</h2><ul><li>Unicode data can change in a later release without changing parser, checker, or backend code;</li><li>the generator can change internally while producing byte-identical checked table definitions;</li><li>static layout can change for another target without changing initializer evaluation;</li><li>standard lookup representation can change without changing public <code>char</code>, <code>str</code>, or <code>String</code>
-  contracts;</li><li>editor presentation can change without reading generated tables;</li><li>ASCII APIs can remain stable when the pinned Unicode property sets change.</li></ul><p>Each substitution crosses an exported typed product. No step depends on a caller remembering to revalidate data, preserve initialization order, or keep a second range table synchronized.</p>
+                <h1 id="v0-35-0-phase-3-character-property-and-borrowed-trim-review">v0.35.0 Phase 3 Character-property and Borrowed-trim Review</h1><p><strong>Result: complete with no open Phase 3 finding (2026-09-05).</strong> Unicode 17.0.0 character properties and borrowed Unicode whitespace trimming are implemented as ordinary standard-library source over the Phase 2 lookup product. No parser, checker, backend, editor, or operating-system locale gained Unicode behavior.</p><h2 id="closed-product">Closed Product</h2><p>The public <code>char</code> root declares five allocation-free property methods. A dedicated property source converts each scalar to its code point and calls one package-visible semantic function in <code>std/internal/unicode</code>. Only those five lookup functions gained package visibility; casing and context helpers remain module-local until Phase 4 has real consumers.</p><p>The public <code>str</code> root declares <code>trim_start</code>, <code>trim_end</code>, and <code>trim</code>. Their implementation composes the existing <code>Chars</code> iterator, public character property contract, scalar UTF-8 width, and the one unchecked subview helper already guarded by the borrowed-text module. The implementation neither reads generated ranges nor decodes UTF-8 through another algorithm. Start-only trimming stops at the first retained scalar, end-only trimming makes one complete pass, and two-sided trimming computes both boundaries in one complete pass.</p><p>Existing ASCII predicates and trimming implementations are unchanged. They remain independent of the pinned Unicode version and do not reach generated tables.</p><h2 id="findings-closed-during-implementation">Findings Closed During Implementation</h2><ul><li>The practical string chapter still claimed that <code>char</code> was unsupported despite the complete
+  v0.34.0 scalar contract. The obsolete denial now points to the owning Unicode chapters without
+  duplicating their APIs.</li><li>An initial internal trim helper accepted a caller-supplied lower boundary. That contract could
+  produce an invalid range if reused incorrectly and made two-sided trim rescan its leading
+  prefix. It was replaced before completion by self-contained start, end, and single-pass bounds
+  computations.</li><li>A proposed duplicate character-property test module repeated cases already owned by the
+  exhaustive generated-data oracle and native public-API test. It was removed; each layer now
+  tests a distinct boundary rather than preserving an unexecuted duplicate suite.</li></ul><h2 id="evidence">Evidence</h2><ul><li>the Phase 2 generator compares every Unicode scalar with the independently parsed property
+  corpus before accepting generated ranges;</li><li>the internal lookup native test crosses static data, slice projection, binary search, MIR,
+  machine layout, ARM64, and Mach-O execution;</li><li>the public scalar native test exercises all five <code>char</code> methods with Unicode members and
+  property complements;</li><li>standard <code>str</code> tests cover leading, trailing, two-sided, all-whitespace, and non-White_Space
+  inputs containing multi-byte scalars;</li><li>complete native text execution verifies exact results and returned pointer offsets into the
+  original text;</li><li>standard source checking proves the public <code>noalloc</code> declarations against their transitive
+  implementation calls and validates the exact new <code>char -&gt; internal/unicode</code> module edge;</li><li>the complete workspace, warnings-denied Clippy, no-default-features, Rustdoc, generated-data,
+  documentation, and repository-integrity gates pass at the reviewed commit.</li></ul><h2 id="boundary-result">Boundary Result</h2><p>The Unicode generator owns UCD interpretation, the internal Unicode module owns generated lookup, <code>char</code> owns public property meaning, and <code>str</code> owns borrowed byte boundaries. Each consumer sees only the preceding contract. There is one UTF-8 decoder, one property lookup authority, one borrowed subview construction boundary, and no allocation path in the new APIs.</p>
             </div>
         </main>
     </div>

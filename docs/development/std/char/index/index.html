@@ -197,6 +197,7 @@
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Unicode scalar values.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>scalar<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>properties<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// One Unicode scalar value.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">primitive</span> <span class="token-keyword">type</span> char
@@ -218,6 +219,21 @@
 
     <span class="token-comment">/// Reports whether this character is an ASCII decimal digit.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">is_ascii_digit</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-comment">/// Reports whether this character has the Unicode `White_Space` property.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">is_whitespace</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-comment">/// Reports whether this character has the Unicode `Alphabetic` property.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">is_alphabetic</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-comment">/// Reports whether this character has the Unicode `Lowercase` property.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">is_lowercase</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-comment">/// Reports whether this character has the Unicode `Uppercase` property.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">is_uppercase</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-comment">/// Reports whether this character has general category `Decimal_Number`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">is_decimal_digit</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 
     <span class="token-comment">/// Compares Unicode scalar values.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>

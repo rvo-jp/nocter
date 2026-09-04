@@ -1,0 +1,27 @@
+//! Unicode 17.0.0 scalar properties.
+
+see ./index.nct
+
+use /internal/unicode
+
+instance char {
+    noalloc method self.is_whitespace(): bool {
+        return unicode.is_whitespace(self.code_point())
+    }
+
+    noalloc method self.is_alphabetic(): bool {
+        return unicode.is_alphabetic(self.code_point())
+    }
+
+    noalloc method self.is_lowercase(): bool {
+        return unicode.is_lowercase(self.code_point())
+    }
+
+    noalloc method self.is_uppercase(): bool {
+        return unicode.is_uppercase(self.code_point())
+    }
+
+    noalloc method self.is_decimal_digit(): bool {
+        return unicode.is_decimal_digit(self.code_point())
+    }
+}

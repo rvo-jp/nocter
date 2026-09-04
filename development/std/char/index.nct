@@ -1,6 +1,7 @@
 //! Unicode scalar values.
 
 see ./scalar.nct
+see ./properties.nct
 
 /// One Unicode scalar value.
 pub primitive type char
@@ -22,6 +23,21 @@ instance char {
 
     /// Reports whether this character is an ASCII decimal digit.
     pub noalloc method self.is_ascii_digit(): bool
+
+    /// Reports whether this character has the Unicode `White_Space` property.
+    pub noalloc method self.is_whitespace(): bool
+
+    /// Reports whether this character has the Unicode `Alphabetic` property.
+    pub noalloc method self.is_alphabetic(): bool
+
+    /// Reports whether this character has the Unicode `Lowercase` property.
+    pub noalloc method self.is_lowercase(): bool
+
+    /// Reports whether this character has the Unicode `Uppercase` property.
+    pub noalloc method self.is_uppercase(): bool
+
+    /// Reports whether this character has general category `Decimal_Number`.
+    pub noalloc method self.is_decimal_digit(): bool
 
     /// Compares Unicode scalar values.
     pub noalloc operator (&self == other: &Self): bool

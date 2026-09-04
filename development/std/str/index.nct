@@ -13,6 +13,7 @@ see ./views.nct
 see ./owned.nct
 see ./scalar_iteration.nct
 see ./trim.nct
+see ./unicode_trim.nct
 see ./transform.nct
 see ./transformation_tests.nct
 see ./views_tests.nct
@@ -102,6 +103,15 @@ instance str {
 
     /// Removes ASCII whitespace from both ends and returns a borrowed view.
     pub noalloc method &self.trim_ascii(): &str from self
+
+    /// Removes Unicode whitespace from the beginning and returns a borrowed view.
+    pub noalloc method &self.trim_start(): &str from self
+
+    /// Removes Unicode whitespace from the end and returns a borrowed view.
+    pub noalloc method &self.trim_end(): &str from self
+
+    /// Removes Unicode whitespace from both ends and returns a borrowed view.
+    pub noalloc method &self.trim(): &str from self
 
     pub method &self.split(separator: &str): Vec<String>!
 

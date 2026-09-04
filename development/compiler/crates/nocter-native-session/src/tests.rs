@@ -1328,6 +1328,10 @@ func main(): i32 {
     if face.utf8_len() != 4 || face.is_ascii() { return 2 }
     let digit = char.from_u32(57) otherwise { return 3 }
     if !digit.is_ascii_digit() || digit != '9' { return 4 }
+    if !'\u{3000}'.is_whitespace() || '\u{3001}'.is_whitespace() { return 10 }
+    if !'Ω'.is_alphabetic() || '3'.is_alphabetic() { return 11 }
+    if !'ß'.is_lowercase() || !'İ'.is_uppercase() { return 12 }
+    if !'٥'.is_decimal_digit() || '²'.is_decimal_digit() { return 13 }
     if !(digit < face) { return 5 }
     if !scalar_iteration_is_exact() { return 6 }
     var text = String.copy("A")
@@ -1377,6 +1381,20 @@ func main(): i32 {
     if ptr.addr(empty_start.ptr()) != whitespace_end
         || ptr.addr(empty_end.ptr()) != whitespace_end
         || ptr.addr(empty_both.ptr()) != whitespace_end { return 5 }
+
+    let unicode: &str = "\xE3\x80\x80\xC2\xA0Nocter\xC2\x85\xE3\x80\x80"
+    let unicode_start = unicode.trim_start()
+    let unicode_end = unicode.trim_end()
+    let unicode_both = unicode.trim()
+    if unicode_start != "Nocter\xC2\x85\xE3\x80\x80" { return 11 }
+    if unicode_end != "\xE3\x80\x80\xC2\xA0Nocter" { return 12 }
+    if unicode_both != "Nocter" { return 13 }
+    let unicode_addr = ptr.addr(unicode.ptr())
+    if ptr.addr(unicode_start.ptr()) != unicode_addr + 5
+        || ptr.addr(unicode_end.ptr()) != unicode_addr
+        || ptr.addr(unicode_both.ptr()) != unicode_addr + 5 { return 15 }
+    let zero_width_space: &str = "Nocter\xE2\x80\x8B"
+    if zero_width_space.trim() != zero_width_space { return 14 }
 
     let repeated = "é".repeat(3)
     if (&repeated as &str) != "ééé" { return 6 }
@@ -1899,7 +1917,7 @@ fn standard_path_lexical_contract_crosses_native_tests() {
 }
 
 #[test]
-fn standard_str_tuple_contract_crosses_native_tests() {
+fn standard_str_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -1932,7 +1950,7 @@ fn standard_str_tuple_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard str tests failed native compilation")
     };
-    assert_eq!(cases.len(), 4);
+    assert_eq!(cases.len(), 5);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

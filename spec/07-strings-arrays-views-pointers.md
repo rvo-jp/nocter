@@ -600,7 +600,11 @@ a general expression. Callers use methods such as `text.len()` and `values.get(i
 coercion, or an explicit expression such as `(&text) as &str`. The standard library does not keep
 public forwarding functions for these borrowed operations.
 
-The `char` type is not supported. String APIs operate on `&str` and bytes until Unicode scalar and grapheme behavior is specified.
+Unicode scalar construction, observation, and iteration belong to
+[Unicode Scalar Values](34-unicode-scalars.md). Unicode properties, Unicode whitespace trimming,
+and default case conversion belong to
+[Static Data and Unicode Text](35-static-unicode-text.md). Byte-oriented APIs in this chapter keep
+their existing meanings and do not silently adopt scalar, grapheme, or normalization behavior.
 
 ## String and Byte Literals
 
@@ -742,7 +746,8 @@ Rules:
 - The full `char` contract belongs to [Unicode Scalar Values](34-unicode-scalars.md).
 - String literals use `"..."` or `"""..."""` and have built-in type `&str`.
 - String literals are UTF-8.
-- String literal length APIs report byte length unless a future Unicode API explicitly says otherwise.
+- String literal length APIs report byte length. Scalar-aware APIs are named explicitly by the
+  Unicode text chapters.
 - Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.
 
 Escapes:

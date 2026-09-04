@@ -1,0 +1,80 @@
+//! Allocation-free Unicode whitespace edge trimming.
+
+see ./index.nct
+see ./views.nct
+
+use /iter.Iterator
+
+noalloc func unicode_trim_start(text: &str): usize {
+    var chars = text.chars()
+    var start: usize = 0
+    while true {
+        let scalar = chars.next() otherwise { return start }
+        if !scalar.is_whitespace() { return start }
+        start += scalar.utf8_len()
+    }
+    return start
+}
+
+noalloc func unicode_trim_end(text: &str): usize {
+    var chars = text.chars()
+    var offset: usize = 0
+    var end: usize = 0
+    while true {
+        let scalar = chars.next() otherwise { return end }
+        offset += scalar.utf8_len()
+        if !scalar.is_whitespace() { end = offset }
+    }
+    return end
+}
+
+noalloc func trim_start(text: &str): &str from text {
+    let start = unicode_trim_start(text)
+    return str_subview_unchecked(text, start, text.len() - start)
+}
+
+noalloc func trim_end(text: &str): &str from text {
+    let end = unicode_trim_end(text)
+    return str_subview_unchecked(text, 0, end)
+}
+
+noalloc func trim(text: &str): &str from text {
+    let (start, end) = unicode_trim_bounds(text)
+    return str_subview_unchecked(text, start, end - start)
+}
+
+noalloc func unicode_trim_bounds(text: &str): (usize, usize) {
+    var chars = text.chars()
+    var offset: usize = 0
+    var start: usize = 0
+    var end: usize = 0
+    var found_content = false
+    while true {
+        let scalar = chars.next() otherwise {
+            if found_content { return (start, end) }
+            return (text.len(), text.len())
+        }
+        offset += scalar.utf8_len()
+        if scalar.is_whitespace() {
+            if !found_content { start = offset }
+        } else {
+            found_content = true
+            end = offset
+        }
+    }
+    return (start, end)
+}
+
+instance str {
+    noalloc method &self.trim_start(): &str from self {
+        return trim_start(self)
+    }
+
+    noalloc method &self.trim_end(): &str from self {
+        return trim_end(self)
+    }
+
+    noalloc method &self.trim(): &str from self {
+        return trim(self)
+    }
+}

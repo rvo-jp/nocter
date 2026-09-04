@@ -5,15 +5,15 @@
 
 see ./lookup.nct
 
-pub(./) noalloc func is_whitespace(value: u32): bool
+pub(/) noalloc func is_whitespace(value: u32): bool
 
-pub(./) noalloc func is_alphabetic(value: u32): bool
+pub(/) noalloc func is_alphabetic(value: u32): bool
 
-pub(./) noalloc func is_lowercase(value: u32): bool
+pub(/) noalloc func is_lowercase(value: u32): bool
 
-pub(./) noalloc func is_uppercase(value: u32): bool
+pub(/) noalloc func is_uppercase(value: u32): bool
 
-pub(./) noalloc func is_decimal_digit(value: u32): bool
+pub(/) noalloc func is_decimal_digit(value: u32): bool
 
 /// Internal support for the Unicode `Final_Sigma` context predicate.
 pub(./) noalloc func is_cased(value: u32): bool
