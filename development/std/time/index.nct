@@ -1,5 +1,8 @@
 //! Normalized durations, monotonic elapsed time, and Unix wall-clock observations.
 
+use /mem.TryAllocator
+use /string.String
+
 see ./duration.nct
 see ./instant.nct
 see ./primitives.nct
@@ -7,6 +10,7 @@ see ./sleep.nct
 see ./system_time.nct
 see ./tests.nct
 see ./utc_calendar.nct
+see ./rfc3339.nct
 
 /// A normalized, non-negative span of time.
 pub copy struct Duration
@@ -76,6 +80,9 @@ construct SystemTime {
 
     /// Observes the target wall clock.
     pub noalloc func now(): Self!
+
+    /// Parses the supported RFC 3339 profile and normalizes its offset to UTC.
+    pub noalloc func parse_rfc3339(text: &str): Self!
 }
 
 instance SystemTime {
@@ -93,6 +100,12 @@ instance SystemTime {
 
     /// Converts this instant to UTC calendar components when its year is representable.
     pub noalloc method &self.to_utc(): UtcDateTime!
+
+    /// Returns the canonical UTC RFC 3339 spelling.
+    pub method &self.to_rfc3339(): String!
+
+    /// Returns the same spelling using recoverable storage from `allocator`.
+    pub method &self.try_to_rfc3339(allocator: &+TryAllocator): String! from allocator
 }
 
 construct UtcDateTime {

@@ -68,6 +68,26 @@ same Gregorian rules; there is no separate historical-calendar transition.
 Equality and ordering compare the represented UTC instant. Component accessors expose the
 validated calendar fields without reparsing or consulting a target clock.
 
+## RFC 3339
+
+`SystemTime.parse_rfc3339` accepts the v0.36.0 RFC 3339 profile. A timestamp uses a four-digit year,
+uppercase `T`, a 24-hour time, and either uppercase `Z` or a numeric `+HH:MM`/`-HH:MM` offset. The
+fractional field is optional and may contain one through nine decimal digits. Accepted fractions
+are scaled exactly to nanoseconds, and accepted numeric offsets are normalized to the represented
+UTC instant.
+
+The parser rejects lowercase `t` or `z`, more than nine fractional digits, leap-second spellings,
+invalid calendar components, and results outside years 0000 through 9999. It also rejects
+`-00:00`: RFC 3339 assigns that spelling to an unknown local offset, so it cannot establish the
+exact instant required by `SystemTime`. Every syntax or value rejection uses
+`std.time.invalid_rfc3339`.
+
+`to_rfc3339` generates one canonical UTC spelling with uppercase `T` and `Z`. It omits the
+fractional field when nanoseconds are zero and emits exactly nine fractional digits otherwise.
+`try_to_rfc3339` produces identical text using its supplied recoverable allocator. Generation
+returns `std.time.utc_datetime_out_of_range` when the `SystemTime` cannot be represented by the UTC
+calendar domain.
+
 ## Blocking Sleep
 
 The module namespace owns the blocking sleep operation declared in [`index.nct`](index.nct).
@@ -102,4 +122,4 @@ Neither layer may rediscover the other layer's facts from source spelling or mac
 
 This contract does not add local time zones, daylight-saving rules, locale-dependent presentation,
 async timers, scheduler integration, deadlines as a public type, periodic timers, `noblock`, or
-`realtime`. RFC 3339 interchange is added by a later v0.36.0 phase.
+`realtime`.

@@ -188,6 +188,9 @@
             <div class="markdown-body">
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Normalized durations, monotonic elapsed time, and Unix wall-clock observations.</span>
 
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>duration<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>instant<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>primitives<span class="token-operator">.</span>nct
@@ -195,6 +198,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>system_time<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>utc_calendar<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>rfc3339<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// A normalized, non-negative span of time.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">Duration</span>
@@ -264,6 +268,9 @@
 
     <span class="token-comment">/// Observes the target wall clock.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Parses the supported RFC 3339 profile and normalizes its offset to UTC.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse_rfc3339</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">SystemTime</span> <span class="token-operator">{</span>
@@ -281,6 +288,12 @@
 
     <span class="token-comment">/// Converts this instant to UTC calendar components when its year is representable.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">to_utc</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">UtcDateTime</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Returns the canonical UTC RFC 3339 spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">to_rfc3339</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Returns the same spelling using recoverable storage from `allocator`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_to_rfc3339</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">UtcDateTime</span> <span class="token-operator">{</span>

@@ -4,6 +4,7 @@ see ./index.nct
 see ./primitives.nct
 
 use /testing
+use /mem
 
 test duration_units_share_one_normal_form {
     let second = Duration.from_seconds(1)
@@ -180,6 +181,56 @@ test utc_calendar_order_is_lexicographic_over_valid_components {
     testing.assert(morning < evening)?
     testing.assert(evening < tomorrow)?
     testing.assert(!(tomorrow < morning))?
+    return
+}
+
+test rfc3339_round_trips_canonical_utc_text {
+    let instant = SystemTime.parse_rfc3339("2024-02-29T12:34:56Z")?
+    testing.assert(instant.unix_seconds() == 1709210096)?
+    let text = instant.to_rfc3339()?
+    testing.assert(text == "2024-02-29T12:34:56Z")?
+    return
+}
+
+test rfc3339_scales_fractional_seconds_to_nanoseconds {
+    let instant = SystemTime.parse_rfc3339("1970-01-01T00:00:00.1Z")?
+    testing.assert(instant.unix_seconds() == 0)?
+    testing.assert(instant.subsecond_nanoseconds() == 100000000)?
+    let text = instant.to_rfc3339()?
+    testing.assert(text == "1970-01-01T00:00:00.100000000Z")?
+    return
+}
+
+test rfc3339_numeric_offsets_normalize_to_utc {
+    let east = SystemTime.parse_rfc3339("1970-01-01T02:30:00+02:30")?
+    let west = SystemTime.parse_rfc3339("1969-12-31T20:00:00-04:00")?
+    let epoch = SystemTime.from_unix_seconds(0)
+    testing.assert(east == epoch)?
+    testing.assert(west == epoch)?
+    return
+}
+
+test rfc3339_rejects_spellings_without_an_exact_instant {
+    let _lowercase = SystemTime.parse_rfc3339("1970-01-01t00:00:00z") catch first {
+        testing.assert(first.has_code("std.time.invalid_rfc3339"))?
+        let _leap_second = SystemTime.parse_rfc3339("2016-12-31T23:59:60Z") catch second {
+            testing.assert(second.has_code("std.time.invalid_rfc3339"))?
+            let _unknown_offset = SystemTime.parse_rfc3339("1970-01-01T00:00:00-00:00") catch third {
+                testing.assert(third.has_code("std.time.invalid_rfc3339"))?
+                return
+            }
+            return error.new("std.time.test", "an unknown local offset was accepted")
+        }
+        return error.new("std.time.test", "a leap-second spelling was accepted")
+    }
+    return error.new("std.time.test", "a lowercase RFC 3339 spelling was accepted")
+}
+
+test rfc3339_recoverable_generation_uses_the_supplied_allocator {
+    let instant = SystemTime.parse_rfc3339("0000-01-01T00:00:00.000000001Z")?
+    var allocator = mem.page_try_allocator()
+    let text = instant.try_to_rfc3339(&+allocator)?
+    testing.assert(text == "0000-01-01T00:00:00.000000001Z")?
     return
 }
 

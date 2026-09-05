@@ -2,9 +2,9 @@
 
 ## Next Work
 
-Complete v0.36.0 Phase 3 by adding one canonical RFC 3339 parser and generator over the implemented
-`SystemTime` and `UtcDateTime` authorities. Then expose filesystem timestamps and qualify tooling
-without duplicating calendar arithmetic or target ABI knowledge.
+Complete v0.36.0 Phase 4 by exposing filesystem modification timestamps through the implemented
+`SystemTime` authority and adding one runnable integration example. Then qualify tooling and the
+full release surface without duplicating calendar arithmetic or target ABI knowledge.
 
 ## Blockers
 

@@ -1,0 +1,246 @@
+//! Strict RFC 3339 interchange over the UTC calendar authority.
+
+see ./index.nct
+see ./system_time.nct
+see ./utc_calendar.nct
+
+use /internal/mem
+use /mem.TryAllocator
+use /string.String
+
+const RFC3339_CAPACITY: usize = 30
+
+noalloc func invalid_rfc3339(): error {
+    return error.new("std.time.invalid_rfc3339", "the text is not a supported RFC 3339 timestamp")
+}
+
+noalloc func decimal_digits(bytes: &[u8], start: usize, count: usize): i64? {
+    var value: i64 = 0
+    var offset: usize = 0
+    while offset < count {
+        let byte = bytes[start + offset]
+        if byte < 48 || byte > 57 { return none }
+        value = value * 10 + (byte - 48) as i64
+        offset += 1
+    }
+    return value
+}
+
+noalloc func parsed_rfc3339(text: &str): SystemTime! {
+    let bytes = text.bytes()
+    if bytes.len() < 20 { return invalid_rfc3339() }
+    if bytes[4] != 45 || bytes[7] != 45 || bytes[10] != 84 {
+        return invalid_rfc3339()
+    }
+    if bytes[13] != 58 || bytes[16] != 58 { return invalid_rfc3339() }
+
+    let year = decimal_digits(bytes, 0, 4) otherwise { return invalid_rfc3339() }
+    let month = decimal_digits(bytes, 5, 2) otherwise { return invalid_rfc3339() }
+    let day = decimal_digits(bytes, 8, 2) otherwise { return invalid_rfc3339() }
+    let hour = decimal_digits(bytes, 11, 2) otherwise { return invalid_rfc3339() }
+    let minute = decimal_digits(bytes, 14, 2) otherwise { return invalid_rfc3339() }
+    let second = decimal_digits(bytes, 17, 2) otherwise { return invalid_rfc3339() }
+
+    var cursor: usize = 19
+    var nanosecond: u64 = 0
+    if bytes[cursor] == 46 {
+        cursor += 1
+        let fraction_start = cursor
+        while cursor < bytes.len() && bytes[cursor] >= 48 && bytes[cursor] <= 57 {
+            if cursor - fraction_start >= 9 { return invalid_rfc3339() }
+            nanosecond = nanosecond * 10 + (bytes[cursor] - 48) as u64
+            cursor += 1
+        }
+        let fraction_digits = cursor - fraction_start
+        if fraction_digits == 0 { return invalid_rfc3339() }
+        var padding = fraction_digits
+        while padding < 9 {
+            nanosecond *= 10
+            padding += 1
+        }
+    }
+
+    var offset_seconds: i64 = 0
+    if cursor < bytes.len() && bytes[cursor] == 90 {
+        if cursor + 1 != bytes.len() { return invalid_rfc3339() }
+    } else {
+        if cursor + 6 != bytes.len() { return invalid_rfc3339() }
+        let sign = bytes[cursor]
+        if sign != 43 && sign != 45 { return invalid_rfc3339() }
+        if bytes[cursor + 3] != 58 { return invalid_rfc3339() }
+        let offset_hour = decimal_digits(bytes, cursor + 1, 2) otherwise {
+            return invalid_rfc3339()
+        }
+        let offset_minute = decimal_digits(bytes, cursor + 4, 2) otherwise {
+            return invalid_rfc3339()
+        }
+        if offset_hour > 23 || offset_minute > 59 { return invalid_rfc3339() }
+        if sign == 45 && offset_hour == 0 && offset_minute == 0 {
+            // RFC 3339 assigns -00:00 to an unknown local offset, not to a known instant.
+            return invalid_rfc3339()
+        }
+        offset_seconds = offset_hour * SECONDS_PER_HOUR + offset_minute * SECONDS_PER_MINUTE
+        if sign == 45 { offset_seconds = 0 - offset_seconds }
+    }
+
+    let local = UtcDateTime.new(year, month, day, hour, minute, second, nanosecond) catch _ {
+        return invalid_rfc3339()
+    }
+    let utc_seconds = local.to_system_time().unix_seconds() - offset_seconds
+    let normalized = SystemTime.from_unix_parts(utc_seconds, nanosecond) catch _ {
+        return invalid_rfc3339()
+    }
+    let _utc = normalized.to_utc() catch _ { return invalid_rfc3339() }
+    return normalized
+}
+
+func try_append_digit(output: &+String, value: i64): void! {
+    if value == 0 {
+        output.try_push_str("0")?
+        return
+    }
+    if value == 1 {
+        output.try_push_str("1")?
+        return
+    }
+    if value == 2 {
+        output.try_push_str("2")?
+        return
+    }
+    if value == 3 {
+        output.try_push_str("3")?
+        return
+    }
+    if value == 4 {
+        output.try_push_str("4")?
+        return
+    }
+    if value == 5 {
+        output.try_push_str("5")?
+        return
+    }
+    if value == 6 {
+        output.try_push_str("6")?
+        return
+    }
+    if value == 7 {
+        output.try_push_str("7")?
+        return
+    }
+    if value == 8 {
+        output.try_push_str("8")?
+        return
+    }
+    output.try_push_str("9")?
+    return
+}
+
+func try_append_fixed(output: &+String, value: i64, first_place: i64): void! {
+    var place = first_place
+    while place > 0 {
+        try_append_digit(output, (value / place) % 10)?
+        place /= 10
+    }
+    return
+}
+
+func try_append_unsigned_digit(output: &+String, value: u64): void! {
+    if value == 0 {
+        output.try_push_str("0")?
+        return
+    }
+    if value == 1 {
+        output.try_push_str("1")?
+        return
+    }
+    if value == 2 {
+        output.try_push_str("2")?
+        return
+    }
+    if value == 3 {
+        output.try_push_str("3")?
+        return
+    }
+    if value == 4 {
+        output.try_push_str("4")?
+        return
+    }
+    if value == 5 {
+        output.try_push_str("5")?
+        return
+    }
+    if value == 6 {
+        output.try_push_str("6")?
+        return
+    }
+    if value == 7 {
+        output.try_push_str("7")?
+        return
+    }
+    if value == 8 {
+        output.try_push_str("8")?
+        return
+    }
+    output.try_push_str("9")?
+    return
+}
+
+func try_append_fraction(output: &+String, value: u64): void! {
+    var place: u64 = 100000000
+    while place > 0 {
+        try_append_unsigned_digit(output, (value / place) % 10)?
+        place /= 10
+    }
+    return
+}
+
+func try_write_rfc3339(output: &+String, value: &UtcDateTime): void! {
+    try_append_fixed(output, value.year(), 1000)?
+    output.try_push_str("-")?
+    try_append_fixed(output, value.month(), 10)?
+    output.try_push_str("-")?
+    try_append_fixed(output, value.day(), 10)?
+    output.try_push_str("T")?
+    try_append_fixed(output, value.hour(), 10)?
+    output.try_push_str(":")?
+    try_append_fixed(output, value.minute(), 10)?
+    output.try_push_str(":")?
+    try_append_fixed(output, value.second(), 10)?
+    if value.nanosecond() != 0 {
+        output.try_push_str(".")?
+        try_append_fraction(output, value.nanosecond())?
+    }
+    output.try_push_str("Z")?
+    return
+}
+
+func try_format_rfc3339(
+    allocator: &+TryAllocator,
+    value: &UtcDateTime,
+): String! from allocator {
+    var output = String.try_with_capacity(allocator, RFC3339_CAPACITY)?
+    try_write_rfc3339(&+output, value)?
+    return move output
+}
+
+construct SystemTime {
+    noalloc func parse_rfc3339(text: &str): Self! {
+        return parsed_rfc3339(text)
+    }
+}
+
+instance SystemTime {
+    method &self.to_rfc3339(): String! {
+        let utc = self.to_utc()?
+        var output = String.with_capacity(RFC3339_CAPACITY)
+        try_write_rfc3339(&+output, &utc) catch _ {
+            return mem.allocation_abort()
+        }
+        return move output
+    }
+
+    method &self.try_to_rfc3339(allocator: &+TryAllocator): String! from allocator {
+        let utc = self.to_utc()?
+        return try_format_rfc3339(allocator, &utc)
+    }
+}
