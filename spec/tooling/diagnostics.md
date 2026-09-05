@@ -767,12 +767,13 @@ Required diagnostic families:
   the advertised interface, or whose associated binding disagrees with that implementation (`E0408`).
 - Assignment between distinct declaration-scoped opaque result identities, even when their
   rendered interface contracts are identical.
-- Non-`void` function reaching the end without an explicit return.
+- Non-`void` function with a reachable normal path that produces neither a body result nor an
+  explicit return, and does not terminate with `never`.
 - A re-export whose visibility boundary is wider than the imported declaration's boundary.
 - Reserved target requested before implementation.
 
-Families above without an assigned code do not require final numeric code assignment in the
-language design phase. The implementation assigns a code when it implements that diagnostic.
+Families above without an assigned code require a dedicated diagnostic but do not prescribe its
+numeric identity. A numeric code becomes part of the catalog when that diagnostic is implemented.
 
 ## Examples
 

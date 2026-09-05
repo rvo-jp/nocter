@@ -7,13 +7,10 @@
 compiler does not recognize JSON values, JSON number spelling, object names, parsing, or generation
 as language primitives.
 
-The compiler-checked [public declarations](index.nct) are the sole authority for exact types,
-variants, signatures, constraints, and provenance.
-
-`Number`, `Value`, `parse`, `try_parse`, `stringify`, `try_stringify`, `write`, and `try_write` are
-the complete initial public surface. Parsing from a stream, pretty printing, canonical member
-ordering, generic serialization derivation, and floating-point conversion are not implied by these
-declarations.
+The compiler-checked [module contract](index.nct) is the sole authority for exact types, variants,
+signatures, constraints, and provenance. Parsing from a stream, pretty printing, canonical member
+ordering, generic serialization derivation, and floating-point conversion are not implied by that
+contract.
 
 ## Common Use
 
@@ -104,7 +101,7 @@ allocation-free and never rounds.
 
 This exact token model deliberately does not define equality between `Number` values. Numeric
 equivalence, such as whether `1`, `1.0`, and `1e0` compare equal, requires a separate explicit
-contract. `Value` therefore gains no implicit recursive equality operation in this milestone.
+contract. The current `Value` contract therefore has no implicit recursive equality operation.
 
 ## Parsing
 

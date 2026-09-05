@@ -44,10 +44,9 @@ Rules:
 - Contract and implementation declarations must agree on the pack position and element type.
 - A pack marker participates in callable-type identity. `func(i32): void` and
   `func(...i32): void` are different structural callable contracts.
-- Closure literals do not declare argument packs in the current language, so a structural
-  callable-value contract containing a pack has no invocable source value yet. Pack invocation in
-  this phase is statically dispatched through named functions, construction functions, methods,
-  and literals.
+- Closure literals do not declare argument packs, so a structural callable-value contract
+  containing a pack has no invocable source value. Pack invocation is statically dispatched
+  through named functions, construction functions, methods, and literals.
 
 A sequence-literal definition is the restricted construction form with exactly one pack and no
 ordinary parameter:
@@ -242,8 +241,8 @@ pack apply to both components. Cleanup destroys an initialized key and value exa
 when evaluation, invocation, or iteration stops between entries. A keyed pack may appear after
 ordinary fixed parameters, but an invocation cannot mix ordinary pack elements and keyed entries.
 
-The initial keyed-pack phase supports fixed entries and exact tail forwarding. It does not define
-spread from a collection because Nocter has no general pair value or pair-expansion contract yet.
+Keyed packs support fixed entries and exact tail forwarding. They do not define spread from a
+collection because Nocter has no general pair value or pair-expansion contract.
 
 A mapping literal is the restricted construction form with exactly one keyed pack and no ordinary
 parameter:
