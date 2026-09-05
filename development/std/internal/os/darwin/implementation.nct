@@ -135,12 +135,6 @@ const STDERR_FD: usize = 2
 const SYS_SELECT: usize = 0x0200005d
 
 #target: "arm64-darwin"
-const MAX_TIMEVAL_SECONDS: u64 = 9223372036854775807
-
-#target: "arm64-darwin"
-const TIMEVAL_MICROSECONDS_PER_SECOND: u64 = 1000000
-
-#target: "arm64-darwin"
 const OPEN_READ_ONLY: usize = 0
 
 #target: "arm64-darwin"
@@ -267,15 +261,6 @@ const DIRENT_TYPE_REGULAR: u8 = 8
 const DIRENT_TYPE_SYMLINK: u8 = 10
 
 #target: "arm64-darwin"
-copy struct Timeval {
-    // Positive i64 seconds have the same 64-bit representation as this validated source value.
-    seconds_bits: u64
-    // Darwin stores i32 microseconds followed by four padding bytes. A validated value below one
-    // million occupies the low 32 bits and leaves the complete padding half zero.
-    microseconds_and_padding: u64
-}
-
-#target: "arm64-darwin"
 noalloc func read_directory_entries(
     fd: usize,
     buffer: &+[u8],
@@ -287,24 +272,5 @@ noalloc func read_directory_entries(
         ptr.addr(buffer.ptr()),
         buffer.len(),
         ptr.addr(ptr.from_ref_mut(position)),
-    )
-}
-
-#target: "arm64-darwin"
-noalloc func wait_timeout_once(seconds: u64, microseconds: u64): SyscallResult {
-    if seconds > MAX_TIMEVAL_SECONDS || microseconds >= TIMEVAL_MICROSECONDS_PER_SECOND {
-        return SyscallResult { value: 0, errno: 22 }
-    }
-    var timeout = Timeval {
-        seconds_bits: seconds,
-        microseconds_and_padding: microseconds,
-    }
-    return syscall5(
-        SYS_SELECT,
-        0,
-        0,
-        0,
-        0,
-        ptr.addr(ptr.from_ref_mut(&+timeout)),
     )
 }

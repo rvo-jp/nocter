@@ -307,7 +307,7 @@ pub(/) primitive func syscall3(number: usize, a0: usize, a1: usize, a2: usize): 
 #target: \"arm64-darwin\"
 primitive func syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
 #target: \"arm64-darwin\"
-primitive func syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
+pub(/) primitive func syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) primitive func syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 #target: \"arm64-darwin\"

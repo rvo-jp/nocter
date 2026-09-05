@@ -93,6 +93,9 @@ pub(/) const SYS_GETENTROPY: usize
 pub(/) const SYS_GETTIMEOFDAY: usize
 
 #target: "arm64-darwin"
+pub(/) const SYS_SELECT: usize
+
+#target: "arm64-darwin"
 pub(/) const STDIN_FD: usize
 
 #target: "arm64-darwin"
@@ -247,15 +250,21 @@ pub(/) noalloc primitive func syscall3(
 ): SyscallResult
 
 #target: "arm64-darwin"
+pub(/) noalloc primitive func syscall5(
+    number: usize,
+    a0: usize,
+    a1: usize,
+    a2: usize,
+    a3: usize,
+    a4: usize,
+): SyscallResult
+
+#target: "arm64-darwin"
 pub(/) noalloc func read_directory_entries(
     fd: usize,
     buffer: &+[u8],
     position: &+u64,
 ): SyscallResult
-
-/// Performs one descriptor-free timeout wait. The caller owns retry and remaining-time policy.
-#target: "arm64-darwin"
-pub(/) noalloc func wait_timeout_once(seconds: u64, microseconds: u64): SyscallResult
 
 #target: "arm64-darwin"
 pub(/) noalloc primitive func syscall6(

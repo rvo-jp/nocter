@@ -15,14 +15,4 @@ noalloc primitive func syscall4(
 ): SyscallResult
 
 #target: "arm64-darwin"
-noalloc primitive func syscall5(
-    number: usize,
-    a0: usize,
-    a1: usize,
-    a2: usize,
-    a3: usize,
-    a4: usize,
-): SyscallResult
-
-#target: "arm64-darwin"
 noalloc primitive func unreachable(): never

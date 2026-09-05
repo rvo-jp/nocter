@@ -3,10 +3,39 @@
 see ./index.nct
 
 use /internal/os/darwin
+use /ptr
+
+#target: "arm64-darwin"
+const MAX_TIMEOUT_SECONDS: u64 = 9223372036854775807
+
+#target: "arm64-darwin"
+const TIMEOUT_MICROSECONDS_PER_SECOND: u64 = 1000000
+
+#target: "arm64-darwin"
+copy struct DarwinTimeout {
+    // A validated positive count has the required signed 64-bit timeval representation.
+    seconds_bits: u64
+    // Darwin stores i32 microseconds followed by four padding bytes.
+    microseconds_and_padding: u64
+}
 
 #target: "arm64-darwin"
 noalloc func wait_once(seconds: u64, microseconds: u64): WaitStatus {
-    let result = darwin.wait_timeout_once(seconds, microseconds)
+    if seconds > MAX_TIMEOUT_SECONDS || microseconds >= TIMEOUT_MICROSECONDS_PER_SECOND {
+        return WaitStatus.failed
+    }
+    var timeout = DarwinTimeout {
+        seconds_bits: seconds,
+        microseconds_and_padding: microseconds,
+    }
+    let result = darwin.syscall5(
+        darwin.SYS_SELECT,
+        0,
+        0,
+        0,
+        0,
+        ptr.addr(ptr.from_ref_mut(&+timeout)),
+    )
     if result.errno == 0 {
         return WaitStatus.complete
     }

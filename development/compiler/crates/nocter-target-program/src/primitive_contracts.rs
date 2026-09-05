@@ -726,9 +726,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 (0..argument_count).map(|_| usize()).collect(),
                 syscall_result(),
                 match role {
-                    PrimitiveRole::Syscall0 | PrimitiveRole::Syscall4 | PrimitiveRole::Syscall5 => {
-                        private
-                    }
+                    PrimitiveRole::Syscall0 | PrimitiveRole::Syscall4 => private,
                     _ => package,
                 },
                 arm64_darwin,
