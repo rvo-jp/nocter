@@ -2,15 +2,15 @@
 
 ## Current State
 
-The v0.36.0 release candidate is qualified. The retained archive was built from release-content
-commit `19030048ef6f83d7524176c0f32b4180d894ede2`; the public latest release remains v0.35.0 until
-publication is separately authorized.
+Publication of the qualified v0.36.0 candidate is authorized and in progress. The retained archive
+was built from release-content commit `19030048ef6f83d7524176c0f32b4180d894ede2`; its identity must
+remain unchanged through the public audit.
 
 ## Next Work
 
-Wait for explicit publication authorization. Publication must reuse the retained qualified archive
-without rebuilding it, then update the public latest-release surfaces, create and push the
-annotated tag, upload the one archive, and verify the public download byte for byte.
+Commit the public latest-release surfaces, create and push one annotated `v0.36.0` tag, upload the
+retained archive as the release's only asset, and verify the public tag, latest-release endpoint,
+asset bytes, extracted installation, and remote `main`. Record that evidence and stop.
 
 ## Blockers
 
