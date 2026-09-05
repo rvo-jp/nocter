@@ -17,7 +17,8 @@ node development/unicode/test.js
 ```
 
 Generation parses the complete pinned property and casing corpus, rejects unknown
-locale-independent casing conditions, validates every scalar lookup and mapping bound, and writes
+locale-independent casing conditions, rejects empty mappings that the lookup representation cannot
+encode, validates every scalar lookup and mapping bound, and writes
 `development/std/internal/unicode/tables.nct` atomically only when its exact bytes change. Normal
 compiler, standard-library, and package builds consume that committed source directly.
 

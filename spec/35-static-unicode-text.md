@@ -118,8 +118,9 @@ instance str {
 
 Conversion follows Unicode 17.0.0 default casing, including unconditional multi-scalar mappings
 and locale-independent contextual mappings. Entries conditional on a language or locale are not
-selected. One input scalar may therefore produce zero, one, or multiple output scalars; no
-`char -> char` case-conversion API is defined.
+selected. Every generated mapping is nonempty, so one input scalar produces one or multiple output
+scalars; no `char -> char` case-conversion API is defined. Generation fails if a future pinned
+Unicode corpus violates that representation contract.
 
 The ordinary methods allocate in the current allocation context and abort only for allocation
 failure. The `try_` methods use the supplied recoverable allocator. They either return one complete,

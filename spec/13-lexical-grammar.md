@@ -69,47 +69,24 @@ Rules:
 - Unicode letters are not accepted in identifiers.
 - Reserved keywords are not identifiers.
 - `nocter` is an ordinary identifier and has no visibility meaning.
-- `copy` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes it
-  contextually in `copy struct` and `where copy T` source forms.
-- `where` is not a reserved keyword. It is recognized contextually in declaration constraint
-  clauses.
-- `some` is not a reserved keyword. It is emitted as an identifier token and recognized
-  contextually at the start of an opaque type atom in a callable result.
-- `coerce` is not a reserved keyword. It is emitted as an identifier token and recognized
-  contextually as an `instance` member declaration.
-- `default` is not a reserved keyword. It is emitted as an identifier token and recognized
-  contextually between a construction member's visibility and its `func` or `literal` keyword.
-- `drop` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
-  it contextually in top-level `drop Type(&+self) { ... }` declarations and statement-position
-  `drop name` forms.
-- `static` is not a reserved keyword. It is emitted as an identifier token; the parser recognizes
-  it contextually at the start of a top-level static declaration and after `from` in a result
-  provenance clause. Outside those positions it remains an ordinary identifier spelling.
-- `self` is not a reserved keyword. It is emitted as an identifier token and recognized
-  contextually as the fixed receiver in method, operator, coercion, and drop declaration forms.
-  Outside a receiver position it is an ordinary identifier spelling unless a semantic namespace
-  rule rejects that use.
+- Contextual spellings are emitted as identifier-shaped tokens. Their complete grammar-position
+  catalog is owned only by [Syntactic Grammar](25-syntactic-grammar.md#contextual-spellings).
 - `interface` is a reserved keyword.
-- `from` and `import` are not reserved keywords. They are emitted as
-  identifier tokens; top-level legacy import syntax is diagnosed as removed
-  syntax by the parser.
-- The parser recognizes `from` contextually after a callable return type. This does not reserve
-  `from` as a general identifier.
 - `alloc` is not a reserved keyword. It is an ordinary identifier, including the standard
   `Allocator.alloc` method. Obsolete result-modifier forms such as `alloc func` receive a focused
   parser diagnostic and do not produce a compatibility AST.
-- `trait` is not a reserved keyword. It is emitted as an identifier token;
-  top-level trait syntax is diagnosed as removed syntax by the parser.
-- `Self` has identifier spelling but is reserved as contextual type syntax in
-  inherent member type positions. It is not a valid binding, declaration, field,
-  variant, module, type parameter, or import alias name.
+- `import` and `trait` are not reserved keywords. Removed top-level import and trait forms are
+  diagnosed without producing compatibility syntax trees.
+- `Self` has identifier spelling but is never an ordinary source name. Its contextual type and
+  construction-owner positions are part of the syntactic-grammar catalog. It is not a valid
+  binding, declaration, field, variant, module, type parameter, or import alias name.
 - `error` is not a reserved keyword. In type positions, the exact spelling `error` resolves through
   the compiler-selected primitive-type declaration. In value positions, it is an ordinary
   identifier, so `catch error { ... }` binds a local value named `error`.
-- A single `_` is the one-slot wildcard or discard spelling in enum payload pattern positions and
-  in the local discard initializer `let _ = expression`. It never abbreviates multiple enum
-  payload positions. A discard initializer creates no binding. `_` is not a valid binding,
-  declaration, field, variant, type parameter, or import alias name.
+- A single `_` is the one-slot wildcard or discard spelling at the positions cataloged by the
+  syntactic grammar. It never abbreviates multiple enum payload positions and never creates a
+  binding. `_` is not a valid binding, declaration, field, variant, type parameter, or import
+  alias name.
 - Identifiers beginning with `_` are otherwise valid.
 
 Reserved keyword tokens:
@@ -333,17 +310,10 @@ eof
 Keyword rules:
 
 - Reserved keywords are emitted as keyword tokens.
-- `nocter` is emitted as an identifier token.
-- `drop` is emitted as an identifier token; the parser treats `drop Type(&+self) { ... }` at top
-  level and `drop name` in statement position as contextual source forms.
-- `Self` may be emitted as an identifier-shaped token by the lexer, but the parser treats that exact spelling contextually as type syntax only where [Values and Types](02-values-types.md#self-type-syntax) allows it.
-- `error` is emitted as an identifier token; semantic resolution selects its compiler-managed
-  primitive-type declaration in type and construction-owner positions.
-- `ok`, `some`, `unsafe`, and `trusted` are not reserved and are emitted as identifier tokens.
-  The parser recognizes `some` contextually only in the opaque result type form defined by
-  [Generics, Interfaces, and Methods](08-generics-interfaces-embedding-methods.md#static-opaque-results).
-- `default` is emitted as an identifier token and recognized only before an interface default
-  `method`.
+- The finite contextual spellings and their parser positions are defined by the single table in
+  [Syntactic Grammar](25-syntactic-grammar.md#contextual-spellings). They remain identifier-shaped
+  lexer tokens rather than members of the reserved-keyword set.
+- `nocter`, `ok`, `unsafe`, and `trusted` are ordinary identifier spellings.
 - `alloc` is emitted as an identifier token and has no contextual keyword classification.
 
 Newline rules:

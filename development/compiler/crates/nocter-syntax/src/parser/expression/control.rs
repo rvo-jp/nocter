@@ -1,6 +1,6 @@
 use super::{ExpressionMode, expression};
 use crate::parser::{CompletedMarker, Parser, block, newline};
-use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn if_expression(parser: &mut Parser<'_>) -> CompletedMarker {
     let marker = parser.start();
@@ -41,7 +41,7 @@ pub(super) fn match_expression(parser: &mut Parser<'_>) -> CompletedMarker {
 
 fn match_arm(parser: &mut Parser<'_>) {
     let marker = parser.start();
-    if parser.at_identifier_text("_") {
+    if parser.at_contextual(ContextualSpelling::Discard) {
         parser.bump();
     } else {
         enum_pattern(parser);

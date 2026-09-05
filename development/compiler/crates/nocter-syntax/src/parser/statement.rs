@@ -267,7 +267,7 @@ fn region_statement(parser: &mut Parser<'_>) -> CompletedMarker {
 }
 
 fn at_drop_statement(parser: &Parser<'_>) -> bool {
-    parser.current_text() == "drop"
+    parser.at_contextual(crate::ContextualSpelling::Drop)
         && parser.nth_kind(1) == TokenKind::Identifier
         && matches!(
             parser.nth_kind(2),

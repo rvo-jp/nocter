@@ -23,6 +23,7 @@ trap cleanup EXIT
 export CARGO_TARGET_DIR="$temporary_root/target"
 cd "$compiler_root"
 
+node "$repository_root/development/verification/verify-repository-metadata.js"
 node "$repository_root/development/unicode/test.js"
 node "$repository_root/development/unicode/generate.js" --check
 cargo fmt --all -- --check

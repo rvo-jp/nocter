@@ -20,6 +20,7 @@ package or discovery code. It does not resolve names or apply semantic rules.
 ## Internal Responsibilities
 
 - lexing and token subdivision
+- the closed contextual-spelling catalog shared by parser comparisons and lexical validation
 - event-based parsing and flat tree construction
 - structural callable modifiers, including authored `noalloc`, without effect interpretation
 - syntax diagnostics and missing/error elements
@@ -34,6 +35,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
 ## Invariants
 
 - Every syntax token retains its lexical-token identity and exact normalized range.
+- Contextual spellings remain identifier tokens; parser responsibilities select them through the
+  typed catalog rather than duplicating source-text literals.
 - Parser recovery preserves authored structure without inventing semantic success.
 - Callable modifiers have dedicated nodes; downstream stages never recover guarantees from token
   text or declaration spelling.

@@ -563,7 +563,10 @@ fn rejects_implicit_interface_default_bodies() {
     );
 
     assert!(tree.diagnostics().iter().any(|diagnostic| {
-        diagnostic.kind() == ParseDiagnosticKind::Expected(ExpectedSyntax::Contextual("default"))
+        diagnostic.kind()
+            == ParseDiagnosticKind::Expected(ExpectedSyntax::Contextual(
+                ContextualSpelling::Default.as_str(),
+            ))
     }));
 }
 

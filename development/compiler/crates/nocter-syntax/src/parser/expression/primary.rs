@@ -1,6 +1,6 @@
 use super::{ExpressionMode, control, expression};
 use crate::parser::{CompletedMarker, Parser, block, newline, place, root, types};
-use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn primary(parser: &mut Parser<'_>, mode: ExpressionMode) -> CompletedMarker {
     if mode != ExpressionMode::Header {
@@ -22,7 +22,9 @@ pub(super) fn primary(parser: &mut Parser<'_>, mode: ExpressionMode) -> Complete
         | TokenKind::Keyword(Keyword::True | Keyword::False | Keyword::None) => {
             scalar_literal(parser)
         }
-        TokenKind::Identifier if parser.current_text() != "_" => owner_or_reference(parser, mode),
+        TokenKind::Identifier if !parser.at_contextual(ContextualSpelling::Discard) => {
+            owner_or_reference(parser, mode)
+        }
         _ => {
             let marker = parser.start();
             if at_expression_boundary(parser) {

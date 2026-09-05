@@ -1074,6 +1074,7 @@ special role only at the listed boundary:
 | `default` | before an interface default `method` |
 | `coerce` | the start of an `instance` member |
 | `drop` | the start of a top-level drop declaration or a `drop Name` statement |
+| `static` | the start of a top-level static declaration or an explicit static provenance origin |
 | `self` | the fixed receiver position of methods, operators, coercions, and drop declarations |
 | `Self` | a type atom or construction-owner head in a type-owned context |
 | `error` | a built-in type atom or construction-owner head; otherwise an ordinary value name |

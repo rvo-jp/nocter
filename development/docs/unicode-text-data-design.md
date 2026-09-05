@@ -46,9 +46,11 @@ regenerated output in one reviewed release change.
 ## Generated Product
 
 Generated files contain sorted, non-overlapping scalar ranges and parallel fixed-width mapping
-arrays. They carry no public declarations and are visible only through `std/internal/unicode`.
-Lookup validation proves range ordering, scalar validity, mapping bounds, and exact property counts
-before generated files are committed.
+arrays. Every mapping entry contains at least one scalar; the generator rejects a future input
+corpus that would require an empty result instead of silently changing the lookup representation.
+Generated files carry no public declarations and are visible only through `std/internal/unicode`.
+Lookup validation proves range ordering, scalar validity, nonempty mapping bounds, and exact
+property counts before generated files are committed.
 
 The generator writes temporary output, verifies it completely, and atomically replaces the tracked
 product only when bytes differ. Running it twice over the same inputs must produce identical bytes.

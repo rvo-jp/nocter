@@ -1,5 +1,5 @@
 use super::Parser;
-use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 /// Parses one exact relative physical source path used for direct source visibility.
 ///
@@ -48,7 +48,7 @@ fn expect_source_segment(parser: &mut Parser<'_>) -> bool {
 }
 
 fn is_source_segment(text: &str) -> bool {
-    text != "_"
+    text != ContextualSpelling::Discard.as_str()
         && text.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
         && text
             .bytes()

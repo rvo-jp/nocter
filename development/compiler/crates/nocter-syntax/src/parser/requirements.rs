@@ -1,5 +1,5 @@
 use super::{Parser, types};
-use crate::{ExpectedSyntax, NodeKind, Punctuation, TokenKind};
+use crate::{ContextualSpelling, ExpectedSyntax, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn where_clause(parser: &mut Parser<'_>) {
     let marker = parser.start();
@@ -21,7 +21,9 @@ fn predicate(parser: &mut Parser<'_>) {
         if !parser.attempt(coercion_predicate) {
             type_equality_predicate(parser);
         }
-    } else if parser.at_identifier_text("copy") && parser.nth_kind(1) == TokenKind::Identifier {
+    } else if parser.at_contextual(ContextualSpelling::Copy)
+        && parser.nth_kind(1) == TokenKind::Identifier
+    {
         copy_predicate(parser);
     } else if parser.at(TokenKind::Identifier)
         && parser.nth_kind(1) == TokenKind::Punctuation(Punctuation::Colon)

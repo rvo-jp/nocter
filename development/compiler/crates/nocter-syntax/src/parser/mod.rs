@@ -17,8 +17,8 @@ use nocter_source::{SourceFile, Span, TextRange};
 
 use crate::tree::{Event, build_tree, missing};
 use crate::{
-    ExpectedSyntax, Keyword, NodeKind, ParseDiagnostic, ParseDiagnosticKind, Punctuation,
-    SyntaxToken, SyntaxTree, Token, TokenId, TokenKind, is_valid_name, lex,
+    ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, ParseDiagnostic, ParseDiagnosticKind,
+    Punctuation, SyntaxToken, SyntaxTree, Token, TokenId, TokenKind, is_valid_name, lex,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -194,18 +194,20 @@ impl<'source> Parser<'source> {
         self.at(TokenKind::Punctuation(punctuation))
     }
 
-    fn at_identifier_text(&self, text: &str) -> bool {
-        self.at(TokenKind::Identifier) && self.current_text() == text
+    fn at_contextual(&self, spelling: ContextualSpelling) -> bool {
+        self.contextual_at(self.cursor, spelling)
     }
 
-    fn nth_identifier_text(&self, distance: usize, text: &str) -> bool {
-        if self.nth_kind(distance) != TokenKind::Identifier {
+    fn contextual_at(&self, cursor: usize, spelling: ContextualSpelling) -> bool {
+        let Some(token) = self.tokens.get(cursor) else {
             return false;
-        }
-        self.tokens
-            .get(self.cursor + distance)
-            .and_then(|token| self.source.text_at(token.span().range()))
-            == Some(text)
+        };
+        token.kind() == TokenKind::Identifier
+            && self.source.text_at(token.span().range()) == Some(spelling.as_str())
+    }
+
+    fn nth_contextual(&self, distance: usize, spelling: ContextualSpelling) -> bool {
+        self.contextual_at(self.cursor + distance, spelling)
     }
 
     fn nth_kind(&self, distance: usize) -> TokenKind {
@@ -365,7 +367,7 @@ impl<'source> Parser<'source> {
     }
 
     fn expect_name_or_discard(&mut self) -> bool {
-        if self.at_identifier_text("_") {
+        if self.at_contextual(ContextualSpelling::Discard) {
             self.bump();
             true
         } else {
@@ -373,8 +375,18 @@ impl<'source> Parser<'source> {
         }
     }
 
+    fn expect_contextual(&mut self, spelling: ContextualSpelling) -> bool {
+        if self.at_contextual(spelling) {
+            self.bump();
+            true
+        } else {
+            self.missing(ExpectedSyntax::Contextual(spelling.as_str()));
+            false
+        }
+    }
+
     fn expect_identifier_text(&mut self, text: &'static str) -> bool {
-        if self.at_identifier_text(text) {
+        if self.at(TokenKind::Identifier) && self.current_text() == text {
             self.bump();
             true
         } else {

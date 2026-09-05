@@ -9,9 +9,10 @@ local release candidate.
   with the compiler file digest and standard-library tree digest to create the installed
   `MANIFEST.json` v2.
 - `package-local-release.sh` builds the optimized compiler in a fresh temporary Cargo target,
-  computes both artifact identities through the shared Rust content-integrity implementation,
-  validates the assembled home through its own compiler, normalizes archive metadata, and
-  atomically writes one host archive. The temporary target is removed on exit.
+  first verifies that `RELEASE.json`, the shipped legal files, and every Cargo package agree on the
+  license, then computes both artifact identities through the shared Rust content-integrity
+  implementation, validates the assembled home through its own compiler, normalizes archive
+  metadata, and atomically writes one host archive. The temporary target is removed on exit.
 - `qualify-local-release.sh` requires a clean release-content commit, refuses to reuse a version
   already tagged at another commit, creates the archive twice, compares both compressed archives
   and extracted homes, and exercises the installed compiler.

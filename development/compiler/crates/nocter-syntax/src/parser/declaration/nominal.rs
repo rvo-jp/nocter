@@ -1,12 +1,12 @@
 use super::{
     Parser, block, optional_noalloc, optional_visibility, requirements, skip_visibility, types,
 };
-use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn struct_declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
     optional_visibility(parser);
-    if parser.at_identifier_text("copy") {
+    if parser.at_contextual(ContextualSpelling::Copy) {
         parser.bump();
     }
     parser.expect_keyword(Keyword::Struct);
@@ -44,7 +44,7 @@ fn generic_parameters_and_requirements(parser: &mut Parser<'_>) {
     if parser.at_punctuation(Punctuation::Less) {
         types::generic_parameters(parser);
     }
-    if parser.at_identifier_text("where") {
+    if parser.at_contextual(ContextualSpelling::Where) {
         requirements::where_clause(parser);
     }
 }
@@ -80,8 +80,7 @@ fn interface_member(parser: &mut Parser<'_>) {
     if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
         cursor += 1;
     }
-    let is_default = parser.tokens[cursor].kind() == TokenKind::Identifier
-        && parser.source.text_at(parser.tokens[cursor].span().range()) == Some("default");
+    let is_default = parser.contextual_at(cursor, ContextualSpelling::Default);
     if is_default {
         cursor += 1;
     }
@@ -120,14 +119,16 @@ fn interface_method(parser: &mut Parser<'_>, is_default: bool) {
     optional_noalloc(parser);
     if is_default {
         let modifier = parser.start();
-        parser.expect_identifier_text("default");
+        parser.expect_contextual(ContextualSpelling::Default);
         parser.complete(modifier, NodeKind::InterfaceDefaultModifier);
     }
     super::method_signature(parser);
     if is_default {
         block::optional(parser);
     } else if parser.at_punctuation(Punctuation::LeftBrace) {
-        parser.missing(ExpectedSyntax::Contextual("default"));
+        parser.missing(ExpectedSyntax::Contextual(
+            ContextualSpelling::Default.as_str(),
+        ));
         block::optional(parser);
     }
     parser.complete(marker, NodeKind::InterfaceMethod);

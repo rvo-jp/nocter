@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use nocter_source::{SourceMap, SourceName};
 
 use super::*;
+use crate::ContextualSpelling;
 
 fn lex_text(text: &str) -> LexedFile {
     let mut sources = SourceMap::new();
@@ -18,17 +19,19 @@ fn kinds(text: &str) -> Vec<TokenKind> {
 
 #[test]
 fn recognizes_reserved_and_contextual_spellings_separately() {
+    let contextual_source = ContextualSpelling::ALL
+        .iter()
+        .map(|spelling| spelling.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut contextual_kinds = vec![TokenKind::Identifier; ContextualSpelling::ALL.len()];
+    contextual_kinds.push(TokenKind::Eof);
+
     assert_eq!(
-        kinds("interface where some self drop"),
-        vec![
-            TokenKind::Keyword(Keyword::Interface),
-            TokenKind::Identifier,
-            TokenKind::Identifier,
-            TokenKind::Identifier,
-            TokenKind::Identifier,
-            TokenKind::Eof,
-        ]
+        kinds("interface"),
+        vec![TokenKind::Keyword(Keyword::Interface), TokenKind::Eof]
     );
+    assert_eq!(kinds(&contextual_source), contextual_kinds);
 }
 
 #[test]

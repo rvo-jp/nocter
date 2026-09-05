@@ -10,6 +10,7 @@ release_file="$script_directory/RELEASE.json"
 standard_root="$repository_root/development/std"
 output_directory="${1:-$repository_root/dist}"
 
+node "$repository_root/development/verification/verify-repository-metadata.js"
 node "$repository_root/development/unicode/generate.js" --check
 
 if [[ "$(uname -s)" != "Darwin" || "$(uname -m)" != "arm64" ]]; then

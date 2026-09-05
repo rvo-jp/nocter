@@ -1,5 +1,8 @@
 use super::{Parser, declaration, source_visibility};
-use crate::{ExpectedSyntax, Keyword, NodeKind, ParseDiagnosticKind, Punctuation, TokenKind};
+use crate::{
+    ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, ParseDiagnosticKind, Punctuation,
+    TokenKind,
+};
 
 pub(super) fn source_file(parser: &mut Parser<'_>) {
     let root = parser.start();
@@ -276,7 +279,7 @@ fn expect_module_segment(parser: &mut Parser<'_>) -> bool {
 }
 
 fn is_module_segment(text: &str) -> bool {
-    text != "_"
+    text != ContextualSpelling::Discard.as_str()
         && text.as_bytes().first().is_some_and(u8::is_ascii_lowercase)
         && text
             .bytes()

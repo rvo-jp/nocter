@@ -2,6 +2,7 @@
 
 mod body_surface;
 mod completeness;
+mod contextual;
 mod diagnostic;
 mod documentation;
 mod lexer;
@@ -18,6 +19,7 @@ mod tuple;
 
 pub use body_surface::{BodySyntaxLocator, BodySyntaxProjection, BodySyntaxSurface};
 pub use completeness::node_is_complete;
+pub use contextual::ContextualSpelling;
 pub use diagnostic::{ExpectedSyntax, ParseDiagnostic, ParseDiagnosticKind};
 pub use lexer::{Comment, CommentKind, LexDiagnostic, LexDiagnosticKind, LexedFile, lex};
 pub use literal::{
@@ -56,7 +58,10 @@ pub fn is_valid_name(text: &str) -> bool {
     let mut bytes = text.bytes();
     bytes.next().is_some_and(is_name_start)
         && bytes.all(is_name_continue)
-        && !matches!(text, "_" | "Self")
+        && !matches!(
+            ContextualSpelling::from_spelling(text),
+            Some(ContextualSpelling::Discard | ContextualSpelling::UpperSelf)
+        )
         && Keyword::from_spelling(text).is_none()
 }
 

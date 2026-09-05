@@ -1,5 +1,7 @@
 use super::{CompletedMarker, Parser, expression};
-use crate::{BuiltinType, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{
+    BuiltinType, ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind,
+};
 
 pub(super) fn type_(parser: &mut Parser<'_>) {
     let marker = parser.start();
@@ -9,7 +11,7 @@ pub(super) fn type_(parser: &mut Parser<'_>) {
 }
 
 pub(super) fn callable_result(parser: &mut Parser<'_>) {
-    if parser.at_identifier_text("some") {
+    if parser.at_contextual(ContextualSpelling::Some) {
         opaque_result(parser);
         outcome_suffix(parser);
     } else {
@@ -34,7 +36,10 @@ pub(super) fn declaration_type_pattern(parser: &mut Parser<'_>) {
         parser.expect_punctuation(Punctuation::RightBracket);
     } else if at_builtin_pattern(parser) {
         named_type(parser);
-    } else if parser.at(TokenKind::Identifier) && !matches!(parser.current_text(), "_" | "Self") {
+    } else if parser.at(TokenKind::Identifier)
+        && !parser.at_contextual(ContextualSpelling::Discard)
+        && !parser.at_contextual(ContextualSpelling::UpperSelf)
+    {
         parser.bump();
         if parser.at_punctuation(Punctuation::Less) {
             pattern_arguments(parser);
@@ -253,7 +258,7 @@ fn callable_type(parser: &mut Parser<'_>) {
     parser.complete(parameters, NodeKind::CallableParameters);
     parser.expect_punctuation(Punctuation::Colon);
     type_(parser);
-    if parser.at_identifier_text("from") {
+    if parser.at_contextual(ContextualSpelling::From) {
         provenance_clause(parser);
     }
     parser.complete(marker, NodeKind::CallableType);
@@ -313,7 +318,7 @@ fn named_type_with_facts(parser: &mut Parser<'_>) -> (CompletedMarker, bool, usi
     let marker = parser.start();
     let mut has_type_arguments = false;
     let mut plain_selections_after_type_arguments = 0;
-    if parser.at_identifier_text("Self") {
+    if parser.at_contextual(ContextualSpelling::UpperSelf) {
         let self_type = parser.start();
         parser.bump();
         parser.complete(self_type, NodeKind::SelfType);
@@ -351,7 +356,8 @@ fn pattern_arguments(parser: &mut Parser<'_>) {
 
 fn expect_pattern_binder(parser: &mut Parser<'_>) {
     if parser.at(TokenKind::Identifier)
-        && !matches!(parser.current_text(), "_" | "Self")
+        && !parser.at_contextual(ContextualSpelling::Discard)
+        && !parser.at_contextual(ContextualSpelling::UpperSelf)
         && !at_builtin_pattern(parser)
     {
         parser.bump();

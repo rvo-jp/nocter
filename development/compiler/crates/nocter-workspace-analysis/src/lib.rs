@@ -150,7 +150,6 @@ impl WorkspaceAnalyses {
     }
 
     #[cfg(test)]
-    #[cfg(test)]
     fn declaration_surface_counts(&self) -> (u64, u64, u64) {
         let statistics = self.computation.statistics();
         (

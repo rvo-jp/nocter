@@ -2,13 +2,13 @@ use super::{
     Parser, block, method_signature, optional_noalloc, optional_visibility, receiver, requirements,
     types,
 };
-use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_keyword(Keyword::Instance);
     types::declaration_type_pattern(parser);
-    if parser.at_identifier_text("where") {
+    if parser.at_contextual(ContextualSpelling::Where) {
         requirements::where_clause(parser);
     }
     parser.braced_line_sequence(ExpectedSyntax::DeclarationMember, member);
@@ -31,7 +31,7 @@ fn member(parser: &mut Parser<'_>) {
             block::optional(parser);
             NodeKind::InherentMethod
         }
-        TokenKind::Identifier if parser.current_text() == "coerce" => {
+        TokenKind::Identifier if parser.at_contextual(ContextualSpelling::Coerce) => {
             coercion(parser);
             NodeKind::CoercionDeclaration
         }
@@ -45,14 +45,14 @@ fn member(parser: &mut Parser<'_>) {
 }
 
 fn coercion(parser: &mut Parser<'_>) {
-    parser.expect_identifier_text("coerce");
+    parser.expect_contextual(ContextualSpelling::Coerce);
     receiver(parser, false);
     parser.expect_keyword(Keyword::As);
     types::type_(parser);
-    if parser.at_identifier_text("from") {
+    if parser.at_contextual(ContextualSpelling::From) {
         let provenance = parser.start();
         parser.bump();
-        parser.expect_identifier_text("self");
+        parser.expect_contextual(ContextualSpelling::LowerSelf);
         parser.complete(provenance, NodeKind::CoercionProvenance);
     }
     block::optional(parser);
@@ -92,7 +92,7 @@ fn comparison_operator(parser: &mut Parser<'_>) {
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
     parser.expect_punctuation(Punctuation::Ampersand);
-    parser.expect_identifier_text("Self");
+    parser.expect_contextual(ContextualSpelling::UpperSelf);
     parser.expect_punctuation(Punctuation::RightParen);
     parser.expect_punctuation(Punctuation::Colon);
     parser.expect_identifier_text("bool");
@@ -120,14 +120,14 @@ fn expansion_operator(parser: &mut Parser<'_>) {
 }
 
 fn optional_provenance_and_requirements(parser: &mut Parser<'_>) {
-    if parser.at_identifier_text("from") {
+    if parser.at_contextual(ContextualSpelling::From) {
         types::provenance_clause(parser);
     }
     optional_requirements(parser);
 }
 
 fn optional_requirements(parser: &mut Parser<'_>) {
-    if parser.at_identifier_text("where") {
+    if parser.at_contextual(ContextualSpelling::Where) {
         requirements::where_clause(parser);
     }
 }

@@ -3,7 +3,7 @@ mod instance;
 mod nominal;
 
 use super::{Parser, block, expression, requirements, root, types};
-use crate::{ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
+use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
 pub(super) fn item(parser: &mut Parser<'_>) {
     let marker = parser.start();
@@ -38,7 +38,7 @@ fn declaration(parser: &mut Parser<'_>) {
 fn target_directive(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.bump();
-    if parser.at_identifier_text("target") {
+    if parser.at_contextual(ContextualSpelling::Target) {
         parser.bump();
     } else {
         parser.error_token(ExpectedSyntax::Name);
@@ -88,10 +88,12 @@ fn declaration_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
         TokenKind::Keyword(Keyword::Construct) => Some(DeclarationKind::Construct),
         TokenKind::Keyword(Keyword::Instance) => Some(DeclarationKind::Instance),
         TokenKind::Keyword(Keyword::Test) => Some(DeclarationKind::Test),
-        TokenKind::Identifier if parser.current_text() == "drop" => Some(DeclarationKind::Drop),
+        TokenKind::Identifier if parser.at_contextual(ContextualSpelling::Drop) => {
+            Some(DeclarationKind::Drop)
+        }
         TokenKind::Keyword(Keyword::NoAlloc)
             if parser.nth_kind(1) == TokenKind::Identifier
-                && parser.nth_identifier_text(1, "drop") =>
+                && parser.nth_contextual(1, ContextualSpelling::Drop) =>
         {
             Some(DeclarationKind::Drop)
         }
@@ -108,8 +110,7 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
         cursor += 1;
     }
 
-    if parser.tokens[cursor].kind() == TokenKind::Identifier
-        && parser.source.text_at(parser.tokens[cursor].span().range()) == Some("copy")
+    if parser.contextual_at(cursor, ContextualSpelling::Copy)
         && parser.tokens[cursor + 1].kind() == TokenKind::Keyword(Keyword::Struct)
     {
         return Some(DeclarationKind::Struct);
@@ -117,9 +118,7 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
 
     match parser.tokens[cursor].kind() {
         TokenKind::Keyword(Keyword::Const) => Some(DeclarationKind::Constant),
-        TokenKind::Identifier
-            if parser.source.text_at(parser.tokens[cursor].span().range()) == Some("static") =>
-        {
+        TokenKind::Identifier if parser.contextual_at(cursor, ContextualSpelling::Static) => {
             Some(DeclarationKind::Static)
         }
         TokenKind::Keyword(Keyword::Func) => Some(DeclarationKind::Function),
@@ -157,7 +156,7 @@ fn constant(parser: &mut Parser<'_>) {
 fn static_declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
     optional_visibility(parser);
-    parser.expect_identifier_text("static");
+    parser.expect_contextual(ContextualSpelling::Static);
     parser.expect_name();
     parser.expect_punctuation(Punctuation::Colon);
     types::type_(parser);
@@ -235,7 +234,7 @@ fn type_alias(parser: &mut Parser<'_>) {
     }
     parser.expect_punctuation(Punctuation::Equal);
     types::type_(parser);
-    if parser.at_identifier_text("where") {
+    if parser.at_contextual(ContextualSpelling::Where) {
         requirements::where_clause(parser);
     }
     parser.complete(marker, NodeKind::TypeAliasDeclaration);
@@ -245,10 +244,10 @@ pub(super) fn callable_tail(parser: &mut Parser<'_>) {
     let marker = parser.start();
     parser.expect_punctuation(Punctuation::Colon);
     types::callable_result(parser);
-    if parser.at_identifier_text("from") {
+    if parser.at_contextual(ContextualSpelling::From) {
         types::provenance_clause(parser);
     }
-    if parser.at_identifier_text("where") {
+    if parser.at_contextual(ContextualSpelling::Where) {
         requirements::where_clause(parser);
     }
     parser.complete(marker, NodeKind::CallableTail);
@@ -288,8 +287,8 @@ pub(super) fn receiver(parser: &mut Parser<'_>, allow_owned: bool) {
         || parser.at_punctuation(Punctuation::ReadWrite)
     {
         parser.bump();
-        parser.expect_identifier_text("self");
-    } else if allow_owned && parser.at_identifier_text("self") {
+        parser.expect_contextual(ContextualSpelling::LowerSelf);
+    } else if allow_owned && parser.at_contextual(ContextualSpelling::LowerSelf) {
         parser.bump();
     } else {
         parser.error_token(ExpectedSyntax::Receiver);
@@ -300,11 +299,11 @@ pub(super) fn receiver(parser: &mut Parser<'_>, allow_owned: bool) {
 fn drop_declaration(parser: &mut Parser<'_>) {
     let marker = parser.start();
     optional_noalloc(parser);
-    parser.expect_identifier_text("drop");
+    parser.expect_contextual(ContextualSpelling::Drop);
     types::declaration_type_pattern(parser);
     parser.expect_punctuation(Punctuation::LeftParen);
     if parser.eat_punctuation(Punctuation::ReadWrite) {
-        parser.expect_identifier_text("self");
+        parser.expect_contextual(ContextualSpelling::LowerSelf);
     } else {
         parser.error_token(ExpectedSyntax::Receiver);
     }
