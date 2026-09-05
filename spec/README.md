@@ -1,10 +1,11 @@
 # Nocter Specification
 
-This directory is the sole normative source for the current Nocter language, public standard
-library, supported platform boundary, command-line interface, and editor behavior. The catalogs
-below recommend a reading order; generated navigation follows the physical directory structure and
-does not use those links as a page registry. File names describe responsibilities and never encode
-release history.
+This directory is the sole normative source for the current Nocter language, supported platform
+boundary, command-line interface, and editor behavior. The checked standard-library source and its
+documentation are owned separately by the [Standard Library](../development/std/README.md). The
+catalogs below recommend a reading order; generated navigation follows the published directory
+structure and does not use those links as a page registry. File names describe responsibilities
+and never encode release history.
 
 Nocter is a statically typed, value-centered systems language designed for self-contained native
 executables, explicit contracts, and a small installation surface. The language favors one
@@ -16,7 +17,8 @@ public contract.
 - [Design Principles](principles.md) explains the criteria used to resolve design choices.
 - [Language Overview](overview.md) introduces the language as a coherent whole.
 - [Language](language/README.md) defines source syntax and program semantics.
-- [Standard Library](standard-library/README.md) defines portable public modules and APIs.
+- [Standard Library](../development/std/README.md) defines portable public modules and APIs next to
+  their checked declarations.
 - [Platform](platform/README.md) defines ABI, target, primitive, and distribution boundaries.
 - [Tooling](tooling/README.md) defines diagnostics, formatting, CLI, testing, and editor behavior.
 - [AI Guide](guides/ai.md) is a compact source-writing guide, not a second specification.

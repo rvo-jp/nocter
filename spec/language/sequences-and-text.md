@@ -439,145 +439,12 @@ func open(path: &str): File! {
 }
 ```
 
-Representative current method surface:
-
-```nct
-instance str {
-    pub noalloc operator (&self == other: &Self): bool
-    pub noalloc method &self.len(): usize
-    pub noalloc method &self.is_empty(): bool
-    pub noalloc method &self.ptr(): *u8
-    pub noalloc method &self.bytes(): &[u8]
-    pub noalloc method &self.is_char_boundary(index: usize): bool
-    pub noalloc method &self.get_range(start: usize, end: usize): &str?
-    pub noalloc method &self.find(needle: &str): usize?
-    pub noalloc method &self.split_once(separator: &str): (&str, &str)? from self
-    pub noalloc method &self.contains(needle: &str): bool
-    pub noalloc method &self.trim_ascii_start(): &str from self
-    pub noalloc method &self.trim_ascii_end(): &str from self
-    pub noalloc method &self.trim_ascii(): &str from self
-    pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub noalloc method &self.lines(): some Iterator { .Item = &str }
-    pub noalloc method &self.bytes_iter(): ViewIter<u8>
-    pub method &self.repeat(count: usize): String
-    pub method &self.replace_all(pattern: &str, replacement: &str): String!
-}
-
-instance String {
-    pub noalloc method &self.capacity(): usize
-    pub method &+self.reserve(additional: usize): void
-    pub method &+self.try_reserve(additional: usize): void!
-    pub noalloc method &+self.clear(): void
-    pub method &+self.push_str(value: &str): void
-    pub method &+self.try_push_str(value: &str): void!
-    pub method &+self.try_push_utf8(value: &[u8]): void!
-}
-
-```
-
-`String` reaches the `str` observation surface through its declared `&String as &str` coercion.
-An original `String` method wins before coercion. The owning type therefore contains allocation,
-capacity, mutation, and construction behavior without duplicating borrowed observation methods.
-The same coercion reaches `str` equality. `&str == &str`, `&str == &String`, `&String == &str`,
-and `&String == &String` all select the one `str` declaration.
-
-Slices own element-wise equality and search only when their element type satisfies the equality
-operation used by the implementation:
-
-```nct
-instance [T] where (&T == &T): bool {
-    pub operator (&self == other: &Self): bool
-    pub method &self.contains(expected: &T): bool
-    pub method &self.position(expected: &T): usize?
-}
-```
-
-`Vec<T>` receives this readonly surface through its slice coercion. Comparison borrows elements;
-it does not consume either collection.
-
-Readwrite slices own in-place ordering. `Vec<T>` reaches the same `sort` method through its
-readwrite slice coercion and does not declare a forwarding method or a second algorithm.
-
-Normal `copy`, `reserve`, and `push_str` operations use the current aborting allocator. Explicit
-`try_copy`, `try_reserve`, `try_push_str`, and `try_push_utf8` operations use a `TryAllocator`.
-`try_push_utf8` first validates the complete byte slice and publishes no bytes when validation or
-allocation fails. Both surfaces use the same buffer implementation and preserve the same UTF-8 and
-publication invariants.
-
-### Borrowed String Ranges and Iteration
-
-The built-in `str` instance exposes allocation-free borrowed text operations:
-
-```nct
-instance str {
-    pub noalloc method &self.is_char_boundary(index: usize): bool
-    pub noalloc method &self.get_range(start: usize, end: usize): &str?
-    pub noalloc method &self.strip_prefix(prefix: &str): &str? from self
-    pub noalloc method &self.strip_suffix(suffix: &str): &str? from self
-    pub noalloc method &self.split_once(separator: &str): (&str, &str)? from self
-    pub noalloc method &self.trim_ascii_start(): &str from self
-    pub noalloc method &self.trim_ascii_end(): &str from self
-    pub noalloc method &self.trim_ascii(): &str from self
-    pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
-    pub noalloc method &self.lines(): some Iterator { .Item = &str }
-}
-```
-
-Range indices are UTF-8 byte offsets. `get_range` returns `none` when `start > end`, an endpoint is
-outside the input, or an endpoint divides a UTF-8 encoding. Empty ranges and the full input range
-are valid. The result borrows `text`; it never reconstructs provenance from an integer address.
-
-`strip_prefix` and `strip_suffix` compare exact UTF-8 bytes and return a view into `text`. The
-affix is an input to the comparison, not a storage origin of the returned view. An empty affix
-matches and returns the complete input.
-
-`split_once` finds the first exact separator and returns the borrowed prefix and suffix around it.
-The separator is excluded from both positions. An empty separator returns the empty view at the
-start followed by the complete input; a missing separator returns `none`. Both returned views
-borrow only `self`, and the operation performs no allocation.
-
-ASCII whitespace is exactly space (`0x20`), horizontal tab (`0x09`), line feed (`0x0A`), vertical
-tab (`0x0B`), form feed (`0x0C`), and carriage return (`0x0D`). `trim_ascii_start` and
-`trim_ascii_end` remove matching bytes only from the named edge; `trim_ascii` removes them from both
-edges. Each operation returns the largest remaining borrowed subslice, performs no allocation, and
-does not apply Unicode property tables or normalization. An all-whitespace input returns the empty
-view positioned at the end of the input and still borrows that input.
-
-`split_views` rejects an empty separator with `std.str.empty_separator`. Otherwise it yields the
-same component boundaries as the owned `split` operation, including empty components for empty
-input, adjacent separators, a leading separator, and a trailing separator. `SplitIter` retains
-both `text` and `separator` while it can still advance. Each yielded item is a borrowed `&str`
-component in source order. `SplitIter` binds `Iterator.Item = &str`, and ordinary adapters over it
-allocate no storage.
-
-`lines` recognizes LF and CRLF terminators. It omits each terminator, removes CR only when it is
-immediately before LF, preserves every other CR, yields no item for empty input, and does not add
-an empty item after a final terminator. `LinesIter` retains its input text and allocates no storage.
-
-These operations are byte-oriented. They do not define Unicode scalar, grapheme, normalization,
-or range-syntax behavior.
-
-### Owned Text Transformations
-
-Borrowed text owns two common transformations whose results require independent storage:
-
-```nct
-instance str {
-    pub method &self.repeat(count: usize): String
-    pub method &self.replace_all(pattern: &str, replacement: &str): String!
-}
-```
-
-`repeat` concatenates the complete input `count` times. A zero count or empty input returns an empty
-owned string. The operation checks the complete required byte capacity before mutating the result;
-an unrepresentable capacity follows the ordinary aborting allocation policy and never wraps.
-
-`replace_all` rejects an empty pattern with `std.str.empty_pattern`. It scans the original input
-from left to right, replaces non-overlapping matches, and resumes after the complete matched
-pattern. Replacement text is copied verbatim and is not searched recursively. A pattern that does
-not occur produces an independent copy of the original input. The result is always well-formed
-owned UTF-8. Allocation follows the ordinary aborting allocation policy; the fallible layer
-represents the invalid empty-pattern input rather than allocation exhaustion.
+The compiler-checked standard-library contracts own the exact `str`, `String`, slice, and `Vec`
+operations and their observable behavior. See [Borrowed Text](../../development/std/str/README.md),
+[Owned Strings](../../development/std/string/README.md), [Vectors](../../development/std/vec/README.md),
+and [Slices](../../development/std/slice/README.md).
+This language chapter owns only the built-in `str` data meaning, borrow types, literal behavior,
+and the coercion and method-selection rules that make those library declarations usable.
 
 `&[u8]` represents arbitrary borrowed bytes and is not necessarily valid UTF-8. Converting `&str` to `&[u8]` is allowed. Converting `&[u8]` to `&str` requires UTF-8 validation.
 
@@ -600,7 +467,7 @@ public forwarding functions for these borrowed operations.
 Unicode scalar construction, observation, and iteration belong to
 [Unicode Scalar Values](unicode-scalars.md). Unicode properties, Unicode whitespace trimming,
 and default case conversion belong to
-[Static Data and Unicode Text](../standard-library/unicode-text.md). Byte-oriented APIs in this chapter keep
+[Unicode Text and Scalars](../../development/std/char/README.md). Byte-oriented APIs in this chapter keep
 their existing meanings and do not silently adopt scalar, grapheme, or normalization behavior.
 
 ## String and Byte Literals

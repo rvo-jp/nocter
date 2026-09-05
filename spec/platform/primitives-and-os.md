@@ -1,4 +1,4 @@
-# Standard Library, Primitives, and OS
+# Standard-Library Primitive and OS Boundary
 
 This chapter defines the boundary between ordinary standard-library source and compiler-owned
 operations. User-facing library behavior is divided by responsibility:
@@ -9,7 +9,7 @@ operations. User-facing library behavior is divided by responsibility:
   views and owned text/collection behavior;
 - [Callable Values and Interface Default Methods](../language/callables.md) defines iterator contracts;
 - [Native Testing](../tooling/testing.md) defines native tests and assertions;
-- [Standard Library](../standard-library/README.md) defines text, collection, path,
+- [Standard Library](../../development/std/README.md) defines text, collection, path,
   file, numeric, and process APIs.
 
 ## Standard-Library Architecture

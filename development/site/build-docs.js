@@ -33,7 +33,7 @@ const PAGE_META = {
     },
     "spec/README.md": {
         title: "Nocter Specification",
-        description: "The Nocter specification for language semantics, the standard library, supported platforms, diagnostics, command-line tools, and editor behavior."
+        description: "The Nocter specification for language semantics, supported platforms, diagnostics, command-line tools, and editor behavior."
     },
     "releases/README.md": {
         title: "Nocter Releases",
@@ -46,13 +46,21 @@ const PAGE_META = {
     "development/README.md": {
         title: "Contributor Documentation",
         description: "Development documentation for the Nocter compiler, implementation status, backend, packaging, and release workflow."
+    },
+    "development/std/README.md": {
+        title: "Nocter Standard Library",
+        description: "Compiler-checked public standard-library declarations and their observable module contracts."
     }
 };
 
 const sourceFiles = collectSourceFiles(PROJECT_ROOT);
 const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
 const sourceContents = new Map(sourceFiles.map(file => [path.resolve(file), fs.readFileSync(file, "utf8")]));
-const documentTree = new PublishedDocumentTree(PROJECT_ROOT, sourceFiles);
+const publishedDocuments = sourceFiles.map(file => ({
+    sourcePath: file,
+    publicPath: publishedPathForSource(file)
+}));
+const documentTree = new PublishedDocumentTree(PROJECT_ROOT, publishedDocuments);
 const documentLabels = new Map(sourceFiles.map(file => [path.resolve(file), sourceDocumentLabel(file)]));
 
 // Hero panels consume complete runnable examples instead of maintaining a second set of Nocter
@@ -71,6 +79,7 @@ const codeExamples = Object.fromEntries(Object.entries({
 validateNocterLexicon();
 validateDiagnosticCatalog();
 validateCrateDocumentation();
+validateStandardLibraryDocumentation();
 validateOutputPaths(sourceFiles);
 validateSourceLinks(collectDocumentationLinkSources(PROJECT_ROOT));
 validateDocumentTreeNavigation();
@@ -196,6 +205,33 @@ function validateCrateDocumentation() {
         const crateRoot = path.join(cratesRoot, entry.name);
         if (fs.existsSync(path.join(crateRoot, "Cargo.toml")) && !documentedMembers.has(crateRoot)) {
             throw new Error(`Documented compiler crate crates/${entry.name} is absent from the workspace manifest`);
+        }
+    }
+}
+
+function validateStandardLibraryDocumentation() {
+    const readmes = sourceFiles.filter(file => {
+        const relative = normalizePath(path.relative(PROJECT_ROOT, file));
+        return relative.startsWith("development/std/") && path.basename(file) === "README.md";
+    });
+
+    for (const readme of readmes) {
+        const relative = normalizePath(path.relative(PROJECT_ROOT, readme));
+        const publicContract = path.join(path.dirname(readme), "index.nct");
+        const relativeContract = normalizePath(path.relative(PROJECT_ROOT, publicContract));
+        const source = sourceContents.get(path.resolve(readme));
+
+        if (!sourceSet.has(relativeContract)) {
+            throw new Error(`Standard-library documentation has no public contract: ${relative}`);
+        }
+        if (!source.includes("(index.nct)")) {
+            throw new Error(`Standard-library documentation does not link its public contract: ${relative}`);
+        }
+
+        for (const match of source.matchAll(/```nct\n([\s\S]*?)\n```/g)) {
+            if (/^\s*pub\b/m.test(match[1])) {
+                throw new Error(`Standard-library documentation repeats a public declaration: ${relative}`);
+            }
         }
     }
 }
@@ -388,6 +424,10 @@ function collectSourceFiles(directory) {
 }
 
 function isPublishedSource(relative) {
+    if (relative.startsWith("development/std/internal/")) {
+        return false;
+    }
+
     if (relative.endsWith(".md")) {
         return true;
     }
@@ -416,12 +456,13 @@ function validationTarget(target) {
 
 function renderPage(sourcePath) {
     const relativeSourcePath = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
+    const publishedSourcePath = publishedPathForSource(sourcePath);
     const source = sourceContents.get(path.resolve(sourcePath));
     const isNocterSource = sourcePath.endsWith(".nct");
     const body = isNocterSource ? nocterSourceToHtml(source, sourcePath) : markdownToHtml(source, sourcePath);
-    const title = isNocterSource ? relativeSourcePath : firstHeading(source) || "Nocter";
+    const title = isNocterSource ? publishedSourcePath : firstHeading(source) || "Nocter";
     const pageMeta = PAGE_META[relativeSourcePath] || {};
-    const description = pageMeta.description || (isNocterSource ? nocterSourceDescription(relativeSourcePath) : pageDescription(source));
+    const description = pageMeta.description || (isNocterSource ? nocterSourceDescription(publishedSourcePath) : pageDescription(source));
     const outputPath = outputPathForSource(sourcePath);
     const outputDir = path.dirname(outputPath);
     const styleHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "style.css"));
@@ -471,7 +512,7 @@ function renderPage(sourcePath) {
         ${navigation || '<aside class="document-tree" aria-label="Documentation tree"></aside>'}
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/${escapeHtml(relativeSourcePath)}</span>
+                <span class="markdown-path-text">/${escapeHtml(publishedSourcePath)}</span>
             </div>
             <div class="markdown-body">
                 ${body}
@@ -727,7 +768,12 @@ function sourceDocumentLabel(sourcePath) {
     }
 
     const name = path.basename(absoluteSource);
-    return name === "index.nct" ? path.basename(path.dirname(absoluteSource)) : name;
+    if (name === "index.nct") {
+        const readme = path.join(path.dirname(absoluteSource), "README.md");
+        const relativeReadme = normalizePath(path.relative(PROJECT_ROOT, readme));
+        return sourceSet.has(relativeReadme) ? "Public API" : path.basename(path.dirname(absoluteSource));
+    }
+    return name;
 }
 
 function resolveLinkUrl(markdownPath, href) {
@@ -779,7 +825,7 @@ function resolveAssetUrl(markdownPath, src) {
 }
 
 function outputPathForSource(sourcePath) {
-    const relative = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
+    const relative = publishedPathForSource(sourcePath);
 
     if (relative === "README.md") {
         return path.join(OUTPUT_ROOT, "index.html");
@@ -791,6 +837,17 @@ function outputPathForSource(sourcePath) {
 
     const parsed = path.parse(relative);
     return path.join(OUTPUT_ROOT, parsed.dir, parsed.name, "index.html");
+}
+
+function publishedPathForSource(sourcePath) {
+    const relative = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
+    const standardLibraryPrefix = "development/std/";
+
+    if (relative.startsWith(standardLibraryPrefix)) {
+        return relative.slice("development/".length);
+    }
+
+    return relative;
 }
 
 function publicPathForOutput(outputPath) {

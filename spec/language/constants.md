@@ -107,6 +107,48 @@ failure rules. Declaration lowering does not inspect body blocks, and body check
 name lookup in a header namespace. Later lowering and code generation consume only the normalized
 fixed-array type.
 
+## Immutable Static Data
+
+`static` declares one immutable, addressable value whose initialized representation is embedded in
+the executable before program execution:
+
+```nct
+static ASCII_LIMITS: [u32; 2] = [65, 90]
+
+pub static PROTOCOL_MARKERS: [u8; 3]
+```
+
+A bodyless public declaration in a module root joins exactly one private definition with the same
+declaration kind, name, and type, using the same contract/implementation rule as `const`. An
+initialized public static may remain inline when its value is itself the intended public contract.
+
+A static name uses `UPPER_SNAKE_CASE` and denotes a readonly place with `static` provenance. It can
+be read when its type is copyable, indexed according to its type, or borrowed as `&STATIC_NAME`.
+It cannot be assigned, moved, mutably borrowed, dropped, or used as an allocation context. No
+runtime initializer or initialization-order relation exists.
+
+The static-initializer domain contains:
+
+- boolean, integer, character, and non-interpolated string literals;
+- references to `const` values;
+- the pure unary, binary, and conversion constant expressions defined for `const`;
+- fixed-array literals whose elements recursively belong to this domain.
+
+The declared static type must recursively contain only `bool`, integer types, `char`, readonly
+`&str`, and fixed arrays of those types. Owned values, nominal values, pointers, mutable borrows,
+slices, optionals, fallible values, callables, generic-dependent values, and values with destruction
+are rejected. Every readonly string reference in a static initializer refers to embedded static
+text.
+
+The compiler evaluates a static initializer once during semantic construction and publishes one
+typed frozen value to executable lowering. The selected machine layout owns its size, alignment,
+and byte encoding. The executable-format layer places the resulting bytes in readonly mapped data
+and performs no source-level evaluation. The backend cannot inspect initializer syntax or
+reconstruct aggregate values.
+
+`const` remains a storage-independent value and does not become an alias for `static`. `static`
+exists for immutable data whose address and indexed storage are part of execution.
+
 ## Tooling
 
 Hover presents the canonical evaluated value, not the initializer's original spacing or numeric
@@ -114,10 +156,13 @@ spelling. Definition, references, rename, completion, and semantic highlighting 
 constant identity as compilation. A constant completion item is classified as a constant, and its
 semantic highlight is readonly.
 
+Static declarations participate in parsing, formatting, tokens and AST output, diagnostics,
+navigation, references, rename, completion, hover, and semantic highlighting through one static
+identity. Hover renders the canonical declaration kind, name, and type, distinguishes `static`
+storage from `const` values, and never prints an initializer's potentially large contents.
+
 ## Future Direction
 
 This chapter does not define constant functions, associated or interface constants, constant
-generic parameters, or compile-time construction of owned `String` and `Vec` values. Named
-immutable static storage has its separate storage contract in
-[Static Data and Unicode Text](../standard-library/unicode-text.md); it is not a compatibility alias for
-`const`. Mutable globals remain outside the language.
+generic parameters, compile-time construction of owned `String` and `Vec` values, or mutable
+globals.

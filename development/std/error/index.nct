@@ -9,15 +9,20 @@ see ./construction.nct
 pub primitive type error
 
 construct error {
+    /// Creates a failure with one stable code and user-facing message.
     pub noalloc func new(code: &str, message: &str): Self
 }
 
 instance error {
+    /// Returns the same code with `message` as its new outer context.
     pub noalloc method self.context(message: &str): Self
 
+    /// Returns the stable machine-readable failure code.
     pub noalloc method &self.code(): &str from self
 
+    /// Returns the current user-facing failure message.
     pub noalloc method &self.message(): &str from self
 
+    /// Reports whether this failure carries the exact supplied code.
     pub noalloc method &self.has_code(code: &str): bool
 }

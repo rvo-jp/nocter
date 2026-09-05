@@ -5,6 +5,7 @@
 
 see ./assertions.nct
 
+/// Fails with an assertion error unless `condition` is true.
 pub func assert(condition: bool): void!
 
 /// Fails unless two borrowed values satisfy their structural equality requirement.

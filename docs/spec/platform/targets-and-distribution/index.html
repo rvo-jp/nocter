@@ -178,7 +178,7 @@
                 <ul class="document-tree-list">
                     <li><a href="../index.html#content">Platform</a></li>
                     <li><a href="../abi-and-layout/index.html#content">ABI and Layout</a></li>
-                    <li><a href="../primitives-and-os/index.html#content">Standard Library, Primitives, and OS</a></li>
+                    <li><a href="../primitives-and-os/index.html#content">Standard-Library Primitive and OS Boundary</a></li>
                     <li><a href="./index.html#content" aria-current="page">Targets and Distribution</a></li>
                 </ul>
             </nav>
@@ -226,7 +226,7 @@ arm64-windows  reserved, not implemented
         ptr/index.nct
         string/index.nct
         vec/index.nct
-</code></pre><p>The <code>host</code> part in the archive name identifies the environment that runs the <code>nocter</code> compiler binary. The current host is <code>arm64-darwin</code>. Future downloaded archives may use names such as <code>nocter-v&lt;version&gt;-x64-linux.tar.gz</code> or <code>nocter-v&lt;version&gt;-arm64-linux.tar.gz</code>, but each archive still extracts a <code>.nocter/</code> root.</p><p>The installed Nocter home contains standard-library directory modules under <code>std/</code>. Target-dependent type, helper, and primitive declarations in those modules use <code>#target: "..."</code>; ordinary public wrapper functions remain normal functions. The public standard-library surface is specified in <a href="../primitives-and-os/index.html#content">Standard Library, Primitives, and OS</a>.</p><p>Because cross compilation beyond <code>arm64-darwin</code> is not implemented, the default active target is the host target. The <code>arm64-darwin</code> archive contains the compiler that runs on ARM64 macOS, and <code>std/internal/os/index.nct</code> contains the <code>#target: "arm64-darwin"</code> primitive boundary for that target.</p><h2 id="release-metadata">Release Metadata</h2><p>Each Nocter home contains release metadata at its root.</p><pre><code class="language-text">.nocter/
+</code></pre><p>The <code>host</code> part in the archive name identifies the environment that runs the <code>nocter</code> compiler binary. The current host is <code>arm64-darwin</code>. Future downloaded archives may use names such as <code>nocter-v&lt;version&gt;-x64-linux.tar.gz</code> or <code>nocter-v&lt;version&gt;-arm64-linux.tar.gz</code>, but each archive still extracts a <code>.nocter/</code> root.</p><p>The installed Nocter home contains standard-library directory modules under <code>std/</code>. Target-dependent type, helper, and primitive declarations in those modules use <code>#target: "..."</code>; ordinary public wrapper functions remain normal functions. The public surface is owned by the checked <a href="../../../std/index.html#content">standard-library contracts</a>, while the compiler boundary is specified in <a href="../primitives-and-os/index.html#content">Standard-Library Primitive and OS Boundary</a>.</p><p>Because cross compilation beyond <code>arm64-darwin</code> is not implemented, the default active target is the host target. The <code>arm64-darwin</code> archive contains the compiler that runs on ARM64 macOS, and <code>std/internal/os/index.nct</code> contains the <code>#target: "arm64-darwin"</code> primitive boundary for that target.</p><h2 id="release-metadata">Release Metadata</h2><p>Each Nocter home contains release metadata at its root.</p><pre><code class="language-text">.nocter/
     nocter
     VERSION
     MANIFEST.json

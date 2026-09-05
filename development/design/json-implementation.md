@@ -3,7 +3,7 @@
 ## Purpose
 
 This document owns the cross-responsibility implementation boundary for the v0.22.0 JSON module.
-Public behavior belongs only to [JSON Values and Text](../../spec/standard-library/json.md). Work order and
+Public behavior belongs only to [JSON Values and Text](../std/json/README.md). Work order and
 completion evidence belong to the [v0.22.0 milestone](../history/milestones/v0.22.0.md).
 
 JSON remains standard-library source. No compiler stage may branch on the identity or source names

@@ -264,7 +264,7 @@ Nonempty use-site syntax is `Type [key: value, ...]`; the empty form is `Type [:
 literal is not introduced. Mapping literals share typed-literal generic inference, allocation
 override, evaluation, ownership, and construction-member visibility with sequence literals. The
 associative collection behavior selected by the standard `Map` declaration is specified in
-[Associative Collections](../standard-library/associative-collections.md).
+[Associative Collections](../../development/std/map/README.md).
 
 The keyed native descriptor is one ABI lane. TargetProgram fixes both component types, entry
 evaluation, next-entry initialization, and residual cleanup. MIR, MachineProgram, and the target

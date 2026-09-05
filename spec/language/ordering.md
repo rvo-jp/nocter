@@ -83,7 +83,8 @@ The standard `[T]` instance compares elements lexicographically under
 uses its readonly slice coercion and does not own a duplicate ordering declaration.
 
 The same requirement powers the standard readwrite-slice `sort` method. That collection API is
-specified separately in [Text and Collections](../standard-library/text-and-collections.md); the `<`
+specified separately in [Borrowed Text](../../development/std/str/README.md) and
+[Slices](../../development/std/slice/README.md); the `<`
 operator selects the order but does not prescribe the sorting algorithm.
 
 ## Tooling

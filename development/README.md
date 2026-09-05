@@ -1,9 +1,11 @@
 # Contributor Documentation
 
-Nocter development is specification-first. Public behavior belongs in [`spec/`](../spec/README.md);
-implementation milestones and reviews record how the compiler reached that behavior without
-becoming a second language authority. The compiler implementation removed before v0.14.0 is
-available through Git history only and is not a design input.
+Nocter development is contract-first. Language, platform, and tooling behavior belongs in
+[`spec/`](../spec/README.md). Standard-library behavior belongs with its compiler-checked public
+surface under [`development/std`](std/README.md). Implementation milestones and reviews record how
+the compiler reached those contracts without becoming another authority. The compiler
+implementation removed before v0.14.0 is available through Git history only and is not a design
+input.
 
 ## Current Work
 
@@ -42,7 +44,9 @@ The specification is the sole source for:
 - evaluation order, failure, allocation, and cleanup
 - target ABI and executable behavior
 - command-line and editor contracts
-- public standard-library APIs
+
+Compiler-checked standard-library declarations and declaration documentation belong to module
+`index.nct` files. Colocated READMEs own longer module behavior without repeating signatures.
 
 ## Repository Layout
 

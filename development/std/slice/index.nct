@@ -7,10 +7,13 @@ see ./ordering.nct
 see ./views.nct
 
 instance [T] {
+    /// Returns the number of elements in this slice.
     pub noalloc method &self.len(): usize
 
+    /// Returns whether this slice contains no elements.
     pub noalloc method &self.is_empty(): bool
 
+    /// Returns the non-owning address of the first element storage.
     pub noalloc method &self.ptr(): *T
 
     /// Returns a readonly element borrow, or `none` when `index` is out of bounds.

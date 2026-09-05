@@ -26,7 +26,10 @@ pub struct ChainIter<L, R>
 
 /// One indexed item yielded by `EnumerateIter`.
 pub struct Indexed<T> {
+    /// Zero-based position in the source iterator.
     pub index: usize
+
+    /// Item yielded at `index`.
     pub item: T
 }
 
@@ -35,14 +38,19 @@ pub struct EnumerateIter<I>
 
 /// Owned state passed to a folding callback.
 pub struct FoldStep<T, U> {
+    /// Accumulator produced by the preceding fold step.
     pub accumulator: U
+
+    /// Next source item to combine into the accumulator.
     pub item: T
 }
 
 /// Advances a mutable iterator and returns one item, or `none` at exhaustion.
 pub interface Iterator {
+    /// Value yielded by one successful advance.
     pub type Item
 
+    /// Advances the iterator and returns the next item, or `none` at exhaustion.
     pub method &+self.next(): Self.Item?
 
     /// Lazily transforms every yielded item.
@@ -93,6 +101,7 @@ pub interface Iterator {
 
 /// Reports the exact number of values that the iterator has not yielded yet.
 pub interface ExactSizeIterator where Self impl Iterator {
+    /// Returns the exact number of items not yet yielded.
     pub method &self.remaining_len(): usize
 }
 
@@ -152,8 +161,10 @@ instance OnceIter<T> {
     impl Iterator { .Item = T }
 }
 
+/// Creates an iterator that yields no items.
 pub noalloc func empty<T>(): EmptyIter<T>
 
+/// Creates an iterator that yields `item` exactly once.
 pub noalloc func once<T>(item: T): OnceIter<T>
 
 /// A forward cursor over readonly borrows into contiguous storage.

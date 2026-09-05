@@ -16,19 +16,28 @@ pub struct Map<K, V>
 
 /// One readonly key/value entry borrowed from a Map.
 pub copy struct MapEntryRef<K, V> {
+    /// Readonly key borrowed from the map.
     pub key: &K
+
+    /// Readonly value borrowed from the map.
     pub value: &V
 }
 
 /// One Map entry with a readonly key and an exclusive value loan.
 pub struct MapEntryMut<K, V> {
+    /// Readonly key borrowed from the map.
     pub key: &K
+
+    /// Exclusive value loan borrowed from the map.
     pub value: &+V
 }
 
 /// One key/value entry transferred from an owning Map iterator.
 pub struct MapEntry<K, V> {
+    /// Key transferred out of the map.
     pub key: K
+
+    /// Value transferred out of the map.
     pub value: V
 }
 

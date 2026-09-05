@@ -2,7 +2,7 @@
 
 This directory owns the reproducible transformation from the pinned Unicode Character Database to
 the generated Nocter source consumed by `std/internal/unicode`. It does not define public text
-semantics; those belong to [`spec/standard-library/unicode-text.md`](../../spec/standard-library/unicode-text.md).
+semantics; those belong to [`development/std/char/README.md`](../std/char/README.md).
 
 `manifest.json` is the input authority. It records the Unicode version, canonical source URL, byte
 length, and SHA-256 digest for every tracked file under `inputs/17.0.0/`. The generator verifies all

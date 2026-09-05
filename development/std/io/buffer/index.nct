@@ -7,11 +7,14 @@ use /io.{File, Reader, Writer}
 use /string.String
 see ./buffering.nct
 
+/// An owning buffered reader with explicit line state.
 pub struct BufReader
 
 construct BufReader {
+    /// Wraps `source` with the default positive buffer capacity.
     pub func new(source: File): Self
 
+    /// Wraps `source`, normalizing a zero requested capacity to one byte.
     pub func with_capacity(source: File, requested_capacity: usize): Self
 }
 
@@ -28,15 +31,19 @@ instance BufReader {
     impl Reader
 }
 
+/// An owning buffered writer whose fallible flush remains explicit.
 pub struct BufWriter
 
 construct BufWriter {
+    /// Wraps `destination` with the default positive buffer capacity.
     pub func new(destination: File): Self
 
+    /// Wraps `destination`, normalizing a zero requested capacity to one byte.
     pub func with_capacity(destination: File, requested_capacity: usize): Self
 }
 
 instance BufWriter {
+    /// Flushes pending bytes, closes the destination, and makes this writer terminal.
     pub method &+self.close(): void!
     impl Writer
 }

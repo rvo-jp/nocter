@@ -49,73 +49,21 @@ not the authored escape spelling.
 
 ## Core `char` Surface
 
-The standard package provides:
-
-```nct
-construct char {
-    pub noalloc func from_u32(value: u32): Self?
-}
-
-instance char {
-    pub noalloc method self.code_point(): u32
-    pub noalloc method self.utf8_len(): usize
-    pub noalloc method self.is_ascii(): bool
-    pub noalloc method self.is_ascii_digit(): bool
-
-    pub noalloc operator (&self == other: &Self): bool
-    pub noalloc operator (&self < other: &Self): bool
-}
-```
-
-`from_u32` returns `none` for a surrogate or value above `U+10FFFF`. `code_point` exposes the exact
-scalar value. Equality and ordering compare scalar values. `utf8_len` returns 1, 2, 3, or 4.
-ASCII classification recognizes only the corresponding ASCII range and does not claim Unicode
-property or locale behavior.
-
-`char` implements `Hash` using its scalar value and `Format` by appending its exact UTF-8 encoding.
-Equal values therefore hash equally regardless of their authored literal spelling.
+The standard package owns `char` construction, observation, comparison, hashing, formatting, and
+Unicode property operations. Their exact declarations and observable behavior are defined by
+[Unicode Text and Scalars](../../development/std/char/README.md), not by the language grammar.
 
 ## UTF-8 Scalar Iteration
 
-`str.len()` remains a UTF-8 byte count. Scalar traversal is explicit:
-
-```nct
-pub struct Chars
-
-instance Chars {
-    impl Iterator { .Item = char }
-}
-
-instance str {
-    pub noalloc method &self.chars(): Chars from self
-    pub noalloc method &self.char_count(): usize
-}
-```
-
-`chars` visits Unicode scalars in source order and performs no allocation. `Chars.next` returns
-`none` only after the complete borrowed text has been consumed. Its internal byte offset always
-lands on a UTF-8 scalar boundary. The iterator borrows the original `str`; it neither copies text nor
-extends its lifetime.
-
-The standard package has one package-internal UTF-8 scalar decoder. Validation and iteration both
-consume its step result. Neither `str`, `String`, formatting, JSON, nor another module may maintain
-a second table of leading-byte ranges or continuation rules.
+`str.len()` remains a UTF-8 byte count. The standard library provides explicit scalar traversal;
+the language does not reinterpret text indices as scalar positions. See
+[Unicode Text and Scalars](../../development/std/char/README.md#utf-8-scalar-iteration).
 
 ## Owned String Integration
 
-`String` appends one scalar through the same package-internal encoder already used for scalar UTF-8
-construction:
-
-```nct
-instance String {
-    pub method &+self.push(value: char): void
-    pub method &+self.try_push(value: char): void!
-}
-```
-
-`try_push` either appends the complete scalar encoding or leaves the logical string unchanged when
-storage growth fails. `push` converts only that allocation failure to the ordinary allocation abort.
-Neither operation can introduce invalid UTF-8.
+Owned-string scalar operations belong to the standard-library
+[`String` contract](../../development/std/string/index.nct) and its
+[Unicode behavior](../../development/std/char/README.md#owned-string-integration).
 
 ## Tooling
 

@@ -1,17 +1,19 @@
 const path = require("path");
 
+// Owns the immutable navigation hierarchy after publication policy has assigned every source one
+// public path. The tree never inspects README links or decides which repository files are public.
 class PublishedDocumentTree {
     #projectRoot;
     #root;
     #pagesBySource;
 
-    constructor(projectRoot, sourceFiles) {
+    constructor(projectRoot, documents) {
         this.#projectRoot = path.resolve(projectRoot);
         this.#root = directoryNode("", null);
         this.#pagesBySource = new Map();
 
-        for (const sourcePath of sourceFiles) {
-            this.#addSource(sourcePath);
+        for (const document of documents) {
+            this.#addDocument(document);
         }
 
         freezeDirectory(this.#root);
@@ -44,14 +46,24 @@ class PublishedDocumentTree {
         return [...this.#pagesBySource.keys()];
     }
 
-    #addSource(sourcePath) {
+    #addDocument(document) {
+        const { sourcePath, publicPath } = document;
         const absoluteSource = path.resolve(sourcePath);
-        const relative = path.relative(this.#projectRoot, absoluteSource);
-        if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+        const sourceRelative = path.relative(this.#projectRoot, absoluteSource);
+        if (sourceRelative === ".." || sourceRelative.startsWith(`..${path.sep}`) || path.isAbsolute(sourceRelative)) {
             throw new Error(`Published documentation source is outside the repository: ${sourcePath}`);
         }
+        const normalizedPublicPath = normalizePath(publicPath);
+        if (
+            normalizedPublicPath.length === 0
+            || normalizedPublicPath === ".."
+            || normalizedPublicPath.startsWith("../")
+            || path.posix.isAbsolute(normalizedPublicPath)
+        ) {
+            throw new Error(`Published documentation path is invalid: ${publicPath}`);
+        }
 
-        const segments = relative.split(path.sep);
+        const segments = normalizedPublicPath.split("/");
         const fileName = segments.pop();
         let directory = this.#root;
         for (const segment of segments) {
@@ -64,13 +76,13 @@ class PublishedDocumentTree {
         }
 
         if (directory.pages.some(page => page.name === fileName)) {
-            throw new Error(`Published document tree contains duplicate source ${relative}`);
+            throw new Error(`Published document tree contains duplicate path ${normalizedPublicPath}`);
         }
 
         const page = {
             kind: "page",
             name: fileName,
-            relativePath: normalizePath(relative),
+            relativePath: normalizedPublicPath,
             sourcePath: absoluteSource,
             parent: directory
         };

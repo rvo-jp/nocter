@@ -34,6 +34,7 @@ pub struct LinesIter
 pub struct Chars
 
 construct SplitIter {
+    /// Creates an allocation-free iterator over `text` separated by `separator`.
     pub noalloc func new(
         text: &str,
         separator: &str,
@@ -41,6 +42,7 @@ construct SplitIter {
 }
 
 construct LinesIter {
+    /// Creates an allocation-free iterator over the lines in `text`.
     pub noalloc func new(text: &str): Self
 }
 
@@ -63,12 +65,16 @@ instance str {
     /// Orders UTF-8 encoding bytes lexicographically without allocation.
     pub noalloc operator (&self < other: &Self): bool
 
+    /// Returns the UTF-8 byte length of this text.
     pub noalloc method &self.len(): usize
 
+    /// Returns whether this text contains no UTF-8 bytes.
     pub noalloc method &self.is_empty(): bool
 
+    /// Returns the non-owning address of the first UTF-8 byte.
     pub noalloc method &self.ptr(): *u8
 
+    /// Returns the exact UTF-8 encoding bytes as a borrowed slice.
     pub noalloc method &self.bytes(): &[u8]
 
     /// Iterates over Unicode scalar values in source order without allocation.
@@ -77,25 +83,34 @@ instance str {
     /// Counts Unicode scalar values without allocation.
     pub noalloc method &self.char_count(): usize
 
+    /// Returns whether `index` lies on a Unicode scalar boundary.
     pub noalloc method &self.is_char_boundary(index: usize): bool
 
+    /// Returns the byte range when it is ordered, in bounds, and boundary-aligned.
     pub noalloc method &self.get_range(start: usize, end: usize): &str?
 
+    /// Returns the first byte index of `needle` at or after `start`.
     pub noalloc method &self.find_from(needle: &str, start: usize): usize?
 
+    /// Returns the first byte index of `needle`.
     pub noalloc method &self.find(needle: &str): usize?
 
     /// Splits at the first separator without allocation.
     pub noalloc method &self.split_once(separator: &str): (&str, &str)? from self
 
+    /// Returns whether this text contains `needle`.
     pub noalloc method &self.contains(needle: &str): bool
 
+    /// Returns whether this text begins with `prefix`.
     pub noalloc method &self.starts_with(prefix: &str): bool
 
+    /// Returns whether this text ends with `suffix`.
     pub noalloc method &self.ends_with(suffix: &str): bool
 
+    /// Removes `prefix` and returns the remaining borrowed view when it matches.
     pub noalloc method &self.strip_prefix(prefix: &str): &str? from self
 
+    /// Removes `suffix` and returns the remaining borrowed view when it matches.
     pub noalloc method &self.strip_suffix(suffix: &str): &str? from self
 
     /// Removes ASCII whitespace from the beginning and returns a borrowed view.
@@ -132,10 +147,13 @@ instance str {
         allocator: &+TryAllocator,
     ): String! from allocator
 
+    /// Splits into independently owned components using `separator`.
     pub method &self.split(separator: &str): Vec<String>!
 
+    /// Iterates over borrowed components separated by `separator`.
     pub noalloc method &self.split_views(separator: &str): SplitIter! from self | separator
 
+    /// Iterates over borrowed lines, recognizing LF and CRLF endings.
     pub noalloc method &self.lines(): some Iterator { .Item = &str }
 
     /// Iterates over the exact UTF-8 encoding bytes without allocation.

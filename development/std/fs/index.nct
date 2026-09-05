@@ -30,12 +30,16 @@ pub struct DirEntry
 pub struct ReadDir
 
 instance Metadata {
+    /// Returns the portable entry classification.
     pub method &self.file_type(): FileType
 
+    /// Returns the target-reported byte length.
     pub method &self.len(): u64
 
+    /// Reports whether the entry is a regular file.
     pub method &self.is_file(): bool
 
+    /// Reports whether the entry is a directory.
     pub method &self.is_directory(): bool
 }
 

@@ -205,7 +205,7 @@ initializer definition. Every other constant declaration has an initializer.
 
 A static without an initializer is likewise a module-root contract and must join exactly one
 private definition. `StaticExpression` is the recursively frozen initializer language defined by
-[Static Data and Unicode Text](../standard-library/unicode-text.md#immutable-static-data); it is deliberately
+[Compile-Time Constants](constants.md#immutable-static-data); it is deliberately
 narrower than an ordinary runtime expression.
 
 The grammar makes the `#target` attachment structural: it prefixes exactly one targetable item.

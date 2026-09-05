@@ -33,6 +33,18 @@ try {
     fs.appendFileSync(unrelatedRust, '\n#[cfg(test)]\nconst UNRELATED_TEXT: &str = "E9999";\n');
     build(early);
 
+    const standardLibraryGuide = path.join(early, "development/std/map/README.md");
+    const originalStandardLibraryGuide = fs.readFileSync(standardLibraryGuide, "utf8");
+    fs.appendFileSync(standardLibraryGuide, "\n```nct\npub func duplicate_contract(): void\n```\n");
+    const duplicatedStandardLibraryContract = runBuild(early);
+    if (
+        duplicatedStandardLibraryContract.status === 0
+        || !combinedOutput(duplicatedStandardLibraryContract).includes("repeats a public declaration")
+    ) {
+        throw new Error("documentation generation accepted a repeated standard-library declaration");
+    }
+    fs.writeFileSync(standardLibraryGuide, originalStandardLibraryGuide);
+
     const unindexedSpecification = path.join(
         early,
         "spec/language/unindexed-language-rule.md"
@@ -112,8 +124,8 @@ function assertPublicationBoundary(root) {
         "docs/assets/logo.svg",
         "docs/examples/hello/index.html",
         "docs/spec/language/index.html",
-        "docs/spec/standard-library/index.html",
-        "docs/development/std/str/index/index.html"
+        "docs/std/index.html",
+        "docs/std/str/index/index.html"
     ];
     for (const relative of required) {
         if (!fs.existsSync(path.join(root, relative))) {
@@ -124,8 +136,9 @@ function assertPublicationBoundary(root) {
     const privateSources = [
         "docs/development/history/index.html",
         "docs/development/history/milestones/index.html",
-        "docs/development/std/str/text/index.html",
-        "docs/development/std/internal/utf8/index/index.html"
+        "docs/development/std/index.html",
+        "docs/std/str/text/index.html",
+        "docs/std/internal/utf8/index/index.html"
     ];
     for (const relative of privateSources) {
         if (fs.existsSync(path.join(root, relative))) {

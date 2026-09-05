@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Standard Library, Primitives, and OS - Nocter</title>
+    <title>Standard-Library Primitive and OS Boundary - Nocter</title>
     <meta name="description" content="This chapter defines the boundary between ordinary standard-library source and compiler-owned operations. User-facing library behavior is divided by respon">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
@@ -12,7 +12,7 @@
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Standard Library, Primitives, and OS - Nocter">
+    <meta property="og:title" content="Standard-Library Primitive and OS Boundary - Nocter">
     <meta property="og:description" content="This chapter defines the boundary between ordinary standard-library source and compiler-owned operations. User-facing library behavior is divided by respon">
     <meta property="og:url" content="https://nocter.dev/spec/platform/primitives-and-os/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
@@ -20,11 +20,11 @@
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Standard Library, Primitives, and OS - Nocter">
+    <meta name="twitter:title" content="Standard-Library Primitive and OS Boundary - Nocter">
     <meta name="twitter:description" content="This chapter defines the boundary between ordinary standard-library source and compiler-owned operations. User-facing library behavior is divided by respon">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Standard Library, Primitives, and OS - Nocter","description":"This chapter defines the boundary between ordinary standard-library source and compiler-owned operations. User-facing library behavior is divided by respon","url":"https://nocter.dev/spec/platform/primitives-and-os/","mainEntityOfPage":"https://nocter.dev/spec/platform/primitives-and-os/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"Platform","item":"https://nocter.dev/spec/platform/"},{"@type":"ListItem","position":4,"name":"Primitives And Os","item":"https://nocter.dev/spec/platform/primitives-and-os/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Standard-Library Primitive and OS Boundary - Nocter","description":"This chapter defines the boundary between ordinary standard-library source and compiler-owned operations. User-facing library behavior is divided by respon","url":"https://nocter.dev/spec/platform/primitives-and-os/","mainEntityOfPage":"https://nocter.dev/spec/platform/primitives-and-os/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"Platform","item":"https://nocter.dev/spec/platform/"},{"@type":"ListItem","position":4,"name":"Primitives And Os","item":"https://nocter.dev/spec/platform/primitives-and-os/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -178,7 +178,7 @@
                 <ul class="document-tree-list">
                     <li><a href="../index.html#content">Platform</a></li>
                     <li><a href="../abi-and-layout/index.html#content">ABI and Layout</a></li>
-                    <li><a href="./index.html#content" aria-current="page">Standard Library, Primitives, and OS</a></li>
+                    <li><a href="./index.html#content" aria-current="page">Standard-Library Primitive and OS Boundary</a></li>
                     <li><a href="../targets-and-distribution/index.html#content">Targets and Distribution</a></li>
                 </ul>
             </nav>
@@ -188,9 +188,9 @@
                 <span class="markdown-path-text">/spec/platform/primitives-and-os.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="standard-library-primitives-and-os">Standard Library, Primitives, and OS</h1><p>This chapter defines the boundary between ordinary standard-library source and compiler-owned operations. User-facing library behavior is divided by responsibility:</p><ul><li><a href="../../language/memory-and-regions/index.html#content">Memory, Regions, and Allocators</a> defines allocation policy and
+                <h1 id="standard-library-primitive-and-os-boundary">Standard-Library Primitive and OS Boundary</h1><p>This chapter defines the boundary between ordinary standard-library source and compiler-owned operations. User-facing library behavior is divided by responsibility:</p><ul><li><a href="../../language/memory-and-regions/index.html#content">Memory, Regions, and Allocators</a> defines allocation policy and
   storage provenance;</li><li><a href="../../language/sequences-and-text/index.html#content">Strings, Arrays, Views, and Pointers</a> defines core memory
-  views and owned text/collection behavior;</li><li><a href="../../language/callables/index.html#content">Callable Values and Interface Default Methods</a> defines iterator contracts;</li><li><a href="../../tooling/testing/index.html#content">Native Testing</a> defines native tests and assertions;</li><li><a href="../../standard-library/index.html#content">Standard Library</a> defines text, collection, path,
+  views and owned text/collection behavior;</li><li><a href="../../language/callables/index.html#content">Callable Values and Interface Default Methods</a> defines iterator contracts;</li><li><a href="../../tooling/testing/index.html#content">Native Testing</a> defines native tests and assertions;</li><li><a href="../../../std/index.html#content">Standard Library</a> defines text, collection, path,
   file, numeric, and process APIs.</li></ul><h2 id="standard-library-architecture">Standard-Library Architecture</h2><p>The installed Nocter home contains the standard library under <code>std/</code>. Its public types and functions are ordinary Nocter declarations. The compiler must not assign intrinsic behavior to names such as <code>String</code>, <code>Vec</code>, <code>File</code>, <code>Allocator</code>, <code>print</code>, <code>args</code>, <code>env</code>, <code>cwd</code>, <code>exit</code>, or <code>abort</code>.</p><p>Compiler-owned behavior is restricted to built-in language types and operations, declaration metadata consumed by compilation, and a closed primitive registry. Public wrappers remain in Nocter source even when their implementation eventually reaches a primitive.</p><p>Representative layering:</p><pre><code class="language-text">user package
     -&gt; public std function or type
         -&gt; narrowly visible std implementation

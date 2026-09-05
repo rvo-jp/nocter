@@ -15,6 +15,7 @@ see ./output_tests.nct
 
 /// A source that initializes at most `buffer.len()` bytes per read.
 pub interface Reader {
+    /// Initializes at most the supplied buffer length and returns zero at end of stream.
     pub method &+self.read(buffer: &+[u8]): usize!
 
     /// Reads until end of stream into independently owned byte storage.
@@ -26,8 +27,10 @@ pub interface Reader {
 
 /// A destination that accepts the complete byte view or returns an error.
 pub interface Writer {
+    /// Writes the complete byte view or reports an error after an observable prefix.
     pub method &+self.write(value: &[u8]): void!
 
+    /// Publishes any retained output; the default implementation has no retained state.
     pub default method &+self.flush(): void!
 
     /// Writes the UTF-8 encoding bytes through the shared byte contract.

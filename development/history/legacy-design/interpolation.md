@@ -3,7 +3,7 @@
 This document owns the compiler and distributed-standard-library design for extensible string
 interpolation. Public behavior belongs to
 [Strings, Arrays, Views, and Pointers](../../../spec/language/sequences-and-text.md) and
-[Practical Standard Library](../../../spec/standard-library/README.md). The v0.12.0 Phase 0
+[Standard Library](../../std/README.md). The v0.12.0 Phase 0
 acceptance record belongs to [the historical milestone](../milestones/v0.12.0.md).
 
 ## Boundary

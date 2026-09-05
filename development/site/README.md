@@ -27,23 +27,28 @@ The website publishes:
 - current contributor Markdown under `development/`, except internal handoff and historical
   records;
 - every runnable Nocter source under `examples/`;
-- `index.nct` public-contract files under `development/std/`, excluding the `internal/` subtree.
+- public standard-library READMEs and `index.nct` contract files under `development/std/`, excluding
+  the `internal/` subtree.
 
-Private standard-library implementation sources remain available in the repository but do not
-become website pages. Markdown links to an existing non-published repository file resolve to its
-GitHub source page. Compiler diagnostic fixtures and `development/history/` are not published;
-milestone, review, and release-audit links are still validated as historical records.
+Standard-library documentation is projected from its repository location into the public `/std/`
+tree; the site does not present it as contributor documentation. Private standard-library
+implementation sources remain available in the repository but do not become website pages.
+Markdown links to an existing non-published repository file resolve to its GitHub source page.
+Compiler diagnostic fixtures and `development/history/` are not published; milestone, review, and
+release-audit links are still validated as historical records.
 
 ## Navigation Authority
 
-The filtered published-source set is the sole authority for navigation membership and hierarchy.
-`document-tree.js` derives one directory tree from those paths, and page rendering, reachability
-validation, and the sitemap consume that same set. A `README.md` is the preferred landing page for
-its directory; when none exists, a published `index.nct` is the landing page. Navigation lists the
-landing page, remaining files, and child directories in deterministic name order. Directories
-without a landing page remain structural groups and expose their descendants through the nearest
-navigable ancestor. Display labels may use a document's first heading, but labels never affect
-membership or structure.
+The filtered published-document set is the sole authority for navigation membership and hierarchy.
+Each document receives one public path before `document-tree.js` derives the immutable directory
+tree; rendering, reachability validation, output paths, and the sitemap consume that same
+projection. Most public paths equal repository paths. Standard-library sources have the single
+explicit `development/std/` to `std/` projection described above. A `README.md` is the preferred
+landing page for its directory; when none exists, a published `index.nct` is the landing page.
+Navigation lists the landing page, remaining files, and child directories in deterministic name
+order. Directories without a landing page remain structural groups and expose their descendants
+through the nearest navigable ancestor. Display labels may use a document's first heading, but
+labels never affect membership or structure.
 
 Navigation never parses links from README prose. README catalogs may explain a recommended reading
 order and ordinary links may connect related concepts, but neither determines whether a page exists
@@ -66,6 +71,8 @@ Generation fails when:
 - the syntax highlighter keyword set differs from the lexical specification;
 - the public diagnostic catalog differs from the compiler's registered-code inventory;
 - a compiler workspace crate lacks its colocated responsibility README;
+- a standard-library behavior README lacks its checked `index.nct` contract, fails to link it, or
+  repeats a `pub` declaration inside a Nocter code block;
 - a published source cannot be represented uniquely or reached through structural navigation.
 
 The generator derives output only from authored file contents and paths. Filesystem timestamps do
@@ -80,11 +87,13 @@ node development/site/test-generation.js
 It builds source trees with different timestamps and compares every output byte. It also proves
 that stale generated files are removed, private standard-library implementation sources stay
 private, newly discovered public pages enter navigation without README registration, historical
-records remain excluded, unrelated Rust text cannot register diagnostics, and diagnostic drift is
-rejected.
+records remain excluded, standard-library Markdown cannot become a second declaration authority,
+unrelated Rust text cannot register diagnostics, and diagnostic drift is rejected.
 
 ## Editing Rule
 
-Edit public Markdown in the repository root, `examples/`, `releases/`, and `spec/`. Edit compiler
-and contributor documentation under `development/`. Edit website-only assets in `static/`. Never
-edit `docs/` directly; regenerate it and commit the resulting output with the authored change.
+Edit public Markdown in the repository root, `examples/`, `releases/`, and `spec/`. Standard-library
+API documentation is the deliberate exception colocated under `development/std/`. Edit other
+compiler and contributor documentation under `development/`. Edit website-only assets in
+`static/`. Never edit `docs/` directly; regenerate it and commit the resulting output with the
+authored change.

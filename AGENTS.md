@@ -26,14 +26,16 @@ build and test instructions, repository-local packaging, architecture, implement
 milestone planning, maintenance policy, and handoff state. Root documentation may link to the
 `development/` entry point, but must not duplicate its contents.
 
-Public language and standard-library semantics belong under `spec/`; this is user-facing reference
-material rather than development documentation.
+Public language semantics belong under `spec/`. Standard-library declarations and declaration
+documentation belong to each `development/std/**/index.nct`; longer observable module behavior
+belongs to the colocated README. These standard-library sources are the one public-documentation
+exception under `development/` because the checked API and its documentation must remain
+co-located.
 
-Within `spec/`, keep source semantics under `language/`, public library APIs under
-`standard-library/`, target and ABI contracts under `platform/`, and observable compiler/editor
-behavior under `tooling/`. File names describe concepts rather than release order; the `README.md`
-catalogs recommend reading order but do not register pages. Generated navigation follows the
-directory structure of every published source automatically.
+Within `spec/`, keep source semantics under `language/`, target and ABI contracts under `platform/`,
+and observable compiler/editor behavior under `tooling/`. File names describe concepts rather than
+release order; the `README.md` catalogs recommend reading order but do not register pages.
+Generated navigation follows the directory structure of every published source automatically.
 
 Keep milestones, reviews, release qualification, and superseded design under
 `development/history/`. Historical records are not published as current website guidance, but

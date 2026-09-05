@@ -42,8 +42,10 @@ instance Duration {
     /// Subtracts a duration, returning absence when `other` is greater than this value.
     pub noalloc method &self.checked_sub(other: &Self): Self?
 
+    /// Returns whether both durations denote the same normalized span.
     pub noalloc operator (&self == other: &Self): bool
 
+    /// Returns whether this duration is shorter than `other`.
     pub noalloc operator (&self < other: &Self): bool
 }
 

@@ -2,7 +2,7 @@
 
 This document owns the cross-crate implementation boundary for v0.35.0 static data and generated
 Unicode 17.0.0 tables. Public behavior belongs only in
-[`spec/standard-library/unicode-text.md`](../../spec/standard-library/unicode-text.md).
+[`development/std/char/README.md`](../std/char/README.md).
 
 ## Why Static Data Is a Prerequisite
 

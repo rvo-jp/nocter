@@ -81,6 +81,7 @@ instance ExitStatus {
     pub noalloc method self.signal(): i32?
 }
 
+/// One borrowed name/value pair from the process environment.
 pub copy struct EnvironmentEntry {
     /// Borrowed environment-variable name retained by process storage.
     pub name: &str
