@@ -6,6 +6,13 @@ see ./primitives.nct
 use /testing
 use /mem
 
+noalloc func rejects_rfc3339(text: &str): bool {
+    let _value = SystemTime.parse_rfc3339(text) catch failure {
+        return failure.has_code("std.time.invalid_rfc3339")
+    }
+    return false
+}
+
 test duration_units_share_one_normal_form {
     let second = Duration.from_seconds(1)
     let milliseconds = Duration.from_milliseconds(1000)
@@ -211,19 +218,14 @@ test rfc3339_numeric_offsets_normalize_to_utc {
 }
 
 test rfc3339_rejects_spellings_without_an_exact_instant {
-    let _lowercase = SystemTime.parse_rfc3339("1970-01-01t00:00:00z") catch first {
-        testing.assert(first.has_code("std.time.invalid_rfc3339"))?
-        let _leap_second = SystemTime.parse_rfc3339("2016-12-31T23:59:60Z") catch second {
-            testing.assert(second.has_code("std.time.invalid_rfc3339"))?
-            let _unknown_offset = SystemTime.parse_rfc3339("1970-01-01T00:00:00-00:00") catch third {
-                testing.assert(third.has_code("std.time.invalid_rfc3339"))?
-                return
-            }
-            return error.new("std.time.test", "an unknown local offset was accepted")
-        }
-        return error.new("std.time.test", "a leap-second spelling was accepted")
-    }
-    return error.new("std.time.test", "a lowercase RFC 3339 spelling was accepted")
+    testing.assert(rejects_rfc3339("1970-01-01t00:00:00z"))?
+    testing.assert(rejects_rfc3339("2016-12-31T23:59:60Z"))?
+    testing.assert(rejects_rfc3339("1970-01-01T00:00:00-00:00"))?
+    testing.assert(rejects_rfc3339("1970-01-01T00:00:00.1234567890Z"))?
+    testing.assert(rejects_rfc3339("1970-01-01T00:00:00."))?
+    testing.assert(rejects_rfc3339("1970-01-01T00:00:00+24:00"))?
+    testing.assert(rejects_rfc3339("0000-01-01T00:00:00+00:01"))?
+    return
 }
 
 test rfc3339_recoverable_generation_uses_the_supplied_allocator {

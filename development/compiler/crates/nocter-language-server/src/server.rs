@@ -1604,6 +1604,122 @@ mod tests {
     }
 
     #[test]
+    fn wall_clock_and_metadata_queries_share_public_time_semantics() {
+        let temporary = TemporaryDirectory::new();
+        let source_text = concat!(
+            "use std/time.SystemTime\n",
+            "use std/fs\n",
+            "\n",
+            "func inspect(): void! {\n",
+            "    let parsed = SystemTime.parse_rfc3339(\"1970-01-01T00:00:00Z\")?\n",
+            "    let text = parsed.to_rfc3339()?\n",
+            "    let details = fs.metadata(\"sample\")?\n",
+            "    let modified = details.modified()\n",
+            "    return\n",
+            "}\n",
+        );
+        let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
+
+        let parsed_line = source_text
+            .lines()
+            .position(|line| line.contains("parse_rfc3339"))
+            .unwrap();
+        let parsed_source = source_text.lines().nth(parsed_line).unwrap();
+        let parsed_character = parsed_source.find("parse_rfc3339").unwrap();
+        let signature_character = parsed_source.find('"').unwrap() + 2;
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{parsed_line},\"character\":{signature_character}}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("SystemTime.parse_rfc3339(text: &str): SystemTime!"),
+            "{response}"
+        );
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let parsed_definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{parsed_line},\"character\":{parsed_character}}}}}}}"
+        ));
+        let response = parsed_definition.response().unwrap();
+        assert!(response.contains("/std/time/index.nct"), "{response}");
+        assert!(
+            parsed_definition.issue().is_none(),
+            "{:?}",
+            parsed_definition.issue()
+        );
+
+        let format_line = source_text
+            .lines()
+            .position(|line| line.contains("to_rfc3339"))
+            .unwrap();
+        let format_character = source_text
+            .lines()
+            .nth(format_line)
+            .unwrap()
+            .find("to_rfc3339")
+            .unwrap();
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":32,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{format_line},\"character\":{format_character}}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"to_rfc3339\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(
+            response.contains("\"label\":\"try_to_rfc3339\",\"kind\":2"),
+            "{response}"
+        );
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{format_line},\"character\":{format_character}}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("pub method &SystemTime.to_rfc3339(): String!"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let implementation = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":34,\"method\":\"textDocument/implementation\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{format_line},\"character\":{format_character}}}}}}}"
+        ));
+        let response = implementation.response().unwrap();
+        assert!(response.contains("/std/time/rfc3339.nct"), "{response}");
+        assert!(
+            implementation.issue().is_none(),
+            "{:?}",
+            implementation.issue()
+        );
+
+        let modified_line = source_text
+            .lines()
+            .position(|line| line.contains("details.modified"))
+            .unwrap();
+        let modified_character = source_text
+            .lines()
+            .nth(modified_line)
+            .unwrap()
+            .find("details.modified")
+            .unwrap()
+            + "details.".len();
+        let modified_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":35,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\"}},\"position\":{{\"line\":{modified_line},\"character\":{modified_character}}}}}}}"
+        ));
+        let response = modified_hover.response().unwrap();
+        assert!(
+            response.contains("pub method &Metadata.modified(): SystemTime"),
+            "{response}"
+        );
+        assert!(
+            modified_hover.issue().is_none(),
+            "{:?}",
+            modified_hover.issue()
+        );
+    }
+
+    #[test]
     fn path_and_directory_mutation_contracts_share_complete_editor_semantics() {
         let temporary = TemporaryDirectory::new();
         let source_text = "use std/fs\nuse std/path.Utf8Path\n\nfunc inspect(path: &Utf8Path): void! {\n    fs.create_dir_all(path)?\n    let _parent = path.parent()\n    return\n}\n";
