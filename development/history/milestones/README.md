@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.36.0: Wall-Clock Time and UTC Calendar](v0.36.0.md)
 - [v0.35.0: Static Data and Practical Unicode Text](v0.35.0.md)
 - [v0.35.0 Release Preparation](v0.35.0-release-preparation.md)
 - [v0.34.0: Unicode Scalar Text Foundation](v0.34.0.md)
