@@ -411,35 +411,24 @@ Source-backed declaration-header diagnostics:
 - `E0212`: an opaque result appears on an unsupported callable or a callable without a source body.
 - `E0213`: a literal member does not match the language-defined signature for its literal shape.
 
-These diagnostics are selected by syntax-independent declaration rules. Each rule records a primary
-declaration-site identity and, when useful, one related declaration-site identity. The diagnostic
-adapter projects those identities through the completed source index; it does not repeat the rule
-against syntax to recover a location.
+These diagnostics are selected by declaration rules rather than by presentation-specific syntax
+matching. Each result identifies its primary declaration and, when useful, one related declaration.
+Every output format must report the same locations and must not re-run the declaration rule to infer
+different sites.
 
-## Source And Span Model
+## Source and Span Contract
 
-Compiler source identity and source positions are byte-based internally.
-
-Internal model:
-
-```text
-SourceId
-SourceMap
-ByteSpan { source, start, end }
-```
+Source positions in compiler output are byte-based. Each position refers to exactly one loaded
+source through its display path and canonical absolute path when known.
 
 Rules:
 
-- `SourceId` is an internal compiler integer ID.
-- `SourceId` is never emitted in public JSON.
-- `SourceMap` owns loaded source files and maps `SourceId` to display path, canonical absolute path when known, normalized text, and line-start offsets.
-- `ByteSpan.source` is a `SourceId`.
-- `ByteSpan.start` and `ByteSpan.end` are UTF-8 byte offsets in the normalized source text.
-- `ByteSpan.end` is exclusive.
+- Start and end offsets are UTF-8 byte offsets in normalized source text.
+- End offsets are exclusive.
 - The compiler normalizes CRLF to LF before computing spans.
 - Bare carriage return is a source error.
-- Internal compiler analysis should use `ByteSpan` instead of line/column pairs.
-- Line and column pairs are derived only for human-readable diagnostics, JSON output, editor adapters, tests, and AI tooling.
+- Line and column pairs are derived from those byte offsets for human-readable diagnostics, JSON
+  output, editor protocols, and source-inspection tools.
 
 Public JSON span shape:
 

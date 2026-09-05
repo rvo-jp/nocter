@@ -35,9 +35,8 @@ Hover and generated API documentation use compiler-attached Markdown documentati
 - An empty line ends attachment.
 - Adjacent documentation comments are concatenated in source order.
 
-The lexical chapter defines the single Markdown-extraction rule used by AST output, semantic
-indexes, hover, and future generated documentation. These consumers do not independently strip or
-reformat comment text.
+The lexical chapter defines the single Markdown-extraction rule used by AST output, hover, and
+generated documentation. These outputs do not independently strip or reformat comment text.
 
 File documentation has one public source owner. Documentation in a package root `index.nct`
 describes both that package and its root module because the same physical source declares both.
@@ -210,22 +209,19 @@ collisions, and returns one atomic workspace edit. Open documents receive versio
 documents receive unversioned edits. Dependencies and `std` are read-only regardless of filesystem
 location, so a plan containing any non-owned occurrence is rejected as a whole.
 
-A generic-bound call defines to the interface declaration. Concrete specialization may retain its
-selected implementation target internally without changing that source-level definition result.
+A generic-bound call defines to the interface declaration. Concrete specialization does not change
+that source-level definition result.
 The target name in a callable `where` clause defines, references, and renames as the corresponding
 generic parameter; contextual `copy` and `where` tokens never acquire declaration identities.
 An associated type declaration owns the identity shared by its implementation bindings and projected
 uses. Definition, references, and rename cross imports through that identity rather than treating
 each `Item` spelling as a separate symbol.
 
-An interface prerequisite retains both its authored root identity and the exact prerequisite
-declaration and predicate reached through normalized capability edges. Hover and signature
-presentation show only the authored interface header.
-Completion, navigation, references, and rename may expose methods and associated types from the
-checked transitive prerequisite closure, but must preserve the declaration identity owned by the
-prerequisite interface. Signature help for an entailed callable reads the exact frozen predicate;
-editor code does not reinterpret the authored root, traverse interface source, or reconstruct
-inheritance from rendered names.
+Hover and signature presentation for an interface prerequisite show only the authored interface
+header. Completion, navigation, references, and rename may expose methods and associated types from
+transitive prerequisites, but definition and rename still target the declaration owned by the
+prerequisite interface. Signature help for an entailed callable must agree with the capability
+selected by normal semantic checking rather than deriving a contract from rendered names.
 
 In `some Interface { .Item = T }`, semantic tokens classify `some` as a contextual keyword and
 `type` as a keyword. The

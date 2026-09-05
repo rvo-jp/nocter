@@ -273,8 +273,8 @@ The lexer uses longest-match tokenization for multi-character tokens.
 
 Lexer boundary:
 
-- The lexer receives a `SourceId` and normalized UTF-8 source text from `SourceMap`.
-- The lexer returns a token stream and diagnostics.
+- Source text is normalized from CRLF to LF before tokenization.
+- Tokenization produces a token stream and lexical diagnostics for one source.
 - The token stream includes keyword tokens, newline tokens, and one EOF token.
 - Comments are not emitted as tokens.
 - Integer, byte, and string-component tokens keep their source text; final literal value
@@ -320,7 +320,8 @@ Newline rules:
 - The terminating newline after a line comment is emitted as a `newline` token.
 - LF bytes inside a block comment are emitted as `newline` tokens so block comments can preserve statement separation.
 - Comment text itself is not emitted as tokens.
-- Doc comment text is not emitted as ordinary tokens; compiler tooling scans source text to attach doc comments to symbols for future docs and LSP features.
+- Doc comment text is not emitted as ordinary tokens. Documentation outputs use the extraction and
+  attachment rules below; tools must not independently reinterpret nearby raw comment text.
 - After removing `///` or `//!`, documentation extraction removes at most one following ASCII
   space or tab. Adjacent line-doc comments contribute one Markdown line each.
 - After removing `/**` or `/*!` and the closing `*/`, documentation extraction removes an empty

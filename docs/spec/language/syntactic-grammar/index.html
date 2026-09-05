@@ -190,6 +190,7 @@
                     <li><a href="../modules/index.html#content">Modules, Use Declarations, and Source Visibility</a></li>
                     <li><a href="../ordering/index.html#content">Strict Ordering Operators</a></li>
                     <li><a href="../ownership/index.html#content">Ownership, Borrowing, and Drop</a></li>
+                    <li><a href="../packages/index.html#content">Packages and Package Source</a></li>
                     <li><a href="../sequences-and-text/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
                     <li><a href="./index.html#content" aria-current="page">Syntactic Grammar</a></li>
                     <li><a href="../tuples/index.html#content">Tuples</a></li>
@@ -228,7 +229,6 @@ ItemSequence = Item (newline+ Item)*
 
 PackageDirectiveName = "package"
                      | "dependencies"
-                     | "lock"
                      | "executable"
                      | "test"
 
@@ -238,7 +238,7 @@ DirectiveValue = StringLiteral
 
 DirectiveRecord = "{" List(DirectiveField) "}"
 DirectiveField  = Name ":" DirectiveValue
-</code></pre><p>The closed directive names, allowed repetitions, and record schemas are defined by <a href="../../tooling/command-line/index.html#package-source">Package Source</a>. The recursive record grammar only recognizes their common data notation; it does not permit a schema to accept arbitrary fields or value kinds.</p><p>For example:</p><pre><code class="language-nct">#package<span class="token-operator">:</span> <span class="token-operator">{</span>
+</code></pre><p>The closed directive names, allowed repetitions, and record schemas are defined by <a href="../packages/index.html#directive-data">Packages and Package Source</a>. The recursive record grammar only recognizes their common data notation; it does not permit a schema to accept arbitrary fields or value kinds.</p><p>For example:</p><pre><code class="language-nct">#package<span class="token-operator">:</span> <span class="token-operator">{</span>
     name<span class="token-operator">:</span> <span class="token-string">"example"</span><span class="token-operator">,</span>
     version<span class="token-operator">:</span> <span class="token-string">"0.1.0"</span><span class="token-operator">,</span>
 <span class="token-operator">}</span>

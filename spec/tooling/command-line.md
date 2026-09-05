@@ -175,78 +175,9 @@ source identity rules are specified in [Modules and Use Declarations](../languag
 
 ## Package Source
 
-The package root `index.nct` uses a declarative directive prefix followed by ordinary root-module
-source:
-
-```nct
-//! JSON command-line tool.
-
-#package: {
-    name: "json-tool",
-    version: "0.1.0",
-}
-#executable: {
-    name: "json-tool",
-    module: "./src/app",
-}
-#test: {
-    name: "unit",
-    module: "./tests/unit",
-}
-```
-
-`#package` is required and contains required string fields `name` and `version`. Each
-`#executable` contains a unique package-local name and may select an explicit logical
-directory-module path. When `module` is absent, the package root module at `index.nct` is selected.
-
-Each repeatable `#test` contains a unique test name and a required logical `module`. Test and
-executable names occupy different target namespaces. Test modules are never discovered from
-directory names or filenames.
-
-Package directives form one prefix after file documentation and before every `see`, `use`, or
-ordinary declaration. They are invalid in every other source. Root imports, public contracts, and
-ordinary declarations follow the directive prefix in the same `index.nct`.
-
-Directive list elements and record fields are comma-delimited and may use one trailing comma on any
-layout under [Comma-Delimited Lists](../language/lexical-grammar.md#comma-delimited-lists).
-
-Each dependency record owns both its source intent and optional exact selection:
-
-```nct
-#dependencies: {
-    json: {
-        git: "https://github.com/example/json.git",
-        revision: "main",
-        commit: "7db21c1000000000000000000000000000000000",
-    },
-    http: {
-        archive: "https://nocter.dev/lib/http-v1.0.0.tar.gz",
-        sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    },
-    local_math: {
-        path: "./packages/math",
-    },
-}
-```
-
-`git` plus `revision` and `archive` express authored source intent. `nocter fetch` adds only the
-missing source-specific `commit` or `sha256` field after validating the complete graph; it does not
-reserialize the surrounding dependency declaration. Git builds use only the exact `commit`, and
-archives use only the exact `sha256` content. Path dependencies are mutable development inputs and
-cannot contain either exact field. A top-level `#lock` directive is invalid, and no separate
-lockfile exists.
-
-Every exact dependency selection has one canonical, Windows-safe `PackageId`:
-
-- a Git `commit` becomes `git-<lowercase-40-hex-commit>`
-- an archive `sha256` becomes `sha256-<lowercase-64-hex-digest>`
-- a path package becomes `path-<64-lowercase-hex>`, where the digest is SHA-256 over the UTF-8
-  bytes of its canonical absolute path
-
-The Git URL and archive URL are acquisition metadata, not identity input. Two declarations that
-select the same exact commit or archive content therefore select the same package even when they
-use different mirrors. Symlinks in a path dependency are resolved before its identity is computed.
-Display names and versions never participate in identity.
+The package root `index.nct`, directive schemas, dependency identity, and target module paths are
+defined once by [Packages and Package Source](../language/packages.md). Commands consume that
+declaration; only `fetch` mutates its generated exact-selection fields.
 
 ## Executable Selection
 

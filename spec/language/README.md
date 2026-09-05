@@ -7,6 +7,7 @@ rule has one owning chapter and cross-topic chapters link to that authority.
 
 - [Lexical Grammar](lexical-grammar.md)
 - [Syntactic Grammar](syntactic-grammar.md)
+- [Packages and Package Source](packages.md)
 - [Modules, Use Declarations, and Source Visibility](modules.md)
 - [Source Values and Types](values-and-types.md)
 - [Compile-Time Constants](constants.md)

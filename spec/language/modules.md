@@ -415,85 +415,11 @@ declaration fallback, while structural forms such as `[T]` come from the type gr
 prelude export. Any standard declaration absent from the selected prelude contract requires an
 explicit import from its owning module.
 
-## Package Layout
+## Package Boundary
 
-A package root is a directory whose `index.nct` contains exactly one top-level `#package`
-directive. The same file is both the package declaration source and the root module's root source.
-There is no separate manifest file and no source-root concept.
-
-```text
-project/
-    index.nct
-    search.nct
-    parser/
-        index.nct
-        lexer.nct
-    tests/
-        unit/
-            index.nct
-```
-
-The root `index.nct` contains package documentation, a directive prefix, and ordinary root-module
-code:
-
-```nct
-//! Example application package.
-
-#package: {
-    name: "example",
-    version: "0.1.0",
-}
-#executable: {
-    name: "example",
-}
-#test: {
-    name: "unit",
-    module: "./tests/unit",
-}
-use std/io
-use ./parser.Parser
-
-func main(): i32! {
-    let parser = Parser.new()
-    io.print("ready\n")?
-    return 0
-}
-```
-
-Package-root rules:
-
-- file documentation precedes the package directive prefix
-- that file documentation belongs to the package; the root module does not register a second copy
-- `#package` is required and requires string fields `name` and `version`
-- `#dependencies`, `#executable`, and `#test` follow in the same directive prefix
-- every package directive precedes `see`, `use`, and ordinary declarations
-- `#executable` is repeatable, requires `name`, and accepts an optional `module`
-- an omitted executable `module` selects `.`
-- `#test` is repeatable and requires both `name` and `module`
-- target module paths are `.` or package-relative directory paths beginning with `./`
-- `module: "."` selects the package root `index.nct`
-- `module: "./tools/app"` selects `tools/app/index.nct`
-- targets never select ordinary implementation sources
-- module paths omit `.nct` and cannot escape the package or cross a nested package
-- package directives are invalid outside the package root `index.nct`
-- a descendant `index.nct` containing `#package` starts a nested package; one without `#package`
-  starts a child module
-- dependency source intent and generated exact-selection fields remain together in `#dependencies`
-
-The compiler does not discover a package target by probing `main.nct` or another conventional
-filename.
-
-## Implicit Standard-Library Package
-
-The active Nocter home contributes one immutable package at `<Nocter-home>/std`. Its root
-`index.nct` contains `#package`; the package name and version must match the toolchain
-installation. Every compilation graph binds reserved dependency alias `std` to this exact package,
-including imports written inside `std` itself.
-
-User `#dependencies` must not contain `std`. A package named `std`, a directory with that spelling,
-or a dependency alias cannot shadow the compiler-selected package or gain its primitive authority.
-Single-file mode uses the same toolchain package without creating a package declaration for the
-source file.
+Packages select root and child directory modules without changing their module semantics. Package
+root discovery, package directives, dependency declarations, target records, and the implicit
+standard package are defined by [Packages and Package Source](packages.md).
 
 ## Compile Units
 

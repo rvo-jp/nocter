@@ -82,7 +82,6 @@ PackageDirective = "#" PackageDirectiveName ":" DirectiveValue
 
 PackageDirectiveName = "package"
                      | "dependencies"
-                     | "lock"
                      | "executable"
                      | "test"
 
@@ -95,7 +94,7 @@ DirectiveField  = Name ":" DirectiveValue
 ```
 
 The closed directive names, allowed repetitions, and record schemas are defined by
-[Package Source](../tooling/command-line.md#package-source). The recursive record grammar only
+[Packages and Package Source](packages.md#directive-data). The recursive record grammar only
 recognizes their common data notation; it does not permit a schema to accept arbitrary fields or
 value kinds.
 

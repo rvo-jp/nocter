@@ -27,9 +27,6 @@ Rules:
 - The language grammar, type system, ownership model, borrow rules, regions, and high-level standard-library APIs should not depend on macOS-specific names.
 - Target-specific logic belongs in target backends, primitive lowering, executable writers, and target-gated standard-library declarations.
 - The compiler must not depend on external assemblers, linkers, C toolchains, or external runtimes for any target.
-- Future targets should be added by introducing new target backends and target-specific standard-library primitive boundaries.
-- Future targets must not require ordinary user code to mention CPU instructions, object formats, or OS syscall details.
-- Future cross compilation is selected by an explicit target option such as `--target x64-linux`.
 - A recognized target name is not the same as an implemented target. A target becomes implemented only when its backend, executable writer, primitive set, and target-gated standard-library boundary exist.
 
 Current target-specific standard-library boundary:
@@ -38,7 +35,8 @@ Current target-specific standard-library boundary:
 ~/.nocter/std/internal/os/index.nct
 ```
 
-Future target-specific boundaries should keep stable ordinary modules under `std/` and use `#target: "..."` on target-dependent type, helper, and primitive declarations, such as:
+Target-dependent declarations use `#target: "..."` inside stable ordinary directory modules under
+`std/`. The current standard package uses boundaries such as:
 
 ```text
 ~/.nocter/std/internal/os/index.nct
@@ -107,7 +105,8 @@ The installed layout is:
         vec/index.nct
 ```
 
-The `host` part in the archive name identifies the environment that runs the `nocter` compiler binary. The current host is `arm64-darwin`. Future downloaded archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or `nocter-v<version>-arm64-linux.tar.gz`, but each archive still extracts a `.nocter/` root.
+The `host` part in the archive name identifies the environment that runs the `nocter` compiler
+binary. The current host is `arm64-darwin`, and every archive extracts a `.nocter/` root.
 
 The installed Nocter home contains standard-library directory modules under `std/`. Target-dependent type, helper, and primitive declarations in those modules use `#target: "..."`; ordinary public wrapper functions remain normal functions. The public surface is owned by the checked [standard-library contracts](../../development/std/README.md), while the compiler boundary is specified in [Standard-Library Primitive and OS Boundary](primitives-and-os.md).
 
@@ -221,19 +220,6 @@ Rules:
 - The selected Nocter home must contain `VERSION`, `MANIFEST.json`, and `std/`.
 - The compiler should report a command-line or Nocter-home error if the selected home is missing required files.
 
-Future cross compilation adds target-gated standard-library primitive declarations and compiler backends to the installed Nocter home:
-
-```text
-~/.nocter/
-    nocter
-    VERSION
-    MANIFEST.json
-    std/
-        os.nct
-        io.nct
-        process.nct
-```
-
 Command-line surface:
 
 ```sh
@@ -262,10 +248,9 @@ is supplied. Package metadata remains Nocter source rather than a second manifes
 
 If `--target` is omitted, the compiler uses the host target. The compiler currently emits only `arm64-darwin`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library boundary are implemented.
 
-Build profile direction:
+Build profile rules:
 
 - Language semantics do not define different safety levels for debug and release builds.
-- Future profile options may control optimization level, debug information, and diagnostics.
 - Profile options must not disable the safety checks specified in [Control Flow](../language/control-flow.md#safety-checks-and-build-modes).
 - A release build may be faster because the optimizer proves checks unnecessary, not because checks are globally removed.
 
@@ -281,3 +266,16 @@ If the target bin directory requires elevated permissions, the user may use
 `sudo ln -s ...` or a user-owned directory that is already on `PATH`.
 `NOCTER_HOME` may point to the active Nocter home when symlink-based executable
 resolution is unavailable or intentionally bypassed.
+
+## Future Direction
+
+Additional targets require a target backend, executable writer, primitive set, and target-gated
+standard-library declarations. Those declarations must remain in the same stable directory modules
+used by portable code; ordinary programs must not name CPU instructions, object formats, or OS
+syscall details. Cross compilation will use an explicit target option such as `--target x64-linux`.
+
+Additional host archives may use names such as `nocter-v<version>-x64-linux.tar.gz` or
+`nocter-v<version>-arm64-linux.tar.gz`, while retaining `.nocter/` as their archive root.
+
+Future build-profile options may control optimization level, debug information, and diagnostics,
+but cannot weaken language safety checks.
