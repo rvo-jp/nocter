@@ -12,12 +12,9 @@ Before compiler work, read:
 - `TODO.md`
 - `compiler/README.md`
 - `milestones/README.md`
-- `milestones/v0.24.0.md`
-- `milestones/v0.25.0.md`
-- `milestones/v0.26.0.md`
-- `docs/README.md`
-- `docs/architecture.md`
-- `docs/maintenance.md`
+- `design/README.md`
+- `design/architecture.md`
+- `design/maintenance.md`
 
 Before editing a compiler crate, also read that crate's colocated `README.md` completely.
 
@@ -81,17 +78,20 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 - `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
   behavior
 - `development/milestones/README.md`: milestone catalog; each linked milestone owns its own status
-- `development/releases/README.md`: publication catalog; each linked record owns immutable release evidence
-- `development/docs/architecture.md`: compiler-wide pipeline, dependency direction, and cross-crate
+- `development/release-audits/README.md`: publication catalog; each linked record owns immutable
+  release evidence
+- `development/design/architecture.md`: compiler-wide pipeline, dependency direction, and cross-crate
   authority boundaries only
 - `development/compiler/crates/<crate>/README.md`: that crate's responsibility, input/output
   contract, internal responsibility split, and local invariants
-- `development/docs/*.md`: cross-crate contracts and completed design records; never a duplicate
+- `development/design/*.md`: cross-crate contracts and completed design records; never a duplicate
   owner of crate internals
 - `development/TODO.md`: next concrete work and current blockers only
 - `development/milestones/` and `development/reviews/`: plans, historical rationale, findings, and
   remediation evidence; never current crate-internal authority
-- `development/releases/`: immutable published release evidence only
+- `development/release-audits/`: immutable published release evidence only
+- `development/site/`: documentation build mechanism and static website inputs; `docs/` is generated
+  output only
 
 Every workspace member must have one colocated `README.md`. `development/compiler/Cargo.toml` owns
 workspace membership, crate manifests own exact dependencies, and Rust source/rustdoc owns exact
@@ -100,14 +100,14 @@ its README in the same commit. When only a cross-crate edge changes, update arch
 owning boundary document instead.
 
 Write public documentation in English. Edit source Markdown and regenerate the website with
-`node docs/build-docs.js`.
+`node development/site/build-docs.js`.
 
 ## Verification
 
 Documentation checkpoints must run:
 
 ```sh
-node docs/build-docs.js
+node development/site/build-docs.js
 git diff --check
 ```
 

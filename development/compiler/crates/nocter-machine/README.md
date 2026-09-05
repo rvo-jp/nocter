@@ -30,4 +30,4 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   payloads may be shared, but equal static values cannot be merged.
 
 The cross-stage boundary is documented in
-[Machine Program and Native Target Design](../../../docs/machine-program-design.md).
+[Machine Program and Native Target Design](../../../design/machine-program-design.md).

@@ -33,4 +33,4 @@ checking decisions.
 - MIR receives no unresolved requirement, interface implementation, or generic lookup.
 
 The cross-stage contract is documented in
-[Target, Executable, and MIR Program Design](../../../docs/target-program-design.md).
+[Target, Executable, and MIR Program Design](../../../design/target-program-design.md).

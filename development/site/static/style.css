@@ -1,0 +1,869 @@
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+2:wght@100..900&family=Manrope:wght@200..800&family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,500;1,700&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #b9c7dc transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: #b9c7dc;
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: #95a9c8;
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+:root {
+    --nocter-blue: #4a648f;
+    --nocter-blue-dark: #344966;
+    --nocter-yellow: #e3e365;
+    --nocter-sky: #e9f0fb;
+    --nocter-mint: #e7f5ef;
+    --hero-background: #f7f8fc;
+    --hero-text: #1f2937;
+    --hero-muted: #667085;
+    --hero-border: #dfe4ed;
+
+    --page-background: #fbfcff;
+    --content-text: #253044;
+    --content-muted: #657084;
+    --content-border: #dbe3ef;
+    --content-soft-border: #e8edf5;
+    --content-code: #24324a;
+    --content-code-background: #f1f5fb;
+    --syntax-keyword: #4a648f;
+    --syntax-type: #6b7f2e;
+    --syntax-function: #5b6f9c;
+    --syntax-number: #9a6650;
+    --syntax-string: #7a6f26;
+    --syntax-comment: #7b8798;
+    --syntax-operator: #526176;
+}
+
+html {
+    background: var(--page-background);
+}
+
+body {
+    color: var(--content-text);
+    background: var(--page-background);
+    overflow-x: hidden;
+
+    font-family:
+        "Manrope",
+        "M PLUS 2",
+        system-ui,
+        sans-serif;
+}
+
+.hero {
+    position: relative;
+
+    display: grid;
+    align-items: center;
+
+    min-height: 390px;
+    padding: 72px 24px 64px;
+
+    background-color: var(--hero-background);
+    background-image:
+        linear-gradient(rgba(74, 100, 143, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(74, 100, 143, 0.07) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(227, 227, 101, 0.16), transparent 210px);
+    background-size:
+        32px 32px,
+        32px 32px,
+        100% 100%;
+
+    border-bottom: 1px solid var(--hero-border);
+}
+
+.hero::before {
+    content: "";
+
+    position: absolute;
+    inset: 0;
+
+    background:
+        linear-gradient(90deg, var(--hero-background), rgba(247, 248, 252, 0.82) 24%, rgba(247, 248, 252, 0.68) 100%);
+    pointer-events: none;
+}
+
+.hero::after {
+    content: "";
+
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+
+    width: 100%;
+    height: 2px;
+
+    background: linear-gradient(90deg, var(--nocter-blue), var(--nocter-yellow), transparent 72%);
+}
+
+.hero-inner {
+    position: relative;
+    z-index: 1;
+
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 430px);
+    gap: 56px;
+    align-items: center;
+
+    width: min(100%, 980px);
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.hero-copy {
+    min-width: 0;
+}
+
+.hero-mark {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+
+    margin-bottom: 28px;
+}
+
+.hero-logo {
+    display: block;
+    width: 72px;
+    height: 72px;
+
+    flex: 0 0 auto;
+}
+
+.hero-kicker {
+    color: var(--nocter-blue);
+
+    font-family:
+        "Ubuntu",
+        "Manrope",
+        system-ui,
+        sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.hero-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+
+    margin: 0;
+
+    color: var(--hero-text);
+
+    font-family:
+        "Manrope",
+        "Inter",
+        system-ui,
+        sans-serif;
+
+    font-size: clamp(3rem, 6vw, 5.35rem);
+    font-weight: 700;
+    line-height: 0.98;
+    letter-spacing: 0;
+}
+
+.hero-description {
+    max-width: 720px;
+    overflow-wrap: break-word;
+
+    margin: 24px 0 0;
+
+    color: var(--hero-muted);
+
+    font-family:
+        "Inter",
+        system-ui,
+        sans-serif;
+
+    font-size: clamp(1rem, 1.6vw, 1.16rem);
+    font-weight: 400;
+    line-height: 1.7;
+    letter-spacing: 0;
+}
+
+.hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    margin-top: 30px;
+}
+
+.hero-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 15px;
+
+    color: var(--nocter-blue-dark);
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--content-border);
+    border-radius: 5px;
+
+    font-family:
+        "Ubuntu",
+        "Manrope",
+        system-ui,
+        sans-serif;
+    font-size: 0.88rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.hero-action:hover {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-sky);
+    border-color: #cbd7e8;
+}
+
+.hero-action-primary {
+    color: #283850;
+    background: var(--nocter-mint);
+    border-color: #ccdccc;
+}
+
+.hero-code {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid var(--content-border);
+    border-radius: 6px;
+    box-shadow: 0 18px 54px rgba(52, 73, 102, 0.1);
+}
+
+.hero-code-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+
+    border-bottom: 1px solid var(--content-soft-border);
+}
+
+.hero-code-tab {
+    min-height: 30px;
+    padding: 0 10px;
+
+    color: var(--content-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+
+    font-family:
+        "Ubuntu",
+        ui-monospace,
+        monospace;
+    font-size: 0.78rem;
+}
+
+.hero-code-tab[aria-selected="true"] {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-mint);
+    border-color: var(--content-border);
+}
+
+.hero-code pre,
+main pre {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.hero-code pre {
+    height: 320px;
+    margin: 0;
+    padding: 18px 20px 20px;
+
+    overflow-y: auto;
+}
+
+.hero-code code,
+main pre code {
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        "SF Mono",
+        Menlo,
+        Consolas,
+        monospace;
+    font-size: 0.9rem;
+    line-height: 1.7;
+}
+
+.token-keyword {
+    color: var(--syntax-keyword);
+    font-weight: 700;
+}
+
+.token-type {
+    color: var(--syntax-type);
+    font-weight: 650;
+}
+
+.token-function {
+    color: var(--syntax-function);
+    font-weight: 650;
+}
+
+.token-number {
+    color: var(--syntax-number);
+}
+
+.token-string {
+    color: var(--syntax-string);
+}
+
+.token-comment {
+    color: var(--syntax-comment);
+    font-style: italic;
+}
+
+.token-operator {
+    color: var(--syntax-operator);
+}
+
+.token-variable {
+    color: var(--syntax-type);
+    font-weight: 650;
+}
+
+.token-option {
+    color: var(--syntax-number);
+}
+
+@media (max-width: 860px) {
+    .hero-inner {
+        grid-template-columns: 1fr;
+        gap: 36px;
+        width: 100%;
+    }
+
+    .hero-code {
+        width: min(100%, 520px);
+    }
+}
+
+@media (max-width: 600px) {
+    .hero {
+        min-height: 350px;
+        padding: 48px 20px;
+        background-size:
+            24px 24px,
+            24px 24px,
+            100% 100%;
+    }
+
+    .hero-mark {
+        gap: 12px;
+        margin-bottom: 22px;
+    }
+
+    .hero-logo {
+        width: 58px;
+        height: 58px;
+    }
+
+    .hero-kicker {
+        font-size: 0.72rem;
+    }
+
+    .hero-title {
+        gap: 9px;
+
+        font-size: clamp(2.55rem, 18vw, 4rem);
+    }
+
+    .hero-description {
+        margin-top: 18px;
+        line-height: 1.6;
+    }
+
+    .hero-actions {
+        gap: 8px;
+        margin-top: 24px;
+    }
+
+    .hero-action {
+        min-height: 34px;
+        padding: 0 12px;
+
+        font-size: 0.82rem;
+    }
+
+    .hero-code pre {
+        height: 300px;
+        padding: 16px;
+    }
+}
+
+.docs-shell {
+    width: min(100% - 40px, 1180px);
+    margin: 0 auto;
+}
+
+body.has-directory-toc .docs-shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 860px);
+    gap: 44px;
+    align-items: start;
+}
+
+.directory-toc {
+    display: none;
+}
+
+body.has-directory-toc .directory-toc {
+    position: sticky;
+    top: 24px;
+
+    display: block;
+    max-height: calc(100vh - 48px);
+    margin-top: 56px;
+    padding: 14px;
+
+    overflow-y: auto;
+
+    background: rgba(255, 255, 255, 0.74);
+    border: 1px solid var(--content-soft-border);
+    border-radius: 6px;
+}
+
+.directory-toc-title {
+    margin-bottom: 10px;
+
+    color: var(--nocter-blue-dark);
+
+    font-family:
+        "Ubuntu",
+        "Manrope",
+        system-ui,
+        sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.directory-toc-list {
+    display: grid;
+    gap: 3px;
+
+    list-style: none;
+}
+
+.directory-toc a {
+    display: block;
+    padding: 7px 9px;
+
+    color: var(--content-muted);
+    border-radius: 4px;
+
+    font-size: 0.88rem;
+    line-height: 1.35;
+    text-decoration: none;
+}
+
+.directory-toc a:hover {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-sky);
+}
+
+.directory-toc a[aria-current="page"] {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-mint);
+
+    font-weight: 700;
+}
+
+main {
+    width: min(100% - 40px, 860px);
+    margin: 0 auto;
+    padding: 56px 0 88px;
+
+    color: var(--content-text);
+
+    font-size: 1rem;
+    line-height: 1.78;
+}
+
+body.has-directory-toc main {
+    width: 100%;
+    margin: 0;
+}
+
+.markdown-path {
+    display: flex;
+    max-width: 100%;
+    min-height: 32px;
+    margin-bottom: 28px;
+
+    align-items: center;
+    gap: 4px;
+
+    color: var(--content-muted);
+    font-family:
+        "Ubuntu",
+        ui-monospace,
+        monospace;
+    font-size: 0.8rem;
+    line-height: 1.4;
+}
+
+.markdown-path-text {
+    display: inline-flex;
+    max-width: 100%;
+    min-height: 32px;
+    padding: 0 10px;
+
+    align-items: center;
+
+    background: rgba(255, 255, 255, 0.74);
+    border: 1px solid var(--content-soft-border);
+    border-radius: 5px;
+
+    overflow-wrap: anywhere;
+}
+
+.markdown-body > * + * {
+    margin-top: 1.15em;
+}
+
+main h1,
+main h2,
+main h3,
+main h4,
+main h5,
+main h6 {
+    color: var(--nocter-blue-dark);
+
+    font-family:
+        "Ubuntu",
+        "Manrope",
+        system-ui,
+        sans-serif;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+main h1 {
+    margin-top: 0;
+    padding-bottom: 0.38em;
+
+    border-bottom: 1px solid var(--content-border);
+
+    font-size: clamp(2rem, 4vw, 3rem);
+}
+
+main h2 {
+    position: relative;
+
+    margin-top: 2.1em;
+    padding-bottom: 0.32em;
+
+    border-bottom: 1px solid var(--content-soft-border);
+
+    font-size: clamp(1.45rem, 2.5vw, 2rem);
+}
+
+main h2::before {
+    content: "";
+
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-right: 0.30em;
+
+    background-image: url("./assets/moon.svg");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100%;
+    vertical-align: -0.2em;
+}
+
+main h3 {
+    margin-top: 1.8em;
+
+    color: var(--nocter-blue);
+
+    font-size: 1.28rem;
+}
+
+main h4 {
+    margin-top: 1.55em;
+
+    font-size: 1.08rem;
+}
+
+main h5,
+main h6 {
+    margin-top: 1.4em;
+
+    color: var(--content-muted);
+
+    font-size: 0.98rem;
+}
+
+main p {
+    color: var(--content-text);
+}
+
+main strong {
+    color: #182337;
+    font-weight: 700;
+}
+
+main a {
+    color: var(--nocter-blue);
+    text-decoration-color: rgba(74, 100, 143, 0.32);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+}
+
+main a:hover {
+    color: var(--nocter-blue-dark);
+    text-decoration-color: var(--nocter-yellow);
+}
+
+main blockquote {
+    margin: 1.45em 0;
+    padding: 0.95em 1.15em;
+
+    color: #445168;
+    background:
+        linear-gradient(90deg, rgba(227, 227, 101, 0.28), transparent 120px),
+        var(--nocter-sky);
+    border-left: 4px solid var(--nocter-yellow);
+    border-radius: 0 6px 6px 0;
+}
+
+main blockquote > * + * {
+    margin-top: 0.7em;
+}
+
+main code {
+    padding: 0.14em 0.38em;
+
+    color: var(--content-code);
+    background: var(--content-code-background);
+    border: 1px solid var(--content-soft-border);
+    border-radius: 4px;
+
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        "SF Mono",
+        Menlo,
+        Consolas,
+        monospace;
+    font-size: 0.92em;
+}
+
+main pre {
+    margin: 1.45em 0;
+    padding: 1.05em 1.15em;
+
+    background: #f7f9fd;
+    border: 1px solid var(--content-border);
+    border-radius: 6px;
+}
+
+main pre code {
+    display: block;
+    min-width: max-content;
+    padding: 0;
+
+    color: #1f2c40;
+    background: transparent;
+    border: 0;
+}
+
+main ul,
+main ol {
+    padding-left: 1.35em;
+}
+
+main li + li {
+    margin-top: 0.38em;
+}
+
+main li::marker {
+    color: var(--nocter-blue);
+    font-weight: 700;
+}
+
+main hr {
+    height: 1px;
+    margin: 2.4em 0;
+
+    background: var(--content-border);
+    border: 0;
+}
+
+main table {
+    display: block;
+    overflow-x: auto;
+    width: 100%;
+
+    border-collapse: collapse;
+
+    font-size: 0.95rem;
+}
+
+main th,
+main td {
+    padding: 0.68em 0.85em;
+
+    border: 1px solid var(--content-border);
+}
+
+main th {
+    color: var(--nocter-blue-dark);
+    background: var(--nocter-mint);
+
+    font-weight: 700;
+    text-align: left;
+}
+
+main tr:nth-child(even) td {
+    background: #f8fafd;
+}
+
+main img {
+    max-width: 100%;
+    height: auto;
+
+    border-radius: 6px;
+}
+
+
+.site-footer {
+    border-top: 1px solid var(--content-soft-border);
+    background: #f8fafd;
+}
+
+.site-footer-inner {
+    display: flex;
+    width: min(100% - 40px, 1180px);
+    min-height: 74px;
+    margin: 0 auto;
+
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+
+    color: var(--content-muted);
+
+    font-size: 0.86rem;
+}
+
+.site-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+}
+
+.site-footer a {
+    color: var(--nocter-blue);
+    text-decoration-color: rgba(74, 100, 143, 0.3);
+    text-underline-offset: 0.22em;
+}
+
+.site-footer a:hover {
+    color: var(--nocter-blue-dark);
+    text-decoration-color: var(--nocter-yellow);
+}
+
+@media (max-width: 600px) {
+    .site-footer-inner {
+        width: min(100% - 32px, 1180px);
+        min-height: 96px;
+
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 10px;
+    }
+
+    .site-footer-links {
+        justify-content: flex-start;
+    }
+
+    .docs-shell {
+        width: min(100% - 32px, 1180px);
+    }
+
+    body.has-directory-toc .docs-shell {
+        display: block;
+    }
+
+    body.has-directory-toc .directory-toc {
+        position: static;
+
+        max-height: none;
+        margin-top: 32px;
+    }
+
+    main {
+        width: min(100% - 32px, 860px);
+        padding: 42px 0 64px;
+
+        font-size: 0.98rem;
+        line-height: 1.72;
+    }
+
+    main h2::before {
+        width: 0.92em;
+        height: 0.92em;
+        margin-right: 0.36em;
+
+        background-size: 1.04em 1.04em;
+    }
+
+    main pre {
+        margin-right: -16px;
+        margin-left: -16px;
+        border-right: 0;
+        border-left: 0;
+        border-radius: 0;
+    }
+}

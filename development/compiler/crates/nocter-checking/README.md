@@ -104,5 +104,5 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   reconstructs a name-resolution error variant from a diagnostic and separate recovery value.
 - `SourceIndex` cannot affect a semantic decision.
 
-The [checked-program boundary](../../../docs/checked-program-design.md) documents contracts shared
+The [checked-program boundary](../../../design/checked-program-design.md) documents contracts shared
 with adjacent stages.

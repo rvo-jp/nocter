@@ -2,7 +2,7 @@
 
 ## Current State
 
-Nocter v0.35.0 is [published and externally audited](releases/v0.35.0.md). Its tag and release asset
+Nocter v0.35.0 is [published and externally audited](release-audits/v0.35.0.md). Its tag and release asset
 are immutable.
 
 The current implementation is the published v0.35.0 immutable-static and Unicode-text product. Its
@@ -16,7 +16,7 @@ implementation, qualification, publication, and public evidence belong to the
 [Phase 5 integration review](reviews/v0.35.0-phase-5.md),
 [Phase 6 qualification and final review](reviews/v0.35.0-phase-6.md), the
 [release-preparation record](milestones/v0.35.0-release-preparation.md), and the
-[release audit](releases/v0.35.0.md).
+[release audit](release-audits/v0.35.0.md).
 
 ## Next Work
 

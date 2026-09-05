@@ -10,12 +10,12 @@ contracts, or milestone status.
 
 - [`spec/`](../../spec/README.md) is the sole authority for public language, standard-library, CLI,
   diagnostic, and editor behavior.
-- [Compiler architecture](../docs/architecture.md) owns the pipeline, dependency direction, and
+- [Compiler architecture](../design/architecture.md) owns the pipeline, dependency direction, and
   cross-stage authority rules.
-- [Checked program design](../docs/checked-program-design.md),
-  [target and executable program design](../docs/target-program-design.md), and
-  [machine program design](../docs/machine-program-design.md) own their detailed stage contracts.
-- [Semantic presentation design](../docs/semantic-presentation-design.md) owns the compiler-to-editor
+- [Checked program design](../design/checked-program-design.md),
+  [target and executable program design](../design/target-program-design.md), and
+  [machine program design](../design/machine-program-design.md) own their detailed stage contracts.
+- [Semantic presentation design](../design/semantic-presentation-design.md) owns the compiler-to-editor
   presentation boundary.
 - [`Cargo.toml`](Cargo.toml) is the canonical workspace-member list. Crate manifests and public Rust
   APIs are the canonical dependency and implementation surface.
@@ -23,7 +23,7 @@ contracts, or milestone status.
   internal responsibility split, and local invariants. It may name another crate only through that
   crate's exported contract.
 - [The milestone catalog](../milestones/README.md) links each scope and its completion gates;
-  [publication records](../releases/README.md) own frozen release evidence; [the handoff](../TODO.md)
+  [publication records](../release-audits/README.md) own frozen release evidence; [the handoff](../TODO.md)
   owns only the next concrete work and current blockers.
 
 The compiler derives behavior from the current specification. The implementation removed before

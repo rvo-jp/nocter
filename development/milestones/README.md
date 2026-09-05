@@ -3,7 +3,7 @@
 Each milestone file owns its own scope, phase status, and completion gates. This catalog deliberately
 does not restate which version is active, complete, unpublished, or released; those facts change in
 the milestone itself, while publication evidence belongs in
-[`development/releases/`](../releases/README.md). Public language behavior belongs only in
+[`development/release-audits/`](../release-audits/README.md). Public language behavior belongs only in
 [`spec/`](../../spec/README.md).
 
 ## Recent Milestones

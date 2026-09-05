@@ -241,87 +241,82 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/architecture/</loc>
+    <loc>https://nocter.dev/development/design/architecture/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/associative-collection-implementation/</loc>
+    <loc>https://nocter.dev/development/design/associative-collection-implementation/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/checked-program-design/</loc>
+    <loc>https://nocter.dev/development/design/checked-program-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/declaration-diagnostic-boundary/</loc>
+    <loc>https://nocter.dev/development/design/declaration-diagnostic-boundary/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/grammar-conformance/</loc>
+    <loc>https://nocter.dev/development/design/grammar-conformance/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/incremental-computation-design/</loc>
+    <loc>https://nocter.dev/development/design/incremental-computation-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/json-implementation/</loc>
+    <loc>https://nocter.dev/development/design/json-implementation/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/machine-program-design/</loc>
+    <loc>https://nocter.dev/development/design/machine-program-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/maintenance/</loc>
+    <loc>https://nocter.dev/development/design/maintenance/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/</loc>
+    <loc>https://nocter.dev/development/design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/semantic-presentation-design/</loc>
+    <loc>https://nocter.dev/development/design/semantic-presentation-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/site-generation/</loc>
+    <loc>https://nocter.dev/development/design/standard-library-source-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/standard-library-source-design/</loc>
+    <loc>https://nocter.dev/development/design/target-program-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/target-program-design/</loc>
+    <loc>https://nocter.dev/development/design/tuple-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/tuple-design/</loc>
+    <loc>https://nocter.dev/development/design/unicode-scalar-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/docs/unicode-scalar-design/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/docs/unicode-text-data-design/</loc>
+    <loc>https://nocter.dev/development/design/unicode-text-data-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -606,172 +601,172 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/</loc>
+    <loc>https://nocter.dev/development/release-audits/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.10.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.10.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.11.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.11.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.12.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.12.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.13.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.13.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.14.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.14.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.15.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.15.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.16.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.16.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.17.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.17.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.18.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.18.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.19.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.19.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.2.0-language-contract/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.2.0-language-contract/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.2.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.2.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.21.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.21.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.22.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.22.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.24.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.24.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.25.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.25.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.26.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.26.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.27.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.27.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.28.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.28.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.29.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.29.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.3.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.3.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.30.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.30.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.31.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.31.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.32.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.32.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.33.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.33.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.34.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.34.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.35.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.35.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.4.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.4.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.5.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.5.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.6.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.6.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.7.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.7.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.8.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.8.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/releases/v0.9.0/</loc>
+    <loc>https://nocter.dev/development/release-audits/v0.9.0/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1171,17 +1166,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/site/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/std/char/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/char/properties/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/char/scalar/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1191,22 +1181,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/error/construction/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/error/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fmt/default/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fmt/implementations/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1216,47 +1191,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/fmt/scalar/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fmt/tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fs/darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fs/directory_mutation_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fs/directory_mutation/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fs/directory/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/fs/filesystem/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/fs/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/hash/implementations/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1266,187 +1201,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/hash/scalars/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/hash/state/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/character/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/hash/darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/hash/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/io/errors/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/io/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/mem/capacity/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/mem/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/os/darwin/implementation/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/os/darwin/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/os/darwin/pair_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/os/darwin/primitives/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/os/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/path/darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/path/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/ptr/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/ptr/replacement/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/safety/darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/safety/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/table/growth/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/table/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/table/iteration/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/table/mutation/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/table/probing/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/table/storage/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/time/darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/time/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/unicode/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/unicode/lookup/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/unicode/tables/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/utf8/decoding/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/utf8/encoding/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/utf8/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/internal/utf8/validation/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/io/buffer/buffering/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1456,47 +1211,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/io/core/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/io/file/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/io/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/io/input_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/io/input/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/io/output_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/io/output/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/iter/adapters/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/iter/collect/collection/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1506,57 +1221,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/iter/core/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/iter/defaults/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/iter/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/iter/mutable/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/iter/sources/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/cursor/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/errors/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/escaping/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/failure/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/generation_failure/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/generation/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1566,32 +1231,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/json/number/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/output/adapters/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/json/output/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/parsing/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/json/string_decoding/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/map/construction/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1601,47 +1241,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/map/iteration/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/map/operations/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/map/storage/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/mem/allocation/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/mem/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/mem/layout/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/mem/raw_buffer/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/mem/storage/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/num/decimal/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1651,37 +1251,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/num/scalar/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/num/tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/num/text/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/path/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/path/lexical/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/path/tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/path/utf8_path/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1691,77 +1261,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/process/command_child_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/command_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/command_io_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/command_io_session_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/command_io_tests_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/command/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/configuration/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/process/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/launch_plan_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/launch_report_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/launch_report_tests_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/pipe_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/pipe_tests_darwin/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/process/subprocess_darwin/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1771,27 +1271,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/set/construction/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/set/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/set/iteration/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/set/operations/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/set/storage/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1801,82 +1281,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/slice/ordering/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/slice/views/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/casing_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/casing/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/str/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/owned/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/scalar_iteration/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/search/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/text/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/transform/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/transformation_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/trim/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/unicode_trim/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/views_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/str/views/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/string/construction/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1886,42 +1291,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/string/mutation/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/string/storage/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/string/suffix_tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/string/suffix/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/string/utf8/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/testing/assertions/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/testing/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/time/duration/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1931,52 +1301,7 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://nocter.dev/development/std/time/instant/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/time/primitives/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/time/sleep/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/time/tests/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/vec/construction/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/vec/errors/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://nocter.dev/development/std/vec/index/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/vec/into_iter/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/vec/mutation/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://nocter.dev/development/std/vec/storage/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

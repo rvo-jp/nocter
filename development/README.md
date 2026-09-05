@@ -10,11 +10,12 @@ available through Git history only and is not a design input.
 - [Current handoff](TODO.md) — next concrete work and blockers only
 - [Milestone catalog](milestones/README.md) — scope and status owned by each milestone record
 - [Design review catalog](reviews/README.md) — findings and remediation evidence
-- [Publication catalog](releases/README.md) — immutable released-candidate evidence
-- [Compiler architecture](docs/architecture.md) — pipeline and cross-crate authority boundaries
-- [Architecture and maintenance documents](docs/README.md)
+- [Publication audit catalog](release-audits/README.md) — immutable released-candidate evidence
+- [Compiler architecture](design/architecture.md) — pipeline and cross-crate authority boundaries
+- [Architecture and maintenance documents](design/README.md)
 - [Compiler workspace](compiler/README.md)
 - [Development verification](verification/README.md) — disposable complete compiler gates
+- [Documentation site generator](site/README.md) — authored website inputs and output boundary
 
 The active compiler workspace is under `development/compiler/`. The previous compiler is preserved
 by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or implementation
@@ -26,7 +27,7 @@ reference.
 - [Implementation qualification](milestones/v0.14.0-qualification.md)
 - [Final design review](reviews/v0.14.0-final-design.md)
 - [Release preparation](milestones/v0.14.0-release-preparation.md)
-- [Publication and audit](releases/v0.14.0.md)
+- [Publication and audit](release-audits/v0.14.0.md)
 
 ## Specification Workflow
 
@@ -52,13 +53,16 @@ development/
 ├── AGENTS.md
 ├── README.md
 ├── TODO.md
+├── archive/           # superseded records, excluded from current authorities and the website
 ├── compiler/          # specification-first compiler workspace
-├── docs/              # active compiler architecture and maintenance policy
+├── design/            # active cross-crate architecture and maintenance policy
 ├── milestones/        # active and historical milestone records
 ├── packaging/         # release identity, deterministic assembly, and artifact qualification
+├── release-audits/    # immutable published qualification records
 ├── reviews/           # cross-cutting design criteria, findings, and remediation evidence
-├── releases/          # immutable published qualification records
+├── site/              # documentation generator and static website inputs
 ├── std/               # standard-library contracts and implementation sources
+├── unicode/           # generated Unicode source data and its generator
 └── verification/      # disposable development verification entry points
 ```
 

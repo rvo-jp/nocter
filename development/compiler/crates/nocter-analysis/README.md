@@ -38,4 +38,4 @@ results. Protocol crates receive result values only.
 - Rename and code actions publish only a whole-generation validated candidate.
 
 The cross-crate presentation contract is documented in
-[Semantic Presentation Design](../../../docs/semantic-presentation-design.md).
+[Semantic Presentation Design](../../../design/semantic-presentation-design.md).

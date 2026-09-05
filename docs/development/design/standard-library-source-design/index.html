@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard Library Source Design - Nocter</title>
+    <meta name="description" content="This document defines repository policy for implementing the public standard-library contracts in spec/. Language-level module and style rules remain owned">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/development/design/standard-library-source-design/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Standard Library Source Design - Nocter">
+    <meta property="og:description" content="This document defines repository policy for implementing the public standard-library contracts in spec/. Language-level module and style rules remain owned">
+    <meta property="og:url" content="https://nocter.dev/development/design/standard-library-source-design/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Standard Library Source Design - Nocter">
+    <meta name="twitter:description" content="This document defines repository policy for implementing the public standard-library contracts in spec/. Language-level module and style rules remain owned">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Standard Library Source Design - Nocter","description":"This document defines repository policy for implementing the public standard-library contracts in spec/. Language-level module and style rules remain owned","url":"https://nocter.dev/development/design/standard-library-source-design/","mainEntityOfPage":"https://nocter.dev/development/design/standard-library-source-design/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Design","item":"https://nocter.dev/development/design/"},{"@type":"ListItem","position":4,"name":"Standard Library Source Design","item":"https://nocter.dev/development/design/standard-library-source-design/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">development/design/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
+                <li><a href="../architecture/index.html#content">Compiler Architecture</a></li>
+                <li><a href="../../milestones/index.html#content">milestone index</a></li>
+                <li><a href="../../reviews/index.html#content">review index</a></li>
+                <li><a href="../checked-program-design/index.html#content">Checked Program Boundary</a></li>
+                <li><a href="../target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li>
+                <li><a href="../machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li>
+                <li><a href="../declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li>
+                <li><a href="../semantic-presentation-design/index.html#content">Semantic Presentation Boundary</a></li>
+                <li><a href="../incremental-computation-design/index.html#content">Incremental Computation Boundary</a></li>
+                <li><a href="../associative-collection-implementation/index.html#content">Associative Collection Implementation Boundary</a></li>
+                <li><a href="../json-implementation/index.html#content">JSON Implementation Boundary</a></li>
+                <li><a href="../tuple-design/index.html#content">Tuple Representation Boundary</a></li>
+                <li><a href="../unicode-scalar-design/index.html#content">Unicode Scalar Representation Boundary</a></li>
+                <li><a href="../unicode-text-data-design/index.html#content">Static Unicode Data Boundary</a></li>
+                <li><a href="../grammar-conformance/index.html#content">Grammar Conformance</a></li>
+                <li><a href="./index.html#content" aria-current="page">Standard-Library Source Design</a></li>
+                <li><a href="../maintenance/index.html#content">Maintenance Policy</a></li>
+                <li><a href="../../site/index.html#content">Documentation Site Generator</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/development/design/standard-library-source-design.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="standard-library-source-design">Standard Library Source Design</h1><p>This document defines repository policy for implementing the public standard-library contracts in <a href="../../../spec/index.html#content"><code>spec/</code></a>. Language-level module and style rules remain owned by <a href="../../../spec/01-modules-use/index.html#content"><code>spec/01-modules-use.md</code></a> and <a href="../../../spec/16-source-style-formatting/index.html#content"><code>spec/16-source-style-formatting.md</code></a>.</p><h2 id="module-root-responsibility">Module Root Responsibility</h2><p>Every standard-library <code>index.nct</code> is a user contract root, not a general implementation file. A reader must be able to identify the module's externally visible surface without following implementation sources or reading package plumbing.</p><p>The root owns documentation, required signature imports, re-exports, public data representation, opaque nominal contracts, bodyless public callable contracts, interface requirements, explicit interface default contracts, construction contracts, instance-operation contracts, and public <code>impl Interface</code> facts with their associated type bindings. Required interface method signatures remain solely in their interface.</p><p>A package-only subsystem that does not require another module's private representation owns an explicit module below <code>std/internal</code>. No implementation source may add restricted-visible declarations: module roots remain the sole surface authority. A package-only operation that is inseparable from a public type's private representation may therefore remain in that public module root only when moving it would expose the representation or change the public type identity. <code>std/mem</code> raw-buffer transfer and owned-growth operations are the reviewed exception. Do not put independent package plumbing in a public root merely to make it discoverable, and do not hide a cross-module contract inside an implementation body.</p><p>Implementation sources own private representation, callable bodies, destruction, allocation and pointer mechanics, target operations, and helper algorithms. Name each source for one stable responsibility such as <code>storage.nct</code>, <code>mutation.nct</code>, <code>defaults.nct</code>, or <code>darwin.nct</code>; do not use a generic <code>impl.nct</code> when the module has more than one implementation responsibility.</p><p>Restricted visibility must be no wider than its actual consumers. A <code>pub(/)</code> function in a standard-library contract source must have a semantic reference from another module in the <code>std</code> package. Helpers used only by implementation sources in their declaring module stay private and those sources use direct <code>see</code> edges. Every private free function in an implementation source must also have a semantic reference unless it completes a callable declared by the module root. Compiler-owned primitives are exempt because their declaration itself defines a target or runtime boundary even when authored Nocter source has no caller. The authored-standard-library test enforces these rules from declaration identity and the checked source index rather than name matching.</p><p>The same test requires the reviewed module-dependency relation to exactly equal discovery's resolved <code>use</code> edges. Adding an edge requires an ownership review and an explicit update; removing an edge requires deleting its stale review entry. Source spelling is never reparsed to infer dependencies.</p><p>Every import from one standard-library module to another uses the package-absolute <code>/module</code> form. The dependency spelling <code>std/module</code> means “the package bound to the <code>std</code> dependency name”; inside an ordinary checkout analysis that name selects the installed toolchain package, not the authored package being edited. Package-absolute self imports keep one source tree valid both when selected as the toolchain standard package and when opened as an ordinary package for diagnostics and LSP queries. The authored-standard-library test checks this source portability rule independently from the resolved dependency graph.</p><p>Stable error codes are behavioral API; helper functions that construct those errors are not. Error factories remain private unless callers must select them independently for a documented reason.</p><h2 id="foundation-ownership">Foundation Ownership</h2><p>The standard-library foundation has the following implementation owners:</p><table><thead><tr><th>Responsibility</th><th>Owner</th></tr></thead><tbody><tr><td>public address observation and borrow-to-pointer conversion</td><td><code>std/ptr</code></td></tr><tr><td>raw address projection, byte copying, and typed value movement</td><td><code>std/internal/ptr</code></td></tr><tr><td>checked capacity arithmetic and allocation abort boundary</td><td><code>std/internal/mem</code></td></tr><tr><td>target-neutral OS error facts</td><td><code>std/internal/os</code></td></tr><tr><td>Darwin syscall, errno, mmap, file-mode, and metadata-layout facts</td><td><code>std/internal/os/darwin</code></td></tr><tr><td>allocator and raw-buffer policy</td><td><code>std/mem</code></td></tr><tr><td>borrowed UTF-8 search, ranges, and iterators</td><td><code>std/str</code></td></tr><tr><td>owned UTF-8 storage, construction, validation, and mutation</td><td><code>std/string</code></td></tr><tr><td>initialized-prefix ownership and mutation</td><td><code>std/vec</code></td></tr></tbody></table><p>Within <code>std/mem</code>, <code>std/string</code>, and <code>std/vec</code>, representation, construction, mutation, validation, and destruction live in responsibility-named sources. <code>std/str/owned.nct</code> is the explicit edge from borrowed text algorithms to <code>String</code> and <code>Vec</code>; the allocation-free search and view sources do not import owned collection modules. <code>std/process</code> reuses <code>std/string.is_valid_utf8</code> rather than owning another validator.</p><p><code>RawBuffer</code> destruction is the sole individual-buffer release authority. Allocator values select allocation and growth policy; they do not expose a second consuming <code>free</code> operation that merely relies on the consumed buffer's destructor.</p><h2 id="source-visibility-graph">Source Visibility Graph</h2><p>The root directly sees every source that completes one of its contracts. Each completing source directly sees the root. This reciprocal edge is declaration identity, not a visibility shortcut.</p><p>An implementation source explicitly sees every other source whose private declaration or representation it uses. Direct-only see semantics must remain visible in the authored graph; an aggregator source must not simulate transitive private visibility.</p><p>Private helper-only sources may be reached from their direct implementation consumers without a root edge. They cannot complete a root contract unless the reciprocal direct edge exists.</p><h2 id="inline-exceptions">Inline Exceptions</h2><p>An inline root body is acceptable only when it is representation-independent and its complete behavior is clearer than a separated declaration. It must contain no control-flow branch, loop, mutation, allocation, I/O, target operation, or private representation access. Constant results and direct forwarding are the intended cases.</p><p>Interface defaults follow the same rule. Nontrivial defaults use a bodyless <code>pub default method</code> contract in the root and a private <code>default method</code> body in <code>defaults.nct</code> or another responsibility-named source.</p><p>The authored standard library uses no inline root bodies. Its discovery test rejects every <code>Block</code> node in a standard-library module root. Introducing even a trivial exception requires an explicit policy and test change rather than an unnoticed convenience edit.</p><p>A <code>drop</code> declaration is not a bodyless API contract: its grammar always carries a body. Put it only in the responsibility-named private source that owns the type's destruction behavior.</p><h2 id="review-gate">Review Gate</h2><p>A standard-library module satisfies this design only when:</p><ul><li>its root declares every public contract, every package-only contract has an explicit internal
+  owner, and no implementation source adds exported surface;</li><li>ordinary definition navigation selects the root contract and implementation navigation selects
+  its body;</li><li>opaque types reveal no private fields through source presentation, hover, or completion;</li><li>every private cross-source dependency has one authored direct see;</li><li>target-independent APIs do not expose platform declarations;</li><li>focused semantic and native tests pass through the same package graph used by users;</li><li>any remaining inline body satisfies the exception above and is called out during review.</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>
