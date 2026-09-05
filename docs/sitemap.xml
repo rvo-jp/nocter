@@ -906,6 +906,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/spec/language/bindings-and-initialization/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/spec/language/borrow-coercions/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -931,12 +936,22 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/spec/language/equality-and-indexing/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/spec/language/errors-and-optionals/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://nocter.dev/spec/language/generics-and-interfaces/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/spec/language/integers/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -982,6 +997,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/spec/language/sequences-and-text/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/spec/language/structs-and-enums/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

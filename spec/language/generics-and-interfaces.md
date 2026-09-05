@@ -252,7 +252,7 @@ instance WordStats {
 
 Equality, strict ordering, readonly/readwrite indexing, and readonly/readwrite/owned expansion are
 the complete operator families accepted in an `instance`. Their exact declaration shapes and
-selection rules are owned by [Operators, Comparison, and Precedence](values-and-types.md#operators-comparison-and-precedence),
+selection rules are owned by [Equality, Indexing, and Core Operators](equality-and-indexing.md#operators-comparison-and-precedence),
 [Strict Ordering Operators](ordering.md), and
 [Expansion Operators](literals-and-packs.md#expansion-operators). Borrow coercion entries are owned by
 [Borrow Coercions](borrow-coercions.md). These members cannot appear in an interface or
@@ -414,7 +414,7 @@ Rules:
   is rejected.
 - The witness must explicitly implement the advertised interface, and every named associated
   binding must equal the implementation's selected type.
-- The initial form is accepted only as the success payload of a body-bearing function, associated
+- An opaque result is accepted only as the success payload of a body-bearing function, associated
   function, inherent method, or body-bearing interface default method.
 - Parameters, fields, aliases, callable value types, primitives, construction literals, bodyless
   interface requirements, interface implementation methods, coercions, and drop declarations

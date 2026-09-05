@@ -9,7 +9,9 @@ rule has one owning chapter and cross-topic chapters link to that authority.
 - [Syntactic Grammar](syntactic-grammar.md)
 - [Packages and Package Source](packages.md)
 - [Modules, Use Declarations, and Source Visibility](modules.md)
-- [Source Values and Types](values-and-types.md)
+- [Bindings and Initialization](bindings-and-initialization.md)
+- [Values and Types](values-and-types.md)
+- [Integers and Numeric Operations](integers.md)
 - [Compile-Time Constants](constants.md)
 
 ## Evaluation and Resource Semantics
@@ -27,7 +29,9 @@ rule has one owning chapter and cross-topic chapters link to that authority.
 - [Borrow Coercions](borrow-coercions.md)
 - [Argument Packs, Literal Definitions, and Sequence Spread](literals-and-packs.md)
 - [Expansion Operators](literals-and-packs.md#expansion-operators)
+- [Equality, Indexing, and Core Operators](equality-and-indexing.md)
 - [Operators](ordering.md)
 - [Tuples](tuples.md)
+- [Structs and Enums](structs-and-enums.md)
 - [Strings, Arrays, Views, and Pointers](sequences-and-text.md)
 - [Unicode Scalar Values](unicode-scalars.md)

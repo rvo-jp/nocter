@@ -295,7 +295,7 @@ Rules:
   declaration first when present, then drops only the active variant payload in reverse payload
   declaration order. Field and payload drop glue follows the same rule recursively.
 - Consuming enum patterns preserve this ordering through their dedicated rule in
-  [Enums and Variant Construction](values-and-types.md#enums-and-variant-construction): a drop body
+  [Enums and Variant Construction](structs-and-enums.md#enums-and-variant-construction): a drop body
   that would otherwise receive partial storage runs once before a named move-only payload leaves,
   while later residual cleanup drops only the still-initialized payload fields.
 - Maybe initialized owned values use compiler-generated conditional drop.
@@ -394,7 +394,7 @@ Rules:
 - `drop` is not fallible.
 - `drop` produces no value.
 - After `drop name`, the binding is uninitialized on all later reachable paths.
-- A dropped `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Values and Types](values-and-types.md#reinitialization-after-move-or-drop).
+- A dropped `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Bindings and Initialization](bindings-and-initialization.md#reinitialization-after-move-or-drop).
 - A dropped `let` binding cannot be reinitialized.
 - `drop object.field`, `drop array[index]`, and `drop make_value()` are invalid.
 
@@ -601,7 +601,7 @@ Rules:
 - After a whole-binding move, the binding is uninitialized on all later reachable paths. After a
   named-field move, that field is uninitialized and the parent is partially initialized; disjoint
   initialized fields remain usable and retain their own cleanup obligations.
-- A moved `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Values and Types](values-and-types.md#reinitialization-after-move-or-drop).
+- A moved `var` binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in [Bindings and Initialization](bindings-and-initialization.md#reinitialization-after-move-or-drop).
 - A moved `let` binding cannot be reinitialized.
 - Moved storage is not dropped through its original place.
 - A place cannot be moved while it conflicts with an active borrow.

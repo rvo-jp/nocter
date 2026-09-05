@@ -193,7 +193,7 @@ Rules:
   [Primary Expressions](syntactic-grammar.md#primary-expressions).
 - Payload names introduced by `if expr is Enum.variant(payload)` are visible only inside the then body.
 - Pattern target ownership and payload binding types are defined by
-  [Enums and Variant Construction](values-and-types.md#enums-and-variant-construction). In
+  [Enums and Variant Construction](structs-and-enums.md#enums-and-variant-construction). In
   particular, `&Enum` binds `&Payload`, `&+Enum` binds `&+Payload`, and `move place` binds owned
   payload values while consuming the place.
 - `if expr is Enum.variant(_)` checks a one-payload variant without introducing a binding. Enum
@@ -266,7 +266,7 @@ Rules:
 - Struct literal field initializer expressions are evaluated left-to-right in the order written in the literal, regardless of declaration order.
 - Assignment evaluates the complete right-hand side first, then resolves the target place exactly
   once before replacing it. The detailed assignment rules are specified in
-  [Values and Types](values-and-types.md#bindings-and-mutability).
+  [Bindings and Initialization](bindings-and-initialization.md#bindings-and-mutability).
 - Compound assignment evaluates its complete right-hand side first, then resolves its target place
   exactly once, reads the old value, performs the checked operation, and stores the result.
 - Operators and expressions with conditional evaluation, such as `&&`, `||`, `otherwise`, `if`, and `match`, evaluate only the needed operand, branch, or arm.
@@ -283,7 +283,7 @@ Rules:
   A condition temporary therefore never remains live through an ordinary `if` or `while` body.
 - `if expr is Pattern` and `match expr` do not use the boolean-condition rule for their pattern
   target. An owned pattern target and payload projections use the pattern-operation lifetime
-  defined in [Enums and Variant Construction](values-and-types.md#enums-and-variant-construction).
+  defined in [Enums and Variant Construction](structs-and-enums.md#enums-and-variant-construction).
 - A value produced for `let _ = expression` is consumed by that discard statement. Its active owned
   content is dropped after expression evaluation and before earlier temporaries from the same
   statement are dropped.
@@ -546,7 +546,7 @@ Rules:
   is accepted there.
 - `never` cannot be constructed or used in a data-bearing type position. It is valid only as a
   callable result type and as the inferred type of terminating control flow; the complete position
-  rules are specified in [Values and Types](values-and-types.md#values-and-types).
+  rules are specified in [Values and Types](values-and-types.md#built-in-and-structural-types).
 - `never` cannot be the eventual payload of an optional or fallible type. Outcome constructors
   represent values and do not turn terminating control flow into a value-level state.
 - Calling a `never` function does not imply stack unwinding, statement-end temporary drops, or caller-scope `drop` execution.

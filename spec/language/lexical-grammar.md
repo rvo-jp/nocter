@@ -422,7 +422,8 @@ Rules:
   minimum value; the lexer does not fuse those tokens.
 - Float literals are not supported. Syntax such as `1.0`, `.5`, and `1e3` is invalid.
 
-The type rules for integer literals are specified in [Values and Types](values-and-types.md#integer-literals).
+The type rules for integer literals are specified in
+[Integers and Numeric Operations](integers.md#integer-literals).
 
 ## String, Character, and Byte Literals
 

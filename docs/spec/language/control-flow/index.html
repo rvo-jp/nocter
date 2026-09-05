@@ -177,13 +177,16 @@
                 <p class="document-tree-title">spec/language/</p>
                 <ul class="document-tree-list">
                     <li><a href="../index.html#content">Language</a></li>
+                    <li><a href="../bindings-and-initialization/index.html#content">Bindings and Initialization</a></li>
                     <li><a href="../borrow-coercions/index.html#content">Borrow Coercions</a></li>
                     <li><a href="../callables/index.html#content">Callable Values and Interface Default Methods</a></li>
                     <li><a href="../constants/index.html#content">Compile-Time Constants</a></li>
                     <li><a href="../construction/index.html#content">Construction Surfaces</a></li>
                     <li><a href="./index.html#content" aria-current="page">Control Flow</a></li>
+                    <li><a href="../equality-and-indexing/index.html#content">Equality, Indexing, and Core Operators</a></li>
                     <li><a href="../errors-and-optionals/index.html#content">Errors and Optionals</a></li>
                     <li><a href="../generics-and-interfaces/index.html#content">Generics, Interfaces, and Methods</a></li>
+                    <li><a href="../integers/index.html#content">Integers and Numeric Operations</a></li>
                     <li><a href="../lexical-grammar/index.html#content">Lexical Grammar</a></li>
                     <li><a href="../literals-and-packs/index.html#content">Argument Packs, Literal Definitions, and Sequence Spread</a></li>
                     <li><a href="../memory-and-regions/index.html#content">Memory, Regions, and Allocators</a></li>
@@ -192,6 +195,7 @@
                     <li><a href="../ownership/index.html#content">Ownership, Borrowing, and Drop</a></li>
                     <li><a href="../packages/index.html#content">Packages and Package Source</a></li>
                     <li><a href="../sequences-and-text/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
+                    <li><a href="../structs-and-enums/index.html#content">Structs and Enums</a></li>
                     <li><a href="../syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
                     <li><a href="../tuples/index.html#content">Tuples</a></li>
                     <li><a href="../unicode-scalars/index.html#content">Unicode Scalar Values</a></li>
@@ -282,7 +286,7 @@
   <code>{</code> begins the control body. Parenthesize the complete header expression when it contains a
   struct literal, closure, recovery block, or nested control expression at that level, as specified by
   <a href="../syntactic-grammar/index.html#primary-expressions">Primary Expressions</a>.</li><li>Payload names introduced by <code>if expr is Enum.variant(payload)</code> are visible only inside the then body.</li><li>Pattern target ownership and payload binding types are defined by
-  <a href="../values-and-types/index.html#enums-and-variant-construction">Enums and Variant Construction</a>. In
+  <a href="../structs-and-enums/index.html#enums-and-variant-construction">Enums and Variant Construction</a>. In
   particular, <code>&amp;Enum</code> binds <code>&amp;Payload</code>, <code>&amp;+Enum</code> binds <code>&amp;+Payload</code>, and <code>move place</code> binds owned
   payload values while consuming the place.</li><li><code>if expr is Enum.variant(_)</code> checks a one-payload variant without introducing a binding. Enum
   patterns have exact positional arity, so every field of a multi-payload variant needs its own
@@ -307,7 +311,7 @@
   the second line.</li><li>A blank or comment-only intervening line ends leading-token continuation.</li><li>A closing brace <code>}</code> ends the current block or arm.</li><li>Multi-line expressions are allowed only where the expression syntax clearly continues, such as inside calls, literals, or parenthesized expressions.</li><li>The complete continuation-leader set and lexical source text rules are specified in
   <a href="../lexical-grammar/index.html#statement-separation">Lexical Grammar</a>.</li></ul><h2 id="evaluation-order-and-temporaries">Evaluation Order and Temporaries</h2><p>Expression evaluation is left-to-right.</p><p>Rules:</p><ul><li>Function call arguments are evaluated left-to-right.</li><li>Method call receiver expressions are evaluated before method arguments.</li><li>For evaluated method arguments, evaluation remains left-to-right.</li><li>Struct literal field initializer expressions are evaluated left-to-right in the order written in the literal, regardless of declaration order.</li><li>Assignment evaluates the complete right-hand side first, then resolves the target place exactly
   once before replacing it. The detailed assignment rules are specified in
-  <a href="../values-and-types/index.html#bindings-and-mutability">Values and Types</a>.</li><li>Compound assignment evaluates its complete right-hand side first, then resolves its target place
+  <a href="../bindings-and-initialization/index.html#bindings-and-mutability">Bindings and Initialization</a>.</li><li>Compound assignment evaluates its complete right-hand side first, then resolves its target place
   exactly once, reads the old value, performs the checked operation, and stores the result.</li><li>Operators and expressions with conditional evaluation, such as <code>&amp;&amp;</code>, <code>||</code>, <code>otherwise</code>, <code>if</code>, and <code>match</code>, evaluate only the needed operand, branch, or arm.</li><li>When an operand or branch is evaluated, its subexpressions still follow the normal left-to-right rule.</li><li>Temporaries are dropped at the end of the current statement in reverse creation order unless a
   narrower control-header scope below applies or ownership is moved into a longer-lived owner.</li><li>An ordinary <code>if</code> boolean condition is one control-header temporary scope. After its <code>bool</code> result
   is computed, all remaining condition temporaries are dropped in reverse creation order before
@@ -316,7 +320,7 @@
   entering the body or leaving the loop.</li><li>Condition cleanup also runs before propagation or another early exit leaves the control header.
   A condition temporary therefore never remains live through an ordinary <code>if</code> or <code>while</code> body.</li><li><code>if expr is Pattern</code> and <code>match expr</code> do not use the boolean-condition rule for their pattern
   target. An owned pattern target and payload projections use the pattern-operation lifetime
-  defined in <a href="../values-and-types/index.html#enums-and-variant-construction">Enums and Variant Construction</a>.</li><li>A value produced for <code>let _ = expression</code> is consumed by that discard statement. Its active owned
+  defined in <a href="../structs-and-enums/index.html#enums-and-variant-construction">Enums and Variant Construction</a>.</li><li>A value produced for <code>let _ = expression</code> is consumed by that discard statement. Its active owned
   content is dropped after expression evaluation and before earlier temporaries from the same
   statement are dropped.</li><li>Longer-lived owners include local bindings, owned parameters, constructed aggregate values, assigned target places, and returned values.</li><li>Blocks, <code>if</code> bodies, <code>match</code> arms, and loop bodies create scopes.</li><li>Initialized local values are dropped at scope end in reverse declaration order.</li><li>Maybe initialized local values use compiler-generated conditional drop at scope end.</li><li>Partially initialized structs drop their remaining initialized fields in reverse declaration
   order. A named field that is maybe initialized after control-flow merge uses conditional drop.
@@ -409,7 +413,7 @@
   enclosing expected type must determine the required data type before the terminating expression
   is accepted there.</li><li><code>never</code> cannot be constructed or used in a data-bearing type position. It is valid only as a
   callable result type and as the inferred type of terminating control flow; the complete position
-  rules are specified in <a href="../values-and-types/index.html#values-and-types">Values and Types</a>.</li><li><code>never</code> cannot be the eventual payload of an optional or fallible type. Outcome constructors
+  rules are specified in <a href="../values-and-types/index.html#built-in-and-structural-types">Values and Types</a>.</li><li><code>never</code> cannot be the eventual payload of an optional or fallible type. Outcome constructors
   represent values and do not turn terminating control flow into a value-level state.</li><li>Calling a <code>never</code> function does not imply stack unwinding, statement-end temporary drops, or caller-scope <code>drop</code> execution.</li><li>If cleanup is required before a terminating API such as <code>exit</code> or <code>abort</code>, the program must perform that cleanup before the <code>never</code> call or use a normal <code>return</code>, <code>break</code>, or <code>continue</code> path.</li><li>Fallible failure is recoverable failure and is valid only through fallible type <code>T!</code>.</li><li><code>trap</code> is non-recoverable failure caused by a program defect, violated compiler check, or impossible execution path.</li><li><code>abort</code> is immediate process termination and does not run Nocter cleanup.</li><li><code>panic</code> and stack unwinding are not language features.</li><li><code>panic</code> is not reserved. A user-defined function named <code>panic</code> is ordinary and has no language-defined behavior.</li></ul><p>Example:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">require_path_short</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> path <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> process<span class="token-operator">.</span><span class="token-function">abort</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
 <span class="token-operator">}</span>
