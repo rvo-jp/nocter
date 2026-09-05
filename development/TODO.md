@@ -7,21 +7,25 @@ are immutable.
 
 The current implementation is the published v0.34.0 Unicode-scalar foundation plus the complete
 v0.35.0 immutable-static, generated Unicode-data, character-property, borrowed Unicode-trim,
-default casing, and owned suffix-mutation products. Its active scope belongs to the
+default casing, and owned suffix-mutation products. The release identity is assigned to v0.35.0;
+publication status remains v0.34.0 until a qualified archive is separately authorized. Active
+scope belongs to the
 [v0.35.0 milestone](milestones/v0.35.0.md),
 [Phase 0 design review](reviews/v0.35.0-phase-0.md),
 [Phase 1 implementation review](reviews/v0.35.0-phase-1.md),
 [Phase 2 implementation review](reviews/v0.35.0-phase-2.md),
 [Phase 3 implementation review](reviews/v0.35.0-phase-3.md),
-[Phase 4 implementation review](reviews/v0.35.0-phase-4.md), and
-[Phase 5 integration review](reviews/v0.35.0-phase-5.md).
+[Phase 4 implementation review](reviews/v0.35.0-phase-4.md),
+[Phase 5 integration review](reviews/v0.35.0-phase-5.md), and
+[release-preparation record](milestones/v0.35.0-release-preparation.md).
 
 ## Next Work
 
-Prepare and stabilize v0.35.0 in Phase 6. Run release-version assignment, full compiler and
-documentation gates, generated-data reproducibility, clean installed-home qualification, duplicate
-archive comparison, dead-static-data inspection, and final architecture review before publication.
-Preserve the immutable v0.34.0 tag and release asset.
+Qualify the exact clean v0.35.0 candidate in Phase 6. Run two independent full compiler gates,
+generated-data reproducibility, explicit public-HTTPS acquisition, clean installed-home
+qualification, duplicate archive comparison, dead-static-data inspection, and final architecture
+review. Record the retained archive identity and stop before publication. Preserve the immutable
+v0.34.0 tag and release asset.
 
 ## Blockers
 

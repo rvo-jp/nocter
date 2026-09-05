@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.25.0: No-allocation Contracts - Nocter</title>
-    <meta name="description" content="Status: complete, published, and externally audited (2026-09-02). The publication record freezes the release evidence. v0.25.0 adds one source-visible nega">
+    <title>Nocter v0.35.0 Release Notes - Nocter</title>
+    <meta name="description" content="Nocter v0.35.0 adds immutable static data and practical Unicode-aware text operations. Generated Unicode 17.0.0 tables, ordinary standard-library source, c">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/milestones/v0.25.0/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/releases/v0.35.0/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.25.0: No-allocation Contracts - Nocter">
-    <meta property="og:description" content="Status: complete, published, and externally audited (2026-09-02). The publication record freezes the release evidence. v0.25.0 adds one source-visible nega">
-    <meta property="og:url" content="https://nocter.dev/development/milestones/v0.25.0/">
+    <meta property="og:title" content="Nocter v0.35.0 Release Notes - Nocter">
+    <meta property="og:description" content="Nocter v0.35.0 adds immutable static data and practical Unicode-aware text operations. Generated Unicode 17.0.0 tables, ordinary standard-library source, c">
+    <meta property="og:url" content="https://nocter.dev/releases/v0.35.0/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.25.0: No-allocation Contracts - Nocter">
-    <meta name="twitter:description" content="Status: complete, published, and externally audited (2026-09-02). The publication record freezes the release evidence. v0.25.0 adds one source-visible nega">
+    <meta name="twitter:title" content="Nocter v0.35.0 Release Notes - Nocter">
+    <meta name="twitter:description" content="Nocter v0.35.0 adds immutable static data and practical Unicode-aware text operations. Generated Unicode 17.0.0 tables, ordinary standard-library source, c">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.25.0: No-allocation Contracts - Nocter","description":"Status: complete, published, and externally audited (2026-09-02). The publication record freezes the release evidence. v0.25.0 adds one source-visible nega","url":"https://nocter.dev/development/milestones/v0.25.0/","mainEntityOfPage":"https://nocter.dev/development/milestones/v0.25.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Milestones","item":"https://nocter.dev/development/milestones/"},{"@type":"ListItem","position":4,"name":"V0.25.0","item":"https://nocter.dev/development/milestones/v0.25.0/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter v0.35.0 Release Notes - Nocter","description":"Nocter v0.35.0 adds immutable static data and practical Unicode-aware text operations. Generated Unicode 17.0.0 tables, ordinary standard-library source, c","url":"https://nocter.dev/releases/v0.35.0/","mainEntityOfPage":"https://nocter.dev/releases/v0.35.0/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Releases","item":"https://nocter.dev/releases/"},{"@type":"ListItem","position":3,"name":"V0.35.0","item":"https://nocter.dev/releases/v0.35.0/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-directory-toc">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Documentation</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -172,78 +172,53 @@
 
     <div class="docs-shell">
         <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/milestones/</p>
+            <p class="directory-toc-title">releases/</p>
             <ul class="directory-toc-list">
-                <li><a href="../../releases/index.html#content">`development/releases/`</a></li>
-                <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.35.0/index.html#content">v0.35.0: Static Data and Practical Unicode Text</a></li>
-                <li><a href="../v0.35.0-release-preparation/index.html#content">v0.35.0 Release Preparation</a></li>
-                <li><a href="../v0.34.0/index.html#content">v0.34.0: Unicode Scalar Text Foundation</a></li>
-                <li><a href="../v0.34.0-release-preparation/index.html#content">v0.34.0 Release Preparation</a></li>
-                <li><a href="../v0.33.0/index.html#content">v0.33.0: Structural Tuples</a></li>
-                <li><a href="../v0.33.0-release-preparation/index.html#content">v0.33.0 Release Preparation</a></li>
-                <li><a href="../v0.32.0/index.html#content">v0.32.0: Complete Configured Synchronous Subprocesses</a></li>
-                <li><a href="../v0.32.0-release-preparation/index.html#content">v0.32.0 Release Preparation</a></li>
-                <li><a href="../v0.31.0/index.html#content">v0.31.0: Captured Synchronous Subprocess Output</a></li>
-                <li><a href="../v0.31.0-release-preparation/index.html#content">v0.31.0 Release Preparation</a></li>
-                <li><a href="../v0.30.0/index.html#content">v0.30.0: Synchronous Subprocess Execution</a></li>
-                <li><a href="../v0.30.0-release-preparation/index.html#content">v0.30.0 Release Preparation</a></li>
-                <li><a href="../v0.29.0/index.html#content">v0.29.0: Standard Input and Run Invocation</a></li>
-                <li><a href="../v0.29.0-release-preparation/index.html#content">v0.29.0 Release Preparation</a></li>
-                <li><a href="../v0.28.0/index.html#content">v0.28.0: Practical Text, Formatting, and Output</a></li>
-                <li><a href="../v0.28.0-release-preparation/index.html#content">v0.28.0 Release Preparation</a></li>
-                <li><a href="../v0.27.0/index.html#content">v0.27.0: Filesystem and Path Completion</a></li>
-                <li><a href="../v0.27.0-release-preparation/index.html#content">v0.27.0 Release Preparation</a></li>
-                <li><a href="../v0.26.0/index.html#content">v0.26.0: Monotonic Time Foundation</a></li>
-                <li><a href="../v0.26.0-release-preparation/index.html#content">v0.26.0 Release Preparation</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.25.0: No-allocation Contracts</a></li>
-                <li><a href="../v0.25.0-release-preparation/index.html#content">v0.25.0 Release Preparation</a></li>
-                <li><a href="../v0.24.0/index.html#content">v0.24.0</a></li>
-                <li><a href="../v0.24.0-release-preparation/index.html#content">v0.24.0 Release Preparation</a></li>
-                <li><a href="../v0.23.0/index.html#content">v0.23.0</a></li>
-                <li><a href="../v0.22.0/index.html#content">v0.22.0</a></li>
-                <li><a href="../v0.22.0-release-preparation/index.html#content">v0.22.0 Release Preparation</a></li>
-                <li><a href="../v0.21.0/index.html#content">v0.21.0</a></li>
-                <li><a href="../v0.21.0-release-preparation/index.html#content">v0.21.0 Release Preparation</a></li>
-                <li><a href="../v0.20.0/index.html#content">v0.20.0</a></li>
-                <li><a href="../v0.19.0/index.html#content">v0.19.0</a></li>
-                <li><a href="../v0.19.0-release-preparation/index.html#content">v0.19.0 Release Preparation</a></li>
-                <li><a href="../v0.18.0/index.html#content">v0.18.0</a></li>
-                <li><a href="../v0.18.0-release-preparation/index.html#content">v0.18.0 Release Preparation</a></li>
-                <li><a href="../v0.17.0/index.html#content">v0.17.0</a></li>
-                <li><a href="../v0.17.0-release-preparation/index.html#content">v0.17.0 Release Preparation</a></li>
-                <li><a href="../v0.16.0/index.html#content">v0.16.0</a></li>
-                <li><a href="../v0.16.0-release-preparation/index.html#content">v0.16.0 Release Preparation</a></li>
-                <li><a href="../v0.15.0/index.html#content">v0.15.0</a></li>
-                <li><a href="../v0.15.0-release-preparation/index.html#content">v0.15.0 Release Preparation</a></li>
-                <li><a href="../v0.14.0/index.html#content">v0.14.0</a></li>
-                <li><a href="../v0.14.0-qualification/index.html#content">v0.14.0 Qualification</a></li>
-                <li><a href="../v0.14.0-release-preparation/index.html#content">v0.14.0 Release Preparation</a></li>
-                <li><a href="../v0.13.0/index.html#content">v0.13.0</a></li>
-                <li><a href="../v0.12.0/index.html#content">v0.12.0</a></li>
-                <li><a href="../v0.11.0/index.html#content">v0.11.0</a></li>
-                <li><a href="../v0.10.0/index.html#content">v0.10.0</a></li>
-                <li><a href="../v0.10.0-phase-1/index.html#content">v0.10.0 Phase 1</a></li>
-                <li><a href="../v0.10.0-phase-2/index.html#content">v0.10.0 Phase 2</a></li>
-                <li><a href="../v0.10.0-phase-3/index.html#content">v0.10.0 Phase 3</a></li>
-                <li><a href="../v0.9.0/index.html#content">v0.9.0</a></li>
-                <li><a href="../v0.8.0/index.html#content">v0.8.0</a></li>
-                <li><a href="../v0.7.0/index.html#content">v0.7.0</a></li>
+                <li><a href="../../spec/index.html#content">specification</a></li>
+                <li><a href="../v0.34.0/index.html#content">Read the v0.34.0 release notes</a></li>
+                <li><a href="../v0.33.0/index.html#content">Nocter v0.33.0</a></li>
+                <li><a href="../v0.32.0/index.html#content">Nocter v0.32.0</a></li>
+                <li><a href="../v0.31.0/index.html#content">Nocter v0.31.0</a></li>
+                <li><a href="../v0.30.0/index.html#content">Nocter v0.30.0</a></li>
+                <li><a href="../v0.29.0/index.html#content">Nocter v0.29.0</a></li>
+                <li><a href="../v0.28.0/index.html#content">Nocter v0.28.0</a></li>
+                <li><a href="../v0.27.0/index.html#content">Nocter v0.27.0</a></li>
+                <li><a href="../v0.26.0/index.html#content">Nocter v0.26.0</a></li>
+                <li><a href="../v0.25.0/index.html#content">Nocter v0.25.0</a></li>
+                <li><a href="../v0.24.0/index.html#content">Nocter v0.24.0</a></li>
+                <li><a href="../v0.22.0/index.html#content">Nocter v0.22.0</a></li>
+                <li><a href="../v0.21.0/index.html#content">Nocter v0.21.0</a></li>
+                <li><a href="../v0.19.0/index.html#content">Nocter v0.19.0</a></li>
+                <li><a href="../v0.18.0/index.html#content">Nocter v0.18.0</a></li>
+                <li><a href="../v0.17.0/index.html#content">Nocter v0.17.0</a></li>
+                <li><a href="../v0.16.0/index.html#content">Nocter v0.16.0</a></li>
+                <li><a href="../v0.15.0/index.html#content">Nocter v0.15.0</a></li>
+                <li><a href="../v0.14.0/index.html#content">Nocter v0.14.0</a></li>
+                <li><a href="../v0.13.0/index.html#content">Nocter v0.13.0</a></li>
+                <li><a href="../v0.12.0/index.html#content">Nocter v0.12.0</a></li>
+                <li><a href="../v0.11.0/index.html#content">Nocter v0.11.0</a></li>
+                <li><a href="../v0.10.0/index.html#content">Nocter v0.10.0</a></li>
+                <li><a href="../v0.9.0/index.html#content">Nocter v0.9.0</a></li>
+                <li><a href="../v0.8.0/index.html#content">Nocter v0.8.0</a></li>
+                <li><a href="../v0.7.0/index.html#content">Nocter v0.7.0</a></li>
+                <li><a href="../v0.6.0/index.html#content">Nocter v0.6.0</a></li>
+                <li><a href="../v0.5.0/index.html#content">Nocter v0.5.0</a></li>
+                <li><a href="../v0.4.0/index.html#content">Nocter v0.4.0</a></li>
+                <li><a href="../v0.3.0/index.html#content">Nocter v0.3.0</a></li>
+                <li><a href="../v0.2.0/index.html#content">Nocter v0.2.0</a></li>
             </ul>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/milestones/v0.25.0.md</span>
+                <span class="markdown-path-text">/releases/v0.35.0.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-25-0-no-allocation-contracts">v0.25.0: No-allocation Contracts</h1><p><strong>Status: complete, published, and externally audited (2026-09-02).</strong> The <a href="../../releases/v0.25.0/index.html#content">publication record</a> freezes the release evidence. v0.25.0 adds one source-visible negative guarantee, <code>noalloc</code>, over an extensible compiler-owned callable-effect authority. It does not add <code>alloc</code>, <code>notrap</code>, <code>noblock</code>, <code>nosuspend</code>, <code>realtime</code>, or a general surface effect list.</p><h2 id="completion-boundary">Completion Boundary</h2><ul><li><code>noalloc</code> applies uniformly to functions, construction functions, literals, methods, operators,
-  coercions, interface requirements and defaults, primitive functions, callable types, and drop;</li><li>one checker-owned positive effect summary proves direct and transitive allocation over semantic
-  identities, including callbacks, closures, interface selection, implicit destruction, recursion,
-  concrete generic substitutions, static opaque witnesses, residual enum payloads, and trusted
-  primitive metadata;</li><li>unqualified callables remain valid and export no guarantee rather than an <code>alloc</code> effect;</li><li>result provenance, recoverable allocation, current-context ABI propagation, and deallocation
-  remain separate contracts;</li><li>public contract/private implementation matching preserves the modifier exactly;</li><li>formatting and editor presentation retain authored guarantees without synthesizing inferred
-  syntax;</li><li>the standard library marks only APIs whose allocation-free behavior is intended as a stable
-  public promise.</li></ul><h2 id="architecture-boundary">Architecture Boundary</h2><p><code>nocter-checking</code> owns a program-wide <code>EffectTable</code> derived from checked operations and closed primitive facts. Later semantic, analysis, and target stages consume that frozen result and cannot rediscover effects from syntax or machine operations.</p><p><code>MachineContextPlan</code> remains the sole owner of physical hidden-context lane requirements. It is not the language-effect authority: allocation through an explicit recoverable allocator may violate <code>noalloc</code> without using the ambient lane, while allocation-free destruction may still need that lane to release existing storage.</p><p>The internal effect representation is extensible but v0.25.0 defines only the positive <code>MayAllocate</code> fact. Future guarantees require a separately adopted user-visible need and cannot be created by interpreting absent bits as undocumented promises.</p><h2 id="phase-0-contract-and-feasibility">Phase 0: Contract and Feasibility</h2><p><strong>Status: complete.</strong> The public specification fixes modifier placement, callable-type behavior, transitive proof, recursion, generic callback and destruction limits, primitive certification, contract/body matching, tooling presentation, and separation from storage provenance and ABI context propagation.</p><h2 id="phase-1-syntax-and-declaration-identity">Phase 1: Syntax and Declaration Identity</h2><p><strong>Status: complete.</strong> The keyword and lossless syntax nodes retain the authored contract in callable and drop declarations, include it in source contract matching, callable structural identity, formatting, and normalized semantic presentation.</p><h2 id="phase-2-checked-effect-authority">Phase 2: Checked Effect Authority</h2><p><strong>Status: complete.</strong> One positive <code>MayAllocate</code> summary is built over checked callable and closure operations. It validates authored <code>noalloc</code> assertions after the least fixed point closes. Unknown abstract callees are conservative; source-backed helpers can contribute exact inferred evidence.</p><h2 id="phase-3-indirect-and-generated-behavior">Phase 3: Indirect and Generated Behavior</h2><p><strong>Status: complete.</strong> The same summary closes over interface requirements/defaults, callable values, closures, typed literals, operator and coercion dispatch, implicit drop, generic destruction, argument packs, and compiler-generated callbacks.</p><h2 id="phase-4-standard-library-and-tooling">Phase 4: Standard Library and Tooling</h2><p><strong>Status: complete.</strong> Deliberate guarantees are published on stable allocation-free standard APIs. Diagnostics, formatter, hover, signature help, completion, semantic tokens, navigation, and code actions retain the same contract without creating a tooling-only effect model.</p><p>The selected standard package binds its backing-storage request to the closed <code>AllocationRequest</code> role. Checked effect analysis consumes that exact callable identity; it does not infer allocation from <code>alloc_pages</code> spelling or from an OS primitive. Closed primitive roles publish independent <code>PrimitiveEffects</code> evidence, including conservative generic destruction.</p><h2 id="phase-5-qualification-and-review">Phase 5: Qualification and Review</h2><p><strong>Status: complete.</strong> The complete workspace, conformance, installed-standard-library, native execution, LSP, formatter, documentation, and repository gates pass. The final review covers duplicate effect inference, machine-to-semantic reversal, name-based primitive classification, caller-discipline assumptions, modifier residue, and annotations that promise more than their API should permanently guarantee.</p><p>The <a href="../../reviews/v0.25.0-noalloc-contracts/index.html#content">final review</a> records the authority boundaries, closed findings, qualification evidence, and deliberately deferred guarantees. The subsequent <a href="../../reviews/v0.25.0-architecture-follow-up/index.html#content">architecture follow-up</a> records and closes cross-cutting recovery, specialization, topology, and documentation-authority findings exposed by the same full-workspace review process.</p><h2 id="release-preparation">Release Preparation</h2><p>The <a href="../v0.25.0-release-preparation/index.html#content">release-preparation record</a> owns the exact release-content commit, duplicate source qualification, reproducible archive, isolated installed-home smoke tests, and integrity evidence. The separately authorized publication is recorded in <a href="../../releases/v0.25.0/index.html#content"><code>../releases/v0.25.0.md</code></a>.</p>
+                <h1 id="nocter-v0-35-0-release-notes">Nocter v0.35.0 Release Notes</h1><p>Nocter v0.35.0 adds immutable static data and practical Unicode-aware text operations. Generated Unicode 17.0.0 tables, ordinary standard-library source, checked ownership, native layout, and editor behavior now share one static-data path without embedding Unicode semantics in the compiler. The only implemented host and native target remains <code>arm64-darwin</code>.</p><h2 id="immutable-static-data">Immutable Static Data</h2><p><code>static</code> defines immutable, addressable storage initialized before program execution:</p><pre><code class="language-nct">static <span class="token-type">ASCII_LIMITS</span><span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">u32</span>; <span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-operator">[</span><span class="token-number">65</span><span class="token-operator">,</span> <span class="token-number">90</span><span class="token-operator">]</span>
+<span class="token-keyword">pub</span> static <span class="token-type">PROTOCOL_MARKERS</span><span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">u8</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+</code></pre><p>Static initializers use a closed compile-time value domain. Their checked product is readonly, cannot be moved or dropped, and reaches the native image only when executable code references it. The backend receives already evaluated values and owns layout and read-only Mach-O encoding; it does not interpret source expressions.</p><h2 id="pinned-unicode-properties">Pinned Unicode Properties</h2><p>The standard library is generated from final Unicode 17.0.0 data with recorded byte lengths and SHA-256 digests. <code>char</code> now provides Unicode whitespace, alphabetic, lowercase, uppercase, and decimal-digit classification while retaining the separate stable ASCII predicates.</p><p>Normal compilation and release packaging consume committed generated source and never download Unicode data. Property ranges and case mappings remain private to <code>std/internal/unicode</code>.</p><h2 id="unicode-text-views-and-casing">Unicode Text Views and Casing</h2><p>Borrowed <code>str.trim_start</code>, <code>trim_end</code>, and <code>trim</code> remove Unicode whitespace and return views into the original text. Full locale-independent default lowercase and uppercase conversion handles multi-scalar mappings and contextual rules such as Greek final sigma:</p><pre><code class="language-nct"><span class="token-keyword">let</span> trimmed <span class="token-operator">=</span> <span class="token-string">"　ΟΣ　"</span><span class="token-operator">.</span><span class="token-function">trim</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> lowercase <span class="token-operator">=</span> trimmed<span class="token-operator">.</span><span class="token-function">to_lowercase</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> uppercase <span class="token-operator">=</span> <span class="token-string">"Straße"</span><span class="token-operator">.</span><span class="token-function">to_uppercase</span><span class="token-operator">(</span><span class="token-operator">)</span>
+</code></pre><p>Ordinary casing uses the current allocation context. Recoverable variants accept <code>TryAllocator</code>, preserve its result provenance, and publish no partial String when allocation fails.</p><h2 id="boundary-safe-string-mutation">Boundary-safe String Mutation</h2><p><code>String.pop</code> removes and returns one complete final Unicode scalar. <code>String.truncate</code> accepts a UTF-8 byte boundary, retains capacity, and leaves the String unchanged when an in-range offset splits an encoding. Neither operation can publish invalid UTF-8.</p><p>The <code>unicode-text.nct</code> example exercises Unicode trimming, contextual and expanding casing, character properties, and suffix mutation through public standard APIs.</p><h2 id="tooling-and-distribution">Tooling and Distribution</h2><p>Static declarations use the ordinary semantic identity path for formatting, AST output, diagnostics, hover, completion, navigation, references, rename, and semantic highlighting. Editor features follow Unicode APIs to standard source and never inspect generated mapping contents.</p><p>Release validation also binds <code>RELEASE.json</code>, the shipped Apache-2.0 files, and every Cargo package to one license identity before packaging.</p><h2 id="compatibility-and-non-goals">Compatibility and Non-goals</h2><p>This release does not add normalization, grapheme or word segmentation, display width, collation, locale-aware casing, case folding, scalar-position indexing, mutable statics, thread-local storage, or runtime global initialization. Existing ASCII-specific and UTF-8 byte-offset APIs retain their meanings.</p><h2 id="candidate-qualification">Candidate Qualification</h2><p>Qualification evidence and the retained archive digest will be recorded after the exact release-content commit passes the complete release matrix. Publication will reuse that qualified archive without rebuilding it.</p>
             </div>
         </main>
     </div>
@@ -259,6 +234,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

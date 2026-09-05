@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Recent Milestones
 
 - [v0.35.0: Static Data and Practical Unicode Text](v0.35.0.md)
+- [v0.35.0 Release Preparation](v0.35.0-release-preparation.md)
 - [v0.34.0: Unicode Scalar Text Foundation](v0.34.0.md)
 - [v0.34.0 Release Preparation](v0.34.0-release-preparation.md)
 - [v0.33.0: Structural Tuples](v0.33.0.md)
