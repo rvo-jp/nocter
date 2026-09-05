@@ -2,15 +2,11 @@
 
 ## Current State
 
-Nocter v0.34.0 is [published and externally audited](releases/v0.34.0.md). Its tag and release asset
+Nocter v0.35.0 is [published and externally audited](releases/v0.35.0.md). Its tag and release asset
 are immutable.
 
-The current implementation is the published v0.34.0 Unicode-scalar foundation plus the complete
-and qualified v0.35.0 immutable-static, generated Unicode-data, character-property, borrowed
-Unicode-trim, default casing, and owned suffix-mutation products. Release-content commit
-`97147821a0b8ae78f525768bf705074e75fd0254` produced the retained qualified archive; publication
-is active, while the externally audited latest release remains v0.34.0 until remote publication
-and audit finish. Active scope belongs to the
+The current implementation is the published v0.35.0 immutable-static and Unicode-text product. Its
+implementation, qualification, publication, and public evidence belong to the
 [v0.35.0 milestone](milestones/v0.35.0.md),
 [Phase 0 design review](reviews/v0.35.0-phase-0.md),
 [Phase 1 implementation review](reviews/v0.35.0-phase-1.md),
@@ -18,17 +14,14 @@ and audit finish. Active scope belongs to the
 [Phase 3 implementation review](reviews/v0.35.0-phase-3.md),
 [Phase 4 implementation review](reviews/v0.35.0-phase-4.md),
 [Phase 5 integration review](reviews/v0.35.0-phase-5.md),
-[Phase 6 qualification and final review](reviews/v0.35.0-phase-6.md), and the
-[release-preparation record](milestones/v0.35.0-release-preparation.md).
+[Phase 6 qualification and final review](reviews/v0.35.0-phase-6.md), the
+[release-preparation record](milestones/v0.35.0-release-preparation.md), and the
+[release audit](releases/v0.35.0.md).
 
 ## Next Work
 
-Publish the already qualified v0.35.0 archive. Publication is authorized and must reuse
-`dist/nocter-v0.35.0-arm64-darwin.tar.gz` with SHA-256
-`62b30603177fc05ed9e2e50d6051ec59eeae5fbf634c05cea9467661f3dd820e`, update public latest-release
-links in a separate commit, create one annotated `v0.35.0` tag, upload exactly one asset, and verify
-the public download byte for byte. Do not rebuild the qualified candidate. Preserve the immutable
-v0.34.0 tag and release asset.
+Define the next milestone as one coherent practical application capability before changing the
+language or standard library. Preserve the immutable v0.35.0 tag and release asset.
 
 ## Blockers
 
