@@ -32,7 +32,7 @@ try {
     fs.appendFileSync(unrelatedRust, '\n#[cfg(test)]\nconst UNRELATED_TEXT: &str = "E9999";\n');
     build(early);
 
-    const unindexedReview = path.join(early, "development/reviews/unindexed-review.md");
+    const unindexedReview = path.join(early, "development/history/reviews/unindexed-review.md");
     fs.writeFileSync(unindexedReview, "# Unindexed Review\n");
     const unindexedReviewResult = runBuild(early);
     if (
@@ -43,7 +43,7 @@ try {
     }
     fs.rmSync(unindexedReview);
 
-    const unindexedAudit = path.join(early, "development/release-audits/unindexed-audit.md");
+    const unindexedAudit = path.join(early, "development/history/release-audits/unindexed-audit.md");
     fs.writeFileSync(unindexedAudit, "# Unindexed Release Audit\n");
     const unindexedAuditResult = runBuild(early);
     if (
@@ -53,6 +53,20 @@ try {
         throw new Error("documentation generation accepted an unindexed release audit");
     }
     fs.rmSync(unindexedAudit);
+
+    const unindexedSpecification = path.join(
+        early,
+        "spec/language/unindexed-language-rule.md"
+    );
+    fs.writeFileSync(unindexedSpecification, "# Unindexed Language Rule\n");
+    const unindexedSpecificationResult = runBuild(early);
+    if (
+        unindexedSpecificationResult.status === 0
+        || !combinedOutput(unindexedSpecificationResult).includes("does not catalog")
+    ) {
+        throw new Error("documentation generation accepted an unindexed specification chapter");
+    }
+    fs.rmSync(unindexedSpecification);
 
     const catalog = path.join(
         early,
@@ -104,6 +118,8 @@ function assertPublicationBoundary(root) {
     const required = [
         "docs/assets/logo.svg",
         "docs/examples/hello/index.html",
+        "docs/spec/language/index.html",
+        "docs/spec/standard-library/index.html",
         "docs/development/std/str/index/index.html"
     ];
     for (const relative of required) {
@@ -113,6 +129,8 @@ function assertPublicationBoundary(root) {
     }
 
     const privateSources = [
+        "docs/development/history/index.html",
+        "docs/development/history/milestones/index.html",
         "docs/development/std/str/text/index.html",
         "docs/development/std/internal/utf8/index/index.html"
     ];

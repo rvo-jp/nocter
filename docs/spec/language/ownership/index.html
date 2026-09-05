@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ownership, Borrowing, and Drop - Nocter</title>
+    <meta name="description" content="Borrows distinguish readonly access from readwrite access.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/spec/language/ownership/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Ownership, Borrowing, and Drop - Nocter">
+    <meta property="og:description" content="Borrows distinguish readonly access from readwrite access.">
+    <meta property="og:url" content="https://nocter.dev/spec/language/ownership/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ownership, Borrowing, and Drop - Nocter">
+    <meta name="twitter:description" content="Borrows distinguish readonly access from readwrite access.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Ownership, Borrowing, and Drop - Nocter","description":"Borrows distinguish readonly access from readwrite access.","url":"https://nocter.dev/spec/language/ownership/","mainEntityOfPage":"https://nocter.dev/spec/language/ownership/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"Language","item":"https://nocter.dev/spec/language/"},{"@type":"ListItem","position":4,"name":"Ownership","item":"https://nocter.dev/spec/language/ownership/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">spec/language/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../lexical-grammar/index.html#content">Lexical Grammar</a></li>
+                <li><a href="../syntactic-grammar/index.html#content">Syntactic Grammar</a></li>
+                <li><a href="../modules/index.html#content">Modules, Use Declarations, and Source Visibility</a></li>
+                <li><a href="../values-and-types/index.html#content">Source Values and Types</a></li>
+                <li><a href="../constants/index.html#content">Compile-Time Constants</a></li>
+                <li><a href="../control-flow/index.html#content">Control Flow</a></li>
+                <li><a href="../errors-and-optionals/index.html#content">Errors and Optionals</a></li>
+                <li><a href="./index.html#content" aria-current="page">Ownership, Borrowing, and Drop</a></li>
+                <li><a href="../memory-and-regions/index.html#content">Memory, Regions, and Allocators</a></li>
+                <li><a href="../generics-and-interfaces/index.html#content">Generics, Interfaces, and Methods</a></li>
+                <li><a href="../callables/index.html#content">Callable Values and Interface Default Methods</a></li>
+                <li><a href="../construction/index.html#content">Construction Surfaces</a></li>
+                <li><a href="../borrow-coercions/index.html#content">Borrow Coercions</a></li>
+                <li><a href="../literals-and-packs/index.html#content">Argument Packs, Literal Definitions, and Sequence Spread</a></li>
+                <li><a href="../ordering/index.html#content">Operators</a></li>
+                <li><a href="../tuples/index.html#content">Tuples</a></li>
+                <li><a href="../sequences-and-text/index.html#content">Strings, Arrays, Views, and Pointers</a></li>
+                <li><a href="../unicode-scalars/index.html#content">Unicode Scalar Values</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/spec/language/ownership.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="ownership-borrowing-and-drop">Ownership, Borrowing, and Drop</h1><h2 id="borrowing">Borrowing</h2><p>Borrows distinguish readonly access from readwrite access.</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">inspect</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">write</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">,</span> data<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+</code></pre><p>Rules:</p><ul><li><code>&amp;T</code> is a readonly borrow type.</li><li><code>&amp;+T</code> is a readwrite borrow type.</li><li><code>&amp;value</code> creates a readonly borrow.</li><li><code>&amp;+value</code> creates a readwrite borrow.</li><li><code>&amp;+value</code> may be created only from a writable place, such as a <code>var</code> binding, a writable field, or an existing <code>&amp;+T</code> reborrow.</li><li>Readonly borrows may coexist with other readonly borrows.</li><li>A readwrite borrow is exclusive and cannot coexist with other readonly or readwrite borrows of the same value.</li><li>A value cannot be moved while it is borrowed.</li><li>A value cannot be explicitly dropped while it is borrowed.</li><li><code>let _ = expression</code> consumes and drops the resulting owned value without creating a binding.
+  Existing move-only bindings require <code>let _ = move name</code>; newly produced owned temporaries do not
+  require <code>move</code>.</li><li>A borrow cannot outlive the value it refers to.</li><li>A borrow of a stack value cannot escape the stack value's scope.</li><li>A borrow of region-allocated memory cannot escape that region.</li><li>Ordinary function calls require explicit borrow syntax at the call site.</li><li>Method receivers may create the required borrow automatically.</li><li>Lifetime annotations are not supported.</li><li><code>&amp;+</code> is a single lexical token.</li><li>Unary <code>+x</code> is not part of the language. This avoids ambiguity with <code>&amp;+x</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">var</span> file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+
+<span class="token-keyword">let</span> a <span class="token-operator">=</span> <span class="token-operator">&amp;</span>file
+<span class="token-keyword">let</span> b <span class="token-operator">=</span> <span class="token-operator">&amp;</span>file       <span class="token-comment">// OK: multiple readonly borrows</span>
+<span class="token-keyword">let</span> c <span class="token-operator">=</span> <span class="token-operator">&amp;+</span>file      <span class="token-comment">// error: a and b are used below</span>
+
+<span class="token-function">inspect</span><span class="token-operator">(</span>a<span class="token-operator">)</span>
+<span class="token-function">inspect</span><span class="token-operator">(</span>b<span class="token-operator">)</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">var</span> file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+
+<span class="token-keyword">let</span> w <span class="token-operator">=</span> <span class="token-operator">&amp;+</span>file
+drop file           <span class="token-comment">// error: w is used below</span>
+
+<span class="token-function">write_more</span><span class="token-operator">(</span>w<span class="token-operator">)</span>
+</code></pre><p>Ordinary function calls are explicit:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">inspect</span><span class="token-operator">(</span>file<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+
+<span class="token-function">inspect</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>file<span class="token-operator">)</span>
+</code></pre><p>Method receiver borrows are automatic:</p><pre><code class="language-nct"><span class="token-keyword">instance</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+file<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"hello"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+</code></pre><p>The method call above creates a temporary readwrite borrow of <code>file</code> for the call. This does not enable UFCS-style calls:</p><pre><code class="language-nct"><span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>file<span class="token-operator">,</span> <span class="token-string">"hello"</span><span class="token-operator">)</span> <span class="token-comment">// error</span>
+</code></pre><p>A newly created owned temporary may be used as a readwrite receiver for one method call:</p><pre><code class="language-nct"><span class="token-operator">(</span><span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"hello"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+</code></pre><p>The temporary receiver is dropped according to the statement-end temporary rules in <a href="../control-flow/index.html#evaluation-order-and-temporaries">Control Flow</a>.</p><h2 id="borrow-checker">Borrow Checker</h2><p>Nocter uses source-level non-lexical borrow ranges.</p><p>A borrow is active from the expression that creates it through the last source-level use of the borrow-like value derived from it. The borrow may end before the lexical scope of the borrow binding ends if the binding is not used again.</p><pre><code class="language-nct"><span class="token-keyword">let</span> read <span class="token-operator">=</span> <span class="token-operator">&amp;</span>file
+<span class="token-function">inspect</span><span class="token-operator">(</span>read<span class="token-operator">)</span>
+
+<span class="token-keyword">let</span> write <span class="token-operator">=</span> <span class="token-operator">&amp;+</span>file <span class="token-comment">// OK: read is not used after inspect(read)</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">let</span> read <span class="token-operator">=</span> <span class="token-operator">&amp;</span>file
+<span class="token-keyword">let</span> write <span class="token-operator">=</span> <span class="token-operator">&amp;+</span>file <span class="token-comment">// error: read is used below</span>
+
+<span class="token-function">inspect</span><span class="token-operator">(</span>read<span class="token-operator">)</span>
+</code></pre><p>Rules:</p><ul><li>Source-level lifetime annotations are not supported.</li><li>The compiler determines borrow live ranges from actual source uses, not only from lexical scopes.</li><li>A use includes passing the borrow-like value to a call, method call, field access, index access, return, assignment, initialization, storing it inside an aggregate, or deriving another borrow-like value from it.</li><li>Scope end of a plain borrow-like value does not by itself extend the borrow, because borrow-like values are non-owning and do not run <code>drop</code>.</li><li>A readonly borrow may overlap with other readonly borrows of the same place.</li><li>A readwrite borrow must not overlap with any other readonly or readwrite borrow of the same place.</li><li>Borrow overlap is determined from semantic places and projections, not from runtime numeric
+  addresses. Distinct zero-sized places remain distinct for ownership and exclusivity even when
+  their borrows use the same machine address.</li><li><code>move place</code>, <code>drop name</code>, whole-place assignment, field assignment, and reinitialization are invalid when they conflict with an active borrow.</li><li>A borrow cannot outlive the storage it refers to.</li><li>A borrow cannot outlive a region from which its storage was allocated.</li><li>A borrow or borrow-like value derived from a temporary owned value cannot escape the statement that owns the temporary.</li><li>A borrow-like result discarded by <code>let _ = expression</code> does not extend the source borrow beyond
+  the discard statement.</li><li>A borrow held only by a temporary in an ordinary <code>if</code> or <code>while</code> boolean condition ends when the
+  condition temporary is dropped, before the selected body begins. Retaining the borrow through
+  the body requires an explicit longer-lived binding.</li><li>Method receiver borrows last only for the call unless the method returns a borrow-like value derived from the receiver.</li><li>If a method returns a borrow-like value derived from the receiver, the receiver borrow remains active for the returned value's live range.</li><li><code>&amp;str</code>, <code>&amp;[T]</code>, <code>&amp;+[T]</code>, <code>ViewIter&lt;T&gt;</code>, and aggregates containing borrow-like values participate in the same live-range and provenance checks.</li><li>Payload borrows introduced by <code>match</code> and <code>if expr is Pattern</code> are projections of the pattern
+  target borrow. They retain its readonly or readwrite capability and provenance through the last
+  use of any derived payload borrow.</li><li>Borrow-like return values are governed by <a href="#borrow-like-return-values">Borrow-like Return Values</a>.</li></ul><h3 id="field-sensitive-borrows">Field-Sensitive Borrows</h3><p>Nocter tracks disjoint named struct fields for simple places.</p><p>Field-sensitive tracking applies only to direct named field paths whose base is a local binding, parameter binding, or borrow binding that the compiler can resolve statically.</p><pre><code class="language-nct"><span class="token-keyword">var</span> user <span class="token-operator">=</span> <span class="token-type">User</span> <span class="token-operator">{</span>
+    name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span><span class="token-string">"alice"</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    count<span class="token-operator">:</span> <span class="token-number">0</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">let</span> name <span class="token-operator">=</span> <span class="token-operator">&amp;</span>user<span class="token-operator">.</span>name
+user<span class="token-operator">.</span>count <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-comment">// OK: count is disjoint from name</span>
+<span class="token-function">inspect</span><span class="token-operator">(</span>name<span class="token-operator">)</span>
+</code></pre><p>Rules:</p><ul><li>A borrow of a whole value conflicts with borrows and mutations of any field of that value.</li><li>A borrow of one named field does not conflict with mutation or borrowing of a disjoint named field.</li><li>Moving, dropping, reinitializing, or assigning the whole parent value conflicts with any active field borrow.</li><li>Assigning a field conflicts with active borrows of that same field and active borrows of the whole parent value.</li><li>Field-sensitive tracking does not apply to array indexes, collection indexes, <code>&amp;[T]</code> or <code>&amp;+[T]</code> elements, pointer dereferences, method-call results, enum payloads, or computed projections.</li><li>If the compiler cannot prove two places are disjoint, it treats them as conflicting.</li></ul><h2 id="function-parameters">Function Parameters</h2><p>Parameters are immutable bindings inside the function body.</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">create</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">,</span> count<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">,</span> out<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">File</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    out<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>name <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">return</span> <span class="token-type">User</span> <span class="token-operator">{</span>
+        name<span class="token-operator">:</span> <span class="token-keyword">move</span> name<span class="token-operator">,</span>
+        count<span class="token-operator">:</span> count<span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><p>Rules:</p><ul><li>Parameters are immutable bindings.</li><li>Parameter bindings cannot be reassigned.</li><li>Mutable parameter bindings are not supported.</li><li>Parameter names must be unique within the parameter list.</li><li>Parameter shadowing is not allowed, following the normal name-resolution rules.</li><li>An owned parameter is owned by the function body.</li><li>A move-only owned parameter is dropped at function scope end unless it is moved.</li><li>Moving a move-only parameter requires <code>move parameter</code>.</li><li>After a move-only parameter is moved, that parameter binding is no longer valid.</li><li>A copy parameter may be copied by ordinary use.</li><li><code>&amp;T</code> parameters are readonly borrow bindings.</li><li><code>&amp;+T</code> parameters are readwrite borrow bindings.</li><li>A borrow parameter does not own the referenced value and does not drop it at function scope end.</li><li>The <code>&amp;+T</code> parameter binding itself cannot be reassigned, but the referenced value may be mutated through it.</li><li>Method receivers are explicit parameters and follow the same binding, ownership, and borrow rules.</li><li>Default parameters and named parameters are not supported.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">rename</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">User</span><span class="token-operator">,</span> name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    user<span class="token-operator">.</span>name <span class="token-operator">=</span> <span class="token-keyword">move</span> name
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">invalid_reassign</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    name <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-comment">// error: parameters are immutable bindings</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">normalize</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> current <span class="token-operator">=</span> value
+
+    <span class="token-keyword">if</span> current <span class="token-operator">&lt;</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        current <span class="token-operator">=</span> -current
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> current
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">increment</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Counter</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    value<span class="token-operator">.</span>count <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span> <span class="token-comment">// OK: mutates the referenced Counter</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">invalid_rebind</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Counter</span><span class="token-operator">,</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Counter</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    value <span class="token-operator">=</span> other <span class="token-comment">// error: parameter binding is immutable</span>
+<span class="token-operator">}</span>
+</code></pre><h2 id="drop">Drop</h2><p>Resource destruction uses an independent top-level <code>drop</code> declaration, not an <code>instance</code> method or a <code>Drop</code> interface.</p><pre><code class="language-nct">drop <span class="token-type">File</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-function">close</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+</code></pre><p><code>drop</code> is an identifier token. The parser recognizes it contextually at the start of a top-level drop declaration and at the start of an explicit <code>drop value</code> statement. Outside those two source forms, <code>drop</code> is an ordinary identifier.</p><p>The declaration and statement source forms are defined by <a href="../syntactic-grammar/index.html#drop-and-test-declarations">Drop and Test Declarations</a> and the common <a href="../syntactic-grammar/index.html#statements">statement grammar</a>.</p><p>A declaration such as <code>func drop(...)</code> or <code>method &amp;self.drop(...)</code> declares an ordinary function or method named <code>drop</code>. It does not define destruction behavior.</p><p>Rules:</p><ul><li>A nominal type family may define at most one drop declaration.</li><li>A drop declaration has the source form <code>drop TypePattern(&amp;+self) { ... }</code>.</li><li>Its target must be an ordinary <code>struct</code> or a payload-bearing <code>enum</code> declared in the same module.
+  Type aliases, <code>copy struct</code> families, payloadless enums, and non-nominal types cannot own a drop
+  declaration.</li><li><code>self</code> is the fixed drop receiver name and is scoped to the drop body.</li><li>The drop receiver type is always exactly <code>&amp;+Self</code>.</li><li>A drop declaration is top-level. <code>instance</code> contains inherent methods and bodyless interface
+  implementations. A drop declaration cannot appear inside an instance body.</li><li>A drop declaration has no visibility, target directive, generic-prefix, <code>where</code>, or return-type
+  annotation.</li><li>Its target pattern must cover every generic slot exactly once with a distinct binder.</li><li>The declaration applies uniformly to every specialization of its nominal type family.</li><li>Every eligible target family is move-only by declaration. Copyability is determined from the
+  type declaration and substituted fields, never changed by the presence or absence of a drop
+  declaration.</li><li>A drop body always returns no value and cannot be fallible.</li><li>A drop declaration cannot be called as a normal construction function or method.</li><li><code>file.drop()</code> is an ordinary method call if an ordinary method named <code>drop</code> exists; it does not
+  invoke the drop declaration.</li><li><code>File.drop(&amp;+file)</code> is an ordinary construction-function call only if <code>construct File</code> declares a
+  construction function named <code>drop</code>; it does not invoke the drop declaration.</li><li>A drop body cannot report cleanup failure through a fallible return.</li><li>If an operation inside <code>drop</code> can fail, the <code>drop</code> body must ignore that failure, record it in already-owned state before destruction, or terminate with <code>trap</code> / <code>abort</code>.</li><li>Terminating with <code>trap</code> or <code>abort</code> from inside <code>drop</code> does not unwind remaining caller scopes.</li><li>Owned values are automatically dropped at scope end.</li><li>Initialized owned values are dropped in reverse declaration order.</li><li>Struct drop glue invokes the struct's own drop declaration first when present, then drops owned
+  fields in reverse declaration order. Payload-bearing enum drop glue invokes the enum's own drop
+  declaration first when present, then drops only the active variant payload in reverse payload
+  declaration order. Field and payload drop glue follows the same rule recursively.</li><li>Consuming enum patterns preserve this ordering through their dedicated rule in
+  <a href="../values-and-types/index.html#enums-and-variant-construction">Enums and Variant Construction</a>: a drop body
+  that would otherwise receive partial storage runs once before a named move-only payload leaves,
+  while later residual cleanup drops only the still-initialized payload fields.</li><li>Maybe initialized owned values use compiler-generated conditional drop.</li><li>Uninitialized bindings are not dropped.</li><li><code>return</code> and postfix <code>?</code> propagation run the same scope-end drop behavior, including conditional drop.</li><li>A moved value is not dropped through the original binding.</li></ul><p>Valid move-only type:</p><pre><code class="language-nct"><span class="token-keyword">struct</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    handle<span class="token-operator">:</span> <span class="token-type">usize</span>
+<span class="token-operator">}</span>
+
+drop <span class="token-type">File</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-function">close</span><span class="token-operator">(</span>self<span class="token-operator">.</span>handle<span class="token-operator">)</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+</code></pre><p>A generic drop declaration covers the complete family and cannot be refined:</p><pre><code class="language-nct"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    value<span class="token-operator">:</span> <span class="token-type">T</span>
+<span class="token-operator">}</span>
+
+drop <span class="token-type">Buffer</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-function">release</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+</code></pre><p>Copyable targets are invalid, including an enum whose variants all carry no payload:</p><pre><code class="language-nct">copy <span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+drop <span class="token-type">Point</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-comment">// error: Point is copyable</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">enum</span> <span class="token-type">Token</span> <span class="token-operator">{</span>
+    only
+<span class="token-operator">}</span>
+
+drop <span class="token-type">Token</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-comment">// error: Token is copyable</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+</code></pre><p>A generic <code>copy struct</code> cannot own a drop declaration. The compiler does not search substitutions or turn only its non-copy specializations into separately destructible types:</p><pre><code class="language-nct">copy <span class="token-keyword">struct</span> <span class="token-type">Box</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    value<span class="token-operator">:</span> <span class="token-type">T</span>
+<span class="token-operator">}</span>
+
+drop <span class="token-type">Box</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-comment">// error: copy struct families cannot own drop declarations</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+</code></pre><h3 id="explicit-drop-statements">Explicit Drop Statements</h3><p>Explicit early destruction uses a <code>drop</code> statement.</p><pre><code class="language-nct"><span class="token-keyword">var</span> file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+drop file
+</code></pre><p>After <code>drop file</code>, the binding enters an uninitialized state.</p><pre><code class="language-nct">file<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-comment">// error</span>
+</code></pre><p>Rules:</p><ul><li><code>drop name</code> is a statement.</li><li>The operand of <code>drop</code> must be a local binding name or parameter binding name.</li><li><code>drop</code> is not a reserved keyword and is not an ordinary function call in this statement form.</li><li>The operand must be initialized.</li><li>The operand must be a move-only owned binding.</li><li>Copy types cannot be explicitly dropped.</li><li>Borrow bindings such as <code>&amp;T</code> and <code>&amp;+T</code> cannot be explicitly dropped because they do not own the referenced value.</li><li>Maybe initialized bindings cannot be explicitly dropped.</li><li>Uninitialized bindings cannot be explicitly dropped.</li><li>A binding cannot be explicitly dropped while it is borrowed.</li><li><code>drop name</code> runs the same drop glue as scope-end automatic drop.</li><li><code>drop</code> is not fallible.</li><li><code>drop</code> produces no value.</li><li>After <code>drop name</code>, the binding is uninitialized on all later reachable paths.</li><li>A dropped <code>var</code> binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in <a href="../values-and-types/index.html#reinitialization-after-move-or-drop">Values and Types</a>.</li><li>A dropped <code>let</code> binding cannot be reinitialized.</li><li><code>drop object.field</code>, <code>drop array[index]</code>, and <code>drop make_value()</code> are invalid.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">var</span> file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span><span class="token-operator">?</span>
+drop file
+
+file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>other<span class="token-operator">)</span><span class="token-operator">?</span>
+file<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+</code></pre><p>Invalid:</p><pre><code class="language-nct">drop count
+drop ref
+drop object<span class="token-operator">.</span>field
+drop array<span class="token-operator">[</span>index<span class="token-operator">]</span>
+drop <span class="token-function">make_value</span><span class="token-operator">(</span><span class="token-operator">)</span>
+</code></pre><h2 id="copy-and-move">Copy and Move</h2><p>Types are move-only by default. Only copy types may be copied implicitly.</p><p>Copyable structs are declared with <code>copy struct</code>.</p><pre><code class="language-nct">copy <span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    <span class="token-keyword">pub</span> y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+</code></pre><p>Rules:</p><ul><li>Types are move-only by default.</li><li><code>copy struct</code> opts a nominal family into structural copyability. An ordinary <code>struct</code> remains
+  move-only even when all its fields happen to be copyable.</li><li>A non-generic <code>copy struct</code> is copyable only when every field is copyable; a declaration with an
+  unconditionally move-only field is invalid.</li><li>A generic <code>copy struct</code> derives one copy condition from its fields. A field whose copyability
+  depends on a generic parameter contributes that dependency. A field that remains move-only for
+  every substitution makes the declaration invalid rather than defining a misleading never-copy
+  <code>copy struct</code> family.</li><li>After concrete substitution, a valid generic <code>copy struct</code> specialization is copyable exactly
+  when every substituted field type is copyable. For example, <code>copy struct Box&lt;T&gt; { value: T }</code> is
+  copyable as <code>Box&lt;i32&gt;</code> but move-only as <code>Box&lt;String&gt;</code>, while a field such as <code>&amp;T</code> remains copyable
+  for every <code>T</code>.</li><li>No copyable type can own or acquire a drop declaration. This includes primitive numeric types,
+  <code>bool</code>, raw pointers, payloadless enums, copyable fixed arrays,
+  copyable <code>copy struct</code> specializations, copyable borrows, and aliases to any of these types.</li><li>Because one drop declaration covers a complete nominal type family, every <code>copy struct</code> family is
+  ineligible even when a particular specialization is move-only. A drop declaration never changes
+  a type from copyable to move-only.</li><li>A copyable <code>copy struct</code> specialization cannot own a field that requires destruction. A
+  conditional specialization such as <code>Box&lt;String&gt;</code> is move-only and runs ordinary structural field
+  cleanup; the <code>copy struct</code> family itself still cannot declare a type-owned drop body.</li><li>Primitive numeric types, <code>bool</code>, and raw pointers are copyable.</li><li>The built-in <code>error</code> type is move-only and has compiler-defined destruction.</li><li>Payloadless enum values are copyable.</li><li>Fixed-size arrays <code>[T; N]</code> are copyable when <code>T</code> is copyable.</li><li>An optional <code>T?</code> is copyable exactly when <code>T</code> is copyable.</li><li>Every fallible <code>T!</code> is move-only, regardless of its success payload. The special
+  payloadless-success type <code>void!</code> is also move-only.</li><li>Supported mixed outcomes containing a fallible layer are move-only. An optional <code>T?</code> remains
+  copyable exactly when <code>T</code> is copyable.</li><li>Copyability is a property of the complete outcome type, not its currently active tag. An absent
+  <code>String?</code> and a failed <code>String!</code> remain move-only because another value of the same type may own a
+  <code>String</code> payload.</li><li>A closure's anonymous environment is copyable exactly when every stored capture is copyable. A
+  capture-free closure and a closure containing only readonly-borrow captures are copyable. A
+  closure containing a readwrite-borrow capture or move-only owned capture is move-only.</li><li>Callable capability and closure copyability are independent. <code>&amp;func</code>, <code>&amp;+func</code>, and <code>func</code>
+  describe how a closure may be invoked; they never change whether its environment may be copied.</li><li>Type aliases to copy types are copyable. For example, a project-local alias to <code>i32</code> is copyable.</li><li><code>&amp;T</code> is copyable.</li><li><code>&amp;+T</code> is not copyable.</li><li>A generic parameter is treated as potentially move-only unless its declaration or enclosing
+  callable contract requires <code>copy</code>.</li><li><code>copy T</code> permits ordinary copy operations in the generic body and is checked again against every
+  concrete substitution. It adds no runtime metadata and cannot be implemented by user code.</li><li>Non-copy values are not implicitly moved by assignment, argument passing, or return.</li><li>Moving a non-copy value requires explicit <code>move</code>.</li><li>Direct collection iteration follows the same rule. An existing move-only iterator binding must
+  be written as <code>for item in move iterator</code>; only a newly produced iterator temporary or a copyable
+  iterator may appear as a bare direct-iterator source.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> p1 <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">1</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">2</span> <span class="token-operator">}</span>
+<span class="token-keyword">let</span> p2 <span class="token-operator">=</span> p1 <span class="token-comment">// OK: Point is copy</span>
+
+<span class="token-keyword">let</span> text1 <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> text2 <span class="token-operator">=</span> text1      <span class="token-comment">// error: String is not copy</span>
+<span class="token-keyword">let</span> text3 <span class="token-operator">=</span> <span class="token-keyword">move</span> text1 <span class="token-comment">// OK</span>
+</code></pre><p>Generic-dependent copyability is valid:</p><pre><code class="language-nct">copy <span class="token-keyword">struct</span> <span class="token-type">Box</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    value<span class="token-operator">:</span> <span class="token-type">T</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">let</span> number_box<span class="token-operator">:</span> <span class="token-type">Box</span><span class="token-operator">&lt;</span><span class="token-type">i32</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Box</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> <span class="token-number">1</span> <span class="token-operator">}</span>       <span class="token-comment">// copyable</span>
+<span class="token-keyword">let</span> text_box<span class="token-operator">:</span> <span class="token-type">Box</span><span class="token-operator">&lt;</span><span class="token-type">String</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Box</span> <span class="token-operator">{</span> value<span class="token-operator">:</span> text <span class="token-operator">}</span>   <span class="token-comment">// move-only</span>
+</code></pre><p>A field that is unconditionally move-only makes the declaration invalid:</p><pre><code class="language-nct">copy <span class="token-keyword">struct</span> <span class="token-type">Invalid</span><span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span> <span class="token-operator">{</span>
+    text<span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-comment">// error: move-only for every T</span>
+    marker<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span>
+<span class="token-operator">}</span>
+</code></pre><p>Copyable optionals copy like other copy types:</p><pre><code class="language-nct"><span class="token-keyword">let</span> maybe<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">find_count</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> copied <span class="token-operator">=</span> maybe
+<span class="token-function">inspect</span><span class="token-operator">(</span>maybe<span class="token-operator">)</span> <span class="token-comment">// valid: maybe remains initialized</span>
+
+</code></pre><p>An optional that can contain a move-only payload is move-only even when absent. Every fallible outcome is move-only because failure owns an <code>error</code>:</p><pre><code class="language-nct"><span class="token-keyword">let</span> maybe_name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">find_name</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> copied_name <span class="token-operator">=</span> maybe_name <span class="token-comment">// error: String? is move-only</span>
+<span class="token-keyword">let</span> moved_name <span class="token-operator">=</span> <span class="token-keyword">move</span> maybe_name
+
+<span class="token-keyword">let</span> read_name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> <span class="token-operator">=</span> <span class="token-function">load_name</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> copied_read <span class="token-operator">=</span> read_name <span class="token-comment">// error: String! is move-only</span>
+<span class="token-keyword">let</span> moved_read <span class="token-operator">=</span> <span class="token-keyword">move</span> read_name
+
+<span class="token-keyword">let</span> completion<span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">=</span> <span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> copied_completion <span class="token-operator">=</span> completion <span class="token-comment">// error: void! is move-only</span>
+<span class="token-keyword">let</span> moved_completion <span class="token-operator">=</span> <span class="token-keyword">move</span> completion
+</code></pre><p>Function calls follow the same rule.</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">consume</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">let</span> text <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-function">consume</span><span class="token-operator">(</span>text<span class="token-operator">)</span>      <span class="token-comment">// error</span>
+<span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> text<span class="token-operator">)</span> <span class="token-comment">// OK</span>
+</code></pre><p>Static opaque results written as <code>some Interface</code> are move-only at the public boundary. A caller cannot infer copyability from the hidden witness. Explicit <code>move</code> transfers an existing opaque binding, and normal scope, return, optional, fallible, and path-sensitive cleanup destroys the hidden value exactly once.</p><h2 id="move-expressions">Move Expressions</h2><p><code>move</code> is a unary expression that explicitly transfers ownership from a binding or named struct field.</p><pre><code class="language-nct"><span class="token-keyword">let</span> b <span class="token-operator">=</span> <span class="token-keyword">move</span> a
+<span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> text<span class="token-operator">)</span>
+<span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> pair<span class="token-operator">.</span>second<span class="token-operator">)</span>
+<span class="token-keyword">return</span> <span class="token-keyword">move</span> value
+<span class="token-keyword">let</span> item <span class="token-operator">=</span> <span class="token-keyword">move</span> maybe<span class="token-operator">?</span>
+</code></pre><p>Move syntax uses the place-specific production under <a href="../syntactic-grammar/index.html#expression-precedence">Expression Precedence</a>.</p><p>An outcome suffix is applied to the completed move expression. Therefore <code>move maybe?</code> is equivalent to <code>(move maybe)?</code>, not <code>move (maybe?)</code>.</p><p>Rules:</p><ul><li><code>move</code> is a reserved keyword, not an ordinary function.</li><li><code>move place</code> is an expression.</li><li>The operand of <code>move</code> must be a local binding, parameter binding, or a named struct field rooted
+  in one of those bindings.</li><li>The root must own the selected storage: an owned local, owned parameter, or owned closure capture.
+  A readonly or readwrite borrow binding, borrowed closure capture, or field path that crosses a
+  borrow cannot be a move root. Readwrite permission permits mutation, not extraction of the
+  caller's ownership.</li><li>The operand binding may be immutable or mutable.</li><li>The selected place must have a move-only type.</li><li>Using <code>move</code> on a copy type is a compile error.</li><li><code>move place</code> has the same type as the selected place.</li><li>Evaluating <code>move place</code> transfers ownership out of that place.</li><li><code>move place?</code> and <code>move place!</code> first transfer the complete optional or fallible value and then
+  apply their one outcome suffix. <code>move place catch ...</code> and
+  <code>move place otherwise ...</code> likewise move the place before the lower-precedence eliminator.</li><li>A second outcome layer requires a new expression boundary, as in <code>(move result?)?</code>. The
+  parentheses are semantically relevant grammar and are not removed as redundant grouping.</li><li>After a whole-binding move, the binding is uninitialized on all later reachable paths. After a
+  named-field move, that field is uninitialized and the parent is partially initialized; disjoint
+  initialized fields remain usable and retain their own cleanup obligations.</li><li>A moved <code>var</code> binding may be reinitialized by assigning to the whole binding. The detailed rules are specified in <a href="../values-and-types/index.html#reinitialization-after-move-or-drop">Values and Types</a>.</li><li>A moved <code>let</code> binding cannot be reinitialized.</li><li>Moved storage is not dropped through its original place.</li><li>A place cannot be moved while it conflicts with an active borrow.</li><li><code>move</code> describes ownership transfer. It does not specify whether generated code copies bytes, passes a pointer, or elides a copy.</li><li>Moving a newly constructed value is unnecessary and invalid.</li><li>This restriction also applies under collection iteration and sequence spread. <code>move</code> in
+  <code>for item in move source</code> and <code>...move source</code> is the ordinary place-only move expression, not a
+  contextual ownership selector for a newly produced value.</li><li>Moving from an index, dereference, call result, postfix <code>?</code> expression, conditional expression,
+  or parenthesized complex expression is invalid.</li><li>The valid <code>move place?</code> spelling does not contradict that restriction: the move operand is the
+  place, while <code>?</code> applies afterward. <code>move (place?)</code> still attempts to move a computed result and
+  is invalid.</li><li>Partial moves are field-sensitive only for statically named struct fields. Index moves from
+  arrays or collections, enum-payload moves, and computed projections are not supported.</li><li>A named-field move is invalid when any proper-prefix struct made partially initialized by that
+  move has its own drop declaration. Drop bodies always receive one complete initialized <code>Self</code>;
+  the compiler neither calls one on a partial value nor silently omits it.</li><li><code>match move place</code> and <code>if move place is Pattern</code> move the complete enum place before selecting a
+  branch. This is not a partial enum-payload move; branch payload bindings receive ownership from
+  the already consumed enum according to the enum pattern rules.</li></ul><p>Valid:</p><pre><code class="language-nct"><span class="token-keyword">let</span> b <span class="token-operator">=</span> <span class="token-keyword">move</span> a
+<span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> text<span class="token-operator">)</span>
+<span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> pair<span class="token-operator">.</span>second<span class="token-operator">)</span>
+<span class="token-keyword">return</span> <span class="token-keyword">move</span> value
+user<span class="token-operator">.</span>name <span class="token-operator">=</span> <span class="token-keyword">move</span> name
+<span class="token-keyword">let</span> item <span class="token-operator">=</span> <span class="token-keyword">move</span> maybe<span class="token-operator">?</span>
+</code></pre><p>Invalid:</p><pre><code class="language-nct"><span class="token-keyword">move</span> <span class="token-function">make_value</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">move</span> <span class="token-operator">(</span><span class="token-function">make_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span><span class="token-operator">)</span>
+<span class="token-keyword">move</span> <span class="token-operator">(</span>maybe<span class="token-operator">?</span><span class="token-operator">)</span>
+<span class="token-keyword">move</span> <span class="token-operator">(</span>condition <span class="token-operator">?</span> a <span class="token-operator">:</span> b<span class="token-operator">)</span>
+<span class="token-keyword">move</span> array<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-keyword">move</span> copy_value
+</code></pre><p>Assignment may replace a live move-only field when the right-hand side produces a complete replacement value. The replacement is evaluated first, then the old field is dropped, and ownership of the replacement transfers into the field. Moving a named field records that field as separately dead. Automatic cleanup destroys only the remaining initialized fields, in their ordinary reverse declaration order. The whole parent cannot be used or moved while it remains partially initialized. A mutable parent may restore a moved field through field assignment before a later whole-value use.</p><p>Control-flow joins merge named-field state independently. A field initialized on every incoming path is initialized, a field uninitialized on every incoming path is uninitialized, and a mixture is maybe initialized. Assignment to an uninitialized or maybe initialized field of a <code>var</code> parent restores that field through the common no-drop or conditional-drop assignment rule. Scope exit and whole-parent replacement likewise drop only live fields, using conditional drop for maybe initialized fields.</p><p>This partial state exists only for structs without their own drop declaration. A field whose type has a drop declaration may still be moved as one complete field; its drop obligation transfers to the destination. The prohibition concerns each enclosing struct that would otherwise require a drop body to observe an incomplete <code>Self</code>.</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">rename</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">,</span> name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">User</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> next <span class="token-operator">=</span> <span class="token-keyword">move</span> user
+    next<span class="token-operator">.</span>name <span class="token-operator">=</span> <span class="token-keyword">move</span> name
+    <span class="token-keyword">return</span> <span class="token-keyword">move</span> next
+<span class="token-operator">}</span>
+</code></pre><p>Invalid partial move through a type-owned drop contract:</p><pre><code class="language-nct"><span class="token-keyword">struct</span> <span class="token-type">Session</span> <span class="token-operator">{</span>
+    socket<span class="token-operator">:</span> <span class="token-type">Socket</span>
+    label<span class="token-operator">:</span> <span class="token-type">String</span>
+<span class="token-operator">}</span>
+
+drop <span class="token-type">Session</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-function">record_session_end</span><span class="token-operator">(</span>self<span class="token-operator">)</span>
+    <span class="token-keyword">return</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">let</span> session <span class="token-operator">=</span> <span class="token-function">open_session</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> socket <span class="token-operator">=</span> <span class="token-keyword">move</span> session<span class="token-operator">.</span>socket <span class="token-comment">// error: Session owns a drop declaration</span>
+</code></pre><p>Conditional field restoration:</p><pre><code class="language-nct"><span class="token-keyword">var</span> user <span class="token-operator">=</span> <span class="token-function">make_user</span><span class="token-operator">(</span><span class="token-operator">)</span>
+
+<span class="token-keyword">if</span> condition <span class="token-operator">{</span>
+    <span class="token-function">consume</span><span class="token-operator">(</span><span class="token-keyword">move</span> user<span class="token-operator">.</span>name<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+user<span class="token-operator">.</span>name <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span><span class="token-string">"replacement"</span><span class="token-operator">)</span>
+<span class="token-keyword">use</span><span class="token-operator">(</span>user<span class="token-operator">)</span> <span class="token-comment">// valid: every field is initialized again</span>
+</code></pre><h2 id="return-values">Return Values</h2><p>Returning an existing move-only place requires explicit <code>move</code>.</p><p>Rules:</p><ul><li><code>return value</code> may return a copy value by copying it.</li><li><code>return place</code> is invalid when <code>place</code> is an existing move-only binding or named field.</li><li><code>return move place</code> returns an existing move-only binding or eligible named struct field by
+  moving the common <code>MovePlace</code> defined above.</li><li><code>return move place</code> transfers the selected place before return cleanup. A whole binding becomes
+  uninitialized; a named field leaves its eligible parent partial, and return cleanup drops only
+  the remaining initialized fields.</li><li>A newly constructed owned value may be returned with <code>return expr</code> without <code>move</code>.</li><li>Newly constructed owned values include struct literals, enum variant constructors, array literals, and function or method call results.</li><li><code>return</code> evaluates the returned expression first.</li><li>When control leaves through <code>return</code>, the returned value is not dropped by the callee.</li><li>Other live local owned values are dropped in reverse declaration order.</li><li>Moved bindings are not dropped.</li><li>Copy parameters may be returned with <code>return parameter</code>.</li><li>Move-only owned parameters require <code>return move parameter</code>.</li><li>Optional and fallible return layers are constructed by
+  <a href="../errors-and-optionals/index.html#recursive-outcome-injection">recursive outcome injection</a>.</li><li>Injection transfers or copies the recursively accepted value into the active payload exactly
+  once. It does not copy a move-only value or relax the explicit-<code>move</code> requirement.</li><li>Cleanup owns only the active payload of the constructed outcome. A returned active payload is not
+  also dropped as a callee local.</li><li>Bare <code>return</code> is valid for <code>void</code> and for successful completion of <code>void!</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">make_text</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> text <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">move</span> text
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">make_user</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">User</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">User</span> <span class="token-operator">{</span>
+        name<span class="token-operator">:</span> <span class="token-keyword">move</span> name<span class="token-operator">,</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">take_user</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">User</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-keyword">move</span> user
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">invalid</span><span class="token-operator">(</span>user<span class="token-operator">:</span> <span class="token-type">User</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">User</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> user <span class="token-comment">// error: User is move-only</span>
+<span class="token-operator">}</span>
+</code></pre><h3 id="borrow-like-return-values">Borrow-like Return Values</h3><p>Borrow-like return values are allowed only when the compiler can prove the referenced storage lives after the function returns.</p><p>Borrow-like return values include:</p><ul><li><code>&amp;T</code></li><li><code>&amp;+T</code></li><li><code>&amp;str</code></li><li><code>&amp;[T]</code></li><li><code>&amp;+[T]</code></li><li><code>ViewIter&lt;T&gt;</code></li><li>structs, enums, optionals, fallible values, and arrays containing borrow-like values</li></ul><p>The detailed provenance source kinds are specified in <a href="../sequences-and-text/index.html#borrow-like-provenance">Strings, Arrays, Views, and Pointers</a>.</p><p>Rules:</p><ul><li>Borrow-like return values must carry provenance to storage that outlives the function call.</li><li>Borrow-like values derived from static storage, such as string literals, may be returned.</li><li>Borrow-like values derived from input borrow-like parameters may be returned when the return value's provenance is still tied to that input borrow-like value.</li><li>A readonly borrow-like value may be returned from a readonly or readwrite input borrow-like source.</li><li>A readwrite borrow-like value may be returned only from a readwrite input borrow-like source, such as <code>&amp;+T</code> or <code>&amp;+[T]</code>.</li><li>Borrow-like values derived from local owned values cannot be returned.</li><li>Borrow-like values derived from temporary owned values cannot be returned.</li><li>Borrow-like values derived from owned parameters cannot be returned, because owned parameters are dropped at function scope end unless moved.</li><li>Borrow-like values derived from region-allocated storage cannot escape the region.</li><li>Nocter has no source-level lifetime parameters or lifetime annotations.</li><li>If provenance cannot be proven by the compiler, returning the borrow-like value is a compile error.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">greeting</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-string">"hello"</span> <span class="token-comment">// OK: string literal storage is static</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">first_byte</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u8</span><span class="token-operator">?</span> <span class="token-operator">{</span>
+    <span class="token-keyword">if</span> bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-keyword">none</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">return</span> bytes<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-comment">// OK: u8 is copy</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">bad</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> text <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">copy</span><span class="token-operator">(</span><span class="token-string">"hello"</span><span class="token-operator">)</span>
+    <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>text <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-comment">// error: view points to local owned value</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">also_bad</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>text <span class="token-keyword">as</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> <span class="token-comment">// error: view points to an owned parameter dropped at return</span>
+<span class="token-operator">}</span>
+</code></pre>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

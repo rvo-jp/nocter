@@ -17,7 +17,7 @@ rendering; it does not rerun lookup, typing, target selection, or recovery polic
 `nocter-language` publishes `DiagnosticCode` from the compiler's explicit registered-code
 inventory. Production diagnostic APIs accept that closed vocabulary rather than arbitrary strings.
 Documentation generation compares the inventory with the public catalog in
-`spec/12-diagnostics.md` without searching Rust source text.
+`spec/tooling/diagnostics.md` without searching Rust source text.
 
 ## Internal Responsibilities
 

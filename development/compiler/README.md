@@ -22,8 +22,8 @@ contracts, or milestone status.
 - Each workspace crate's `README.md` owns that crate's responsibility, input/output contract,
   internal responsibility split, and local invariants. It may name another crate only through that
   crate's exported contract.
-- [The milestone catalog](../milestones/README.md) links each scope and its completion gates;
-  [publication records](../release-audits/README.md) own frozen release evidence; [the handoff](../TODO.md)
+- [The milestone catalog](../history/milestones/README.md) links each scope and its completion gates;
+  [publication records](../history/release-audits/README.md) own frozen release evidence; [the handoff](../TODO.md)
   owns only the next concrete work and current blockers.
 
 The compiler derives behavior from the current specification. The implementation removed before

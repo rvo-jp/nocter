@@ -2,8 +2,8 @@
 
 This document defines repository policy for implementing the public standard-library contracts in
 [`spec/`](../../spec/README.md). Language-level module and style rules remain owned by
-[`spec/01-modules-use.md`](../../spec/01-modules-use.md) and
-[`spec/16-source-style-formatting.md`](../../spec/16-source-style-formatting.md).
+[`spec/language/modules.md`](../../spec/language/modules.md) and
+[`spec/tooling/formatting.md`](../../spec/tooling/formatting.md).
 
 ## Module Root Responsibility
 

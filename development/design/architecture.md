@@ -198,4 +198,4 @@ and wrappers whose only purpose is to bypass an owner contract.
 This document changes only when a pipeline edge, cross-crate authority, or dependency rule changes.
 A crate-internal refactor changes that crate's README. A public behavior change changes `spec/`. A
 temporary implementation plan changes a milestone. Review findings and remediation evidence belong
-in `development/reviews/`; release qualification belongs in `development/release-audits/`.
+in `development/history/reviews/`; release qualification belongs in `development/history/release-audits/`.

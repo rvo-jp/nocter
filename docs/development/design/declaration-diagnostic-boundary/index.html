@@ -176,8 +176,6 @@
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="../../milestones/index.html#content">milestone index</a></li>
-                <li><a href="../../reviews/index.html#content">review index</a></li>
                 <li><a href="../checked-program-design/index.html#content">Checked Program Boundary</a></li>
                 <li><a href="../target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li>
                 <li><a href="../machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li>
@@ -200,7 +198,7 @@
                 <span class="markdown-path-text">/development/design/declaration-diagnostic-boundary.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="declaration-diagnostic-boundary">Declaration Diagnostic Boundary</h1><p>This document owns the cross-crate failure and diagnostic contract from discovery through declaration analysis. Public diagnostic meaning and stable codes remain owned by <a href="../../../spec/12-diagnostics/index.html#content">Diagnostics</a>. Exact Rust variants and crate-local adapters belong to their defining source and rustdoc.</p><h2 id="production-path">Production Path</h2><pre><code class="language-text">DiscoveredUnit + canonical declaration surfaces
+                <h1 id="declaration-diagnostic-boundary">Declaration Diagnostic Boundary</h1><p>This document owns the cross-crate failure and diagnostic contract from discovery through declaration analysis. Public diagnostic meaning and stable codes remain owned by <a href="../../../spec/tooling/diagnostics/index.html#content">Diagnostics</a>. Exact Rust variants and crate-local adapters belong to their defining source and rustdoc.</p><h2 id="production-path">Production Path</h2><pre><code class="language-text">DiscoveredUnit + canonical declaration surfaces
         |
         v
 private declaration query

@@ -36,7 +36,7 @@ fn recognizes_reserved_and_contextual_spellings_separately() {
 
 #[test]
 fn keyword_enum_matches_the_normative_specification_list() {
-    let lexical_spec = include_str!("../../../../../../spec/13-lexical-grammar.md");
+    let lexical_spec = include_str!("../../../../../../spec/language/lexical-grammar.md");
     let keyword_block = lexical_spec
         .split_once("Reserved keyword tokens:\n\n```text\n")
         .unwrap()

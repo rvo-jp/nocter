@@ -23,14 +23,15 @@ website, and files removed from authored inputs cannot survive as stale generate
 The website publishes:
 
 - user-facing Markdown from the repository root, `spec/`, `examples/`, and `releases/`;
-- contributor Markdown under `development/`, except internal handoff and archived material;
+- current contributor Markdown under `development/`, except internal handoff and historical
+  records;
 - every runnable Nocter source under `examples/`;
 - `index.nct` public-contract files under `development/std/`, excluding the `internal/` subtree.
 
 Private standard-library implementation sources remain available in the repository but do not
 become website pages. Markdown links to an existing non-published repository file resolve to its
-GitHub source page. Compiler diagnostic fixtures and `development/archive/` are neither published
-nor used as current documentation authority.
+GitHub source page. Compiler diagnostic fixtures and `development/history/` are not published;
+milestone, review, and release-audit links are still validated as historical records.
 
 ## Build
 
@@ -47,7 +48,8 @@ Generation fails when:
 - the syntax highlighter keyword set differs from the lexical specification;
 - the public diagnostic catalog differs from the compiler's registered-code inventory;
 - a compiler workspace crate lacks its colocated responsibility README;
-- a milestone, review, or release-audit record is absent from its directory catalog.
+- a specification chapter, milestone, review, or release-audit record is absent from its directory
+  catalog.
 
 The generator derives output only from authored file contents and paths. Filesystem timestamps do
 not enter HTML metadata or `sitemap.xml`. Publication dates require explicit authored metadata.
@@ -60,8 +62,8 @@ node development/site/test-generation.js
 
 It builds source trees with different timestamps and compares every output byte. It also proves
 that stale generated files are removed, private standard-library implementation sources stay
-private, unrelated Rust text cannot register diagnostics, and uncataloged development records or
-diagnostic drift are rejected.
+private, unrelated Rust text cannot register diagnostics, and uncataloged specification or
+development records and diagnostic drift are rejected.
 
 ## Editing Rule
 

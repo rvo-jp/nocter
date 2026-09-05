@@ -17,7 +17,7 @@ Recoverable failure and absence are represented by `T!` and `T?`, while
 borrowing and mutation capabilities remain visible through `&T` and `&+T`.
 
 See the [language specification](spec/README.md) and
-[design principles](spec/00-design-principles.md).
+[design principles](spec/principles.md).
 
 ## One Directory Install
 
@@ -125,7 +125,7 @@ diagnostics before machine code is emitted.
 - [Examples](examples/README.md): runnable single-file and package examples.
 - [Language Specification](spec/README.md): Nocter syntax, type system,
   ownership, standard library, CLI behavior, diagnostics, and tooling contract.
-- [Design Principles](spec/00-design-principles.md): the simplicity,
+- [Design Principles](spec/principles.md): the simplicity,
   encapsulation, and foolproof-design rules behind Nocter language decisions.
 - [Release Index](releases/README.md): published downloads, supported targets, and version history.
 - [Contributor Documentation](development/README.md): development setup,

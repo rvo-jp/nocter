@@ -14,8 +14,12 @@ const outputTransaction = new OutputTransaction(PROJECT_ROOT, STATIC_ROOT, FINAL
 const OUTPUT_ROOT = outputTransaction.directory;
 const SKIP_DIRS = new Set([".git", ".github", "dist", "target", "node_modules"]);
 const SKIP_SOURCE_PATHS = new Set(["development/TODO.md"]);
-const SKIP_SOURCE_PREFIXES = [
-    "development/archive/",
+const SKIP_PUBLICATION_PREFIXES = [
+    "development/history/",
+    "development/compiler/tests/fixtures/"
+];
+const SKIP_LINK_VALIDATION_PREFIXES = [
+    "development/history/legacy-design/",
     "development/compiler/tests/fixtures/"
 ];
 const AUTO_INDEX_SOURCE_DIRS = new Set(["examples"]);
@@ -28,8 +32,8 @@ const PAGE_META = {
         description: "Nocter is a statically typed systems programming language focused on self-contained native executables, explicit contracts, and simple toolchain distribution."
     },
     "spec/README.md": {
-        title: "Nocter Language Specification",
-        description: "The Nocter language specification, covering syntax, types, packages, interfaces, ownership, diagnostics, and tooling."
+        title: "Nocter Specification",
+        description: "The Nocter specification for language semantics, the standard library, supported platforms, diagnostics, command-line tools, and editor behavior."
     },
     "releases/README.md": {
         title: "Nocter Releases",
@@ -64,7 +68,7 @@ const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PR
 validateNocterLexicon();
 validateDiagnosticCatalog();
 validateCrateDocumentation();
-validateDevelopmentCatalogs();
+validateDocumentationCatalogs();
 validateOutputPaths(sourceFiles);
 validateSourceLinks(collectDocumentationLinkSources(PROJECT_ROOT));
 
@@ -88,12 +92,12 @@ try {
 }
 
 function validateNocterLexicon() {
-    const lexicalPath = path.join(PROJECT_ROOT, "spec/13-lexical-grammar.md");
+    const lexicalPath = path.join(PROJECT_ROOT, "spec/language/lexical-grammar.md");
     const lexicalSource = fs.readFileSync(lexicalPath, "utf8");
     const match = lexicalSource.match(/Reserved keyword tokens:\n\n```text\n([\s\S]*?)\n```/);
 
     if (!match) {
-        throw new Error("Cannot find the normative reserved-keyword block in spec/13-lexical-grammar.md");
+        throw new Error("Cannot find the normative reserved-keyword block in spec/language/lexical-grammar.md");
     }
 
     const specificationKeywords = new Set(match[1].split("\n").filter(Boolean));
@@ -106,7 +110,7 @@ function validateNocterLexicon() {
 }
 
 function validateDiagnosticCatalog() {
-    const specificationPath = path.join(PROJECT_ROOT, "spec/12-diagnostics.md");
+    const specificationPath = path.join(PROJECT_ROOT, "spec/tooling/diagnostics.md");
     const specification = fs.readFileSync(specificationPath, "utf8");
     const entries = [...specification.matchAll(/^- `(E\d{4})`:/gm)].map(match => match[1]);
     const catalog = new Set(entries);
@@ -193,11 +197,15 @@ function validateCrateDocumentation() {
     }
 }
 
-function validateDevelopmentCatalogs() {
+function validateDocumentationCatalogs() {
     for (const relativeDirectory of [
-        "development/milestones",
-        "development/reviews",
-        "development/release-audits"
+        "spec/language",
+        "spec/standard-library",
+        "spec/platform",
+        "spec/tooling",
+        "development/history/milestones",
+        "development/history/reviews",
+        "development/history/release-audits"
     ]) {
         const directory = path.join(PROJECT_ROOT, relativeDirectory);
         const indexPath = path.join(directory, "README.md");
@@ -319,7 +327,7 @@ function collectDocumentationLinkSources(directory) {
             if (
                 !SKIP_DIRS.has(entry.name)
                 && relative !== "docs"
-                && !SKIP_SOURCE_PREFIXES.some(prefix => `${relative}/`.startsWith(prefix))
+                && !SKIP_LINK_VALIDATION_PREFIXES.some(prefix => `${relative}/`.startsWith(prefix))
             ) {
                 files.push(...collectDocumentationLinkSources(fullPath));
             }
@@ -347,7 +355,11 @@ function collectSourceFiles(directory) {
         const relative = normalizePath(path.relative(PROJECT_ROOT, fullPath));
 
         if (entry.isDirectory()) {
-            if (!SKIP_DIRS.has(entry.name) && relative !== "docs") {
+            if (
+                !SKIP_DIRS.has(entry.name)
+                && relative !== "docs"
+                && !SKIP_PUBLICATION_PREFIXES.some(prefix => `${relative}/`.startsWith(prefix))
+            ) {
                 files.push(...collectSourceFiles(fullPath));
             }
 
@@ -360,7 +372,7 @@ function collectSourceFiles(directory) {
             && entry.name !== "AGENTS.md"
             && !relative.startsWith("docs/")
             && !SKIP_SOURCE_PATHS.has(relative)
-            && !SKIP_SOURCE_PREFIXES.some(prefix => relative.startsWith(prefix))
+            && !SKIP_PUBLICATION_PREFIXES.some(prefix => relative.startsWith(prefix))
         ) {
             files.push(fullPath);
         }

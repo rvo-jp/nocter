@@ -176,8 +176,6 @@
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="../../milestones/index.html#content">milestone index</a></li>
-                <li><a href="../../reviews/index.html#content">review index</a></li>
                 <li><a href="../checked-program-design/index.html#content">Checked Program Boundary</a></li>
                 <li><a href="../target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li>
                 <li><a href="../machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li>
@@ -200,7 +198,7 @@
                 <span class="markdown-path-text">/development/design/json-implementation.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="json-implementation-boundary">JSON Implementation Boundary</h1><h2 id="purpose">Purpose</h2><p>This document owns the cross-responsibility implementation boundary for the v0.22.0 JSON module. Public behavior belongs only to <a href="../../../spec/28-json/index.html#content">JSON Values and Text</a>. Work order and completion evidence belong to the <a href="../../milestones/v0.22.0/index.html#content">v0.22.0 milestone</a>.</p><p>JSON remains standard-library source. No compiler stage may branch on the identity or source names of the <code>std/json</code> module or its public <code>Value</code> and <code>Number</code> declarations, nor on RFC tokens or JSON error codes. The compiler's unrelated JSON protocol-envelope crate remains a generic tooling serialization mechanism and is not a standard-library implementation dependency.</p><h2 id="responsibility-split">Responsibility Split</h2><pre><code class="language-text">UTF-8 input view
+                <h1 id="json-implementation-boundary">JSON Implementation Boundary</h1><h2 id="purpose">Purpose</h2><p>This document owns the cross-responsibility implementation boundary for the v0.22.0 JSON module. Public behavior belongs only to <a href="../../../spec/standard-library/json/index.html#content">JSON Values and Text</a>. Work order and completion evidence belong to the <a href="https://github.com/rvo-jp/nocter/blob/main/development/history/milestones/v0.22.0.md">v0.22.0 milestone</a>.</p><p>JSON remains standard-library source. No compiler stage may branch on the identity or source names of the <code>std/json</code> module or its public <code>Value</code> and <code>Number</code> declarations, nor on RFC tokens or JSON error codes. The compiler's unrelated JSON protocol-envelope crate remains a generic tooling serialization mechanism and is not a standard-library implementation dependency.</p><h2 id="responsibility-split">Responsibility Split</h2><pre><code class="language-text">UTF-8 input view
     -&gt; JSON byte cursor
         -&gt; one on-demand token decision
             -&gt; owning parser state

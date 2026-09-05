@@ -1,7 +1,7 @@
 # Grammar Conformance
 
 This document derives parser tests from the normative
-[Syntactic Grammar](../../spec/25-syntactic-grammar.md). It does not define accepted source. If a
+[Syntactic Grammar](../../spec/language/syntactic-grammar.md). It does not define accepted source. If a
 case and the specification disagree, the specification wins and this plan must be corrected before
 implementation.
 

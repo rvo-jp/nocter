@@ -25,7 +25,7 @@ publication remains outside all three products.
 
 ## ABI Ownership
 
-The public ABI contract comes from `spec/09-abi-layout.md`. Machine is its sole implementation owner
+The public ABI contract comes from `spec/platform/abi-and-layout.md`. Machine is its sole implementation owner
 for stored layout and argument/result transport. ARM64 consumes already classified machine values;
 it cannot independently decide aggregate layout or source-level calling convention. Mach-O consumes
 encoded sections and cannot alter code selection or linkage identity.

@@ -164,5 +164,5 @@ cancellation, persistent disk caches, remote indexes, and parallel backend sched
 of this boundary.
 
 The completed migration and qualification evidence is preserved in the
-[v0.20.0 Phase 1 review](../reviews/v0.20.0-phase-1.md). That review records historical findings;
+[v0.20.0 Phase 1 review](../history/reviews/v0.20.0-phase-1.md). That review records historical findings;
 this document defines only the resulting current contract.

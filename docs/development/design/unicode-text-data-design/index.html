@@ -176,8 +176,6 @@
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
                 <li><a href="../architecture/index.html#content">Compiler Architecture</a></li>
-                <li><a href="../../milestones/index.html#content">milestone index</a></li>
-                <li><a href="../../reviews/index.html#content">review index</a></li>
                 <li><a href="../checked-program-design/index.html#content">Checked Program Boundary</a></li>
                 <li><a href="../target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li>
                 <li><a href="../machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li>
@@ -200,7 +198,7 @@
                 <span class="markdown-path-text">/development/design/unicode-text-data-design.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="static-unicode-data-boundary">Static Unicode Data Boundary</h1><p>This document owns the cross-crate implementation boundary for v0.35.0 static data and generated Unicode 17.0.0 tables. Public behavior belongs only in <a href="../../../spec/35-static-unicode-text/index.html#content"><code>spec/35-static-unicode-text.md</code></a>.</p><h2 id="why-static-data-is-a-prerequisite">Why Static Data Is a Prerequisite</h2><p>Unicode properties and full case mappings are data, not parser rules or backend semantics. Emitting thousands of generated source branches would make every standard-library analysis pay for an implementation-shaped syntax tree. Adding Unicode-specific compiler primitives would instead make the compiler a second standard-library authority. Immutable typed static data is the reusable missing contract: it represents the tables directly and also serves future protocol, parser, and encoding tables without Unicode exceptions.</p><h2 id="authority-chain">Authority Chain</h2><pre><code class="language-text">final Unicode 17.0.0 data files + recorded SHA-256 digests
+                <h1 id="static-unicode-data-boundary">Static Unicode Data Boundary</h1><p>This document owns the cross-crate implementation boundary for v0.35.0 static data and generated Unicode 17.0.0 tables. Public behavior belongs only in <a href="../../../spec/standard-library/unicode-text/index.html#content"><code>spec/standard-library/unicode-text.md</code></a>.</p><h2 id="why-static-data-is-a-prerequisite">Why Static Data Is a Prerequisite</h2><p>Unicode properties and full case mappings are data, not parser rules or backend semantics. Emitting thousands of generated source branches would make every standard-library analysis pay for an implementation-shaped syntax tree. Adding Unicode-specific compiler primitives would instead make the compiler a second standard-library authority. Immutable typed static data is the reusable missing contract: it represents the tables directly and also serves future protocol, parser, and encoding tables without Unicode exceptions.</p><h2 id="authority-chain">Authority Chain</h2><pre><code class="language-text">final Unicode 17.0.0 data files + recorded SHA-256 digests
     -&gt; deterministic development-only generator
     -&gt; generated Nocter fixed-array definitions
     -&gt; checked immutable-static product

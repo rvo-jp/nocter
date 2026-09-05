@@ -4,8 +4,8 @@
 
 This document owns the cross-responsibility implementation boundary for v0.21.0 associative
 collections. Public behavior belongs only to
-[Associative Collections](../../spec/27-associative-collections.md). Phase scope and completion
-belong to the [v0.21.0 milestone](../milestones/v0.21.0.md).
+[Associative Collections](../../spec/standard-library/associative-collections.md). Phase scope and completion
+belong to the [v0.21.0 milestone](../history/milestones/v0.21.0.md).
 
 ## Responsibility Split
 

@@ -2,7 +2,7 @@
 
 This document defines the cross-crate representation contract for the v0.33.0 tuple milestone.
 Public tuple behavior belongs exclusively to
-[`spec/33-tuples.md`](../../spec/33-tuples.md). Private algorithms and module layouts remain in each
+[`spec/language/tuples.md`](../../spec/language/tuples.md). Private algorithms and module layouts remain in each
 workspace crate's colocated `README.md` and Rust source.
 
 ## Design Decision

@@ -11,7 +11,7 @@ Before compiler work, read:
 - `README.md`
 - `TODO.md`
 - `compiler/README.md`
-- `milestones/README.md`
+- `history/milestones/README.md`
 - `design/README.md`
 - `design/architecture.md`
 - `design/maintenance.md`
@@ -77,9 +77,10 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 
 - `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
   behavior
-- `development/milestones/README.md`: milestone catalog; each linked milestone owns its own status
-- `development/release-audits/README.md`: publication catalog; each linked record owns immutable
-  release evidence
+- `development/history/milestones/README.md`: milestone catalog; each linked milestone owns its own
+  status
+- `development/history/release-audits/README.md`: publication catalog; each linked record owns
+  immutable release evidence
 - `development/design/architecture.md`: compiler-wide pipeline, dependency direction, and cross-crate
   authority boundaries only
 - `development/compiler/crates/<crate>/README.md`: that crate's responsibility, input/output
@@ -87,9 +88,9 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 - `development/design/*.md`: cross-crate contracts and completed design records; never a duplicate
   owner of crate internals
 - `development/TODO.md`: next concrete work and current blockers only
-- `development/milestones/` and `development/reviews/`: plans, historical rationale, findings, and
-  remediation evidence; never current crate-internal authority
-- `development/release-audits/`: immutable published release evidence only
+- `development/history/milestones/` and `development/history/reviews/`: plans, historical
+  rationale, findings, and remediation evidence; never current crate-internal authority
+- `development/history/release-audits/`: immutable published release evidence only
 - `development/site/`: documentation build mechanism and static website inputs; `docs/` is generated
   output only
 

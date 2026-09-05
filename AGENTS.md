@@ -29,6 +29,15 @@ milestone planning, maintenance policy, and handoff state. Root documentation ma
 Public language and standard-library semantics belong under `spec/`; this is user-facing reference
 material rather than development documentation.
 
+Within `spec/`, keep source semantics under `language/`, public library APIs under
+`standard-library/`, target and ABI contracts under `platform/`, and observable compiler/editor
+behavior under `tooling/`. File names describe concepts rather than release order; the `README.md`
+catalogs own reading order.
+
+Keep milestones, reviews, release qualification, and superseded design under
+`development/history/`. Historical records are not published as current website guidance, but
+milestone, review, and release-audit catalogs and local links must remain valid.
+
 Keep complete runnable user packages under `examples/`. Do not place compiler diagnostic fixtures
 or deliberately invalid source there. Compiler source-corpus inputs belong under
 `development/compiler/tests/fixtures/`.

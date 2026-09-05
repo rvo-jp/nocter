@@ -2,7 +2,7 @@
 
 This document owns the cross-crate failure and diagnostic contract from discovery through
 declaration analysis. Public diagnostic meaning and stable codes remain owned by
-[Diagnostics](../../spec/12-diagnostics.md). Exact Rust variants and crate-local adapters belong to
+[Diagnostics](../../spec/tooling/diagnostics.md). Exact Rust variants and crate-local adapters belong to
 their defining source and rustdoc.
 
 ## Production Path

@@ -3,8 +3,8 @@
 This directory contains current cross-crate compiler contracts and repository maintenance policy.
 Public language and standard-library behavior belongs exclusively in
 [`spec/`](../../spec/README.md). A workspace crate's private mechanism belongs in that crate's
-colocated `README.md`. Implementation history and qualification evidence belong in reviews and
-milestones, not in current design documents.
+colocated `README.md`. Implementation history and qualification evidence belong under
+`development/history/`, not in current design documents.
 
 ## Reading Order
 
@@ -12,7 +12,7 @@ milestones, not in current design documents.
 2. The relevant [workspace crate README](../compiler/README.md#crate-documentation) — one crate's
    inputs, outputs, internal responsibilities, and invariants.
 3. A cross-crate contract below when a decision spans more than one crate.
-4. The [milestone index](../milestones/README.md) or [review index](../reviews/README.md) only when
+4. The [milestone index](../history/milestones/README.md) or [review index](../history/reviews/README.md) only when
    scope, implementation history, or qualification evidence is needed.
 
 ## Cross-Crate Contracts
@@ -36,7 +36,7 @@ milestones, not in current design documents.
 - [Maintenance Policy](maintenance.md)
 - [Documentation Site Generator](../site/README.md)
 
-Superseded implementation design lives under `development/archive/` and is excluded from the
+Superseded implementation design lives under `development/history/` and is excluded from the
 generated website. It must not be consulted to determine current compiler behavior.
 
 ## Information Ownership
@@ -49,10 +49,10 @@ generated website. It must not be consulted to determine current compiler behavi
 | One crate's responsibility, internal modules, and invariants | that crate's `README.md` |
 | Exact Rust workspace membership and dependency edges | `development/compiler/Cargo.toml` and crate manifests |
 | Exact Rust API | Rust source and rustdoc |
-| Milestone scope and completion gates | `development/milestones/` |
-| Review findings and remediation evidence | `development/reviews/` |
+| Milestone scope and completion gates | `development/history/milestones/` |
+| Review findings and remediation evidence | `development/history/reviews/` |
 | Next concrete work and blockers | `development/TODO.md` |
-| Published-candidate qualification evidence | `development/release-audits/` |
+| Published-candidate qualification evidence | `development/history/release-audits/` |
 | Website build mechanism and static inputs | `development/site/` |
 | Generated website output | `docs/` |
 

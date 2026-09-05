@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Style and Formatting - Nocter</title>
+    <meta name="description" content="Nocter syntax is tolerant where whitespace is not semantically meaningful, while the formatter defines one official source style.">
+    <meta name="robots" content="index, follow">
+    <meta name="theme-color" content="#f7f8fc">
+    <link rel="canonical" href="https://nocter.dev/spec/tooling/formatting/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+
+    <meta property="og:type" content="article">
+    <meta property="og:site_name" content="Nocter">
+    <meta property="og:title" content="Source Style and Formatting - Nocter">
+    <meta property="og:description" content="Nocter syntax is tolerant where whitespace is not semantically meaningful, while the formatter defines one official source style.">
+    <meta property="og:url" content="https://nocter.dev/spec/tooling/formatting/">
+    <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Source Style and Formatting - Nocter">
+    <meta name="twitter:description" content="Nocter syntax is tolerant where whitespace is not semantically meaningful, while the formatter defines one official source style.">
+    <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
+
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Source Style and Formatting - Nocter","description":"Nocter syntax is tolerant where whitespace is not semantically meaningful, while the formatter defines one official source style.","url":"https://nocter.dev/spec/tooling/formatting/","mainEntityOfPage":"https://nocter.dev/spec/tooling/formatting/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Language Specification","item":"https://nocter.dev/spec/"},{"@type":"ListItem","position":3,"name":"Tooling","item":"https://nocter.dev/spec/tooling/"},{"@type":"ListItem","position":4,"name":"Formatting","item":"https://nocter.dev/spec/tooling/formatting/"}]}]</script>
+
+    <link rel="stylesheet" href="../../../style.css">
+</head>
+<body class="has-directory-toc">
+    <header class="hero">
+        <div class="hero-inner">
+            <div class="hero-copy">
+                <div class="hero-mark">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <p class="hero-kicker">Programming Language</p>
+                </div>
+
+                <h1 class="hero-title">Nocter</h1>
+
+                <p class="hero-description">
+                    A self-contained systems language built around simplicity, encapsulation, and foolproof design.
+                </p>
+
+                <div class="hero-actions" aria-label="Nocter links">
+                    <a class="hero-action hero-action-primary" href="../../index.html#content">Documentation</a>
+                    <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                </div>
+            </div>
+
+            <aside class="hero-code" aria-label="Nocter code examples">
+                <div class="hero-code-tabs" role="tablist" aria-label="Code example">
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="true" data-example="hello">hello</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="recovery">recovery</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="format">format</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="equality">equality</button>
+                    <button class="hero-code-tab" type="button" role="tab" aria-selected="false" data-example="indexing">indexing</button>
+                </div>
+
+                <div class="hero-code-panels">
+                    <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="recovery" hidden><code class="language-nocter"><span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> value <span class="token-operator">=</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">message</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> value <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">42</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">0</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">1</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">load_value</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"example.unavailable"</span><span class="token-operator">,</span> <span class="token-string">"the primary value is unavailable"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">fallback_for</span><span class="token-operator">(</span>message<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-number">42</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="format" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
+        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+        <span class="token-keyword">return</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="equality" hidden><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    x<span class="token-operator">:</span> <span class="token-type">i32</span>
+    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> self<span class="token-operator">.</span>x <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>x <span class="token-operator">&amp;</span><span class="token-operator">&amp;</span> self<span class="token-operator">.</span>y <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">.</span>y
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
+    <span class="token-keyword">if</span> first <span class="token-operator">!</span><span class="token-operator">=</span> same || first <span class="token-operator">=</span><span class="token-operator">=</span> other <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">let</span> points <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-keyword">move</span> first<span class="token-operator">,</span> <span class="token-keyword">move</span> other<span class="token-operator">]</span>
+    <span class="token-keyword">if</span> points<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> same <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">var</span> values <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">,</span> <span class="token-number">2</span><span class="token-operator">,</span> <span class="token-number">3</span><span class="token-operator">]</span>
+    values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">4</span>
+    <span class="token-keyword">if</span> values<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">+</span> values<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">8</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"equality found the point\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                    <pre class="hero-code-panel" data-example-panel="indexing" hidden><code class="language-nocter"><span class="token-keyword">struct</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-type">i32</span>; <span class="token-number">3</span><span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span>
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+
+    <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;+</span>self<span class="token-operator">[</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span>values<span class="token-operator">[</span>index<span class="token-operator">]</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> at<span class="token-operator">&lt;</span><span class="token-type">C</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>container<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">,</span> index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">C</span><span class="token-operator">[</span><span class="token-type">usize</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> container<span class="token-operator">[</span>index<span class="token-operator">]</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-keyword">var</span> buffer <span class="token-operator">=</span> <span class="token-type">Buffer</span> <span class="token-operator">{</span> values<span class="token-operator">:</span> <span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">,</span> <span class="token-number">4</span><span class="token-operator">,</span> <span class="token-number">5</span><span class="token-operator">]</span> <span class="token-operator">}</span>
+    buffer<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">=</span> <span class="token-number">9</span>
+    <span class="token-keyword">if</span> <span class="token-function">at</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>buffer<span class="token-operator">,</span> <span class="token-number">1</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">9</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> <span class="token-number">1</span>
+    <span class="token-operator">}</span>
+    <span class="token-keyword">return</span> <span class="token-number">0</span>
+<span class="token-operator">}</span></code></pre>
+                </div>
+            </aside>
+        </div>
+    </header>
+
+    <div class="docs-shell">
+        <aside class="directory-toc" aria-label="Directory table of contents">
+            <p class="directory-toc-title">spec/tooling/</p>
+            <ul class="directory-toc-list">
+                <li><a href="../diagnostics/index.html#content">Diagnostics</a></li>
+                <li><a href="../command-line/index.html#content">Command-Line Interface</a></li>
+                <li><a href="./index.html#content" aria-current="page">Source Style and Formatting</a></li>
+                <li><a href="../testing/index.html#content">Native Testing</a></li>
+                <li><a href="../editor/index.html#content">Tooling and Editor Integration</a></li>
+            </ul>
+        </aside>
+        <main id="content">
+            <div class="markdown-path">
+                <span class="markdown-path-text">/spec/tooling/formatting.md</span>
+            </div>
+            <div class="markdown-body">
+                <h1 id="source-style-and-formatting">Source Style and Formatting</h1><h2 id="direction">Direction</h2><p>Nocter syntax is tolerant where whitespace is not semantically meaningful, while the formatter defines one official source style.</p><p>Rules:</p><ul><li>Formatting must not change program semantics.</li><li>Style violations are not compile errors.</li><li>The parser accepts valid whitespace variations where tokenization remains unambiguous.</li><li>The formatter emits the official source style.</li><li>Specification snippets, root documentation examples, <code>spec/guides/ai.md</code>, and packages under
+  <code>examples/</code> should use formatter output as the canonical presentation.</li><li>The formatter belongs in the compiler toolchain, not in editor extensions.</li><li>Constant and static declarations use <code>UPPER_SNAKE_CASE</code>; ordinary functions, parameters, and
+  local bindings use <code>lower_snake_case</code>.</li><li>External functions, constants, and statics retain their imported module as the call-site subject,
+  such as <code>io.print(...)</code> and <code>limits.MAX_SIZE</code>. Selected imports are reserved for type names.</li></ul><p>This keeps the language pleasant to write by hand while avoiding multiple competing styles in documentation, generated examples, diagnostics, AI-generated code, and future editor tooling.</p><h2 id="contract-first-module-roots">Contract-First Module Roots</h2><p><code>index.nct</code> is both the module root and the preferred human-readable API document. Keep it focused on the declarations that another source or module may use.</p><p>Keep these forms in <code>index.nct</code>:</p><ul><li>module documentation, imports needed by public signatures, and public re-exports;</li><li>public and restricted-public type contracts;</li><li>fields or variants intentionally exposed as stable data representation;</li><li>bodyless callable, construction, instance-operation, and interface-default contracts;</li><li>bodyless constant and static contracts when their initializer belongs in an implementation
+  source;</li><li>bodyless <code>impl Interface</code> members with their associated bindings, without repeated interface
+  method signatures;</li><li>short inline behavior whose implementation is itself the clearest contract.</li></ul><p>Move private representation, allocation or pointer work, platform operations, helper algorithms, and ordinary nontrivial bodies to responsibility-named sources seen by <code>index.nct</code>. A useful inline body has no branch, loop, mutation, allocation, I/O, target-specific operation, or private representation access. Constant results and direct representation-independent forwarding are typical inline cases. Line count alone does not make a body trivial.</p><p>A public record should expose all of its fields as stable representation. If any field is an implementation detail, prefer an opaque public nominal with construction and accessor contracts instead of mixing a public field API with private layout.</p><h2 id="cli">CLI</h2><p>Formatting is exposed through <code>nocter fmt</code>.</p><pre><code class="language-sh"><span class="token-function">nocter</span> fmt app.nct
+<span class="token-function">nocter</span> fmt <span class="token-option">--check</span> app.nct
+</code></pre><p>Rules:</p><ul><li><code>fmt</code> takes one <code>.nct</code> source file.</li><li><code>fmt</code> formats only the file named on the command line.</li><li><code>fmt</code> does not follow imports.</li><li><code>fmt</code> does not treat the input as a compile-unit root.</li><li><code>fmt</code> does not perform name resolution, type checking, ownership checking, target lowering, code generation, or execution.</li><li><code>fmt</code> must not delete or rewrite comments.</li><li>Until comment-preserving formatting is implemented, <code>fmt</code> must reject files that contain comments instead of rewriting them.</li><li>If parsing fails, <code>fmt</code> must not rewrite the file.</li><li><code>fmt</code> rewrites the file in place only after formatting succeeds.</li><li><code>fmt --check</code> compares the input against formatter output and does not rewrite the file.</li><li><code>fmt --check</code> exits successfully only when the file already matches formatter output.</li><li><code>fmt</code> does not need a target option.</li></ul><p>Project-wide formatting is not supported. Package identity alone does not define comment-preserving traversal, atomic multi-file writes, or partial-failure behavior.</p><h2 id="package-directives">Package Directives</h2><p>Package directive records use the same four-space indentation as declarations. Multi-line records place one field per line and retain a trailing comma.</p><pre><code class="language-nct">#package<span class="token-operator">:</span> <span class="token-operator">{</span>
+    name<span class="token-operator">:</span> <span class="token-string">"json-tool"</span><span class="token-operator">,</span>
+    version<span class="token-operator">:</span> <span class="token-string">"0.1.0"</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+#executable<span class="token-operator">:</span> <span class="token-operator">{</span>
+    name<span class="token-operator">:</span> <span class="token-string">"json-tool"</span><span class="token-operator">,</span>
+    module<span class="token-operator">:</span> <span class="token-string">"./src/app"</span><span class="token-operator">,</span>
+<span class="token-operator">}</span>
+</code></pre><p>Directive values are formatted as declarative data. The formatter does not interpret them as ordinary expressions or perform module resolution.</p><h2 id="indentation-and-blocks">Indentation and Blocks</h2><p>Rules:</p><ul><li>Formatter output uses 4 spaces per indentation level.</li><li>Formatter output does not use tabs for indentation.</li><li>Opening braces stay on the same line as the construct that owns the block.</li><li><code>else</code> stays on the same line as the previous closing brace.</li><li>Consecutive top-level <code>use</code> declarations form one import block without blank lines between them.</li><li>One blank line separates an import block from an adjacent non-import top-level item.</li><li>Top-level declarations are separated by one blank line.</li><li>Empty blocks may stay as <code>{}</code> only when the construct is intentionally empty and readability is not harmed.</li><li>An explicit discard initializer is formatted as <code>let _ = expression</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">if</span> path<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">=</span><span class="token-operator">=</span> <span class="token-number">0</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"app.missing_path"</span><span class="token-operator">,</span> <span class="token-string">"missing path"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span>
+    <span class="token-keyword">use</span><span class="token-operator">(</span>path<span class="token-operator">)</span>
+<span class="token-operator">}</span>
+</code></pre><pre><code class="language-nct"><span class="token-keyword">instance</span> <span class="token-type">File</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><h2 id="type-syntax-spacing">Type Syntax Spacing</h2><p>Rules:</p><ul><li>Fallible type syntax is formatted as <code>T!</code>.</li><li>Fallible optional success is formatted as <code>T?!</code>.</li><li>Optional type syntax is attached to the success type: <code>T?</code>.</li><li>Pointer and borrow syntax is attached to the type: <code>*T</code>, <code>&amp;T</code>, <code>&amp;+T</code>.</li><li>Optional borrows omit redundant grouping: <code>&amp;T?</code> and <code>&amp;+T?</code>.</li><li>A prefix applied to an outcome type retains grouping to preserve meaning: <code>&amp;(T?)</code>, <code>*(T!)</code>.</li><li>Generic type arguments are attached to the type name: <code>Buffer&lt;T&gt;</code>.</li><li>Unsized array data type syntax is formatted as <code>[T]</code>; array slices are formatted as <code>&amp;[T]</code> and <code>&amp;+[T]</code>.</li><li>Fixed-size arrays are formatted as <code>[T; N]</code>.</li><li>A fixed-array length uses ordinary expression spacing, as in <code>[T; width * 2]</code>.</li><li>Parentheses used for type grouping do not add internal padding: <code>(T)!</code>.</li><li>Outcome elimination of an existing move-only place is formatted without redundant grouping:
+  <code>move value?</code>, <code>move value!</code>, <code>move value catch error { ... }</code>, and
+  <code>move value otherwise { ... }</code>. The formatter rewrites <code>(move value)?</code> to <code>move value?</code>.</li><li>Parentheses that separate two outcome elimination layers are retained: <code>(move result?)?</code> is not
+  rewritten as the invalid <code>move result??</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">func</span> <span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">File</span><span class="token-operator">!</span>
+<span class="token-keyword">func</span> <span class="token-function">env</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span>
+<span class="token-keyword">func</span> <span class="token-function">first</span><span class="token-operator">(</span>items<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+<span class="token-keyword">func</span> <span class="token-function">borrow_optional</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">T</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">(</span><span class="token-type">T</span><span class="token-operator">?</span><span class="token-operator">)</span>
+</code></pre><p>Formatter output uses <code>T?!</code> for fallible optional success values because the postfix operators can be read in order: optional success first, fallible wrapper second.</p><h2 id="declarations">Declarations</h2><p>Rules:</p><ul><li>Type annotations use no space before <code>:</code> and one space after <code>:</code>.</li><li>Function return annotations use no space before <code>:</code> and one space after <code>:</code>.</li><li>Commas have no preceding space and one following space on a single line.</li><li>A single-line comma-delimited list never retains a trailing comma, even though the parser accepts
+  one.</li><li>A multi-line comma-delimited list puts one item per line and retains a trailing comma.</li><li>The same canonical trailing-comma rule applies to arguments, parameters, generic parameters and
+  arguments, literals, import selections, directive data, enum payloads, and closure segments.</li><li>An argument-pack marker stays attached to its parameter name (<code>...items: T</code>) or spread operand
+  (<code>...source</code>); the formatter inserts no space after <code>...</code>.</li><li>Struct declaration fields and enum declaration variants are newline-separated declarations, not
+  comma-delimited list items, and never end in commas. Named-field construction initializers remain
+  comma-delimited list items.</li><li>The closing <code>)</code> of a multi-line parameter list is aligned with the start of the declaration.</li><li>A generic parameter list contains names only: <code>&lt;T, U&gt;</code>.</li><li>Complete explicit generic owner arguments are attached to the owner name, as in
+  <code>Vec&lt;i32&gt;.with_capacity(16)</code> and <code>Vec&lt;i32&gt; []</code>.</li><li>A call never prints explicit arguments for the callable's own generic parameters; those parameters
+  are inferred.</li><li>An interface predicate uses one space around <code>impl</code>:
+  <code>where T impl Interface&lt;U&gt;</code>.</li><li>Separate interface requirements use comma-space separation:
+  <code>where T impl Iterator, T impl ExactSizeIterator</code>.</li><li>A callable requirement uses the ordinary annotation separator:
+  <code>where F: &amp;+func(T): U</code>. <code>impl func(...)</code> is never used.</li><li>An intrinsic copy predicate is <code>where copy T</code>. <code>copy</code> never follows <code>impl</code>.</li><li>A requirement clause remains on the signature line after result provenance:
+  <code>: Self! from allocator where copy T</code>. Requirements use comma-space separation.</li><li>A result provenance clause follows the return type on the same line with one space before
+  <code>from</code>. Union origins use one space around <code>|</code>.</li><li>An associated type declaration is <code>pub type Name</code> or <code>pub type Name impl Bound + Bound</code> on its own
+  interface-member line.</li><li>An associated type binding is <code>.Name = Type</code> inside braces following its interface
+  application: <code>impl Iterator { .Item = T }</code>.</li><li>A projected type uses no spaces around the dot: <code>Self.Item</code> or <code>S.Item</code>.</li><li>An associated equality is written as an interface binding:
+  <code>R impl Iterator { .Item = L.Item }</code>.</li><li>An operator requirement encloses its expression and writes an explicit result type:
+  <code>where (&amp;T == &amp;T): bool</code>, <code>where (&amp;T &lt; &amp;T): bool</code>, or <code>where (&amp;C[K]): &amp;V</code>.</li><li>An equality declaration is <code>operator (&amp;self == other: &amp;Self): bool</code>; spaces surround <code>==</code>, the
+  named right binding follows it, and the complete operand expression stays in parentheses.</li><li>A strict-order declaration is <code>operator (&amp;self &lt; other: &amp;Self): bool</code>; spaces surround <code>&lt;</code>, the
+  named right binding follows it, and <code>&gt;</code>, <code>&lt;=</code>, and <code>&gt;=</code> have no declaration forms.</li><li>A drop declaration is <code>drop TypePattern(&amp;+self) { ... }</code>. It has no visibility, generic prefix,
+  <code>where</code> clause, or result annotation, and follows ordinary top-level brace formatting.</li><li>Put all <code>impl Interface</code> facts and public inherent members for one exact instance header in one
+  root-source <code>instance</code> block. Use another block only when its target pattern or <code>where</code> clause
+  differs. A private implementation source mirrors that exact header and keeps its method bodies
+  together when practical.</li><li>A readonly index declaration is <code>operator (&amp;self[index: K]): &amp;V</code>; a readwrite declaration is
+  <code>operator (&amp;+self[index: K]): &amp;+V</code>. There is no space before <code>[</code>, and the index binding follows
+  ordinary parameter spacing. An explicit result provenance clause, when needed, follows the
+  result type.</li><li>An opaque result is <code>some Interface</code> or <code>some Interface { .Item = Type }</code>. Generic arguments
+  remain in angle brackets and associated bindings remain in braces. Binding <code>=</code> uses one space on
+  each side, and <code>?</code> or <code>!</code> attaches to the complete opaque type without extra parentheses.</li><li>Closure captures precede one semicolon and parameters follow it: <code>(&amp;limit, move prefix; value)</code>.
+  Capture and parameter segments independently use the common single-line or multi-line comma
+  layout. The semicolon terminates the capture segment and replaces its trailing comma. A
+  multi-line capture therefore attaches <code>;</code> directly to its final capture. A multi-line parameter
+  segment retains its ordinary trailing comma before the closing parenthesis. There is one space
+  after a single-line semicolon and no space before it. A result annotation follows the closing
+  parenthesis as <code>): Type</code>.</li></ul><pre><code class="language-nct"><span class="token-keyword">let</span> callback <span class="token-operator">=</span> <span class="token-operator">(</span>
+    <span class="token-operator">&amp;</span>source<span class="token-operator">,</span>
+    <span class="token-keyword">move</span> prefix;
+    value<span class="token-operator">,</span>
+    index<span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+</code></pre><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> count<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">0</span>
+
+<span class="token-keyword">let</span> maybe_home<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span> <span class="token-operator">=</span> <span class="token-function">lookup</span><span class="token-operator">(</span><span class="token-string">"HOME"</span><span class="token-operator">)</span>
+<span class="token-keyword">let</span> home <span class="token-operator">=</span> maybe_home<span class="token-operator">?</span>
+
+<span class="token-keyword">func</span> <span class="token-function">read_all</span><span class="token-operator">(</span>
+    allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Allocator</span><span class="token-operator">,</span>
+    path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">get</span><span class="token-operator">(</span>index<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">?</span>
+<span class="token-keyword">func</span> choose<span class="token-operator">&lt;</span><span class="token-type">T</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>left<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">,</span> right<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">T</span> from left | right
+<span class="token-keyword">construct</span> <span class="token-type">String</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">literal</span> <span class="token-string">""</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span> <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+</code></pre><h2 id="expressions">Expressions</h2><p>Rules:</p><ul><li>Assignment and compound assignment use spaces around the operator.</li><li>Binary operators use spaces around the operator.</li><li>Type conversion uses one space around <code>as</code>, as in <code>&amp;value as &amp;View</code>.</li><li><code>otherwise</code> fallback blocks are formatted as <code>value otherwise { body }</code>.</li><li><code>if</code> and <code>match</code> expressions use the same formatting as their statement forms.</li><li>A result-only body may be formatted as <code>{ expr }</code> when it is short.</li><li>Unary operators are attached to their operand.</li><li>Redundant grouping between unary <code>-</code> and an integer literal is removed, so <code>-(128)</code> formats as
+  <code>-128</code>. This does not create a negative-literal token.</li><li>Prefix borrowing binds before <code>as</code>; write <code>&amp;value as &amp;View</code> without redundant parentheses, and
+  write <code>&amp;(value as WiderInteger)</code> when borrowing the converted result.</li><li>Function calls have no space between callee and <code>(</code>.</li><li>Method calls have no space around <code>.</code>.</li><li>Indexing has no space between value and <code>[</code>.</li><li>Field access has no space around <code>.</code>.</li><li>A wrapped binary expression normally puts a binary-only operator at the beginning of the
+  continuation line. Binary <code>-</code> stays at the end of the preceding line because <code>-</code> can also begin a
+  unary expression.</li><li>A wrapped field or method chain puts <code>.</code> at the beginning of each continuation line.</li><li>A call opener <code>(</code> and index opener <code>[</code> remain on the same line as the expression they extend.</li></ul><p>Examples:</p><pre><code class="language-nct">count <span class="token-operator">+</span><span class="token-operator">=</span> <span class="token-number">1</span>
+<span class="token-keyword">let</span> home <span class="token-operator">=</span> maybe_home <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"/tmp"</span> <span class="token-operator">}</span>
+<span class="token-keyword">let</span> label <span class="token-operator">=</span> <span class="token-keyword">if</span> is_ready <span class="token-operator">{</span> <span class="token-string">"ready"</span> <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span> <span class="token-string">"waiting"</span> <span class="token-operator">}</span>
+<span class="token-keyword">let</span> byte <span class="token-operator">=</span> bytes<span class="token-operator">[</span>i<span class="token-operator">]</span>
+file<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"hello"</span><span class="token-operator">)</span>
+
+<span class="token-keyword">let</span> total <span class="token-operator">=</span> left
+    <span class="token-operator">+</span> right
+    <span class="token-operator">*</span> scale
+
+<span class="token-keyword">let</span> difference <span class="token-operator">=</span> left -
+    right
+
+<span class="token-keyword">let</span> result <span class="token-operator">=</span> values
+    <span class="token-operator">.</span><span class="token-function">map</span><span class="token-operator">(</span>transform<span class="token-operator">)</span>
+    <span class="token-operator">.</span><span class="token-function">filter</span><span class="token-operator">(</span>predicate<span class="token-operator">)</span>
+</code></pre><h2 id="control-flow">Control Flow</h2><p>Rules:</p><ul><li>Control-flow keywords are followed by one space before their condition or pattern.</li><li><code>catch</code> after a fallible expression is separated from the expression by one space.</li><li>Single-pattern enum checks use <code>if expr is Pattern { ... }</code>.</li><li><code>match</code> arms use <code>Pattern { ... }</code>.</li><li><code>match</code> fallback arms use <code>_ { ... }</code> and must be written last.</li><li>A formatter preserves a final <code>_</code> arm even when the explicit arms cover all current variants.</li><li>A formatter does not merge, delete, or reorder duplicate variant arms. Duplicate variants are
+  semantic errors reported by checking.</li><li>Enum pattern payload slots use the common comma-list formatting. Keep one <code>_</code> for every ignored
+  payload position; the formatter never collapses multiple slots into one wildcard.</li><li>A pattern target keeps its ownership prefix adjacent to the target expression: <code>match &amp;value</code>,
+  <code>match &amp;+value</code>, and <code>match move value</code>.</li><li>Range <code>for</code> syntax is formatted as <code>for i in start..&lt;end { ... }</code>.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> file <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span>path<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-string">"while opening the file"</span><span class="token-operator">)</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">match</span> error <span class="token-operator">{</span>
+    <span class="token-type">AppError</span><span class="token-operator">.</span>missing_path <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+    <span class="token-type">AppError</span><span class="token-operator">.</span><span class="token-function">open_failed</span><span class="token-operator">(</span>path<span class="token-operator">)</span> <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+    _ <span class="token-operator">{</span>
+        <span class="token-operator">...</span>
+    <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">return</span> <span class="token-keyword">match</span> error <span class="token-operator">{</span>
+    <span class="token-type">AppError</span><span class="token-operator">.</span>missing_path <span class="token-operator">{</span> <span class="token-function">missing_code</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+    <span class="token-type">AppError</span><span class="token-operator">.</span><span class="token-function">open_failed</span><span class="token-operator">(</span>path<span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-function">code_for</span><span class="token-operator">(</span>path<span class="token-operator">)</span> <span class="token-operator">}</span>
+    _ <span class="token-operator">{</span> <span class="token-function">unknown_code</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">}</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">for</span> i <span class="token-keyword">in</span> <span class="token-number">0</span><span class="token-operator">.</span><span class="token-operator">.</span><span class="token-operator">&lt;</span>bytes<span class="token-operator">.</span><span class="token-function">len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span>
+    <span class="token-operator">...</span>
+<span class="token-operator">}</span>
+</code></pre><p>Collection iteration keeps an explicit ownership prefix adjacent to its source:</p><pre><code class="language-nct"><span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-operator">&amp;</span>values <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+<span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-operator">&amp;+</span>values <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+<span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+<span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-function">make_iterator</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+</code></pre><p>An existing move-only iterator is formatted with <code>move</code>; formatting never removes that required ownership transfer. A newly produced collection that requires owned expansion is first bound, then moved:</p><pre><code class="language-nct"><span class="token-keyword">let</span> values <span class="token-operator">=</span> <span class="token-function">make_values</span><span class="token-operator">(</span><span class="token-operator">)</span>
+<span class="token-keyword">for</span> item <span class="token-keyword">in</span> <span class="token-keyword">move</span> values <span class="token-operator">{</span> <span class="token-operator">...</span> <span class="token-operator">}</span>
+</code></pre><h2 id="comments">Comments</h2><p>Rules:</p><ul><li>Formatter output must preserve normal comments and doc comments once comment-preserving formatting is implemented.</li><li>The current formatter rejects files that contain comments with a diagnostic instead of rewriting them.</li><li>Formatter output may adjust surrounding whitespace but must not rewrite comment text.</li><li>Line comments keep at least one space between code and <code>//</code> when they share a line.</li><li>Block comments keep their internal text unchanged once comment-preserving formatting is implemented.</li><li>Doc comments keep their doc marker spelling: <code>///</code>, <code>/**</code>, <code>//!</code>, or <code>/*!</code>.</li></ul><p>The formatter does not reflow comment paragraphs.</p><h2 id="formatter-non-goals">Formatter Non-goals</h2><p>The formatter does not support:</p><ul><li>project-wide formatting</li><li>import sorting</li><li>semantic rewrites</li><li>line-length based wrapping guarantees</li><li>configurable style profiles</li><li>editor-only formatting rules</li><li>comment paragraph reflow</li></ul>
+            </div>
+        </main>
+    </div>
+
+    <footer class="site-footer">
+        <div class="site-footer-inner">
+            <p>© 2026 Rvo JP</p>
+
+            <nav class="site-footer-links" aria-label="Footer links">
+                <a href="mailto:contact@rvo.jp">contact@rvo.jp</a>
+                <a href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
+                <span>Apache License 2.0</span>
+            </nav>
+        </div>
+    </footer>
+    <script src="../../../script.js" defer></script>
+</body>
+</html>

@@ -4,7 +4,7 @@ use super::ContextualSpelling;
 
 #[test]
 fn catalog_matches_the_normative_grammar_table() {
-    let grammar = include_str!("../../../../../../spec/25-syntactic-grammar.md");
+    let grammar = include_str!("../../../../../../spec/language/syntactic-grammar.md");
     let section = grammar
         .split_once("## Contextual Spellings\n")
         .unwrap()
