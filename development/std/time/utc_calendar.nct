@@ -1,0 +1,228 @@
+//! Proleptic-Gregorian UTC validation and conversion.
+
+see ./index.nct
+see ./duration.nct
+see ./system_time.nct
+
+const SECONDS_PER_DAY: i64 = 86400
+const SECONDS_PER_HOUR: i64 = 3600
+const SECONDS_PER_MINUTE: i64 = 60
+const DAYS_FROM_CIVIL_EPOCH: i64 = 719468
+const DAYS_PER_ERA: i64 = 146097
+const MIN_UTC_SYSTEM_SECONDS: i64 = -62167219200
+const MAX_UTC_SYSTEM_SECONDS: i64 = 253402300799
+
+copy struct CalendarDate {
+    year: i64
+    month: i64
+    day: i64
+}
+
+copy struct UtcDateTime {
+    year_value: i64
+    month_value: i64
+    day_value: i64
+    hour_value: i64
+    minute_value: i64
+    second_value: i64
+    nanosecond_value: u64
+}
+
+noalloc func invalid_utc_datetime(): error {
+    return error.new("std.time.invalid_utc_datetime", "UTC date or time components are invalid")
+}
+
+noalloc func utc_datetime_out_of_range(): error {
+    return error.new(
+        "std.time.utc_datetime_out_of_range",
+        "the system time is outside UTC years 0000 through 9999",
+    )
+}
+
+noalloc func is_leap_year(year: i64): bool {
+    if year % 4 != 0 { return false }
+    if year % 100 != 0 { return true }
+    return year % 400 == 0
+}
+
+noalloc func days_in_month(year: i64, month: i64): i64 {
+    if month == 2 {
+        if is_leap_year(year) { return 29 }
+        return 28
+    }
+    if month == 4 || month == 6 || month == 9 || month == 11 { return 30 }
+    return 31
+}
+
+noalloc func valid_utc_components(
+    year: i64,
+    month: i64,
+    day: i64,
+    hour: i64,
+    minute: i64,
+    second: i64,
+    nanosecond: u64,
+): bool {
+    if year < 0 || year > 9999 { return false }
+    if month < 1 || month > 12 { return false }
+    if day < 1 || day > days_in_month(year, month) { return false }
+    if hour < 0 || hour > 23 { return false }
+    if minute < 0 || minute > 59 { return false }
+    if second < 0 || second > 59 { return false }
+    return nanosecond < NANOSECONDS_PER_SECOND
+}
+
+noalloc func utc_datetime_unchecked(
+    year: i64,
+    month: i64,
+    day: i64,
+    hour: i64,
+    minute: i64,
+    second: i64,
+    nanosecond: u64,
+): UtcDateTime {
+    return UtcDateTime {
+        year_value: year,
+        month_value: month,
+        day_value: day,
+        hour_value: hour,
+        minute_value: minute,
+        second_value: second,
+        nanosecond_value: nanosecond,
+    }
+}
+
+// Returns days relative to 1970-01-01. Callers validate year, month, and day first.
+noalloc func days_from_civil(year: i64, month: i64, day: i64): i64 {
+    let adjusted_year: i64 = if month <= 2 { year - 1 } else { year }
+    let era: i64 = if adjusted_year >= 0 {
+        adjusted_year / 400
+    } else {
+        (adjusted_year - 399) / 400
+    }
+    let year_of_era: i64 = adjusted_year - era * 400
+    let shifted_month: i64 = if month > 2 { month - 3 } else { month + 9 }
+    let day_of_year: i64 = (153 * shifted_month + 2) / 5 + day - 1
+    let regular_days: i64 = year_of_era * 365
+    let leap_days: i64 = year_of_era / 4
+    let omitted_century_days: i64 = year_of_era / 100
+    let day_of_era: i64 = regular_days + leap_days - omitted_century_days + day_of_year
+    return era * DAYS_PER_ERA + day_of_era - DAYS_FROM_CIVIL_EPOCH
+}
+
+// Converts days relative to 1970-01-01 after the supported SystemTime range has been checked.
+noalloc func civil_from_days(days: i64): CalendarDate {
+    let shifted_days: i64 = days + DAYS_FROM_CIVIL_EPOCH
+    let era: i64 = if shifted_days >= 0 {
+        shifted_days / DAYS_PER_ERA
+    } else {
+        (shifted_days - (DAYS_PER_ERA - 1)) / DAYS_PER_ERA
+    }
+    let day_of_era: i64 = shifted_days - era * DAYS_PER_ERA
+    let year_of_era: i64 = (
+        day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096
+    ) / 365
+    var year: i64 = year_of_era + era * 400
+    let preceding_regular_days: i64 = 365 * year_of_era
+    let preceding_leap_days: i64 = year_of_era / 4
+    let preceding_omitted_century_days: i64 = year_of_era / 100
+    let preceding_days: i64 = preceding_regular_days + preceding_leap_days - preceding_omitted_century_days
+    let day_of_year: i64 = day_of_era - preceding_days
+    let month_position: i64 = (5 * day_of_year + 2) / 153
+    let day: i64 = day_of_year - (153 * month_position + 2) / 5 + 1
+    let month: i64 = if month_position < 10 { month_position + 3 } else { month_position - 9 }
+    if month <= 2 { year += 1 }
+    return CalendarDate { year: year, month: month, day: day }
+}
+
+noalloc func system_seconds_from_utc(value: &UtcDateTime): i64 {
+    let days = days_from_civil(value.year_value, value.month_value, value.day_value)
+    return days * SECONDS_PER_DAY
+        + value.hour_value * SECONDS_PER_HOUR
+        + value.minute_value * SECONDS_PER_MINUTE
+        + value.second_value
+}
+
+construct UtcDateTime {
+    noalloc func new(
+        year: i64,
+        month: i64,
+        day: i64,
+        hour: i64,
+        minute: i64,
+        second: i64,
+        nanosecond: u64,
+    ): Self! {
+        if !valid_utc_components(year, month, day, hour, minute, second, nanosecond) {
+            return invalid_utc_datetime()
+        }
+        return utc_datetime_unchecked(year, month, day, hour, minute, second, nanosecond)
+    }
+
+    noalloc func from_system_time(value: &SystemTime): Self! {
+        let seconds = value.unix_seconds()
+        if seconds < MIN_UTC_SYSTEM_SECONDS || seconds > MAX_UTC_SYSTEM_SECONDS {
+            return utc_datetime_out_of_range()
+        }
+        var days = seconds / SECONDS_PER_DAY
+        var second_of_day = seconds % SECONDS_PER_DAY
+        if second_of_day < 0 {
+            days -= 1
+            second_of_day += SECONDS_PER_DAY
+        }
+        let date = civil_from_days(days)
+        let hour = second_of_day / SECONDS_PER_HOUR
+        let after_hour = second_of_day % SECONDS_PER_HOUR
+        let minute = after_hour / SECONDS_PER_MINUTE
+        let second = after_hour % SECONDS_PER_MINUTE
+        return utc_datetime_unchecked(
+            date.year,
+            date.month,
+            date.day,
+            hour,
+            minute,
+            second,
+            value.subsecond_nanoseconds(),
+        )
+    }
+}
+
+instance UtcDateTime {
+    noalloc method &self.year(): i64 { return self.year_value }
+    noalloc method &self.month(): i64 { return self.month_value }
+    noalloc method &self.day(): i64 { return self.day_value }
+    noalloc method &self.hour(): i64 { return self.hour_value }
+    noalloc method &self.minute(): i64 { return self.minute_value }
+    noalloc method &self.second(): i64 { return self.second_value }
+    noalloc method &self.nanosecond(): u64 { return self.nanosecond_value }
+
+    noalloc method &self.to_system_time(): SystemTime {
+        return normalized_system_time(system_seconds_from_utc(self), self.nanosecond_value)
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        return self.year_value == other.year_value
+            && self.month_value == other.month_value
+            && self.day_value == other.day_value
+            && self.hour_value == other.hour_value
+            && self.minute_value == other.minute_value
+            && self.second_value == other.second_value
+            && self.nanosecond_value == other.nanosecond_value
+    }
+
+    noalloc operator (&self < other: &Self): bool {
+        if self.year_value != other.year_value { return self.year_value < other.year_value }
+        if self.month_value != other.month_value { return self.month_value < other.month_value }
+        if self.day_value != other.day_value { return self.day_value < other.day_value }
+        if self.hour_value != other.hour_value { return self.hour_value < other.hour_value }
+        if self.minute_value != other.minute_value { return self.minute_value < other.minute_value }
+        if self.second_value != other.second_value { return self.second_value < other.second_value }
+        return self.nanosecond_value < other.nanosecond_value
+    }
+}
+
+instance SystemTime {
+    noalloc method &self.to_utc(): UtcDateTime! {
+        return UtcDateTime.from_system_time(self)
+    }
+}

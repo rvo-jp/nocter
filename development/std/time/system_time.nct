@@ -11,6 +11,10 @@ copy struct SystemTime {
     nanoseconds: u64
 }
 
+noalloc func normalized_system_time(seconds: i64, nanoseconds: u64): SystemTime {
+    return SystemTime { seconds: seconds, nanoseconds: nanoseconds }
+}
+
 noalloc func invalid_system_time(): error {
     return error.new(
         "std.time.invalid_system_time",
@@ -24,12 +28,12 @@ noalloc func wall_clock_failed(): error {
 
 construct SystemTime {
     noalloc func from_unix_seconds(seconds: i64): Self {
-        return SystemTime { seconds: seconds, nanoseconds: 0 }
+        return normalized_system_time(seconds, 0)
     }
 
     noalloc func from_unix_parts(seconds: i64, nanoseconds: u64): Self! {
         if nanoseconds >= NANOSECONDS_PER_SECOND { return invalid_system_time() }
-        return SystemTime { seconds: seconds, nanoseconds: nanoseconds }
+        return normalized_system_time(seconds, nanoseconds)
     }
 
     noalloc func now(): Self! {

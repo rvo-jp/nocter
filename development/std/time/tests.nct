@@ -101,6 +101,88 @@ test system_wall_clock_produces_a_normalized_observation {
     return
 }
 
+test utc_calendar_converts_the_unix_epoch_and_the_preceding_nanosecond {
+    let epoch = SystemTime.from_unix_seconds(0).to_utc()?
+    testing.assert(epoch.year() == 1970)?
+    testing.assert(epoch.month() == 1)?
+    testing.assert(epoch.day() == 1)?
+    testing.assert(epoch.hour() == 0)?
+    testing.assert(epoch.minute() == 0)?
+    testing.assert(epoch.second() == 0)?
+    testing.assert(epoch.nanosecond() == 0)?
+
+    let preceding_system_time = SystemTime.from_unix_parts(-1, 999999999)?
+    let preceding = preceding_system_time.to_utc()?
+    testing.assert(preceding.year() == 1969)?
+    testing.assert(preceding.month() == 12)?
+    testing.assert(preceding.day() == 31)?
+    testing.assert(preceding.hour() == 23)?
+    testing.assert(preceding.minute() == 59)?
+    testing.assert(preceding.second() == 59)?
+    testing.assert(preceding.nanosecond() == 999999999)?
+    return
+}
+
+test utc_calendar_uses_proleptic_gregorian_leap_years {
+    let leap = UtcDateTime.new(2000, 2, 29, 12, 34, 56, 7)?
+    testing.assert(leap.to_system_time().unix_seconds() == 951827696)?
+    let round_trip = leap.to_system_time().to_utc()?
+    testing.assert(leap == round_trip)?
+
+    let _invalid_century = UtcDateTime.new(1900, 2, 29, 0, 0, 0, 0) catch failure {
+        testing.assert(failure.has_code("std.time.invalid_utc_datetime"))?
+        return
+    }
+    return error.new("std.time.test", "a non-leap-century date was accepted")
+}
+
+test utc_calendar_round_trips_its_supported_year_boundaries {
+    let first = UtcDateTime.new(0, 1, 1, 0, 0, 0, 0)?
+    let last = UtcDateTime.new(9999, 12, 31, 23, 59, 59, 999999999)?
+    testing.assert(first.to_system_time().unix_seconds() == -62167219200)?
+    testing.assert(last.to_system_time().unix_seconds() == 253402300799)?
+    let first_round_trip = first.to_system_time().to_utc()?
+    let last_round_trip = last.to_system_time().to_utc()?
+    testing.assert(first == first_round_trip)?
+    testing.assert(last == last_round_trip)?
+    testing.assert(first < last)?
+    return
+}
+
+test utc_calendar_rejects_system_times_outside_supported_years {
+    let _before = SystemTime.from_unix_seconds(-62167219201).to_utc() catch failure {
+        testing.assert(failure.has_code("std.time.utc_datetime_out_of_range"))?
+        let _after = SystemTime.from_unix_seconds(253402300800).to_utc() catch later_failure {
+            testing.assert(later_failure.has_code("std.time.utc_datetime_out_of_range"))?
+            return
+        }
+        return error.new("std.time.test", "a system time after year 9999 was accepted")
+    }
+    return error.new("std.time.test", "a system time before year 0000 was accepted")
+}
+
+test utc_calendar_rejects_invalid_clock_components {
+    let _invalid_hour = UtcDateTime.new(2024, 1, 1, 24, 0, 0, 0) catch failure {
+        testing.assert(failure.has_code("std.time.invalid_utc_datetime"))?
+        let _invalid_second = UtcDateTime.new(2024, 1, 1, 0, 0, 60, 0) catch later_failure {
+            testing.assert(later_failure.has_code("std.time.invalid_utc_datetime"))?
+            return
+        }
+        return error.new("std.time.test", "a leap-second component was accepted")
+    }
+    return error.new("std.time.test", "an invalid hour was accepted")
+}
+
+test utc_calendar_order_is_lexicographic_over_valid_components {
+    let morning = UtcDateTime.new(2024, 6, 30, 8, 0, 0, 0)?
+    let evening = UtcDateTime.new(2024, 6, 30, 20, 0, 0, 0)?
+    let tomorrow = UtcDateTime.new(2024, 7, 1, 0, 0, 0, 0)?
+    testing.assert(morning < evening)?
+    testing.assert(evening < tomorrow)?
+    testing.assert(!(tomorrow < morning))?
+    return
+}
+
 test target_counter_contract_has_a_bounded_frequency_and_wrapping_delta {
     let frequency = monotonic_frequency_raw()
     testing.assert(frequency > 0 && frequency <= 4294967295)?

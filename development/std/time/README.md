@@ -52,6 +52,22 @@ observation fails. Successive observations may be equal or move backward when th
 adjusted. Programs measuring elapsed time must use `Instant` instead. Equality and ordering compare
 the represented instant, not the private field layout.
 
+## UTC Calendar
+
+`UtcDateTime` represents UTC components in the proleptic Gregorian calendar. Its supported years
+are 0000 through 9999 inclusive. Month and day validation follows Gregorian leap-year rules; hours
+use the 24-hour clock, and seconds range from 00 through 59. Leap seconds are not values in this
+calendar domain. Nanoseconds range from zero through 999,999,999.
+
+`UtcDateTime.new` rejects an invalid component combination with
+`std.time.invalid_utc_datetime`. Conversion to `SystemTime` is exact. Conversion from `SystemTime`
+preserves nanoseconds and returns `std.time.utc_datetime_out_of_range` when the instant lies before
+0000-01-01T00:00:00Z or after 9999-12-31T23:59:59.999999999Z. Dates before the Unix epoch use the
+same Gregorian rules; there is no separate historical-calendar transition.
+
+Equality and ordering compare the represented UTC instant. Component accessors expose the
+validated calendar fields without reparsing or consulting a target clock.
+
 ## Blocking Sleep
 
 The module namespace owns the blocking sleep operation declared in [`index.nct`](index.nct).
@@ -74,8 +90,8 @@ or another undeclared guarantee.
 
 The compiler target contract provides only the closed facts needed to read a monotonic counter,
 read its fixed frequency, compute a wrap-aware counter delta, and perform generic target syscalls.
-It does not construct `Duration` or `SystemTime`, implement sleep policy, classify public errors, or
-expose target time structures to user code.
+It does not construct `Duration`, `SystemTime`, or `UtcDateTime`; implement sleep policy or calendar
+arithmetic; classify public errors; or expose target time structures to user code.
 
 Target-specific standard-library adapters own raw wall-clock and wait ABI layouts plus one target
 operation. The target-independent `std/time` implementation owns normalization,
@@ -86,4 +102,4 @@ Neither layer may rediscover the other layer's facts from source spelling or mac
 
 This contract does not add local time zones, daylight-saving rules, locale-dependent presentation,
 async timers, scheduler integration, deadlines as a public type, periodic timers, `noblock`, or
-`realtime`. UTC calendar conversion and RFC 3339 interchange are added by later v0.36.0 phases.
+`realtime`. RFC 3339 interchange is added by a later v0.36.0 phase.

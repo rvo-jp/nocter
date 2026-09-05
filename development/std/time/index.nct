@@ -6,6 +6,7 @@ see ./primitives.nct
 see ./sleep.nct
 see ./system_time.nct
 see ./tests.nct
+see ./utc_calendar.nct
 
 /// A normalized, non-negative span of time.
 pub copy struct Duration
@@ -15,6 +16,9 @@ pub copy struct Instant
 
 /// A normalized wall-clock instant relative to the Unix epoch.
 pub copy struct SystemTime
+
+/// A validated UTC date and time in the proleptic Gregorian calendar.
+pub copy struct UtcDateTime
 
 construct Duration {
     /// Creates a duration from whole seconds.
@@ -85,6 +89,44 @@ instance SystemTime {
     pub noalloc operator (&self == other: &Self): bool
 
     /// Returns whether this instant precedes `other`.
+    pub noalloc operator (&self < other: &Self): bool
+
+    /// Converts this instant to UTC calendar components when its year is representable.
+    pub noalloc method &self.to_utc(): UtcDateTime!
+}
+
+construct UtcDateTime {
+    /// Creates a validated UTC calendar value.
+    pub noalloc func new(
+        year: i64,
+        month: i64,
+        day: i64,
+        hour: i64,
+        minute: i64,
+        second: i64,
+        nanosecond: u64,
+    ): Self!
+
+    /// Converts a representable system-time instant to UTC calendar components.
+    pub noalloc func from_system_time(value: &SystemTime): Self!
+}
+
+instance UtcDateTime {
+    pub noalloc method &self.year(): i64
+    pub noalloc method &self.month(): i64
+    pub noalloc method &self.day(): i64
+    pub noalloc method &self.hour(): i64
+    pub noalloc method &self.minute(): i64
+    pub noalloc method &self.second(): i64
+    pub noalloc method &self.nanosecond(): u64
+
+    /// Converts this UTC calendar value to its exact Unix wall-clock instant.
+    pub noalloc method &self.to_system_time(): SystemTime
+
+    /// Returns whether both values denote the same UTC instant.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Returns whether this UTC value precedes `other`.
     pub noalloc operator (&self < other: &Self): bool
 }
 

@@ -2,9 +2,9 @@
 
 ## Next Work
 
-Complete v0.36.0 Phase 0 by freezing the `SystemTime`, `UtcDateTime`, RFC 3339, target wall-clock,
-and filesystem timestamp contracts. Then implement the target fact and normalized instant before
-calendar or text conversion so later layers cannot reinterpret raw clock values.
+Complete v0.36.0 Phase 3 by adding one canonical RFC 3339 parser and generator over the implemented
+`SystemTime` and `UtcDateTime` authorities. Then expose filesystem timestamps and qualify tooling
+without duplicating calendar arithmetic or target ABI knowledge.
 
 ## Blockers
 
