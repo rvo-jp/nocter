@@ -21,7 +21,6 @@ public contract.
   their checked declarations.
 - [Platform](platform/README.md) defines ABI, target, primitive, and distribution boundaries.
 - [Tooling](tooling/README.md) defines diagnostics, formatting, CLI, testing, and editor behavior.
-- [AI Guide](guides/ai.md) is a compact source-writing guide, not a second specification.
 - [Runnable Examples](../examples/README.md) contains complete programs checked against released
   behavior.
 

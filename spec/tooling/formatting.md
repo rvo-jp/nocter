@@ -10,8 +10,8 @@ Rules:
 - Style violations are not compile errors.
 - The parser accepts valid whitespace variations where tokenization remains unambiguous.
 - The formatter emits the official source style.
-- Specification snippets, root documentation examples, `spec/guides/ai.md`, and packages under
-  `examples/` should use formatter output as the canonical presentation.
+- Specification snippets, root documentation examples, and packages under `examples/` should use
+  formatter output as the canonical presentation.
 - The formatter belongs in the compiler toolchain, not in editor extensions.
 - Constant and static declarations use `UPPER_SNAKE_CASE`; ordinary functions, parameters, and
   local bindings use `lower_snake_case`.
