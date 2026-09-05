@@ -1,10 +1,16 @@
 # Nocter Development Handoff
 
+## Current State
+
+The v0.36.0 implementation and final design review are complete. The release identity is frozen at
+`0.36.0`; the public latest release remains v0.35.0 until publication is separately authorized.
+
 ## Next Work
 
-Prepare v0.36.0 for release. Freeze the release identity, run the complete release gate, assemble
-and independently qualify the installed home and archive, write the public release note, and stop
-before tagging or publishing unless publication is explicitly requested.
+Qualify the exact clean v0.36.0 release-content commit through two independent compiler gates,
+explicit public-HTTPS acquisition, deterministic packaging, and installed-home validation. Record
+the retained archive identity and stop before tagging, pushing, uploading, or changing public
+latest-release links.
 
 ## Blockers
 
