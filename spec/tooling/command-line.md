@@ -181,22 +181,13 @@ declaration; only `fetch` mutates its generated exact-selection fields.
 
 ## Executable Selection
 
-An executable declaration selects a module. The selected module must contain a top-level `func
-main` with no type or value parameters and a supported process result type.
-
-```nct
-#executable: {
-    name: "server",
-    module: "./src/server",
-}
-```
+An executable declaration selects the module defined by its
+[`#executable` record](../language/packages.md#executable-targets). Before a command can emit or run
+that target, the selected module must satisfy the [Executable Entry](../overview.md#executable-entry)
+contract.
 
 Rules:
 
-- Omitting `module` selects `.`.
-- `module: "."` selects `index.nct` in the package root.
-- `module: "./src/server"` selects `src/server/index.nct`.
-- A module path names a directory, cannot contain `.nct`, and cannot escape the package root.
 - `--executable name` selects one declared executable.
 - Package `build` builds every declared executable when no name is selected.
 - Package `run` selects the sole executable. Multiple declarations require `--executable`.

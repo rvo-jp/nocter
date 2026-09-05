@@ -154,8 +154,9 @@ beginning with `./`:
 - paths omit `.nct`, cannot escape the package, and cannot cross a nested package
 - targets never select ordinary implementation sources
 
-Executable and test names occupy separate target namespaces. Command selection and executable-entry
-validation are defined by [Executable Selection](../tooling/command-line.md#executable-selection).
+Executable and test names occupy separate target namespaces. The CLI defines
+[executable selection](../tooling/command-line.md#executable-selection), while
+[Executable Entry](../overview.md#executable-entry) defines the required `main` contract.
 
 ## Test Targets
 
