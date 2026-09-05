@@ -599,7 +599,7 @@ function renderHero(logoHref, specHref) {
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="${specHref}">Documentation</a>
+                    <a class="hero-action hero-action-primary" href="${specHref}">Specification</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
