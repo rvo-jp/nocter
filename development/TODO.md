@@ -2,9 +2,9 @@
 
 ## Next Work
 
-Complete v0.36.0 Phase 5 by qualifying formatting, LSP features, installed-home behavior, native
-execution, target rejection, generated documentation, and the complete authority boundaries for
-wall-clock time, UTC calendar conversion, RFC 3339, and filesystem timestamps.
+Prepare v0.36.0 for release. Freeze the release identity, run the complete release gate, assemble
+and independently qualify the installed home and archive, write the public release note, and stop
+before tagging or publishing unless publication is explicitly requested.
 
 ## Blockers
 

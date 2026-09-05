@@ -15,6 +15,8 @@ noalloc func invalid_rfc3339(): error {
 }
 
 noalloc func decimal_digits(bytes: &[u8], start: usize, count: usize): i64? {
+    if start > bytes.len() { return none }
+    if count > bytes.len() - start { return none }
     var value: i64 = 0
     var offset: usize = 0
     while offset < count {

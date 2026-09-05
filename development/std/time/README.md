@@ -70,8 +70,10 @@ validated calendar fields without reparsing or consulting a target clock.
 
 ## RFC 3339
 
-`SystemTime.parse_rfc3339` accepts the v0.36.0 RFC 3339 profile. A timestamp uses a four-digit year,
-uppercase `T`, a 24-hour time, and either uppercase `Z` or a numeric `+HH:MM`/`-HH:MM` offset. The
+`SystemTime.parse_rfc3339` accepts the standard-library [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html)
+profile. A timestamp uses a
+four-digit year, uppercase `T`, a 24-hour time, and either uppercase `Z` or a numeric
+`+HH:MM`/`-HH:MM` offset. The
 fractional field is optional and may contain one through nine decimal digits. Accepted fractions
 are scaled exactly to nanoseconds, and accepted numeric offsets are normalized to the represented
 UTC instant.
