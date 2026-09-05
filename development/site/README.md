@@ -27,12 +27,14 @@ The website publishes:
 - current contributor Markdown under `development/`, except internal handoff and historical
   records;
 - every runnable Nocter source under `examples/`;
-- public standard-library READMEs and `index.nct` contract files under `development/std/`, excluding
-  the `internal/` subtree.
+- public standard-library READMEs and exact checked `index.nct` module-contract sources under
+  `development/std/`, excluding the `internal/` subtree.
 
 Standard-library documentation is projected from its repository location into the public `/std/`
-tree; the site does not present it as contributor documentation. Private standard-library
-implementation sources remain available in the repository but do not become website pages.
+tree; the site does not present it as contributor documentation. A contract page preserves its
+complete canonical source, including visibly restricted declarations and module-assembly edges; it
+does not relabel those source forms as public API. Private standard-library implementation sources
+and package-only modules remain available in the repository but do not become website pages.
 Markdown links to an existing non-published repository file resolve to its GitHub source page.
 Compiler diagnostic fixtures and `development/history/` are not published; milestone, review, and
 release-audit links are still validated as historical records.

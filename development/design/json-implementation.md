@@ -196,9 +196,10 @@ the same unspecified iteration semantics. Separating source and ordinal also avo
 self-referential state in which a frame would move an iterator while retaining a result loan from
 that iterator.
 
-`ByteSink.emit` is the only destination operation consumed by traversal and escaping. `StringSink`
-and `WriterSink` contain destination adaptation only; neither sees `Value`, punctuation, Number, or
-escape decisions. String escaping batches complete UTF-8 chunks in fixed local storage. Before a
+`std/internal/json/output.ByteSink.emit` is the only destination operation consumed by traversal
+and escaping. `StringSink` and `WriterSink` contain destination adaptation only; neither sees
+`Value`, punctuation, Number, or escape decisions. String escaping batches complete UTF-8 chunks
+in fixed local storage. Before a
 multibyte scalar crosses the local capacity boundary, the current chunk is flushed, so an owning
 String never receives a partial scalar even though Writer accepts arbitrary bytes.
 

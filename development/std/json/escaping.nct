@@ -3,7 +3,7 @@
 see ./index.nct
 
 use /internal/ptr
-use /json/output.ByteSink
+use /internal/json/output.ByteSink
 use /ptr as ptr_module
 
 struct EscapeBuffer {

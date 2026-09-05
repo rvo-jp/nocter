@@ -150,6 +150,7 @@ function assertPublicationBoundary(root) {
         "docs/development/history/milestones/index.html",
         "docs/development/std/index.html",
         "docs/std/str/text/index.html",
+        "docs/std/json/output/index/index.html",
         "docs/std/internal/utf8/index/index.html"
     ];
     for (const relative of privateSources) {

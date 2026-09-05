@@ -809,7 +809,7 @@ function sourceDocumentLabel(sourcePath) {
     if (name === "index.nct") {
         const readme = path.join(path.dirname(absoluteSource), "README.md");
         const relativeReadme = normalizePath(path.relative(PROJECT_ROOT, readme));
-        return sourceSet.has(relativeReadme) ? "Public API" : path.basename(path.dirname(absoluteSource));
+        return sourceSet.has(relativeReadme) ? "Module Contract" : path.basename(path.dirname(absoluteSource));
     }
     return name;
 }

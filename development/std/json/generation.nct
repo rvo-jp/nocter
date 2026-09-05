@@ -9,7 +9,7 @@ use /io.Writer
 use /map.Map
 use /mem.TryAllocator
 use /mem as mem_module
-use /json/output.{ByteSink, StringSink, WriterSink}
+use /internal/json/output.{ByteSink, StringSink, WriterSink}
 use /string.String
 use /vec.Vec
 

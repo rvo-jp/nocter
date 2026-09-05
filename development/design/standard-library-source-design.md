@@ -74,6 +74,7 @@ The standard-library foundation has the following implementation owners:
 | public address observation and borrow-to-pointer conversion | `std/ptr` |
 | raw address projection, byte copying, and typed value movement | `std/internal/ptr` |
 | checked capacity arithmetic and allocation abort boundary | `std/internal/mem` |
+| JSON output destination adaptation | `std/internal/json/output` |
 | target-neutral OS error facts | `std/internal/os` |
 | Darwin syscall, errno, mmap, file-mode, and metadata-layout facts | `std/internal/os/darwin` |
 | allocator and raw-buffer policy | `std/mem` |

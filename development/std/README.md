@@ -8,9 +8,12 @@ explains observable behavior, failure, complexity, and cross-operation invariant
 The package identity itself is defined by the checked [root declaration](index.nct).
 
 Language constructs and target primitives are referenced from their owning specification chapters
-rather than redefined here. Implementation sources, `see` edges, private representation, and target
-adapters are not public API. Generated navigation exposes every public module contract; the guides
-below cover modules whose observable behavior needs more explanation than declaration comments.
+rather than redefined here. Generated contract pages show the exact checked `index.nct` source:
+only declarations with public language visibility are public API, while visible `see` edges and
+restricted declarations remain source-level module assembly and package contracts. Independent
+package-only modules live under `std/internal` and are excluded from generated navigation. The
+guides below cover modules whose observable behavior needs more explanation than declaration
+comments.
 
 ## Behavior Guides
 
