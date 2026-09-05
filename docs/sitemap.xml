@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>https://nocter.dev/development/benchmarks/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-analysis/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
@@ -282,6 +287,11 @@
   </url>
   <url>
     <loc>https://nocter.dev/development/design/maintenance/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/development/design/performance-measurement-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

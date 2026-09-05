@@ -30,6 +30,7 @@ under `development/history/`, not in current design documents.
 - [Tuple Representation Boundary](tuple-design.md)
 - [Unicode Scalar Representation Boundary](unicode-scalar-design.md)
 - [Static Unicode Data Boundary](unicode-text-data-design.md)
+- [Performance Measurement Boundary](performance-measurement-design.md)
 
 ## Maintenance Contracts
 

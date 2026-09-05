@@ -2,14 +2,14 @@
 
 ## Current State
 
-Nocter v0.36.0 is published and externally audited. The public tag resolves to publication commit
-`8678b994955a5599a67fa3941e2b16db766123ff`, and the public archive matches the qualified local
-candidate byte for byte.
+Nocter v0.36.0 is published and externally audited. v0.37.0 Phase 0 is active and establishes the
+measurement authority and released performance baseline before any production optimization.
 
 ## Next Work
 
-No milestone is active. Preserve the immutable v0.36.0 tag and asset. Define a new version before
-changing released behavior or distribution content.
+Complete the v0.36.0 process-cold command and persistent body-edit LSP baseline with the independent
+benchmark runner. Then attribute the dominant path using compiler-owned query accounting before
+changing production code.
 
 ## Blockers
 

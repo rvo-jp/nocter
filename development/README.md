@@ -11,6 +11,7 @@ the compiler reached those contracts without becoming another authority.
 - [Compiler architecture](design/architecture.md) — pipeline and cross-crate authority boundaries
 - [Architecture and maintenance documents](design/README.md)
 - [Compiler workspace](compiler/README.md)
+- [Performance measurement](benchmarks/README.md) — external latency evidence and query-count boundary
 - [Development verification](verification/README.md) — disposable complete compiler gates
 - [Documentation site generator](site/README.md) — authored website inputs and output boundary
 - [Development history](history/README.md) — milestones, reviews, legacy design, and publication audits
@@ -46,6 +47,7 @@ development/
 ├── AGENTS.md
 ├── README.md
 ├── TODO.md
+├── benchmarks/        # repeatable external compiler and editor measurements
 ├── compiler/          # specification-first compiler workspace
 ├── design/            # active cross-crate architecture and maintenance policy
 ├── history/           # non-normative engineering records, excluded from the website

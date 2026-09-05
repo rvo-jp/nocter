@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Unicode Scalar Representation Boundary - Nocter</title>
-    <meta name="description" content="This document owns the current cross-crate representation and authority boundary for Unicode scalar values. Public behavior belongs in spec/language/unicod">
+    <title>Performance Measurement - Nocter</title>
+    <meta name="description" content="This directory owns repeatable, non-normative measurements of user-visible compiler and editor latency. Measurements guide optimization; they do not define">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/design/unicode-scalar-design/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/development/benchmarks/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Unicode Scalar Representation Boundary - Nocter">
-    <meta property="og:description" content="This document owns the current cross-crate representation and authority boundary for Unicode scalar values. Public behavior belongs in spec/language/unicod">
-    <meta property="og:url" content="https://nocter.dev/development/design/unicode-scalar-design/">
+    <meta property="og:title" content="Performance Measurement - Nocter">
+    <meta property="og:description" content="This directory owns repeatable, non-normative measurements of user-visible compiler and editor latency. Measurements guide optimization; they do not define">
+    <meta property="og:url" content="https://nocter.dev/development/benchmarks/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Unicode Scalar Representation Boundary - Nocter">
-    <meta name="twitter:description" content="This document owns the current cross-crate representation and authority boundary for Unicode scalar values. Public behavior belongs in spec/language/unicod">
+    <meta name="twitter:title" content="Performance Measurement - Nocter">
+    <meta name="twitter:description" content="This directory owns repeatable, non-normative measurements of user-visible compiler and editor latency. Measurements guide optimization; they do not define">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Unicode Scalar Representation Boundary - Nocter","description":"This document owns the current cross-crate representation and authority boundary for Unicode scalar values. Public behavior belongs in spec/language/unicod","url":"https://nocter.dev/development/design/unicode-scalar-design/","mainEntityOfPage":"https://nocter.dev/development/design/unicode-scalar-design/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Design","item":"https://nocter.dev/development/design/"},{"@type":"ListItem","position":4,"name":"Unicode Scalar Design","item":"https://nocter.dev/development/design/unicode-scalar-design/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Performance Measurement - Nocter","description":"This directory owns repeatable, non-normative measurements of user-visible compiler and editor latency. Measurements guide optimization; they do not define","url":"https://nocter.dev/development/benchmarks/","mainEntityOfPage":"https://nocter.dev/development/benchmarks/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Benchmarks","item":"https://nocter.dev/development/benchmarks/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-document-tree">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Specification</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Specification</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -173,44 +173,34 @@
     <div class="docs-shell">
         <aside class="document-tree">
             <nav aria-label="Documentation tree">
-                <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li><li><a href="../../index.html#content">Contributor Documentation</a></li></ol>
-                <p class="document-tree-title">development/design/</p>
+                <ol class="document-tree-breadcrumbs"><li><a href="../../index.html#content">Nocter</a></li></ol>
+                <p class="document-tree-title">development/</p>
                 <ul class="document-tree-list">
-                    <li><a href="../index.html#content">Compiler Design and Maintenance Documentation</a></li>
-                    <li><a href="../architecture/index.html#content">Specification-First Compiler Architecture</a></li>
-                    <li><a href="../associative-collection-implementation/index.html#content">Associative Collection Implementation Boundary</a></li>
-                    <li><a href="../checked-program-design/index.html#content">Checked Program Boundary</a></li>
-                    <li><a href="../declaration-diagnostic-boundary/index.html#content">Declaration Diagnostic Boundary</a></li>
-                    <li><a href="../grammar-conformance/index.html#content">Grammar Conformance</a></li>
-                    <li><a href="../incremental-computation-design/index.html#content">Incremental Computation Boundary</a></li>
-                    <li><a href="../json-implementation/index.html#content">JSON Implementation Boundary</a></li>
-                    <li><a href="../machine-program-design/index.html#content">Machine Program and Native Target Boundary</a></li>
-                    <li><a href="../maintenance/index.html#content">Maintenance</a></li>
-                    <li><a href="../performance-measurement-design/index.html#content">Performance Measurement Boundary</a></li>
-                    <li><a href="../semantic-presentation-design/index.html#content">Semantic Presentation Boundary</a></li>
-                    <li><a href="../standard-library-source-design/index.html#content">Standard Library Source Design</a></li>
-                    <li><a href="../target-program-design/index.html#content">Target, Executable, and MIR Boundary</a></li>
-                    <li><a href="../tuple-design/index.html#content">Tuple Representation Boundary</a></li>
-                    <li><a href="./index.html#content" aria-current="page">Unicode Scalar Representation Boundary</a></li>
-                    <li><a href="../unicode-text-data-design/index.html#content">Static Unicode Data Boundary</a></li>
+                    <li><a href="../index.html#content">Contributor Documentation</a></li>
+                    <li><a href="./index.html#content" aria-current="page">benchmarks</a></li>
+                    <li><a href="../compiler/index.html#content">compiler</a></li>
+                    <li><a href="../design/index.html#content">design</a></li>
+                    <li><a href="../packaging/index.html#content">packaging</a></li>
+                    <li><a href="../site/index.html#content">site</a></li>
+                    <li><a href="../unicode/index.html#content">unicode</a></li>
+                    <li><a href="../verification/index.html#content">verification</a></li>
                 </ul>
             </nav>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/design/unicode-scalar-design.md</span>
+                <span class="markdown-path-text">/development/benchmarks/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="unicode-scalar-representation-boundary">Unicode Scalar Representation Boundary</h1><p>This document owns the current cross-crate representation and authority boundary for Unicode scalar values. Public behavior belongs in <a href="../../../spec/language/unicode-scalars/index.html#content"><code>spec/language/unicode-scalars.md</code></a>. Delivery history belongs to the <a href="https://github.com/rvo-jp/nocter/blob/main/development/history/milestones/v0.34.0.md"><code>v0.34.0</code> milestone</a>.</p><h2 id="authority-chain">Authority Chain</h2><pre><code class="language-text">UTF-8 source
-  -&gt; syntax token + syntax-owned decoded literal
-  -&gt; checked char constant
-  -&gt; MIR char constant
-  -&gt; runtime primitive Char
-  -&gt; machine scalar selected from stored layout
-  -&gt; ARM64 immediate or register value
-</code></pre><p>Syntax alone scans quote boundaries, escape spelling, and decoded scalar cardinality. Its public literal decoder returns a typed byte or Unicode scalar value. Checking selects the built-in type and publishes a typed constant; it cannot inspect quote contents. Constant evaluation carries the same source-independent scalar. MIR and Machine retain a character constant variant so validation cannot mistake a <code>char</code> value for an integer merely because both occupy 32 bits.</p><p><code>RuntimePrimitive::Char</code> is distinct from <code>RuntimePrimitive::Unsigned(32)</code>. Machine layout assigns both size 4 and alignment 4 but retains their separate identities. ABI classification consumes the stored scalar layout. ARM64 selection consumes an already validated scalar immediate and cannot decide Unicode validity.</p><h2 id="dynamic-construction">Dynamic Construction</h2><p>Only source literals and one package-internal primitive boundary create a <code>char</code> from integer bits. The public <code>char.from_u32</code> implementation checks the scalar range in ordinary Nocter source before calling that primitive. The inverse package-internal primitive exposes the exact scalar as <code>u32</code>. Both primitive roles are pure scalar transport; they do not own Unicode validity policy.</p><p>The primitive declarations live in <code>std/internal/character</code>, not in the public <code>char</code> module. This keeps unchecked representation capability separate from the user-facing constructor. The bundled standard profile names their exact physical locations, Target validates their signatures once, and ARM64 implements them as representation-preserving scalar moves. User packages cannot declare or call the unchecked role.</p><h2 id="utf-8-authority">UTF-8 Authority</h2><p><code>std/internal/utf8</code> owns one decode step over a byte view and offset. The result distinguishes a decoded scalar and width from failure; callers test end-of-input before requesting a step. Complete validation repeatedly consumes this operation, and <code>Chars</code> consumes the same operation over a borrowed valid <code>str</code>. Encoding accepts <code>char</code> and is infallible because scalar validity has already been established by the type.</p><p>The decoder returns <code>u32</code>, not <code>char</code>, to keep the low-level UTF-8 module independent of the public <code>char</code> API. <code>Chars</code> passes the already validated scalar through the package-internal representation bridge. Decoder failure over a stored <code>str</code> is an internal invariant violation, not an alternate end-of-iteration result.</p><p><code>String.try_push(char)</code> encodes first, reserves complete capacity second, writes all initialized bytes third, and publishes the new logical length last. Allocation failure therefore cannot expose a partial scalar. JSON decoding converts escaped integer code points through <code>char.from_u32</code>, then delegates to this operation. Formatting and JSON do not encode UTF-8 independently.</p><h2 id="required-invariants">Required Invariants</h2><ul><li><code>char</code> and <code>u32</code> never share semantic or runtime primitive identity.</li><li>Every stored <code>char</code> is a Unicode scalar.</li><li>Integer-to-scalar validation exists only at <code>char</code> construction; UTF-8 encoding cannot reject a
-  value that already has type <code>char</code>.</li><li>Syntax decoding is the only interpretation of authored character and byte literal text.</li><li>UTF-8 leading-byte, continuation, overlong, surrogate, and maximum-value rules have one standard-
-  library implementation.</li><li>Every <code>Chars</code> offset is either the byte length or a scalar boundary in its retained text.</li><li>Layout and ABI are computed from runtime shape once; ARM64 does not infer width from source types.</li><li>Formatter and editor features consume token and semantic products rather than parsing quotes.</li><li>A malformed literal remains a source diagnostic and cannot become an internal compiler error.</li></ul>
+                <h1 id="performance-measurement">Performance Measurement</h1><p>This directory owns repeatable, non-normative measurements of user-visible compiler and editor latency. Measurements guide optimization; they do not define language or tooling correctness. Correctness remains owned by <code>spec/</code> and the compiler conformance suite.</p><h2 id="scenarios">Scenarios</h2><p><code>run.js</code> measures three paths with released or candidate installed compilers:</p><ul><li>a process-cold check of the single-file <code>examples/hello.nct</code> program;</li><li>a process-cold check of the representative <code>examples/text-search</code> package;</li><li>a persistent LSP session that alternates a body-only edit in <code>examples/text-banner/banner.nct</code>
+  and requests checked hover after each edit.</li></ul><p>The editor request follows every change on the same ordered protocol stream. Its latency therefore includes source publication, required invalidation and semantic work, and hover projection. The source change preserves the declaration surface but changes a string constant in a function body. This deliberately exercises incremental body analysis rather than a whitespace-only fast path.</p><p>On Darwin, process scenarios also use <code>/usr/bin/time -l</code> to record peak resident bytes. Other hosts retain elapsed time and report resource measurements as unavailable.</p><h2 id="running-a-baseline-or-comparison">Running a Baseline or Comparison</h2><p>Run an installed compiler from the repository root:</p><pre><code class="language-sh"><span class="token-function">node</span> development/benchmarks/run.js \
+  <span class="token-option">--compiler</span> v0.<span class="token-number">36</span>.<span class="token-number">0</span>=dist/.nocter/nocter \
+  <span class="token-option">--output</span> /tmp/nocter-v0.<span class="token-number">36</span>.<span class="token-number">0</span><span class="token-option">-performance</span>.json
+</code></pre><p>Compare two valid installed homes by naming both compiler binaries:</p><pre><code class="language-sh"><span class="token-function">node</span> development/benchmarks/run.js \
+  <span class="token-option">--compiler</span> released=/path/to/released/.nocter/nocter \
+  <span class="token-option">--compiler</span> candidate=/path/to/candidate/.nocter/nocter \
+  <span class="token-option">--output</span> /tmp/nocter-performance-comparison.json
+</code></pre><p>Each binary must remain inside its own valid installed home. The benchmark never bypasses compiler or standard-library integrity checks. Samples alternate compiler order to reduce systematic drift. Use <code>--samples</code>, <code>--warmups</code>, <code>--lsp-samples</code>, and <code>--lsp-edits</code> to change the explicitly recorded sample counts.</p><p>Run measurements on an otherwise idle machine, preserve power and thermal conditions, and compare the same scenarios in one invocation. Commit a result only as milestone evidence together with the host description, compiler digests, sample configuration, and repository revision emitted by the runner. Do not turn elapsed-time thresholds into conformance tests.</p><h2 id="two-independent-signals">Two Independent Signals</h2><p>Wall-clock measurements answer whether a user-visible operation became faster. The computation kernel's execution and reuse counters answer whether a source change performs more semantic work. Those counters are deterministic and belong in focused Rust tests beside the incremental contract. They must not be reconstructed from timing output, and benchmark code must not reach into compiler private state.</p><p>Do not add internal phase timers until an external scenario demonstrates a bottleneck that cannot be attributed with existing query counters and ordinary profiling. If instrumentation becomes necessary, expose it through one observation boundary; do not scatter benchmark policy through semantic crates.</p>
             </div>
         </main>
     </div>
@@ -226,6 +216,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>
