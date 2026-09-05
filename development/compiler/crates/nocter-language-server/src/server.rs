@@ -1620,6 +1620,16 @@ mod tests {
         );
         let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
 
+        assert_wall_clock_parse_navigation(&mut server, &source_uri, source_text);
+        assert_wall_clock_format_assistance(&mut server, &source_uri, source_text);
+        assert_metadata_time_hover(&mut server, &source_uri, source_text);
+    }
+
+    fn assert_wall_clock_parse_navigation(
+        server: &mut LanguageServer,
+        source_uri: &str,
+        source_text: &str,
+    ) {
         let parsed_line = source_text
             .lines()
             .position(|line| line.contains("parse_rfc3339"))
@@ -1647,7 +1657,13 @@ mod tests {
             "{:?}",
             parsed_definition.issue()
         );
+    }
 
+    fn assert_wall_clock_format_assistance(
+        server: &mut LanguageServer,
+        source_uri: &str,
+        source_text: &str,
+    ) {
         let format_line = source_text
             .lines()
             .position(|line| line.contains("to_rfc3339"))
@@ -1692,7 +1708,13 @@ mod tests {
             "{:?}",
             implementation.issue()
         );
+    }
 
+    fn assert_metadata_time_hover(
+        server: &mut LanguageServer,
+        source_uri: &str,
+        source_text: &str,
+    ) {
         let modified_line = source_text
             .lines()
             .position(|line| line.contains("details.modified"))
