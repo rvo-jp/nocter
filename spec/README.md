@@ -51,7 +51,7 @@ It also treats AI readability and writability as a tooling goal: the language ke
 - [Configured Synchronous Subprocesses](32-configured-subprocesses.md) — v0.32.0 standard-library contract
 - [Tuples](33-tuples.md) — v0.33.0 language contract
 - [Unicode Scalar Values](34-unicode-scalars.md) — v0.34.0 language contract
-- [Static Data and Unicode Text](35-static-unicode-text.md) — v0.35.0 candidate contract
+- [Static Data and Unicode Text](35-static-unicode-text.md) — v0.35.0 language and standard-library contract
 
 ## Supporting Material
 
@@ -60,8 +60,8 @@ It also treats AI readability and writability as a tooling goal: the language ke
 
 ## Contract Status
 
-This working tree extends the published v0.34.0 contract with the v0.35.0 candidate static-data and
-Unicode-text contract. The specification includes the v0.20.0
+This working tree specifies the published v0.35.0 language and standard-library contract. The
+specification includes the v0.20.0
 interface-prerequisite foundation, v0.21.0 associative collections, v0.22.0 JSON standard module,
 the complete v0.23.0 type-owned integer text surface, and explicit module subjects for external
 values. v0.25.0 adds the source-visible `noalloc` callable guarantee. v0.26.0 adds normalized
@@ -74,8 +74,8 @@ capture to that closed synchronous lifecycle. v0.32.0 completes configured comma
 environment, working-directory, and finite-input ownership. v0.33.0 adds structural tuple types,
 values, decimal projections, and recursive local-binding patterns. v0.34.0 adds distinct Unicode
 scalar values, character literals, borrowed UTF-8 scalar iteration, owned scalar append, formatting,
-hashing, and compiler-owned editor behavior. Publication status belongs to the release index.
-v0.35.0 pins Unicode 17.0.0, adds immutable static data needed by generated lookup tables, and
+hashing, and compiler-owned editor behavior. v0.35.0 pins Unicode 17.0.0, adds immutable static
+data needed by generated lookup tables, and
 defines Unicode properties, default case conversion, Unicode whitespace trimming, and
 boundary-safe owned String removal.
 Implementation phases and qualification evidence belong only to contributor records and are

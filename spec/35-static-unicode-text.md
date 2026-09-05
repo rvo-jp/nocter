@@ -1,8 +1,8 @@
 # Static Data and Unicode Text
 
-**v0.35.0 candidate language and standard-library contract.** Publication status belongs to the
-release index. This chapter extends the scalar foundation without changing the meaning of `char`,
-UTF-8 byte offsets, or existing ASCII-specific APIs.
+**v0.35.0 language and standard-library contract.** Publication status belongs to the release
+index. This chapter extends the scalar foundation without changing the meaning of `char`, UTF-8
+byte offsets, or existing ASCII-specific APIs.
 
 ## Unicode Version
 
