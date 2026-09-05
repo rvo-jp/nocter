@@ -9,6 +9,7 @@ website asset belongs there.
 - `build-docs.js` validates authored documentation and generates the complete `docs/` tree.
 - `document-tree.js` owns the immutable hierarchy derived from the complete published-source set.
 - `highlight.js` provides build-time syntax highlighting for Nocter and shell code blocks.
+- `markdown-table.js` owns table-cell boundaries across code spans and escaped pipe characters.
 - `output-transaction.js` owns temporary output, complete publication, and failure restoration.
 - `static/` owns files copied verbatim to the website, including styles, runtime JavaScript,
   images, and `CNAME`.
@@ -77,6 +78,7 @@ Generation fails when:
 - a compiler workspace crate lacks its colocated responsibility README;
 - a standard-library behavior README lacks its checked `index.nct` contract or fails to link it;
 - a published source cannot be represented uniquely or reached through structural navigation.
+- a Markdown table row has a different cell count from its header.
 
 The generator enforces structural authority, not language meaning. It does not claim that a regular
 expression can distinguish a duplicated standard-library declaration from a valid user example.
@@ -97,7 +99,8 @@ that stale generated files are removed, private standard-library implementation 
 private, newly discovered public pages enter navigation without README registration, historical
 records remain excluded, every standard-library behavior guide links its checked contract,
 named built-in declarations cannot drift from the language catalog, unrelated Rust text cannot
-register diagnostics, and diagnostic drift is rejected.
+register diagnostics, diagnostic drift is rejected, and table pipes inside code spans or escapes
+cannot corrupt the generated columns.
 
 ## Editing Rule
 

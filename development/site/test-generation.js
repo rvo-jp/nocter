@@ -4,12 +4,14 @@ const childProcess = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { splitTableRow } = require("./markdown-table");
 
 const PROJECT_ROOT = path.resolve(__dirname, "../..");
 const TEMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), "nocter-doc-generation-"));
 const SKIP_NAMES = new Set([".git", "dist", "docs", "target"]);
 
 try {
+    assertMarkdownTableTokenizer();
     const early = prepareTree("early", new Date("2001-01-01T00:00:00Z"));
     const late = prepareTree("late", new Date("2037-12-31T23:59:59Z"));
 
@@ -18,6 +20,7 @@ try {
     assertEqualTrees(path.join(early, "docs"), path.join(late, "docs"));
     assertPublicationBoundary(early);
     assertDocumentTreeNavigation(early);
+    assertMarkdownTableRendering(early);
 
     const staleOutput = path.join(early, "docs/stale-output.txt");
     fs.writeFileSync(staleOutput, "stale\n");
@@ -84,6 +87,20 @@ try {
         throw new Error("directory navigation published an excluded historical record");
     }
     fs.rmSync(unindexedReview);
+
+    const malformedTable = path.join(early, "spec/guides/malformed-table.md");
+    fs.writeFileSync(
+        malformedTable,
+        "# Malformed Table\n\n| first | second |\n| --- | --- |\n| one | two | three |\n"
+    );
+    const malformedTableResult = runBuild(early);
+    if (
+        malformedTableResult.status === 0
+        || !combinedOutput(malformedTableResult).includes("has 3 cells; expected 2")
+    ) {
+        throw new Error("documentation generation accepted a Markdown table with inconsistent columns");
+    }
+    fs.rmSync(malformedTable);
 
     const catalog = path.join(
         early,
@@ -200,6 +217,36 @@ function assertDocumentTreeNavigation(root) {
         .sort();
     if (unreachable.length > 0) {
         throw new Error(`generated pages are unreachable through structural navigation: ${unreachable.join(", ")}`);
+    }
+}
+
+function assertMarkdownTableRendering(root) {
+    const grammar = fs.readFileSync(
+        path.join(root, "docs/development/design/grammar-conformance/index.html"),
+        "utf8"
+    );
+    const row = grammar.match(/<tr><td>G006<\/td>([\s\S]*?)<\/tr>/)?.[0];
+    if (!row) {
+        throw new Error("generated grammar documentation has no G006 table row");
+    }
+    if ((row.match(/<td>/g) || []).length !== 5) {
+        throw new Error("a pipe inside a Markdown code span changed the generated table width");
+    }
+    if (!row.includes("<code>func choose&lt;T&gt;(left: &amp;T, right: &amp;T): &amp;T from left | right</code>")) {
+        throw new Error("a pipe inside a Markdown code span did not remain in its source cell");
+    }
+}
+
+function assertMarkdownTableTokenizer() {
+    const cells = splitTableRow("| name | `left | right` | escaped \\| pipe |");
+    const expected = ["name", "`left | right`", "escaped | pipe"];
+    if (JSON.stringify(cells) !== JSON.stringify(expected)) {
+        throw new Error(`Markdown table tokenizer produced ${JSON.stringify(cells)}`);
+    }
+
+    const evenEscape = splitTableRow("| first \\\\| second |");
+    if (evenEscape.length !== 2) {
+        throw new Error("an even backslash run incorrectly escaped a Markdown table delimiter");
     }
 }
 

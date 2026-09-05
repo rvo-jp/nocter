@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { PublishedDocumentTree, directoryPath, flattenEntries } = require("./document-tree");
 const { NOCTER_RESERVED_KEYWORDS, highlightCode } = require("./highlight");
+const { splitTableRow } = require("./markdown-table");
 const { OutputTransaction } = require("./output-transaction");
 
 const SITE_ORIGIN = "https://nocter.dev";
@@ -686,21 +687,27 @@ function isTableBlock(lines) {
 
 function parseTable(lines, markdownPath) {
     const headers = splitTableRow(lines[0]);
-    const alignments = splitTableRow(lines[1]).map(cell => {
+    const divider = splitTableRow(lines[1]);
+    const rows = lines.slice(2).filter(line => line.trim()).map(splitTableRow);
+    for (const [index, row] of [divider, ...rows].entries()) {
+        if (row.length !== headers.length) {
+            const line = index + 2;
+            throw new Error(
+                `Markdown table row ${line} in ${normalizePath(path.relative(PROJECT_ROOT, markdownPath))} `
+                + `has ${row.length} cells; expected ${headers.length}`
+            );
+        }
+    }
+    const alignments = divider.map(cell => {
         const left = cell.startsWith(":");
         const right = cell.endsWith(":");
         if (left && right) return "center";
         if (right) return "right";
         return left ? "left" : "";
     });
-    const rows = lines.slice(2).filter(line => line.trim()).map(splitTableRow);
     const head = `<thead><tr>${headers.map((cell, index) => tableCell("th", cell, alignments[index], markdownPath)).join("")}</tr></thead>`;
     const body = `<tbody>${rows.map(row => `<tr>${row.map((cell, index) => tableCell("td", cell, alignments[index], markdownPath)).join("")}</tr>`).join("")}</tbody>`;
     return `<table>${head}${body}</table>`;
-}
-
-function splitTableRow(line) {
-    return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(cell => cell.trim());
 }
 
 function tableCell(tag, cell, alignment, markdownPath) {
