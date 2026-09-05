@@ -2,6 +2,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { PublishedDocumentTree, directoryPath, flattenEntries } = require("./document-tree");
 const { NOCTER_RESERVED_KEYWORDS, highlightCode } = require("./highlight");
 const { OutputTransaction } = require("./output-transaction");
 
@@ -22,7 +23,6 @@ const SKIP_LINK_VALIDATION_PREFIXES = [
     "development/history/legacy-design/",
     "development/compiler/tests/fixtures/"
 ];
-const AUTO_INDEX_SOURCE_DIRS = new Set(["examples"]);
 const OG_IMAGE_WIDTH = 1200;
 const OG_IMAGE_HEIGHT = 630;
 
@@ -49,6 +49,12 @@ const PAGE_META = {
     }
 };
 
+const sourceFiles = collectSourceFiles(PROJECT_ROOT);
+const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
+const sourceContents = new Map(sourceFiles.map(file => [path.resolve(file), fs.readFileSync(file, "utf8")]));
+const documentTree = new PublishedDocumentTree(PROJECT_ROOT, sourceFiles);
+const documentLabels = new Map(sourceFiles.map(file => [path.resolve(file), sourceDocumentLabel(file)]));
+
 // Hero panels consume complete runnable examples instead of maintaining a second set of Nocter
 // snippets inside the documentation generator. Release qualification checks these same sources.
 const codeExamples = Object.fromEntries(Object.entries({
@@ -59,18 +65,15 @@ const codeExamples = Object.fromEntries(Object.entries({
     indexing: "examples/indexing.nct"
 }).map(([name, relative]) => [
     name,
-    fs.readFileSync(path.join(PROJECT_ROOT, relative), "utf8").trimEnd()
+    sourceContents.get(path.join(PROJECT_ROOT, relative)).trimEnd()
 ]));
-
-const sourceFiles = collectSourceFiles(PROJECT_ROOT);
-const sourceSet = new Set(sourceFiles.map(file => normalizePath(path.relative(PROJECT_ROOT, file))));
 
 validateNocterLexicon();
 validateDiagnosticCatalog();
 validateCrateDocumentation();
-validateDocumentationCatalogs();
 validateOutputPaths(sourceFiles);
 validateSourceLinks(collectDocumentationLinkSources(PROJECT_ROOT));
+validateDocumentTreeNavigation();
 
 try {
     outputTransaction.prepare();
@@ -197,36 +200,6 @@ function validateCrateDocumentation() {
     }
 }
 
-function validateDocumentationCatalogs() {
-    for (const relativeDirectory of [
-        "spec/language",
-        "spec/standard-library",
-        "spec/platform",
-        "spec/tooling",
-        "development/history/milestones",
-        "development/history/reviews",
-        "development/history/release-audits"
-    ]) {
-        const directory = path.join(PROJECT_ROOT, relativeDirectory);
-        const indexPath = path.join(directory, "README.md");
-        const indexSource = fs.readFileSync(indexPath, "utf8");
-        const linked = new Set(
-            [...indexSource.matchAll(/\[[^\]]+\]\(([^)#]+\.md)(?:#[^)]+)?\)/g)]
-                .map(match => path.resolve(directory, match[1]))
-        );
-        const missing = fs.readdirSync(directory, { withFileTypes: true })
-            .filter(entry => entry.isFile() && entry.name.endsWith(".md") && entry.name !== "README.md")
-            .map(entry => path.join(directory, entry.name))
-            .filter(file => !linked.has(file))
-            .map(file => normalizePath(path.relative(PROJECT_ROOT, file)))
-            .sort();
-
-        if (missing.length > 0) {
-            throw new Error(`${relativeDirectory}/README.md does not catalog: ${missing.join(", ")}`);
-        }
-    }
-}
-
 function validateOutputPaths(files) {
     const ownersByOutput = new Map();
 
@@ -240,6 +213,39 @@ function validateOutputPaths(files) {
         }
 
         ownersByOutput.set(output, owner);
+    }
+}
+
+function validateDocumentTreeNavigation() {
+    const rootSource = path.join(PROJECT_ROOT, "README.md");
+    const pending = [rootSource];
+    const reachable = new Set();
+
+    while (pending.length > 0) {
+        const sourcePath = pending.pop();
+        if (reachable.has(sourcePath)) {
+            continue;
+        }
+        reachable.add(sourcePath);
+
+        const navigation = documentTree.navigation(sourcePath);
+        const targets = [
+            ...navigation.ancestors.map(entry => entry.page),
+            ...flattenEntries(navigation.entries)
+        ];
+        for (const target of targets) {
+            if (!reachable.has(target.sourcePath)) {
+                pending.push(target.sourcePath);
+            }
+        }
+    }
+
+    const unreachable = documentTree.sourcePaths()
+        .filter(sourcePath => !reachable.has(sourcePath))
+        .map(sourcePath => normalizePath(path.relative(PROJECT_ROOT, sourcePath)))
+        .sort();
+    if (unreachable.length > 0) {
+        throw new Error(`Published documentation is unreachable from README.md: ${unreachable.join(", ")}`);
     }
 }
 
@@ -410,7 +416,7 @@ function validationTarget(target) {
 
 function renderPage(sourcePath) {
     const relativeSourcePath = normalizePath(path.relative(PROJECT_ROOT, sourcePath));
-    const source = fs.readFileSync(sourcePath, "utf8");
+    const source = sourceContents.get(path.resolve(sourcePath));
     const isNocterSource = sourcePath.endsWith(".nct");
     const body = isNocterSource ? nocterSourceToHtml(source, sourcePath) : markdownToHtml(source, sourcePath);
     const title = isNocterSource ? relativeSourcePath : firstHeading(source) || "Nocter";
@@ -423,8 +429,8 @@ function renderPage(sourcePath) {
     const logoHref = relativeUrl(outputDir, path.join(OUTPUT_ROOT, "assets/logo.svg"));
     const specHref = relativeUrl(outputDir, outputPathForSource(path.join(PROJECT_ROOT, "spec/README.md"))) + "#content";
     const canonical = `${SITE_ORIGIN}${publicPathForOutput(outputPath)}`;
-    const toc = renderDirectoryToc(sourcePath, outputDir);
-    const bodyClass = toc ? ' class="has-directory-toc"' : "";
+    const navigation = renderDocumentTreeNavigation(sourcePath, outputDir);
+    const bodyClass = navigation ? ' class="has-document-tree"' : "";
     const isHomePage = relativeSourcePath === "README.md";
 
     const pageTitle = pageMeta.title || (title === "Nocter" ? "Nocter - Self-contained systems language" : `${title} - Nocter`);
@@ -462,7 +468,7 @@ function renderPage(sourcePath) {
     ${renderHero(logoHref, specHref)}
 
     <div class="docs-shell">
-        ${toc || '<aside class="directory-toc" aria-label="Directory table of contents"></aside>'}
+        ${navigation || '<aside class="document-tree" aria-label="Documentation tree"></aside>'}
         <main id="content">
             <div class="markdown-path">
                 <span class="markdown-path-text">/${escapeHtml(relativeSourcePath)}</span>
@@ -662,86 +668,66 @@ function inline(text, markdownPath) {
         .replace(/CODE_SPAN_(\d+)_PLACEHOLDER/g, (_, index) => `<code>${escapeHtml(codeSpans[Number(index)])}</code>`);
 }
 
-function renderDirectoryToc(sourcePath, outputDir) {
-    const tocSource = findDirectoryTocSource(sourcePath);
+function renderDocumentTreeNavigation(sourcePath, outputDir) {
+    const navigation = documentTree.navigation(sourcePath);
+    const title = directoryPath(navigation.scope) || "Documentation";
+    const breadcrumbs = navigation.ancestors.length > 0
+        ? `\n                <ol class="document-tree-breadcrumbs">${navigation.ancestors.map(entry => renderDocumentTreeLink(entry.page, sourcePath, outputDir, documentLabel(entry.page))).join("")}</ol>`
+        : "";
+    const entries = renderDocumentTreeEntries(navigation.entries, sourcePath, outputDir);
 
-    if (!tocSource) {
+    if (!entries) {
         return "";
     }
 
-    const markdown = fs.readFileSync(tocSource, "utf8");
-    const links = [...markdown.matchAll(/\[([^\]]+)\]\(([^)]+\.(?:md|nct))\)/g)];
-    const linkedTargets = new Set();
-    const items = [];
-
-    for (const [, label, href] of links) {
-        const targetSource = path.resolve(path.dirname(tocSource), href);
-        const relativeTarget = normalizePath(path.relative(PROJECT_ROOT, targetSource));
-
-        if (!sourceSet.has(relativeTarget)) {
-            continue;
-        }
-
-        linkedTargets.add(relativeTarget);
-        const targetOutput = outputPathForSource(targetSource);
-        const current = normalizePath(path.relative(PROJECT_ROOT, targetSource)) === normalizePath(path.relative(PROJECT_ROOT, sourcePath));
-        items.push(`<li><a href="${relativeUrl(outputDir, targetOutput)}#content"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a></li>`);
-    }
-
-    const tocDirectory = normalizePath(path.relative(PROJECT_ROOT, path.dirname(tocSource)));
-    if (AUTO_INDEX_SOURCE_DIRS.has(tocDirectory)) {
-        const unlinkedSources = sourceFiles.filter(file => {
-            const relative = normalizePath(path.relative(PROJECT_ROOT, file));
-            return file.endsWith(".nct")
-                && relative.startsWith(`${tocDirectory}/`)
-                && !linkedTargets.has(relative);
-        });
-
-        for (const targetSource of unlinkedSources) {
-            const relativeTarget = normalizePath(path.relative(path.dirname(tocSource), targetSource));
-            const targetOutput = outputPathForSource(targetSource);
-            const current = path.resolve(targetSource) === path.resolve(sourcePath);
-            items.push(`<li><a href="${relativeUrl(outputDir, targetOutput)}#content"${current ? ' aria-current="page"' : ""}>${escapeHtml(relativeTarget)}</a></li>`);
-        }
-    }
-
-    if (!items.length) {
-        return "";
-    }
-
-    return `<aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">${escapeHtml(directoryTocTitle(tocSource))}</p>
-            <ul class="directory-toc-list">
-                ${items.join("\n                ")}
-            </ul>
+    return `<aside class="document-tree">
+            <nav aria-label="Documentation tree">${breadcrumbs}
+                <p class="document-tree-title">${escapeHtml(title)}/</p>
+                <ul class="document-tree-list">
+                    ${entries}
+                </ul>
+            </nav>
         </aside>`;
 }
 
-function findDirectoryTocSource(sourcePath) {
-    let directory = path.dirname(sourcePath);
-    const rootReadme = path.join(PROJECT_ROOT, "README.md");
-
-    while (directory.startsWith(PROJECT_ROOT)) {
-        const readme = path.join(directory, "README.md");
-
-        if (path.resolve(readme) === rootReadme) {
-            return null;
+function renderDocumentTreeEntries(entries, sourcePath, outputDir) {
+    return entries.map(entry => {
+        if (entry.kind === "page") {
+            return renderDocumentTreeLink(entry.page, sourcePath, outputDir, documentLabel(entry.page));
         }
 
-        if (fs.existsSync(readme)) {
-            return readme;
+        const directoryLabel = entry.directory.name;
+        if (entry.page) {
+            return renderDocumentTreeLink(entry.page, sourcePath, outputDir, directoryLabel);
         }
 
-        const parent = path.dirname(directory);
-        if (parent === directory) return null;
-        directory = parent;
-    }
-
-    return null;
+        const children = renderDocumentTreeEntries(entry.children, sourcePath, outputDir);
+        if (!children) {
+            return "";
+        }
+        return `<li class="document-tree-group"><span>${escapeHtml(directoryLabel)}/</span><ul>${children}</ul></li>`;
+    }).join("\n                    ");
 }
 
-function directoryTocTitle(readmePath) {
-    return normalizePath(path.relative(PROJECT_ROOT, path.dirname(readmePath))) + "/";
+function renderDocumentTreeLink(page, sourcePath, outputDir, label) {
+    const current = path.resolve(page.sourcePath) === path.resolve(sourcePath);
+    const href = `${relativeUrl(outputDir, outputPathForSource(page.sourcePath))}#content`;
+    return `<li><a href="${href}"${current ? ' aria-current="page"' : ""}>${escapeHtml(label)}</a></li>`;
+}
+
+function documentLabel(page) {
+    return documentLabels.get(path.resolve(page.sourcePath));
+}
+
+function sourceDocumentLabel(sourcePath) {
+    const absoluteSource = path.resolve(sourcePath);
+    if (absoluteSource.endsWith(".md")) {
+        const heading = firstHeading(sourceContents.get(absoluteSource));
+        if (heading) return heading;
+    }
+
+    const name = path.basename(absoluteSource);
+    return name === "index.nct" ? path.basename(path.dirname(absoluteSource)) : name;
 }
 
 function resolveLinkUrl(markdownPath, href) {

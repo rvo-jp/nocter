@@ -32,7 +32,8 @@ material rather than development documentation.
 Within `spec/`, keep source semantics under `language/`, public library APIs under
 `standard-library/`, target and ABI contracts under `platform/`, and observable compiler/editor
 behavior under `tooling/`. File names describe concepts rather than release order; the `README.md`
-catalogs own reading order.
+catalogs recommend reading order but do not register pages. Generated navigation follows the
+directory structure of every published source automatically.
 
 Keep milestones, reviews, release qualification, and superseded design under
 `development/history/`. Historical records are not published as current website guidance, but

@@ -28,7 +28,7 @@
 
     <link rel="stylesheet" href="../style.css">
 </head>
-<body class="has-directory-toc">
+<body class="has-document-tree">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
@@ -171,28 +171,28 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">spec/</p>
-            <ul class="directory-toc-list">
-                <li><a href="./principles/index.html#content">Design Principles</a></li>
-                <li><a href="./overview/index.html#content">Language Overview</a></li>
-                <li><a href="./language/index.html#content">Language</a></li>
-                <li><a href="./standard-library/index.html#content">Standard Library</a></li>
-                <li><a href="./platform/index.html#content">Platform</a></li>
-                <li><a href="./tooling/index.html#content">Tooling</a></li>
-                <li><a href="./guides/ai/index.html#content">AI Guide</a></li>
-                <li><a href="../examples/index.html#content">Runnable Examples</a></li>
-                <li><a href="../releases/index.html#content">release index</a></li>
-                <li><a href="../examples/index.html#content">`examples/`</a></li>
-                <li><a href="../development/index.html#content">`development/`</a></li>
-            </ul>
+        <aside class="document-tree">
+            <nav aria-label="Documentation tree">
+                <ol class="document-tree-breadcrumbs"><li><a href="../index.html#content">Nocter</a></li></ol>
+                <p class="document-tree-title">spec/</p>
+                <ul class="document-tree-list">
+                    <li><a href="./index.html#content" aria-current="page">Nocter Specification</a></li>
+                    <li><a href="./overview/index.html#content">Overview</a></li>
+                    <li><a href="./principles/index.html#content">Design Principles</a></li>
+                    <li class="document-tree-group"><span>guides/</span><ul><li><a href="./guides/ai/index.html#content">Nocter AI Guide</a></li></ul></li>
+                    <li><a href="./language/index.html#content">language</a></li>
+                    <li><a href="./platform/index.html#content">platform</a></li>
+                    <li><a href="./standard-library/index.html#content">standard-library</a></li>
+                    <li><a href="./tooling/index.html#content">tooling</a></li>
+                </ul>
+            </nav>
         </aside>
         <main id="content">
             <div class="markdown-path">
                 <span class="markdown-path-text">/spec/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-specification">Nocter Specification</h1><p>This directory is the sole normative source for the current Nocter language, public standard library, supported platform boundary, command-line interface, and editor behavior. Chapter order is defined by the catalogs below; file names describe responsibilities and never encode release history.</p><p>Nocter is a statically typed, value-centered systems language designed for self-contained native executables, explicit contracts, and a small installation surface. The language favors one canonical source style and makes machine-readable diagnostics and editor semantics part of the public contract.</p><h2 id="start-here">Start Here</h2><ul><li><a href="./principles/index.html#content">Design Principles</a> explains the criteria used to resolve design choices.</li><li><a href="./overview/index.html#content">Language Overview</a> introduces the language as a coherent whole.</li><li><a href="./language/index.html#content">Language</a> defines source syntax and program semantics.</li><li><a href="./standard-library/index.html#content">Standard Library</a> defines portable public modules and APIs.</li><li><a href="./platform/index.html#content">Platform</a> defines ABI, target, primitive, and distribution boundaries.</li><li><a href="./tooling/index.html#content">Tooling</a> defines diagnostics, formatting, CLI, testing, and editor behavior.</li><li><a href="./guides/ai/index.html#content">AI Guide</a> is a compact source-writing guide, not a second specification.</li><li><a href="../examples/index.html#content">Runnable Examples</a> contains complete programs checked against released
+                <h1 id="nocter-specification">Nocter Specification</h1><p>This directory is the sole normative source for the current Nocter language, public standard library, supported platform boundary, command-line interface, and editor behavior. The catalogs below recommend a reading order; generated navigation follows the physical directory structure and does not use those links as a page registry. File names describe responsibilities and never encode release history.</p><p>Nocter is a statically typed, value-centered systems language designed for self-contained native executables, explicit contracts, and a small installation surface. The language favors one canonical source style and makes machine-readable diagnostics and editor semantics part of the public contract.</p><h2 id="start-here">Start Here</h2><ul><li><a href="./principles/index.html#content">Design Principles</a> explains the criteria used to resolve design choices.</li><li><a href="./overview/index.html#content">Language Overview</a> introduces the language as a coherent whole.</li><li><a href="./language/index.html#content">Language</a> defines source syntax and program semantics.</li><li><a href="./standard-library/index.html#content">Standard Library</a> defines portable public modules and APIs.</li><li><a href="./platform/index.html#content">Platform</a> defines ABI, target, primitive, and distribution boundaries.</li><li><a href="./tooling/index.html#content">Tooling</a> defines diagnostics, formatting, CLI, testing, and editor behavior.</li><li><a href="./guides/ai/index.html#content">AI Guide</a> is a compact source-writing guide, not a second specification.</li><li><a href="../examples/index.html#content">Runnable Examples</a> contains complete programs checked against released
   behavior.</li></ul><h2 id="contract-status">Contract Status</h2><p>The working tree specifies the published v0.35.0 contract. The <a href="../releases/index.html#content">release index</a> owns publication status, downloads, and version summaries; repository tags preserve the exact specification for earlier releases.</p><p>A chapter states current behavior unless a section is explicitly labeled <strong>Future Direction</strong> or <strong>Non-goal</strong>. Milestones, implementation plans, reviews, and release qualification evidence are non-normative and live under <a href="https://github.com/rvo-jp/nocter/blob/main/development/history/README.md"><code>development/history/</code></a>.</p><h2 id="editing-policy">Editing Policy</h2><ul><li>Put each public rule in exactly one owning chapter and link to it instead of restating it.</li><li>Keep language semantics, library APIs, platform boundaries, and tooling contracts in their
   respective directories.</li><li>Keep examples close to the rule they explain, while complete runnable packages remain under
   <a href="../examples/index.html#content"><code>examples/</code></a>.</li><li>Do not encode chronology or implementation phases in chapter names or current-contract prose.</li><li>Mark proposals under an explicit <strong>Future Direction</strong> heading.</li><li>Keep compiler mechanisms and repository workflows under <a href="../development/index.html#content"><code>development/</code></a>.</li></ul>

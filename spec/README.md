@@ -1,9 +1,10 @@
 # Nocter Specification
 
 This directory is the sole normative source for the current Nocter language, public standard
-library, supported platform boundary, command-line interface, and editor behavior. Chapter order
-is defined by the catalogs below; file names describe responsibilities and never encode release
-history.
+library, supported platform boundary, command-line interface, and editor behavior. The catalogs
+below recommend a reading order; generated navigation follows the physical directory structure and
+does not use those links as a page registry. File names describe responsibilities and never encode
+release history.
 
 Nocter is a statically typed, value-centered systems language designed for self-contained native
 executables, explicit contracts, and a small installation surface. The language favors one

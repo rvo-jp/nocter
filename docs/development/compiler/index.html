@@ -28,7 +28,7 @@
 
     <link rel="stylesheet" href="../../style.css">
 </head>
-<body class="has-directory-toc">
+<body class="has-document-tree">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
@@ -171,21 +171,61 @@
     </header>
 
     <div class="docs-shell">
-        <aside class="directory-toc" aria-label="Directory table of contents">
-            <p class="directory-toc-title">development/compiler/</p>
-            <ul class="directory-toc-list">
-                <li><a href="../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../design/architecture/index.html#content">Compiler architecture</a></li>
-                <li><a href="../design/checked-program-design/index.html#content">Checked program design</a></li>
-                <li><a href="../design/target-program-design/index.html#content">target and executable program design</a></li>
-                <li><a href="../design/machine-program-design/index.html#content">machine program design</a></li>
-                <li><a href="../design/semantic-presentation-design/index.html#content">Semantic presentation design</a></li>
-                <li><a href="./crates/nocter-session/index.html#content">`crates/nocter-session/README.md`</a></li>
-                <li><a href="./crates/nocter-checking/index.html#content">`crates/nocter-checking/README.md`</a></li>
-                <li><a href="./crates/nocter-analysis/index.html#content">`crates/nocter-analysis/README.md`</a></li>
-                <li><a href="./crates/nocter-machine/index.html#content">`crates/nocter-machine/README.md`</a></li>
-                <li><a href="../verification/index.html#content">development verification contract</a></li>
-            </ul>
+        <aside class="document-tree">
+            <nav aria-label="Documentation tree">
+                <ol class="document-tree-breadcrumbs"><li><a href="../../index.html#content">Nocter</a></li><li><a href="../index.html#content">Contributor Documentation</a></li></ol>
+                <p class="document-tree-title">development/compiler/</p>
+                <ul class="document-tree-list">
+                    <li><a href="./index.html#content" aria-current="page">Nocter Compiler Workspace</a></li>
+                    <li class="document-tree-group"><span>crates/</span><ul><li><a href="./crates/nocter-analysis/index.html#content">nocter-analysis</a></li>
+                    <li><a href="./crates/nocter-arm64/index.html#content">nocter-arm64</a></li>
+                    <li><a href="./crates/nocter-checking/index.html#content">nocter-checking</a></li>
+                    <li><a href="./crates/nocter-cli/index.html#content">nocter-cli</a></li>
+                    <li><a href="./crates/nocter-command/index.html#content">nocter-command</a></li>
+                    <li><a href="./crates/nocter-compile-input/index.html#content">nocter-compile-input</a></li>
+                    <li><a href="./crates/nocter-compiler-computation/index.html#content">nocter-compiler-computation</a></li>
+                    <li><a href="./crates/nocter-computation/index.html#content">nocter-computation</a></li>
+                    <li><a href="./crates/nocter-conformance/index.html#content">nocter-conformance</a></li>
+                    <li><a href="./crates/nocter-constant-evaluation/index.html#content">nocter-constant-evaluation</a></li>
+                    <li><a href="./crates/nocter-content-integrity/index.html#content">nocter-content-integrity</a></li>
+                    <li><a href="./crates/nocter-declaration-lowering/index.html#content">nocter-declaration-lowering</a></li>
+                    <li><a href="./crates/nocter-declarations/index.html#content">nocter-declarations</a></li>
+                    <li><a href="./crates/nocter-diagnostics/index.html#content">nocter-diagnostics</a></li>
+                    <li><a href="./crates/nocter-discovery/index.html#content">nocter-discovery</a></li>
+                    <li><a href="./crates/nocter-filesystem/index.html#content">nocter-filesystem</a></li>
+                    <li><a href="./crates/nocter-frontend-bindings/index.html#content">nocter-frontend-bindings</a></li>
+                    <li><a href="./crates/nocter-hash/index.html#content">nocter-hash</a></li>
+                    <li><a href="./crates/nocter-installation/index.html#content">nocter-installation</a></li>
+                    <li><a href="./crates/nocter-json/index.html#content">nocter-json</a></li>
+                    <li><a href="./crates/nocter-language/index.html#content">nocter-language</a></li>
+                    <li><a href="./crates/nocter-language-server/index.html#content">nocter-language-server</a></li>
+                    <li><a href="./crates/nocter-lsp/index.html#content">nocter-lsp</a></li>
+                    <li><a href="./crates/nocter-machine/index.html#content">nocter-machine</a></li>
+                    <li><a href="./crates/nocter-macho/index.html#content">nocter-macho</a></li>
+                    <li><a href="./crates/nocter-mir/index.html#content">nocter-mir</a></li>
+                    <li><a href="./crates/nocter-model/index.html#content">nocter-model</a></li>
+                    <li><a href="./crates/nocter-native-session/index.html#content">nocter-native-session</a></li>
+                    <li><a href="./crates/nocter-package/index.html#content">nocter-package</a></li>
+                    <li><a href="./crates/nocter-package-acquisition/index.html#content">nocter-package-acquisition</a></li>
+                    <li><a href="./crates/nocter-package-cache/index.html#content">nocter-package-cache</a></li>
+                    <li><a href="./crates/nocter-package-state/index.html#content">nocter-package-state</a></li>
+                    <li><a href="./crates/nocter-persistent/index.html#content">nocter-persistent</a></li>
+                    <li><a href="./crates/nocter-runtime-contract/index.html#content">nocter-runtime-contract</a></li>
+                    <li><a href="./crates/nocter-semantic-product/index.html#content">nocter-semantic-product</a></li>
+                    <li><a href="./crates/nocter-session/index.html#content">nocter-session</a></li>
+                    <li><a href="./crates/nocter-source/index.html#content">nocter-source</a></li>
+                    <li><a href="./crates/nocter-source-index/index.html#content">nocter-source-index</a></li>
+                    <li><a href="./crates/nocter-source-tooling/index.html#content">nocter-source-tooling</a></li>
+                    <li><a href="./crates/nocter-standard-profile/index.html#content">nocter-standard-profile</a></li>
+                    <li><a href="./crates/nocter-syntax/index.html#content">nocter-syntax</a></li>
+                    <li><a href="./crates/nocter-target-program/index.html#content">nocter-target-program</a></li>
+                    <li><a href="./crates/nocter-target-selection/index.html#content">nocter-target-selection</a></li>
+                    <li><a href="./crates/nocter-test-support/index.html#content">nocter-test-support</a></li>
+                    <li><a href="./crates/nocter-toolchain-contract/index.html#content">nocter-toolchain-contract</a></li>
+                    <li><a href="./crates/nocter-workspace-analysis/index.html#content">nocter-workspace-analysis</a></li>
+                    <li><a href="./crates/nocter-workspace-revision/index.html#content">nocter-workspace-revision</a></li></ul></li>
+                </ul>
+            </nav>
         </aside>
         <main id="content">
             <div class="markdown-path">

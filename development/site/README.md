@@ -7,12 +7,13 @@ website asset belongs there.
 ## Responsibility
 
 - `build-docs.js` validates authored documentation and generates the complete `docs/` tree.
+- `document-tree.js` owns the immutable hierarchy derived from the complete published-source set.
 - `highlight.js` provides build-time syntax highlighting for Nocter and shell code blocks.
 - `output-transaction.js` owns temporary output, complete publication, and failure restoration.
 - `static/` owns files copied verbatim to the website, including styles, runtime JavaScript,
   images, and `CNAME`.
 - `test-generation.js` exercises determinism, complete output replacement, publication boundaries,
-  and documentation catalogs in isolated repository copies.
+  and structural navigation in isolated repository copies.
 
 The generator writes into a temporary sibling of `docs/` and replaces the previous output only
 after every page has rendered successfully. A failed build therefore cannot leave a partly updated
@@ -33,6 +34,23 @@ become website pages. Markdown links to an existing non-published repository fil
 GitHub source page. Compiler diagnostic fixtures and `development/history/` are not published;
 milestone, review, and release-audit links are still validated as historical records.
 
+## Navigation Authority
+
+The filtered published-source set is the sole authority for navigation membership and hierarchy.
+`document-tree.js` derives one directory tree from those paths, and page rendering, reachability
+validation, and the sitemap consume that same set. A `README.md` is the preferred landing page for
+its directory; when none exists, a published `index.nct` is the landing page. Navigation lists the
+landing page, remaining files, and child directories in deterministic name order. Directories
+without a landing page remain structural groups and expose their descendants through the nearest
+navigable ancestor. Display labels may use a document's first heading, but labels never affect
+membership or structure.
+
+Navigation never parses links from README prose. README catalogs may explain a recommended reading
+order and ordinary links may connect related concepts, but neither determines whether a page exists
+or appears in navigation. Every published page must be reachable from the repository `README.md`
+through generated structural navigation. Private sources and history are removed by the publication
+filter before the tree is built, so filesystem discovery cannot make them public accidentally.
+
 ## Build
 
 Run from the repository root:
@@ -48,8 +66,7 @@ Generation fails when:
 - the syntax highlighter keyword set differs from the lexical specification;
 - the public diagnostic catalog differs from the compiler's registered-code inventory;
 - a compiler workspace crate lacks its colocated responsibility README;
-- a specification chapter, milestone, review, or release-audit record is absent from its directory
-  catalog.
+- a published source cannot be represented uniquely or reached through structural navigation.
 
 The generator derives output only from authored file contents and paths. Filesystem timestamps do
 not enter HTML metadata or `sitemap.xml`. Publication dates require explicit authored metadata.
@@ -62,8 +79,9 @@ node development/site/test-generation.js
 
 It builds source trees with different timestamps and compares every output byte. It also proves
 that stale generated files are removed, private standard-library implementation sources stay
-private, unrelated Rust text cannot register diagnostics, and uncataloged specification or
-development records and diagnostic drift are rejected.
+private, newly discovered public pages enter navigation without README registration, historical
+records remain excluded, unrelated Rust text cannot register diagnostics, and diagnostic drift is
+rejected.
 
 ## Editing Rule
 

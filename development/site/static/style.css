@@ -439,18 +439,18 @@ main pre code {
     margin: 0 auto;
 }
 
-body.has-directory-toc .docs-shell {
+body.has-document-tree .docs-shell {
     display: grid;
     grid-template-columns: 260px minmax(0, 860px);
     gap: 44px;
     align-items: start;
 }
 
-.directory-toc {
+.document-tree {
     display: none;
 }
 
-body.has-directory-toc .directory-toc {
+body.has-document-tree .document-tree {
     position: sticky;
     top: 24px;
 
@@ -466,7 +466,7 @@ body.has-directory-toc .directory-toc {
     border-radius: 6px;
 }
 
-.directory-toc-title {
+.document-tree-title {
     margin-bottom: 10px;
 
     color: var(--nocter-blue-dark);
@@ -482,14 +482,45 @@ body.has-directory-toc .directory-toc {
     text-transform: uppercase;
 }
 
-.directory-toc-list {
+.document-tree-list,
+.document-tree-group ul,
+.document-tree-breadcrumbs {
     display: grid;
     gap: 3px;
 
     list-style: none;
 }
 
-.directory-toc a {
+.document-tree-breadcrumbs {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+
+    border-bottom: 1px solid var(--content-soft-border);
+}
+
+.document-tree-group > span {
+    display: block;
+    padding: 7px 9px 4px;
+
+    color: var(--content-muted);
+
+    font-family:
+        "Ubuntu",
+        "Manrope",
+        system-ui,
+        sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.document-tree-group ul {
+    margin-left: 10px;
+    padding-left: 8px;
+
+    border-left: 1px solid var(--content-soft-border);
+}
+
+.document-tree a {
     display: block;
     padding: 7px 9px;
 
@@ -501,12 +532,12 @@ body.has-directory-toc .directory-toc {
     text-decoration: none;
 }
 
-.directory-toc a:hover {
+.document-tree a:hover {
     color: var(--nocter-blue-dark);
     background: var(--nocter-sky);
 }
 
-.directory-toc a[aria-current="page"] {
+.document-tree a[aria-current="page"] {
     color: var(--nocter-blue-dark);
     background: var(--nocter-mint);
 
@@ -524,7 +555,7 @@ main {
     line-height: 1.78;
 }
 
-body.has-directory-toc main {
+body.has-document-tree main {
     width: 100%;
     margin: 0;
 }
@@ -832,11 +863,11 @@ main img {
         width: min(100% - 32px, 1180px);
     }
 
-    body.has-directory-toc .docs-shell {
+    body.has-document-tree .docs-shell {
         display: block;
     }
 
-    body.has-directory-toc .directory-toc {
+    body.has-document-tree .document-tree {
         position: static;
 
         max-height: none;
