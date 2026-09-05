@@ -394,6 +394,11 @@ The value is equivalent to:
 "alpha\nbeta"
 ```
 
+Byte literals have type `u8`. Their delimiters, escape processing, and requirement to decode to
+exactly one byte belong to
+[Lexical Grammar](lexical-grammar.md#string-character-and-byte-literals). Character literals have
+type `char`; their value contract belongs to [Unicode Scalar Values](unicode-scalars.md).
+
 ## String Interpolation
 
 `${expr}` interpolates values inside string source forms.
@@ -449,60 +454,15 @@ guide.
   legal explicit implementation under the normal interface-implementation rules.
 - Missing or ambiguous implementation is a type error at the `${...}` expression.
 
-Allocator and lowering rules:
+Allocation and execution rules:
 
 - Interpolation requires runtime storage for the resulting owned `String`.
 - Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.
-- The lowering uses the compiler-propagated current allocation context. It must
-  not read a mutable process-global allocator.
-- Interpolation participates in the same selected-target buildability validation for `check`,
-  `build`, and `run`; none may report success when the required lowering capability is absent.
+- Interpolation uses the current allocation context and must not read a mutable process-global
+  allocator.
+- `check`, `build`, and `run` reject interpolation when the selected target cannot provide its
+  required runtime operations.
 
-The intended lowering is equivalent to constructing a `String` through ordinary
-standard-library operations in the current context, appending decoded text
-segments and formatted expression values in source order, then returning that
-owned value.
-
-## String, Byte, and Character Literals
-
-Byte literals use `b'...'` and have type `u8`.
-
-```nct
-let a: u8 = b'a'
-let newline: u8 = b'\n'
-let raw: u8 = b'\xFF'
-```
-
-Rules:
-
-- `b'...'` is a byte literal.
-- A byte literal has type `u8`.
-- A byte literal must decode to exactly one byte.
-- Byte and character lexical syntax is specified in
-  [Lexical Grammar](lexical-grammar.md#string-character-and-byte-literals).
-- Plain single-quoted literals such as `'a'` have built-in type `char` and decode exactly one
-  Unicode scalar value.
-- The full `char` contract belongs to [Unicode Scalar Values](unicode-scalars.md).
-- String literals use `"..."` or `"""..."""` and have built-in type `&str`.
-- String literals are UTF-8.
-- String literal length APIs report byte length. Scalar-aware APIs are named explicitly by the
-  Unicode text chapters.
-- Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.
-
-Escapes:
-
-```text
-\n      newline, byte 0x0A
-\r      carriage return, byte 0x0D
-\t      horizontal tab, byte 0x09
-\0      NUL, byte 0x00
-\\      backslash
-\"      double quote
-\'      single quote
-\$      dollar sign
-\xNN    byte with two hexadecimal digits
-```
-
-In a byte literal, `\xNN` may produce any byte from `0x00` through `0xFF`.
-
-In a string literal, `\xNN` inserts that byte into the literal byte sequence. The final string literal must still be valid UTF-8.
+Its observable behavior is equivalent to constructing a `String` through ordinary standard-library
+operations in the current context, appending decoded text segments and formatted expression values
+in source order, then returning that owned value.

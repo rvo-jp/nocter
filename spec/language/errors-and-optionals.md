@@ -71,8 +71,7 @@ let file = File.open(path)?
 For `T!`, `expr?` evaluates to the success value when `expr` succeeds. On failure, the current
 function, method, or closure returns the same `error` payload through its declared fallible layer.
 
-For `T?`, `expr?` evaluates to the present value when `expr` is present. On `none`, the current
-function, method, or closure returns `none` through its optional return layer.
+For the corresponding behavior on `T?`, see [Optional Propagation](#optional-propagation).
 
 Example:
 
@@ -530,8 +529,7 @@ Rules:
 
 ### Optional Loops
 
-Rules:
-
-- `while let`, `while var`, `if let`, and `if var` are not Nocter syntax.
-- Optional values are not automatically iterable.
-- Collection iteration helpers may return `T?`, but there is no dedicated optional-loop syntax.
+Optional values are not automatically iterable. Collection iteration helpers may return `T?`, but
+there is no dedicated optional-loop syntax. Use `otherwise { break }` or
+`otherwise { continue }` inside an ordinary loop as specified by
+[Control Flow](control-flow.md#loops).

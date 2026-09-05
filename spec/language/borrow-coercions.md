@@ -68,8 +68,8 @@ result.
 Within the generic body, this predicate is static evidence for contextual conversion, explicit
 `as`, receiver-method fallback, comparison, and indexing. At each concrete call, the substituted
 source type must expose one accessible coercion to the exact target. The compiler then specializes
-the generic evidence to that concrete declaration before lowering. A requirement does not create
-a runtime witness, insert a source borrow, permit chaining, or weaken visibility.
+the generic evidence to that concrete declaration. A requirement does not create a runtime witness,
+insert a source borrow, permit chaining, or weaken visibility.
 
 ## Contextual Selection
 
@@ -201,16 +201,13 @@ packages from creating a transitive or order-dependent conversion graph.
 
 ## Execution and Lifetime
 
-Selection records one concrete conversion plan before ownership and lowering. Its stable kind is
-lossless integer conversion, capability weakening, or borrow coercion. A borrow-coercion plan also
-contains the declaration identity, concrete source and target types, receiver capability, generic
-substitution, inferred receiver provenance, and whether the author wrote an explicit clause.
-Ownership, regions, analysis, and native lowering consume that same plan; they do not repeat
-declaration lookup.
+One conversion kind is selected before the source expression is evaluated: lossless integer
+conversion, capability weakening, or borrow coercion. Every rule applied to that expression observes
+the same selected conversion; declaration lookup is not repeated.
 
-The source expression is evaluated once. Native lowering invokes the selected body as an ordinary
-statically resolved borrow-returning call. The resulting value carries the original source loan,
-so it cannot outlive the value borrowed by the caller.
+The source expression is evaluated exactly once. A borrow coercion behaves as a statically selected
+borrow-returning call. The resulting value carries the original source loan, so it cannot outlive
+the value borrowed by the caller.
 
 ## Standard Library Surface
 

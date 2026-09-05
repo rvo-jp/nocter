@@ -103,9 +103,9 @@ func receive(): void {
 ```
 
 Both contexts use the same constant-expression typing, arithmetic, conversion, short-circuit, and
-failure rules. Declaration lowering does not inspect body blocks, and body checking does not retry
-name lookup in a header namespace. Later lowering and code generation consume only the normalized
-fixed-array type.
+failure rules while retaining their own lexical name scopes. Once a fixed-array length is resolved,
+every later use observes the same normalized fixed-array type and never reinterprets the expression
+in another scope.
 
 ## Immutable Static Data
 
@@ -140,11 +140,9 @@ slices, optionals, fallible values, callables, generic-dependent values, and val
 are rejected. Every readonly string reference in a static initializer refers to embedded static
 text.
 
-The compiler evaluates a static initializer once during semantic construction and publishes one
-typed frozen value to executable lowering. The selected machine layout owns its size, alignment,
-and byte encoding. The executable-format layer places the resulting bytes in readonly mapped data
-and performs no source-level evaluation. The backend cannot inspect initializer syntax or
-reconstruct aggregate values.
+A static initializer is evaluated exactly once before program execution. The selected target layout
+determines its size, alignment, and byte encoding. The resulting representation is placed in
+readonly mapped data; no source-level initializer evaluation occurs at runtime.
 
 `const` remains a storage-independent value and does not become an alias for `static`. `static`
 exists for immutable data whose address and indexed storage are part of execution.

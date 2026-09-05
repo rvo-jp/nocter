@@ -81,8 +81,7 @@ Source-backed lexical diagnostics:
 - `E0110`: a byte literal is not terminated.
 - `E0111`: a byte literal contains a newline.
 - `E0112`: a byte literal does not encode exactly one byte.
-- `E0113`: retired; this code is not reassigned after character literals replaced the former
-  single-quote rejection.
+- `E0113`: permanently reserved and not assigned to a diagnostic.
 - `E0114`: a string interpolation is not terminated.
 - `E0115`: a character literal is not terminated.
 - `E0116`: a character literal contains a newline.
@@ -740,7 +739,7 @@ Required diagnostic families:
 - Active Nocter home missing a trusted string, formatting, primitive, or runtime capability required
   by the selected target. `check`, `build`, and `run` report the same failure before successful
   buildability validation.
-- Removed optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
+- Unsupported optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
 - Selected entry function missing from the root file.
 - Selected entry function with an invalid return type.
 - `break` or `continue` whose nearest loop is outside the current callable body, including an outer

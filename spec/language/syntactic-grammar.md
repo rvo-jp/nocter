@@ -1080,8 +1080,7 @@ special role only at the listed boundary:
 
 Outside those positions, an otherwise valid identifier spelling remains ordinary unless a topical
 semantic rule forbids that declaration name. `alloc`, `import`, and `trait` have no contextual
-production. Removed `alloc func`, legacy import, and trait declarations are diagnosed without
-creating compatibility syntax trees.
+production. Forms such as `alloc func`, `import ...`, and `trait ...` are invalid declarations.
 
 ## Keyed Packs and Mapping Literals
 

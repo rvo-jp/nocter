@@ -295,7 +295,7 @@ unknown      storage the compiler cannot prove
     beta
     "</span><span class="token-string">""</span>
 </code></pre><p>The value is equivalent to:</p><pre><code class="language-nct"><span class="token-string">"alpha\nbeta"</span>
-</code></pre><h2 id="string-interpolation">String Interpolation</h2><p><code>${expr}</code> interpolates values inside string source forms.</p><pre><code class="language-nct"><span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"hello ${name}"</span>
+</code></pre><p>Byte literals have type <code>u8</code>. Their delimiters, escape processing, and requirement to decode to exactly one byte belong to <a href="../lexical-grammar/index.html#string-character-and-byte-literals">Lexical Grammar</a>. Character literals have type <code>char</code>; their value contract belongs to <a href="../unicode-scalars/index.html#content">Unicode Scalar Values</a>.</p><h2 id="string-interpolation">String Interpolation</h2><p><code>${expr}</code> interpolates values inside string source forms.</p><pre><code class="language-nct"><span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"hello ${name}"</span>
 <span class="token-keyword">let</span> report <span class="token-operator">=</span> <span class="token-string">""</span><span class="token-string">"
     user: ${name}
     count: ${count}
@@ -310,24 +310,9 @@ unknown      storage the compiler cannot prove
   temporary remains live through the selected formatting operation before it is destroyed exactly
   once.</li><li>Generic code may interpolate <code>T</code> when its active requirements include <code>T impl Format</code> for the
   exact selected declaration.</li><li>A project interface with the same name does not grant interpolation behavior.</li><li>Optional, fallible, array, pointer, callable, and opaque values are rejected unless they acquire a
-  legal explicit implementation under the normal interface-implementation rules.</li><li>Missing or ambiguous implementation is a type error at the <code>${...}</code> expression.</li></ul><p>Allocator and lowering rules:</p><ul><li>Interpolation requires runtime storage for the resulting owned <code>String</code>.</li><li>Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.</li><li>The lowering uses the compiler-propagated current allocation context. It must
-  not read a mutable process-global allocator.</li><li>Interpolation participates in the same selected-target buildability validation for <code>check</code>,
-  <code>build</code>, and <code>run</code>; none may report success when the required lowering capability is absent.</li></ul><p>The intended lowering is equivalent to constructing a <code>String</code> through ordinary standard-library operations in the current context, appending decoded text segments and formatted expression values in source order, then returning that owned value.</p><h2 id="string-byte-and-character-literals">String, Byte, and Character Literals</h2><p>Byte literals use <code>b'...'</code> and have type <code>u8</code>.</p><pre><code class="language-nct"><span class="token-keyword">let</span> a<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> b<span class="token-string">'a'</span>
-<span class="token-keyword">let</span> newline<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> b<span class="token-string">'\n'</span>
-<span class="token-keyword">let</span> raw<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> b<span class="token-string">'\xFF'</span>
-</code></pre><p>Rules:</p><ul><li><code>b'...'</code> is a byte literal.</li><li>A byte literal has type <code>u8</code>.</li><li>A byte literal must decode to exactly one byte.</li><li>Byte and character lexical syntax is specified in
-  <a href="../lexical-grammar/index.html#string-character-and-byte-literals">Lexical Grammar</a>.</li><li>Plain single-quoted literals such as <code>'a'</code> have built-in type <code>char</code> and decode exactly one
-  Unicode scalar value.</li><li>The full <code>char</code> contract belongs to <a href="../unicode-scalars/index.html#content">Unicode Scalar Values</a>.</li><li>String literals use <code>"..."</code> or <code>"""..."""</code> and have built-in type <code>&amp;str</code>.</li><li>String literals are UTF-8.</li><li>String literal length APIs report byte length. Scalar-aware APIs are named explicitly by the
-  Unicode text chapters.</li><li>Escapes are interpreted by the compiler before placing literal bytes into the Mach-O image.</li></ul><p>Escapes:</p><pre><code class="language-text">\n      newline, byte 0x0A
-\r      carriage return, byte 0x0D
-\t      horizontal tab, byte 0x09
-\0      NUL, byte 0x00
-\\      backslash
-\"      double quote
-\'      single quote
-\$      dollar sign
-\xNN    byte with two hexadecimal digits
-</code></pre><p>In a byte literal, <code>\xNN</code> may produce any byte from <code>0x00</code> through <code>0xFF</code>.</p><p>In a string literal, <code>\xNN</code> inserts that byte into the literal byte sequence. The final string literal must still be valid UTF-8.</p>
+  legal explicit implementation under the normal interface-implementation rules.</li><li>Missing or ambiguous implementation is a type error at the <code>${...}</code> expression.</li></ul><p>Allocation and execution rules:</p><ul><li>Interpolation requires runtime storage for the resulting owned <code>String</code>.</li><li>Nocter does not use GC and does not allow hidden compiler heap allocation for ordinary string literals.</li><li>Interpolation uses the current allocation context and must not read a mutable process-global
+  allocator.</li><li><code>check</code>, <code>build</code>, and <code>run</code> reject interpolation when the selected target cannot provide its
+  required runtime operations.</li></ul><p>Its observable behavior is equivalent to constructing a <code>String</code> through ordinary standard-library operations in the current context, appending decoded text segments and formatted expression values in source order, then returning that owned value.</p>
             </div>
         </main>
     </div>

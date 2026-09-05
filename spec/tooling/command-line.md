@@ -338,8 +338,8 @@ declarations directly contained in its selected module. Cases run in source orde
 one exact declaration. Every case is compiled through normal semantic, ownership, buildability,
 and native-emission stages, written to a unique temporary location, and launched in its own
 process. The temporary executable is removed after every outcome. A nonzero exit, signal, compile
-failure, or launch failure marks that run failed and does not prevent later runs. No legacy
-test-target `main` compatibility mode remains. Each process uses the selected package root as its
+failure, or launch failure marks that run failed and does not prevent later runs. The selected
+target's `main` function is not a test case. Each process uses the selected package root as its
 working directory, including when `--root` was given elsewhere.
 
 Human output reports every run and aggregate passed/failed counts. `--format json` writes one

@@ -122,7 +122,7 @@ APIs, not switches for raw representation access. A struct whose complete field 
 public may therefore expose both `Type { ... }` and named construction functions without an
 indirect modifier.
 
-## Construction Surface
+## Accessible Construction Surface
 
 The effective construction surface of a nominal type contains:
 
@@ -131,17 +131,11 @@ The effective construction surface of a nominal type contains:
 - associated construction functions
 - enum variants
 
-The compiler owns this surface as resolved type information. Body checking and construction-aware
-completion, signature help, and go-to-definition must query that information rather than scan
-source text or reconstruct a list independently. Entries shown at a use site must respect type and
-member visibility and must use the visible type spelling rather than an internal canonical module
-path.
-
-The canonical use-site view contains every entry ordinary source may access from the requesting
-source and module. Private entries appear only in their authored source and sources that directly
-see it. Checking, completion, signature help, and go-to-definition consume this view. Type hover
-does not consume or reproduce the construction surface; its nominal declaration presentation is
-defined by
+At a use site, this surface contains exactly the entries accessible from the requesting source and
+module. Private entries appear only in their authored source and sources that directly see it.
+Checking, completion, signature help, and go-to-definition must agree on the available entries,
+their visibility, and their visible type spelling. Type hover does not reproduce the construction
+surface; its nominal declaration presentation is defined by
 [Tooling and Editor Integration](../tooling/editor.md#hover-and-signature-help).
 
 Enum variants are intrinsic construction entries and are not duplicated inside `construct`.
@@ -149,9 +143,9 @@ Interfaces and type aliases do not own construction surfaces. Interfaces are not
 does not acquire a second construction API under its alias spelling; callers use the nominal target
 or an ordinary module function when an alias-specific factory is needed.
 
-## Legacy Declaration Forms
+## Invalid Declaration Forms
 
-The earlier top-level forms place construction behavior outside its owner and have been removed:
+The following forms are not valid construction declarations:
 
 ```nct
 literal Buffer<T> [](...items: T): Self { ... }
@@ -159,11 +153,9 @@ pub func Buffer.new<T>(): Buffer<T> { ... }
 construct Buffer<T> { default func new(): Self { ... } }
 ```
 
-The compiler diagnoses a top-level literal directly. Every qualified top-level function is also
-invalid. When its result, present payload, or success payload is the named owner, the diagnostic
-directs it into `construct Buffer<T> { ... }`; otherwise it directs the declaration to an unqualified
-module function or a receiver method. A `default` modifier is not part of construct-member syntax;
+A top-level literal and every qualified top-level function are invalid. Construction behavior for a
+nominal owner belongs in `construct Buffer<T> { ... }`; unrelated behavior is an unqualified module
+function or a receiver method. A `default` modifier is not part of construct-member syntax:
 construct declarations expose all visible members without selecting a primary entry. Factories for
 aliases of builtin representations are module functions because aliases cannot own construction
-surfaces. The compiler does not maintain a second compatibility AST or silently synthesize a
-construct declaration.
+surfaces.

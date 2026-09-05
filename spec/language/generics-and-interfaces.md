@@ -90,6 +90,8 @@ through a built-in projection, an accessible instance-owned index declaration, o
 receiver coercion to either operation. Generic specialization uses the same selector as an ordinary
 index expression. Operator requirements produce no runtime witness.
 
+### Interface Prerequisites
+
 An interface header may state prerequisites on its contextual `Self` type with the same `where`
 predicate forms used by generic declarations:
 
@@ -130,11 +132,10 @@ Here `.Item` retains the sole declaration identity `Source.Item`; `SizedSource` 
 create an alias or a second associated declaration. Requirement order cannot resolve a cycle or a
 name collision.
 
-The compiler freezes the prerequisite dependency paths and the narrower `Self`-inheritance closure
-once in the declaration graph. Checking specializes those paths for each lexical application and
-freezes exact body evidence. Method lookup, associated projection, implementation validation,
-concrete dispatch, and editor queries consume these authorities rather than traversing interface
-declarations independently.
+Each interface application has one normalized transitive prerequisite closure. Requirement
+checking, method lookup, associated projection, implementation validation, dispatch, and editor
+behavior all observe that same closure. Source order or an independent traversal cannot select a
+different prerequisite or associated declaration.
 
 `instance` does not have a prefix generic parameter list. Its target header is a declaration type
 pattern. Each generic argument slot contains a bare binder name; its first occurrence declares the
@@ -173,8 +174,8 @@ func inspect<T>(value: &T): i32 where T impl Readable<i32> {
 Generic implementation uses monomorphization. Predicate equality and binder refinement are
 compile-time only and create
 no witness, metadata, dictionary, or ABI field. Nocter does not provide runtime generic metadata,
-interface objects, interface inheritance, higher-kinded types, generic associated types, or general
-const generics.
+first-class interface objects, class-style implementation inheritance, higher-kinded types, generic
+associated types, or general const generics.
 
 ### Callable Type-Argument Inference
 

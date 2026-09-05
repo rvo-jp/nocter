@@ -220,33 +220,9 @@ Rules:
 - The selected Nocter home must contain `VERSION`, `MANIFEST.json`, and `std/`.
 - The compiler should report a command-line or Nocter-home error if the selected home is missing required files.
 
-Command-line surface:
-
-```sh
-nocter --version
-nocter doctor
-nocter build
-nocter build --root path/to/package
-nocter build --executable app -o app
-nocter run --executable app
-nocter check
-nocter check --format json
-nocter check app.nct
-nocter fmt app.nct
-nocter fmt --check app.nct
-nocter lsp
-nocter build --target arm64-darwin
-nocter build --target x64-linux
-```
-
-The command-line contract is specified in [Command Line Interface](../tooling/command-line.md).
-
-`build`, `run`, and `check` select the current directory's `index.nct` package when no explicit file
-is supplied. Package metadata remains Nocter source rather than a second manifest language.
-
-`-o path` sets the executable output path. If `-o` is omitted, the driver derives an output path from the selected executable name or root file stem.
-
-If `--target` is omitted, the compiler uses the host target. The compiler currently emits only `arm64-darwin`. Reserved targets may be recognized by name, but they must produce a not-implemented diagnostic until their backend, executable writer, primitive set, and target standard-library boundary are implemented.
+The complete command set, package and file input selection, output naming, and target-option behavior
+are specified only by the [Command Line Interface](../tooling/command-line.md). This platform chapter
+defines which targets are implemented and the guarantees an implemented target must provide.
 
 Build profile rules:
 

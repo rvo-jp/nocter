@@ -70,10 +70,8 @@ Rules:
   catalog is owned only by [Syntactic Grammar](syntactic-grammar.md#contextual-spellings).
 - `interface` is a reserved keyword.
 - `alloc` is not a reserved keyword. It is an ordinary identifier, including the standard
-  `Allocator.alloc` method. Obsolete result-modifier forms such as `alloc func` receive a focused
-  parser diagnostic and do not produce a compatibility AST.
-- `import` and `trait` are not reserved keywords. Removed top-level import and trait forms are
-  diagnosed without producing compatibility syntax trees.
+  `Allocator.alloc` method. It has no declaration-modifier role.
+- `import` and `trait` are not reserved keywords and have no declaration role.
 - `Self` has identifier spelling but is never an ordinary source name. Its contextual type and
   construction-owner positions are part of the syntactic-grammar catalog. It is not a valid
   binding, declaration, field, variant, module, type parameter, or import alias name.
@@ -504,11 +502,10 @@ String tokenization is uniform for plain and interpolated strings:
 - Empty text segments are omitted. The empty single-line string `""` therefore emits one
   `string_start` immediately followed by one joint `string_end`.
 
-The lexer maintains a stack for nested string and interpolation states. This is lexical delimiter
-matching, not expression parsing: the parser still decides whether the ordinary tokens between
+Nested strings and interpolations match their own delimiters. This is lexical delimiter matching,
+not expression parsing: the parser still decides whether the ordinary tokens between
 `interpolation_start` and `interpolation_end` form one valid expression. Component spans cover the
-complete authored string source without overlap or gaps, which lets diagnostics and formatting
-project directly back to source.
+complete authored string source without overlap or gaps.
 
 Representative token shapes:
 
@@ -568,7 +565,7 @@ Rules:
 - To include the literal characters `${` in string text, write `\${`.
 
 The type and storage rules for string and byte literals are specified in
-[Strings, Arrays, Views, and Pointers](sequences-and-text.md#string-byte-and-character-literals).
+[Strings, Arrays, Views, and Pointers](sequences-and-text.md#string-and-byte-literals).
 The complete scalar contract belongs to [Unicode Scalar Values](unicode-scalars.md).
 
 ## Unsupported Tokens and Forms

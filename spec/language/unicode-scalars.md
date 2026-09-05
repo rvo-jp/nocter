@@ -11,8 +11,8 @@ compiler-checked [`std/char` contract](../../development/std/char/index.nct).
 
 Every runtime `char` value is a valid Unicode scalar. Its stored representation is the scalar's
 unsigned value with size 4 and alignment 4. It remains a distinct type from `u32`; arithmetic and
-integer casts do not implicitly create `char` values. Target layout owns the physical representation
-once, and later machine lowering consumes that layout without treating `char` as `u32` semantics.
+integer casts do not implicitly create `char` values. The target layout determines the physical
+representation without giving `char` the arithmetic or conversion semantics of `u32`.
 
 ## Character Literals
 
@@ -70,23 +70,16 @@ uses uppercase hexadecimal digits for generated `\u{...}` spellings. Semantic hi
 the complete literal as a scalar literal. Hover displays `char`; completion and navigation consume
 the ordinary built-in declaration and instance indexes.
 
-Malformed character literals retain lexical diagnostics in CLI and LSP operation. They cannot
-surface as an internal checker, MIR, machine, or editor error.
-
-## Candidate Diagnostics
-
-- `E0115`: a character literal is not terminated;
-- `E0116`: a character literal contains a newline;
-- `E0117`: a character literal does not decode to exactly one valid Unicode scalar.
-
-Invalid escape spelling continues to use `E0107`. `E0113`, which rejected every plain
-single-quoted literal before this contract, remains retired rather than being reassigned.
+Malformed character literals produce the same source-backed lexical diagnostics in CLI and LSP
+operation. Exact diagnostic codes and messages belong to the
+[diagnostic catalog](../tooling/diagnostics.md#format).
 
 ## Non-goals
 
-- grapheme-cluster segmentation or user-perceived character indexing;
-- display width, fonts, collation, normalization, or locale behavior;
-- Unicode general-category, word-boundary, or case-mapping tables;
+- user-perceived character indexing;
+- grapheme-cluster or word-boundary segmentation;
+- display width, fonts, collation, or normalization;
+- locale-sensitive case conversion or other locale-dependent text behavior;
 - indexing `str` by scalar position;
 - implicit conversion among `char`, integers, bytes, strings, or one-element collections;
 - changing existing byte offsets returned by search and range APIs;

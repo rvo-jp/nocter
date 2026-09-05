@@ -331,6 +331,7 @@ callable and interface rules in this chapter, not additional callable syntax.
 
 ## Unsupported Features
 
-The current language does not include interface inheritance, erased callable types, dynamic
+The current language does not include implementation inheritance, erased callable types, dynamic
 dispatch, implicit capture, asynchronous closures, generators, parallel iterators, comparator
-sorting, extension declarations, or implicit interface implementation.
+sorting, extension declarations, or implicit interface implementation. Interface prerequisite
+contracts are defined by [Generics and Interfaces](generics-and-interfaces.md#interface-prerequisites).

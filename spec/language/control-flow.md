@@ -233,7 +233,7 @@ return match error {
 }
 ```
 
-Removed:
+Unsupported forms:
 
 - The ternary conditional operator `condition ? then_value : else_value` is not Nocter syntax. Use `if`.
 - The pattern conditional expression `enum_expr ?{ ... }` is not Nocter syntax. Use `match`.

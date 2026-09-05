@@ -127,7 +127,7 @@ as an aggregate result, but that summary does not become source syntax.
 
 Tuples have no declaration on which to place `construct`, `instance`, or `destruction` blocks.
 The language does not synthesize equality, ordering, hashing, formatting, iteration, coercion, or
-interface conformance merely because the elements provide those operations. Programs that need a
+interface implementation merely because the elements provide those operations. Programs that need a
 public behavioral abstraction should define a named type.
 
 Structural copy and destruction are compiler-owned value semantics, not synthesized interface
@@ -136,9 +136,9 @@ implementations.
 ## Layout and Calling Convention
 
 Tuple elements use source order. Target layout computes alignment, padding, size, and element
-offsets once from the ordered element types, using the same aggregate ABI rules used for ordered
-struct fields. Calls and returns consume that frozen target layout; later lowering must not
-recompute it from tuple syntax.
+offsets from the ordered element types using the same aggregate ABI rules used for ordered struct
+fields. Calls and returns use that one target layout; no context may derive a different layout from
+tuple syntax.
 
 Nocter does not promise that tuple layout is interchangeable with a source struct or with a foreign
 language tuple. Foreign interfaces must use an explicitly specified ABI surface.

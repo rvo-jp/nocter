@@ -182,7 +182,6 @@ match move message {
 
 Rules:
 
-- `match` may be used as a statement or as an expression.
 - Match arms use `Pattern { ... }`.
 - A variant pattern must use the exact enum qualifier and variant name selected by the target enum
   type.
@@ -195,32 +194,11 @@ Rules:
   abbreviates an entire payload list.
 - Nested patterns, literal patterns, binding modifiers, field-name patterns, and rest patterns are
   not supported.
-- `_ { ... }` is the fallback arm and matches any remaining value.
-- Each enum variant may appear in at most one explicit arm of a `match`. Repeating the same
-  qualified variant is a compile error even when its payload slots use different binding names or
-  `_` positions.
 - Enum variant patterns are tag patterns, not value refinements. Payload binding names and `_`
-  control projection only; they cannot make two arms for the same variant disjoint.
-- A `match` may have at most one `_` fallback arm.
-- The `_` fallback arm must be the last arm.
-- A `_` fallback arm remains valid when the preceding explicit arms already cover every current
-  variant. This permits an intentional fallback for variants added by a future dependency version.
-- Such a currently unreachable fallback is still resolved and checked as an ordinary arm. Its body
-  must satisfy syntax, name, type, ownership, provenance, and selected-target rules, and its body
-  result participates in `match` result-type compatibility.
-- A currently exhaustive fallback has no runtime execution path for the current enum definition.
-  The compiler may omit its machine code after checking, but it must not use that fact to accept an
-  otherwise invalid body or a different result type.
-- When `match` is used as an expression, each selected arm body result is the expression value.
-- A `match` expression without `_` must cover all variants to avoid a `void` missing-branch type.
-- Match expression arm result types must be compatible. A `never` arm is compatible with the other result type.
-- `match` without `_` is treated as a terminating statement when every enum variant is covered by an explicit arm and every arm terminates.
-- `match` with `_` is treated as a terminating statement when every explicit arm and the `_` arm terminate.
+  control projection only.
 - Every enum payload field may use any sized type that is valid as a struct field. Construction,
   local storage, arguments, returns, assignment, optional/fallible wrapping, and pattern matching
   apply recursively to payload aggregates without a separate runtime type allowlist.
-- A pattern target expression is evaluated exactly once before its tag is tested. An ordinary
-  expression that produces a new owned enum temporary may be matched directly.
 - A pattern target whose type is `Enum`, `&Enum`, or `&+Enum` selects one of the binding modes in
   the table below. Pattern matching dereferences a borrowed target only for tag inspection and
   payload projection; it does not introduce a general implicit dereference conversion.
@@ -280,6 +258,10 @@ Rules:
 - `_` by itself is valid only as the `match` fallback arm. It is not a valid
   `if is` pattern.
 
+Selection order, fallback placement, exhaustiveness, result typing, termination, and single
+evaluation of the target belong to
+[Control Flow](control-flow.md#body-results-and-control-expressions).
+
 Example value selection:
 
 ```nct
@@ -289,8 +271,6 @@ return match error {
     _ { unknown_code() }
 }
 ```
-
-Removed: `enum_expr ?{ ... }` is not Nocter syntax. Use `match` expressions for enum pattern value selection.
 
 `if enum_expr is Pattern` checks one enum pattern.
 
@@ -312,11 +292,6 @@ Rules:
 - Payload names are bound only inside the then body.
 - `if enum_expr is Enum.variant(_)` checks only the variant of a one-payload enum case and ignores
   that payload without introducing a binding. A multi-payload variant requires one slot per field.
-- `else` may be used for the non-matching case.
-- `else` is optional.
-- `else if enum_expr is Pattern` is allowed.
-- `else if enum_expr is Pattern` is equivalent to `else { if enum_expr is Pattern { ... } }`.
 - Payload names are not available in `else` or later `else if` branches.
-- `if expr is Pattern` may be used as a statement or as an expression with the same body-result rules as ordinary `if`.
 - `if is` does not apply to fallible values `T!`.
 - `if is` does not apply to optional values `T?`.

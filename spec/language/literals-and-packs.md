@@ -164,10 +164,10 @@ The lane carries a descriptor pointer whose closed contract provides:
 - a callback that destroys the unconsumed suffix
 
 Fixed parameters retain their normal ABI locations. The pack is never lowered as one ordinary
-`T`, a slice, a `Vec<T>`, or platform variadic arguments. TargetProgram fixes the element type,
-iterator dispatch, destruction plans, ordinary/pack split, and whether a call creates or forwards
-the descriptor. MIR transports those facts; MachineProgram and the target backend may not
-reconstruct semantic dispatch.
+`T`, a slice, a `Vec<T>`, or platform variadic arguments. The selected call fixes the element type,
+iterator operation, destruction behavior, ordinary/pack split, and whether the descriptor is created
+or forwarded. These choices are made once and are not reconstructed from source punctuation or ABI
+values.
 
 ## Literal Definitions
 
@@ -265,10 +265,9 @@ override, evaluation, ownership, and construction-member visibility with sequenc
 associative collection behavior selected by the standard `Map` declaration is specified in
 [Associative Collections](../../development/std/map/README.md).
 
-The keyed native descriptor is one ABI lane. TargetProgram fixes both component types, entry
-evaluation, next-entry initialization, and residual cleanup. MIR, MachineProgram, and the target
-backend transport that plan and cannot reconstruct key/value pairing from alternating values or
-source punctuation.
+The keyed native descriptor is one ABI lane. The selected call fixes both component types, entry
+evaluation, next-entry initialization, and residual cleanup. Key/value pairing is determined once
+from the typed call and is not reconstructed from alternating ABI values or source punctuation.
 
 
 ## Expansion Operators
