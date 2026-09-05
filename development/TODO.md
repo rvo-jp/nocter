@@ -2,9 +2,9 @@
 
 ## Next Work
 
-Complete v0.36.0 Phase 4 by exposing filesystem modification timestamps through the implemented
-`SystemTime` authority and adding one runnable integration example. Then qualify tooling and the
-full release surface without duplicating calendar arithmetic or target ABI knowledge.
+Complete v0.36.0 Phase 5 by qualifying formatting, LSP features, installed-home behavior, native
+execution, target rejection, generated documentation, and the complete authority boundaries for
+wall-clock time, UTC calendar conversion, RFC 3339, and filesystem timestamps.
 
 ## Blockers
 

@@ -10,6 +10,7 @@ see ./directory_mutation_tests.nct
 
 use /path.Utf8Path
 use /string.String
+use /time.SystemTime
 use /vec.Vec
 
 /// Portable classification of a filesystem entry.
@@ -35,6 +36,9 @@ instance Metadata {
 
     /// Returns the target-reported byte length.
     pub method &self.len(): u64
+
+    /// Returns the target-reported last-content-modification instant.
+    pub method &self.modified(): SystemTime
 
     /// Reports whether the entry is a regular file.
     pub method &self.is_file(): bool

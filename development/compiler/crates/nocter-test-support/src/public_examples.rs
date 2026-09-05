@@ -271,6 +271,20 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         ],
     },
     PublicPackageExample {
+        directory: "wall-clock",
+        package_identity: "workspace:wall-clock",
+        executable: "wall-clock",
+        fixtures: &[],
+        runs: &[PublicExampleRun {
+            name: "usage",
+            arguments: &[],
+            stdin: b"",
+            status: 2,
+            stdout: b"",
+            stderr: b"usage: wall-clock PATH\n",
+        }],
+    },
+    PublicPackageExample {
         directory: "text-report",
         package_identity: "workspace:text-report",
         executable: "text-report",

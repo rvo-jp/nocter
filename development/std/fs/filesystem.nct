@@ -5,11 +5,13 @@ see ./darwin.nct
 
 use /io.{File, Reader, Writer}
 use /string.String
+use /time.SystemTime
 use /vec.Vec
 
 copy struct Metadata {
     file_type: FileType
     len: u64
+    modified: SystemTime
 }
 
 instance Metadata {
@@ -19,6 +21,10 @@ instance Metadata {
 
     method &self.len(): u64 {
         return self.len
+    }
+
+    method &self.modified(): SystemTime {
+        return self.modified
     }
 
     method &self.is_file(): bool {

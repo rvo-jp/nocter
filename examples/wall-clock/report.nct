@@ -1,0 +1,22 @@
+use std/fs
+use std/io
+use std/process
+use std/time.SystemTime
+
+func run(): i32! {
+    let requested: &str = process.arg(1)? otherwise {
+        io.eprintln("usage: wall-clock PATH")?
+        return 2
+    }
+
+    let observed = SystemTime.now()?
+    let observed_text = observed.to_rfc3339()?
+    let details = fs.metadata(requested)?
+    let modified_text = details.modified().to_rfc3339()?
+
+    io.print("now: ")?
+    io.println(&observed_text)?
+    io.print("modified: ")?
+    io.println(&modified_text)?
+    return 0
+}

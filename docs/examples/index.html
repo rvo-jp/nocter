@@ -197,6 +197,7 @@
                     <li><a href="./text-banner/index/index.html#content">text-banner</a></li>
                     <li><a href="./text-report/index/index.html#content">text-report</a></li>
                     <li><a href="./text-search/index.html#content">text-search</a></li>
+                    <li><a href="./wall-clock/index/index.html#content">wall-clock</a></li>
                 </ul>
             </nav>
         </aside>
@@ -225,7 +226,10 @@
 <span class="token-function">nocter</span> run examples/elapsed.nct
 </code></pre><p><a href="./unicode-text/index.html#content">unicode-text.nct</a> trims Unicode whitespace, applies full default casing including contextual and expanding mappings, queries a scalar property, and removes owned UTF-8 suffixes only at scalar boundaries.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/unicode-text.nct
 <span class="token-function">nocter</span> run examples/unicode-text.nct
-</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./subprocess-configured/index/index.html#content">subprocess-configured/index.nct</a> configures an exact child environment and working directory, replaces finite standard input, captures both output streams, and observes the terminal status as one synchronous operation. Repeated <code>env</code> calls demonstrate last-write-wins replacement; <code>clear_env</code> and <code>remove_env</code> make the final child environment exact.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/subprocess-configured
+</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./wall-clock/index/index.html#content">wall-clock/index.nct</a> observes the system wall clock and reports a file's last-content-modification instant. Both values use the same <code>SystemTime</code> domain and canonical UTC RFC 3339 generator; target timestamp layouts remain behind <code>std/fs</code> and <code>std/time</code>.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/wall-clock
+<span class="token-function">nocter</span> check
+<span class="token-function">nocter</span> run -- ../../README.md
+</code></pre><p><a href="./subprocess-configured/index/index.html#content">subprocess-configured/index.nct</a> configures an exact child environment and working directory, replaces finite standard input, captures both output streams, and observes the terminal status as one synchronous operation. Repeated <code>env</code> calls demonstrate last-write-wins replacement; <code>clear_env</code> and <code>remove_env</code> make the final child environment exact.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/subprocess-configured
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> run
 </code></pre><p><a href="./subprocess-output/index/index.html#content">subprocess-output/index.nct</a> captures complete standard output and standard error from the repository-owned <code>helper.sh</code>, validates both byte streams as UTF-8 text, and inspects the helper's typed nonzero exit status. Capture preserves arbitrary bytes; the example chooses text conversion explicitly because it knows the helper's output contract.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/subprocess-output

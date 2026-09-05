@@ -43,6 +43,13 @@ Borrowed string paths are checked for NUL before a target call.
 `std/fs` provides the path-oriented one-shot operations and owning directory stream declared in
 its compiler-checked [public contract](index.nct).
 
+`Metadata` is a snapshot containing portable entry classification, byte length, and the
+target-reported last-content-modification instant. `modified` returns that instant as
+`std/time.SystemTime`; callers use the single time module authority for UTC conversion and RFC 3339
+generation. Darwin metadata nanoseconds are validated before publication. An invalid target value
+fails metadata construction with `std.fs.invalid_metadata_time` rather than escaping as a malformed
+`SystemTime`.
+
 `read` and `read_to_string` open an existing entry and return independently owned storage.
 `read_to_string` validates the complete file as UTF-8 and preserves the ordinary
 `std.string.invalid_utf8` failure when validation fails. `write` and `write_text` create or

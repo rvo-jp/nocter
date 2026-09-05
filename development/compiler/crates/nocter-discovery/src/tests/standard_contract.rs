@@ -76,6 +76,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("fs", "ptr"),
     ("fs", "string"),
     ("fs", "testing"),
+    ("fs", "time"),
     ("fs", "vec"),
     ("hash", "internal/character"),
     ("hash", "internal/hash"),

@@ -55,3 +55,17 @@ test recursive_creation_rejects_empty_and_non_directory_prefixes {
     remove_dir(root)?
     return
 }
+
+test metadata_exposes_a_normalized_modification_instant {
+    let path = ".nocter-v036-metadata-time"
+    write_text(path, "timestamp")?
+    let details = metadata(path)?
+    let modified = details.modified()
+    testing.assert(modified.subsecond_nanoseconds() < 1000000000)?
+    let utc = modified.to_utc()?
+    testing.assert(utc.year() >= 1970 && utc.year() <= 9999)?
+    let text = modified.to_rfc3339()?
+    testing.assert(text.len() >= 20)?
+    remove_file(path)?
+    return
+}

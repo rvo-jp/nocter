@@ -96,6 +96,16 @@ nocter run examples/unicode-text.nct
 
 ## Package Examples
 
+[wall-clock/index.nct](wall-clock/index.nct) observes the system wall clock and reports a file's
+last-content-modification instant. Both values use the same `SystemTime` domain and canonical UTC
+RFC 3339 generator; target timestamp layouts remain behind `std/fs` and `std/time`.
+
+```sh
+cd examples/wall-clock
+nocter check
+nocter run -- ../../README.md
+```
+
 [subprocess-configured/index.nct](subprocess-configured/index.nct) configures an exact child
 environment and working directory, replaces finite standard input, captures both output streams,
 and observes the terminal status as one synchronous operation. Repeated `env` calls demonstrate

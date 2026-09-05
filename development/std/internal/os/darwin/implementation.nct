@@ -231,6 +231,12 @@ const STAT_MODE_OFFSET: usize = 4
 const STAT_SIZE_OFFSET: usize = 96
 
 #target: "arm64-darwin"
+const STAT_MODIFIED_SECONDS_OFFSET: usize = 48
+
+#target: "arm64-darwin"
+const STAT_MODIFIED_NANOSECONDS_OFFSET: usize = 56
+
+#target: "arm64-darwin"
 const STAT_MODE_REGULAR: u16 = 32768
 
 #target: "arm64-darwin"
