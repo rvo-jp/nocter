@@ -176,7 +176,7 @@
                 <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li><li><a href="../../index.html#content">Standard Library</a></li></ol>
                 <p class="document-tree-title">std/time/</p>
                 <ul class="document-tree-list">
-                    <li><a href="../index.html#content">Monotonic Time</a></li>
+                    <li><a href="../index.html#content">Time</a></li>
                     <li><a href="./index.html#content" aria-current="page">Module Contract</a></li>
                 </ul>
             </nav>
@@ -186,12 +186,13 @@
                 <span class="markdown-path-text">/std/time/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Normalized durations and monotonic elapsed time.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Normalized durations, monotonic elapsed time, and Unix wall-clock observations.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>duration<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>instant<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>primitives<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>sleep<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>system_time<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// A normalized, non-negative span of time.</span>
@@ -199,6 +200,9 @@
 
 <span class="token-comment">/// An opaque observation from the process monotonic-clock domain.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">Instant</span>
+
+<span class="token-comment">/// A normalized wall-clock instant relative to the Unix epoch.</span>
+<span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">SystemTime</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">Duration</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Creates a duration from whole seconds.</span>
@@ -245,6 +249,31 @@
 <span class="token-keyword">instance</span> <span class="token-type">Instant</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Measures the non-negative duration from this observation to now.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">elapsed</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Duration</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">SystemTime</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Creates an exact whole-second instant relative to the Unix epoch.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_unix_seconds</span><span class="token-operator">(</span>seconds<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Creates an instant from Unix seconds and a subsecond nanosecond component.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_unix_parts</span><span class="token-operator">(</span>seconds<span class="token-operator">:</span> <span class="token-type">i64</span><span class="token-operator">,</span> nanoseconds<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Observes the target wall clock.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">now</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">SystemTime</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns signed whole seconds relative to the Unix epoch.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">unix_seconds</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i64</span>
+
+    <span class="token-comment">/// Returns the normalized subsecond nanosecond component.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">subsecond_nanoseconds</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+    <span class="token-comment">/// Returns whether both values denote the same instant.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+
+    <span class="token-comment">/// Returns whether this instant precedes `other`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">&lt;</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Blocks the current thread until at least `duration` has elapsed.</span>

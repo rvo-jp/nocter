@@ -1,8 +1,8 @@
-# Monotonic Time
+# Time
 
-This chapter defines the `std/time` API for durations, monotonic elapsed-time measurement, and
-blocking sleep. It does not expose a target clock identifier, hardware tick, syscall number, or
-calendar representation.
+This chapter defines the `std/time` API for durations, monotonic elapsed-time measurement, Unix
+wall-clock observations, and blocking sleep. It does not expose a target clock identifier,
+hardware tick, syscall number, or raw target time structure.
 
 ## Duration
 
@@ -36,6 +36,22 @@ Clock resolution may be coarser than one nanosecond. Conversion to `Duration` ro
 greatest representable nanosecond value not later than the measured counter delta. No target tick
 or frequency is observable through `Instant` or `Duration`.
 
+## System Time
+
+`SystemTime` is a copyable wall-clock instant represented by signed whole seconds relative to
+1970-01-01T00:00:00Z and a normalized non-negative nanosecond component smaller than one second.
+The signed seconds use the mathematical floor around the epoch: one nanosecond before the epoch is
+`seconds == -1` and `nanoseconds == 999999999`.
+
+`from_unix_seconds` creates an instant with no fractional component. `from_unix_parts` rejects a
+nanosecond component of one second or greater with `std.time.invalid_system_time`; it does not
+silently carry excess nanoseconds into the seconds field.
+
+`SystemTime.now` observes the target wall clock and returns `std.time.wall_clock_failed` when that
+observation fails. Successive observations may be equal or move backward when the target clock is
+adjusted. Programs measuring elapsed time must use `Instant` instead. Equality and ordering compare
+the represented instant, not the private field layout.
+
 ## Blocking Sleep
 
 The module namespace owns the blocking sleep operation declared in [`index.nct`](index.nct).
@@ -56,17 +72,18 @@ or another undeclared guarantee.
 
 ## Responsibility Boundaries
 
-The compiler target contract may provide only the closed facts needed to read a monotonic counter,
-read its fixed frequency, and compute a wrap-aware counter delta. It does not construct
-`Duration`, implement sleep policy, classify public errors, or expose target values to user code.
+The compiler target contract provides only the closed facts needed to read a monotonic counter,
+read its fixed frequency, compute a wrap-aware counter delta, and perform generic target syscalls.
+It does not construct `Duration` or `SystemTime`, implement sleep policy, classify public errors, or
+expose target time structures to user code.
 
-The target-specific standard-library adapter owns raw wait ABI layout and one wait attempt. The
-target-independent `std/time` implementation owns normalization, counter-to-duration conversion,
-rounding, chunking, interruption retry, and public failure policy. Neither layer may rediscover the
-other layer's facts from source spelling or machine instructions.
+Target-specific standard-library adapters own raw wall-clock and wait ABI layouts plus one target
+operation. The target-independent `std/time` implementation owns normalization,
+counter-to-duration conversion, rounding, chunking, interruption retry, and public failure policy.
+Neither layer may rediscover the other layer's facts from source spelling or machine instructions.
 
 ## Non-goals
 
-This contract does not add wall-clock time, Unix timestamps, calendar dates, time zones, parsing or
-formatting, async timers, scheduler integration, deadlines as a public type, periodic timers,
-`noblock`, or `realtime`. Those contracts require separate milestones.
+This contract does not add local time zones, daylight-saving rules, locale-dependent presentation,
+async timers, scheduler integration, deadlines as a public type, periodic timers, `noblock`, or
+`realtime`. UTC calendar conversion and RFC 3339 interchange are added by later v0.36.0 phases.

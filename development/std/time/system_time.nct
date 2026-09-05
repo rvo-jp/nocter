@@ -1,0 +1,63 @@
+//! Normalized public wall-clock instants over one target-neutral observation boundary.
+
+see ./index.nct
+see ./duration.nct
+
+use /internal/time
+use /internal/time.WallClockAttempt
+
+copy struct SystemTime {
+    seconds: i64
+    nanoseconds: u64
+}
+
+noalloc func invalid_system_time(): error {
+    return error.new(
+        "std.time.invalid_system_time",
+        "subsecond nanoseconds must be less than one second",
+    )
+}
+
+noalloc func wall_clock_failed(): error {
+    return error.new("std.time.wall_clock_failed", "the system wall clock could not be read")
+}
+
+construct SystemTime {
+    noalloc func from_unix_seconds(seconds: i64): Self {
+        return SystemTime { seconds: seconds, nanoseconds: 0 }
+    }
+
+    noalloc func from_unix_parts(seconds: i64, nanoseconds: u64): Self! {
+        if nanoseconds >= NANOSECONDS_PER_SECOND { return invalid_system_time() }
+        return SystemTime { seconds: seconds, nanoseconds: nanoseconds }
+    }
+
+    noalloc func now(): Self! {
+        match time.wall_clock_now() {
+            WallClockAttempt.observed(value) {
+                return SystemTime.from_unix_parts(value.seconds, value.nanoseconds)
+            }
+            WallClockAttempt.failed { return wall_clock_failed() }
+        }
+    }
+}
+
+instance SystemTime {
+    noalloc method &self.unix_seconds(): i64 {
+        return self.seconds
+    }
+
+    noalloc method &self.subsecond_nanoseconds(): u64 {
+        return self.nanoseconds
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        return self.seconds == other.seconds && self.nanoseconds == other.nanoseconds
+    }
+
+    noalloc operator (&self < other: &Self): bool {
+        if self.seconds < other.seconds { return true }
+        if other.seconds < self.seconds { return false }
+        return self.nanoseconds < other.nanoseconds
+    }
+}

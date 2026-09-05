@@ -1,0 +1,38 @@
+//! Darwin wall-clock ABI adaptation over the generic syscall boundary.
+
+see ./index.nct
+
+use /internal/os/darwin
+use /ptr
+
+#target: "arm64-darwin"
+const MICROSECONDS_PER_SECOND: u64 = 1000000
+
+#target: "arm64-darwin"
+const NANOSECONDS_PER_MICROSECOND: u64 = 1000
+
+#target: "arm64-darwin"
+copy struct DarwinTimeval {
+    seconds: i64
+    // Darwin writes a signed 32-bit microsecond count followed by four padding bytes. Initializing
+    // the complete word to zero makes the validated non-negative count readable as u64.
+    microseconds_and_padding: u64
+}
+
+#target: "arm64-darwin"
+noalloc func wall_clock_now(): WallClockAttempt {
+    var raw = DarwinTimeval { seconds: 0, microseconds_and_padding: 0 }
+    let result = darwin.syscall3(
+        darwin.SYS_GETTIMEOFDAY,
+        ptr.addr(ptr.from_ref_mut(&+raw)),
+        0,
+        0,
+    )
+    if result.errno != 0 || raw.microseconds_and_padding >= MICROSECONDS_PER_SECOND {
+        return WallClockAttempt.failed
+    }
+    return WallClockAttempt.observed(WallClockValue {
+        seconds: raw.seconds,
+        nanoseconds: raw.microseconds_and_padding * NANOSECONDS_PER_MICROSECOND,
+    })
+}

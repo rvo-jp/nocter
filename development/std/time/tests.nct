@@ -73,6 +73,34 @@ test instant_elapsed_stays_in_the_normalized_duration_domain {
     return
 }
 
+test system_time_construction_and_order_share_one_normal_form {
+    let epoch = SystemTime.from_unix_seconds(0)
+    let epoch_parts = SystemTime.from_unix_parts(0, 0)?
+    testing.assert(epoch == epoch_parts)?
+
+    let before = SystemTime.from_unix_parts(-1, 999999999)?
+    let after = SystemTime.from_unix_parts(0, 1)?
+    testing.assert(before < epoch)?
+    testing.assert(epoch < after)?
+    testing.assert(before.unix_seconds() == -1)?
+    testing.assert(before.subsecond_nanoseconds() == 999999999)?
+    return
+}
+
+test system_time_rejects_non_normalized_subseconds {
+    let _invalid = SystemTime.from_unix_parts(0, 1000000000) catch failure {
+        testing.assert(failure.has_code("std.time.invalid_system_time"))?
+        return
+    }
+    return error.new("std.time.test", "invalid subsecond component was accepted")
+}
+
+test system_wall_clock_produces_a_normalized_observation {
+    let observed = SystemTime.now()?
+    testing.assert(observed.subsecond_nanoseconds() < 1000000000)?
+    return
+}
+
 test target_counter_contract_has_a_bounded_frequency_and_wrapping_delta {
     let frequency = monotonic_frequency_raw()
     testing.assert(frequency > 0 && frequency <= 4294967295)?

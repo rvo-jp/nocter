@@ -1,9 +1,10 @@
-//! Normalized durations and monotonic elapsed time.
+//! Normalized durations, monotonic elapsed time, and Unix wall-clock observations.
 
 see ./duration.nct
 see ./instant.nct
 see ./primitives.nct
 see ./sleep.nct
+see ./system_time.nct
 see ./tests.nct
 
 /// A normalized, non-negative span of time.
@@ -11,6 +12,9 @@ pub copy struct Duration
 
 /// An opaque observation from the process monotonic-clock domain.
 pub copy struct Instant
+
+/// A normalized wall-clock instant relative to the Unix epoch.
+pub copy struct SystemTime
 
 construct Duration {
     /// Creates a duration from whole seconds.
@@ -57,6 +61,31 @@ construct Instant {
 instance Instant {
     /// Measures the non-negative duration from this observation to now.
     pub noalloc method &self.elapsed(): Duration
+}
+
+construct SystemTime {
+    /// Creates an exact whole-second instant relative to the Unix epoch.
+    pub noalloc func from_unix_seconds(seconds: i64): Self
+
+    /// Creates an instant from Unix seconds and a subsecond nanosecond component.
+    pub noalloc func from_unix_parts(seconds: i64, nanoseconds: u64): Self!
+
+    /// Observes the target wall clock.
+    pub noalloc func now(): Self!
+}
+
+instance SystemTime {
+    /// Returns signed whole seconds relative to the Unix epoch.
+    pub noalloc method &self.unix_seconds(): i64
+
+    /// Returns the normalized subsecond nanosecond component.
+    pub noalloc method &self.subsecond_nanoseconds(): u64
+
+    /// Returns whether both values denote the same instant.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Returns whether this instant precedes `other`.
+    pub noalloc operator (&self < other: &Self): bool
 }
 
 /// Blocks the current thread until at least `duration` has elapsed.

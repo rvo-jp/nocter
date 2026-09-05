@@ -97,6 +97,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("internal/ptr", "ptr"),
     ("internal/safety", "internal/os/darwin"),
     ("internal/time", "internal/os/darwin"),
+    ("internal/time", "ptr"),
     ("internal/table", "hash"),
     ("internal/table", "internal/mem"),
     ("internal/table", "internal/ptr"),

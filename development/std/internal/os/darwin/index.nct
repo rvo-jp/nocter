@@ -90,6 +90,9 @@ pub(/) const SYS_GETDIRENTRIES64: usize
 pub(/) const SYS_GETENTROPY: usize
 
 #target: "arm64-darwin"
+pub(/) const SYS_GETTIMEOFDAY: usize
+
+#target: "arm64-darwin"
 pub(/) const STDIN_FD: usize
 
 #target: "arm64-darwin"

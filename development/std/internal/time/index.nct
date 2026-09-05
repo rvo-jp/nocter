@@ -1,6 +1,17 @@
-//! Package-internal target wait boundary for monotonic sleep policy.
+//! Package-internal target boundaries for time observation and waiting.
 
 see ./darwin.nct
+see ./wall_clock_darwin.nct
+
+pub(/) copy struct WallClockValue {
+    pub seconds: i64
+    pub nanoseconds: u64
+}
+
+pub(/) enum WallClockAttempt {
+    observed(value: WallClockValue)
+    failed
+}
 
 pub(/) enum WaitStatus {
     complete
@@ -10,3 +21,6 @@ pub(/) enum WaitStatus {
 
 /// Performs one blocking timeout wait without deciding retry or remaining-time policy.
 pub(/) noalloc func wait_once(seconds: u64, microseconds: u64): WaitStatus
+
+/// Observes one normalized Unix wall-clock value or reports target failure.
+pub(/) noalloc func wall_clock_now(): WallClockAttempt
