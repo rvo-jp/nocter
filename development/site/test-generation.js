@@ -80,7 +80,9 @@ try {
         "spec/language/unindexed-language-rule.md"
     );
     fs.writeFileSync(unindexedSpecification, "# Unindexed Language Rule\n");
-    const unindexedGuide = path.join(early, "spec/guides/unindexed-guide.md");
+    const generatedGuideFixtureDirectory = path.join(early, "spec/guides");
+    const unindexedGuide = path.join(generatedGuideFixtureDirectory, "unindexed-guide.md");
+    fs.mkdirSync(generatedGuideFixtureDirectory, { recursive: true });
     fs.writeFileSync(unindexedGuide, "# Unindexed Guide\n");
     build(early);
     for (const relative of [
@@ -116,6 +118,7 @@ try {
         throw new Error("documentation generation accepted a Markdown table with inconsistent columns");
     }
     fs.rmSync(malformedTable);
+    fs.rmSync(generatedGuideFixtureDirectory, { recursive: true });
 
     const catalog = path.join(
         early,
