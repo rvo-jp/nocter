@@ -3,9 +3,7 @@
 Nocter development is contract-first. Language, platform, and tooling behavior belongs in
 [`spec/`](../spec/README.md). Standard-library behavior belongs with its compiler-checked public
 surface under [`development/std`](std/README.md). Implementation milestones and reviews record how
-the compiler reached those contracts without becoming another authority. The compiler
-implementation removed before v0.14.0 is available through Git history only and is not a design
-input.
+the compiler reached those contracts without becoming another authority.
 
 ## Current Work
 
@@ -17,17 +15,9 @@ input.
 - [Documentation site generator](site/README.md) — authored website inputs and output boundary
 - [Development history](history/README.md) — milestones, reviews, legacy design, and publication audits
 
-The active compiler workspace is under `development/compiler/`. The previous compiler is preserved
-by commit `f6c08da3` and Git history. Do not use it as a behavioral oracle or implementation
-reference.
-
-## v0.14.0 Rewrite Record
-
-- [Rewrite milestone](history/milestones/v0.14.0.md)
-- [Implementation qualification](history/milestones/v0.14.0-qualification.md)
-- [Final design review](history/reviews/v0.14.0-final-design.md)
-- [Release preparation](history/milestones/v0.14.0-release-preparation.md)
-- [Publication and audit](history/release-audits/v0.14.0.md)
+The active compiler workspace is under `development/compiler/`. Superseded implementations and
+their rewrite records remain available through the [development history](history/README.md), but
+are not behavioral or architectural inputs.
 
 ## Specification Workflow
 
@@ -46,7 +36,8 @@ The specification is the sole source for:
 - command-line and editor contracts
 
 Compiler-checked standard-library declarations and declaration documentation belong to module
-`index.nct` files. Colocated READMEs own longer module behavior without repeating signatures.
+`index.nct` files. The [standard-library catalog](std/README.md#behavior-guide-authority) assigns
+each longer observable subject to one behavior guide without repeating signatures.
 
 ## Repository Layout
 

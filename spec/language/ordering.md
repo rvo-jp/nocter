@@ -77,7 +77,7 @@ do not receive generated ordering.
 
 Source-defined ordering for borrowed text and slices, including coercion from their owning
 containers, belongs to the compiler-checked [`std/str`](../../development/std/str/index.nct) and
-[`std/slice`](../../development/std/slice/index.nct) contracts and their colocated behavior guides.
+[`std/slice`](../../development/std/slice/index.nct) contracts and their assigned behavior guides.
 Those declarations use the selector defined here. The `<` operator does not prescribe a sorting
 algorithm.
 

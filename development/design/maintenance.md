@@ -4,7 +4,8 @@
 
 `spec/` is the sole source for public language, platform, CLI, diagnostic, and editor behavior.
 Standard-library declarations and declaration documentation belong to module `index.nct` files;
-their colocated READMEs own longer observable module behavior without repeating signatures.
+`development/std/README.md` assigns each longer observable subject to one behavior guide, which
+must not repeat signatures.
 Development design documents describe implementation boundaries and work order without restating
 either public authority. Historical compiler source, superseded implementation documents, tests,
 binaries, and observed behavior are not inputs for current language or compiler decisions.

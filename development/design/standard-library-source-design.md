@@ -9,10 +9,11 @@ This document defines repository policy for implementing the public standard-lib
 
 Every standard-library `index.nct` is the compiler-checked user contract root, not a general
 implementation file. Its declarations and declaration doc comments are the sole authority for the
-module's exact public surface. A colocated README may own longer observable behavior, examples, and
-cross-operation invariants, but must not restate signatures. A reader must be able to identify the
-module's externally visible surface without following implementation sources or reading package
-plumbing.
+module's exact public surface. The behavior guide assigned by [`development/std/README.md`](../std/README.md)
+may own longer observable behavior, examples, and cross-operation invariants, but must not restate
+signatures. One guide may cover tightly coupled modules when it gives their shared invariant one
+owner. A reader must be able to identify a module's externally visible surface without following
+implementation sources or reading package plumbing.
 
 The root owns documentation, required signature imports, re-exports, public data representation,
 opaque nominal contracts, bodyless public callable contracts, interface requirements, explicit

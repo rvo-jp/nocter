@@ -10,8 +10,8 @@ contracts, or milestone status.
 
 - [`spec/`](../../spec/README.md) is the sole authority for public language, platform, CLI,
   diagnostic, and editor behavior.
-- [`development/std`](../std/README.md) owns compiler-checked standard-library declarations,
-  declaration documentation, and longer observable module behavior.
+- [`development/std`](../std/README.md) owns compiler-checked standard-library declarations and
+  declaration documentation, and assigns longer observable subjects to behavior guides.
 - [Compiler architecture](../design/architecture.md) owns the pipeline, dependency direction, and
   cross-stage authority rules.
 - [Checked program design](../design/checked-program-design.md),

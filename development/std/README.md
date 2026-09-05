@@ -2,9 +2,10 @@
 
 This directory is the sole authority for the portable public modules distributed with Nocter.
 Every module `index.nct` owns its compiler-checked public declarations and declaration doc
-comments. A colocated README owns longer module behavior that would obscure the declaration list.
-The two forms must not repeat signatures: declarations answer what can be called, while prose
-explains observable behavior, failure, complexity, and cross-operation invariants.
+comments. The catalog below assigns each longer observable subject to one behavior guide. A guide
+may span tightly coupled modules when separating their cross-operation invariants would create
+duplicate authorities. Declarations answer what can be called; guides explain observable behavior,
+failure, complexity, and invariants without repeating signatures.
 The package identity itself is defined by the checked [root declaration](index.nct).
 
 Language constructs and target primitives are referenced from their owning specification chapters
@@ -15,23 +16,25 @@ package-only modules live under `std/internal` and are excluded from generated n
 guides below cover modules whose observable behavior needs more explanation than declaration
 comments.
 
-## Behavior Guides
+## Behavior Guide Authority
 
-- [Borrowed Text](str/README.md)
-- [Owned Strings](string/README.md)
-- [Vectors](vec/README.md)
-- [Slices](slice/README.md)
-- [Iteration](iter/README.md)
-- [Formatting](fmt/README.md)
-- [I/O](io/README.md)
-- [Filesystem](fs/README.md)
-- [Integer Text](num/README.md)
-- [Allocation and Failure](mem/README.md)
-- [Recoverable Errors](error/README.md)
-- [Pointer and Address Conversion](ptr/README.md)
-- [Associative Collections](map/README.md)
-- [JSON Values and Text](json/README.md)
-- [Monotonic Time](time/README.md)
-- [Synchronous Processes](process/README.md), including output capture and command configuration
-- [Unicode Text and Scalars](char/README.md)
-- [Native Assertions](testing/README.md)
+| Observable subject | Sole guide | Checked contracts |
+| --- | --- | --- |
+| borrowed UTF-8 text | [Borrowed Text](str/README.md) | `std/str` |
+| owned UTF-8 text | [Owned Strings](string/README.md) | `std/string` |
+| growable sequences | [Vectors](vec/README.md) | `std/vec` |
+| borrowed sequences | [Slices](slice/README.md) | `std/slice` |
+| iteration and collection | [Iteration](iter/README.md) | `std/iter`, `std/iter/collect` |
+| value formatting | [Formatting](fmt/README.md) | `std/fmt` |
+| byte streams and buffering | [I/O](io/README.md) | `std/io`, `std/io/buffer` |
+| paths and filesystem operations | [Filesystem](fs/README.md) | `std/path`, `std/fs` |
+| integer text conversion | [Integer Text](num/README.md) | `std/num` |
+| allocation and storage failure | [Allocation and Failure](mem/README.md) | `std/mem` |
+| recoverable failure payloads | [Recoverable Errors](error/README.md) | `std/error` |
+| pointers and addresses | [Pointer and Address Conversion](ptr/README.md) | `std/ptr` |
+| hashing and unordered collections | [Associative Collections](map/README.md) | `std/hash`, `std/map`, `std/set` |
+| JSON values, parsing, and generation | [JSON Values and Text](json/README.md) | `std/json` |
+| monotonic time and sleeping | [Monotonic Time](time/README.md) | `std/time` |
+| synchronous processes and process context | [Synchronous Processes](process/README.md) | `std/process` |
+| Unicode scalars and text transforms | [Unicode Text and Scalars](char/README.md) | `std/char`, Unicode operations on `std/str` and `std/string` |
+| native assertions | [Native Assertions](testing/README.md) | `std/testing` |

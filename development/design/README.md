@@ -3,10 +3,10 @@
 This directory contains current cross-crate compiler contracts and repository maintenance policy.
 Public language, platform, CLI, diagnostic, and editor behavior belongs exclusively in
 [`spec/`](../../spec/README.md). Standard-library declarations and declaration documentation belong
-to each [`development/std/**/index.nct`](../std/README.md); longer observable module behavior belongs
-to the colocated README. A workspace crate's private mechanism belongs in that crate's colocated
-`README.md`. Implementation history and qualification evidence belong under `development/history/`,
-not in current design documents.
+to each [`development/std/**/index.nct`](../std/README.md); the standard-library catalog assigns
+each longer observable subject to one behavior guide. A workspace crate's private mechanism belongs
+in that crate's colocated `README.md`. Implementation history and qualification evidence belong
+under `development/history/`, not in current design documents.
 
 ## Reading Order
 
@@ -47,7 +47,7 @@ generated website. It must not be consulted to determine current compiler behavi
 |---|---|
 | Public language, platform, CLI, diagnostic, and editor behavior | `spec/` |
 | Exact standard-library declarations and declaration documentation | each `development/std/**/index.nct` |
-| Longer observable standard-library module behavior | the colocated `development/std/**/README.md` |
+| Longer observable standard-library behavior | the sole guide assigned by `development/std/README.md` |
 | Published versions and downloads | root `releases/` |
 | Compiler pipeline and cross-crate dependency direction | `architecture.md` |
 | One crate's responsibility, internal modules, and invariants | that crate's `README.md` |

@@ -256,6 +256,9 @@ function validateCrateDocumentation() {
 }
 
 function validateStandardLibraryDocumentation() {
+    const standardRoot = path.join(PROJECT_ROOT, "development/std");
+    const catalogPath = path.join(standardRoot, "README.md");
+    const catalog = sourceContents.get(path.resolve(catalogPath));
     const readmes = sourceFiles.filter(file => {
         const relative = normalizePath(path.relative(PROJECT_ROOT, file));
         return relative.startsWith("development/std/") && path.basename(file) === "README.md";
@@ -271,6 +274,12 @@ function validateStandardLibraryDocumentation() {
         const source = sourceContents.get(path.resolve(readme));
         if (!source.includes("(index.nct)")) {
             throw new Error(`Standard-library documentation does not link its public contract: ${relative}`);
+        }
+        if (path.resolve(readme) !== path.resolve(catalogPath)) {
+            const guidePath = normalizePath(path.relative(standardRoot, readme));
+            if (!catalog.includes(`](${guidePath})`)) {
+                throw new Error(`Standard-library behavior guide has no authority assignment: ${relative}`);
+            }
         }
     }
 }

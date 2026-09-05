@@ -48,6 +48,21 @@ try {
     }
     fs.writeFileSync(standardLibraryGuide, originalStandardLibraryGuide);
 
+    const standardLibraryCatalog = path.join(early, "development/std/README.md");
+    const originalStandardLibraryCatalog = fs.readFileSync(standardLibraryCatalog, "utf8");
+    fs.writeFileSync(
+        standardLibraryCatalog,
+        originalStandardLibraryCatalog.replace("](map/README.md)", "](map/index.nct)")
+    );
+    const unassignedStandardLibraryGuide = runBuild(early);
+    if (
+        unassignedStandardLibraryGuide.status === 0
+        || !combinedOutput(unassignedStandardLibraryGuide).includes("has no authority assignment")
+    ) {
+        throw new Error("documentation generation accepted an unassigned standard-library behavior guide");
+    }
+    fs.writeFileSync(standardLibraryCatalog, originalStandardLibraryCatalog);
+
     const valueTypesSpecification = path.join(early, "spec/language/values-and-types.md");
     const originalValueTypesSpecification = fs.readFileSync(valueTypesSpecification, "utf8");
     fs.writeFileSync(

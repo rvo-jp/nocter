@@ -77,7 +77,8 @@ Generation fails when:
 - the public diagnostic catalog differs from the compiler's registered-code inventory;
 - a compiler workspace crate lacks its colocated responsibility README;
 - a standard-library behavior README lacks its checked `index.nct` contract or fails to link it;
-- a published source cannot be represented uniquely or reached through structural navigation.
+- a standard-library behavior README has no subject assignment in the standard-library catalog;
+- a published source cannot be represented uniquely or reached through structural navigation;
 - a Markdown table row has a different cell count from its header.
 
 The generator enforces structural authority, not language meaning. It does not claim that a regular
@@ -99,8 +100,9 @@ that stale generated files are removed, private standard-library implementation 
 private, newly discovered public pages enter navigation without README registration, historical
 records remain excluded, every standard-library behavior guide links its checked contract,
 named built-in declarations cannot drift from the language catalog, unrelated Rust text cannot
-register diagnostics, diagnostic drift is rejected, and table pipes inside code spans or escapes
-cannot corrupt the generated columns.
+register diagnostics, diagnostic drift is rejected, every behavior guide remains assigned by the
+standard-library catalog, and table pipes inside code spans or escapes cannot corrupt the generated
+columns.
 
 ## Editing Rule
 

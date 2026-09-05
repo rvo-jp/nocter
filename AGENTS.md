@@ -27,10 +27,10 @@ milestone planning, maintenance policy, and handoff state. Root documentation ma
 `development/` entry point, but must not duplicate its contents.
 
 Public language semantics belong under `spec/`. Standard-library declarations and declaration
-documentation belong to each `development/std/**/index.nct`; longer observable module behavior
-belongs to the colocated README. These standard-library sources are the one public-documentation
-exception under `development/` because the checked API and its documentation must remain
-co-located.
+documentation belong to each `development/std/**/index.nct`; `development/std/README.md` assigns
+each longer observable subject to one behavior guide. These standard-library sources are the one
+public-documentation exception under `development/` because checked APIs and their behavior guides
+must remain together.
 
 Within `spec/`, keep source semantics under `language/`, target and ABI contracts under `platform/`,
 and observable compiler/editor behavior under `tooling/`. File names describe concepts rather than
