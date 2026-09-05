@@ -85,9 +85,9 @@ nocter check examples/elapsed.nct
 nocter run examples/elapsed.nct
 ```
 
-[unicode-text.nct](unicode-text.nct) distinguishes UTF-8 byte length from Unicode-scalar count,
-iterates borrowed text as `char` values, appends those scalars transactionally to an owned
-`String`, and constructs a scalar from its code point.
+[unicode-text.nct](unicode-text.nct) trims Unicode whitespace, applies full default casing including
+contextual and expanding mappings, queries a scalar property, and removes owned UTF-8 suffixes only
+at scalar boundaries.
 
 ```sh
 nocter check examples/unicode-text.nct

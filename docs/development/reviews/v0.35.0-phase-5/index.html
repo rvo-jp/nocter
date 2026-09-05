@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>v0.23.0 Phase 2 Type-Owned Integer API Review - Nocter</title>
-    <meta name="description" content="Status: complete (2026-08-31). This review covers the destructive public API transition. Full boundary and allocator qualification remains Phase 3 work.">
+    <title>v0.35.0 Phase 5 Tooling and Practical Integration Review - Nocter</title>
+    <meta name="description" content="Result: complete with no open Phase 5 finding (2026-09-05). The static-data and Unicode-text product now crosses public example, source tooling, semantic e">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.23.0-phase-2/">
+    <link rel="canonical" href="https://nocter.dev/development/reviews/v0.35.0-phase-5/">
     <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="v0.23.0 Phase 2 Type-Owned Integer API Review - Nocter">
-    <meta property="og:description" content="Status: complete (2026-08-31). This review covers the destructive public API transition. Full boundary and allocator qualification remains Phase 3 work.">
-    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.23.0-phase-2/">
+    <meta property="og:title" content="v0.35.0 Phase 5 Tooling and Practical Integration Review - Nocter">
+    <meta property="og:description" content="Result: complete with no open Phase 5 finding (2026-09-05). The static-data and Unicode-text product now crosses public example, source tooling, semantic e">
+    <meta property="og:url" content="https://nocter.dev/development/reviews/v0.35.0-phase-5/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="v0.23.0 Phase 2 Type-Owned Integer API Review - Nocter">
-    <meta name="twitter:description" content="Status: complete (2026-08-31). This review covers the destructive public API transition. Full boundary and allocator qualification remains Phase 3 work.">
+    <meta name="twitter:title" content="v0.35.0 Phase 5 Tooling and Practical Integration Review - Nocter">
+    <meta name="twitter:description" content="Result: complete with no open Phase 5 finding (2026-09-05). The static-data and Unicode-text product now crosses public example, source tooling, semantic e">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.23.0 Phase 2 Type-Owned Integer API Review - Nocter","description":"Status: complete (2026-08-31). This review covers the destructive public API transition. Full boundary and allocator qualification remains Phase 3 work.","url":"https://nocter.dev/development/reviews/v0.23.0-phase-2/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.23.0-phase-2/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.23.0 Phase 2","item":"https://nocter.dev/development/reviews/v0.23.0-phase-2/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"v0.35.0 Phase 5 Tooling and Practical Integration Review - Nocter","description":"Result: complete with no open Phase 5 finding (2026-09-05). The static-data and Unicode-text product now crosses public example, source tooling, semantic e","url":"https://nocter.dev/development/reviews/v0.35.0-phase-5/","mainEntityOfPage":"https://nocter.dev/development/reviews/v0.35.0-phase-5/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Reviews","item":"https://nocter.dev/development/reviews/"},{"@type":"ListItem","position":4,"name":"V0.35.0 Phase 5","item":"https://nocter.dev/development/reviews/v0.35.0-phase-5/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -175,7 +175,7 @@
             <p class="directory-toc-title">development/reviews/</p>
             <ul class="directory-toc-list">
                 <li><a href="../../../spec/index.html#content">`spec/`</a></li>
-                <li><a href="../v0.35.0-phase-5/index.html#content">v0.35.0 Phase 5 Tooling and Practical Integration Review</a></li>
+                <li><a href="./index.html#content" aria-current="page">v0.35.0 Phase 5 Tooling and Practical Integration Review</a></li>
                 <li><a href="../v0.35.0-phase-4/index.html#content">v0.35.0 Phase 4 Case-conversion and Owned-mutation Review</a></li>
                 <li><a href="../v0.35.0-phase-3/index.html#content">v0.35.0 Phase 3 Character-property and Borrowed-trim Review</a></li>
                 <li><a href="../v0.35.0-phase-2/index.html#content">v0.35.0 Phase 2 Unicode-data and Lookup Review</a></li>
@@ -218,7 +218,7 @@
                 <li><a href="../v0.24.0-installation-image-identity/index.html#content">v0.24.0 Installation Image Identity Review</a></li>
                 <li><a href="../v0.24.0-explicit-value-subjects/index.html#content">v0.24.0 Explicit Value Subjects Review</a></li>
                 <li><a href="../v0.23.0-phase-3/index.html#content">v0.23.0 Phase 3 Qualification and Full Review</a></li>
-                <li><a href="./index.html#content" aria-current="page">v0.23.0 Phase 2 Type-owned API Review</a></li>
+                <li><a href="../v0.23.0-phase-2/index.html#content">v0.23.0 Phase 2 Type-owned API Review</a></li>
                 <li><a href="../v0.23.0-phase-1/index.html#content">v0.23.0 Phase 1 Decimal Authority Review</a></li>
                 <li><a href="../v0.22.0-phase-5/index.html#content">v0.22.0 Phase 5 Standard-library Stabilization Review</a></li>
                 <li><a href="../v0.22.0-phase-4/index.html#content">v0.22.0 Phase 4 Practical Integration Review</a></li>
@@ -256,14 +256,17 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/reviews/v0.23.0-phase-2.md</span>
+                <span class="markdown-path-text">/development/reviews/v0.35.0-phase-5.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="v0-23-0-phase-2-type-owned-integer-api-review">v0.23.0 Phase 2 Type-Owned Integer API Review</h1><p><strong>Status: complete (2026-08-31).</strong> This review covers the destructive public API transition. Full boundary and allocator qualification remains Phase 3 work.</p><h2 id="public-surface">Public Surface</h2><p><code>std/num/index.nct</code> is the sole public contract authority. Each of the ten built-in integer types owns one <code>parse</code>, one <code>to_string</code>, and one allocator-explicit <code>try_to_string</code> declaration. The existing <code>u8.checked</code>, <code>u8.truncate</code>, and <code>u64</code> mixing members remain in their same consolidated type blocks. No free-function alias or deprecated wrapper remains.</p><p>The contract contains documentation and no method body. Parsing bodies live in <code>decimal.nct</code>, owned-storage adapters live in <code>text.nct</code>, primitive conversion and mixing bodies remain in <code>scalar.nct</code>, and public-surface tests live in <code>tests.nct</code>. Reciprocal <code>see</code> edges grant only direct source visibility and do not create another module or public name.</p><h2 id="authority-and-dependency-review">Authority and Dependency Review</h2><ul><li>Every parse entry delegates immediately to one signed or unsigned full-width scan, then performs
-  at most one destination range check. No destination body copies lexical rules.</li><li>Every String entry calls the matching <code>std/fmt.try_append_*</code> contract. <code>std/num</code> owns allocation
-  and <code>std/fmt</code> owns spelling; neither reads the other's representation.</li><li>Exact maximum output capacities are local adapter policy, not formatter grammar. Ordinary and
-  recoverable methods differ only in allocation-failure policy.</li><li>Public <code>from allocator</code> contracts and implementation bodies match exactly. Result provenance is
-  checked by the ordinary declaration contract rather than inferred by an editor-only rule.</li></ul><h2 id="migration-and-tooling-evidence">Migration and Tooling Evidence</h2><p>The complete repository search finds no removed callable name in standard source, examples, or compiler fixtures. <code>file-summary</code>, <code>line-frequency</code>, <code>text-report</code>, and <code>text-search</code> check against an isolated current compiler home using receiver-owned <code>usize.to_string</code> calls.</p><p>The standard-library discovery and contract audit passes all 19 tests. Semantic checking passes all 480 focused tests. The dedicated native numeric target executes four standard tests, including all ten type-owned parse and String surfaces. The language-server normalized-presentation test shows <code>pub func i8.parse(text: &amp;str): i8?</code> and <code>pub method i8.to_string(): String</code> from the real contract source.</p><p>No compatibility layer, duplicate formatter, source-text editor inference, or public unchecked conversion was introduced. Phase 3 must still prove every adjacent numeric boundary, malformed grammar class, recoverable allocator path, native round trip, and full workspace gate.</p>
+                <h1 id="v0-35-0-phase-5-tooling-and-practical-integration-review">v0.35.0 Phase 5 Tooling and Practical Integration Review</h1><p><strong>Result: complete with no open Phase 5 finding (2026-09-05).</strong> The static-data and Unicode-text product now crosses public example, source tooling, semantic editor, installed compiler, native execution, and installed LSP boundaries. No feature owns a Unicode-specific semantic fallback.</p><h2 id="practical-product">Practical Product</h2><p>The single-file Unicode example is the practical authority for ordinary use. It trims U+3000 whitespace, lowercases Greek text with <code>Final_Sigma</code>, expands sharp S during uppercase conversion, queries an emoji property, pops a four-byte scalar, truncates at an earlier scalar boundary, and prints the resulting owned Strings. The example uses only public <code>std</code> contracts.</p><p>The standard example runner checks exact output after compiling and executing every public single-file example. The formatter corpus independently requires every example to be canonical. An installed-toolchain test builds and executes the same Phase 4 API families against a manifest-selected standard tree rather than repository-internal modules.</p><h2 id="editor-boundary">Editor Boundary</h2><p>Reference-application tests open the real Unicode example and follow <code>str.to_lowercase</code> from its use to the public <code>std/str/index.nct</code> contract and private <code>casing.nct</code> body. It also verifies references across those sources, <code>String.truncate</code> signature help, semantic tokens, and member completion after an intentionally incomplete expression. All responses come from the existing workspace-analysis and semantic-query products.</p><p>The installed LSP qualification opens the generated 165-kilobyte Unicode static source and the casing implementation in addition to established contract/body fixtures. Each source must produce semantic tokens and no diagnostics in one framed server lifecycle. Request identities are derived from the source list, so adding another installed-source fixture cannot collide with shutdown.</p><h2 id="existing-generic-evidence-reused">Existing Generic Evidence Reused</h2><p>Phase 1 already qualifies immutable-static parsing, canonical formatting, tokens and AST JSON, diagnostics, hover, completion, definition, references, rename, semantic highlighting, target-data selection, and native read-only placement. Repeating those tests with Unicode table contents would test data volume rather than a new responsibility. Phase 5 instead exercises the generated source through the installed LSP and retains the Phase 1 semantic identity tests as the static tooling authority. Standard-source rename remains read-only through the general dependency-source rule.</p><h2 id="findings-closed-during-implementation">Findings Closed During Implementation</h2><ul><li>The public Unicode example stopped at scalar iteration and append, so no user-facing source
+  exercised the Phase 3 or Phase 4 APIs. It now covers the complete practical Unicode-text slice.</li><li>Installed LSP qualification opened only the small error contract and implementation. Generated
+  immutable statics and Unicode-dependent ordinary bodies now cross the same installed workspace
+  path.</li><li>The LSP script used a hard-coded shutdown request identity tied to exactly two source fixtures.
+  Shutdown now follows the fixture count, eliminating a caller-maintained parallel value.</li></ul><h2 id="evidence">Evidence</h2><ul><li>focused language-server reference-application test passes;</li><li>every public single-file example compiles, runs, and matches its exact output contract;</li><li>every public example remains canonical formatter output;</li><li>the installed-standard CLI test builds and executes Unicode trim, casing, pop, and truncate;</li><li>a fresh optimized archive was assembled and extracted; its compiler checked and ran the Unicode
+  example with exact output, and its LSP analyzed generated tables and casing source without a
+  diagnostic;</li><li>the complete workspace, warnings-denied Clippy, no-default-features, Rustdoc, generated-data,
+  documentation, and repository-integrity gates pass at the reviewed commit.</li></ul><h2 id="boundary-result">Boundary Result</h2><p>Source tooling sees only syntax. Editor features see semantic identities and presentations. The installed compiler sees a content-validated standard tree. Public applications see only <code>std</code> contracts. Unicode data remains private to <code>std/internal/unicode</code>, and no tooling layer interprets its ranges, mappings, UTF-8 semantics, or casing context.</p>
             </div>
         </main>
     </div>

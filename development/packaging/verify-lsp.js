@@ -22,12 +22,15 @@ const home = path.dirname(binary);
 const standardSources = [
   path.join(home, "std", "error", "index.nct"),
   path.join(home, "std", "error", "construction.nct"),
+  path.join(home, "std", "internal", "unicode", "tables.nct"),
+  path.join(home, "std", "str", "casing.nct"),
 ].map((sourcePath) => ({
   path: sourcePath,
   uri: pathToFileURL(sourcePath).href,
   text: fs.readFileSync(sourcePath, "utf8"),
 }));
 
+const shutdownId = standardSources.length + 2;
 const requests = [
   {
     jsonrpc: "2.0",
@@ -56,7 +59,7 @@ const requests = [
       params: { textDocument: { uri: source.uri } },
     },
   ]),
-  { jsonrpc: "2.0", id: 4, method: "shutdown" },
+  { jsonrpc: "2.0", id: shutdownId, method: "shutdown" },
   { jsonrpc: "2.0", method: "exit" },
 ];
 const input = requests
@@ -104,7 +107,7 @@ child.on("close", (code, signal) => {
   }
 
   const initialize = messages.find((message) => message.id === 1);
-  const shutdown = messages.find((message) => message.id === 4);
+  const shutdown = messages.find((message) => message.id === shutdownId);
   if (initialize?.result?.serverInfo?.name !== "Nocter") {
     fail("initialize response has the wrong server name");
   }

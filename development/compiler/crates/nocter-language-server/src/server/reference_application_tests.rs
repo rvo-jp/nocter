@@ -168,6 +168,134 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
 }
 
 #[test]
+fn unicode_text_navigation_follows_public_contract_identity() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples");
+    let source = root.join("unicode-text.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (lower_line, lower_source) = source_line(&text, "trimmed.to_lowercase");
+    let lower_character = lower_source.find("to_lowercase").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        lower_line,
+        lower_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains("pub method &str.to_lowercase(): String"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        lower_line,
+        lower_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/str/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        lower_line,
+        lower_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/str/casing.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let references = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{lower_line},\"character\":{lower_character}}},\"context\":{{\"includeDeclaration\":true}}}}}}",
+        source.display()
+    ));
+    let response = references.response().unwrap();
+    for location in [
+        "/std/str/index.nct",
+        "/std/str/casing.nct",
+        "/unicode-text.nct",
+    ] {
+        assert!(response.contains(location), "{response}");
+    }
+    assert!(references.issue().is_none(), "{:?}", references.issue());
+}
+
+#[test]
+fn unicode_text_assistance_uses_checked_standard_signatures() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples");
+    let source = root.join("unicode-text.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (truncate_line, truncate_source) = source_line(&text, "suffix.truncate");
+    let truncate_argument = truncate_source.find("1)").unwrap() + 1;
+    let signature = server.receive(&position_request(
+        6,
+        "textDocument/signatureHelp",
+        &source,
+        truncate_line,
+        truncate_argument,
+    ));
+    let response = signature.response().unwrap();
+    assert!(
+        response.contains("method &+String.truncate(byte_len: usize): void!"),
+        "{response}"
+    );
+    assert!(response.contains("\"activeParameter\":0"), "{response}");
+    assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+    let tokens = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+        source.display()
+    ));
+    let response = tokens.response().unwrap();
+    assert!(response.contains("\"data\":["), "{response}");
+    assert!(!response.contains("\"data\":[]"), "{response}");
+    assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+    let incomplete = text.replace(
+        "if trimmed != \"ΟΣ\" || trimmed.char_count() != 2 {",
+        "if trimmed. {",
+    );
+    let mut incomplete_json = String::new();
+    nocter_json::write_string(&mut incomplete_json, &incomplete);
+    let changed = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\",\"version\":2}},\"contentChanges\":[{{\"text\":{incomplete_json}}}]}}}}",
+        source.display()
+    ));
+    assert_ne!(
+        changed.analysis().unwrap().snapshot().unwrap().status(),
+        nocter_analysis::AnalysisStatus::Complete
+    );
+    let (completion_line, completion_source) = source_line(&incomplete, "if trimmed.");
+    let completion_character = completion_source.find("trimmed.").unwrap() + "trimmed.".len();
+    let completion = server.receive(&position_request(
+        8,
+        "textDocument/completion",
+        &source,
+        completion_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in ["to_lowercase", "to_uppercase"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+#[test]
 fn text_banner_uses_public_text_and_output_editor_semantics_end_to_end() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/text-banner");
     let source = root.join("banner.nct");

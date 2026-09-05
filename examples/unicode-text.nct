@@ -2,24 +2,36 @@ use std/io
 use std/string.String
 
 func main(): i32! {
-    let text: &str = "Aλ😀"
-    if text.len() != 7 || text.char_count() != 3 {
+    let decorated: &str = "　ΟΣ　"
+    let trimmed = decorated.trim()
+    if trimmed != "ΟΣ" || trimmed.char_count() != 2 {
         return 1
     }
 
-    var copied = String.empty()
-    for scalar in text.chars() {
-        copied.push(scalar)
-    }
-    copied.push('!')
-
-    let face = char.from_u32(128512) otherwise {
+    let lowercase = trimmed.to_lowercase()
+    let uppercase = "Straße".to_uppercase()
+    if (&lowercase as &str) != "ος" || (&uppercase as &str) != "STRASSE" {
         return 2
     }
-    if face != '😀' || face.utf8_len() != 4 {
+
+    let face = char.from_u32(128512) otherwise {
         return 3
     }
+    if face != '😀' || face.utf8_len() != 4 || face.is_alphabetic() {
+        return 4
+    }
 
-    io.println(&copied)?
+    var suffix = String.copy("Aλ😀")
+    let removed = suffix.pop() otherwise {
+        return 5
+    }
+    suffix.truncate(1)?
+    if removed != '😀' || (&suffix as &str) != "A" {
+        return 6
+    }
+
+    io.println(&lowercase)?
+    io.println(&uppercase)?
+    io.println(&suffix)?
     return 0
 }

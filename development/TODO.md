@@ -12,15 +12,16 @@ default casing, and owned suffix-mutation products. Its active scope belongs to 
 [Phase 0 design review](reviews/v0.35.0-phase-0.md),
 [Phase 1 implementation review](reviews/v0.35.0-phase-1.md),
 [Phase 2 implementation review](reviews/v0.35.0-phase-2.md),
-[Phase 3 implementation review](reviews/v0.35.0-phase-3.md), and
-[Phase 4 implementation review](reviews/v0.35.0-phase-4.md).
+[Phase 3 implementation review](reviews/v0.35.0-phase-3.md),
+[Phase 4 implementation review](reviews/v0.35.0-phase-4.md), and
+[Phase 5 integration review](reviews/v0.35.0-phase-5.md).
 
 ## Next Work
 
-Implement v0.35.0 Phase 5 tooling and practical integration over the completed static-data and
-Unicode-text product. Qualify formatter and structural output, semantic editor features, installed
-standard-library behavior, examples, and application-level text use without adding editor-owned
-Unicode semantics. Preserve the immutable v0.34.0 tag and release asset.
+Prepare and stabilize v0.35.0 in Phase 6. Run release-version assignment, full compiler and
+documentation gates, generated-data reproducibility, clean installed-home qualification, duplicate
+archive comparison, dead-static-data inspection, and final architecture review before publication.
+Preserve the immutable v0.34.0 tag and release asset.
 
 ## Blockers
 

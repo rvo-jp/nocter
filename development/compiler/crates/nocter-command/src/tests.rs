@@ -1019,7 +1019,7 @@ fn expected_example_output(name: &str) -> &'static [u8] {
         "mutable-iteration.nct" => b"mutable iteration updated every element\n",
         "ordering.nct" => b"strict ordering selected source declarations\n",
         "tuples.nct" => b"Nocter structural tuples: v0.33.0\n",
-        "unicode-text.nct" => "Aλ😀!\n".as_bytes(),
+        "unicode-text.nct" => "ος\nSTRASSE\nA\n".as_bytes(),
         _ => panic!("public example has no output contract: {name}"),
     }
 }
