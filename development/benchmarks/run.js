@@ -8,6 +8,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { runProcessScenario } = require("./lib/process-scenario");
 const { runLspSession } = require("./lib/lsp-scenario");
+const { sourceIdentity } = require("./lib/source-identity");
 const { summarize } = require("./lib/statistics");
 
 function fail(message) {
@@ -87,6 +88,11 @@ function compilerIdentity(compiler) {
 function repositoryRevision(repository) {
   const result = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repository, encoding: "utf8" });
   return result.status === 0 ? result.stdout.trim() : null;
+}
+
+function repositoryClean(repository) {
+  const result = spawnSync("git", ["status", "--short"], { cwd: repository, encoding: "utf8" });
+  return result.status === 0 ? result.stdout === "" : null;
 }
 
 function resourceSummary(samples) {
@@ -171,6 +177,7 @@ async function main() {
     schema: 1,
     recorded_at: new Date().toISOString(),
     repository_revision: repositoryRevision(repository),
+    repository_clean: repositoryClean(repository),
     host: {
       platform: process.platform,
       release: os.release(),
@@ -188,6 +195,7 @@ async function main() {
       lsp_measured_edits_per_session: options.lspEdits,
     },
     compilers: options.compilers.map(compilerIdentity),
+    source_inputs: sourceIdentity(repository),
     scenarios: {
       process: await measureProcesses(options, repository),
       lsp_body_edit: await measureLsp(options, repository),

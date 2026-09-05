@@ -15,12 +15,13 @@ function quantile(sortedValues, fraction) {
 function summarize(values) {
   if (values.length === 0) return null;
   const sortedValues = [...values].sort((left, right) => left - right);
+  const rounded = (value) => Math.round(value * 1_000) / 1_000;
   return {
     count: sortedValues.length,
-    min: sortedValues[0],
-    median: quantile(sortedValues, 0.5),
-    p90: quantile(sortedValues, 0.9),
-    max: sortedValues[sortedValues.length - 1],
+    min: rounded(sortedValues[0]),
+    median: rounded(quantile(sortedValues, 0.5)),
+    p90: rounded(quantile(sortedValues, 0.9)),
+    max: rounded(sortedValues[sortedValues.length - 1]),
   };
 }
 

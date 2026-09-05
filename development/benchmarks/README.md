@@ -47,8 +47,9 @@ sample counts.
 
 Run measurements on an otherwise idle machine, preserve power and thermal conditions, and compare
 the same scenarios in one invocation. Commit a result only as milestone evidence together with the
-host description, compiler digests, sample configuration, and repository revision emitted by the
-runner. Do not turn elapsed-time thresholds into conformance tests.
+host description, compiler digests, sample configuration, repository revision, clean-worktree
+state, and scenario-source digests emitted by the runner. Do not turn elapsed-time thresholds into
+conformance tests.
 
 ## Two Independent Signals
 
