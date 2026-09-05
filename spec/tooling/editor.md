@@ -16,8 +16,8 @@ nocter lsp
 ```
 
 `tokens` and `ast` inspect one file without resolution, typechecking, lowering, or execution.
-Diagnostics use the envelope specified in [Diagnostics](diagnostics.md). The language server
-reuses the full compiler pipeline and package model.
+Diagnostics use the envelope specified in [Diagnostics](diagnostics.md). The language server uses
+the same package, declaration, type, ownership, and diagnostic results as `check` and `build`.
 
 Source after a proven terminal statement remains name-resolved and typed when independently valid,
 so definition, implementation, references, hover, completion, and semantic tokens use the same
@@ -86,9 +86,9 @@ Examples:
 
 Internal canonical identities may contain package/module qualification. User presentation chooses
 the shortest unambiguous visible spelling and must not leak storage paths such as
-`std/iter.Type` into ordinary signatures. The compiler derives that spelling from the resolved
-namespace graph, including local import aliases and visible module exports; protocol adapters do not
-recover it from source text. Directly seen declarations and source-local import aliases affect
+`std/iter.Type` into ordinary signatures. That spelling follows the resolved namespace graph,
+including local import aliases and visible module exports; it is not inferred from source text.
+Directly seen declarations and source-local import aliases affect
 only that source's presentation; they do not become module exports.
 
 ## Semantic Tokens
@@ -200,9 +200,10 @@ unresolved interface.
 Definition, implementation, and references use semantic declaration identity rather than spelling.
 For a callable split between a public `index.nct` contract and a private body, definition selects
 the contract name and implementation selects the body name. For an inline body with no separate
-implementation projection, implementation selects the declaration itself. Package-wide
-operations start from package roots and explicit executable/test entries, then follow normal imports;
-they do not scan ambient `.nct` files.
+implementation projection, implementation selects the declaration itself. Package-wide operations
+use the [compile units](../language/modules.md#compile-units) selected from package roots and explicit
+executable or test entries. They include every physical source inventoried by those modules and do
+not scan `.nct` files outside those inventories.
 
 Rename focuses one identifier, validates the replacement as a language identifier, rejects
 collisions, and returns one atomic workspace edit. Open documents receive versioned edits; closed
@@ -260,9 +261,9 @@ When postfix `?` has a typed optional or fallible operand but the enclosing auth
 cannot propagate that layer, a callable-contract action may replace the callable's exact result type
 with the compiler-selected canonical outcome type. The action changes only an editable authored
 result annotation. It does not rewrite fixed-result comparison operators, grammar-restricted index
-operators, postfix `!`, or local `catch`/`otherwise` recovery. The checker, not the diagnostic text or
-protocol adapter, selects the operand layer and proposed result. The server publishes the action only
-when the complete edited package passes ordinary compilation.
+operators, postfix `!`, or local `catch`/`otherwise` recovery. The operand layer and proposed result
+must follow ordinary outcome checking rather than diagnostic text. The server publishes the action
+only when the complete edited package passes ordinary compilation.
 Operand checking keeps postfix-propagation payload context distinct from an ordinary complete-result
 expectation. A callable already returning `T!` can therefore receive an optional-layer repair to
 `T?!` for an operand of type `T?`; the existing fallible layer is not allowed to force the operand
@@ -285,8 +286,8 @@ Inlay-hint requests use half-open ranges. A hint at the request's end position i
 
 Recovery may create a temporary syntax overlay for missing delimiters, call operands, imports,
 member access, iteration headers, interpolation bodies, literal declarations, or provenance clauses.
-Semantic results are returned only when the ordinary compiler query resolves the required
-declaration and type identities. Recovery must not invent interface implementation, imports, members, or types,
+Semantic results are returned only when ordinary language rules resolve the required declaration and
+type identities. Recovery must not invent interface implementation, imports, members, or types,
 and it never replaces the authoritative document generation.
 
 ## Protocol Lifecycle

@@ -30,7 +30,7 @@ rule has one owning chapter and cross-topic chapters link to that authority.
 - [Argument Packs, Literal Definitions, and Sequence Spread](literals-and-packs.md)
 - [Expansion Operators](literals-and-packs.md#expansion-operators)
 - [Equality, Indexing, and Core Operators](equality-and-indexing.md)
-- [Operators](ordering.md)
+- [Strict Ordering Operators](ordering.md)
 - [Tuples](tuples.md)
 - [Structs and Enums](structs-and-enums.md)
 - [Strings, Arrays, Views, and Pointers](sequences-and-text.md)

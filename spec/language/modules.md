@@ -27,10 +27,9 @@ directory starts another module or package. Source inventory and source visibili
 an inventoried source is checked even when no other source writes `see` for it, but its declarations
 remain private to that source until an authored `see` grants direct visibility.
 
-`index.nct` is the module root source and the conventional public contract. Public APIs should be
-declared there without substantial bodies. Trivial bodies are allowed, but nontrivial definitions
-belong in ordinary module sources so `index.nct` remains readable as API documentation. This is a
-style rule rather than a grammar restriction.
+`index.nct` is the module root source and the conventional public contract. The canonical guidance
+for keeping that contract readable and separating substantial bodies belongs to
+[Source Style and Formatting](../tooling/formatting.md#contract-first-module-roots).
 
 Import paths use `/` and omit `.nct`:
 
@@ -561,7 +560,6 @@ Rules:
   rule
 - an implementation definition that completes an `index.nct` contract omits visibility
 - private declarations are visible only in their authored source and in sources that directly see it
-  directly
 - `pub(./)` exposes the declaring module and all descendant modules
 - each `../` in `pub(../)`, `pub(../../)`, and deeper forms moves the boundary to one ancestor
   module; the boundary cannot move above the package root

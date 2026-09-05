@@ -263,7 +263,7 @@ the ephemeral pack container itself still cannot escape the callable body.
 `static` denotes program-lifetime storage. Source-level `from current` is not valid; fresh ambient
 result storage is compiler-owned and therefore needs no public origin name. Concrete public bodies
 are checked against the explicit or elided origin set; bodyless interface methods use the same
-shared classifier. Candidate collection uses resolved types and declaration identities rather than
+result-provenance rules. Origin identity follows resolved parameters and receivers rather than their
 formatted names. `static` remains accepted in explicit source, but canonical APIs omit it because
 callers preserve no source place for program-lifetime storage.
 
@@ -318,11 +318,10 @@ The following operations do not by themselves violate `noalloc`:
 recoverable failures, external side effects, or a hidden allocation-context ABI lane. Those facts
 must not be inferred from this guarantee.
 
-The compiler proves callable effects over semantic declaration identities and checked operations.
-It computes one program-wide least fixed point seeded by direct allocation operations and trusted
-primitive effects. A recursive component with no allocation seed is allocation-free. An unknown
-bodyless callable without a `noalloc` contract may allocate. Reachability follows checked control
-flow and does not depend on target optimization or dead-code elimination.
+The `noalloc` guarantee is transitive over every operation reachable through checked control flow.
+A recursive call group is allocation-free only when all of its direct operations and calls leaving
+the group are allocation-free. An unknown bodyless callable without a `noalloc` contract may
+allocate. Target optimization and dead-code elimination do not strengthen the source guarantee.
 
 A `noalloc` body may call an unqualified source-backed helper when the complete checked program
 proves that helper allocation-free. An abstract interface method, bodyless primitive, or callable

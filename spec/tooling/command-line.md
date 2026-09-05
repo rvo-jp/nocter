@@ -8,7 +8,7 @@ unless `--name` is explicit. The default template is executable; `--library` sel
 Both templates declare a separate package test target and must pass `nocter check` and
 `nocter test` immediately after creation.
 
-`nocter graph` loads the same exact `PackageGraph` used by build, test, and LSP analysis. Its human
+`nocter graph` reports the same resolved package graph used by build, test, and LSP analysis. Its human
 form prints package identities and labeled edges. `--format json` emits deterministic format-1
 data containing package IDs, names, versions, roots, dependency source kinds, exact locks, and
 resolved package IDs. `--locked` and `--offline` retain their normal resolution meaning.
@@ -210,9 +210,9 @@ nocter build app.nct -o app
 Without `-o`, a package executable is written under the package root using its declared name. In
 file mode, the output uses the source stem. `-o` requires exactly one selected executable.
 
-`build` uses the same parser, resolver, type checker, ownership checker, buildability validation,
-lowering, code generator, and executable writer as `run`. It does not invoke an external assembler,
-linker, SDK tool, or runtime. Failure must not leave a partial executable at the output path.
+`build` and `run` apply the same language, ownership, target, and executable-validity rules to the
+same selected program. `build` does not invoke an external assembler, linker, SDK tool, or runtime.
+Failure must not leave a partial executable at the output path.
 
 ## Fetching and Lock Control
 
@@ -414,7 +414,7 @@ envelopes begin with the same fields:
 
 `source.path` is the canonical absolute path used to read the file. Byte offsets address the
 normalized UTF-8 source seen by the lexer: CRLF is normalized to LF before offsets are assigned.
-`ok` is false exactly when the command's inspected stage emitted an error diagnostic. Diagnostics
+`ok` is false exactly when the command emitted an error diagnostic. Diagnostics
 use the objects specified in [Diagnostics](diagnostics.md#machine-readable-json-diagnostics).
 An inspection envelope is still emitted when lexical or syntactic diagnostics exist.
 

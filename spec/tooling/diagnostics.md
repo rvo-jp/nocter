@@ -93,9 +93,8 @@ Source-backed syntactic diagnostics:
 - `E0121`: a top-level `see` or `use` declaration appears after the first item.
 - `E0122`: source nesting exceeds the compiler's supported nesting limit.
 
-Lexer and parser errors enter the same source-diagnostic envelope as later language-rule errors.
-Their primary origin is the normalized span selected by the syntax phase; no later layer searches
-tokens or source text to reconstruct it.
+Lexer and parser errors use the same source-diagnostic envelope as every other source error. Their
+primary span identifies the exact malformed or missing source form.
 
 Source-backed module-surface diagnostics:
 
@@ -178,9 +177,8 @@ Source-backed declaration-header type diagnostics:
 - `E0306`: a declaration pattern repeats a binder refinement for the same generic parameter. The
   later refinement is primary and the first refinement is related.
 
-These rules retain their exact name token, argument container, requirement, or duplicate pair when
-type binding selects the error. Diagnostic rendering does not search the syntax tree or repeat name
-resolution to find a span.
+These diagnostics identify the exact name token, argument container, requirement, or duplicate pair
+that violates the rule.
 
 Source-backed declaration-header type-normalization diagnostics:
 
@@ -192,9 +190,8 @@ Source-backed declaration-header type-normalization diagnostics:
   unique inference. The callable type is primary; an explicit `from` clause is required.
 - `E0314`: the type after a callable-requirement colon does not normalize to a callable type.
 
-The binding-to-normalization boundary retains these syntax subjects in a temporary side index.
-The boundary does not place source coordinates in canonical type identity, and
-normalization diagnostics do not recover subjects by scanning source or rendering semantic names.
+These diagnostics identify the authored type, associated selection, provenance clause, or
+requirement that cannot be normalized.
 
 Source-backed declaration-definition diagnostics:
 
@@ -221,11 +218,9 @@ Source-backed declaration-definition diagnostics:
 - `E0328`: an interface and its transitive prerequisites expose two different methods or associated
   types with the same effective member name.
 
-`E0321` and `E0326` are selected while normalized header information is converted into declaration
-definitions. `E0322` through `E0325` are the shared compile-time-expression family and may also be
-selected for a fixed-array length in a body annotation. Their exact syntax subjects are retained in
-the failure value; the production diagnostic adapter does not reconstruct them from a rendered
-declaration.
+`E0322` through `E0325` also apply to a fixed-array length in a body annotation. Every diagnostic in
+this family identifies the declaration, initializer, dependency, or length expression that violates
+the rule.
 
 Source-backed body-name diagnostics:
 
@@ -245,9 +240,8 @@ Source-backed body-name diagnostics:
   boundary.
 - `E0349`: a block-scope selected import does not name a type-namespace declaration.
 
-These diagnostics are selected by the body-owned lexical resolver. The resolver retains the exact
-declaration or reference token that selected the rule and never scans rendered source text to
-recover a binding after lookup.
+These diagnostics identify the exact declaration, import, capture, or reference token involved in
+the name error.
 
 Source-backed interface-implementation diagnostics:
 
@@ -267,12 +261,8 @@ Source-backed interface-implementation diagnostics:
 - `E0358`: an explicit interface implementation does not prove one prerequisite declared by that
   interface for every specialization admitted by the implementation pattern.
 
-These rules consume the program-wide normalized interface-capability, interface-implementation,
-and instance-operation tables.
-Signature checking substitutes
-interface arguments, `Self`, associated bindings, method generics, and binder refinements before
-comparison. Instance validation normalizes binder refinements before comparing coercion identities.
-Bound proof and later dispatch query those tables rather than repeating pattern selection.
+Diagnostic signatures use the same substituted interface arguments, `Self` type, associated
+bindings, method generics, and binder refinements as ordinary interface checking and dispatch.
 
 Source-backed normalized type-position diagnostics:
 
@@ -290,11 +280,9 @@ Source-backed normalized type-position diagnostics:
 - `E0368`: a concrete associated projection admits more than one application of the associated
   declaration's owner interface.
 
-These rules run on normalized semantic types after alias expansion and again after concrete generic
-substitution. A type alias may directly name `void`, `never`, `str`, or `[T]`; the position where
-that alias is used determines whether the expanded type is valid. Associated declaration identity
-is resolved during type normalization, while concrete applicability is decided later by the same
-program-wide interface-implementation table used for dispatch.
+These rules apply after alias expansion and concrete generic substitution. A type alias may directly
+name `void`, `never`, `str`, or `[T]`; the position where that alias is used determines whether the
+expanded type is valid.
 
 Source-backed checked-body diagnostics:
 
@@ -365,10 +353,8 @@ Source-backed checked-body diagnostics:
 - `E0413`: a tuple projection is not a canonical decimal position, the base is not a tuple, or the
   selected position is outside the tuple's arity.
 
-Checked-body operation selection uses exact semantic types, normalized lexical requirements, and
-the program-wide instance-operation table. `E0388`, `E0389`, and `E0390` cover both absence and
-ambiguity where their operation admits candidates; none reports a declaration selected only by
-source order.
+`E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
+candidates. None reports a declaration selected only by source order.
 
 Source-backed declaration contract diagnostics:
 
@@ -410,10 +396,8 @@ Source-backed declaration-header diagnostics:
 - `E0212`: an opaque result appears on an unsupported callable or a callable without a source body.
 - `E0213`: a literal member does not match the language-defined signature for its literal shape.
 
-These diagnostics are selected by declaration rules rather than by presentation-specific syntax
-matching. Each result identifies its primary declaration and, when useful, one related declaration.
-Every output format must report the same locations and must not re-run the declaration rule to infer
-different sites.
+Each result identifies its primary declaration and, when useful, one related declaration. Every
+output format reports the same locations.
 
 ## Source and Span Contract
 
@@ -579,189 +563,46 @@ Parser recovery may be conservative; semantic diagnostics should avoid cascades.
 
 Rules:
 
-- The parser may stop after the first syntax error.
-- After parsing succeeds, later compiler phases may report multiple independent errors.
+- Analysis may stop after the first unrecoverable syntax error.
+- Once the source is syntactically complete enough to analyze, multiple independent errors may be
+  reported.
 - A statement after proven terminal control flow still reports independent name, visibility, type,
   call-contract, and structural-place errors. It does not report diagnostics that require a
   fictional post-terminal initialization, move, loan, or provenance state.
 - Cascaded errors should be suppressed when they are caused by an earlier error.
-- The compiler may use internal error placeholders to continue analysis, but diagnostics must not mention those placeholders.
-- If too many independent errors are found, the compiler may stop after a limit and report that additional errors were suppressed.
-- A diagnostic should prefer the earliest source location that caused the invalid program, not the latest internal location where the compiler noticed it.
+- Diagnostics must not mention internal recovery placeholders.
+- If too many independent errors are found, the compiler may stop after a limit and report that
+  additional errors were suppressed.
+- A diagnostic should prefer the earliest source location that caused the invalid program.
 
-## Required Dedicated Diagnostics
+## Diagnostic Specificity
 
-Common Nocter-specific mistakes should have dedicated diagnostics instead of generic type errors.
+The owning [language](../language/README.md), [platform](../platform/README.md), and
+[tooling](README.md) chapters define which programs and operations are invalid. The code catalog
+above is the sole assignment of numeric diagnostic identities; this chapter does not restate
+language validity as a second error inventory.
 
-Required diagnostic families:
+When one code covers several related invalid forms, its message must identify the exact authored
+operation and explain the violated source-level rule. In particular:
 
-- Root file path missing, not found, or not a `.nct` file.
-- Nocter home missing, not a directory, or missing required entries such as `VERSION`, `MANIFEST.json`, or `std/`.
-- Malformed `MANIFEST.json`, release mismatch between `VERSION` and manifest, compiler or
-  standard-library digest mismatch, running/bundled
-  compiler mismatch, compiler/installation host mismatch, native host/default-target mismatch, or
-  default target missing from the implemented target list.
-- Source file is not valid UTF-8.
-- Unsupported source line ending, such as a bare carriage return.
-- Unterminated block comment, string literal, character literal, or byte literal.
-- Invalid escape sequence in a string literal, character literal, or byte literal.
-- Invalid integer literal syntax or digit separator placement.
-- A unary-negative integer literal outside the expected signed range. The primary span covers the
-  unary `-` and grouped literal together, and the diagnostic reports the signed target range.
-- Unsupported float literal.
-- Empty, multi-scalar, surrogate, or out-of-range character literal.
-- Semicolon used as a statement terminator.
-- Non-ASCII identifier or invalid module path segment.
-- Import path not found.
-- Import cycle detected, including the cycle path.
-- Imported name not found.
-- Type reference not declared in the current scope, such as `Int` when no alias
-  or import defines it.
-- Name collision in imports or declarations.
-- Attribute syntax or reserved `@` used in source.
-- An enum declaration with no variants. The diagnostic must point to the empty enum body and state
-  that every enum requires at least one variant.
-- A `pub(...)` scope containing a name, dependency alias, arbitrary path, or too many `../`
-  components.
-- A module importing a declaration outside its ancestor or package visibility boundary.
-- Primitive declaration outside the exact implicit toolchain standard-library package.
-- Primitive declaration with an invalid module path, name, or signature.
-- Import or direct call to a private or package-visible standard-library primitive from outside
-  its ordinary visibility boundary.
-- Borrow exclusivity violation.
-- Readwrite borrow from a non-writable place.
-- Move while borrowed.
-- Move from storage reached through a readonly or readwrite borrow, including a borrowed closure
-  capture. The diagnostic must distinguish missing ownership from missing write permission.
-- Assignment or reinitialization while borrowed.
-- Compound assignment with a non-numeric target, a mismatched right-hand side, or a target that is
-  not a writable place. Diagnostics must describe the compound operation directly rather than show
-  a fictional desugared assignment.
-- Explicit `drop` while borrowed.
-- Use after `move`.
-- Use after explicit `drop`.
-- Existing move-only iterator place used as a bare collection-loop source without `move`.
-- Newly produced value, call result, or other non-place expression used as the operand of `move` in
-  a collection-loop source or sequence spread.
-- Existing move-only optional or fallible place eliminated by `?`, `!`, `catch`, or `otherwise`
-  without `move`. The diagnostic should suggest `move place?`, `move place!`,
-  `move place catch ...`, or `move place otherwise ...` as appropriate.
-- Implicit copy of an optional whose present payload is move-only. The diagnostic must identify the
-  complete optional type and the move-only payload; an inactive absence tag does not make that
-  value copyable.
-- Implicit copy of any fallible value or mixed outcome containing a fallible layer. The diagnostic
-  must identify the complete outcome type and the owned `error` failure branch; a currently active
-  success or absence tag does not make that value copyable.
-- Implicit copy of a closure whose anonymous environment contains a non-copyable capture. The
-  diagnostic must identify the first source capture that prevents copying and must not describe
-  callable capability as the cause.
-- Implicit use of an outer callable binding from a closure without an explicit capture; duplicate
-  capture names; a collision between a capture and parameter name; or a capture target that is not
-  one enclosing local or parameter binding.
-- Invalid closure capture borrow or move. Borrow diagnostics use the ordinary source binding and
-  loan conflict, while a move diagnostic identifies the captured source binding; diagnostics do
-  not expose anonymous environment fields.
-- Named-field move that would make a struct with its own drop declaration partially initialized.
-  For a nested field path, the diagnostic identifies the nearest invalid enclosing struct and its
-  drop declaration.
-- Parenthesized computed outcome such as `move (place?)` used where the intended canonical form is
-  `move place?`.
-- Adjacent postfix outcome suffixes `??`, `!!`, `?!`, or `!?` in expression syntax. The diagnostic
-  should suggest an intermediate binding or explicit grouping such as `(expression?)?`.
-- Explicit `drop` of a copy value, borrow, uninitialized binding, maybe initialized binding, field, index, or non-binding expression.
-- Duplicate drop declarations for one nominal type family; a drop declaration targeting another
-  module's type, a type alias, or a non-nominal type; or a drop declaration with visibility,
-  target directive, generic prefix, `where` clause, result annotation, or a non-`&+self` receiver.
-- A drop declaration on a `copy struct` family or payloadless enum. The diagnostic must identify
-  copyability as the conflict and must not suggest that the declaration makes the type move-only.
-- A `copy struct` field whose type is unconditionally move-only for every legal generic
-  substitution. The diagnostic identifies the field and its structural copyability blocker; a
-  generic-dependent copy condition is not itself an error.
-- Use of a maybe initialized binding or named field before a restoring assignment.
-- Invalid reinitialization target after `move` or `drop`.
-- Borrow escaping the storage, temporary, or region it refers to.
-- Borrow conflicts are computed after ordinary `if` and `while` condition temporaries have been
-  dropped; a condition-only loan must not be reported as live in the body.
-- Returning a borrow-like value whose provenance cannot outlive the function.
-- Postfix `?` used on `T!` outside a function, method, or closure whose complete declared result
-  type contains a fallible layer.
-- Postfix `?` used on `T?` outside a function, method, or closure whose complete declared result
-  type contains an optional layer.
-- Postfix `?` or `!` used on a non-fallible and non-optional expression.
-- An optional type whose eventual payload is `void`, including a generic or alias-expanded
-  `void?`, `void?!`, or `(void!)?`. The diagnostic should recommend `void!` when only recoverable
-  failure is needed, or an enum when absence and completion must remain distinct.
-- An optional or fallible type whose eventual payload is `never`, including after alias expansion
-  or generic substitution. The diagnostic should recommend `void!` for a recoverable operation
-  without success data, or an enum for a value-level state.
-- `never`, including an alias to it, used anywhere except a complete callable result type. The
-  diagnostic must identify the invalid data-bearing position and must not suggest wrapping or
-  storing `never`.
-- `void`, including an alias to it, used in a data-bearing position other than the direct success
-  completion of `void!` or the opaque raw-pointer spelling `*void`. The diagnostic should recommend
-  an empty struct when a storable zero-sized unit or marker is required.
-- A `void` completion expression used where the expected type is neither `void` nor the concrete
-  `void!` outcome. The diagnostic must not infer an unknown generic payload as `void`.
-- A generic parameter left unknown when a `never` expression is its only apparent argument or
-  result constraint. The diagnostic must request another inference source rather than substitute
-  `never` as a data type.
-- Reachable `catch` fallback with no result for a non-`void` success type, or with a result not
-  assignable to that success type.
-- An expression at a contextual expected-type boundary that recursive outcome injection cannot
-  make assignable to the complete expected type. The diagnostic must identify the first expected
-  payload layer that rejected the expression and must not describe the mismatch as an implicit
-  cast or subtype failure.
-- `none` without an expected optional type. The compiler must not infer that type from a sibling
-  branch or invent a payload type.
-- A generic outcome parameter left unknown because every contributing expression is `none` or a
-  failure `error`. The diagnostic must name the unresolved generic parameter and the available
-  sources that could constrain it; it must not guess from a default payload type.
-- Reachable value-producing result expression in a `while`, `loop`, range `for`, or collection
-  `for` body. Loop statements do not implicitly discard iteration results.
-- Mixed optional/fallible type syntax where grouping changes meaning, such as `(T!)?`.
-- `if is` used on a non-enum expression.
-- `if is` pattern that does not use `Enum.variant`.
-- `if is` enum pattern whose enum or variant does not match the target enum type.
-- Enum pattern payload arity mismatch, including one `_` used for a variant with more than one
-  payload field.
-- Unsupported nested, literal, binding-modifier, field-name, or rest pattern syntax.
-- Duplicate explicit variant arms in one `match`, regardless of payload binding names or `_`
-  positions.
-- Errors inside a currently unreachable exhaustive `_` arm are reported normally. Merely having
-  that fallback arm is not a diagnostic.
-- Owned move-only enum payload binding from an existing enum place without an explicit `move`
-  pattern target, or a `move` pattern target whose operand is not an eligible move place.
-- Readwrite-borrowed enum pattern target created from a non-writable place or while a conflicting
-  borrow is active.
-- `otherwise` used on a non-optional expression.
-- `otherwise` fallback whose body result is not assignable to the optional payload type.
-- Interpolation expression whose value type is not supported by the adopted formatting surface.
-- Active Nocter home missing a trusted string, formatting, primitive, or runtime capability required
-  by the selected target. `check`, `build`, and `run` report the same failure before successful
-  buildability validation.
-- Unsupported optional extraction syntax such as `let ... else`, `var ... else`, `if let`, `if var`, `while let`, `while var`, and `??`.
-- Selected entry function missing from the root file.
-- Selected entry function with an invalid return type.
-- `break` or `continue` whose nearest loop is outside the current callable body, including an outer
-  loop surrounding a closure expression.
-- Selected entry function with type parameters, such as `func main<T>(): i32!`.
-- Selected entry function with value parameters, such as `func main(args: Vec<&str>): i32!`.
-- Duplicate selected entry function names, reported by the normal duplicate visible-name diagnostic.
-- `return` without a value in a non-`void` function.
-- `return` with a value in a `void` function.
-- `return` value type mismatch when both expected and actual types are known.
-- Opaque result in an unsupported type position or bodyless contract.
-- Opaque result whose return paths select different witnesses, whose witness does not implement
-  the advertised interface, or whose associated binding disagrees with that implementation (`E0408`).
-- Assignment between distinct declaration-scoped opaque result identities, even when their
-  rendered interface contracts are identical.
-- Non-`void` function with a reachable normal path that produces neither a body result nor an
-  explicit return, and does not terminate with `never`.
-- A re-export whose visibility boundary is wider than the imported declaration's boundary.
-- Reserved target requested before implementation.
+- name, import, visibility, and declaration diagnostics identify the authored name or path and any
+  conflicting or inaccessible declaration;
+- ownership and borrow diagnostics identify the affected source place and distinguish missing
+  ownership from missing write permission;
+- compound-assignment diagnostics describe the authored compound operation rather than a fictional
+  desugared assignment;
+- closure-capture diagnostics identify the authored capture and enclosing binding rather than an
+  anonymous environment field;
+- optional and fallible diagnostics name the immediate outcome layer and recommend only a canonical
+  propagation or recovery form valid for that layer;
+- generic-inference diagnostics name the unresolved parameter and the missing inference source
+  instead of selecting a default type;
+- primitive, target, package, and Nocter-home diagnostics identify the exact selected boundary that
+  failed validation.
 
-Families above without an assigned code require a dedicated diagnostic but do not prescribe its
-numeric identity. A numeric code becomes part of the catalog when that diagnostic is implemented.
+A correction may be described in `help` only when it follows from the failed rule without guessing
+the programmer's intent. Editor code actions have the additional validation requirements defined by
+[Tooling and Editor Integration](editor.md#diagnostics-code-actions-and-hints).
 
 ## Examples
 

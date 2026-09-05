@@ -47,8 +47,8 @@ instance Buffer<T> {
 }
 ```
 
-The former standalone form `coerce Type { ... }` is invalid. Coercion behavior, methods, and
-operators now share one type-owned `instance` surface.
+Coercion behavior, methods, and operators share one type-owned `instance` surface. A `coerce`
+declaration is valid only inside that surface.
 
 ## Generic Requirements
 
