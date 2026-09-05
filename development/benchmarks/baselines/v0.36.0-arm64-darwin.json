@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "recorded_at": "2026-09-05T23:50:27.258Z",
+  "repository_revision": "678d8f75998bc181b1ee03f95d0a55ac0193f7d8",
+  "repository_clean": true,
+  "host": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "architecture": "arm64",
+    "cpu": "Apple M1",
+    "logical_cpus": 8,
+    "memory_bytes": 8589934592,
+    "node": "v20.10.0"
+  },
+  "configuration": {
+    "process_warmups": 2,
+    "process_samples": 7,
+    "lsp_sessions": 5,
+    "lsp_warmup_edits_per_session": 2,
+    "lsp_measured_edits_per_session": 50
+  },
+  "compilers": [
+    {
+      "label": "v0.36.0",
+      "sha256": "2314f369c9596f28563822fffa0dfa64f3b9899744e654adf8fd82dba542c8f1",
+      "version": [
+        "Nocter",
+        "release: 0.36.0",
+        "host: arm64-darwin",
+        "default target: arm64-darwin"
+      ]
+    }
+  ],
+  "source_inputs": {
+    "single_file_check": {
+      "path": "examples/hello.nct",
+      "sha256": "363e5bec4b963604fdc6c9ac66a43bcb6e0cbec735f82dc3fd7cf4b225d448d6"
+    },
+    "package_check": [
+      {
+        "path": "examples/text-search/README.md",
+        "sha256": "02b9f71a2b5df3cf11a2c53804d2aab7052e451ad7ab745f5ed1447e80bb5413"
+      },
+      {
+        "path": "examples/text-search/index.nct",
+        "sha256": "d1c808608952ab25c974c30479d21cf70ea2d8651f0b4a742fdfff26831de3d5"
+      },
+      {
+        "path": "examples/text-search/search.nct",
+        "sha256": "7d71f830ee909aba6f52e060f67e2fddbb01a781f90f475fa636c3dc6f590ce7"
+      }
+    ],
+    "lsp_body_edit": {
+      "path": "examples/text-banner/banner.nct",
+      "sha256": "0f95614ab2396a5ce6491c4d58908f7f6b2256d500c9a2f406d1020a887c8dab"
+    }
+  },
+  "scenarios": {
+    "process": {
+      "single_file_check": {
+        "v0.36.0": {
+          "elapsed_ms": {
+            "count": 7,
+            "min": 654.872,
+            "median": 662.652,
+            "p90": 673.875,
+            "max": 683.353
+          },
+          "resources": {
+            "maximum_resident_bytes": {
+              "count": 7,
+              "min": 195674112,
+              "median": 196313088,
+              "p90": 196811161.6,
+              "max": 197017600
+            }
+          }
+        }
+      },
+      "package_check": {
+        "v0.36.0": {
+          "elapsed_ms": {
+            "count": 7,
+            "min": 713.572,
+            "median": 717.804,
+            "p90": 722.78,
+            "max": 724.603
+          },
+          "resources": {
+            "maximum_resident_bytes": {
+              "count": 7,
+              "min": 206356480,
+              "median": 206422016,
+              "p90": 207663923.2,
+              "max": 207732736
+            }
+          }
+        }
+      }
+    },
+    "lsp_body_edit": {
+      "v0.36.0": {
+        "initialize_ms": {
+          "count": 5,
+          "min": 116.084,
+          "median": 124.647,
+          "p90": 125.572,
+          "max": 125.742
+        },
+        "open_and_hover_ms": {
+          "count": 5,
+          "min": 533.55,
+          "median": 535.996,
+          "p90": 543.15,
+          "max": 543.629
+        },
+        "edit_and_hover_ms": {
+          "count": 250,
+          "min": 185.598,
+          "median": 188.28,
+          "p90": 190.737,
+          "max": 313.29
+        },
+        "session_total_ms": {
+          "count": 5,
+          "min": 9378.13,
+          "median": 9444.732,
+          "p90": 9580.436,
+          "max": 9657.882
+        }
+      }
+    }
+  }
+}

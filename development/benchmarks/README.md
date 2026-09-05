@@ -63,3 +63,8 @@ Do not add internal phase timers until an external scenario demonstrates a bottl
 be attributed with existing query counters and ordinary profiling. If instrumentation becomes
 necessary, expose it through one observation boundary; do not scatter benchmark policy through
 semantic crates.
+
+## Recorded Baselines
+
+- [`v0.36.0-arm64-darwin.json`](baselines/v0.36.0-arm64-darwin.json) — Apple M1 released baseline
+  for the v0.37.0 performance milestone

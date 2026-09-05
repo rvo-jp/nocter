@@ -2,14 +2,15 @@
 
 ## Current State
 
-Nocter v0.36.0 is published and externally audited. v0.37.0 Phase 0 is active and establishes the
-measurement authority and released performance baseline before any production optimization.
+Nocter v0.36.0 is published and externally audited. v0.37.0 Phase 0 is complete: the independent
+runner and clean v0.36.0 command/editor baseline are recorded. No production optimization has been
+made.
 
 ## Next Work
 
-Complete the v0.36.0 process-cold command and persistent body-edit LSP baseline with the independent
-benchmark runner. Then attribute the dominant path using compiler-owned query accounting before
-changing production code.
+Complete v0.37.0 Phase 1 by attributing the shared cold-check cost and persistent body-edit cost.
+Use compiler-owned query accounting and ordinary profiling before selecting one structural
+production change.
 
 ## Blockers
 
