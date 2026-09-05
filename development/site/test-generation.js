@@ -35,15 +35,27 @@ try {
 
     const standardLibraryGuide = path.join(early, "development/std/map/README.md");
     const originalStandardLibraryGuide = fs.readFileSync(standardLibraryGuide, "utf8");
-    fs.appendFileSync(standardLibraryGuide, "\n```nct\npub func duplicate_contract(): void\n```\n");
-    const duplicatedStandardLibraryContract = runBuild(early);
+    fs.writeFileSync(standardLibraryGuide, originalStandardLibraryGuide.replaceAll("(index.nct)", "(README.md)"));
+    const missingStandardLibraryContractLink = runBuild(early);
     if (
-        duplicatedStandardLibraryContract.status === 0
-        || !combinedOutput(duplicatedStandardLibraryContract).includes("repeats a public declaration")
+        missingStandardLibraryContractLink.status === 0
+        || !combinedOutput(missingStandardLibraryContractLink).includes("does not link its public contract")
     ) {
-        throw new Error("documentation generation accepted a repeated standard-library declaration");
+        throw new Error("documentation generation accepted a standard-library guide without its contract link");
     }
     fs.writeFileSync(standardLibraryGuide, originalStandardLibraryGuide);
+
+    const valueTypesSpecification = path.join(early, "spec/language/values-and-types.md");
+    const originalValueTypesSpecification = fs.readFileSync(valueTypesSpecification, "utf8");
+    fs.writeFileSync(
+        valueTypesSpecification,
+        originalValueTypesSpecification.replace("usize isize\nchar\nstr", "usize isize\nstr")
+    );
+    const missingNamedBuiltin = runBuild(early);
+    if (missingNamedBuiltin.status === 0 || !combinedOutput(missingNamedBuiltin).includes("Named built-in type drift")) {
+        throw new Error("documentation generation accepted a primitive type absent from the specification catalog");
+    }
+    fs.writeFileSync(valueTypesSpecification, originalValueTypesSpecification);
 
     const unindexedSpecification = path.join(
         early,

@@ -1,8 +1,9 @@
 # Static Unicode Data Boundary
 
-This document owns the cross-crate implementation boundary for v0.35.0 static data and generated
-Unicode 17.0.0 tables. Public behavior belongs only in
-[`development/std/char/README.md`](../std/char/README.md).
+This document owns the current cross-crate implementation boundary for static data and the generated
+Unicode tables pinned by the repository manifest. Public behavior belongs only in
+[`development/std/char/README.md`](../std/char/README.md). Delivery history belongs to the
+[`v0.35.0` milestone](../history/milestones/v0.35.0.md).
 
 ## Why Static Data Is a Prerequisite
 
@@ -39,9 +40,9 @@ The generator accepts only the final Unicode 17.0.0 forms of `UnicodeData.txt`,
 license. A checked manifest records the version, canonical source URL, file name, byte length, and
 SHA-256 of every input. Any mismatch stops generation before output publication.
 
-[Unicode 18.0.0 remains beta](https://www.unicode.org/versions/beta-18.0.0.html) at the v0.35.0
-design boundary and is intentionally rejected. A future Unicode upgrade replaces the manifest and
-regenerated output in one reviewed release change.
+The current manifest pins Unicode 17.0.0. A Unicode upgrade replaces the manifest and regenerated
+output in one reviewed release change; generation never selects a newer upstream version
+implicitly.
 
 ## Generated Product
 

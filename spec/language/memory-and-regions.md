@@ -93,48 +93,13 @@ syntax that the author did not write.
 
 ## Allocation Failure Policies
 
-Nocter provides two policies over one fallible allocation implementation.
+The standard library provides aborting and recoverable allocation capabilities over one
+implementation. Their exact declarations, termination behavior, error codes, and failure atomicity
+belong to [Allocation and Failure](../../development/std/mem/README.md).
 
-### Standard allocator
-
-`Allocator` is the ordinary allocation capability. Its allocation and growth operations either
-succeed or terminate the process immediately.
-
-Allocation termination:
-
-- is not a recoverable `T!` result
-- performs no additional allocation
-- does not unwind Nocter scopes or run pending drops
-- uses a stable target-independent reason and abnormal process status
-- must not publish a partially updated buffer or collection before terminating
-
-This policy lets ordinary owning values and future typed literals avoid pervasive allocation-only
-`?` handling.
-
-### Recoverable allocator
-
-`TryAllocator` is the explicit recoverable capability. Its `try_*` operations return the built-in
-`error` payload and are failure-atomic.
-
-Stable memory error codes include:
-
-- `"std.mem.out_of_memory"`
-- `"std.mem.invalid_argument"`
-- `"std.mem.capacity_overflow"`
-
-The `std.mem.out_of_memory` failure uses a prebuilt static error node and must not allocate.
-Validation failures such as invalid alignment may use ordinary owned error construction; failure
-of that private construction terminates rather than recursively returning another error. A
-fixed-capacity arena, per-request budget, speculative large operation, compiler, or server may use
-the recoverable path even when exhaustion of the process allocator would be fatal.
-
-The two policies share layout validation, backend calls, buffer publication, provenance, and cleanup
-logic. Conceptually, `Allocator` is an abort-on-error adapter over the `TryAllocator` core. They are
-not separate allocator implementations.
-
-An ambient allocation context contains an `Allocator`, not a `TryAllocator`.
-Recoverable allocation uses named `try_*` APIs. This prevents the type of one expression from
-changing between `T` and `T!` based only on which context is selected.
+The ambient allocation context selects the ordinary aborting capability. Recoverable allocation
+requires an explicit library API whose declared result is fallible; changing the current context
+alone never changes an expression between `T` and `T!`.
 
 ## Standard-Library Boundary
 
@@ -148,22 +113,10 @@ The compiler's special behavior is limited to:
 - the `region name using allocator_place { ... }` language construct
 - escape checking and ordered region cleanup
 
-`Layout` validates size and alignment before a backend call. Zero-sized allocation produces a
-canonical empty buffer without invoking the OS. `RawBuffer` retains its actual allocated layout,
-backend identity, and storage origin. User code cannot construct or mutate its representation.
-
-Normal and recoverable collection APIs are paired over one implementation:
-
-```text
-with_capacity / try_with_capacity
-reserve       / try_reserve
-push          / try_push
-copy          / try_copy
-```
-
-Normal operations use the current aborting context. `try_*` operations take or otherwise select a
-`TryAllocator` explicitly. I/O, parsing, and other recoverable failures remain `T!`; only allocation
-failure is removed from the ordinary allocation path.
+The exact declarations, layout validation, raw-buffer invariants, and aborting-versus-recoverable
+adapter behavior belong to the compiler-checked
+[`std/mem` contract](../../development/std/mem/index.nct) and its
+[Allocation and Failure](../../development/std/mem/README.md) guide.
 
 ## Lexical Regions
 
@@ -332,8 +285,8 @@ pub noalloc func byte_count(text: &str): usize {
     return text.len()
 }
 
-instance str {
-    pub noalloc method &self.len(): usize
+instance Text {
+    pub noalloc method &self.byte_count(): usize
 }
 
 noalloc drop Handle(&+self) {

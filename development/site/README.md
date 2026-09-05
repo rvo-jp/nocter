@@ -69,11 +69,17 @@ Generation fails when:
 - two authored sources claim one output path;
 - a local Markdown link or heading anchor is unresolved or escapes the repository;
 - the syntax highlighter keyword set differs from the lexical specification;
+- the normative named-built-in list differs from checked standard-library `primitive type`
+  declarations;
 - the public diagnostic catalog differs from the compiler's registered-code inventory;
 - a compiler workspace crate lacks its colocated responsibility README;
-- a standard-library behavior README lacks its checked `index.nct` contract, fails to link it, or
-  repeats a `pub` declaration inside a Nocter code block;
+- a standard-library behavior README lacks its checked `index.nct` contract or fails to link it;
 - a published source cannot be represented uniquely or reached through structural navigation.
+
+The generator enforces structural authority, not language meaning. It does not claim that a regular
+expression can distinguish a duplicated standard-library declaration from a valid user example.
+Standard-library READMEs must not restate exact signatures; review checks that content rule, while
+the compiler checks the sole declarations in `index.nct`.
 
 The generator derives output only from authored file contents and paths. Filesystem timestamps do
 not enter HTML metadata or `sitemap.xml`. Publication dates require explicit authored metadata.
@@ -87,8 +93,9 @@ node development/site/test-generation.js
 It builds source trees with different timestamps and compares every output byte. It also proves
 that stale generated files are removed, private standard-library implementation sources stay
 private, newly discovered public pages enter navigation without README registration, historical
-records remain excluded, standard-library Markdown cannot become a second declaration authority,
-unrelated Rust text cannot register diagnostics, and diagnostic drift is rejected.
+records remain excluded, every standard-library behavior guide links its checked contract,
+named built-in declarations cannot drift from the language catalog, unrelated Rust text cannot
+register diagnostics, and diagnostic drift is rejected.
 
 ## Editing Rule
 

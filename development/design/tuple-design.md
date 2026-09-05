@@ -1,9 +1,10 @@
 # Tuple Representation Boundary
 
-This document defines the cross-crate representation contract for the v0.33.0 tuple milestone.
-Public tuple behavior belongs exclusively to
-[`spec/language/tuples.md`](../../spec/language/tuples.md). Private algorithms and module layouts remain in each
-workspace crate's colocated `README.md` and Rust source.
+This document defines the current cross-crate representation contract for tuples. Public tuple
+behavior belongs exclusively to [`spec/language/tuples.md`](../../spec/language/tuples.md). Private
+algorithms and module layouts remain in each workspace crate's colocated `README.md` and Rust
+source. Delivery history belongs to the
+[`v0.33.0` milestone](../history/milestones/v0.33.0.md).
 
 ## Design Decision
 
@@ -66,7 +67,7 @@ identities, discard leaves, and tuple branches. The checked initializer operatio
 authority for its already-established move or copy behavior. MIR construction consumes both facts;
 it does not type-check the source pattern or infer transfer behavior again.
 
-The internal binding-pattern contract is recursive even though v0.33.0 exposes it only for local
+The internal binding-pattern contract is recursive even though the current language exposes it only for local
 `let` and `var` statements. Name and discard leaves plus tuple branches are sufficient. Future
 parameter or control-flow patterns may consume the same checked contract only after their public
 semantics are specified.
@@ -105,14 +106,10 @@ semantic analysis to decide whether parentheses form a tuple.
 - **Whole-tuple-only ownership:** prevents disjoint element loans and partial moves, making tuples
   materially less capable than structs without a semantic reason.
 
-## Implementation Order
+## Required Coverage
 
-1. Add syntax nodes, semantic tuple interning, canonical presentation, and recursive local binding
-   syntax. Checking must own tuple typing and produce checked element places and binding plans.
-2. Carry those checked facts through MIR, destruction, runtime shape, target layout, and machine
-   lowering. Execute tuple returns, calls, projections, partial moves, borrows, and drops natively.
-3. Complete formatter and editor behavior, then add practical standard-library APIs whose result is
-   genuinely positional. Keep named public records named.
-
-Each step must remove temporary exhaustiveness gaps before it is committed. No stage may introduce
-a compatibility representation that a later step is expected to reinterpret or delete.
+Syntax, semantic interning, checked element places, binding plans, MIR, destruction, runtime shape,
+target layout, machine lowering, formatting, and editor projection all consume the tuple authority
+defined above. Tuple returns, calls, projections, partial moves, borrows, and drops use that same
+path. No stage may introduce a compatibility representation for another stage to reinterpret, and
+named public records remain named rather than being replaced by positional products.

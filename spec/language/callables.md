@@ -18,7 +18,7 @@ receiver explicitly implements that interface.
 An interface may mix required and default methods:
 
 ```nct
-pub interface Iterator {
+pub interface Source {
     pub type Item
     pub method &+self.next(): Self.Item?
 
@@ -33,28 +33,18 @@ pub interface Iterator {
 }
 ```
 
-The standard exact-size refinement requires the ordinary iterator contract:
+An interface may require another interface before declaring its own members:
 
 ```nct
-pub interface ExactSizeIterator where Self impl Iterator {
+pub interface SizedSource where Self impl Source {
     pub method &self.remaining_len(): usize
 }
 ```
 
-`remaining_len` returns the exact number of values that subsequent successful `next` calls will
-yield from the current iterator state. Advancing the iterator decreases that number by one. It is
-not a capacity hint or an upper bound. Sequence spread requires this contract because the literal
-pack's length is fixed before its constructor body starts.
-
-A bound `I impl ExactSizeIterator` therefore permits `next`, `remaining_len`, `I.Item`, and the
-default methods of `Iterator` without repeating `I impl Iterator`. An implementation remains
-explicit: a concrete iterator declares both `impl Iterator { .Item = T }` and
-`impl ExactSizeIterator`, and the latter is rejected unless the former applies to every admitted
-specialization.
-
-An adapter retains `ExactSizeIterator` only when that exact remaining count is representable for
-every valid input state. In particular, chaining two exact-size iterators does not itself establish
-the contract because the sum of their remaining lengths can exceed `usize`.
+A bound `I impl SizedSource` therefore permits members inherited from `Source` without repeating
+`I impl Source`. Concrete implementations remain explicit and must satisfy every prerequisite.
+The complete prerequisite rules belong to
+[Generics, Interfaces, and Methods](generics-and-interfaces.md).
 
 Only methods without the `default` modifier are interface implementation requirements. A default body is checked once in the
 interface generic scope, with `Self` constrained by that exact interface declaration. It may use
@@ -79,9 +69,9 @@ implementation happens not to allocate.
 Methods may declare generic parameters after the method name:
 
 ```nct
-pub noalloc default method self.map<U>(transform: &+func(Self.Item): U): some Iterator { .Item = U }
+pub noalloc default method self.map<U>(transform: &+func(Self.Item): U): some Source { .Item = U }
 from self | transform {
-    return MapIter.new(move self, move transform)
+    return TransformSource.new(move self, move transform)
 }
 ```
 
@@ -321,9 +311,9 @@ A closure that consumes captured state may be called only through a consuming ca
 adapters require a mutable repeated callback, so consuming a capture from their callback body is a
 compile error.
 
-## Iterator Chains
+## Standard Iteration
 
-Iterator default methods support chains such as:
+The standard library uses callable values and interface defaults to provide lazy iterator chains:
 
 ```nct
 let output = values
@@ -334,19 +324,10 @@ let output = values
     .to_vec()
 ```
 
-The iterator chain includes `map`, `filter`, `take`, `skip`, `chain`, `enumerate`, `count`, `last`,
-`fold`, `find`, `any`, `all`, and `to_vec`. Constructing an adapter is lazy and allocation-free.
-Advancing an adapter may return storage carried by its source or callback.
-`Iterator.next` has only its receiver as an eligible origin, so the source clause is elided.
-Adapter construction contracts name every retained input when several are eligible; for example,
-`map` returns `from source | transform`. Compiler summaries preserve fresh storage through callback
-calls without adding variance to `&+func(T): U`. Scalar-only operations such as `count`, `any`, and
-`all` discard result-storage provenance. `to_vec` allocates in the current context and retains
-element provenance from its source internally.
-
-`map` preserves exact size when the mapped source is exact. `filter` does not, because its
-predicate determines how many elements remain. Callback evaluation occurs once per visited item
-in source order.
+The exact interfaces, adapters, operations, allocation behavior, provenance, and exact-size rules
+belong to the compiler-checked [iteration contract](../../development/std/iter/index.nct) and its
+[behavior guide](../../development/std/iter/README.md). They are ordinary applications of the
+callable and interface rules in this chapter, not additional callable syntax.
 
 ## Unsupported Features
 

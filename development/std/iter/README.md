@@ -9,6 +9,11 @@ own their sources and callbacks and use static generic dispatch. Terminal operat
 iterator. Equality terminals borrow each yielded owner for comparison and destroy every yielded
 owner exactly once, including an item that causes early return.
 
+Readonly view iteration retains the source view's storage provenance, and each yielded readonly
+borrow carries that same origin. Readwrite view iteration retains one exclusive view and exposes one
+exclusive element borrow at a time. Owning Vec iteration yields elements in source order; dropping
+it destroys unconsumed elements in reverse order and releases the transferred storage exactly once.
+
 Default terminal implementations allocate no collection of their own, but selected `next`,
 callback, comparison, and item-destruction implementations may allocate. They therefore do not
 claim `noalloc` unless their complete transitive contract proves it.

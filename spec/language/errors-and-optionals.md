@@ -36,22 +36,10 @@ Rules:
   completion or recoverable failure and remains an ordinary storable outcome value.
 - `T` must not be `never`, including after alias expansion or generic substitution. Use `void!`
   when failure is recoverable but success carries no value.
-- `std/error` owns the source-backed `error.new(code: &str, message: &str)` construction member.
-  The built-in type identity selects that validated surface; the compiler does not recognize the
-  member name `new` or rewrite an alias.
-- Error codes are intentionally open. Standard-library, user, and package code may introduce
-  dotted strings such as `"std.io.not_found"`, `"app.config.missing_key"`, or
-  `"package.module.reason"`.
-- The current standard library does not define `Error` or `ErrorCode` aliases. `error` is the sole
-  public spelling of the failure payload type.
-- Domain detail is represented through the open classification code, human-readable messages, and
-  context frames, not by writing a different failure type in the signature.
-- `error.new` snapshots both input strings into storage owned independently of their source
-  lifetimes. Its result has no input provenance.
-- `failure.context(message)` consumes `failure`, snapshots `message`, and returns a new error whose
-  root classification code is unchanged.
-- `failure.code()` and `failure.message()` return readonly views tied to `failure`.
-  `failure.has_code(code)` performs exact code comparison without exposing a borrowed result.
+- The compiler-checked [`std/error` contract](../../development/std/error/index.nct) owns the exact
+  construction and observation surface. Its [behavior guide](../../development/std/error/README.md)
+  owns code policy, storage, context, and accessor behavior. The built-in type identity selects that
+  validated surface; the compiler does not recognize a member spelling or rewrite an alias.
 - `error` is move-only and owns cleanup. It cannot be copied, and a returned view cannot outlive
   the handle.
 - Every fallible type `T!`, including `i32!` and `void!`, is move-only because its failure branch
@@ -59,36 +47,8 @@ Rules:
 - The ABI layout of `error` is specified in [ABI and Layout](../platform/abi-and-layout.md#built-in-error-layout).
 - `error!` is not a valid function return type. In a fallible function, `return error_value` means failure, so `error` cannot be used as the success type without ambiguity. This rule is checked after type aliases and through optional success layers such as `error?!`.
 
-The constructor is declared in ordinary Nocter source:
-
-```nct
-construct error {
-    pub noalloc func new(code: &str, message: &str): Self {
-        return new_error(code, message)
-    }
-}
-
-instance error {
-    pub noalloc method self.context(message: &str): Self
-    pub noalloc method &self.code(): &str from self
-    pub noalloc method &self.message(): &str from self
-    pub noalloc method &self.has_code(code: &str): bool
-}
-```
-
-Its source-private representation primitive is authored with the implementation body. It accepts
-the same two inputs but returns an owned error with no input provenance:
-
-```nct
-noalloc primitive func new_error(
-    code: &str,
-    message: &str,
-): error
-```
-
-Dynamic construction is infallible at the source boundary. If private error-storage allocation
-fails, execution terminates. The recoverable allocation-failure path instead uses a prebuilt
-static error and cannot recursively allocate another error.
+Construction and observation are ordinary standard-library declarations. Their exact source and
+allocation policy remain outside the syntax and propagation semantics defined here.
 
 Inside a function returning `T!`, a compatible function body result or `return value` returns the success value unless the value has type `error`. `return error_value` returns the failure value.
 

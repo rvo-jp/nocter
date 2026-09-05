@@ -107,7 +107,9 @@ Rules:
 - `func main(): i32` and `func main(): usize` use the returned value as the process exit status.
 - `func main(): void`, `func main(): void!`, `func main(): i32`, `func main(): i32!`, `func main(): usize`, and `func main(): usize!` are accepted entry return forms, but `func main(): i32!` is the preferred form for applications that need a numeric success code.
 - Entry functions cannot declare type parameters or value parameters.
-- Command-line arguments and environment variables are accessed through `std/process`, not through special entry function parameters.
+- Command-line arguments and environment variables are accessed through the ordinary
+  [`std/process` contract](../development/std/process/index.nct), not through special entry function
+  parameters.
 - Package-root `#executable` metadata selects the module, not a different function name.
 
 Process entry context:
@@ -115,8 +117,8 @@ Process entry context:
 - The compiler-generated low-level entry code receives the platform process entry information, such as `argc`, `argv`, and environment data when the target provides them.
 - User code does not see the platform entry ABI.
 - The generated entry code makes process entry information available to the standard library's process context.
-- `std/process` exposes process information through ordinary functions such as `args()` and `env(...)`.
-- Names such as `args`, `env`, `cwd`, `exit`, and `abort` are standard-library names, not compiler-special identifiers.
+- The exact process-information operations belong to the compiler-checked `std/process` contract.
+  Their names are ordinary standard-library names, not compiler-special identifiers.
 
 Rationale:
 

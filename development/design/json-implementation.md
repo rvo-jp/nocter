@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This document owns the cross-responsibility implementation boundary for the v0.22.0 JSON module.
-Public behavior belongs only to [JSON Values and Text](../std/json/README.md). Work order and
-completion evidence belong to the [v0.22.0 milestone](../history/milestones/v0.22.0.md).
+This document owns the current cross-responsibility implementation boundary for the JSON module.
+Public behavior belongs only to [JSON Values and Text](../std/json/README.md). Delivery order and
+completion evidence remain in the historical [v0.22.0 milestone](../history/milestones/v0.22.0.md).
 
 JSON remains standard-library source. No compiler stage may branch on the identity or source names
 of the `std/json` module or its public `Value` and `Number` declarations, nor on RFC tokens or JSON
@@ -111,7 +111,7 @@ hash, capacity, or dense-storage field. Keeping the container loan separate from
 suspended JSON frame retain a child value loan without also retaining and moving the cursor that
 created it. A future canonical JSON API must own a separate ordering contract.
 
-## Existing Capabilities and Exact Gaps
+## Dependency Boundary
 
 | Need | Existing owner |
 | --- | --- |
@@ -123,21 +123,20 @@ created it. A future canonical JSON API must own a separate ordering contract.
 | recoverable destination output | `io.Writer` |
 | move-only partial state and once-only cleanup | language ownership and drop |
 
-Only two new standard-internal prerequisites are admitted:
+JSON consumes two package-internal prerequisites from their existing owners:
 
 1. a package-internal Unicode-scalar encoder in the existing UTF-8 responsibility;
 2. a package-internal active-context `TryAllocator` adapter in the existing memory responsibility.
 
-The numeric specification already declares `u8.checked(u64)` and `u8.truncate(u64)`. Phase 1 found
-that the authored standard library and backend had not implemented that existing contract. Its one
-source-private primitive role is owned by the general numeric/runtime boundary and is exercised
-independently of JSON. It is not a JSON declaration, parser operation, or ABI.
+The numeric contract supplies `u8.checked(u64)` and `u8.truncate(u64)` through the ordinary numeric
+and runtime boundary. Its source-private primitive role is exercised independently of JSON. It is
+not a JSON declaration, parser operation, or ABI.
 
 JSON number scanning, parser frames, errors, traversal, and emission are module implementation,
 not language or compiler gaps. `char`, `f32`, `f64`, reflection, derive metadata, a parser primitive,
 and a JSON-specific ABI are not prerequisites.
 
-## Phase 1 Realization
+## Numeric and Lexical State
 
 `Cursor` owns the only byte offset. Number scanning publishes one private `NumberShape` containing
 sign, decimal digit, trailing-zero, and normalized scale facts. Exact integer projection consumes
@@ -154,7 +153,7 @@ initialized prefix. JSON owns UTF-16 escape and surrogate decisions, then passes
 view through String's existing validated mutation contract. Neither module reads the other's
 representation.
 
-## Phase 2 Realization
+## Parser State
 
 The parser has one active `ParserState` and one `Vec<Continuation>`. Active state owns the current
 root value, array, or object plus its next grammatical obligation. A continuation owns only a
@@ -171,21 +170,18 @@ materializes a token sequence, or stores a per-node source range.
 Arrays begin with a zero-capacity Vec bound to the selected allocator, objects begin with a Map
 bound to that allocator, and the continuation stack uses the same allocator. Number text, decoded
 strings, object names, error detail, child growth, and Map growth all receive or retain that
-selection. Native qualification returns an explicitly page-allocated parse result and input error
-from inside a different current region, proving that neither path silently captures current
-storage.
+selection. An explicitly page-allocated parse result or input error may escape a different current
+region because neither path silently captures current storage.
 
 Decoded names are checked through Map's semantic `contains_key` contract before insertion. JSON
 does not inspect a hash, bucket, dense index, or replacement implementation. Once absence has been
 established, the normal Map insertion contract owns allocation and publication.
 
-Phase 2 also corrected a general checker boundary exposed by the implementation: recovery operands
-now pass their expected success-payload type into direct generic calls, just as propagation operands
-already did. This permits `generic_call() catch` and `generic_call() otherwise` to infer result-only
-type parameters. The correction belongs to outcome-expression call planning and contains no JSON
+Recovery operands pass their expected success-payload type into direct generic calls, just as
+propagation operands do. This general outcome-expression call-planning rule contains no JSON
 knowledge.
 
-## Phase 3 Realization
+## Generation State
 
 `GenerationFrame` is the only suspended traversal state. A value frame borrows one `Value`; an
 array or object frame borrows its source container and owns the next semantic ordinal. Processing a
@@ -212,7 +208,7 @@ allocation failure; `try_write` returns either. String-sink failure is allocatio
 construction, so `stringify` terminates and `try_stringify` returns it. None of these wrappers
 compare public error-code text to reconstruct private failure classes.
 
-## Phase 4 Realization
+## Runnable Consumer Boundary
 
 The runnable `json-normalize` package is a consumer of the public standard library, not another
 JSON implementation layer. It obtains one UTF-8 path from the process API, reads one String through
@@ -221,17 +217,9 @@ JSON implementation layer. It obtains one UTF-8 path from the process API, reads
 application contains no parser state, JSON cursor, traversal frame, sink adapter, filesystem
 primitive, or operating-system binding.
 
-Process qualification executes the package through the complete target session. It fixes three
-observable boundaries: invalid command usage, successful normalization, and malformed-input error
-reporting. Formatter qualification discovers the package through the existing repository-wide
-runnable-example contract, so JSON gains no private formatting path or fixture-only source form.
-
-Editor qualification opens the same application source used by native execution. Hover,
-definition, signature help, and receiver completion are projected from the ordinary semantic
-snapshot and public declarations. Separate recoverable-source qualification covers `try_parse`,
-`try_stringify`, and `try_write`. Invalid public calls prove that diagnostics select user-source
-arguments rather than internal parser or Writer-adapter declarations. The LSP contains no JSON
-token parser, API list, source-text fallback, or phase-specific feature path.
+The application receives compiler, formatter, and editor behavior through the same production
+contracts as any other package. JSON introduces no private formatting path, fixture-only source
+form, LSP token parser, API list, source-text fallback, or feature-specific editor path.
 
 ## Enforcement
 
@@ -248,13 +236,7 @@ Implementation and review must reject:
 - floating-point conversion used as the Number storage authority;
 - a fixed nesting limit introduced only to accommodate an implementation shortcut.
 
-## Phase 5 Stabilization
-
-The final source qualification extends the native matrix across integer range and exponent
-boundaries, non-JSON whitespace, duplicate decoded names, maximum and invalid Unicode scalars,
-every compact control-escape class, deep values, explicit allocator affinity, and Writer failure.
-These cases exercise the same cursor, Number shape, parser state, traversal, and escaping authority;
-no adversarial-only parser or serializer exists.
+## Shared Foundations
 
 Standard capacity failures now come from one package-internal memory function with the public code
 `std.mem.capacity_overflow`. Vec, String, Map, and Set retain their own representation and growth
@@ -263,7 +245,6 @@ single-item iteration use generic copy and replacement helpers from `std/interna
 module reconstructs raw pointer operations locally or depends directly on public pointer
 primitives.
 
-The exact standard dependency graph is executable review evidence. Phase 5 removes the direct
-`fmt -> ptr` and `iter -> ptr` edges, records the intentional `vec -> internal/safety` bounds-abort
-edge, and rejects any unreviewed future cross-module dependency. Artifact identity and installed
-home qualification remain release-preparation responsibilities.
+The exact standard dependency graph is executable review evidence. Formatting and iteration reach
+generic pointer helpers only through `std/internal/ptr`; Vec reaches the bounds-abort boundary
+through `std/internal/safety`. New direct cross-module edges require an explicit contract review.

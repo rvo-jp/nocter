@@ -493,14 +493,14 @@ for i in 0..<bytes.len() {
 Typical uses:
 
 - `trap(): never`
-- `std/process.abort(): never`
-- `std/process.exit(code): never`
+- a standard-library termination operation from the compiler-checked
+  [`std/process` contract](../../development/std/process/index.nct)
 - an infinite event loop that has no reachable `break`
 - an explicit unreachable-code marker in the standard library
 
 `trap` is the primitive boundary for non-recoverable program defects. The compiler may also generate traps for checked operations such as out-of-bounds indexing or invalid arithmetic.
 
-`abort` and `exit` are standard-library process APIs. They are not compiler primitives.
+Standard-library termination operations are not compiler primitives.
 
 `panic` is not a language feature. Nocter has no stack-unwinding mechanism.
 

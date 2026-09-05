@@ -75,17 +75,11 @@ order from disagreeing.
 Matching integer types retain primitive ordering. `bool`, payloadless enums, and arbitrary structs
 do not receive generated ordering.
 
-The standard `str` instance compares UTF-8 encoding bytes lexicographically. `String` uses its
-readonly coercion to `str`; no second string comparison algorithm exists.
-
-The standard `[T]` instance compares elements lexicographically under
-`where (&T < &T): bool`. If one slice is a prefix of the other, the shorter slice is less. `Vec<T>`
-uses its readonly slice coercion and does not own a duplicate ordering declaration.
-
-The same requirement powers the standard readwrite-slice `sort` method. That collection API is
-specified separately in [Borrowed Text](../../development/std/str/README.md) and
-[Slices](../../development/std/slice/README.md); the `<`
-operator selects the order but does not prescribe the sorting algorithm.
+Source-defined ordering for borrowed text and slices, including coercion from their owning
+containers, belongs to the compiler-checked [`std/str`](../../development/std/str/index.nct) and
+[`std/slice`](../../development/std/slice/index.nct) contracts and their colocated behavior guides.
+Those declarations use the selector defined here. The `<` operator does not prescribe a sorting
+algorithm.
 
 ## Tooling
 

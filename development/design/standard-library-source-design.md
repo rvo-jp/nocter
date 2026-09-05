@@ -62,6 +62,11 @@ reason.
 
 ## Foundation Ownership
 
+Package-internal target translation is documented with its source in the
+[`std/internal/os` README](../std/internal/os/README.md). It exposes implementation facts only to
+standard-library maintainers and does not become part of the generated public standard-library
+reference.
+
 The standard-library foundation has the following implementation owners:
 
 | Responsibility | Owner |

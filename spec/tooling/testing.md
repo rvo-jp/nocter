@@ -80,15 +80,7 @@ target-wide parse, resolution, or type error is reported with a null case identi
 
 ## Assertions
 
-`std/testing` exports ordinary fallible functions:
-
-```nct
-pub func assert(condition: bool): void!
-pub func assert_eq<T>(actual: &T, expected: &T): void! where (&T == &T): bool
-```
-
-Failures use `std.testing.assertion_failed` or `std.testing.not_equal`. Messages are static error
-payload data and do not allocate, so reporting an assertion failure cannot itself become an
-allocation failure. `assert_eq` borrows both values and uses the same structural equality selector
-as an ordinary `actual == expected` expression; it does not introduce an equality interface.
-Assertions use normal `error` propagation and are not compiler intrinsics.
+The compiler-checked [`std/testing` contract](../../development/std/testing/index.nct) owns the
+exact assertion declarations. Their failure codes, allocation behavior, and equality semantics are
+defined by [Native Assertions](../../development/std/testing/README.md). The test runner gives these
+ordinary fallible calls no compiler-intrinsic behavior.

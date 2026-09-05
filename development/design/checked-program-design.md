@@ -1,8 +1,8 @@
 # Checked Program Boundary
 
 This document owns the cross-crate contract from accepted declarations through finalized checked
-semantics. Public behavior remains in `spec/`; checking's private mechanisms belong in the
-[`nocter-checking` README](../compiler/crates/nocter-checking/README.md).
+semantics. Public language and tooling behavior remains in `spec/`; checking's private mechanisms
+belong in the [`nocter-checking` README](../compiler/crates/nocter-checking/README.md).
 
 ## Boundary
 

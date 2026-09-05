@@ -77,6 +77,7 @@ const codeExamples = Object.fromEntries(Object.entries({
 ]));
 
 validateNocterLexicon();
+validatePrimitiveTypeCatalog();
 validateDiagnosticCatalog();
 validateCrateDocumentation();
 validateStandardLibraryDocumentation();
@@ -118,6 +119,50 @@ function validateNocterLexicon() {
 
     if (missing.length > 0 || extra.length > 0) {
         throw new Error(`Nocter highlighter keyword drift (missing: ${missing.join(", ") || "none"}; extra: ${extra.join(", ") || "none"})`);
+    }
+}
+
+function validatePrimitiveTypeCatalog() {
+    const specificationPath = path.join(PROJECT_ROOT, "spec/language/values-and-types.md");
+    const specification = fs.readFileSync(specificationPath, "utf8");
+    const match = specification.match(/Named built-in types:\n\n```text\n([\s\S]*?)\n```/);
+
+    if (!match) {
+        throw new Error("Cannot find the normative named-built-in-type block in spec/language/values-and-types.md");
+    }
+
+    const specificationEntries = match[1].split(/\s+/).filter(Boolean);
+    const specificationTypes = new Set(specificationEntries);
+    const duplicateSpecificationTypes = specificationEntries.filter(
+        (name, index) => specificationEntries.indexOf(name) !== index
+    );
+    const declarationEntries = sourceFiles
+        .filter(file => {
+            const relative = normalizePath(path.relative(PROJECT_ROOT, file));
+            return relative.startsWith("development/std/") && path.basename(file) === "index.nct";
+        })
+        .flatMap(file => [...sourceContents.get(path.resolve(file)).matchAll(/^pub primitive type ([A-Za-z_][A-Za-z0-9_]*)$/gm)])
+        .map(match => match[1]);
+    const declarationTypes = new Set(declarationEntries);
+    const duplicateDeclarationTypes = declarationEntries.filter(
+        (name, index) => declarationEntries.indexOf(name) !== index
+    );
+    const missingDeclarations = specificationEntries.filter(name => !declarationTypes.has(name));
+    const undocumentedDeclarations = declarationEntries.filter(name => !specificationTypes.has(name));
+
+    if (
+        duplicateSpecificationTypes.length > 0
+        || duplicateDeclarationTypes.length > 0
+        || missingDeclarations.length > 0
+        || undocumentedDeclarations.length > 0
+    ) {
+        throw new Error(
+            `Named built-in type drift (`
+            + `duplicate specification: ${[...new Set(duplicateSpecificationTypes)].join(", ") || "none"}; `
+            + `duplicate declarations: ${[...new Set(duplicateDeclarationTypes)].join(", ") || "none"}; `
+            + `missing declarations: ${missingDeclarations.join(", ") || "none"}; `
+            + `undocumented declarations: ${undocumentedDeclarations.join(", ") || "none"})`
+        );
     }
 }
 
@@ -219,19 +264,12 @@ function validateStandardLibraryDocumentation() {
         const relative = normalizePath(path.relative(PROJECT_ROOT, readme));
         const publicContract = path.join(path.dirname(readme), "index.nct");
         const relativeContract = normalizePath(path.relative(PROJECT_ROOT, publicContract));
-        const source = sourceContents.get(path.resolve(readme));
-
         if (!sourceSet.has(relativeContract)) {
             throw new Error(`Standard-library documentation has no public contract: ${relative}`);
         }
+        const source = sourceContents.get(path.resolve(readme));
         if (!source.includes("(index.nct)")) {
             throw new Error(`Standard-library documentation does not link its public contract: ${relative}`);
-        }
-
-        for (const match of source.matchAll(/```nct\n([\s\S]*?)\n```/g)) {
-            if (/^\s*pub\b/m.test(match[1])) {
-                throw new Error(`Standard-library documentation repeats a public declaration: ${relative}`);
-            }
         }
     }
 }

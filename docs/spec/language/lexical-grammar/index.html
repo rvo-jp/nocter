@@ -270,7 +270,7 @@ using
 var
 void
 while
-</code></pre><p>Named built-in type spellings such as <code>bool</code>, integer types, <code>usize</code>, <code>isize</code>, <code>str</code>, <code>error</code>, <code>void</code>, and <code>never</code> are reserved declaration and type-binder names. Their exact compiler-selected <code>primitive type</code> declarations supply the semantic identity and source target; they are not imported names. <code>void</code> and <code>never</code> remain keywords, while the other spellings are contextual identifiers.</p><p>Package metadata uses the same <code>test</code> token in <code>#test</code>; package parsing treats it as that directive's exact name rather than as a general identifier.</p><p>Module-directory segments and <code>see</code> source-path segments use snake_case identifiers:</p><pre><code class="language-text">file_name
+</code></pre><p>Named built-in type spellings such as <code>bool</code>, integer types, <code>usize</code>, <code>isize</code>, <code>char</code>, <code>str</code>, <code>error</code>, <code>void</code>, and <code>never</code> are reserved declaration and type-binder names. Their exact compiler-selected <code>primitive type</code> declarations supply the semantic identity and source target; they are not imported names. <code>void</code> and <code>never</code> remain keywords, while the other spellings are contextual identifiers.</p><p>Package metadata uses the same <code>test</code> token in <code>#test</code>; package parsing treats it as that directive's exact name rather than as a general identifier.</p><p>Module-directory segments and <code>see</code> source-path segments use snake_case identifiers:</p><pre><code class="language-text">file_name
 ./search.nct
 std/io
 std/process

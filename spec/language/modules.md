@@ -262,7 +262,7 @@ body as an API entry.
 // index.nct
 see ./iterator_defaults.nct
 
-pub interface Iterator {
+pub interface Source {
     pub type Item
     pub method &+self.next(): Self.Item?
     pub default method self.count(): usize
@@ -273,7 +273,7 @@ pub interface Iterator {
 // iterator_defaults.nct
 see ./index.nct
 
-interface Iterator {
+interface Source {
     default method self.count(): usize {
         var source = move self
         var total: usize = 0
@@ -299,17 +299,17 @@ A public struct may omit its representation in `index.nct`:
 
 ```nct
 // index.nct
-see ./string.nct
+see ./document.nct
 
-pub struct String
+pub struct Document
 
-construct String {
+construct Document {
     /// Copies a static string view into owned storage.
     pub literal ""(text: &str): Self
     pub noalloc func empty(): Self
 }
 
-instance String {
+instance Document {
     /// Exposes the initialized UTF-8 prefix without transferring ownership.
     pub noalloc coerce &self as &str
 }
@@ -318,35 +318,35 @@ instance String {
 One directly seen source completes the representation and callable bodies:
 
 ```nct
-// string.nct
+// document.nct
 see ./index.nct
 
-struct String {
-    storage: RawBuffer
+struct Document {
+    storage: Storage
     len: usize
 }
 
-construct String {
+construct Document {
     literal ""(text: &str): Self {
-        return String.copy(text)
+        return copy_document(text)
     }
 
     noalloc func empty(): Self {
-        return String {
+        return Document {
             storage: empty_page_buffer(1),
             len: 0,
         }
     }
 }
 
-instance String {
+instance Document {
     noalloc coerce &self as &str {
         return view(self)
     }
 }
 ```
 
-`pub struct String` is an opaque public nominal contract, not a fieldless struct. `struct String
+`pub struct Document` is an opaque public nominal contract, not a fieldless struct. `struct Document
 { ... }` completes that same nominal identity and owns its private representation. It cannot carry
 visibility. A bodyless public nominal contract must have exactly one complete private definition;
 an inline braced declaration already owns its representation and cannot be completed again.
@@ -406,21 +406,14 @@ Rules:
   only to synthetic prelude exports
 - project-wide prelude configuration is not supported
 
-The standard prelude exports:
-
-```nct
-pub use std/string.String
-pub use std/vec.Vec
-pub use std/iter.Iterator
-pub use std/map.Map
-pub use std/set.Set
-```
+The exact export set belongs to the compiler-checked
+[`std/prelude` contract](../../development/std/prelude/index.nct). Changing that source changes the
+fallback names without changing the import mechanism in this chapter.
 
 Named builtins such as `str` and primitive numeric types come from the compiler-managed universal
-declaration fallback, while structural forms such as `[T]` come from the type grammar. Neither is
-a prelude export. `Format`, `ExactSizeIterator`, file APIs, allocation APIs, process APIs, and
-I/O functions require explicit imports from their domain modules. `Hash` and `HashState` likewise
-require an explicit `std/hash` import.
+declaration fallback, while structural forms such as `[T]` come from the type grammar. Neither is a
+prelude export. Any standard declaration absent from the selected prelude contract requires an
+explicit import from its owning module.
 
 ## Package Layout
 
@@ -613,25 +606,25 @@ Definitions are private by default. A `pub(...)` scope exposes a name to a selec
 tree or to its package. Bare `pub` exposes a name to every package.
 
 ```nct
-// std/io/index.nct
-pub struct File {
-    fd: i32
+// store/index.nct
+pub struct Entry {
+    pub id: usize
 }
 
-construct File {
-    pub func open(path: &str): Self! {
+construct Entry {
+    pub func new(id: usize): Self {
         ...
     }
 }
 
-pub func stdout(): File {
+pub func first(): Entry? {
     ...
 }
 ```
 
 ```nct
-// std/ptr/index.nct
-pub(/) primitive func from_addr<T>(address: usize): *T
+// internal/index.nct
+pub(/) func package_seed(): u64
 ```
 
 Rules:

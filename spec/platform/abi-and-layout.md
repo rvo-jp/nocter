@@ -363,8 +363,8 @@ Rules:
 `primitive` declarations use Nocter ABI at the Nocter call boundary.
 
 ```nct
-pub(/) noalloc primitive func syscall3(...): SyscallResult
-pub(/) noalloc primitive func trap(): never
+noalloc primitive func target_call(input: usize): usize
+noalloc primitive func stop(): never
 ```
 
 Rules:

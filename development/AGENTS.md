@@ -31,7 +31,10 @@ development:
   language oracle
 - do not infer missing behavior from published binaries or historical implementation documents
 - do not copy the previous standard-library implementation to bootstrap compiler behavior
-- derive public behavior only from `spec/` and external platform standards explicitly cited by it
+- derive language, platform, and tooling behavior only from `spec/` and external platform standards
+  explicitly cited by it
+- derive standard-library behavior only from its checked `development/std/**/index.nct` contract and
+  colocated README
 
 Historical milestone and release records may be consulted only for release-history work explicitly
 requested by the user. They are never evidence for language semantics or new compiler structure.
@@ -75,8 +78,10 @@ adapters to archived concepts, fallback lookup, name-based semantic equality, or
 
 ## Documentation Ownership
 
-- `spec/`: sole normative source for language, standard-library API, CLI, diagnostics, and editor
-  behavior
+- `spec/`: sole normative source for language, platform, CLI, diagnostics, and editor behavior
+- `development/std/**/index.nct`: sole normative source for exact standard-library declarations and
+  declaration documentation
+- `development/std/**/README.md`: sole normative source for longer observable behavior of that module
 - `development/history/milestones/README.md`: milestone catalog; each linked milestone owns its own
   status
 - `development/history/release-audits/README.md`: publication catalog; each linked record owns

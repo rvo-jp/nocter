@@ -1,7 +1,8 @@
 # Unicode Scalar Representation Boundary
 
-This document owns the cross-crate representation and authority boundary for v0.34.0 Unicode scalar
+This document owns the current cross-crate representation and authority boundary for Unicode scalar
 values. Public behavior belongs in [`spec/language/unicode-scalars.md`](../../spec/language/unicode-scalars.md).
+Delivery history belongs to the [`v0.34.0` milestone](../history/milestones/v0.34.0.md).
 
 ## Authority Chain
 

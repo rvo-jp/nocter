@@ -13,6 +13,11 @@ move at most once, and the initialized prefix advances only after each successfu
 `truncate` drops every removed suffix element exactly once. Ownership transfer operations do not
 copy move-only elements.
 
+Insertion and removal preserve dense source order for move-only elements. Their implementation may
+use one transient uninitialized slot, but no fallible call or externally observable edge crosses
+that state. Recoverable insertion validates bounds and completes capacity growth before shifting;
+failed growth leaves pointer, length, capacity, contents, and storage origin unchanged.
+
 Zero-sized element types use logical length and capacity without allocating backing bytes.
 Reservation, insertion, removal, iteration, and destruction still perform their normal ownership
 effects once per logical element.

@@ -57,13 +57,13 @@ inside a type expression such as `&[copy T]`.
 An interface requirement uses `impl` and may bind that interface's associated types in braces:
 
 ```nct
-where T impl Iterator { .Item = &str }
+where T impl Source { .Item = &str }
 ```
 
 `impl` is reserved for nominal interfaces. It cannot introduce an intrinsic copy, callable,
 operator, coercion, or expansion requirement. Associated bindings belong to the immediately
 preceding interface application. The leading dot makes each binding an interface-relative member:
-`.Item` denotes the declaration `Iterator.Item` in the example above, while the resulting projection
+`.Item` denotes the declaration `Source.Item` in the example above, while the resulting projection
 on the constrained subject is `T.Item`. Bindings are compared after alias expansion and apply
 recursively beneath existing type constructors. A generic body may rely only on implementations and
 bindings in its lexical predicate environment. A concrete call or conditional interface
@@ -94,20 +94,20 @@ An interface header may state prerequisites on its contextual `Self` type with t
 predicate forms used by generic declarations:
 
 ```nct
-pub interface ExactSizeIterator where Self impl Iterator {
+pub interface SizedSource where Self impl Source {
     pub method &self.remaining_len(): usize
 }
 
-pub interface Hash where (&Self == &Self): bool {
-    pub noalloc method &self.hash_into(state: &+Hasher): void
+pub interface ComparableKey where (&Self == &Self): bool {
+    pub noalloc method &self.write_key(output: &+KeySink): void
 }
 ```
 
 An interface prerequisite is a static implication, not an implicit implementation declaration.
-`T impl ExactSizeIterator` therefore proves `T impl Iterator`, exposes `Iterator` methods and
-associated types, and makes `Iterator` default methods available. A concrete type must still
-declare both implementation facts explicitly. Declaring `impl ExactSizeIterator` never creates an
-`impl Iterator` fact, selects an `Iterator` associated type, or synthesizes a missing method.
+`T impl SizedSource` therefore proves `T impl Source`, exposes `Source` methods and associated types,
+and makes `Source` default methods available. A concrete type must still declare both
+implementation facts explicitly. Declaring `impl SizedSource` never creates an `impl Source` fact,
+selects a `Source` associated type, or synthesizes a missing method.
 
 Interface prerequisites may require another nominal interface, equality, strict ordering,
 indexing, a borrow coercion, or expansion of `Self`. A prerequisite may also constrain an interface
@@ -123,10 +123,10 @@ different methods or associated types with the same name is invalid. An associat
 derived application may name one uniquely inherited associated type:
 
 ```nct
-where I impl ExactSizeIterator { .Item = T }
+where I impl SizedSource { .Item = T }
 ```
 
-Here `.Item` retains the sole declaration identity `Iterator.Item`; `ExactSizeIterator` does not
+Here `.Item` retains the sole declaration identity `Source.Item`; `SizedSource` does not
 create an alias or a second associated declaration. Requirement order cannot resolve a cycle or a
 name collision.
 
@@ -148,7 +148,7 @@ Concrete and nested types do not appear directly in a pattern slot. A declaratio
 binder and applies a directed refinement after the header:
 
 ```nct
-instance Vec<T> where T = i32 { ... }
+instance Buffer<T> where T = i32 { ... }
 ```
 
 In this context, `where T = Type` is a binder refinement rather than symmetric projection
@@ -366,7 +366,7 @@ associated-type declaration:
 
 ```nct
 func chain<L, R>(left: L, right: R): ChainIter<L, R>
-where L impl Iterator, R impl Iterator { .Item = L.Item } {
+where L impl Source, R impl Source { .Item = L.Item } {
     ...
 }
 ```
@@ -377,8 +377,8 @@ where L impl Iterator, R impl Iterator { .Item = L.Item } {
 result type out of the API:
 
 ```nct
-pub noalloc func lines(text: &str): some Iterator { .Item = &str } from text {
-    return LinesIter.new(text)
+pub noalloc func values(source: &Record): some Source { .Item = &Entry } from source {
+    return EntrySource.new(source)
 }
 ```
 
@@ -393,7 +393,11 @@ The `some` result source form is defined by
 Ordinary interface type arguments precede associated bindings when both are present:
 
 ```nct
-func values<T>(): some Source<T> { .Item = &T } { ... }
+interface Catalog<K> {
+    type Item
+}
+
+func catalog<K>(): some Catalog<K> { .Item = &K } { ... }
 ```
 
 Rules:
@@ -452,14 +456,14 @@ bodies are ordinary inherent methods and may be declared in the same instance fr
 applicable fragment:
 
 ```nct
-instance ValuesIter<T> {
+instance ValuesSource<T> {
     method &+self.next(): T? {
         ...
     }
 }
 
-instance ValuesIter<T> {
-    impl Iterator { .Item = T }
+instance ValuesSource<T> {
+    impl Source { .Item = T }
 }
 ```
 

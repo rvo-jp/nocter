@@ -48,43 +48,11 @@ These operations may be reconsidered only if Nocter later adopts an explicit uns
 
 ### `std/ptr`
 
-Pointer and address conversion APIs live in `std/ptr`.
-
-Public APIs:
-
-```nct
-pub noalloc primitive func addr<T>(pointer: *T): usize
-pub noalloc primitive func from_ref<T>(value: &T): *T
-pub noalloc primitive func from_ref_mut<T>(value: &+T): *T
-```
-
-Restricted API:
-
-```nct
-pub(/) noalloc primitive func from_addr<T>(address: usize): *T
-```
-
-`from_addr` is package-visible within the implicit toolchain `std` package. User packages cannot
-import it. Its registered primitive authority comes from the exact toolchain package identity, not
-from `pub(/)`.
-
-Rules:
-
-- `addr` converts a raw pointer to a `usize` address.
-- Pointer-to-integer conversion uses `std/ptr`'s `addr`, not `as usize`.
-- `from_ref` creates a raw pointer from a readonly borrow.
-- `from_ref_mut` creates a raw pointer from a readwrite borrow.
-- For a zero-sized pointee, `from_ref` and `from_ref_mut` return a non-null address satisfying the
-  pointee alignment. No other address-identity guarantee is made. Conversions of distinct logical
-  places or fixed-array elements may produce the same numeric address.
-- Equal numeric addresses do not prove that zero-sized source places are the same place. Unequal
-  numeric addresses are not promised for distinct zero-sized places, and address identity must not
-  be used as value identity for a zero-sized type.
-- `from_addr` creates a raw pointer from a `usize` address.
-- `from_addr<T>(...)` is invalid when the address is statically known to be
-  zero; use `none` for a `*T?` null-like absence.
-- A raw pointer created from a borrow may outlive the borrow as a value, but using it as if it were valid is not guaranteed by the compiler.
-- Because dereference is unavailable, general user code can carry and pass raw pointers but cannot read or write through them.
+Pointer and address conversion APIs live in the compiler-checked
+[`std/ptr` contract](../../development/std/ptr/index.nct). Their observable conversion and
+zero-sized-address behavior belongs to the [Pointer and Address Conversion](../../development/std/ptr/README.md)
+guide. Pointer-to-integer conversion is an ordinary library call, not `as` syntax. Package-internal
+address-to-pointer and raw-view construction remain inaccessible to user packages.
 
 Example:
 
@@ -99,61 +67,20 @@ func address_of(value: &u8): usize {
 
 ### View Pointer APIs
 
-`&[T]`, `&+[T]`, and `&str` expose pointer and length methods.
-
-```nct
-instance [T] {
-    pub noalloc method &self.ptr(): *T
-    pub noalloc method &self.len(): usize
-    pub noalloc method &self.is_empty(): bool
-}
-
-instance str {
-    pub noalloc method &self.ptr(): *u8
-    pub noalloc method &self.len(): usize
-    pub noalloc method &self.is_empty(): bool
-}
-```
-
-The active Nocter home declares these methods in `std/slice` and `std/str`. The compiler built-in
-types own the method identities, while the declarations and ordinary method bodies remain
-standard-library source. A readwrite slice may call the readonly `[T]` methods by capability
-weakening. `ptr()` returns a raw pointer and does not grant dereference permission.
-
-Trusted standard-library implementation example:
-
-```nct
-use std/ptr
-use std/internal/os/darwin
-
-let bytes = text.bytes()
-let result = darwin.syscall3(
-    SYS_write,
-    fd as usize,
-    ptr.addr(bytes.ptr()),
-    bytes.len(),
-)
-```
-
-User project modules must not call syscall primitives directly.
+The active Nocter home declares observation methods for `&[T]`, `&+[T]`, and `&str` in the
+compiler-checked [`std/slice`](../../development/std/slice/index.nct) and
+[`std/str`](../../development/std/str/index.nct) contracts. The compiler built-in types own the
+method identities, while declarations and ordinary bodies remain standard-library source. A
+readwrite slice may call readonly `[T]` methods by capability weakening. Observing a pointer grants
+no dereference permission.
 
 ### Pointer Intrinsics
 
-The public `std/ptr` functions above are target-independent core primitive declarations. Raw
-memory projection belongs to the package-internal `std/internal/ptr` contract. Both are separate
-from target-gated OS primitives such as `std/internal/os/darwin.syscall0` under
-`#target: "arm64-darwin"`.
-
-The compiler validates them by module path, name, and exact signature:
-
-```text
-std/ptr.addr
-std/ptr.from_ref
-std/ptr.from_ref_mut
-std/internal/ptr.from_addr
-```
-
-These core pointer primitives exist because address conversion and borrow-to-pointer conversion cannot be implemented in ordinary Nocter code. They do not make `print`, `exit`, `abort`, allocation, strings, buffers, or file APIs compiler primitives.
+The `std/ptr` declarations are target-independent core primitives. Raw memory projection belongs to
+the package-internal `std/internal/ptr` contract and target-gated operating-system operations belong
+to `std/internal/os`. The compiler validates every primitive against the closed registry described
+in [Standard-Library Primitive and OS Boundary](../platform/primitives-and-os.md); none of these
+roles makes higher-level output, process, allocation, string, buffer, or file APIs intrinsic.
 
 ## Arrays and Views
 
@@ -245,7 +172,6 @@ Borrow-like values:
 - `&str`
 - `&[T]`
 - `&+[T]`
-- `ViewIter<T>`
 - aggregates containing any borrow-like value
 
 Provenance is compile-time information. It is not stored in the runtime value, does not affect ABI, and does not change the `ptr + len` layout of views.
@@ -322,41 +248,19 @@ let count = read.len()
 
 Collection operations are ordinary standard-library methods.
 
-Representative collection operations:
-
-- `[T].len(): usize`, `[T].is_empty(): bool`, and `[T].ptr(): *T`
-- `[T].get(index: usize): &T?`, `[T].get_mut(index: usize): &+T?`, and `[T].first(): &T?`
-- `[T].sort(): void` on a readwrite slice when `where (&T < &T): bool` holds
-- `&Vec<T> as &[T]` for readonly contiguous storage
-- `&+Vec<T> as &+[T]` for readwrite contiguous storage
-- readonly, readwrite, and owned iteration through expansion operators and `Iterator.next()`
-
 The compiler owns the layout and provenance rules for fixed-size arrays, `[T]`, `&[T]`, and
-`&+[T]`. The active Nocter home exclusively owns `instance` declarations for built-in `[T]`.
-`Vec<T>`, `ViewIter<T>`, `get`, `len`, `ptr`, `iter`, and `next` remain declaration-resolved API
-surface; the compiler does not infer their public behavior from member spelling.
+`&+[T]`. The active Nocter home exclusively owns `instance` declarations for built-in `[T]`; their
+exact API and behavior belong to the [slice contract](../../development/std/slice/index.nct) and
+[guide](../../development/std/slice/README.md). Owning collection and iterator names remain
+declaration-resolved API surface; the compiler does not infer behavior from member spelling.
 
 ### Iteration
 
-Readonly, readwrite, and owned iteration use ordinary standard-library iterator types:
-
-```nct
-pub struct ViewIter<T> {
-    ...
-}
-
-instance ViewIter<T> {
-    pub method &+self.next(): &T?
-}
-```
-
-`ViewIter.from_view(values)` returns an iterator over readonly borrows into the viewed storage.
-`Vec<T>` declares readonly, readwrite, and owned expansion operators. Named methods such as
-`Vec<T>.iter()` remain available for direct iterator construction but are not compiler selection
-hooks. `String.bytes_iter()` reaches the source-declared `str.bytes_iter()` method through receiver
-coercion. `ViewIter<T>.next()`
-advances the iterator and returns an optional readonly borrow. The result type is written as `&T?`
-to mean "optional borrow"; it is not a borrow of an optional value.
+Readonly, readwrite, and owned iteration use ordinary standard-library iterator declarations. Their
+exact source, yielded types, provenance, exhaustion, and destruction behavior belongs to the
+compiler-checked [iteration contract](../../development/std/iter/index.nct) and its
+[behavior guide](../../development/std/iter/README.md). Expansion declarations, rather than an
+iterator type or method spelling, connect a source type to `for`.
 
 ```nct
 for i in 0..<bytes.len() {
@@ -365,22 +269,9 @@ for i in 0..<bytes.len() {
 }
 ```
 
-Rules:
-
-- `ViewIter<T>` is a standard-library type, not a compiler built-in.
-- `ViewIter<T>` carries the same hidden provenance as the source `&[T]`.
-- The `&T` returned from `next()` carries the same provenance and readonly permission as the source `&[T]`.
-- The iterator must be stored in a `var` binding to call `next()` repeatedly because `next()` requires a `&+Self` receiver.
-- `MutableViewIter<T>` retains an exclusive mutable view and yields one `&+T` at a time.
-- `VecIntoIter<T>` owns a consumed `Vec<T>` and returns `T?` in source order.
-- Dropping `VecIntoIter<T>` drops unconsumed elements in reverse order and releases its storage once.
-- `Vec<T>.insert` and `remove` preserve dense source order for move-only values. Their implementation
-  may use one transient uninitialized slot, but no fallible call or externally observable edge may
-  cross that state.
-- `Vec<T>.try_insert` performs bounds validation and capacity growth before shifting. Failed growth
-  leaves pointer, length, capacity, content, and storage origin unchanged.
-- Collection `for` loops dispatch through [Expansion Operators](literals-and-packs.md#expansion-operators) and the
-  `Iterator` interface; iterator and method names are not compiler-recognized substitutes.
+Collection `for` loops dispatch through
+[Expansion Operators](literals-and-packs.md#expansion-operators). Iterator and method names are not
+compiler-recognized substitutes.
 
 ## Strings
 
@@ -423,8 +314,8 @@ An interpolated string source form such as `"hello ${name}"` is not a string lit
 
 - It owns valid UTF-8 bytes.
 - It is move-only.
-- It is implemented in the standard library on top of `RawBuffer`.
-- It releases its buffer when dropped.
+- It is an ordinary standard-library type rather than a compiler built-in.
+- It releases its owned storage when dropped.
 - It can produce a `&str`.
 
 ```nct
@@ -455,14 +346,10 @@ one-step method-receiver lookup. It does not change literal types or insert a so
 method receiver preparation. See
 [Borrow Coercions](borrow-coercions.md).
 
-Borrowed observation has one public surface. `String` reaches text observation, search,
-projection, and iteration through its readonly coercion to `str`; `Vec<T>` reaches slice
-observation through its readonly or readwrite coercion to `[T]`. The raw `view`, `view_mut`,
-owning-type `len`, `is_empty`, and element-projection helpers in the implementation modules are
-private. Explicit `iter`, `iter_mut`, and `into_iter` methods remain because expansion syntax is not
-a general expression. Callers use methods such as `text.len()` and `values.get(index)`, expected-type
-coercion, or an explicit expression such as `(&text) as &str`. The standard library does not keep
-public forwarding functions for these borrowed operations.
+Borrowed observation, forwarding policy, and explicit iterator construction belong to the standard
+text and collection contracts linked above. At the language level, callers use ordinary method
+lookup, expected-type coercion, or an explicit expression such as `(&text) as &str`; the compiler
+does not synthesize forwarding members on owning types.
 
 Unicode scalar construction, observation, and iteration belong to
 [Unicode Scalar Values](unicode-scalars.md). Unicode properties, Unicode whitespace trimming,
@@ -545,33 +432,21 @@ Rules:
 Formatting rules:
 
 Interpolation requires implementation of the exact `std/fmt.Format` interface selected from the
-active Nocter home:
+active Nocter home. Its exact declaration and standard implementations belong to the
+compiler-checked [`std/fmt` contract](../../development/std/fmt/index.nct); destination mutation,
+failure, and formatting behavior belongs to the [Formatting](../../development/std/fmt/README.md)
+guide.
 
-```nct
-pub interface Format {
-    pub method &self.try_format_into(output: &+String): void!
-    pub default method &self.format_into(output: &+String): void
-}
-```
-
-- `std` provides `Format` implementations for `str`, `String`, `bool`, and every built-in integer.
-- A conformance implements `try_format_into` once. `str` appends its bytes, `String` appends its
-  current string view, and scalar implementations use their canonical source spelling without
-  extra whitespace.
-- `try_format_into` reports recoverable destination growth failure and may leave the prefix appended
-  by earlier successful operations. A conforming implementation does not use this channel for a
-  second domain-specific failure policy.
-- The standard default `format_into` calls `try_format_into` and converts failure into the ordinary
-  allocation abort used by interpolation. It is not a second formatting algorithm.
 - A project-owned struct or enum becomes interpolatable only through an explicit implementation of
-  the exact standard interface.
+  that exact standard interface.
 - Formatting borrows the value. An existing value remains usable after interpolation, and a
-  temporary remains live through `format_into` before it is destroyed exactly once.
-- Generic code may interpolate `T` or invoke recoverable formatting when its active requirements
-  include `T impl Format`.
-- A project interface named `Format` does not grant interpolation behavior.
-- Optional, fallible, array, pointer, callable, and opaque values are rejected unless they can
-  acquire a legal explicit implementation under the normal interface-implementation rules.
+  temporary remains live through the selected formatting operation before it is destroyed exactly
+  once.
+- Generic code may interpolate `T` when its active requirements include `T impl Format` for the
+  exact selected declaration.
+- A project interface with the same name does not grant interpolation behavior.
+- Optional, fallible, array, pointer, callable, and opaque values are rejected unless they acquire a
+  legal explicit implementation under the normal interface-implementation rules.
 - Missing or ambiguous implementation is a type error at the `${...}` expression.
 
 Allocator and lowering rules:

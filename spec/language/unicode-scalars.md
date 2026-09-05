@@ -6,11 +6,8 @@ extended grapheme cluster, a displayed glyph, or a locale-sensitive character.
 
 ## Type and Representation
 
-`char` is a compiler built-in copy type declared by the standard package:
-
-```nct
-pub primitive type char
-```
+`char` is a compiler built-in copy type whose exact source declaration belongs to the
+compiler-checked [`std/char` contract](../../development/std/char/index.nct).
 
 Every runtime `char` value is a valid Unicode scalar. Its stored representation is the scalar's
 unsigned value with size 4 and alignment 4. It remains a distinct type from `u32`; arithmetic and

@@ -2,10 +2,12 @@
 
 ## Authority
 
-`spec/` is the sole source for public behavior. Development documents describe implementation
-boundaries and work order without restating language rules. Historical compiler source, superseded
-implementation documents, tests, binaries, and observed behavior are not inputs for current
-language or compiler decisions.
+`spec/` is the sole source for public language, platform, CLI, diagnostic, and editor behavior.
+Standard-library declarations and declaration documentation belong to module `index.nct` files;
+their colocated READMEs own longer observable module behavior without repeating signatures.
+Development design documents describe implementation boundaries and work order without restating
+either public authority. Historical compiler source, superseded implementation documents, tests,
+binaries, and observed behavior are not inputs for current language or compiler decisions.
 
 ## Resolving Specification Gaps
 

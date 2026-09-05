@@ -154,14 +154,14 @@ or an ordinary module function when an alias-specific factory is needed.
 The earlier top-level forms place construction behavior outside its owner and have been removed:
 
 ```nct
-literal Vec<T> [](...items: T): Self { ... }
-pub func Vec.new<T>(): Vec<T> { ... }
-construct Vec<T> { default func new(): Self { ... } }
+literal Buffer<T> [](...items: T): Self { ... }
+pub func Buffer.new<T>(): Buffer<T> { ... }
+construct Buffer<T> { default func new(): Self { ... } }
 ```
 
 The compiler diagnoses a top-level literal directly. Every qualified top-level function is also
 invalid. When its result, present payload, or success payload is the named owner, the diagnostic
-directs it into `construct Vec<T> { ... }`; otherwise it directs the declaration to an unqualified
+directs it into `construct Buffer<T> { ... }`; otherwise it directs the declaration to an unqualified
 module function or a receiver method. A `default` modifier is not part of construct-member syntax;
 construct declarations expose all visible members without selecting a primary entry. Factories for
 aliases of builtin representations are module functions because aliases cannot own construction

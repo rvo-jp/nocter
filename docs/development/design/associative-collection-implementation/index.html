@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Associative Collection Implementation Boundary - Nocter</title>
-    <meta name="description" content="This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec">
+    <meta name="description" content="This document owns the current cross-responsibility implementation boundary for associative collections. Public behavior belongs only to Associative Collec">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/design/associative-collection-implementation/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="Associative Collection Implementation Boundary - Nocter">
-    <meta property="og:description" content="This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec">
+    <meta property="og:description" content="This document owns the current cross-responsibility implementation boundary for associative collections. Public behavior belongs only to Associative Collec">
     <meta property="og:url" content="https://nocter.dev/development/design/associative-collection-implementation/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Associative Collection Implementation Boundary - Nocter">
-    <meta name="twitter:description" content="This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec">
+    <meta name="twitter:description" content="This document owns the current cross-responsibility implementation boundary for associative collections. Public behavior belongs only to Associative Collec">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Associative Collection Implementation Boundary - Nocter","description":"This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to Associative Collec","url":"https://nocter.dev/development/design/associative-collection-implementation/","mainEntityOfPage":"https://nocter.dev/development/design/associative-collection-implementation/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Design","item":"https://nocter.dev/development/design/"},{"@type":"ListItem","position":4,"name":"Associative Collection Implementation","item":"https://nocter.dev/development/design/associative-collection-implementation/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Associative Collection Implementation Boundary - Nocter","description":"This document owns the current cross-responsibility implementation boundary for associative collections. Public behavior belongs only to Associative Collec","url":"https://nocter.dev/development/design/associative-collection-implementation/","mainEntityOfPage":"https://nocter.dev/development/design/associative-collection-implementation/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Design","item":"https://nocter.dev/development/design/"},{"@type":"ListItem","position":4,"name":"Associative Collection Implementation","item":"https://nocter.dev/development/design/associative-collection-implementation/"}]}]</script>
 
     <link rel="stylesheet" href="../../../style.css">
 </head>
@@ -200,7 +200,7 @@
                 <span class="markdown-path-text">/development/design/associative-collection-implementation.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="associative-collection-implementation-boundary">Associative Collection Implementation Boundary</h1><h2 id="purpose">Purpose</h2><p>This document owns the cross-responsibility implementation boundary for v0.21.0 associative collections. Public behavior belongs only to <a href="../../../std/map/index.html#content">Associative Collections</a>. Phase scope and completion belong to the <a href="https://github.com/rvo-jp/nocter/blob/main/development/history/milestones/v0.21.0.md">v0.21.0 milestone</a>.</p><h2 id="responsibility-split">Responsibility Split</h2><pre><code class="language-text">keyed-pack syntax
+                <h1 id="associative-collection-implementation-boundary">Associative Collection Implementation Boundary</h1><h2 id="purpose">Purpose</h2><p>This document owns the current cross-responsibility implementation boundary for associative collections. Public behavior belongs only to <a href="../../../std/map/index.html#content">Associative Collections</a>. Delivery scope and completion evidence remain in the historical <a href="https://github.com/rvo-jp/nocter/blob/main/development/history/milestones/v0.21.0.md">v0.21.0 milestone</a>.</p><h2 id="responsibility-split">Responsibility Split</h2><pre><code class="language-text">keyed-pack syntax
     -&gt; checked keyed-entry stream
         -&gt; TargetProgram pack ABI decision
             -&gt; MIR and Machine transport

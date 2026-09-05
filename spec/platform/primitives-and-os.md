@@ -7,8 +7,9 @@ operations. User-facing library behavior is divided by responsibility:
   storage provenance;
 - [Strings, Arrays, Views, and Pointers](../language/sequences-and-text.md) defines core memory
   views and owned text/collection behavior;
-- [Callable Values and Interface Default Methods](../language/callables.md) defines iterator contracts;
-- [Native Testing](../tooling/testing.md) defines native tests and assertions;
+- [Callable Values and Interface Default Methods](../language/callables.md) defines callable and
+  interface-default semantics;
+- [Native Testing](../tooling/testing.md) defines test declarations and execution;
 - [Standard Library](../../development/std/README.md) defines text, collection, path,
   file, numeric, and process APIs.
 
@@ -46,12 +47,12 @@ modifier.
 
 Every named built-in type has one `primitive type` declaration selected by exact source identity.
 That declaration's module owns ordinary source-defined instances and construction for the type:
-`str` is declared and owned by `std/str`, `error` by `std/error`, and boolean and integer types by
-`std/num`. `void` and `never` are declared in `std/core` but admit no inherent surface. Structural
-slices remain owned by the exact compiler-selected `std/slice` module because `[T]` is a type
-constructor rather than a named declaration. Interface implementations are owned by the selected
-standard-library package because an interface and the built-in's inherent surface may have
-separate module responsibilities. A project package cannot declare or directly extend a
+`char` is declared and owned by `std/char`, `str` by `std/str`, `error` by `std/error`, and boolean
+and integer types by `std/num`. `void` and `never` are declared in `std/core` but admit no inherent
+surface. Structural slices remain owned by the exact compiler-selected `std/slice` module because
+`[T]` is a type constructor rather than a named declaration. Interface implementations are owned
+by the selected standard-library package because an interface and the built-in's inherent surface
+may have separate module responsibilities. A project package cannot declare or directly extend a
 compiler-owned type. Authority is based on exact selected declarations and module identities, not
 an arbitrary textual `std` prefix.
 
@@ -60,11 +61,7 @@ an arbitrary textual `std` prefix.
 `primitive type` declares the source surface of one compiler-defined named type:
 
 ```nct
-// std/num/index.nct
-pub primitive type i32
-
-// std/str/index.nct
-pub primitive type str
+pub primitive type BuiltinName
 ```
 
 Rules:
@@ -89,77 +86,15 @@ Rules:
 
 ## Error Boundary
 
-The compiler-level failure payload is lowercase `error`. `std/error` owns its source-backed
-construction surface:
+The compiler-level failure payload is lowercase `error`. The exact type and member declarations
+belong to the compiler-checked [`std/error` contract](../../development/std/error/index.nct), while
+its storage, code, and context behavior belongs to [Recoverable Errors](../../development/std/error/README.md).
+The language-level `T!` meaning and propagation rules remain in
+[Errors and Optionals](../language/errors-and-optionals.md).
 
-```nct
-construct error {
-    pub noalloc func new(code: &str, message: &str): Self {
-        return new_error(code, message)
-    }
-}
-
-instance error {
-    pub noalloc method self.context(message: &str): Self
-    pub noalloc method &self.code(): &str from self
-    pub noalloc method &self.message(): &str from self
-    pub noalloc method &self.has_code(code: &str): bool
-}
-```
-
-The standard library defines no `Error` or `ErrorCode` compatibility alias. Error codes are open
-`&str` values. Construction snapshots its text, context consumes the prior handle, and accessors
-borrow the owned immutable node through their receiver.
-
-Standard-library error codes use stable dotted names such as `"std.io.not_found"`,
-`"std.mem.out_of_memory"`, and `"std.process.invalid_encoding"`. Package and application code may
-define its own prefixes. Public standard-library APIs return `error` through `T!`; target-specific
-raw error records do not cross the public boundary.
-
-The dotted codes are the public contract. Standard-library helper functions that construct those
-errors are private implementation details and are not exported merely to make the code stable.
-
-`std/internal/os` converts target results through an internal common model:
-
-```text
-target result -> target raw error -> OSError -> public error
-```
-
-The current internal records are `pub(/)` declarations, visible throughout the implicit `std`
-package:
-
-```nct
-pub(/) enum Platform {
-    macos
-    linux
-    windows
-}
-
-pub(/) enum OSErrorKind {
-    interrupted
-    would_block
-    not_found
-    not_directory
-    permission_denied
-    already_exists
-    directory_not_empty
-    invalid_input
-    broken_pipe
-    timed_out
-    unsupported
-    unknown
-}
-
-pub(/) copy struct OSError {
-    pub platform: Platform
-    pub code: i32
-    pub kind: OSErrorKind
-}
-```
-
-Target-specific values preserve their raw numeric code, while `OSErrorKind` provides the portable
-classification used by higher-level wrappers. Unknown target errors map to `unknown` rather than
-being misclassified.
+Public standard-library APIs expose target failures only through `error`. Target-specific raw
+records and conversion helpers do not cross the public boundary and are not part of this public
+specification.
 
 ## Primitive Function Declarations
 
@@ -169,10 +104,7 @@ Nocter body. It may be private when only its authored implementation source need
 operation:
 
 ```nct
-primitive func new_error(
-    code: &str,
-    message: &str,
-): error
+primitive func platform_operation(input: usize): usize
 ```
 
 After visibility checks, calls are type checked and use the Nocter ABI like ordinary calls. The
@@ -214,20 +146,12 @@ primitives.
 
 ## Pointer Boundary
 
-Three target-independent pointer primitives are intentionally public:
-
-```nct
-pub noalloc primitive func addr<T>(pointer: *T): usize
-pub noalloc primitive func from_ref<T>(value: &T): *T
-pub noalloc primitive func from_ref_mut<T>(value: &+T): *T
-```
-
-They convert an existing pointer or borrow without granting dereference permission. Operations
-that construct pointers or views from integer addresses and raw parts are `pub(/)` so only the
-implicit `std` package can call them. Their primitive authority is independently tied to that
-package's toolchain identity because their validity depends on invariants unavailable to general
-source code. The complete user-facing pointer contract is in
-[Strings, Arrays, Views, and Pointers](../language/sequences-and-text.md).
+The compiler-checked [`std/ptr` contract](../../development/std/ptr/index.nct) owns the exact public
+pointer primitive declarations. Their observable behavior belongs to
+[Pointer and Address Conversion](../../development/std/ptr/README.md), while raw-pointer language
+semantics belong to [Strings, Arrays, Views, and Pointers](../language/sequences-and-text.md).
+Package-internal raw-view construction retains separate trusted authority and is not made public by
+the existence of the conversion API.
 
 ## Target-Gated Standard-Library Declarations
 
@@ -236,7 +160,7 @@ Target-dependent functions, primitives, aliases, structs, enums, and interfaces 
 
 ```nct
 #target: "arm64-darwin"
-primitive func exit_raw(code: i32): never
+primitive func target_operation(): void
 ```
 
 Rules:
@@ -286,47 +210,15 @@ separate capability and distribution design rather than overloading visibility.
 
 ## Process and I/O Boundaries
 
-Target primitives expose only the minimum facts needed by ordinary wrappers: process entry state,
-process termination, and generic syscall results. File-descriptor operations are ordinary
-`std/io` functions over that syscall result boundary, not parallel compiler primitives.
-`std/process`, `std/io`, and `std/fs` own public validation policy, ownership, retry policy,
-partial-transfer handling, operation semantics, and public types. Package-internal helpers may
-share a target path argument representation and I/O error mapping. `std/internal/os` remains the
-dependency-free owner of syscall, errno-classification, and native-layout facts; it does not own
-public operation policy.
-
-Consequences:
-
-- entry parameters are accessed through `std/process`, not special `main` parameters;
-- file handles are owned by `File`, not by compiler-known integers;
-- standard input, output, and error are non-owning `File` wrappers whose local close never closes
-  the process-global descriptor;
-- allocation failure follows allocator policy, while I/O, path, encoding, and OS failures remain
-  recoverable `T!` results;
-- `exit` and `abort` are standard-library functions returning `never`;
-- destruction cannot return an I/O error, so operations such as buffered flush that must report
-  failure require an explicit call before drop.
+Target primitives expose only the minimum facts needed by ordinary wrappers. The public
+[`std/io`](../../development/std/io/README.md), [`std/fs`](../../development/std/fs/README.md), and
+[`std/process`](../../development/std/process/README.md) guides own validation, handle ownership,
+retry, partial-transfer, operation, and failure behavior. Their package-internal target translation
+is an implementation contract rather than a second public API.
 
 The compiler-generated entry wrapper may use the registered process boundary directly, but this
-does not make similarly named user functions special.
-
-The Darwin syscall boundary normally returns `SyscallResult { value, errno }`. The two
-zero-argument Darwin operations used by subprocess creation, `fork` and `pipe`, instead have two
-successful result words. One package-visible primitive preserves that exceptional ABI shape as
-`SyscallPairResult { first, second, errno }`; ordinary syscalls do not gain an unused second word.
-On failure, both value words are zero and `errno` owns the target error. On success, `errno` is
-zero and both target result words are preserved in order.
-
-Neither record is a public process API. `std/internal/os/darwin` alone owns carry-flag and register
-translation. Target-specific `std/process` source converts those records into typed fork, launch
-channel, exec-report, and terminal-wait transitions. Higher process policy therefore cannot
-reinterpret a register position, errno convention, descriptor ordering, close-on-exec flag, or
-wait-status bit pattern.
-
-The compiler retains the inherited environment-vector address in immutable process-entry context
-and exposes it through one source-private process primitive. That primitive returns only the
-opaque target address. It does not decode entries, create public environment views, or decide
-subprocess inheritance policy.
+does not make similarly named user functions special or move public process policy into the
+compiler.
 
 ## Keyword Ownership
 

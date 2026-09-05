@@ -9,7 +9,7 @@ cast, or a general conversion graph.
 A coercion is declared as a member of an `instance` block for its nominal source type:
 
 ```nct
-instance String {
+instance TextBuffer {
     pub noalloc coerce &self as &str {
         return view(self)
     }
@@ -36,7 +36,7 @@ readonly or readwrite target, subject to the declared body and provenance contra
 Generic source parameters follow the source type's declaration order:
 
 ```nct
-instance Vec<T> {
+instance Buffer<T> {
     pub noalloc coerce &self as &[T] {
         return view(self)
     }
@@ -214,29 +214,21 @@ so it cannot outlive the value borrowed by the caller.
 
 ## Standard Library Surface
 
-The current standard library provides these public entries:
-
-```nct
-instance String {
-    pub noalloc coerce &self as &str { ... }
-}
-
-instance Vec<T> {
-    pub noalloc coerce &self as &[T] { ... }
-    pub noalloc coerce &+self as &+[T] { ... }
-}
-```
-
-`String` intentionally does not expose a readwrite byte view because arbitrary byte mutation could
-break its UTF-8 invariant. `String` and `Vec<T>` expose explicit views through `as`; their borrowed
-observation methods are owned once by `str` and `[T]` rather than duplicated on the owning types.
+The exact standard coercions belong to the compiler-checked
+[`String`](../../development/std/string/index.nct) and
+[`Vec`](../../development/std/vec/index.nct) contracts. Their longer safety and ownership behavior
+belongs to the corresponding [owned-string](../../development/std/string/README.md) and
+[vector](../../development/std/vec/README.md) guides. Those declarations use the same selection,
+execution, and lifetime rules as project-defined coercions; the compiler does not recognize their
+type names as coercion syntax.
 
 ## Editor Contract
 
 Editor tooling presents a normalized coercion entry on the declaration's exact `as` token. The
 implicit `self` name is a readonly or readwrite parameter according to its receiver. Hovering a
-nominal type lists its accessible coercion surface alongside its construction surface. Presentation
-preserves whether `from self` was actually written and never synthesizes the elided clause.
+coercion declaration presents that selected entry; nominal type hover remains the nominal
+declaration and does not append construction or coercion catalogs. Presentation preserves whether
+`from self` was actually written and never synthesizes the elided clause.
 
 On an explicit expression, hover covers only the exact `as` token and describes the selected
 conversion kind and concrete source and target. Definition on that token navigates to the selected

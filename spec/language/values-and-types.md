@@ -331,6 +331,7 @@ bool
 i8 i16 i32 i64
 u8 u16 u32 u64
 usize isize
+char
 str
 error
 void
@@ -343,10 +344,10 @@ name, documentation, navigation target, and inherent-surface ownership; the comp
 semantic identity and representation. Named built-in types are available in every source type
 context without an import and cannot be shadowed or redeclared by ordinary source.
 
-The active standard package declares integer and boolean types in `std/num`, `str` in `std/str`,
-`error` in `std/error`, and the completion types `void` and `never` in `std/core`. These declarations
-do not make a built-in nominal or structural type: they have no fields, variants, body, generic
-parameters, source construction form, or source-defined layout.
+The active standard package declares integer and boolean types in `std/num`, `char` in `std/char`,
+`str` in `std/str`, `error` in `std/error`, and the completion types `void` and `never` in `std/core`.
+These declarations do not make a built-in nominal or structural type: they have no fields,
+variants, body, generic parameters, source construction form, or source-defined layout.
 
 Structural and contextual type syntax:
 
@@ -541,7 +542,8 @@ stored aggregate fields.
 
 `str` is unsized UTF-8 string data. `[T]` is unsized contiguous array data. These unsized data forms cannot be used by value as parameters, return values, fields, local annotations, optional payloads, fallible success payloads, or generic arguments unless they are behind an indirection. Use `&str` for a string slice, `&[T]` for a readonly array slice, `&+[T]` for a readwrite array slice, `String` for owned variable-length text, and `Vec<T>` for owned variable-length arrays.
 
-Names such as `String`, `Vec`, `ViewIter`, `Allocator`, `File`, `OSError`, `print`, `args`, `env`, `cwd`, `exit`, and `abort` are not compiler built-ins.
+Nominal types, interfaces, functions, constants, and statics supplied by the standard library are
+ordinary resolved declarations, not compiler built-ins.
 
 The compiler does not treat `Int` specially, and the standard-library prelude does not export it. User code should write `i32` or define a project-local alias when a domain-specific name is useful.
 
@@ -788,8 +790,8 @@ Comparison rules:
 - Equality may apply one readonly borrow coercion to each operand. An exact left declaration wins
   before coerced candidates; multiple remaining coercion candidates are ambiguous.
 - Owned operands are implicitly borrowed for the selected readonly equality call and remain usable.
-- `str` owns source-defined equality. The standard `String` coercion therefore supports all four
-  `str`/`String` readonly combinations without duplicating the comparison algorithm.
+- Standard text and collection equality declarations and their coercion behavior belong to the
+  relevant [standard-library contracts](../../development/std/README.md).
 - Struct equality is not automatically generated.
 - Payload-carrying enum equality is not supported. Use `match` or `if expr is Pattern`.
 - `<`, `<=`, `>`, and `>=` are ordering comparisons.

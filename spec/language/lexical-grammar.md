@@ -133,7 +133,7 @@ void
 while
 ```
 
-Named built-in type spellings such as `bool`, integer types, `usize`, `isize`, `str`, `error`,
+Named built-in type spellings such as `bool`, integer types, `usize`, `isize`, `char`, `str`, `error`,
 `void`, and `never` are reserved declaration and type-binder names. Their exact
 compiler-selected `primitive type` declarations supply the semantic identity and source target;
 they are not imported names. `void` and `never` remain keywords, while the other spellings are

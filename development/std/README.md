@@ -24,8 +24,11 @@ below cover modules whose observable behavior needs more explanation than declar
 - [Filesystem](fs/README.md)
 - [Integer Text](num/README.md)
 - [Allocation and Failure](mem/README.md)
+- [Recoverable Errors](error/README.md)
+- [Pointer and Address Conversion](ptr/README.md)
 - [Associative Collections](map/README.md)
 - [JSON Values and Text](json/README.md)
 - [Monotonic Time](time/README.md)
 - [Synchronous Processes](process/README.md), including output capture and command configuration
 - [Unicode Text and Scalars](char/README.md)
+- [Native Assertions](testing/README.md)
