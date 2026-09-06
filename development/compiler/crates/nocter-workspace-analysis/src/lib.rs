@@ -1100,6 +1100,54 @@ mod tests {
     }
 
     #[test]
+    fn reused_relation_failure_projects_through_the_current_body_generation() {
+        let temporary = TemporaryDirectory::new();
+        let root = temporary.path().join("index.nct");
+        let original = concat!(
+            "#package: { name: \"app\", version: \"0.0.0\", }\n",
+            "func inspect(value: &i32): void { return }\n",
+            "func invalid(): void {\n",
+            "    let ignored = 1\n",
+            "    var value = 1\n",
+            "    let read = &value\n",
+            "    let write = &+value\n",
+            "    inspect(read)\n",
+            "    return\n",
+            "}\n",
+        );
+        let changed = original.replace("let ignored = 1", "let ignored = 100000");
+        fs::write(&root, original).unwrap();
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+
+        let first = analyses
+            .analyze(documents.open(&root, 1, original).unwrap())
+            .unwrap();
+        assert_eq!(
+            first.primary().snapshot().unwrap().status(),
+            AnalysisStatus::CompilationFailed
+        );
+        let relations_before = analyses.program_relation_counts();
+        let DocumentWorkspaceChange::Accepted(revision) =
+            documents.change(&root, 2, &changed).unwrap()
+        else {
+            panic!("newer root text is accepted");
+        };
+        let warm = analyses.analyze(revision).unwrap();
+
+        assert_query_reused(relations_before, analyses.program_relation_counts());
+        let mut fresh_documents = DocumentWorkspace::new();
+        let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let fresh = fresh_analyses
+            .analyze(fresh_documents.open(&root, 1, &changed).unwrap())
+            .unwrap();
+        assert_eq!(
+            analysis_signature(warm.primary()),
+            analysis_signature(fresh.primary())
+        );
+    }
+
+    #[test]
     fn authored_body_rejection_reuses_unchanged_typed_siblings() {
         let temporary = TemporaryDirectory::new();
         let root = temporary.path().join("index.nct");
