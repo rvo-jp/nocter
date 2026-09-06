@@ -142,8 +142,22 @@ pub(crate) fn select_load(
             });
             return Ok(());
         }
+        crate::Arm64ValueStorage::Floating { register, bytes }
+            if u64::from(*bytes) == address_size =>
+        {
+            let size = float_size(*bytes, result)?;
+            let source = addresses.use_address(source, selected)?;
+            selected.push(Arm64SelectedInstruction::FloatLoadMemory {
+                size,
+                destination: crate::Arm64SelectedFloatRegister::Virtual(*register),
+                source,
+            });
+            return Ok(());
+        }
         crate::Arm64ValueStorage::Direct(_) => {}
-        crate::Arm64ValueStorage::Omitted | crate::Arm64ValueStorage::Memory { .. } => {
+        crate::Arm64ValueStorage::Omitted
+        | crate::Arm64ValueStorage::Floating { .. }
+        | crate::Arm64ValueStorage::Memory { .. } => {
             return Err(Arm64SelectionError::MemoryShape(result));
         }
     }
@@ -203,8 +217,22 @@ pub(crate) fn select_store(
             });
             return Ok(());
         }
+        crate::Arm64ValueStorage::Floating { register, bytes }
+            if u64::from(*bytes) == address_size =>
+        {
+            let size = float_size(*bytes, value)?;
+            let destination = addresses.use_address(destination, selected)?;
+            selected.push(Arm64SelectedInstruction::FloatStoreMemory {
+                size,
+                destination,
+                source: crate::Arm64SelectedFloatRegister::Virtual(*register),
+            });
+            return Ok(());
+        }
         crate::Arm64ValueStorage::Direct(_) => {}
-        crate::Arm64ValueStorage::Omitted | crate::Arm64ValueStorage::Memory { .. } => {
+        crate::Arm64ValueStorage::Omitted
+        | crate::Arm64ValueStorage::Floating { .. }
+        | crate::Arm64ValueStorage::Memory { .. } => {
             return Err(Arm64SelectionError::MemoryShape(value));
         }
     }
@@ -219,6 +247,14 @@ pub(crate) fn select_store(
         });
     }
     Ok(())
+}
+
+fn float_size(bytes: u8, value: MachineValueId) -> Result<Arm64DataSize, Arm64SelectionError> {
+    match bytes {
+        4 => Ok(Arm64DataSize::Bits32),
+        8 => Ok(Arm64DataSize::Bits64),
+        _ => Err(Arm64SelectionError::DirectMemoryShape(value)),
+    }
 }
 
 fn direct_load_extension(

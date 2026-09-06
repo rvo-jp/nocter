@@ -308,9 +308,9 @@ fn direct_registers(
         .ok_or(Arm64SelectionError::UnknownValue(value))?
     {
         Arm64ValueStorage::Direct(registers) => Ok(registers),
-        Arm64ValueStorage::Omitted | Arm64ValueStorage::Memory { .. } => {
-            Err(Arm64SelectionError::MemoryValue(value))
-        }
+        Arm64ValueStorage::Omitted
+        | Arm64ValueStorage::Floating { .. }
+        | Arm64ValueStorage::Memory { .. } => Err(Arm64SelectionError::MemoryValue(value)),
     }
 }
 

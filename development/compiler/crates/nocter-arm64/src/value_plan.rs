@@ -1,13 +1,13 @@
 use std::fmt;
 
 use nocter_machine::{
-    MachineBlockId, MachineFunction, MachineOperationId, MachineValueDefinition, MachineValueId,
-    MachineValueRepresentation,
+    MachineBlockId, MachineFunction, MachineOperationId, MachineValueClass, MachineValueDefinition,
+    MachineValueId, MachineValueRepresentation,
 };
 
 use crate::{
     Arm64NocterAbi, Arm64RegisterAllocation, Arm64RegisterAllocationBuilder,
-    Arm64RegisterAllocationError, Arm64VirtualRegister,
+    Arm64RegisterAllocationError, Arm64RegisterClass, Arm64VirtualRegister,
 };
 
 const DIRECT_VALUE_LIMIT: u64 =
@@ -20,6 +20,11 @@ pub enum Arm64ValueStorage {
     Omitted,
     /// One or two word lanes participating in the common register allocator.
     Direct(Box<[Arm64VirtualRegister]>),
+    /// One scalar lane in the independent SIMD/floating-point register bank.
+    Floating {
+        register: Arm64VirtualRegister,
+        bytes: u8,
+    },
     /// A stored value whose bytes remain in a fixed-frame object.
     Memory { size: u64, alignment: u64 },
 }
@@ -29,7 +34,15 @@ impl Arm64ValueStorage {
     pub fn direct_registers(&self) -> Option<&[Arm64VirtualRegister]> {
         match self {
             Self::Direct(registers) => Some(registers),
-            Self::Omitted | Self::Memory { .. } => None,
+            Self::Omitted | Self::Floating { .. } | Self::Memory { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn floating_register(&self) -> Option<(Arm64VirtualRegister, u8)> {
+        match self {
+            Self::Floating { register, bytes } => Some((*register, *bytes)),
+            Self::Omitted | Self::Direct(_) | Self::Memory { .. } => None,
         }
     }
 }
@@ -66,19 +79,53 @@ impl Arm64ValuePlan {
                 MachineValueRepresentation::Completion | MachineValueRepresentation::Diverging => {
                     Arm64ValueStorage::Omitted
                 }
-                MachineValueRepresentation::Stored { size: 0, .. } => Arm64ValueStorage::Omitted,
-                MachineValueRepresentation::Stored { size, alignment: _ }
-                    if size <= DIRECT_VALUE_LIMIT =>
+                MachineValueRepresentation::Stored {
+                    size: 0,
+                    class: MachineValueClass::Zero,
+                    ..
+                } => Arm64ValueStorage::Omitted,
+                MachineValueRepresentation::Stored {
+                    size,
+                    class: MachineValueClass::Direct { words },
+                    ..
+                } if size <= DIRECT_VALUE_LIMIT
+                    && u64::from(words) == size.div_ceil(Arm64NocterAbi::word_size()) =>
                 {
                     let definition = schedule.definition_position(value.definition())?;
-                    let words = size.div_ceil(Arm64NocterAbi::word_size());
                     let registers = (0..words)
-                        .map(|_| register_builder.define(definition))
+                        .map(|_| register_builder.define(definition, Arm64RegisterClass::General))
                         .collect::<Vec<_>>();
                     Arm64ValueStorage::Direct(registers.into_boxed_slice())
                 }
-                MachineValueRepresentation::Stored { size, alignment } => {
-                    Arm64ValueStorage::Memory { size, alignment }
+                MachineValueRepresentation::Stored {
+                    size: 4,
+                    class: MachineValueClass::Float32,
+                    ..
+                } => Arm64ValueStorage::Floating {
+                    register: register_builder.define(
+                        schedule.definition_position(value.definition())?,
+                        Arm64RegisterClass::Floating,
+                    ),
+                    bytes: 4,
+                },
+                MachineValueRepresentation::Stored {
+                    size: 8,
+                    class: MachineValueClass::Float64,
+                    ..
+                } => Arm64ValueStorage::Floating {
+                    register: register_builder.define(
+                        schedule.definition_position(value.definition())?,
+                        Arm64RegisterClass::Floating,
+                    ),
+                    bytes: 8,
+                },
+                MachineValueRepresentation::Stored {
+                    size,
+                    alignment,
+                    class: MachineValueClass::Indirect,
+                } => Arm64ValueStorage::Memory { size, alignment },
+                MachineValueRepresentation::Stored { .. } => {
+                    return Err(Arm64ValuePlanError::InvalidValueClass(value_id));
                 }
             };
             values.push(storage);
@@ -287,13 +334,18 @@ fn direct_registers(
 ) -> Result<&[Arm64VirtualRegister], Arm64ValuePlanError> {
     values
         .get(value.index())
-        .map(|storage| storage.direct_registers().unwrap_or(&[]))
+        .map(|storage| match storage {
+            Arm64ValueStorage::Direct(registers) => registers.as_ref(),
+            Arm64ValueStorage::Omitted | Arm64ValueStorage::Memory { .. } => &[],
+            Arm64ValueStorage::Floating { register, .. } => std::slice::from_ref(register),
+        })
         .ok_or(Arm64ValuePlanError::UnknownValue(value))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64ValuePlanError {
     NonDenseValue(MachineValueId),
+    InvalidValueClass(MachineValueId),
     UnknownValue(MachineValueId),
     UnknownOperation(MachineOperationId),
     UnknownOperationId(usize),
@@ -318,6 +370,7 @@ impl std::error::Error for Arm64ValuePlanError {
         match self {
             Self::RegisterAllocation(error) => Some(error),
             Self::NonDenseValue(_)
+            | Self::InvalidValueClass(_)
             | Self::UnknownValue(_)
             | Self::UnknownOperation(_)
             | Self::UnknownOperationId(_)

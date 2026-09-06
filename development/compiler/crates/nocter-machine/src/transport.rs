@@ -23,7 +23,7 @@ pub enum MachineValueClass {
 impl MachineValueClass {
     /// Classifies one completed stored layout under the selected machine ABI.
     #[must_use]
-    pub fn for_layout(layout: &MachineLayout, target: MachineTarget) -> Self {
+    pub(crate) fn for_layout(layout: &MachineLayout, target: MachineTarget) -> Self {
         if layout.size() == 0 {
             Self::Zero
         } else if layout.kind() == &crate::MachineLayoutKind::Scalar(crate::MachineScalar::Float32)
@@ -448,12 +448,13 @@ pub(crate) fn plan_signature(
             return Err(MachineAbiError::CompletionArgument(ty));
         }
         let layout = require_layout(types, layouts, ty)?;
-        let class = MachineValueClass::for_layout(layout, target);
+        let class = layouts.class(ty).ok_or(MachineAbiError::UnknownType(ty))?;
         let transport_words = match class {
             MachineValueClass::Zero => 0,
             MachineValueClass::Direct { words } => words,
-            MachineValueClass::Float32 | MachineValueClass::Float64 => 1,
-            MachineValueClass::Indirect => 1,
+            MachineValueClass::Float32
+            | MachineValueClass::Float64
+            | MachineValueClass::Indirect => 1,
         };
         let location = if transport_words == 0 {
             None
@@ -526,7 +527,8 @@ pub(crate) fn plan_result(
         Some(RuntimeType::Primitive(RuntimePrimitive::Never)) => Ok(MachineResultAbi::Diverging),
         Some(_) => {
             let target = layouts.target();
-            let class = MachineValueClass::for_layout(require_layout(types, layouts, ty)?, target);
+            let _ = require_layout(types, layouts, ty)?;
+            let class = layouts.class(ty).ok_or(MachineAbiError::UnknownType(ty))?;
             let location = match class {
                 MachineValueClass::Zero => MachineResultLocation::Omitted,
                 MachineValueClass::Direct { words } => {

@@ -24,6 +24,13 @@ pub(crate) fn is_integer(types: &TypeStore, ty: TypeId) -> bool {
     )
 }
 
+pub(crate) fn is_float(types: &TypeStore, ty: TypeId) -> bool {
+    matches!(
+        types.get(ty),
+        Some(TypeKind::Builtin(BuiltinType::F32 | BuiltinType::F64))
+    )
+}
+
 pub(crate) fn field_type(
     environment: &(impl MirValidationEnvironment + ?Sized),
     owner: TypeId,

@@ -99,7 +99,11 @@ pub(crate) fn select_parameters(
         .zip(abi.arguments())
     {
         match (argument.class(), argument.location()) {
-            (MachineValueClass::Zero, None) => {}
+            (MachineValueClass::Zero, None)
+            | (
+                MachineValueClass::Float32 | MachineValueClass::Float64,
+                Some(MachineArgumentLocation::Registers(_)),
+            ) => {}
             (
                 MachineValueClass::Direct { words },
                 Some(MachineArgumentLocation::Registers(registers)),
@@ -107,6 +111,10 @@ pub(crate) fn select_parameters(
             (MachineValueClass::Direct { words }, Some(MachineArgumentLocation::Stack(slot))) => {
                 select_direct_stack_parameter(function, frame, stack, words, slot, &mut selected)?;
             }
+            (
+                class @ (MachineValueClass::Float32 | MachineValueClass::Float64),
+                Some(MachineArgumentLocation::Stack(slot)),
+            ) => select_float_stack_parameter(function, frame, stack, class, slot, &mut selected)?,
             (MachineValueClass::Indirect, Some(location)) => {
                 select_indirect_parameter(function, frame, stack, location, &mut selected)?;
             }
@@ -157,9 +165,26 @@ fn select_register_parameter(
                 source: Arm64SelectedRegister::Fixed(abi_register(registers.first())?),
             });
         }
+        (
+            class @ (MachineValueClass::Float32 | MachineValueClass::Float64),
+            Some(MachineArgumentLocation::Registers(registers)),
+        ) if registers.words() == 1 => {
+            selected.push(Arm64SelectedInstruction::FloatStoreMemory {
+                size: float_class_size(class),
+                destination: Arm64SelectedMemoryAddress::Stack(
+                    crate::memory_selection::frame_stack(frame, stack, 0)?,
+                ),
+                source: crate::Arm64SelectedFloatRegister::Fixed(float_abi_register(
+                    registers.first(),
+                )?),
+            });
+        }
         (MachineValueClass::Zero, None)
         | (
-            MachineValueClass::Direct { .. } | MachineValueClass::Indirect,
+            MachineValueClass::Direct { .. }
+            | MachineValueClass::Float32
+            | MachineValueClass::Float64
+            | MachineValueClass::Indirect,
             Some(MachineArgumentLocation::Stack(_)),
         ) => {}
         _ => return Err(Arm64SelectionError::ParameterTransport(function.linkage())),
@@ -241,6 +266,26 @@ pub(crate) fn select_return(
         (MachineResultAbi::Value(returned), Some(value)) => match returned.location() {
             MachineResultLocation::Omitted => Ok(()),
             MachineResultLocation::Registers(span) => {
+                if matches!(
+                    returned.class(),
+                    MachineValueClass::Float32 | MachineValueClass::Float64
+                ) {
+                    if span.words() != 1 {
+                        return Err(Arm64SelectionError::ReturnTransport(block));
+                    }
+                    let (source, size) = crate::selection::floating_value(values, value)?;
+                    if size != float_class_size(returned.class()) {
+                        return Err(Arm64SelectionError::ReturnTransport(block));
+                    }
+                    selected.push(Arm64SelectedInstruction::FloatMove {
+                        size,
+                        destination: crate::Arm64SelectedFloatRegister::Fixed(float_abi_register(
+                            span.first(),
+                        )?),
+                        source,
+                    });
+                    return Ok(());
+                }
                 let sources = crate::selection::direct_value(values, value)?;
                 if usize::from(span.words()) != sources.len() {
                     return Err(Arm64SelectionError::ReturnTransport(block));
@@ -332,6 +377,36 @@ fn select_direct_stack_parameter(
     Ok(())
 }
 
+fn select_float_stack_parameter(
+    function: &nocter_machine::MachineFunction,
+    frame: &Arm64FunctionFrame,
+    stack: nocter_machine::MachineStackId,
+    class: MachineValueClass,
+    slot: nocter_machine::MachineStackSlot,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let bytes = float_class_bytes(class);
+    if slot.size() < u64::from(bytes) {
+        return Err(Arm64SelectionError::ParameterTransport(function.linkage()));
+    }
+    let scratch = crate::Arm64SelectedFloatRegister::Fixed(float_scratch(0));
+    selected.push(Arm64SelectedInstruction::FloatLoadMemory {
+        size: float_class_size(class),
+        destination: scratch,
+        source: Arm64SelectedMemoryAddress::Stack(Arm64SelectedStackAddress::Incoming(
+            slot.offset(),
+        )),
+    });
+    selected.push(Arm64SelectedInstruction::FloatStoreMemory {
+        size: float_class_size(class),
+        destination: Arm64SelectedMemoryAddress::Stack(crate::memory_selection::frame_stack(
+            frame, stack, 0,
+        )?),
+        source: scratch,
+    });
+    Ok(())
+}
+
 fn select_indirect_parameter(
     function: &nocter_machine::MachineFunction,
     frame: &Arm64FunctionFrame,
@@ -408,6 +483,40 @@ fn select_call_arguments(
             }
             (MachineValueClass::Direct { words }, Some(MachineArgumentLocation::Stack(slot))) => {
                 select_direct_stack_argument(operation, value, words, slot, values, selected)?;
+            }
+            (
+                class @ (MachineValueClass::Float32 | MachineValueClass::Float64),
+                Some(MachineArgumentLocation::Registers(registers)),
+            ) if registers.words() == 1 => {
+                let (source, size) = crate::selection::floating_value(values, value)?;
+                if size != float_class_size(class) {
+                    return Err(Arm64SelectionError::CallArguments(operation));
+                }
+                selected.push(Arm64SelectedInstruction::FloatMove {
+                    size,
+                    destination: crate::Arm64SelectedFloatRegister::Fixed(float_abi_register(
+                        registers.first(),
+                    )?),
+                    source,
+                });
+            }
+            (
+                class @ (MachineValueClass::Float32 | MachineValueClass::Float64),
+                Some(MachineArgumentLocation::Stack(slot)),
+            ) => {
+                let (source, size) = crate::selection::floating_value(values, value)?;
+                if size != float_class_size(class)
+                    || slot.size() < u64::from(float_class_bytes(class))
+                {
+                    return Err(Arm64SelectionError::CallArguments(operation));
+                }
+                selected.push(Arm64SelectedInstruction::FloatStoreMemory {
+                    size,
+                    destination: Arm64SelectedMemoryAddress::Stack(
+                        Arm64SelectedStackAddress::Outgoing(slot.offset()),
+                    ),
+                    source,
+                });
             }
             (MachineValueClass::Indirect, Some(location)) => {
                 select_indirect_argument(operation, value, location, values, frame, selected)?;
@@ -562,6 +671,26 @@ pub(crate) fn select_call_result(
         (MachineResultAbi::Value(returned), Some(result)) => match returned.location() {
             MachineResultLocation::Omitted | MachineResultLocation::CallerStorage { .. } => Ok(()),
             MachineResultLocation::Registers(span) => {
+                if matches!(
+                    returned.class(),
+                    MachineValueClass::Float32 | MachineValueClass::Float64
+                ) {
+                    if span.words() != 1 {
+                        return Err(Arm64SelectionError::ResultTransport(operation));
+                    }
+                    let (destination, size) = crate::selection::floating_value(values, result)?;
+                    if size != float_class_size(returned.class()) {
+                        return Err(Arm64SelectionError::ResultTransport(operation));
+                    }
+                    selected.push(Arm64SelectedInstruction::FloatMove {
+                        size,
+                        destination,
+                        source: crate::Arm64SelectedFloatRegister::Fixed(float_abi_register(
+                            span.first(),
+                        )?),
+                    });
+                    return Ok(());
+                }
                 let destinations = crate::selection::direct_value(values, result)?;
                 if usize::from(span.words()) != destinations.len() {
                     return Err(Arm64SelectionError::ResultTransport(operation));
@@ -634,7 +763,9 @@ fn select_indirect_return(
                 .memory_value(value)
                 .ok_or(Arm64SelectionError::MemoryValue(value))?,
         ),
-        Arm64ValueStorage::Omitted | Arm64ValueStorage::Direct(_) => {
+        Arm64ValueStorage::Omitted
+        | Arm64ValueStorage::Direct(_)
+        | Arm64ValueStorage::Floating { .. } => {
             return Err(Arm64SelectionError::ReturnTransport(block));
         }
     };
@@ -675,6 +806,31 @@ fn argument_register(first: u8, lane: usize) -> Result<crate::Arm64Register, Arm
 
 fn abi_register(index: u8) -> Result<crate::Arm64Register, Arm64SelectionError> {
     crate::Arm64Register::new(index).ok_or(Arm64SelectionError::RegisterOverflow)
+}
+
+fn float_abi_register(index: u8) -> Result<crate::Arm64FloatRegister, Arm64SelectionError> {
+    Arm64NocterAbi::floating_argument_register(index).ok_or(Arm64SelectionError::RegisterOverflow)
+}
+
+fn float_scratch(index: u8) -> crate::Arm64FloatRegister {
+    Arm64NocterAbi::floating_scratch_register(index)
+        .expect("the ABI reserves two floating materialization registers")
+}
+
+const fn float_class_size(class: MachineValueClass) -> Arm64DataSize {
+    match class {
+        MachineValueClass::Float32 => Arm64DataSize::Bits32,
+        MachineValueClass::Float64 => Arm64DataSize::Bits64,
+        _ => unreachable!(),
+    }
+}
+
+const fn float_class_bytes(class: MachineValueClass) -> u8 {
+    match class {
+        MachineValueClass::Float32 => 4,
+        MachineValueClass::Float64 => 8,
+        _ => unreachable!(),
+    }
 }
 
 fn scratch_boundary() -> crate::Arm64Register {

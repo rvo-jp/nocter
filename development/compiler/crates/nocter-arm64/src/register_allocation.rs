@@ -2,15 +2,34 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::ops::Bound;
 
-use crate::{Arm64NocterAbi, Arm64Register};
+use crate::{Arm64FloatRegister, Arm64NocterAbi, Arm64Register};
+
+/// The physical ARM64 register bank required by one selected value lane.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum Arm64RegisterClass {
+    General,
+    Floating,
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct Arm64VirtualRegister(usize);
+pub struct Arm64VirtualRegister {
+    index: usize,
+    class: Arm64RegisterClass,
+}
 
 impl Arm64VirtualRegister {
+    const fn new(index: usize, class: Arm64RegisterClass) -> Self {
+        Self { index, class }
+    }
+
     #[must_use]
     pub const fn index(self) -> usize {
-        self.0
+        self.index
+    }
+
+    #[must_use]
+    pub const fn class(self) -> Arm64RegisterClass {
+        self.class
     }
 }
 
@@ -26,7 +45,8 @@ impl Arm64SpillSlotId {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64AllocatedLocation {
-    Register(Arm64Register),
+    GeneralRegister(Arm64Register),
+    FloatRegister(Arm64FloatRegister),
     Spill(Arm64SpillSlotId),
 }
 
@@ -41,7 +61,7 @@ pub struct Arm64RegisterAllocation {
 impl Arm64RegisterAllocation {
     #[must_use]
     pub fn location(&self, register: Arm64VirtualRegister) -> Option<Arm64AllocatedLocation> {
-        self.locations.get(register.0).copied()
+        self.locations.get(register.index).copied()
     }
 
     #[must_use]
@@ -59,6 +79,7 @@ impl Arm64RegisterAllocation {
 struct LiveRange {
     start: usize,
     end: usize,
+    class: Arm64RegisterClass,
 }
 
 /// Collects virtual-register definitions, CFG-liveness endpoints, and call positions after
@@ -83,11 +104,12 @@ impl Arm64RegisterAllocationBuilder {
 
     /// Defines one virtual register at the selected-instruction position.
     #[must_use]
-    pub fn define(&mut self, position: usize) -> Arm64VirtualRegister {
-        let register = Arm64VirtualRegister(self.ranges.len());
+    pub fn define(&mut self, position: usize, class: Arm64RegisterClass) -> Arm64VirtualRegister {
+        let register = Arm64VirtualRegister::new(self.ranges.len(), class);
         self.ranges.push(LiveRange {
             start: position,
             end: position,
+            class,
         });
         register
     }
@@ -102,9 +124,14 @@ impl Arm64RegisterAllocationBuilder {
         register: Arm64VirtualRegister,
         position: usize,
     ) -> Result<(), Arm64RegisterAllocationError> {
-        let range = self.ranges.get_mut(register.0).ok_or(
+        let range = self.ranges.get_mut(register.index).ok_or(
             Arm64RegisterAllocationError::UnknownVirtualRegister(register),
         )?;
+        if range.class != register.class {
+            return Err(Arm64RegisterAllocationError::UnknownVirtualRegister(
+                register,
+            ));
+        }
         if position < range.start {
             return Err(Arm64RegisterAllocationError::UseBeforeDefinition {
                 register,
@@ -133,7 +160,11 @@ impl Arm64RegisterAllocationBuilder {
         &mut self,
         register: Arm64VirtualRegister,
     ) -> Result<(), Arm64RegisterAllocationError> {
-        if self.ranges.get(register.0).is_none() {
+        if self
+            .ranges
+            .get(register.index)
+            .is_none_or(|range| range.class != register.class)
+        {
             return Err(Arm64RegisterAllocationError::UnknownVirtualRegister(
                 register,
             ));
@@ -159,7 +190,13 @@ struct Interval {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct ActiveInterval {
     interval: Interval,
-    physical: Arm64Register,
+    physical: Arm64PhysicalRegister,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Arm64PhysicalRegister {
+    General(Arm64Register),
+    Floating(Arm64FloatRegister),
 }
 
 fn allocate(
@@ -171,10 +208,10 @@ fn allocate(
         .into_iter()
         .enumerate()
         .map(|(index, range)| Interval {
-            register: Arm64VirtualRegister(index),
+            register: Arm64VirtualRegister::new(index, range.class),
             start: range.start,
             end: range.end,
-            crosses_call: call_crossing.contains(&Arm64VirtualRegister(index))
+            crosses_call: call_crossing.contains(&Arm64VirtualRegister::new(index, range.class))
                 || calls
                     .range((Bound::Excluded(range.start), Bound::Excluded(range.end)))
                     .next()
@@ -188,8 +225,8 @@ fn allocate(
     let mut spill_count = 0;
     for interval in intervals {
         active.retain(|active| active.interval.end >= interval.start);
-        if let Some(physical) = available_register(&active, interval.crosses_call) {
-            locations[interval.register.0] = Some(Arm64AllocatedLocation::Register(physical));
+        if let Some(physical) = available_register(&active, interval) {
+            locations[interval.register.index] = Some(allocated_location(physical));
             active.push(ActiveInterval { interval, physical });
             continue;
         }
@@ -197,23 +234,22 @@ fn allocate(
         let victim = active
             .iter()
             .enumerate()
-            .filter(|(_, active)| eligible(active.physical, interval.crosses_call))
+            .filter(|(_, active)| eligible(active.physical, interval))
             .max_by_key(|(_, active)| (active.interval.end, active.interval.register));
         if let Some((victim_index, victim)) = victim
             && victim.interval.end > interval.end
         {
             let victim = *victim;
-            locations[victim.interval.register.0] =
+            locations[victim.interval.register.index] =
                 Some(Arm64AllocatedLocation::Spill(Arm64SpillSlotId(spill_count)));
             spill_count += 1;
-            locations[interval.register.0] =
-                Some(Arm64AllocatedLocation::Register(victim.physical));
+            locations[interval.register.index] = Some(allocated_location(victim.physical));
             active[victim_index] = ActiveInterval {
                 interval,
                 physical: victim.physical,
             };
         } else {
-            locations[interval.register.0] =
+            locations[interval.register.index] =
                 Some(Arm64AllocatedLocation::Spill(Arm64SpillSlotId(spill_count)));
             spill_count += 1;
         }
@@ -226,12 +262,14 @@ fn allocate(
     let preserved_registers = locations
         .iter()
         .filter_map(|location| match location {
-            Arm64AllocatedLocation::Register(register)
+            Arm64AllocatedLocation::GeneralRegister(register)
                 if Arm64NocterAbi::is_callee_saved(*register) =>
             {
                 Some(*register)
             }
-            Arm64AllocatedLocation::Register(_) | Arm64AllocatedLocation::Spill(_) => None,
+            Arm64AllocatedLocation::GeneralRegister(_)
+            | Arm64AllocatedLocation::FloatRegister(_)
+            | Arm64AllocatedLocation::Spill(_) => None,
         })
         .collect::<BTreeSet<_>>()
         .into_iter()
@@ -243,22 +281,50 @@ fn allocate(
     }
 }
 
-fn available_register(active: &[ActiveInterval], crosses_call: bool) -> Option<Arm64Register> {
-    candidate_registers(crosses_call)
-        .find(|candidate| active.iter().all(|active| active.physical != *candidate))
+fn available_register(
+    active: &[ActiveInterval],
+    interval: Interval,
+) -> Option<Arm64PhysicalRegister> {
+    let is_available = |candidate| active.iter().all(|active| active.physical != candidate);
+    match (interval.register.class(), interval.crosses_call) {
+        (Arm64RegisterClass::General, crosses_call) => (0..31)
+            .filter_map(Arm64Register::new)
+            .filter(|register| {
+                Arm64NocterAbi::is_allocatable(*register)
+                    && (!crosses_call || Arm64NocterAbi::is_callee_saved(*register))
+            })
+            .map(Arm64PhysicalRegister::General)
+            .find(|candidate| is_available(*candidate)),
+        // The current ABI deliberately has no partially preserved SIMD register model. A
+        // floating interval that survives a call therefore receives a spill slot.
+        (Arm64RegisterClass::Floating, true) => None,
+        (Arm64RegisterClass::Floating, false) => (0..32)
+            .filter_map(Arm64FloatRegister::new)
+            .filter(|register| Arm64NocterAbi::is_floating_allocatable(*register))
+            .map(Arm64PhysicalRegister::Floating)
+            .find(|candidate| is_available(*candidate)),
+    }
 }
 
-fn candidate_registers(crosses_call: bool) -> impl Iterator<Item = Arm64Register> {
-    (0..31)
-        .filter_map(Arm64Register::new)
-        .filter(move |register| {
-            Arm64NocterAbi::is_allocatable(*register)
-                && (!crosses_call || Arm64NocterAbi::is_callee_saved(*register))
-        })
+fn eligible(register: Arm64PhysicalRegister, interval: Interval) -> bool {
+    match (register, interval.register.class(), interval.crosses_call) {
+        (Arm64PhysicalRegister::General(register), Arm64RegisterClass::General, crosses_call) => {
+            !crosses_call || Arm64NocterAbi::is_callee_saved(register)
+        }
+        (Arm64PhysicalRegister::Floating(_), Arm64RegisterClass::Floating, false) => true,
+        _ => false,
+    }
 }
 
-fn eligible(register: Arm64Register, crosses_call: bool) -> bool {
-    !crosses_call || Arm64NocterAbi::is_callee_saved(register)
+const fn allocated_location(register: Arm64PhysicalRegister) -> Arm64AllocatedLocation {
+    match register {
+        Arm64PhysicalRegister::General(register) => {
+            Arm64AllocatedLocation::GeneralRegister(register)
+        }
+        Arm64PhysicalRegister::Floating(register) => {
+            Arm64AllocatedLocation::FloatRegister(register)
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

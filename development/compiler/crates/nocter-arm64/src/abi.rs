@@ -1,4 +1,4 @@
-use crate::Arm64Register;
+use crate::{Arm64FloatRegister, Arm64Register};
 
 /// The closed register role assigned by the Nocter ARM64-Darwin ABI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,6 +49,33 @@ impl Arm64NocterAbi {
         } else {
             None
         }
+    }
+
+    /// Scalar floating-point argument and result registers form a bank independent from `x0..x7`.
+    #[must_use]
+    pub const fn floating_argument_register(index: u8) -> Option<Arm64FloatRegister> {
+        if index < Self::SCHEMA.floating_argument_register_count() {
+            Arm64FloatRegister::new(index)
+        } else {
+            None
+        }
+    }
+
+    /// Registers reserved for materializing spilled floating values and exact bit constants.
+    #[must_use]
+    pub const fn floating_scratch_register(index: u8) -> Option<Arm64FloatRegister> {
+        if index < 2 {
+            Arm64FloatRegister::new(30 + index)
+        } else {
+            None
+        }
+    }
+
+    /// Floating virtual values use caller-saved `v16..v29`. `v0..v7` remain ABI boundary lanes,
+    /// `v8..v15` would require partial-width callee preservation, and `v30..v31` are scratch.
+    #[must_use]
+    pub const fn is_floating_allocatable(register: Arm64FloatRegister) -> bool {
+        matches!(register.number(), 16..=29)
     }
 
     #[must_use]

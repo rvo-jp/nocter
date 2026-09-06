@@ -1,6 +1,6 @@
 use crate::{
     Arm64AddSubtractDestination, Arm64BaseRegister, Arm64DataRegister, Arm64EncodingError,
-    Arm64Register,
+    Arm64FloatRegister, Arm64Register,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -43,6 +43,14 @@ pub enum Arm64Shift {
     RightLogical,
     RightArithmetic,
     RotateRight,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64FloatBinary {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -212,6 +220,45 @@ pub enum Arm64Instruction {
         source: Arm64DataRegister,
         base: Arm64BaseRegister,
         offset: u32,
+    },
+    FloatLoad {
+        size: Arm64DataSize,
+        destination: Arm64FloatRegister,
+        base: Arm64BaseRegister,
+        offset: u32,
+    },
+    FloatStore {
+        size: Arm64DataSize,
+        source: Arm64FloatRegister,
+        base: Arm64BaseRegister,
+        offset: u32,
+    },
+    FloatMove {
+        size: Arm64DataSize,
+        destination: Arm64FloatRegister,
+        source: Arm64FloatRegister,
+    },
+    FloatMoveFromGeneral {
+        size: Arm64DataSize,
+        destination: Arm64FloatRegister,
+        source: Arm64Register,
+    },
+    FloatNegate {
+        size: Arm64DataSize,
+        destination: Arm64FloatRegister,
+        source: Arm64FloatRegister,
+    },
+    FloatBinary {
+        size: Arm64DataSize,
+        operation: Arm64FloatBinary,
+        destination: Arm64FloatRegister,
+        left: Arm64FloatRegister,
+        right: Arm64FloatRegister,
+    },
+    FloatCompare {
+        size: Arm64DataSize,
+        left: Arm64FloatRegister,
+        right: Arm64FloatRegister,
     },
     ConditionalSet {
         size: Arm64DataSize,

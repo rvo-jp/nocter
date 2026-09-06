@@ -1,11 +1,16 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64DataRegister, Arm64DataSize, Arm64EncodingError, Arm64Instruction, Arm64LoadStoreSize,
-    Arm64MoveWide, Arm64Register, Arm64Shift, Arm64SystemRegister,
+    Arm64DataRegister, Arm64DataSize, Arm64EncodingError, Arm64FloatBinary, Arm64FloatRegister,
+    Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide, Arm64Register, Arm64Shift,
+    Arm64SystemRegister,
 };
 
 fn x(number: u8) -> Arm64Register {
     Arm64Register::new(number).unwrap()
+}
+
+fn v(number: u8) -> Arm64FloatRegister {
+    Arm64FloatRegister::new(number).unwrap()
 }
 
 fn data(number: u8) -> Arm64DataRegister {
@@ -72,6 +77,70 @@ fn encodes_integer_arithmetic_without_untyped_register_31() {
             right: data(2),
         }),
         0x8b02_0020
+    );
+}
+
+#[test]
+fn encodes_scalar_floating_register_arithmetic_and_memory() {
+    assert_eq!(
+        word(Arm64Instruction::FloatMove {
+            size: Arm64DataSize::Bits32,
+            destination: v(3),
+            source: v(4),
+        }),
+        0x1e20_4083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatMoveFromGeneral {
+            size: Arm64DataSize::Bits64,
+            destination: v(3),
+            source: x(4),
+        }),
+        0x9e67_0083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatNegate {
+            size: Arm64DataSize::Bits64,
+            destination: v(3),
+            source: v(4),
+        }),
+        0x1e61_4083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatBinary {
+            size: Arm64DataSize::Bits32,
+            operation: Arm64FloatBinary::Add,
+            destination: v(3),
+            left: v(4),
+            right: v(5),
+        }),
+        0x1e25_2883
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatCompare {
+            size: Arm64DataSize::Bits64,
+            left: v(4),
+            right: v(5),
+        }),
+        0x1e65_2080
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatLoad {
+            size: Arm64DataSize::Bits32,
+            destination: v(3),
+            base: base(4),
+            offset: 12,
+        }),
+        0xbd40_0c83
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatStore {
+            size: Arm64DataSize::Bits64,
+            source: v(3),
+            base: base(4),
+            offset: 24,
+        }),
+        0xfd00_0c83
     );
 }
 
@@ -689,15 +758,15 @@ fn abi_register_roles_form_one_closed_partition() {
 #[test]
 fn register_allocation_reuses_expired_caller_saved_registers() {
     let mut builder = crate::Arm64RegisterAllocationBuilder::new();
-    let first = builder.define(0);
+    let first = builder.define(0, crate::Arm64RegisterClass::General);
     builder.use_at(first, 1).unwrap();
-    let second = builder.define(2);
+    let second = builder.define(2, crate::Arm64RegisterClass::General);
     builder.use_at(second, 3).unwrap();
     let allocation = builder.finish();
 
     assert_eq!(
         allocation.location(first),
-        Some(crate::Arm64AllocatedLocation::Register(x(11)))
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(x(11)))
     );
     assert_eq!(allocation.location(second), allocation.location(first));
     assert!(allocation.preserved_registers().is_empty());
@@ -707,22 +776,51 @@ fn register_allocation_reuses_expired_caller_saved_registers() {
 #[test]
 fn register_allocation_keeps_call_crossing_ranges_in_preserved_registers() {
     let mut builder = crate::Arm64RegisterAllocationBuilder::new();
-    let local = builder.define(0);
+    let local = builder.define(0, crate::Arm64RegisterClass::General);
     builder.use_at(local, 1).unwrap();
-    let crossing = builder.define(0);
+    let crossing = builder.define(0, crate::Arm64RegisterClass::General);
     builder.record_call(2);
     builder.use_at(crossing, 3).unwrap();
     let allocation = builder.finish();
 
     assert_eq!(
         allocation.location(local),
-        Some(crate::Arm64AllocatedLocation::Register(x(11)))
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(x(11)))
     );
     assert_eq!(
         allocation.location(crossing),
-        Some(crate::Arm64AllocatedLocation::Register(x(19)))
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(x(19)))
     );
     assert_eq!(allocation.preserved_registers(), [x(19)]);
+}
+
+#[test]
+fn register_allocation_uses_an_independent_floating_bank_and_spills_across_calls() {
+    let mut builder = crate::Arm64RegisterAllocationBuilder::new();
+    let general = builder.define(0, crate::Arm64RegisterClass::General);
+    let floating = builder.define(0, crate::Arm64RegisterClass::Floating);
+    builder.use_at(general, 1).unwrap();
+    builder.use_at(floating, 1).unwrap();
+    let allocation = builder.finish();
+
+    assert_eq!(
+        allocation.location(general),
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(x(11)))
+    );
+    assert_eq!(
+        allocation.location(floating),
+        Some(crate::Arm64AllocatedLocation::FloatRegister(v(16)))
+    );
+
+    let mut crossing_builder = crate::Arm64RegisterAllocationBuilder::new();
+    let crossing = crossing_builder.define(0, crate::Arm64RegisterClass::Floating);
+    crossing_builder.record_call(1);
+    crossing_builder.use_at(crossing, 2).unwrap();
+    let crossing_allocation = crossing_builder.finish();
+    assert!(matches!(
+        crossing_allocation.location(crossing),
+        Some(crate::Arm64AllocatedLocation::Spill(slot)) if slot.index() == 0
+    ));
 }
 
 #[test]
@@ -730,7 +828,7 @@ fn register_allocation_spills_deterministically_after_closed_pool_pressure() {
     let mut builder = crate::Arm64RegisterAllocationBuilder::new();
     let registers = (0..17)
         .map(|_| {
-            let register = builder.define(0);
+            let register = builder.define(0, crate::Arm64RegisterClass::General);
             builder.use_at(register, 10).unwrap();
             register
         })
@@ -748,7 +846,7 @@ fn register_allocation_spills_deterministically_after_closed_pool_pressure() {
     ));
     assert!(registers[..15].iter().all(|register| matches!(
         allocation.location(*register),
-        Some(crate::Arm64AllocatedLocation::Register(physical))
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(physical))
             if physical != x(9) && physical != x(10) && physical != x(16) && physical != x(17)
     )));
 }
@@ -756,7 +854,7 @@ fn register_allocation_spills_deterministically_after_closed_pool_pressure() {
 #[test]
 fn register_allocation_rejects_unknown_and_predefinition_uses() {
     let mut builder = crate::Arm64RegisterAllocationBuilder::new();
-    let register = builder.define(4);
+    let register = builder.define(4, crate::Arm64RegisterClass::General);
     assert!(matches!(
         builder.use_at(register, 3),
         Err(crate::Arm64RegisterAllocationError::UseBeforeDefinition { .. })
@@ -810,12 +908,12 @@ fn machine_value_plan_uses_exact_call_crossing_facts() {
 
     assert!(matches!(
         plan.registers().location(first_register),
-        Some(crate::Arm64AllocatedLocation::Register(register))
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(register))
             if crate::Arm64NocterAbi::is_callee_saved(register)
     ));
     assert!(matches!(
         plan.registers().location(call_result_register),
-        Some(crate::Arm64AllocatedLocation::Register(register))
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(register))
             if !crate::Arm64NocterAbi::is_callee_saved(register)
     ));
 }
@@ -858,7 +956,7 @@ fn machine_value_plan_treats_user_destruction_as_a_call_boundary() {
         {
             assert!(matches!(
                 plan.registers().location(*register),
-                Some(crate::Arm64AllocatedLocation::Register(register))
+                Some(crate::Arm64AllocatedLocation::GeneralRegister(register))
                     if crate::Arm64NocterAbi::is_callee_saved(register)
             ));
         }
@@ -1141,6 +1239,30 @@ fn lowers_a_constant_process_through_selection_and_spill_materialization() {
         let word = u32::from_le_bytes(bytes.try_into().unwrap());
         word & 0xff80_0000 == 0xd280_0000 && (word >> 5) & 0xffff == 42
     }));
+}
+
+#[test]
+fn lowers_floating_constants_arithmetic_comparison_and_calls_through_the_float_bank() {
+    let machine = crate::test_support::lower_machine(
+        "func adjust(value: f64): f64 { -(value + 0.5) / 2.0 }\n\
+         func main(): i32 {\n\
+             let value = adjust(1.5)\n\
+             if value < 0.0 { return 0 }\n\
+             return 1\n\
+         }\n",
+    );
+    let program = crate::Arm64Program::lower_machine(&machine).unwrap();
+    let words = program
+        .text()
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+
+    assert!(words.iter().any(|word| word & 0xffff_fc00 == 0x9e67_0000));
+    assert!(words.iter().any(|word| word & 0xff20_fc00 == 0x1e20_2800));
+    assert!(words.iter().any(|word| word & 0xffff_fc00 == 0x1e61_4000));
+    assert!(words.iter().any(|word| word & 0xff20_fc00 == 0x1e20_1800));
+    assert!(words.iter().any(|word| word & 0xff20_fc1f == 0x1e20_2000));
 }
 
 #[test]

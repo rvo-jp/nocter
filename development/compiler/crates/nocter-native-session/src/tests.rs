@@ -468,6 +468,48 @@ fn compile_for_test(unit: TestDiscoveredUnit) -> CompiledTarget {
     analyze_for_test(unit).into_compilation_result().unwrap()
 }
 
+#[test]
+fn scalar_floating_values_cross_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/vec.Vec\n\
+         \n\
+         func identity(value: f64): f64 { value }\n\
+         func sum9(\n\
+             a: f64, b: f64, c: f64, d: f64, e: f64,\n\
+             f: f64, g: f64, h: f64, i: f64,\n\
+         ): f64 { a + b + c + d + e + f + g + h + i }\n\
+         func narrow(value: f32): f32 { -(value * 2.0f32) }\n\
+         func main(): i32 {\n\
+             let retained = 1.25\n\
+             let returned = identity(0.75)\n\
+             let stacked = sum9(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)\n\
+             if retained + returned != 2.0 { return 1 }\n\
+             if stacked != 9.0 { return 2 }\n\
+             if narrow(0.5f32) != -1.0f32 { return 3 }\n\
+             if !(returned < retained) { return 4 }\n\
+             var values = Vec [1.5, 2.5]\n\
+             let popped = values.pop() otherwise { return 5 }\n\
+             if popped != 2.5 { return 6 }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "floating", 0);
+}
+
 const DIRECTORY_RECORD_TEST_SOURCE: &[u8] = br#"see ./directory.nct
 
 use /internal/os/darwin
@@ -3020,6 +3062,28 @@ fn module_roots(root: &Path) -> Vec<Vec<Box<str>>> {
     modules.sort();
     modules
 }
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_native_status(image: &NativeImage, root: &Path, name: &str, expected: i32) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let executable = root.join(name);
+    fs::write(&executable, image.bytes()).unwrap();
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o755)).unwrap();
+    let status = Command::new(&executable)
+        .current_dir(root)
+        .status()
+        .unwrap();
+    assert_eq!(
+        status.code(),
+        Some(expected),
+        "native image exited with {status:?}"
+    );
+}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_native_status(_image: &NativeImage, _root: &Path, _name: &str, _expected: i32) {}
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_directory_stream(image: &NativeImage, root: &Path, expected: i32) {

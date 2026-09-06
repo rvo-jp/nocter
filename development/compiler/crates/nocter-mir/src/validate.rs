@@ -10,8 +10,8 @@ use crate::validation_region::{
 };
 use crate::validation_switch::validate_switch_subject;
 use crate::validation_types::{
-    capture_type, field_type, is_integer, matches_opaque_projection, matches_opaque_witness,
-    payload_type, variant_representation,
+    capture_type, field_type, is_float, is_integer, matches_opaque_projection,
+    matches_opaque_witness, payload_type, variant_representation,
 };
 use crate::{
     MirAggregate, MirBinaryOperation, MirBody, MirBranchTarget, MirConstant, MirFunction,
@@ -601,7 +601,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                         operand == self.types.builtin(BuiltinType::Bool) && result == Some(operand)
                     }
                     MirUnaryOperation::Negate => {
-                        is_integer(self.types, operand) && result == Some(operand)
+                        (is_integer(self.types, operand) || is_float(self.types, operand))
+                            && result == Some(operand)
                     }
                 };
                 if !valid {
@@ -621,7 +622,20 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 ) {
                     left == right && result == Some(self.types.builtin(BuiltinType::Bool))
                 } else {
-                    left == right && is_integer(self.types, left) && result == Some(left)
+                    let supports_operation = match operation {
+                        MirBinaryOperation::Add
+                        | MirBinaryOperation::Subtract
+                        | MirBinaryOperation::Multiply
+                        | MirBinaryOperation::Divide => {
+                            is_integer(self.types, left) || is_float(self.types, left)
+                        }
+                        MirBinaryOperation::Remainder
+                        | MirBinaryOperation::ShiftLeft
+                        | MirBinaryOperation::ShiftRightSigned
+                        | MirBinaryOperation::ShiftRightUnsigned => is_integer(self.types, left),
+                        MirBinaryOperation::Equal | MirBinaryOperation::Less => unreachable!(),
+                    };
+                    left == right && supports_operation && result == Some(left)
                 };
                 if !valid {
                     return Err(mismatch());

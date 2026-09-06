@@ -113,6 +113,9 @@ fn lower_values(
                     MachineValueRepresentation::Stored {
                         size: layout.size(),
                         alignment: layout.alignment(),
+                        class: layouts
+                            .class(value.ty())
+                            .ok_or(MachineProgramError::MissingStoredLayout(value.ty()))?,
                     }
                 }
                 None => return Err(MachineProgramError::MissingStoredLayout(value.ty())),

@@ -98,6 +98,78 @@ fn emit_instruction(
             destination,
             source,
         } => emit_move(function, destination, source, size, code),
+        Arm64SelectedInstruction::FloatLoadImmediate {
+            size,
+            destination,
+            bits,
+        } => crate::floating_code::emit_immediate(function, destination, bits, size, code),
+        Arm64SelectedInstruction::FloatMove {
+            size,
+            destination,
+            source,
+        } => crate::floating_code::emit_move(function, destination, source, size, code),
+        Arm64SelectedInstruction::FloatLoadMemory {
+            size,
+            destination,
+            source,
+        } => crate::floating_code::emit_memory_load(function, destination, source, size, code),
+        Arm64SelectedInstruction::FloatStoreMemory {
+            size,
+            destination,
+            source,
+        } => crate::floating_code::emit_memory_store(function, destination, source, size, code),
+        Arm64SelectedInstruction::FloatNegate {
+            size,
+            destination,
+            operand,
+        } => crate::floating_code::emit_negate(function, destination, operand, size, code),
+        Arm64SelectedInstruction::FloatBinary {
+            size,
+            operation,
+            destination,
+            left,
+            right,
+        } => crate::floating_code::emit_binary(
+            function,
+            destination,
+            left,
+            right,
+            operation,
+            size,
+            code,
+        ),
+        Arm64SelectedInstruction::FloatCompare {
+            size,
+            operation,
+            destination,
+            left,
+            right,
+        } => crate::floating_code::emit_comparison(
+            function,
+            destination,
+            left,
+            right,
+            operation,
+            size,
+            code,
+        ),
+        Arm64SelectedInstruction::CompareFloatBorrowed {
+            size,
+            operation,
+            offset,
+            destination,
+            left,
+            right,
+        } => crate::floating_code::emit_borrowed_comparison(
+            function,
+            destination,
+            left,
+            right,
+            offset,
+            operation,
+            size,
+            code,
+        ),
         Arm64SelectedInstruction::IntegerConversion {
             size,
             source_bits,
@@ -715,6 +787,7 @@ pub(crate) fn emit_edge(
 ) -> Result<(), Arm64MaterializationError> {
     crate::memory_parallel_copy::emit(function, edge.memory_copies(), code)?;
     crate::parallel_copy::emit(function, edge.copies(), code)?;
+    crate::floating_parallel_copy::emit(function, edge.float_copies(), code)?;
     code.branch(block_label(labels, edge.target())?, false);
     Ok(())
 }
@@ -772,13 +845,16 @@ pub(crate) fn write_target(
             spill_offset: None,
         }),
         Arm64SelectedRegister::Virtual(register) => {
+            if register.class() != crate::Arm64RegisterClass::General {
+                return Err(Arm64MaterializationError::RegisterClassMismatch(register));
+            }
             match function
                 .values()
                 .registers()
                 .location(register)
                 .ok_or(Arm64MaterializationError::UnknownVirtualRegister(register))?
             {
-                Arm64AllocatedLocation::Register(register) => Ok(WriteTarget {
+                Arm64AllocatedLocation::GeneralRegister(register) => Ok(WriteTarget {
                     register,
                     spill_offset: None,
                 }),
@@ -786,6 +862,9 @@ pub(crate) fn write_target(
                     register: crate::frame_access::scratch(0),
                     spill_offset: Some(spill_offset(function, spill)?),
                 }),
+                Arm64AllocatedLocation::FloatRegister(_) => {
+                    Err(Arm64MaterializationError::RegisterClassMismatch(register))
+                }
             }
         }
     }
@@ -811,13 +890,16 @@ pub(crate) fn read_register(
     match selected {
         Arm64SelectedRegister::Fixed(register) => Ok(register),
         Arm64SelectedRegister::Virtual(register) => {
+            if register.class() != crate::Arm64RegisterClass::General {
+                return Err(Arm64MaterializationError::RegisterClassMismatch(register));
+            }
             match function
                 .values()
                 .registers()
                 .location(register)
                 .ok_or(Arm64MaterializationError::UnknownVirtualRegister(register))?
             {
-                Arm64AllocatedLocation::Register(register) => Ok(register),
+                Arm64AllocatedLocation::GeneralRegister(register) => Ok(register),
                 Arm64AllocatedLocation::Spill(spill) => {
                     let register = crate::frame_access::scratch(scratch);
                     crate::frame_access::load_at_stack_offset(
@@ -828,12 +910,15 @@ pub(crate) fn read_register(
                     );
                     Ok(register)
                 }
+                Arm64AllocatedLocation::FloatRegister(_) => {
+                    Err(Arm64MaterializationError::RegisterClassMismatch(register))
+                }
             }
         }
     }
 }
 
-fn spill_offset(
+pub(crate) fn spill_offset(
     function: &Arm64SelectedFunction,
     spill: crate::Arm64SpillSlotId,
 ) -> Result<u64, Arm64MaterializationError> {
@@ -948,6 +1033,7 @@ pub enum Arm64MaterializationError {
     UnknownBlock(MachineBlockId),
     UnknownSelectedAddress(nocter_machine::MachineAddressId),
     UnknownVirtualRegister(crate::Arm64VirtualRegister),
+    RegisterClassMismatch(crate::Arm64VirtualRegister),
     UnknownSpill(crate::Arm64SpillSlotId),
     UnknownFrameObject(crate::Arm64FrameObjectId),
     InvalidRegionFrame(crate::Arm64FrameObjectId),

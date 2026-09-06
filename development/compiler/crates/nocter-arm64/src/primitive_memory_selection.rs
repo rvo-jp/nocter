@@ -90,17 +90,16 @@ fn select_value_store(
     validate_common_abi(operation, target, 3)?;
     require_register_argument(operation, target.abi().arguments()[0], 0, direct(1))?;
     require_register_argument(operation, target.abi().arguments()[1], 1, direct(1))?;
-    require_value_argument(
-        operation,
-        target.abi().arguments()[2],
-        2,
-        value_class(program, layout),
-    )?;
+    let value_argument = target.abi().arguments()[2];
+    if value_argument.ty() != target.type_arguments()[0] {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    require_value_argument(operation, value_argument)?;
     if target.abi().result() != MachineResultAbi::Completion {
         return Err(Arm64SelectionError::PrimitiveCall(operation));
     }
     let address = select_dynamic_address(selected)?;
-    match value_class(program, layout) {
+    match value_argument.class() {
         MachineValueClass::Zero => Ok(()),
         MachineValueClass::Direct { words } => {
             let sizes =
@@ -123,8 +122,16 @@ fn select_value_store(
             }
             Ok(())
         }
-        MachineValueClass::Float32 | MachineValueClass::Float64 => {
-            Err(Arm64SelectionError::PrimitiveCall(operation))
+        class @ (MachineValueClass::Float32 | MachineValueClass::Float64) => {
+            selected.push(Arm64SelectedInstruction::FloatStoreMemory {
+                size: float_class_size(class),
+                destination: Arm64SelectedMemoryAddress::Register {
+                    base: address,
+                    offset: 0,
+                },
+                source: crate::Arm64SelectedFloatRegister::Fixed(float_register(0)?),
+            });
+            Ok(())
         }
         MachineValueClass::Indirect => {
             selected.push(Arm64SelectedInstruction::CopyMemoryNonOverlapping {
@@ -154,11 +161,11 @@ fn select_value_take(
     require_register_argument(operation, target.abi().arguments()[0], 0, direct(1))?;
     require_register_argument(operation, target.abi().arguments()[1], 1, direct(1))?;
     let result = match target.abi().result() {
-        MachineResultAbi::Value(result) if result.class() == value_class(program, layout) => result,
+        MachineResultAbi::Value(result) if result.ty() == target.type_arguments()[0] => result,
         _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
     };
     let address = select_dynamic_address(selected)?;
-    match (value_class(program, layout), result.location()) {
+    match (result.class(), result.location()) {
         (MachineValueClass::Zero, MachineResultLocation::Omitted) => Ok(()),
         (MachineValueClass::Direct { words }, MachineResultLocation::Registers(registers))
             if registers.first() == 0 && registers.words() == words =>
@@ -179,6 +186,20 @@ fn select_value_take(
                     },
                 });
             }
+            Ok(())
+        }
+        (
+            class @ (MachineValueClass::Float32 | MachineValueClass::Float64),
+            MachineResultLocation::Registers(registers),
+        ) if registers.first() == 0 && registers.words() == 1 => {
+            selected.push(Arm64SelectedInstruction::FloatLoadMemory {
+                size: float_class_size(class),
+                destination: crate::Arm64SelectedFloatRegister::Fixed(float_register(0)?),
+                source: Arm64SelectedMemoryAddress::Register {
+                    base: address,
+                    offset: 0,
+                },
+            });
             Ok(())
         }
         (
@@ -252,10 +273,14 @@ fn validate_common_abi(
 fn require_value_argument(
     operation: MachineOperationId,
     argument: MachineArgumentAbi,
-    first: u8,
-    class: MachineValueClass,
 ) -> Result<(), Arm64SelectionError> {
-    require_register_argument(operation, argument, first, class)
+    let expected_first = match argument.class() {
+        MachineValueClass::Float32 | MachineValueClass::Float64 => 0,
+        MachineValueClass::Zero
+        | MachineValueClass::Direct { .. }
+        | MachineValueClass::Indirect => 2,
+    };
+    require_register_argument(operation, argument, expected_first, argument.class())
 }
 
 fn require_register_argument(
@@ -270,13 +295,15 @@ fn require_register_argument(
     let transport_words = match class {
         MachineValueClass::Zero => 0,
         MachineValueClass::Direct { words } => words,
-        MachineValueClass::Float32 | MachineValueClass::Float64 => 1,
-        MachineValueClass::Indirect => 1,
+        MachineValueClass::Float32 | MachineValueClass::Float64 | MachineValueClass::Indirect => 1,
     };
     match (class, argument.location()) {
         (MachineValueClass::Zero, None) => Ok(()),
         (
-            MachineValueClass::Direct { .. } | MachineValueClass::Indirect,
+            MachineValueClass::Direct { .. }
+            | MachineValueClass::Float32
+            | MachineValueClass::Float64
+            | MachineValueClass::Indirect,
             Some(MachineArgumentLocation::Registers(registers)),
         ) if registers.first() == first && registers.words() == transport_words => Ok(()),
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
@@ -287,11 +314,16 @@ const fn direct(words: u8) -> MachineValueClass {
     MachineValueClass::Direct { words }
 }
 
-fn value_class(
-    program: &nocter_machine::MachineProgram,
-    layout: &MachineLayout,
-) -> MachineValueClass {
-    MachineValueClass::for_layout(layout, program.layouts().target())
+const fn float_class_size(class: MachineValueClass) -> Arm64DataSize {
+    match class {
+        MachineValueClass::Float32 => Arm64DataSize::Bits32,
+        MachineValueClass::Float64 => Arm64DataSize::Bits64,
+        _ => unreachable!(),
+    }
+}
+
+fn float_register(index: u8) -> Result<crate::Arm64FloatRegister, Arm64SelectionError> {
+    Arm64NocterAbi::floating_argument_register(index).ok_or(Arm64SelectionError::RegisterOverflow)
 }
 
 fn select_dynamic_address(

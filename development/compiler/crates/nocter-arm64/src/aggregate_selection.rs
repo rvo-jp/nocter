@@ -139,6 +139,19 @@ impl AggregateWriteSelection<'_> {
                 }
                 Ok(())
             }
+            Arm64ValueStorage::Floating { register, bytes } if u64::from(*bytes) == size => {
+                let size = match bytes {
+                    4 => Arm64DataSize::Bits32,
+                    8 => Arm64DataSize::Bits64,
+                    _ => return Err(Arm64SelectionError::AggregateValueShape(value)),
+                };
+                selected.push(Arm64SelectedInstruction::FloatStoreMemory {
+                    size,
+                    destination: Arm64SelectedMemoryAddress::Stack(destination),
+                    source: crate::Arm64SelectedFloatRegister::Virtual(*register),
+                });
+                Ok(())
+            }
             Arm64ValueStorage::Memory { size: stored, .. } if *stored == size => {
                 let source = self
                     .frame
@@ -158,7 +171,9 @@ impl AggregateWriteSelection<'_> {
                 });
                 Ok(())
             }
-            Arm64ValueStorage::Omitted | Arm64ValueStorage::Memory { .. } => {
+            Arm64ValueStorage::Omitted
+            | Arm64ValueStorage::Floating { .. }
+            | Arm64ValueStorage::Memory { .. } => {
                 Err(Arm64SelectionError::AggregateValueShape(value))
             }
         }
@@ -177,7 +192,9 @@ fn aggregate_destination(
         Arm64ValueStorage::Memory { .. } => frame
             .memory_value(result)
             .ok_or(Arm64SelectionError::MemoryValue(result))?,
-        Arm64ValueStorage::Omitted => return Err(Arm64SelectionError::AggregateValueShape(result)),
+        Arm64ValueStorage::Omitted | Arm64ValueStorage::Floating { .. } => {
+            return Err(Arm64SelectionError::AggregateValueShape(result));
+        }
     };
     Ok(Arm64SelectedStackAddress::FrameObject { object, offset: 0 })
 }
@@ -193,11 +210,9 @@ fn validate_result_layout(
         .and_then(|function| function.body().value(result))
         .map(nocter_machine::MachineValue::representation)
     {
-        Some(MachineValueRepresentation::Stored { size, alignment })
-            if size == aggregate.size() && alignment == aggregate.alignment() =>
-        {
-            Ok(())
-        }
+        Some(MachineValueRepresentation::Stored {
+            size, alignment, ..
+        }) if size == aggregate.size() && alignment == aggregate.alignment() => Ok(()),
         Some(_) => Err(Arm64SelectionError::AggregateValueShape(result)),
         None => Err(Arm64SelectionError::UnknownValue(result)),
     }

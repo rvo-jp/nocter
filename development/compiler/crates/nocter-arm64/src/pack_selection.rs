@@ -242,6 +242,18 @@ fn copy_value_to_frame(
             }
             Ok(())
         }
+        Arm64ValueStorage::Floating { register, bytes } if u64::from(*bytes) == size => {
+            selected.push(Arm64SelectedInstruction::FloatStoreMemory {
+                size: match bytes {
+                    4 => crate::Arm64DataSize::Bits32,
+                    8 => crate::Arm64DataSize::Bits64,
+                    _ => return Err(Arm64SelectionError::CallPack(operation)),
+                },
+                destination: frame_memory(destination, offset),
+                source: crate::Arm64SelectedFloatRegister::Virtual(*register),
+            });
+            Ok(())
+        }
         Arm64ValueStorage::Memory { size: actual, .. } if *actual == size => {
             let source = context
                 .frame()
@@ -254,9 +266,9 @@ fn copy_value_to_frame(
             });
             Ok(())
         }
-        Arm64ValueStorage::Omitted | Arm64ValueStorage::Memory { .. } => {
-            Err(Arm64SelectionError::CallPack(operation))
-        }
+        Arm64ValueStorage::Omitted
+        | Arm64ValueStorage::Floating { .. }
+        | Arm64ValueStorage::Memory { .. } => Err(Arm64SelectionError::CallPack(operation)),
     }
 }
 

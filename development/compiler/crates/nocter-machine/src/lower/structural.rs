@@ -103,7 +103,10 @@ fn lower_comparison(
     let representation = match context.layouts.get(subject).map(crate::MachineLayout::kind) {
         Some(MachineLayoutKind::Scalar(scalar))
             if comparison == MachineComparisonOperation::Equal
-                || matches!(scalar, MachineScalar::Integer { .. }) =>
+                || matches!(
+                    scalar,
+                    MachineScalar::Integer { .. } | MachineScalar::Float32 | MachineScalar::Float64
+                ) =>
         {
             MachineComparisonRepresentation::Scalar(*scalar)
         }

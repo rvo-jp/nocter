@@ -19,6 +19,29 @@ impl Arm64Register {
     }
 }
 
+/// One scalar view of an ARM64 SIMD/floating-point register.
+///
+/// The register number is independent from the general-purpose register bank: `v0` and `x0` are
+/// different physical locations even though both carry number zero.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Arm64FloatRegister(u8);
+
+impl Arm64FloatRegister {
+    #[must_use]
+    pub const fn new(number: u8) -> Option<Self> {
+        if number < 32 {
+            Some(Self(number))
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub const fn number(self) -> u8 {
+        self.0
+    }
+}
+
 /// A data operand for instructions where encoding 31 means the zero register.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64DataRegister {

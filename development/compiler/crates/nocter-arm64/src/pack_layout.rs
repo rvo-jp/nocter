@@ -178,7 +178,9 @@ fn stored_value(
         .ok_or(Arm64PackLayoutError::UnknownValue(value))?
         .representation()
     {
-        MachineValueRepresentation::Stored { size, alignment } => {
+        MachineValueRepresentation::Stored {
+            size, alignment, ..
+        } => {
             validate_alignment(alignment)?;
             Ok((size, alignment))
         }

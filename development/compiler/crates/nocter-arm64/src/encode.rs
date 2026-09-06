@@ -14,10 +14,17 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::MultiplyAdd { .. }
         | Arm64Instruction::Divide { .. }
         | Arm64Instruction::VariableShift { .. }
-        | Arm64Instruction::BitfieldExtend { .. }) => encode_arithmetic(instruction),
+        | Arm64Instruction::BitfieldExtend { .. }
+        | Arm64Instruction::FloatMove { .. }
+        | Arm64Instruction::FloatMoveFromGeneral { .. }
+        | Arm64Instruction::FloatNegate { .. }
+        | Arm64Instruction::FloatBinary { .. }
+        | Arm64Instruction::FloatCompare { .. }) => encode_arithmetic(instruction),
         instruction @ (Arm64Instruction::LoadUnsigned { .. }
         | Arm64Instruction::LoadSigned { .. }
-        | Arm64Instruction::StoreUnsigned { .. }) => encode_memory(instruction),
+        | Arm64Instruction::StoreUnsigned { .. }
+        | Arm64Instruction::FloatLoad { .. }
+        | Arm64Instruction::FloatStore { .. }) => encode_memory(instruction),
         instruction @ (Arm64Instruction::NoOperation
         | Arm64Instruction::InstructionSynchronizationBarrier
         | Arm64Instruction::AddressPage { .. }
@@ -111,6 +118,13 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
             destination.number(),
             source.number(),
         ),
+        instruction @ (Arm64Instruction::FloatMove { .. }
+        | Arm64Instruction::FloatMoveFromGeneral { .. }
+        | Arm64Instruction::FloatNegate { .. }
+        | Arm64Instruction::FloatBinary { .. }
+        | Arm64Instruction::FloatCompare { .. }) => {
+            Ok(crate::floating_encoding::arithmetic(instruction))
+        }
         _ => {
             unreachable!("instruction category is closed by encode")
         }
@@ -218,6 +232,10 @@ fn encode_memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingErro
             base,
             offset,
         } => encode_load_store(size, false, source.encoding(), base.encoding(), offset),
+        instruction
+        @ (Arm64Instruction::FloatLoad { .. } | Arm64Instruction::FloatStore { .. }) => {
+            crate::floating_encoding::memory(instruction)
+        }
         _ => {
             unreachable!("instruction category is closed by encode")
         }

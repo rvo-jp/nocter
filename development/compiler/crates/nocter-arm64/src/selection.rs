@@ -65,6 +65,12 @@ pub enum Arm64SelectedRegister {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64SelectedFloatRegister {
+    Virtual(Arm64VirtualRegister),
+    Fixed(crate::Arm64FloatRegister),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedStackAddress {
     FrameObject {
         object: crate::Arm64FrameObjectId,
@@ -103,6 +109,53 @@ pub enum Arm64SelectedInstruction {
         size: Arm64DataSize,
         destination: Arm64SelectedRegister,
         source: Arm64SelectedRegister,
+    },
+    FloatLoadImmediate {
+        size: Arm64DataSize,
+        destination: Arm64SelectedFloatRegister,
+        bits: u64,
+    },
+    FloatMove {
+        size: Arm64DataSize,
+        destination: Arm64SelectedFloatRegister,
+        source: Arm64SelectedFloatRegister,
+    },
+    FloatLoadMemory {
+        size: Arm64DataSize,
+        destination: Arm64SelectedFloatRegister,
+        source: Arm64SelectedMemoryAddress,
+    },
+    FloatStoreMemory {
+        size: Arm64DataSize,
+        destination: Arm64SelectedMemoryAddress,
+        source: Arm64SelectedFloatRegister,
+    },
+    FloatNegate {
+        size: Arm64DataSize,
+        destination: Arm64SelectedFloatRegister,
+        operand: Arm64SelectedFloatRegister,
+    },
+    FloatBinary {
+        size: Arm64DataSize,
+        operation: crate::Arm64FloatBinary,
+        destination: Arm64SelectedFloatRegister,
+        left: Arm64SelectedFloatRegister,
+        right: Arm64SelectedFloatRegister,
+    },
+    FloatCompare {
+        size: Arm64DataSize,
+        operation: Arm64SelectedFloatComparisonOperation,
+        destination: Arm64SelectedRegister,
+        left: Arm64SelectedFloatRegister,
+        right: Arm64SelectedFloatRegister,
+    },
+    CompareFloatBorrowed {
+        size: Arm64DataSize,
+        operation: Arm64SelectedFloatComparisonOperation,
+        offset: u64,
+        destination: Arm64SelectedRegister,
+        left: Arm64SelectedRegister,
+        right: Arm64SelectedRegister,
     },
     /// Losslessly widens one canonical integer value according to the source signedness.
     IntegerConversion {
@@ -272,9 +325,39 @@ pub enum Arm64SelectedComparisonOperation {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64SelectedFloatComparisonOperation {
+    Equal,
+    Less,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64SelectedCopy {
     destination: Arm64SelectedRegister,
     source: Arm64SelectedRegister,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Arm64SelectedFloatCopy {
+    size: Arm64DataSize,
+    destination: Arm64SelectedFloatRegister,
+    source: Arm64SelectedFloatRegister,
+}
+
+impl Arm64SelectedFloatCopy {
+    #[must_use]
+    pub const fn size(self) -> Arm64DataSize {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn destination(self) -> Arm64SelectedFloatRegister {
+        self.destination
+    }
+
+    #[must_use]
+    pub const fn source(self) -> Arm64SelectedFloatRegister {
+        self.source
+    }
 }
 
 impl Arm64SelectedCopy {
@@ -317,6 +400,7 @@ impl Arm64SelectedMemoryCopy {
 pub struct Arm64SelectedEdge {
     target: MachineBlockId,
     copies: Box<[Arm64SelectedCopy]>,
+    float_copies: Box<[Arm64SelectedFloatCopy]>,
     memory_copies: Box<[Arm64SelectedMemoryCopy]>,
 }
 
@@ -332,13 +416,18 @@ impl Arm64SelectedEdge {
     }
 
     #[must_use]
+    pub const fn float_copies(&self) -> &[Arm64SelectedFloatCopy] {
+        &self.float_copies
+    }
+
+    #[must_use]
     pub const fn memory_copies(&self) -> &[Arm64SelectedMemoryCopy] {
         &self.memory_copies
     }
 
     #[must_use]
     pub const fn has_copies(&self) -> bool {
-        !self.copies.is_empty() || !self.memory_copies.is_empty()
+        !self.copies.is_empty() || !self.float_copies.is_empty() || !self.memory_copies.is_empty()
     }
 }
 
@@ -752,13 +841,40 @@ fn select_constant(
             program, owner, data, result, values, selected,
         );
     }
+    match constant {
+        MachineConstant::Float32(bits) => {
+            let (destination, size) = floating_value(values, result)?;
+            if size != Arm64DataSize::Bits32 {
+                return Err(Arm64SelectionError::UnsupportedScalar(result));
+            }
+            selected.push(Arm64SelectedInstruction::FloatLoadImmediate {
+                size,
+                destination,
+                bits: u64::from(bits),
+            });
+            return Ok(());
+        }
+        MachineConstant::Float64(bits) => {
+            let (destination, size) = floating_value(values, result)?;
+            if size != Arm64DataSize::Bits64 {
+                return Err(Arm64SelectionError::UnsupportedScalar(result));
+            }
+            selected.push(Arm64SelectedInstruction::FloatLoadImmediate {
+                size,
+                destination,
+                bits,
+            });
+            return Ok(());
+        }
+        _ => {}
+    }
     let bits = match constant {
         MachineConstant::Bool(value) => u128::from(value),
         MachineConstant::Character(value) => u128::from(value),
-        MachineConstant::Float32(bits) => u128::from(bits),
-        MachineConstant::Float64(bits) => u128::from(bits),
         MachineConstant::Integer(value) => value.cast_unsigned(),
-        MachineConstant::Text(_) => unreachable!("text constants return before scalar selection"),
+        MachineConstant::Float32(_) | MachineConstant::Float64(_) | MachineConstant::Text(_) => {
+            unreachable!("text and floating constants return before general scalar selection")
+        }
     };
     let registers = direct_value(values, result)?;
     for (lane, register) in registers.iter().copied().enumerate() {
@@ -782,6 +898,25 @@ fn select_unary(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
+    let operand_storage = values
+        .value(operand)
+        .ok_or(Arm64SelectionError::UnknownValue(operand))?;
+    if matches!(operand_storage, Arm64ValueStorage::Floating { .. }) {
+        let (operand, size) = floating_value(values, operand)?;
+        if operation != MachineUnaryOperation::Negate {
+            return Err(Arm64SelectionError::UnsupportedScalar(result));
+        }
+        let (destination, result_size) = floating_value(values, result)?;
+        if result_size != size {
+            return Err(Arm64SelectionError::UnsupportedScalar(result));
+        }
+        selected.push(Arm64SelectedInstruction::FloatNegate {
+            size,
+            destination,
+            operand,
+        });
+        return Ok(());
+    }
     let (size, _) = scalar_value(scope.0, scope.1, operand)?;
     selected.push(Arm64SelectedInstruction::Unary {
         size,
@@ -835,6 +970,61 @@ fn select_binary(
 ) -> Result<(), Arm64SelectionError> {
     let (left, right) = operands;
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
+    let left_storage = values
+        .value(left)
+        .ok_or(Arm64SelectionError::UnknownValue(left))?;
+    if matches!(left_storage, Arm64ValueStorage::Floating { .. }) {
+        let (left_register, size) = floating_value(values, left)?;
+        let (right_register, right_size) = floating_value(values, right)?;
+        if right_size != size {
+            return Err(Arm64SelectionError::UnsupportedScalar(right));
+        }
+        match operation {
+            MachineBinaryOperation::Add
+            | MachineBinaryOperation::Subtract
+            | MachineBinaryOperation::Multiply
+            | MachineBinaryOperation::Divide => {
+                let (destination, result_size) = floating_value(values, result)?;
+                if result_size != size {
+                    return Err(Arm64SelectionError::UnsupportedScalar(result));
+                }
+                let operation = match operation {
+                    MachineBinaryOperation::Add => crate::Arm64FloatBinary::Add,
+                    MachineBinaryOperation::Subtract => crate::Arm64FloatBinary::Subtract,
+                    MachineBinaryOperation::Multiply => crate::Arm64FloatBinary::Multiply,
+                    MachineBinaryOperation::Divide => crate::Arm64FloatBinary::Divide,
+                    _ => unreachable!(),
+                };
+                selected.push(Arm64SelectedInstruction::FloatBinary {
+                    size,
+                    operation,
+                    destination,
+                    left: left_register,
+                    right: right_register,
+                });
+            }
+            MachineBinaryOperation::Equal | MachineBinaryOperation::Less => {
+                selected.push(Arm64SelectedInstruction::FloatCompare {
+                    size,
+                    operation: if operation == MachineBinaryOperation::Equal {
+                        Arm64SelectedFloatComparisonOperation::Equal
+                    } else {
+                        Arm64SelectedFloatComparisonOperation::Less
+                    },
+                    destination: one_word(values, result)?,
+                    left: left_register,
+                    right: right_register,
+                });
+            }
+            MachineBinaryOperation::Remainder
+            | MachineBinaryOperation::ShiftLeft
+            | MachineBinaryOperation::ShiftRightSigned
+            | MachineBinaryOperation::ShiftRightUnsigned => {
+                return Err(Arm64SelectionError::UnsupportedScalar(left));
+            }
+        }
+        return Ok(());
+    }
     let (size, signed) = scalar_value(scope.0, scope.1, left)?;
     let selected_operation = match operation {
         MachineBinaryOperation::Add => Arm64SelectedBinaryOperation::Add,
@@ -870,6 +1060,28 @@ fn select_comparison(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
+    if let MachineComparisonRepresentation::Scalar(
+        scalar @ (MachineScalar::Float32 | MachineScalar::Float64),
+    ) = comparison.representation()
+    {
+        let size = match scalar {
+            MachineScalar::Float32 => Arm64DataSize::Bits32,
+            MachineScalar::Float64 => Arm64DataSize::Bits64,
+            _ => unreachable!(),
+        };
+        selected.push(Arm64SelectedInstruction::CompareFloatBorrowed {
+            size,
+            operation: match comparison.operation() {
+                MachineComparisonOperation::Equal => Arm64SelectedFloatComparisonOperation::Equal,
+                MachineComparisonOperation::Less => Arm64SelectedFloatComparisonOperation::Less,
+            },
+            offset: 0,
+            destination: one_word(values, result)?,
+            left: one_word(values, comparison.left())?,
+            right: one_word(values, comparison.right())?,
+        });
+        return Ok(());
+    }
     let (size, extension, offset, signed) = match comparison.representation() {
         MachineComparisonRepresentation::Scalar(scalar) => {
             let (size, extension, signed) =
@@ -981,6 +1193,7 @@ pub(crate) fn select_edge(
         return Err(Arm64SelectionError::EdgeArity(target.block()));
     }
     let mut copies = Vec::new();
+    let mut float_copies = Vec::new();
     let mut memory_copies = Vec::new();
     for (argument, parameter) in target
         .arguments()
@@ -1005,6 +1218,26 @@ pub(crate) fn select_edge(
                 );
             }
             (
+                Some(Arm64ValueStorage::Floating {
+                    register: source,
+                    bytes: source_bytes,
+                }),
+                Some(Arm64ValueStorage::Floating {
+                    register: destination,
+                    bytes: destination_bytes,
+                }),
+            ) if source_bytes == destination_bytes => {
+                float_copies.push(Arm64SelectedFloatCopy {
+                    size: match source_bytes {
+                        4 => Arm64DataSize::Bits32,
+                        8 => Arm64DataSize::Bits64,
+                        _ => return Err(Arm64SelectionError::EdgeTransport(target.block())),
+                    },
+                    destination: Arm64SelectedFloatRegister::Virtual(*destination),
+                    source: Arm64SelectedFloatRegister::Virtual(*source),
+                });
+            }
+            (
                 Some(Arm64ValueStorage::Memory {
                     size: source_size, ..
                 }),
@@ -1027,6 +1260,7 @@ pub(crate) fn select_edge(
     Ok(Arm64SelectedEdge {
         target: target.block(),
         copies: copies.into_boxed_slice(),
+        float_copies: float_copies.into_boxed_slice(),
         memory_copies: memory_copies.into_boxed_slice(),
     })
 }
@@ -1051,7 +1285,29 @@ pub(crate) fn direct_value(
     {
         Arm64ValueStorage::Direct(registers) => Ok(registers),
         Arm64ValueStorage::Omitted => Ok(&[]),
-        Arm64ValueStorage::Memory { .. } => Err(Arm64SelectionError::MemoryValue(value)),
+        Arm64ValueStorage::Floating { .. } | Arm64ValueStorage::Memory { .. } => {
+            Err(Arm64SelectionError::MemoryValue(value))
+        }
+    }
+}
+
+pub(crate) fn floating_value(
+    values: &Arm64ValuePlan,
+    value: MachineValueId,
+) -> Result<(Arm64SelectedFloatRegister, Arm64DataSize), Arm64SelectionError> {
+    match values
+        .value(value)
+        .ok_or(Arm64SelectionError::UnknownValue(value))?
+    {
+        Arm64ValueStorage::Floating { register, bytes: 4 } => Ok((
+            Arm64SelectedFloatRegister::Virtual(*register),
+            Arm64DataSize::Bits32,
+        )),
+        Arm64ValueStorage::Floating { register, bytes: 8 } => Ok((
+            Arm64SelectedFloatRegister::Virtual(*register),
+            Arm64DataSize::Bits64,
+        )),
+        _ => Err(Arm64SelectionError::UnsupportedScalar(value)),
     }
 }
 

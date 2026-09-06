@@ -295,7 +295,9 @@ fn place_memory_edge_staging(
                 let (required_size, required_alignment) = requirement.unwrap_or((0, 1));
                 requirement = Some((required_size.max(*size), required_alignment.max(*alignment)));
             }
-            Arm64ValueStorage::Omitted | Arm64ValueStorage::Direct(_) => {}
+            Arm64ValueStorage::Omitted
+            | Arm64ValueStorage::Direct(_)
+            | Arm64ValueStorage::Floating { .. } => {}
         }
     }
     requirement
@@ -330,7 +332,9 @@ fn place_direct_aggregate_staging(
                     alignment.max(aggregate.alignment()),
                 ));
             }
-            Arm64ValueStorage::Omitted | Arm64ValueStorage::Memory { .. } => {}
+            Arm64ValueStorage::Omitted
+            | Arm64ValueStorage::Floating { .. }
+            | Arm64ValueStorage::Memory { .. } => {}
         }
     }
     requirement
@@ -356,7 +360,9 @@ fn place_memory_values(
             Arm64ValueStorage::Memory { size, alignment } => {
                 Some(builder.add_object(*size, *alignment)?)
             }
-            Arm64ValueStorage::Omitted | Arm64ValueStorage::Direct(_) => None,
+            Arm64ValueStorage::Omitted
+            | Arm64ValueStorage::Direct(_)
+            | Arm64ValueStorage::Floating { .. } => None,
         };
         memory_values.push(object);
     }

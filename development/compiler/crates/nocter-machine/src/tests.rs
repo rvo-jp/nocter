@@ -50,6 +50,16 @@ fn float_constants_and_aggregate_fields_keep_typed_bits_and_stored_layouts() {
          }\n",
     );
     let layouts = MachineLayoutStore::build(&mir).unwrap();
+    let f32 = mir
+        .types()
+        .primitive(RuntimePrimitive::Float32)
+        .expect("f32 runtime identity");
+    let f64 = mir
+        .types()
+        .primitive(RuntimePrimitive::Float64)
+        .expect("f64 runtime identity");
+    assert_eq!(layouts.class(f32), Some(MachineValueClass::Float32));
+    assert_eq!(layouts.class(f64), Some(MachineValueClass::Float64));
     let measurements = named_nominal(&mir, "Measurements");
     let layout = layouts.get(measurements).expect("Measurements layout");
     assert_eq!((layout.size(), layout.alignment()), (16, 8));
@@ -69,8 +79,21 @@ fn float_constants_and_aggregate_fields_keep_typed_bits_and_stored_layouts() {
         function.body().operations().any(|(_, operation)| {
             matches!(
                 operation.kind(),
-                MachineOperationKind::Constant(crate::MachineConstant::Float64(0x3fb999999999999a))
-            )
+                MachineOperationKind::Constant(crate::MachineConstant::Float64(
+                    0x3fb9_9999_9999_999a,
+                ))
+            ) && operation
+                .result()
+                .and_then(|result| function.body().value(result))
+                .is_some_and(|value| {
+                    matches!(
+                        value.representation(),
+                        crate::MachineValueRepresentation::Stored {
+                            class: MachineValueClass::Float64,
+                            ..
+                        }
+                    )
+                })
         })
     }));
 }

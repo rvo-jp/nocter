@@ -198,6 +198,7 @@ impl MachineLayout {
 pub struct MachineLayoutStore {
     target: MachineTarget,
     layouts: BTreeMap<TypeId, MachineLayout>,
+    classes: BTreeMap<TypeId, crate::MachineValueClass>,
 }
 
 /// Construction-time correspondence between validated semantic members and frozen layouts.
@@ -234,6 +235,12 @@ impl MachineLayoutStore {
         self.layouts.get(&ty)
     }
 
+    /// Returns Machine's single completed transport classification for this stored type.
+    #[must_use]
+    pub fn class(&self, ty: TypeId) -> Option<crate::MachineValueClass> {
+        self.classes.get(&ty).copied()
+    }
+
     #[must_use]
     pub fn iter(&self) -> impl ExactSizeIterator<Item = (TypeId, &MachineLayout)> {
         self.layouts.iter().map(|(ty, layout)| (*ty, layout))
@@ -247,6 +254,7 @@ impl MachineLayoutPlan {
             program,
             target,
             layouts: BTreeMap::new(),
+            classes: BTreeMap::new(),
             active: BTreeSet::new(),
             fields: BTreeMap::new(),
             variants: BTreeMap::new(),
@@ -294,6 +302,7 @@ impl MachineLayoutPlan {
             store: MachineLayoutStore {
                 target,
                 layouts: builder.layouts,
+                classes: builder.classes,
             },
             fields: builder.fields,
             variants: builder.variants,
@@ -350,6 +359,7 @@ struct LayoutBuilder<'program> {
     program: &'program MirProgram,
     target: MachineTarget,
     layouts: BTreeMap<TypeId, MachineLayout>,
+    classes: BTreeMap<TypeId, crate::MachineValueClass>,
     active: BTreeSet<TypeId>,
     fields: BTreeMap<FieldId, MachineFieldLayout>,
     variants: BTreeMap<VariantId, MachineEnumVariantLayout>,
@@ -372,8 +382,10 @@ impl LayoutBuilder<'_> {
             .cloned()
             .ok_or(MachineLayoutError::UnknownType(ty))?;
         let layout = self.compute(ty, &kind)?;
+        let class = crate::MachineValueClass::for_layout(&layout, self.target);
         self.active.remove(&ty);
         self.layouts.insert(ty, layout);
+        self.classes.insert(ty, class);
         Ok(&self.layouts[&ty])
     }
 

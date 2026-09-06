@@ -226,7 +226,13 @@ impl MachineValue {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineValueRepresentation {
-    Stored { size: u64, alignment: u64 },
+    /// One stored value together with Machine's completed transport classification. Targets may
+    /// assign physical locations for this class, but must not recover it from `ty` or layout kind.
+    Stored {
+        size: u64,
+        alignment: u64,
+        class: crate::MachineValueClass,
+    },
     Completion,
     Diverging,
 }

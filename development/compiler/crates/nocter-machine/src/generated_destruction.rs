@@ -520,9 +520,14 @@ impl<'a> DestructionBuilder<'a> {
             Some(_) => self
                 .layouts
                 .get(ty)
-                .map(|layout| MachineValueRepresentation::Stored {
-                    size: layout.size(),
-                    alignment: layout.alignment(),
+                .and_then(|layout| {
+                    self.layouts
+                        .class(ty)
+                        .map(|class| MachineValueRepresentation::Stored {
+                            size: layout.size(),
+                            alignment: layout.alignment(),
+                            class,
+                        })
                 })
                 .ok_or(crate::MachineProgramError::MissingStoredLayout(ty)),
             None => Err(crate::MachineProgramError::MissingStoredLayout(ty)),

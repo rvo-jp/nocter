@@ -15,6 +15,9 @@ mod destruction_selection;
 mod encode;
 mod error_code;
 mod error_selection;
+mod floating_code;
+mod floating_encoding;
+mod floating_parallel_copy;
 mod frame;
 mod frame_access;
 mod frame_code;
@@ -29,6 +32,7 @@ mod pack_callback;
 mod pack_layout;
 mod pack_selection;
 mod parallel_copy;
+mod parallel_copy_schedule;
 mod primitive_memory_code;
 mod primitive_memory_selection;
 mod primitive_selection;
@@ -70,8 +74,8 @@ pub use function_frame::{
 };
 pub use identity::{Arm64DataId, Arm64FunctionId};
 pub use instruction::{
-    Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize,
-    Arm64Logical, Arm64MoveWide, Arm64Shift, Arm64SystemRegister,
+    Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64FloatBinary, Arm64Instruction,
+    Arm64LoadStoreSize, Arm64Logical, Arm64MoveWide, Arm64Shift, Arm64SystemRegister,
 };
 pub use lower::{Arm64LoweringError, Arm64TestExecutable, Arm64TestSuite};
 pub use pack_callback::{Arm64PackCallbackKey, Arm64PackCallbackKind};
@@ -83,20 +87,23 @@ pub use program::{
     Arm64ProgramBuilder, Arm64ProgramError, Arm64RelocatedSections,
 };
 pub use register::{
-    Arm64AddSubtractDestination, Arm64BaseRegister, Arm64DataRegister, Arm64Register,
+    Arm64AddSubtractDestination, Arm64BaseRegister, Arm64DataRegister, Arm64FloatRegister,
+    Arm64Register,
 };
 pub use register_allocation::{
     Arm64AllocatedLocation, Arm64RegisterAllocation, Arm64RegisterAllocationBuilder,
-    Arm64RegisterAllocationError, Arm64SpillSlotId, Arm64VirtualRegister,
+    Arm64RegisterAllocationError, Arm64RegisterClass, Arm64SpillSlotId, Arm64VirtualRegister,
 };
 pub use selected_code::Arm64MaterializationError;
 pub(crate) use selection::Arm64SelectionContext;
 pub use selection::{
     Arm64SelectedBinaryOperation, Arm64SelectedBlock, Arm64SelectedComparisonOperation,
-    Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFunction, Arm64SelectedIndexAddressDomain,
-    Arm64SelectedInstruction, Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress,
-    Arm64SelectedMemoryCopy, Arm64SelectedRegister, Arm64SelectedStackAddress,
-    Arm64SelectedSwitchCase, Arm64SelectedTerminator, Arm64SelectedUnaryOperation,
+    Arm64SelectedCopy, Arm64SelectedEdge, Arm64SelectedFloatComparisonOperation,
+    Arm64SelectedFloatCopy, Arm64SelectedFloatRegister, Arm64SelectedFunction,
+    Arm64SelectedIndexAddressDomain, Arm64SelectedInstruction, Arm64SelectedLoadExtension,
+    Arm64SelectedMemoryAddress, Arm64SelectedMemoryCopy, Arm64SelectedRegister,
+    Arm64SelectedStackAddress, Arm64SelectedSwitchCase, Arm64SelectedTerminator,
+    Arm64SelectedUnaryOperation,
 };
 pub use selection_error::Arm64SelectionError;
 pub use value_plan::{Arm64ValuePlan, Arm64ValuePlanError, Arm64ValueStorage};
