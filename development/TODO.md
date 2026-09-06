@@ -2,15 +2,16 @@
 
 ## Current State
 
-Nocter v0.36.0 is published and externally audited. v0.37.0 Phase 0 and Phase 1 are complete. The
-independent baseline and bottleneck attribution identify monolithic whole-program finalization as
-the dominant repeated editor cost. No production optimization has been made.
+Nocter v0.36.0 is published and externally audited. v0.37.0 Phase 0 through Phase 2 are complete.
+The independent baseline and bottleneck attribution identify monolithic whole-program finalization
+as the dominant repeated editor cost. The shared body-relation catalog removes repeated input
+construction and lookup, but measured editor latency improved by only 1.4 percent per edit.
 
 ## Next Work
 
-Complete v0.37.0 Phase 2 by replacing duplicated unindexed body-relation inputs with one canonical
-checking-owned catalog, then measure the released and candidate command/editor paths before
-deciding whether further cold-path work is justified.
+Complete v0.37.0 Phase 3 by moving source-neutral relation facts and body-local finalization
+products across the body query boundary. Preserve canonical type and closure identity, and retain
+one shared semantic path for commands and editor features.
 
 ## Blockers
 
