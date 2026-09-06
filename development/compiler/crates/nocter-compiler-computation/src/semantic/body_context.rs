@@ -75,12 +75,14 @@ impl BodySemanticContextProduct {
             .map_err(|error| Arc::new(error.into()))
     }
 
-    pub(super) fn finalize(
+    pub(super) fn materialize(
         &self,
         body_names: &super::BodyNameSet,
         typed_bodies: &super::TypedBodySet,
-    ) -> Result<nocter_checking::QueriedProgramFinalizationOutcome, Arc<super::SemanticQueryFailure>>
-    {
+    ) -> Result<
+        nocter_checking::QueriedProgramMaterializationOutcome,
+        Arc<super::SemanticQueryFailure>,
+    > {
         let context = match &self.state {
             BodySemanticContextState::Ready(context) => context,
             BodySemanticContextState::Failed(failure) => return Err(Arc::clone(failure)),
@@ -89,7 +91,7 @@ impl BodySemanticContextProduct {
             .unit
             .compile_input()
             .map_err(|error| Arc::new(error.into()))?;
-        let (names, name_rejections) = Self::queried_name_inputs(body_names);
+        let (body_names, body_name_rejections) = Self::queried_name_inputs(body_names);
         let bodies = typed_bodies
             .entries()
             .iter()
@@ -102,8 +104,14 @@ impl BodySemanticContextProduct {
             .collect::<Vec<_>>();
         context
             .checking
-            .finalize(&input, &names, &name_rejections, &bodies, &body_rejections)
-            .map_err(|error| Arc::new(super::SemanticQueryFailure::ProgramFinalization(error)))
+            .materialize(
+                &input,
+                &body_names,
+                &body_name_rejections,
+                &bodies,
+                &body_rejections,
+            )
+            .map_err(|error| Arc::new(super::SemanticQueryFailure::ProgramMaterialization(error)))
     }
 
     pub(super) fn materialize_name_rejection(

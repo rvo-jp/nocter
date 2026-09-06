@@ -254,7 +254,7 @@ const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
     }
 }
 
-fn encode_expected(expected: ExpectedSyntax, output: &mut Vec<u8>) {
+pub(crate) fn encode_expected(expected: ExpectedSyntax, output: &mut Vec<u8>) {
     let (category, detail) = match expected {
         ExpectedSyntax::Token(kind) => ("token", kind.as_str()),
         ExpectedSyntax::Keyword(keyword) => ("keyword", keyword.as_str()),
@@ -289,13 +289,13 @@ fn encode_expected(expected: ExpectedSyntax, output: &mut Vec<u8>) {
     encode(5, detail.as_bytes(), output);
 }
 
-fn encode(tag: u8, bytes: &[u8], output: &mut Vec<u8>) {
+pub(crate) fn encode(tag: u8, bytes: &[u8], output: &mut Vec<u8>) {
     output.push(tag);
     output.extend_from_slice(&(bytes.len() as u64).to_be_bytes());
     output.extend_from_slice(bytes);
 }
 
-fn text_at(text: &str, range: nocter_source::TextRange) -> &str {
+pub(crate) fn text_at(text: &str, range: nocter_source::TextRange) -> &str {
     let start = usize::try_from(range.start().get()).expect("source offsets fit usize");
     let end = usize::try_from(range.end().get()).expect("source offsets fit usize");
     text.get(start..end)
@@ -349,6 +349,36 @@ mod tests {
         );
         assert_ne!(first.body_surfaces()[0], second.body_surfaces()[0]);
         assert_eq!(first.body_surfaces()[1], second.body_surfaces()[1]);
+    }
+
+    #[test]
+    fn body_structure_elides_only_scalar_literal_payloads() {
+        let literal = body("func value(): &str { return \"first\" }\n");
+        let changed_literal = body("func value(): &str { return \"second\" }\n");
+        let changed_name = body("func value(): &str { return another }\n");
+        let changed_shape = body("func value(): &str { let item = \"first\"\n return item }\n");
+
+        assert_ne!(literal.canonical_bytes(), changed_literal.canonical_bytes());
+        assert_eq!(
+            literal.structural_bytes(),
+            changed_literal.structural_bytes()
+        );
+        assert_ne!(literal.structural_bytes(), changed_name.structural_bytes());
+        assert_ne!(literal.structural_bytes(), changed_shape.structural_bytes());
+    }
+
+    #[test]
+    fn body_structure_retains_interpolation_expression_shape() {
+        let first = body("func value(name: &str): &str { return \"hello ${name}\" }\n");
+        let changed_text = body("func value(name: &str): &str { return \"welcome ${name}\" }\n");
+        let changed_expression =
+            body("func value(name: &str): &str { return \"hello ${name.len()}\" }\n");
+
+        assert_eq!(first.structural_bytes(), changed_text.structural_bytes());
+        assert_ne!(
+            first.structural_bytes(),
+            changed_expression.structural_bytes()
+        );
     }
 
     #[test]
@@ -429,6 +459,14 @@ mod tests {
         let source = sources.get(source).unwrap().clone();
         let tree = parse(&source, ParseGoal::SourceFile);
         (tree, source)
+    }
+
+    fn body(text: &str) -> crate::BodySyntaxSurface {
+        let (tree, source) = tree(text);
+        project_declaration_syntax(&tree, &source)
+            .unwrap()
+            .body_surfaces()[0]
+            .clone()
     }
 
     fn node(tree: &crate::SyntaxTree, kind: NodeKind) -> crate::NodeId {

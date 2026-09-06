@@ -75,12 +75,17 @@ pub use diagnostic::BodyRule;
 pub use error::{BodyCheckError, BodyCheckFailure, BodyCheckInternalError};
 pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
-pub use pipeline::QueriedProgramFinalizationOutcome;
 #[cfg(any(test, feature = "test-api"))]
 pub use pipeline::check_prepared_program;
+pub use pipeline::{
+    QueriedProgramFinalizationOutcome, QueriedProgramMaterialization,
+    QueriedProgramMaterializationOutcome, ReusableProgramRelationFailure,
+    ReusableProgramRelationOutcome, ReusableProgramRelations, analyze_queried_program_relations,
+    finalize_queried_program_materialization,
+};
 pub(crate) use pipeline::{
     analyze_prepared_program_bodies, check_prepared_program_recovering,
-    finalize_prepared_program_from_queried_bodies,
+    materialize_prepared_program_from_queried_bodies,
 };
 pub use query::{
     ProgramBodyCheckingContext, QueriedBodyRejection, ReusableBodyQueryOutcome,

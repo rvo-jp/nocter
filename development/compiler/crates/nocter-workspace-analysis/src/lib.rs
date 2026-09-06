@@ -202,6 +202,21 @@ impl WorkspaceAnalyses {
     }
 
     #[cfg(test)]
+    fn program_materialization_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
+        (
+            statistics.materialization_executions,
+            statistics.materialization_reuses,
+        )
+    }
+
+    #[cfg(test)]
+    fn program_relation_counts(&self) -> (u64, u64) {
+        let statistics = self.computation.statistics();
+        (statistics.relation_executions, statistics.relation_reuses)
+    }
+
+    #[cfg(test)]
     fn incomplete_analysis_counts(&self) -> (u64, u64) {
         let statistics = self.computation.statistics();
         (
@@ -1000,14 +1015,29 @@ mod tests {
             .analyze(documents.open(&root, 1, original).unwrap())
             .unwrap();
         let before = analyses.program_preparation_counts();
+        let materialization_before = analyses.program_materialization_counts();
+        let relations_before = analyses.program_relation_counts();
         let DocumentWorkspaceChange::Accepted(revision) =
             documents.change(&root, 2, changed).unwrap()
         else {
             panic!("newer root text is accepted");
         };
-        analyses.analyze(revision).unwrap();
+        let warm = analyses.analyze(revision).unwrap();
 
         assert_query_reused(before, analyses.program_preparation_counts());
+        let materialization_after = analyses.program_materialization_counts();
+        assert_eq!(materialization_after.0, materialization_before.0 + 1);
+        assert_query_reused(relations_before, analyses.program_relation_counts());
+
+        let mut fresh_documents = DocumentWorkspace::new();
+        let mut fresh_analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let fresh = fresh_analyses
+            .analyze(fresh_documents.open(&root, 1, changed).unwrap())
+            .unwrap();
+        assert_eq!(
+            analysis_signature(warm.primary()),
+            analysis_signature(fresh.primary())
+        );
     }
 
     #[test]
@@ -1036,6 +1066,7 @@ mod tests {
             .unwrap();
         let before = analyses.body_name_query_counts();
         let typed_before = analyses.typed_body_query_counts();
+        let relations_before = analyses.program_relation_counts();
         let finalization_before = analyses.program_finalization_counts();
         let analysis_before = analyses.program_analysis_counts();
         let DocumentWorkspaceChange::Accepted(revision) =
@@ -1050,6 +1081,8 @@ mod tests {
         let typed_after = analyses.typed_body_query_counts();
         assert_eq!(typed_after.0, typed_before.0 + 1);
         assert!(typed_after.1 > typed_before.1);
+        let relations_after = analyses.program_relation_counts();
+        assert_eq!(relations_after.0, relations_before.0 + 1);
         let finalization_after = analyses.program_finalization_counts();
         assert_eq!(finalization_after.0, finalization_before.0 + 1);
         let analysis_after = analyses.program_analysis_counts();

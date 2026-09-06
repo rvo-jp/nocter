@@ -70,9 +70,12 @@ pub use body_check::check_prepared_program;
 pub use body_check::{
     BodyCheckError, BodyCheckFailure, BodyCheckInternalError, BodyRule, CapabilityEvidence,
     ProgramBodyCheckingContext, QueriedBodyRejection, QueriedProgramFinalizationOutcome,
-    ReusableBodyQueryOutcome, ReusableCheckedBody, ReusableProgramBodyCheckError,
-    ReusableProgramBodyNameError, TypedBodyInterruption, TypedBodyInterruptionKind,
+    QueriedProgramMaterialization, QueriedProgramMaterializationOutcome, ReusableBodyQueryOutcome,
+    ReusableCheckedBody, ReusableProgramBodyCheckError, ReusableProgramBodyNameError,
+    ReusableProgramRelationFailure, ReusableProgramRelationOutcome, ReusableProgramRelations,
+    TypedBodyInterruption, TypedBodyInterruptionKind,
 };
+pub use body_check::{analyze_queried_program_relations, finalize_queried_program_materialization};
 pub use body_evidence::{BodyEvidence, BodyRejection, BodyRejectionReason};
 pub use body_sources::{
     BodySource, BodySourceCatalog, BodySourceError, catalog_body_source, catalog_body_sources,

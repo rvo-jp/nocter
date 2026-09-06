@@ -15,7 +15,7 @@ pub enum SemanticQueryFailure {
     ProgramPreparation(nocter_checking::PreparationError),
     BodyNameResolution(nocter_checking::ReusableProgramBodyNameError),
     BodyChecking(nocter_checking::ReusableProgramBodyCheckError),
-    ProgramFinalization(nocter_checking::PreparationFailure),
+    ProgramMaterialization(nocter_checking::PreparationFailure),
     NameRejectionMaterialization(nocter_checking::PreparationFailure),
     MissingBodyIdentity {
         path: Box<str>,
@@ -39,10 +39,10 @@ impl fmt::Display for SemanticQueryFailure {
             Self::ProgramPreparation(error) => error.fmt(formatter),
             Self::BodyNameResolution(error) => error.fmt(formatter),
             Self::BodyChecking(error) => error.fmt(formatter),
-            Self::ProgramFinalization(error) => {
+            Self::ProgramMaterialization(error) => {
                 write!(
                     formatter,
-                    "program finalization failed internally: {error:?}"
+                    "program materialization failed internally: {error:?}"
                 )
             }
             Self::NameRejectionMaterialization(error) => write!(
@@ -80,7 +80,7 @@ impl std::error::Error for SemanticQueryFailure {
             Self::ProgramPreparation(error) => Some(error),
             Self::BodyNameResolution(error) => Some(error),
             Self::BodyChecking(error) => Some(error),
-            Self::ProgramFinalization(_)
+            Self::ProgramMaterialization(_)
             | Self::NameRejectionMaterialization(_)
             | Self::MissingBodyIdentity { .. }
             | Self::BodySourceIdentityMismatch { .. }

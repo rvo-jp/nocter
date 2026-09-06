@@ -7,7 +7,9 @@ mod failure;
 mod incomplete_analysis;
 mod program_analysis;
 mod program_finalization;
+mod program_materialization;
 mod program_preparation;
+mod program_relations;
 mod typed_bodies;
 mod unit_analysis;
 
@@ -388,6 +390,10 @@ pub(super) struct SemanticComputationStatistics {
     pub body_name_reuses: u64,
     pub typed_body_executions: u64,
     pub typed_body_reuses: u64,
+    pub materialization_executions: u64,
+    pub materialization_reuses: u64,
+    pub relation_executions: u64,
+    pub relation_reuses: u64,
     pub finalization_executions: u64,
     pub finalization_reuses: u64,
     pub complete_analysis_executions: u64,
@@ -409,6 +415,10 @@ pub(super) fn statistics(database: &Database) -> SemanticComputationStatistics {
         body_name_reuses: body_names::body_name_reuse_count(database),
         typed_body_executions: typed_bodies::typed_body_execution_count(database),
         typed_body_reuses: typed_bodies::typed_body_reuse_count(database),
+        materialization_executions: program_materialization::execution_count(database),
+        materialization_reuses: program_materialization::reuse_count(database),
+        relation_executions: program_relations::execution_count(database),
+        relation_reuses: program_relations::reuse_count(database),
         finalization_executions: program_finalization::finalization_execution_count(database),
         finalization_reuses: program_finalization::finalization_reuse_count(database),
         complete_analysis_executions: program_analysis::program_analysis_execution_count(database),

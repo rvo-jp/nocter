@@ -179,25 +179,23 @@ impl ProgramBodyCheckingContext {
         }
     }
 
-    /// Replays one complete queried body set and finalizes program-wide semantic authorities.
+    /// Replays the complete queried body set into one exact-current owned program materialization.
     ///
     /// # Errors
     ///
-    /// Returns current body-catalog or lexical recipe integrity failures. Body checking and
-    /// whole-program finalization failures are retained in the returned query outcome.
-    pub fn finalize(
+    /// Returns a preparation integrity failure when the supplied lexical or typed body set cannot
+    /// be joined to this context's current declaration and source projections.
+    pub fn materialize(
         &self,
         input: &CompileUnitInput<'_>,
-        names: &[&ReusableBodyNames],
-        name_rejections: &[&crate::QueriedBodyNameRejection],
+        body_names: &[&ReusableBodyNames],
+        body_rejections: &[&crate::QueriedBodyNameRejection],
         bodies: &[&ReusableCheckedBody],
-        body_rejections: &[&QueriedBodyRejection],
-    ) -> Result<super::QueriedProgramFinalizationOutcome, crate::PreparationFailure> {
-        let prepared = self.prepare_names(input, names, name_rejections)?;
-        Ok(super::finalize_prepared_program_from_queried_bodies(
-            prepared,
-            bodies,
-            body_rejections,
+        rejections: &[&QueriedBodyRejection],
+    ) -> Result<crate::QueriedProgramMaterializationOutcome, crate::PreparationFailure> {
+        let prepared = self.prepare_names(input, body_names, body_rejections)?;
+        Ok(super::materialize_prepared_program_from_queried_bodies(
+            prepared, bodies, rejections,
         ))
     }
 }

@@ -63,6 +63,7 @@ mod value_planning;
 use loops::LoopConstruction;
 use opaque_witness::OpaqueResultState;
 
+#[derive(Clone, Debug)]
 pub(super) struct NodeProjection {
     pub(super) entity: SemanticEntity,
     pub(super) origin: SourceOrigin,

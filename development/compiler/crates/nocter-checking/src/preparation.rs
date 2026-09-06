@@ -187,6 +187,18 @@ impl ReusablePreparedProgram {
 }
 
 impl PreparedSemanticProgram {
+    pub(crate) fn from_checked_parts(
+        environment: crate::program_environment::ProgramEnvironment,
+        semantics: crate::semantic_authority::SemanticAuthority,
+        source_access: SourceAccessTable,
+    ) -> Self {
+        Self {
+            environment,
+            semantics,
+            source_access,
+        }
+    }
+
     pub(crate) const fn environment(&self) -> &crate::program_environment::ProgramEnvironment {
         &self.environment
     }

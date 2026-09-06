@@ -24,6 +24,7 @@ use crate::preparation::{BodyCheckingParts, PreparedBodyAnalysis};
 use crate::provenance::analyze_program_provenance;
 use crate::{BodySource, BodySourceCatalog, CheckedBody, PreparedChecking, ResolvedBodyNames};
 
+#[derive(Clone, Debug)]
 struct CheckedBodyState {
     body: CheckedBody,
     node_origins: HashMap<nocter_model::BodyNodeId, nocter_source_index::SourceOrigin>,
@@ -59,20 +60,11 @@ pub(crate) fn check_prepared_program_recovering<'syntax>(
     check_prepared_program_internal(input, prepared, true)
 }
 
-/// Finalizes one current program from independently cached source-neutral typed bodies.
-///
-/// The body set must cover the declaration graph exactly once. Bodies are replayed in canonical
-/// `BodyId` order, so cached query execution order cannot affect program semantic identities.
-///
-/// # Errors
-///
-/// Returns an integrity failure for an incomplete/mismatched set, or a program-level ownership,
-/// provenance, loan, or semantic-completion failure after replay.
-fn check_prepared_program_from_queried_bodies(
+fn try_materialize_prepared_program_from_queried_bodies(
     prepared: PreparedChecking<'_>,
     reusable: &[&super::ReusableCheckedBody],
     rejected: &[&super::QueriedBodyRejection],
-) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
+) -> Result<QueriedProgramMaterialization, crate::BodyCheckFailure> {
     let (accepted_semantics, prepared) = prepared.into_parts().into_body_parts();
     let program_semantics = accepted_semantics.clone();
     let mut semantics = BodySemanticAuthority::new(accepted_semantics, ClosureAuthority::new());
@@ -97,7 +89,48 @@ fn check_prepared_program_from_queried_bodies(
             error, recovery,
         ));
     }
-    complete_checked_program(prepared, semantics, materialized.output, true)
+    materialize_checked_program(prepared, semantics, materialized.output, true)
+}
+
+/// Exact-current canonical body materialization before program-wide relation analysis.
+///
+/// The value owns every semantic and source-projection component required by final assembly. It
+/// contains no borrowed syntax, so the computation graph can retain it without extending a parser
+/// generation's lifetime.
+#[derive(Clone, Debug)]
+pub struct QueriedProgramMaterialization {
+    environment: crate::program_environment::ProgramEnvironment,
+    source_access: nocter_frontend_bindings::SourceAccessTable,
+    body_names: Arena<BodyId, ResolvedBodyNames>,
+    source_index: SourceIndex,
+    semantics: super::CheckedSemanticAuthority,
+    bodies: Vec<(BodyId, CheckedBodyState)>,
+    projections: Vec<NodeProjection>,
+    opaque_witnesses: crate::OpaqueWitnessTable,
+    associated_type_completion_contexts: Box<[crate::AssociatedTypeCompletionContext]>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ReusableProgramRelations {
+    provenance: crate::ProvenanceTable,
+    effects: crate::EffectTable,
+    loans: crate::LoanTable,
+}
+
+#[derive(Clone, Debug)]
+pub struct ReusableProgramRelationFailure(crate::BodyRelationError);
+
+#[derive(Clone, Debug)]
+pub enum ReusableProgramRelationOutcome {
+    Analyzed(Box<ReusableProgramRelations>),
+    Failed(Box<ReusableProgramRelationFailure>),
+}
+
+/// Immutable exact-current result of canonical body replay before relation analysis.
+#[derive(Debug)]
+pub enum QueriedProgramMaterializationOutcome {
+    Materialized(Box<QueriedProgramMaterialization>),
+    Failed(Box<crate::BodyCheckFailure>),
 }
 
 /// Immutable exact-current result of canonical body replay and program finalization.
@@ -107,15 +140,36 @@ pub enum QueriedProgramFinalizationOutcome {
     Failed(Box<crate::BodyCheckFailure>),
 }
 
-/// Replays every independently queried body and finalizes whole-program authorities once.
-///
+/// Replays every independently queried body into one exact-current owned materialization.
 #[must_use]
-pub(crate) fn finalize_prepared_program_from_queried_bodies(
+pub(crate) fn materialize_prepared_program_from_queried_bodies(
     prepared: PreparedChecking<'_>,
     reusable: &[&super::ReusableCheckedBody],
     rejected: &[&super::QueriedBodyRejection],
+) -> QueriedProgramMaterializationOutcome {
+    match try_materialize_prepared_program_from_queried_bodies(prepared, reusable, rejected) {
+        Ok(materialized) => {
+            QueriedProgramMaterializationOutcome::Materialized(Box::new(materialized))
+        }
+        Err(failure) => QueriedProgramMaterializationOutcome::Failed(Box::new(failure)),
+    }
+}
+
+/// Computes source-neutral whole-program relations from one canonical materialization.
+#[must_use]
+pub fn analyze_queried_program_relations(
+    materialized: &QueriedProgramMaterialization,
+) -> ReusableProgramRelationOutcome {
+    analyze_materialized_program_relations(materialized)
+}
+
+/// Joins exact-current materialization with source-neutral relation analysis.
+#[must_use]
+pub fn finalize_queried_program_materialization(
+    materialized: QueriedProgramMaterialization,
+    relations: &ReusableProgramRelationOutcome,
 ) -> QueriedProgramFinalizationOutcome {
-    match check_prepared_program_from_queried_bodies(prepared, reusable, rejected) {
+    match finalize_materialized_program(materialized, relations, true) {
         Ok(checked) => QueriedProgramFinalizationOutcome::Checked(Box::new(checked)),
         Err(failure) => QueriedProgramFinalizationOutcome::Failed(Box::new(failure)),
     }
@@ -353,6 +407,18 @@ fn complete_checked_program(
     output: CheckedBodiesOutput,
     retain_prepared: bool,
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
+    let materialized =
+        materialize_checked_program(prepared, checked_semantics, output, retain_prepared)?;
+    let relations = analyze_materialized_program_relations(&materialized);
+    finalize_materialized_program(materialized, &relations, retain_prepared)
+}
+
+fn materialize_checked_program(
+    prepared: BodyCheckingParts<'_>,
+    checked_semantics: BodySemanticAuthority,
+    output: CheckedBodiesOutput,
+    retain_prepared: bool,
+) -> Result<QueriedProgramMaterialization, crate::BodyCheckFailure> {
     let CheckedBodiesOutput {
         bodies: mut checked_bodies,
         projections,
@@ -397,24 +463,62 @@ fn complete_checked_program(
         ));
     }
     checked_semantics.accept(cleanup);
+    let BodyCheckingParts {
+        environment,
+        source_access,
+        body_sources: _,
+        body_names,
+        source_namespaces: _,
+        source_index,
+    } = prepared;
+    Ok(QueriedProgramMaterialization {
+        environment,
+        source_access,
+        body_names,
+        source_index,
+        semantics: checked_semantics,
+        bodies: checked_bodies,
+        projections,
+        opaque_witnesses,
+        associated_type_completion_contexts: associated_type_completion_contexts.into_boxed_slice(),
+    })
+}
 
-    let (provenance, effects, loans) = match analyze_checked_body_relations(
-        &prepared.environment,
-        checked_semantics.semantics().types(),
-        checked_semantics.closures(),
-        &checked_bodies,
+fn analyze_materialized_program_relations(
+    materialized: &QueriedProgramMaterialization,
+) -> ReusableProgramRelationOutcome {
+    match analyze_checked_body_relations(
+        &materialized.environment,
+        materialized.semantics.semantics().types(),
+        materialized.semantics.closures(),
+        &materialized.bodies,
     ) {
-        Ok(relations) => relations,
+        Ok(relations) => ReusableProgramRelationOutcome::Analyzed(Box::new(relations)),
         Err(error) => {
-            let recovery = if retain_prepared {
-                build_body_analysis_recovery(
-                    prepared,
-                    checked_semantics.semantics().clone(),
-                    Vec::new(),
-                    checked_bodies,
-                    projections,
-                )
-                .map(Some)
+            ReusableProgramRelationOutcome::Failed(Box::new(ReusableProgramRelationFailure(error)))
+        }
+    }
+}
+
+fn finalize_materialized_program(
+    materialized: QueriedProgramMaterialization,
+    outcome: &ReusableProgramRelationOutcome,
+    retain_recovery: bool,
+) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
+    let relations = match outcome {
+        ReusableProgramRelationOutcome::Analyzed(relations) => (**relations).clone(),
+        ReusableProgramRelationOutcome::Failed(failure) => {
+            let projection = BodyRelationProjection::new(
+                materialized.environment.graph(),
+                materialized
+                    .bodies
+                    .iter()
+                    .map(|(body, checked)| (*body, &checked.node_origins)),
+            )
+            .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+            let error = failure.0.clone().project(&projection);
+            let recovery = if retain_recovery {
+                build_materialized_body_recovery(materialized).map(Some)
             } else {
                 Ok(None)
             };
@@ -423,21 +527,42 @@ fn complete_checked_program(
             ));
         }
     };
+    finish_checked_program(materialized, relations)
+}
 
-    finish_checked_program(
-        prepared,
-        CheckedProgramCompletion {
-            semantics: checked_semantics,
-            bodies: checked_bodies,
-            projections,
-            opaque_witnesses,
-            associated_type_completion_contexts: associated_type_completion_contexts
-                .into_boxed_slice(),
-            provenance,
-            effects,
-            loans,
-        },
-    )
+fn build_materialized_body_recovery(
+    materialized: QueriedProgramMaterialization,
+) -> Result<crate::BodyAnalysisRecovery, BodyCheckInternalError> {
+    let QueriedProgramMaterialization {
+        environment,
+        source_access,
+        body_names,
+        source_index,
+        semantics,
+        bodies,
+        projections,
+        opaque_witnesses: _,
+        associated_type_completion_contexts: _,
+    } = materialized;
+    let source_index =
+        extend_source_index(source_index, projections, environment.capability_evidence());
+    let mut evidence = ArenaBuilder::new();
+    for (body, checked) in bodies {
+        if evidence.insert(crate::BodyEvidence::Typed(checked.body)) != body {
+            return Err(BodyCheckInternalError::NonCanonicalBody(body));
+        }
+    }
+    let program = crate::PreparedSemanticProgram::from_checked_parts(
+        environment,
+        semantics.semantics().clone(),
+        source_access,
+    );
+    Ok(crate::BodyAnalysisRecovery::new(
+        program,
+        body_names,
+        source_index,
+        evidence.finish(),
+    ))
 }
 
 fn recover_body_construction_failure(
@@ -517,31 +642,26 @@ fn build_body_analysis_recovery(
     ))
 }
 
-struct CheckedProgramCompletion {
-    semantics: super::CheckedSemanticAuthority,
-    bodies: Vec<(BodyId, CheckedBodyState)>,
-    projections: Vec<NodeProjection>,
-    opaque_witnesses: crate::OpaqueWitnessTable,
-    associated_type_completion_contexts: Box<[crate::AssociatedTypeCompletionContext]>,
-    provenance: crate::ProvenanceTable,
-    effects: crate::EffectTable,
-    loans: crate::LoanTable,
-}
-
 fn finish_checked_program(
-    prepared: BodyCheckingParts<'_>,
-    completion: CheckedProgramCompletion,
+    materialized: QueriedProgramMaterialization,
+    relations: ReusableProgramRelations,
 ) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
-    let CheckedProgramCompletion {
+    let QueriedProgramMaterialization {
+        environment,
+        source_access,
+        body_names: _,
+        source_index,
         mut semantics,
         bodies: checked_bodies,
         projections,
         opaque_witnesses,
         associated_type_completion_contexts,
+    } = materialized;
+    let ReusableProgramRelations {
         provenance,
         effects,
         loans,
-    } = completion;
+    } = relations;
     let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
     for (body, checked) in checked_bodies {
         let actual = bodies.insert(checked.body);
@@ -553,14 +673,6 @@ fn finish_checked_program(
         }
     }
 
-    let BodyCheckingParts {
-        environment,
-        source_access,
-        body_sources: _,
-        body_names: _,
-        source_namespaces: _,
-        source_index,
-    } = prepared;
     let graph = environment.graph();
     let source_index =
         extend_source_index(source_index, projections, environment.capability_evidence());
@@ -1010,18 +1122,12 @@ fn analyze_checked_body_relations(
     types: &TypeStore,
     closures: &crate::ClosureTable,
     checked_bodies: &[(BodyId, CheckedBodyState)],
-) -> Result<(crate::ProvenanceTable, crate::EffectTable, crate::LoanTable), BodyCheckError> {
+) -> Result<ReusableProgramRelations, crate::BodyRelationError> {
     let relations = BodyRelationCatalog::new(
         environment.graph(),
         checked_bodies
             .iter()
             .map(|(body, checked)| (*body, &checked.body)),
-    )?;
-    let projection = BodyRelationProjection::new(
-        environment.graph(),
-        checked_bodies
-            .iter()
-            .map(|(body, checked)| (*body, &checked.node_origins)),
     )?;
     let provenance = analyze_program_provenance(
         environment.graph(),
@@ -1030,10 +1136,8 @@ fn analyze_checked_body_relations(
         environment.interface_implementations(),
         closures,
         &relations,
-    )
-    .map_err(|error| error.project(&projection))?;
-    let effects = analyze_program_effects(environment, closures, &relations)
-        .map_err(|error| error.project(&projection))?;
+    )?;
+    let effects = analyze_program_effects(environment, closures, &relations)?;
     let loans = analyze_program_loans(
         environment.graph(),
         types,
@@ -1042,7 +1146,10 @@ fn analyze_checked_body_relations(
         &provenance,
         closures,
         &relations,
-    )
-    .map_err(|error| error.project(&projection))?;
-    Ok((provenance, effects, loans))
+    )?;
+    Ok(ReusableProgramRelations {
+        provenance,
+        effects,
+        loans,
+    })
 }

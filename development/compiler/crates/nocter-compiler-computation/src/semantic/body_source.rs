@@ -54,6 +54,7 @@ impl ComputationKey for BodySourceKey {
 pub(super) struct BodySourceValue {
     pub(super) key: BodySourceKey,
     fingerprint: Fingerprint,
+    structural_fingerprint: Fingerprint,
 }
 
 #[derive(Clone, Copy)]
@@ -118,6 +119,12 @@ impl BodySourceValue {
             identity,
         })
     }
+
+    /// Returns the parsed body structure with scalar literal payloads elided.
+    #[must_use]
+    pub(super) const fn structural_fingerprint(&self) -> Fingerprint {
+        self.structural_fingerprint
+    }
 }
 
 impl QueryValue for BodySourceValue {
@@ -141,6 +148,7 @@ impl BodySourcePublication {
             value: BodySourceValue {
                 key,
                 fingerprint: Fingerprint::from_bytes(body.canonical_bytes()),
+                structural_fingerprint: Fingerprint::from_bytes(body.structural_bytes()),
             },
         }
     }
@@ -153,6 +161,10 @@ impl BodySourcePublication {
 #[cfg(test)]
 impl BodySourceValue {
     pub(super) fn for_test(key: BodySourceKey, fingerprint: Fingerprint) -> Self {
-        Self { key, fingerprint }
+        Self {
+            key,
+            fingerprint,
+            structural_fingerprint: fingerprint,
+        }
     }
 }

@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     DeclarationSyntaxLocator, NodeId, SyntaxElement, SyntaxOrigin, SyntaxToken, SyntaxTree,
+    TokenKind,
 };
 
 /// Source-independent position of one node or token inside an executable body.
@@ -82,6 +83,7 @@ impl BodySyntaxProjection {
 pub struct BodySyntaxSurface {
     locator: DeclarationSyntaxLocator,
     canonical: Box<[u8]>,
+    structural: Box<[u8]>,
 }
 
 impl BodySyntaxSurface {
@@ -93,6 +95,16 @@ impl BodySyntaxSurface {
     #[must_use]
     pub const fn canonical_bytes(&self) -> &[u8] {
         &self.canonical
+    }
+
+    /// Returns deterministic syntax structure with scalar literal payloads elided.
+    ///
+    /// Identifiers, keywords, punctuation, parsed node shape, and string interpolation structure
+    /// remain exact. Consumers may use this only for computations whose results cannot depend on
+    /// integer, byte, character, or string-text values.
+    #[must_use]
+    pub const fn structural_bytes(&self) -> &[u8] {
+        &self.structural
     }
 }
 
@@ -113,5 +125,64 @@ pub(crate) fn body_surface(
         .expect("body ranges address normalized source text")
         .as_bytes()
         .into();
-    BodySyntaxSurface { locator, canonical }
+    let structural = structural_body_bytes(tree, body, normalized_text);
+    BodySyntaxSurface {
+        locator,
+        canonical,
+        structural,
+    }
+}
+
+fn structural_body_bytes(tree: &SyntaxTree, body: NodeId, normalized_text: &str) -> Box<[u8]> {
+    enum Visit {
+        Element(SyntaxElement),
+        CloseNode,
+    }
+
+    let mut output = Vec::new();
+    let mut pending = vec![Visit::Element(SyntaxElement::Node(body))];
+    while let Some(visit) = pending.pop() {
+        match visit {
+            Visit::Element(SyntaxElement::Node(node)) => {
+                let syntax = tree
+                    .node(node)
+                    .expect("body surface traversal retains one syntax-tree owner");
+                crate::surface::encode(0, syntax.kind().as_str().as_bytes(), &mut output);
+                pending.push(Visit::CloseNode);
+                pending.extend(
+                    tree.children(node)
+                        .iter()
+                        .rev()
+                        .copied()
+                        .map(Visit::Element),
+                );
+            }
+            Visit::Element(SyntaxElement::Token(token)) => {
+                crate::surface::encode(1, token.kind().as_str().as_bytes(), &mut output);
+                let payload = match token.kind() {
+                    TokenKind::Identifier
+                    | TokenKind::Keyword(_)
+                    | TokenKind::StringStart(_)
+                    | TokenKind::InterpolationStart
+                    | TokenKind::InterpolationEnd
+                    | TokenKind::StringEnd(_)
+                    | TokenKind::Punctuation(_) => {
+                        crate::surface::text_at(normalized_text, token.range()).as_bytes()
+                    }
+                    TokenKind::IntegerLiteral
+                    | TokenKind::ByteLiteral
+                    | TokenKind::CharacterLiteral
+                    | TokenKind::StringText
+                    | TokenKind::Newline
+                    | TokenKind::Eof => &[],
+                };
+                crate::surface::encode(2, payload, &mut output);
+            }
+            Visit::Element(SyntaxElement::Missing(missing)) => {
+                crate::surface::encode_expected(missing.expected(), &mut output);
+            }
+            Visit::CloseNode => output.push(4),
+        }
+    }
+    output.into_boxed_slice()
 }
