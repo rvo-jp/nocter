@@ -111,3 +111,23 @@ The selected target owns decimal rounding and compile-time floating arithmetic. 
 retain the resulting `f32` or `f64` bits through lowering. Runtime arithmetic uses the target's
 matching operations. Compile-time and runtime results therefore do not depend on the compiler
 host's floating-point parser.
+
+## Decimal Parsing
+
+The standard constructors `f32.parse(text)` and `f64.parse(text)` consume one complete
+locale-independent spelling. Decimal input has this form:
+
+```text
+"-"? digits ("." digits)? (("e" | "E") ("+" | "-")? digits)?
+```
+
+At least one integer digit is required. A written decimal point requires a following digit.
+Whitespace, separators, a leading `+`, and trailing characters are invalid. The exact spellings
+`inf`, `-inf`, and `NaN` are also accepted so canonical formatted non-finite values can round trip.
+
+The complete decimal significand and exponent denote an exact rational value. Parsing rounds that
+value once to the destination format using round-to-nearest, ties-to-even. A nonzero finite value
+that would become zero and a finite value that would become infinity return `none`; representable
+subnormals are accepted. Negative decimal zero preserves its sign. Parsing may use temporary
+storage in the current allocation context, but invalid text and numeric range loss are reported by
+the optional result rather than by an error payload.

@@ -386,3 +386,100 @@ test floating_checked_conversions_enforce_range_and_integrality {
     }
     return
 }
+
+test floating_decimal_parsing_rounds_exactly {
+    let tenth64 = f64.parse("0.1") otherwise {
+        return error.new("std.num.parse", "f64 tenth was rejected")
+    }
+    let tenth32 = f32.parse("0.1") otherwise {
+        return error.new("std.num.parse", "f32 tenth was rejected")
+    }
+    if tenth64.to_bits() != 4591870180066957722 || tenth32.to_bits() != 1036831949 {
+        return error.new("std.num.parse", "decimal tenth rounded incorrectly")
+    }
+
+    let even = f64.parse("1.00000000000000011102230246251565404236316680908203125")
+        otherwise { return error.new("std.num.parse", "exact midpoint was rejected") }
+    let above = f64.parse("1.00000000000000011102230246251565404236316680908203126")
+        otherwise { return error.new("std.num.parse", "above-midpoint value was rejected") }
+    if even.to_bits() != 4607182418800017408 || above.to_bits() != 4607182418800017409 {
+        return error.new("std.num.parse", "ties-to-even decimal rounding changed")
+    }
+
+    let subnormal = f64.parse("5e-324") otherwise {
+        return error.new("std.num.parse", "minimum subnormal spelling was rejected")
+    }
+    if subnormal.to_bits() != 1 {
+        return error.new("std.num.parse", "subnormal decimal rounded incorrectly")
+    }
+    if !is_none(f64.parse("1e-324")) || !is_none(f64.parse("1e309")) {
+        return error.new("std.num.parse", "range-losing decimal was accepted")
+    }
+
+    let maximum64 = f64.parse("1.7976931348623157e308") otherwise {
+        return error.new("std.num.parse", "maximum finite f64 was rejected")
+    }
+    let minimum_normal64 = f64.parse("2.2250738585072014e-308") otherwise {
+        return error.new("std.num.parse", "minimum normal f64 was rejected")
+    }
+    let maximum32 = f32.parse("3.4028235e38") otherwise {
+        return error.new("std.num.parse", "maximum finite f32 was rejected")
+    }
+    let minimum32 = f32.parse("1.40129846e-45") otherwise {
+        return error.new("std.num.parse", "minimum subnormal f32 was rejected")
+    }
+    if maximum64.to_bits() != 9218868437227405311
+        || minimum_normal64.to_bits() != 4503599627370496
+        || maximum32.to_bits() != 2139095039
+        || minimum32.to_bits() != 1 {
+        return error.new("std.num.parse", "an IEEE range boundary rounded incorrectly")
+    }
+    if !is_none(f64.parse("1.7976931348623159e308")) {
+        return error.new("std.num.parse", "f64 overflow boundary was accepted")
+    }
+
+    let scaled_one = f64.parse("0001.0000e+0") otherwise {
+        return error.new("std.num.parse", "redundant decimal zeroes were rejected")
+    }
+    if scaled_one.to_bits() != 4607182418800017408 {
+        return error.new("std.num.parse", "redundant decimal zeroes changed the value")
+    }
+    let long_fraction = f64.parse("1.2345678901234567") otherwise {
+        return error.new("std.num.parse", "long decimal fraction was rejected")
+    }
+    let integer_rounding = f64.parse("9007199254740993") otherwise {
+        return error.new("std.num.parse", "integer rounding input was rejected")
+    }
+    let tiny_scaled = f64.parse("123456789e-100") otherwise {
+        return error.new("std.num.parse", "negative decimal scale was rejected")
+    }
+    let pi = f64.parse("-3.1415926535897932384626") otherwise {
+        return error.new("std.num.parse", "negative long fraction was rejected")
+    }
+    if long_fraction.to_bits() != 4608238818662570491
+        || integer_rounding.to_bits() != 4845873199050653696
+        || tiny_scaled.to_bits() != 3231825921349750740
+        || pi.to_bits() != 13837628693406821656 {
+        return error.new("std.num.parse", "a general decimal rounded incorrectly")
+    }
+
+    let negative_zero = f64.parse("-0.0") otherwise {
+        return error.new("std.num.parse", "negative zero was rejected")
+    }
+    let infinity = f32.parse("inf") otherwise {
+        return error.new("std.num.parse", "infinity was rejected")
+    }
+    let nan = f64.parse("NaN") otherwise {
+        return error.new("std.num.parse", "NaN was rejected")
+    }
+    if negative_zero.to_bits() != 9223372036854775808 || !infinity.is_infinite() || !nan.is_nan() {
+        return error.new("std.num.parse", "canonical special spelling changed")
+    }
+    if !is_none(f64.parse("1."))
+        || !is_none(f64.parse(".1"))
+        || !is_none(f64.parse("+1.0"))
+        || !is_none(f64.parse("1.0x")) {
+        return error.new("std.num.parse", "invalid decimal grammar was accepted")
+    }
+    return
+}

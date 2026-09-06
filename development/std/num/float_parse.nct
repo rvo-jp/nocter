@@ -1,0 +1,243 @@
+//! Exact locale-independent decimal parsing for binary floating-point values.
+
+see ./index.nct
+see ./conversion.nct
+see ./float_big.nct
+
+struct ParsedFloatDecimal {
+    magnitude: FloatBig
+    exponent: i64
+    significant_digits: i64
+    negative: bool
+}
+
+construct f32 {
+    func parse(text: &str): Self? {
+        if text == "inf" { return F32_INFINITY }
+        if text == "-inf" { return F32_NEG_INFINITY }
+        if text == "NaN" { return F32_NAN }
+        let parsed = parse_float_decimal(text) otherwise { return none }
+        let bits = decimal_to_float_bits(move parsed, 24, -126, 127, 127, 8388608, 2147483648)
+            otherwise { return none }
+        return f32.from_bits(u32_truncate_raw(bits))
+    }
+}
+
+construct f64 {
+    func parse(text: &str): Self? {
+        if text == "inf" { return F64_INFINITY }
+        if text == "-inf" { return F64_NEG_INFINITY }
+        if text == "NaN" { return F64_NAN }
+        let parsed = parse_float_decimal(text) otherwise { return none }
+        let bits = decimal_to_float_bits(
+            move parsed,
+            53,
+            -1022,
+            1023,
+            1023,
+            4503599627370496,
+            9223372036854775808,
+        ) otherwise { return none }
+        return f64.from_bits(bits)
+    }
+}
+
+func parse_float_decimal(text: &str): ParsedFloatDecimal? {
+    let length = text.len()
+    if length == 0 { return none }
+    var index: usize = 0
+    var negative = false
+    if text[0] == 45 {
+        negative = true
+        index = 1
+        if index == length { return none }
+    }
+
+    var magnitude = FloatBig.from_u64(0)
+    var significant_digits: i64 = 0
+    var saw_nonzero = false
+    var integer_digits: usize = 0
+    while index < length && is_decimal_digit(text[index]) {
+        let digit = (text[index] - 48) as u64
+        magnitude.add_digit(digit)
+        if saw_nonzero || digit != 0 {
+            saw_nonzero = true
+            significant_digits += 1
+        }
+        integer_digits += 1
+        index += 1
+    }
+    if integer_digits == 0 { return none }
+
+    var fractional_digits: i64 = 0
+    if index < length && text[index] == 46 {
+        index += 1
+        let fraction_start = index
+        while index < length && is_decimal_digit(text[index]) {
+            let digit = (text[index] - 48) as u64
+            magnitude.add_digit(digit)
+            fractional_digits += 1
+            if saw_nonzero || digit != 0 {
+                saw_nonzero = true
+                significant_digits += 1
+            }
+            index += 1
+        }
+        if index == fraction_start { return none }
+    }
+
+    var explicit_exponent: i64 = 0
+    if index < length && (text[index] == 101 || text[index] == 69) {
+        index += 1
+        var exponent_negative = false
+        if index < length && (text[index] == 43 || text[index] == 45) {
+            exponent_negative = text[index] == 45
+            index += 1
+        }
+        let exponent_start = index
+        while index < length && is_decimal_digit(text[index]) {
+            let digit = (text[index] - 48) as i64
+            if explicit_exponent > 922337203685477580
+                || (explicit_exponent == 922337203685477580 && digit > 7) { return none }
+            explicit_exponent = explicit_exponent * 10 + digit
+            index += 1
+        }
+        if index == exponent_start { return none }
+        if exponent_negative { explicit_exponent = -explicit_exponent }
+    }
+    if index != length { return none }
+
+    if magnitude.is_zero() {
+        return ParsedFloatDecimal {
+            magnitude: move magnitude,
+            exponent: 0,
+            significant_digits: 0,
+            negative: negative,
+        }
+    }
+
+    if explicit_exponent < -9223372036854775808 + fractional_digits { return none }
+    var exponent = explicit_exponent - fractional_digits
+    while magnitude.is_divisible_by_ten() {
+        let _remainder = magnitude.divide_small(10)
+        if exponent == 9223372036854775807 { return none }
+        exponent += 1
+        significant_digits -= 1
+    }
+    return ParsedFloatDecimal {
+        magnitude: move magnitude,
+        exponent: exponent,
+        significant_digits: significant_digits,
+        negative: negative,
+    }
+}
+
+func decimal_to_float_bits(
+    parsed: ParsedFloatDecimal,
+    precision: i64,
+    minimum_exponent: i64,
+    maximum_exponent: i64,
+    bias: i64,
+    implicit_bit: u64,
+    sign_bit: u64,
+): u64? {
+    var input = move parsed
+    if input.magnitude.is_zero() {
+        if input.negative { return sign_bit }
+        return 0
+    }
+    if input.exponent > 0
+        && input.significant_digits > 9223372036854775807 - input.exponent { return none }
+    let decimal_order = input.significant_digits + input.exponent
+    if decimal_order > 310 || decimal_order < -325 { return none }
+
+    var numerator = move input.magnitude
+    var denominator = FloatBig.from_u64(1)
+    var decimal_exponent = input.exponent
+    while decimal_exponent > 0 {
+        numerator.multiply_small(10)
+        decimal_exponent -= 1
+    }
+    while decimal_exponent < 0 {
+        denominator.multiply_small(10)
+        decimal_exponent += 1
+    }
+
+    var binary_exponent: i64 = 0
+    while float_big_compare(&numerator, &denominator) < 0 {
+        numerator.multiply_small(2)
+        binary_exponent -= 1
+    }
+    loop {
+        var doubled_denominator = FloatBig.copy(&denominator)
+        doubled_denominator.multiply_small(2)
+        if float_big_compare(&numerator, &doubled_denominator) < 0 { break }
+        denominator = move doubled_denominator
+        binary_exponent += 1
+    }
+
+    if binary_exponent > maximum_exponent { return none }
+    let unit_exponent = minimum_exponent - (precision - 1)
+    if binary_exponent < unit_exponent - 1 { return none }
+    let retained_bits = if binary_exponent < minimum_exponent {
+        binary_exponent - unit_exponent + 1
+    } else {
+        precision
+    }
+
+    var significand: u64 = 0
+    if retained_bits == 0 {
+        let comparison = float_big_compare(&numerator, &denominator)
+        if comparison > 0 { significand = 1 }
+    } else {
+        var generated: i64 = 0
+        while generated < retained_bits {
+            significand = significand * 2
+            if float_big_compare(&numerator, &denominator) >= 0 {
+                numerator.subtract(&denominator)
+                significand += 1
+            }
+            numerator.multiply_small(2)
+            generated += 1
+        }
+        let guard = float_big_compare(&numerator, &denominator) >= 0
+        if guard { numerator.subtract(&denominator) }
+        let sticky = !numerator.is_zero()
+        if guard && (sticky || significand % 2 == 1) { significand += 1 }
+    }
+    if significand == 0 { return none }
+
+    if binary_exponent < minimum_exponent {
+        if significand >= implicit_bit {
+            return float_bits_with_sign(implicit_bit, input.negative, sign_bit)
+        }
+        return float_bits_with_sign(significand, input.negative, sign_bit)
+    }
+    if significand == implicit_bit * 2 {
+        significand = significand / 2
+        binary_exponent += 1
+        if binary_exponent > maximum_exponent { return none }
+    }
+    let exponent_field = nonnegative_i64_to_u64(binary_exponent + bias)
+    let magnitude_bits = exponent_field * implicit_bit + (significand - implicit_bit)
+    return float_bits_with_sign(magnitude_bits, input.negative, sign_bit)
+}
+
+noalloc func float_bits_with_sign(magnitude: u64, negative: bool, sign_bit: u64): u64 {
+    if negative { return magnitude + sign_bit }
+    return magnitude
+}
+
+noalloc func is_decimal_digit(byte: u8): bool {
+    return byte >= 48 && byte <= 57
+}
+
+noalloc func nonnegative_i64_to_u64(value: i64): u64 {
+    var remaining = value
+    var result: u64 = 0
+    while remaining > 0 {
+        result += 1
+        remaining -= 1
+    }
+    return result
+}

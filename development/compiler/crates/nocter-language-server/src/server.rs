@@ -1520,7 +1520,7 @@ mod tests {
         let (line, source_line) = num_text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("func parse(text: &str): Self?"))
+            .find(|(_, line)| line.contains("pub noalloc func parse(text: &str): Self?"))
             .unwrap();
         let character = source_line.find("parse").unwrap();
         let hover = server.receive(&format!(

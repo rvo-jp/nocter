@@ -34,6 +34,21 @@ and leading-zero count. These operations provide the exact wide arithmetic requi
 conversion algorithms without introducing `u128` as a source type or asking ordinary trapping
 operators to acquire a second meaning.
 
+## Floating-Point Text Input
+
+`f32.parse` and `f64.parse` consume an entire ASCII decimal spelling. They accept an optional
+leading `-`, one or more integer digits, an optional decimal point followed by one or more digits,
+and an optional `e` or `E` exponent whose own sign may be written. They also accept the canonical
+non-finite spellings `inf`, `-inf`, and `NaN`. Whitespace, digit separators, a leading `+`, a
+missing digit, and trailing input return `none`.
+
+The parser retains the decimal significand as an arbitrary-precision integer and rounds the exact
+rational value directly to the destination's IEEE representation with ties to even. It returns
+`none` when a nonzero finite input rounds to zero or a finite input rounds to infinity. Temporary
+big-integer storage uses the current allocation context; allocation failure follows the ordinary
+aborting policy. Neither the compiler host parser nor target floating arithmetic defines the
+result.
+
 ## Integer Text
 
 Every built-in integer owns the decimal text surface declared by the compiler-checked

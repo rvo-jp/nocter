@@ -1,0 +1,155 @@
+//! Private nonnegative integer arithmetic for exact decimal conversion.
+
+see ./index.nct
+
+use /vec.Vec
+
+const BIG_BASE: u64 = 1000000000
+
+struct FloatBig {
+    limbs: Vec<u64>
+}
+
+construct FloatBig {
+    func from_u64(value: u64): Self {
+        var limbs: Vec<u64> = Vec.empty()
+        var remaining = value
+        while remaining != 0 {
+            limbs.push(remaining % BIG_BASE)
+            remaining = remaining / BIG_BASE
+        }
+        return FloatBig { limbs: move limbs }
+    }
+
+    func copy(value: &FloatBig): Self {
+        let source: &[u64] = &value.limbs
+        return FloatBig { limbs: Vec.from_slice(source) }
+    }
+}
+
+instance FloatBig {
+    noalloc method &self.is_zero(): bool {
+        return self.limbs.len() == 0
+    }
+
+    noalloc method &self.is_divisible_by_ten(): bool {
+        if self.limbs.len() == 0 { return true }
+        return self.limbs[0] % 10 == 0
+    }
+
+    method &+self.add_digit(digit: u64): void {
+        self.multiply_small(10)
+        self.add_small(digit)
+        return
+    }
+
+    method &+self.add_small(value: u64): void {
+        var carry = value
+        var index: usize = 0
+        while carry != 0 {
+            if index == self.limbs.len() {
+                self.limbs.push(carry)
+                return
+            }
+            let total = self.limbs[index] + carry
+            self.limbs[index] = total % BIG_BASE
+            carry = total / BIG_BASE
+            index += 1
+        }
+        return
+    }
+
+    method &+self.multiply_small(factor: u64): void {
+        if factor == 0 {
+            self.limbs.clear()
+            return
+        }
+        var carry: u64 = 0
+        var index: usize = 0
+        while index < self.limbs.len() {
+            let product = self.limbs[index] * factor + carry
+            self.limbs[index] = product % BIG_BASE
+            carry = product / BIG_BASE
+            index += 1
+        }
+        while carry != 0 {
+            self.limbs.push(carry % BIG_BASE)
+            carry = carry / BIG_BASE
+        }
+        return
+    }
+
+    method &+self.divide_small(divisor: u64): u64 {
+        var remainder: u64 = 0
+        var index = self.limbs.len()
+        while index != 0 {
+            index -= 1
+            let current = remainder * BIG_BASE + self.limbs[index]
+            self.limbs[index] = current / divisor
+            remainder = current % divisor
+        }
+        float_big_trim(self)
+        return remainder
+    }
+
+    method &+self.subtract(other: &FloatBig): void {
+        var borrow: u64 = 0
+        var index: usize = 0
+        while index < self.limbs.len() {
+            let right = if index < other.limbs.len() { other.limbs[index] } else { 0 }
+            let required = right + borrow
+            if self.limbs[index] < required {
+                self.limbs[index] = self.limbs[index] + BIG_BASE - required
+                borrow = 1
+            } else {
+                self.limbs[index] = self.limbs[index] - required
+                borrow = 0
+            }
+            index += 1
+        }
+        float_big_trim(self)
+        return
+    }
+}
+
+noalloc func float_big_compare(left: &FloatBig, right: &FloatBig): i32 {
+    if left.limbs.len() < right.limbs.len() { return -1 }
+    if left.limbs.len() > right.limbs.len() { return 1 }
+    var index = left.limbs.len()
+    while index != 0 {
+        index -= 1
+        if left.limbs[index] < right.limbs[index] { return -1 }
+        if left.limbs[index] > right.limbs[index] { return 1 }
+    }
+    return 0
+}
+
+func float_big_trim(value: &+FloatBig): void {
+    while value.limbs.len() != 0 {
+        let last = value.limbs.len() - 1
+        if value.limbs[last] != 0 { return }
+        let _removed = value.limbs.pop() otherwise { return }
+    }
+    return
+}
+
+test float_big_preserves_carry_borrow_and_decimal_scale {
+    var value = FloatBig.from_u64(999999999)
+    value.add_digit(9)
+    let expected = FloatBig.from_u64(9999999999)
+    if float_big_compare(&value, &expected) != 0 {
+        return error.new("std.num.big", "decimal carry changed")
+    }
+    let decrement = FloatBig.from_u64(9999999998)
+    value.subtract(&decrement)
+    let one = FloatBig.from_u64(1)
+    if float_big_compare(&value, &one) != 0 {
+        return error.new("std.num.big", "borrow changed")
+    }
+    value.multiply_small(100)
+    let ten = FloatBig.from_u64(10)
+    if value.divide_small(10) != 0 || float_big_compare(&value, &ten) != 0 {
+        return error.new("std.num.big", "decimal scale changed")
+    }
+    return
+}

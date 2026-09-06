@@ -1,4 +1,4 @@
-//! Decimal integer parsing and text conversion.
+//! Integer and IEEE floating-point operations, conversion, and numeric text.
 
 use /mem.TryAllocator
 use /order.Ordering
@@ -6,6 +6,8 @@ use /string.String
 see ./decimal.nct
 see ./conversion.nct
 see ./floating.nct
+see ./float_big.nct
+see ./float_parse.nct
 see ./scalar.nct
 see ./tests.nct
 see ./text.nct
@@ -74,11 +76,17 @@ construct f32 {
     /// Rounds a binary64 value to binary32, or returns none if a finite value leaves binary32's
     /// finite nonzero range.
     pub noalloc func from_f64(value: f64): Self?
+
+    /// Parses one complete locale-independent decimal or canonical non-finite spelling.
+    pub func parse(text: &str): Self?
 }
 
 construct f64 {
     /// Creates a binary64 value with exactly the supplied IEEE representation.
     pub noalloc func from_bits(bits: u64): Self
+
+    /// Parses one complete locale-independent decimal or canonical non-finite spelling.
+    pub func parse(text: &str): Self?
 }
 
 instance f32 {

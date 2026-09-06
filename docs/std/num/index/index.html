@@ -186,7 +186,7 @@
                 <span class="markdown-path-text">/std/num/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Decimal integer parsing and text conversion.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Integer and IEEE floating-point operations, conversion, and numeric text.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">Ordering</span>
@@ -194,6 +194,8 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>decimal<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>conversion<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>floating<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>float_big<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>float_parse<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>scalar<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>text<span class="token-operator">.</span>nct
@@ -262,11 +264,17 @@
     <span class="token-comment">/// Rounds a binary64 value to binary32, or returns none if a finite value leaves binary32's</span>
     <span class="token-comment">/// finite nonzero range.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Parses one complete locale-independent decimal or canonical non-finite spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> f64 <span class="token-operator">{</span>
     <span class="token-comment">/// Creates a binary64 value with exactly the supplied IEEE representation.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_bits</span><span class="token-operator">(</span>bits<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Parses one complete locale-independent decimal or canonical non-finite spelling.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> f32 <span class="token-operator">{</span>
