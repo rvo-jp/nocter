@@ -12,6 +12,8 @@ use crate::MachineTarget;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MachineScalar {
     Bool,
+    Float32,
+    Float64,
     Integer { bits: u8, signed: bool },
 }
 
@@ -500,6 +502,8 @@ impl LayoutBuilder<'_> {
         let (size, alignment, kind) = match primitive {
             RuntimePrimitive::Bool => (1, 1, MachineLayoutKind::Scalar(MachineScalar::Bool)),
             RuntimePrimitive::Char => integer(32, false)?,
+            RuntimePrimitive::Float32 => (4, 4, MachineLayoutKind::Scalar(MachineScalar::Float32)),
+            RuntimePrimitive::Float64 => (8, 8, MachineLayoutKind::Scalar(MachineScalar::Float64)),
             RuntimePrimitive::Signed(bits) => integer(bits, true)?,
             RuntimePrimitive::Unsigned(bits) => integer(bits, false)?,
             RuntimePrimitive::Isize => integer(64, true)?,

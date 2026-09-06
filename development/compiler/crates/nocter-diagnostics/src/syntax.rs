@@ -56,9 +56,9 @@ pub fn lexical_diagnostic(diagnostic: LexDiagnostic) -> SourceDiagnostic {
             "invalid integer literal",
             Some("use decimal digits with separators only between digits"),
         ),
-        LexDiagnosticKind::UnsupportedFloatLiteral => (
+        LexDiagnosticKind::InvalidFloatLiteral => (
             DiagnosticCode::E0103,
-            "floating-point literals are not supported",
+            "invalid floating-point literal",
             None,
         ),
         LexDiagnosticKind::UnterminatedString => (
@@ -200,6 +200,7 @@ fn token_expected_message(token: TokenKind) -> Box<str> {
         TokenKind::Identifier => "expected a name".into(),
         TokenKind::Keyword(keyword) => format!("expected `{}`", keyword.as_str()).into(),
         TokenKind::IntegerLiteral => "expected an integer literal".into(),
+        TokenKind::FloatLiteral => "expected a floating-point literal".into(),
         TokenKind::ByteLiteral => "expected a byte literal".into(),
         TokenKind::CharacterLiteral => "expected a character literal".into(),
         TokenKind::StringStart(_) | TokenKind::StringEnd(_) => "expected a string delimiter".into(),

@@ -11,6 +11,8 @@ include!(concat!(env!("OUT_DIR"), "/diagnostic_code.rs"));
 pub enum BuiltinType {
     Bool,
     Char,
+    F32,
+    F64,
     I8,
     I16,
     I32,
@@ -31,6 +33,8 @@ impl BuiltinType {
     pub const ALL: &'static [Self] = &[
         Self::Bool,
         Self::Char,
+        Self::F32,
+        Self::F64,
         Self::I8,
         Self::I16,
         Self::I32,
@@ -54,6 +58,8 @@ impl BuiltinType {
         match text {
             "bool" => Some(Self::Bool),
             "char" => Some(Self::Char),
+            "f32" => Some(Self::F32),
+            "f64" => Some(Self::F64),
             "i8" => Some(Self::I8),
             "i16" => Some(Self::I16),
             "i32" => Some(Self::I32),
@@ -77,6 +83,8 @@ impl BuiltinType {
         match self {
             Self::Bool => "bool",
             Self::Char => "char",
+            Self::F32 => "f32",
+            Self::F64 => "f64",
             Self::I8 => "i8",
             Self::I16 => "i16",
             Self::I32 => "i32",

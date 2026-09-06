@@ -4,7 +4,7 @@ use nocter_syntax::{NodeId, Punctuation, SyntaxElement, TokenKind};
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
-use crate::body_check::literal::{contextual_integer_type, is_integer_type};
+use crate::body_check::literal::{contextual_numeric_type, is_numeric_type};
 use crate::syntax::child_nodes;
 use crate::{CheckedOperation, PrimitiveBinary, PrimitiveOperation};
 
@@ -27,20 +27,23 @@ impl BodyChecker<'_, '_> {
                 SyntaxElement::Node(_) | SyntaxElement::Missing(_) => None,
             })
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let contextual = contextual_integer_type(self.types, expected);
+        let contextual = contextual_numeric_type(self.types, expected);
         let left = self.check_expression(operands[0], contextual)?;
         let left_ty = self.node_type(left)?;
         let never = self.types.builtin(BuiltinType::Never);
         let operand_ty = if left_ty == never {
             contextual
-        } else if is_integer_type(self.types, left_ty) {
+        } else if is_numeric_type(self.types, left_ty) {
             Some(left_ty)
         } else {
             return Err(self.rule(BodyRule::TypeMismatch, operands[0])?);
         };
         let right = self.check_expression(operands[1], operand_ty)?;
         let right_ty = self.node_type(right)?;
-        if right_ty != never && !is_integer_type(self.types, right_ty) {
+        if right_ty != never
+            && (!is_numeric_type(self.types, right_ty)
+                || operand_ty.is_some_and(|operand_ty| operand_ty != right_ty))
+        {
             return Err(self.rule(BodyRule::TypeMismatch, operands[1])?);
         }
         let result_ty = if left_ty == never || right_ty == never {

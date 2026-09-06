@@ -1,7 +1,39 @@
+use nocter_constant_evaluation::FloatFormat;
 use nocter_model::{BuiltinType, TypeId, TypeKind, TypeStore};
 
 pub(super) fn integer_type(types: &TypeStore, expected: Option<TypeId>) -> TypeId {
     contextual_integer_type(types, expected).unwrap_or_else(|| types.builtin(BuiltinType::I32))
+}
+
+pub(super) fn contextual_float_type(
+    types: &TypeStore,
+    expected: Option<TypeId>,
+) -> Option<(TypeId, FloatFormat)> {
+    let ty = expected.and_then(|expected| outcome_leaf(types, expected))?;
+    match types.get(ty) {
+        Some(TypeKind::Builtin(BuiltinType::F32)) => Some((ty, FloatFormat::Binary32)),
+        Some(TypeKind::Builtin(BuiltinType::F64)) => Some((ty, FloatFormat::Binary64)),
+        _ => None,
+    }
+}
+
+pub(super) fn contextual_numeric_type(
+    types: &TypeStore,
+    expected: Option<TypeId>,
+) -> Option<TypeId> {
+    let ty = expected.and_then(|expected| outcome_leaf(types, expected))?;
+    (is_integer_type(types, ty) || is_float_type(types, ty)).then_some(ty)
+}
+
+pub(super) fn is_float_type(types: &TypeStore, ty: TypeId) -> bool {
+    matches!(
+        types.get(ty),
+        Some(TypeKind::Builtin(BuiltinType::F32 | BuiltinType::F64))
+    )
+}
+
+pub(super) fn is_numeric_type(types: &TypeStore, ty: TypeId) -> bool {
+    is_integer_type(types, ty) || is_float_type(types, ty)
 }
 
 pub(super) fn contextual_integer_type(

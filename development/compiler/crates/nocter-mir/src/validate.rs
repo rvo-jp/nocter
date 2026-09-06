@@ -536,6 +536,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                         result == self.types.builtin(BuiltinType::Char)
                             && char::from_u32(*value).is_some()
                     }
+                    MirConstant::Float32(_) => result == self.types.builtin(BuiltinType::F32),
+                    MirConstant::Float64(_) => result == self.types.builtin(BuiltinType::F64),
                     MirConstant::Integer(_) => is_integer(self.types, result),
                     MirConstant::Text(_) => matches!(
                         self.types.get(result),

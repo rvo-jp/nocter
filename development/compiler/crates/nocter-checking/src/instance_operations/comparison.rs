@@ -182,7 +182,7 @@ impl InstanceOperationSelector<'_> {
         ty: TypeId,
         operation: ComparisonOperation,
     ) -> Result<bool, InstanceSelectionError> {
-        if integer_type(self.types, ty) {
+        if integer_type(self.types, ty) || float_type(self.types, ty) {
             return Ok(true);
         }
         if operation == ComparisonOperation::Less {
@@ -234,5 +234,12 @@ fn integer_type(types: &nocter_model::TypeStore, ty: TypeId) -> bool {
                 | BuiltinType::I64
                 | BuiltinType::Isize
         ))
+    )
+}
+
+fn float_type(types: &nocter_model::TypeStore, ty: TypeId) -> bool {
+    matches!(
+        types.get(ty),
+        Some(TypeKind::Builtin(BuiltinType::F32 | BuiltinType::F64))
     )
 }

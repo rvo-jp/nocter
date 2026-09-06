@@ -755,6 +755,8 @@ fn select_constant(
     let bits = match constant {
         MachineConstant::Bool(value) => u128::from(value),
         MachineConstant::Character(value) => u128::from(value),
+        MachineConstant::Float32(bits) => u128::from(bits),
+        MachineConstant::Float64(bits) => u128::from(bits),
         MachineConstant::Integer(value) => value.cast_unsigned(),
         MachineConstant::Text(_) => unreachable!("text constants return before scalar selection"),
     };

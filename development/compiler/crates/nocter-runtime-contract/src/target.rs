@@ -46,6 +46,7 @@ pub struct RuntimeAbiSchema {
     pointer_alignment: u64,
     stack_alignment: u64,
     argument_register_count: u8,
+    floating_argument_register_count: u8,
     direct_value_word_limit: u8,
     direct_result_register_count: u8,
     indirect_result_register: u8,
@@ -64,6 +65,7 @@ impl RuntimeAbiIdentity {
                 pointer_alignment: 8,
                 stack_alignment: 16,
                 argument_register_count: 8,
+                floating_argument_register_count: 8,
                 direct_value_word_limit: 2,
                 direct_result_register_count: 2,
                 indirect_result_register: 8,
@@ -112,6 +114,10 @@ impl RuntimeAbiSchema {
     #[must_use]
     pub const fn argument_register_count(self) -> u8 {
         self.argument_register_count
+    }
+    #[must_use]
+    pub const fn floating_argument_register_count(self) -> u8 {
+        self.floating_argument_register_count
     }
     #[must_use]
     pub const fn direct_value_word_limit(self) -> u8 {

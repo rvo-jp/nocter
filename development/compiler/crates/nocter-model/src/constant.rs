@@ -6,6 +6,8 @@
 pub enum ConstantValue {
     Bool(bool),
     Character(u32),
+    Float32(u32),
+    Float64(u64),
     Integer(i128),
     Text(Box<str>),
 }

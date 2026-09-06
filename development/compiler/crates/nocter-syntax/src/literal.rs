@@ -44,6 +44,57 @@ pub(super) fn valid_integer(text: &str) -> bool {
     })
 }
 
+/// Validates only the closed lexical shape of a decimal floating-point token.
+///
+/// Decimal-to-binary conversion belongs to semantic target evaluation. Keeping this function
+/// boolean and value-free prevents the lexer from becoming a second floating-point evaluator.
+pub(super) fn valid_float(text: &str) -> bool {
+    let number = text
+        .strip_suffix("f32")
+        .or_else(|| text.strip_suffix("f64"))
+        .unwrap_or(text);
+    let (mantissa, exponent) = match number.find(['e', 'E']) {
+        Some(index) => {
+            if number[index + 1..].contains(['e', 'E']) {
+                return false;
+            }
+            (&number[..index], Some(&number[index + 1..]))
+        }
+        None => (number, None),
+    };
+    let has_decimal_point = mantissa.contains('.');
+    if !has_decimal_point && exponent.is_none() {
+        return false;
+    }
+    let valid_mantissa = if let Some((whole, fraction)) = mantissa.split_once('.') {
+        !fraction.contains('.') && valid_decimal_digits(whole) && valid_decimal_digits(fraction)
+    } else {
+        valid_decimal_digits(mantissa)
+    };
+    if !valid_mantissa {
+        return false;
+    }
+    exponent.is_none_or(|exponent| {
+        let digits = exponent.strip_prefix(['+', '-']).unwrap_or(exponent);
+        valid_decimal_digits(digits)
+    })
+}
+
+fn valid_decimal_digits(text: &str) -> bool {
+    if text.is_empty() {
+        return false;
+    }
+    let bytes = text.as_bytes();
+    bytes.iter().enumerate().all(|(index, byte)| {
+        byte.is_ascii_digit()
+            || (*byte == b'_'
+                && index > 0
+                && index + 1 < bytes.len()
+                && bytes[index - 1].is_ascii_digit()
+                && bytes[index + 1].is_ascii_digit())
+    })
+}
+
 pub(super) fn decode_escape(text: &str, start: usize, limit: usize) -> Result<(u8, usize), usize> {
     let bytes = text.as_bytes();
     let Some(next) = bytes.get(start + 1).copied().filter(|_| start + 1 < limit) else {

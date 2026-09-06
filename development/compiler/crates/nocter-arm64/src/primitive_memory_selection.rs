@@ -123,6 +123,9 @@ fn select_value_store(
             }
             Ok(())
         }
+        MachineValueClass::Float32 | MachineValueClass::Float64 => {
+            Err(Arm64SelectionError::PrimitiveCall(operation))
+        }
         MachineValueClass::Indirect => {
             selected.push(Arm64SelectedInstruction::CopyMemoryNonOverlapping {
                 destination: Arm64SelectedMemoryAddress::Register {
@@ -267,6 +270,7 @@ fn require_register_argument(
     let transport_words = match class {
         MachineValueClass::Zero => 0,
         MachineValueClass::Direct { words } => words,
+        MachineValueClass::Float32 | MachineValueClass::Float64 => 1,
         MachineValueClass::Indirect => 1,
     };
     match (class, argument.location()) {

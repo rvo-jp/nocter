@@ -15,6 +15,8 @@ use crate::{MachineLayout, MachineLayoutStore, MachineTarget};
 pub enum MachineValueClass {
     Zero,
     Direct { words: u8 },
+    Float32,
+    Float64,
     Indirect,
 }
 
@@ -24,6 +26,12 @@ impl MachineValueClass {
     pub fn for_layout(layout: &MachineLayout, target: MachineTarget) -> Self {
         if layout.size() == 0 {
             Self::Zero
+        } else if layout.kind() == &crate::MachineLayoutKind::Scalar(crate::MachineScalar::Float32)
+        {
+            Self::Float32
+        } else if layout.kind() == &crate::MachineLayoutKind::Scalar(crate::MachineScalar::Float64)
+        {
+            Self::Float64
         } else {
             let words = layout.size().div_ceil(target.word_size());
             if words <= u64::from(target.direct_value_word_limit()) {
@@ -35,7 +43,7 @@ impl MachineValueClass {
     }
 }
 
-/// A consecutive range of integer registers in the selected ABI.
+/// A consecutive range in the value class's ABI register bank.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineRegisterSpan {
     first: u8,
@@ -429,8 +437,9 @@ pub(crate) fn plan_signature(
     pack: Option<MachinePackAbi>,
 ) -> Result<MachineCallableAbi, MachineAbiError> {
     let target = layouts.target();
-    let mut register_window_open = true;
-    let mut next_register = pack.map_or(0, |pack| pack.pointer.first + pack.pointer.words);
+    let mut general_register_window_open = true;
+    let mut next_general_register = pack.map_or(0, |pack| pack.pointer.first + pack.pointer.words);
+    let mut next_float_register = 0;
     let mut next_stack_offset = 0_u64;
     let mut arguments = Vec::with_capacity(parameters.len());
 
@@ -443,23 +452,43 @@ pub(crate) fn plan_signature(
         let transport_words = match class {
             MachineValueClass::Zero => 0,
             MachineValueClass::Direct { words } => words,
+            MachineValueClass::Float32 | MachineValueClass::Float64 => 1,
             MachineValueClass::Indirect => 1,
         };
         let location = if transport_words == 0 {
             None
-        } else if register_window_open
-            && next_register
+        } else if matches!(
+            class,
+            MachineValueClass::Float32 | MachineValueClass::Float64
+        ) && next_float_register < target.floating_argument_register_count()
+        {
+            let location = MachineArgumentLocation::Registers(MachineRegisterSpan {
+                first: next_float_register,
+                words: 1,
+            });
+            next_float_register += 1;
+            Some(location)
+        } else if !matches!(
+            class,
+            MachineValueClass::Float32 | MachineValueClass::Float64
+        ) && general_register_window_open
+            && next_general_register
                 .checked_add(transport_words)
                 .is_some_and(|end| end <= target.argument_register_count())
         {
             let location = MachineArgumentLocation::Registers(MachineRegisterSpan {
-                first: next_register,
+                first: next_general_register,
                 words: transport_words,
             });
-            next_register += transport_words;
+            next_general_register += transport_words;
             Some(location)
         } else {
-            register_window_open = false;
+            if !matches!(
+                class,
+                MachineValueClass::Float32 | MachineValueClass::Float64
+            ) {
+                general_register_window_open = false;
+            }
             let (size, alignment) = stack_transport(layout, class, target)?;
             let offset = align_up(next_stack_offset, alignment)?;
             next_stack_offset = offset
@@ -506,6 +535,9 @@ pub(crate) fn plan_result(
                     }
                     MachineResultLocation::Registers(MachineRegisterSpan { first: 0, words })
                 }
+                MachineValueClass::Float32 | MachineValueClass::Float64 => {
+                    MachineResultLocation::Registers(MachineRegisterSpan { first: 0, words: 1 })
+                }
                 MachineValueClass::Indirect => MachineResultLocation::CallerStorage {
                     pointer_register: target.indirect_result_register(),
                 },
@@ -532,6 +564,10 @@ fn stack_transport(
             .checked_mul(u64::from(words))
             .map(|size| (size, layout.alignment().max(target.word_size())))
             .ok_or(MachineAbiError::StackOverflow),
+        MachineValueClass::Float32 | MachineValueClass::Float64 => Ok((
+            target.word_size(),
+            layout.alignment().max(target.word_size()),
+        )),
         MachineValueClass::Indirect => Ok((target.pointer_size(), target.pointer_alignment())),
     }
 }

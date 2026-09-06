@@ -32,6 +32,49 @@ fn computes_the_complete_arm64_stored_layout_closure() {
     assert_scalar_view_and_outcome_layouts(&program, &layouts);
 }
 
+#[test]
+fn float_constants_and_aggregate_fields_keep_typed_bits_and_stored_layouts() {
+    let mir = lower_fixture(
+        "struct Measurements {\n\
+             narrow: f32\n\
+             wide: f64\n\
+         }\n\
+         func value(): f64 { 0.1 }\n\
+         func measurements(): Measurements {\n\
+             Measurements { narrow: 0.5, wide: 0.25 }\n\
+         }\n\
+         func main(): void {\n\
+             let _ = value()\n\
+             let _ = measurements()\n\
+             return\n\
+         }\n",
+    );
+    let layouts = MachineLayoutStore::build(&mir).unwrap();
+    let measurements = named_nominal(&mir, "Measurements");
+    let layout = layouts.get(measurements).expect("Measurements layout");
+    assert_eq!((layout.size(), layout.alignment()), (16, 8));
+    let MachineLayoutKind::Struct { fields } = layout.kind() else {
+        panic!("Measurements must retain a struct layout")
+    };
+    assert_eq!(
+        fields
+            .iter()
+            .map(|field| field.offset())
+            .collect::<Vec<_>>(),
+        [0, 8]
+    );
+
+    let program = MachineProgram::lower(&mir).unwrap();
+    assert!(program.functions().any(|(_, function)| {
+        function.body().operations().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MachineOperationKind::Constant(crate::MachineConstant::Float64(0x3fb999999999999a))
+            )
+        })
+    }));
+}
+
 fn stored_layout_fixture() -> nocter_mir::MirProgram {
     lower_fixture(
         "struct Empty {}\n\
@@ -411,6 +454,76 @@ fn abi_argument_spill_closes_the_register_window_without_reusing_x7() {
             if slot.offset() == 16 && slot.size() == 8 && slot.alignment() == 8
     ));
     assert_eq!(placement.stack_argument_size(), 32);
+}
+
+#[test]
+fn floating_arguments_use_an_independent_register_bank_and_spill_only_their_class() {
+    let program = lower_fixture(
+        "func unreachable_f32(): f32 { loop {} }\n\
+         func unreachable_f64(): f64 { loop {} }\n\
+         func mixed(\n\
+             f0: f32, f1: f32, f2: f32, f3: f32,\n\
+             f4: f32, f5: f32, f6: f32, f7: f32,\n\
+             f8: f32, integer: u64, trailing: f64,\n\
+         ): f64 { return trailing }\n\
+         func main(): void {\n\
+             if false {\n\
+                 let narrow = unreachable_f32()\n\
+                 let wide = unreachable_f64()\n\
+                 let _ = mixed(\n\
+                     narrow, narrow, narrow, narrow, narrow,\n\
+                     narrow, narrow, narrow, narrow, 0, wide,\n\
+                 )\n\
+             }\n\
+             return\n\
+         }\n",
+    );
+    let layouts = MachineLayoutStore::build(&program).unwrap();
+    let abi = MachineAbiPlan::build(&program, &layouts).unwrap();
+    let callable = abi
+        .iter()
+        .map(|(_, callable)| callable)
+        .find(|callable| callable.arguments().len() == 11)
+        .expect("mixed floating/general callable ABI");
+
+    for (register, argument) in callable.arguments()[..8].iter().enumerate() {
+        assert_eq!(argument.class(), MachineValueClass::Float32);
+        assert!(matches!(
+            argument.location(),
+            Some(MachineArgumentLocation::Registers(span))
+                if usize::from(span.first()) == register && span.words() == 1
+        ));
+    }
+    assert!(matches!(
+        callable.arguments()[8].location(),
+        Some(MachineArgumentLocation::Stack(slot))
+            if slot.offset() == 0 && slot.size() == 8 && slot.alignment() == 8
+    ));
+    assert_eq!(
+        callable.arguments()[9].class(),
+        MachineValueClass::Direct { words: 1 }
+    );
+    assert!(matches!(
+        callable.arguments()[9].location(),
+        Some(MachineArgumentLocation::Registers(span))
+            if span.first() == 0 && span.words() == 1
+    ));
+    assert!(matches!(
+        callable.arguments()[10].location(),
+        Some(MachineArgumentLocation::Stack(slot))
+            if slot.offset() == 8 && slot.size() == 8 && slot.alignment() == 8
+    ));
+    assert_eq!(callable.stack_argument_size(), 16);
+    assert!(matches!(
+        callable.result(),
+        MachineResultAbi::Value(result)
+            if result.class() == MachineValueClass::Float64
+                && matches!(
+                    result.location(),
+                    MachineResultLocation::Registers(span)
+                        if span.first() == 0 && span.words() == 1
+                )
+    ));
 }
 
 #[test]
@@ -1810,6 +1923,10 @@ fn fixture_representation_matches(
             .iter()
             .map(|field| field.ty())
             .eq([builtin(RuntimePrimitive::Unsigned(64)); 3]),
+        ("Measurements", Struct { fields }) => fields.iter().map(|field| field.ty()).eq([
+            builtin(RuntimePrimitive::Float32),
+            builtin(RuntimePrimitive::Float64),
+        ]),
         ("Choice", Enum { variants }) => {
             variants.len() == 3
                 && variants[0].payload().is_empty()

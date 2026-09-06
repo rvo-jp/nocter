@@ -8,9 +8,12 @@ published.
 
 ## Next Work
 
-Implement Phase 1 from `development/history/milestones/v0.38.0.md`: carry `f32` and `f64` through
-the language and native pipeline, including the comparison/total-order separation and an explicit
-Machine register class. Do not publish partial source behavior.
+Continue Phase 1 from `development/history/milestones/v0.38.0.md`: give ARM64 an explicit floating
+virtual/physical register bank and lower constants, arithmetic, comparison, calls, spills, and
+returns from Machine's existing class decision. Then complete compile-time floating operations,
+lossless conversions, and the corrected derived-comparison model. Decimal conversion and typed-bit
+transport through Machine are complete. Do not substitute host arithmetic or general registers for
+the remaining contracts, and do not publish partial source behavior.
 
 ## Blockers
 

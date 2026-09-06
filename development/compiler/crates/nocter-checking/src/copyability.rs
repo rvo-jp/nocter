@@ -413,6 +413,8 @@ impl CopyabilityTransaction {
             TypeKind::Builtin(
                 BuiltinType::Bool
                 | BuiltinType::Char
+                | BuiltinType::F32
+                | BuiltinType::F64
                 | BuiltinType::I8
                 | BuiltinType::I16
                 | BuiltinType::I32

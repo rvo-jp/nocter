@@ -5,6 +5,7 @@
 //! of constant arithmetic, short-circuiting, conversions, and dependency-cycle detection.
 
 mod evaluate;
+mod floating;
 mod model;
 mod plan;
 mod support;
@@ -17,6 +18,7 @@ pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_constant_plans,
     evaluate_expression_plan, evaluate_frozen_expression_plan,
 };
+pub use floating::{FloatBits, FloatFormat, FloatLiteralError, TargetFloatEvaluator};
 pub use model::{
     ConstantExpressionPlan, ConstantPlanError, ConstantPlanRule, ConstantReference,
     ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,

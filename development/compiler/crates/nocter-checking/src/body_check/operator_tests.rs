@@ -109,6 +109,84 @@ fn negative_literals_include_the_exact_signed_minimum_in_one_constant() {
 }
 
 #[test]
+fn floating_literals_retain_target_bits_after_contextual_typing() {
+    let output = check(
+        "func default_value(): f64 { 0.1 }\n\
+         func narrow_value(): f32 { 0.1 }\n\
+         func suffixed_value(): f32 { 0.1f32 }\n",
+    )
+    .unwrap();
+    let constants = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Constant(ConstantValue::Float32(bits)) => {
+                Some((32, u64::from(*bits)))
+            }
+            CheckedOperation::Constant(ConstantValue::Float64(bits)) => Some((64, *bits)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        constants,
+        [(64, 0x3fb999999999999a), (32, 0x3dcccccd), (32, 0x3dcccccd),]
+    );
+}
+
+#[test]
+fn floating_suffix_conflicts_and_nonfinite_rounding_are_source_errors() {
+    let mismatch = check("func invalid(): f64 { 0.1f32 }\n").unwrap_err();
+    assert_eq!(mismatch.source_diagnostic().unwrap().code(), "E0370");
+
+    let overflow = check("func invalid(): f64 { 1.7976931348623159e308 }\n").unwrap_err();
+    assert_eq!(overflow.source_diagnostic().unwrap().code(), "E0414");
+
+    let underflow = check("func invalid(): f32 { 1e-50 }\n").unwrap_err();
+    assert_eq!(underflow.source_diagnostic().unwrap().code(), "E0414");
+}
+
+#[test]
+fn floating_arithmetic_negation_and_comparison_keep_one_exact_operand_type() {
+    let output = check(
+        "func calculate(left: f32): f32 { -(left + 0.5) * 2.0 }\n\
+         func ordered(left: f64): bool { left < 1.0 }\n",
+    )
+    .unwrap();
+    let f32 = output.program().types().builtin(BuiltinType::F32);
+    let f64 = output.program().types().builtin(BuiltinType::F64);
+
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.nodes().iter().any(|(_, node)| {
+            node.ty() == f32
+                && matches!(
+                    node.operation(),
+                    CheckedOperation::Primitive(PrimitiveOperation::Unary {
+                        operation: PrimitiveUnary::Negate,
+                        ..
+                    })
+                )
+        })
+    }));
+    assert!(output.program().bodies().iter().any(|(_, body)| {
+        body.nodes().iter().any(|(_, node)| {
+            node.ty() == f64
+                && matches!(
+                    node.operation(),
+                    CheckedOperation::Constant(ConstantValue::Float64(0x3ff0000000000000))
+                )
+        })
+    }));
+
+    let mismatch = check("func invalid(left: f32): f32 { left + 1.0f64 }\n").unwrap_err();
+    assert_eq!(mismatch.source_diagnostic().unwrap().code(), "E0370");
+    let integer = check("func invalid(left: f64): f64 { left + 1 }\n").unwrap_err();
+    assert_eq!(integer.source_diagnostic().unwrap().code(), "E0370");
+}
+
+#[test]
 fn invalid_negative_literals_report_the_numeric_boundary() {
     let too_small = check("func invalid(): i8 {\n    -129\n}\n").unwrap_err();
     assert_eq!(too_small.source_diagnostic().unwrap().code(), "E0375");

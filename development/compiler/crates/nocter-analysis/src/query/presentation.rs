@@ -390,6 +390,12 @@ impl<'a> Renderer<'a> {
                     nocter_model::ConstantValue::Character(value) => {
                         write_character_literal(&mut self.output, *value).ok()?;
                     }
+                    nocter_model::ConstantValue::Float32(_)
+                    | nocter_model::ConstantValue::Float64(_) => {
+                        // Float declarations are enabled only after the shared numeric-text
+                        // authority can render their retained target bits as canonical source.
+                        return None;
+                    }
                     nocter_model::ConstantValue::Integer(value) => {
                         write!(self.output, "{value}").ok()?;
                     }

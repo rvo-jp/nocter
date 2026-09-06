@@ -7,6 +7,8 @@ use nocter_model::{BorrowCapability, TypeId};
 pub enum RuntimePrimitive {
     Bool,
     Char,
+    Float32,
+    Float64,
     Signed(u16),
     Unsigned(u16),
     Isize,

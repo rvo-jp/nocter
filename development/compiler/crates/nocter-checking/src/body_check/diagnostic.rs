@@ -8,6 +8,7 @@ pub enum BodyRule {
     InvalidStatementValue,
     MissingBodyResult,
     IntegerOutOfRange,
+    FloatOutOfRange,
     MoveCopyValue,
     InvalidMoveSource,
     UninitializedPlace,
@@ -54,6 +55,7 @@ impl BodyRule {
         Self::InvalidStatementValue,
         Self::MissingBodyResult,
         Self::IntegerOutOfRange,
+        Self::FloatOutOfRange,
         Self::MoveCopyValue,
         Self::InvalidMoveSource,
         Self::UninitializedPlace,
@@ -101,6 +103,7 @@ impl BodyRule {
             Self::InvalidStatementValue => DiagnosticCode::E0372,
             Self::MissingBodyResult => DiagnosticCode::E0373,
             Self::IntegerOutOfRange => DiagnosticCode::E0375,
+            Self::FloatOutOfRange => DiagnosticCode::E0414,
             Self::MoveCopyValue => DiagnosticCode::E0376,
             Self::InvalidMoveSource => DiagnosticCode::E0377,
             Self::UninitializedPlace => DiagnosticCode::E0378,
@@ -161,6 +164,7 @@ impl BodyRule {
             | Self::InvalidStatementValue
             | Self::MissingBodyResult
             | Self::IntegerOutOfRange
+            | Self::FloatOutOfRange
             | Self::MoveCopyValue
             | Self::InvalidMoveSource
             | Self::UninitializedPlace
@@ -207,6 +211,10 @@ impl BodyRule {
             Self::IntegerOutOfRange => (
                 "integer literal is outside the expected integer type's range",
                 "use a value representable by the destination integer type",
+            ),
+            Self::FloatOutOfRange => (
+                "floating-point literal is outside the expected type's finite range",
+                "use a finite value that does not round to infinity or discard a nonzero value as zero",
             ),
             Self::MoveCopyValue => (
                 "copyable value cannot be moved explicitly",

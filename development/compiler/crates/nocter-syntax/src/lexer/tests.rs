@@ -251,7 +251,6 @@ fn validates_integer_and_byte_boundaries() {
             .collect::<Vec<_>>(),
         vec![
             LexDiagnosticKind::InvalidIntegerLiteral,
-            LexDiagnosticKind::UnsupportedFloatLiteral,
             LexDiagnosticKind::InvalidByteLength,
         ]
     );
@@ -306,14 +305,42 @@ fn numeric_member_spelling_is_lexed_as_projection_only_after_a_value() {
         ]
     );
 
+    let float = lex_text("1.0");
+    assert!(float.diagnostics.is_empty());
     assert_eq!(
-        lex_text("1.0").diagnostics[0].kind,
-        LexDiagnosticKind::UnsupportedFloatLiteral
+        float
+            .tokens
+            .iter()
+            .map(|token| token.kind())
+            .collect::<Vec<_>>(),
+        [TokenKind::FloatLiteral, TokenKind::Eof]
     );
     assert_eq!(
         lex_text(".5").diagnostics[0].kind,
-        LexDiagnosticKind::UnsupportedFloatLiteral
+        LexDiagnosticKind::InvalidFloatLiteral
     );
+}
+
+#[test]
+fn floating_literals_have_one_value_free_lexical_grammar() {
+    for source in [
+        "0.0",
+        "1_000.25",
+        "6.022e23",
+        "1E+9",
+        "2e-3f32",
+        "3.141_592_653_589_793f64",
+    ] {
+        let lexed = lex_text(source);
+        assert!(lexed.diagnostics.is_empty(), "{source:?}");
+        assert_eq!(lexed.tokens[0].kind(), TokenKind::FloatLiteral);
+        assert_eq!(lexed.tokens[1].kind(), TokenKind::Eof);
+    }
+
+    for source in [".5", "1e", "1e+", "1.0_", "1.0f16"] {
+        let lexed = lex_text(source);
+        assert!(!lexed.diagnostics.is_empty(), "{source:?}");
+    }
 }
 
 #[test]
@@ -330,7 +357,7 @@ fn reports_closed_lexical_error_classes_without_duplicate_eof() {
         ("b'a\n", LexDiagnosticKind::ByteLiteralNewline),
         ("'", LexDiagnosticKind::UnterminatedCharacterLiteral),
         ("@", LexDiagnosticKind::UnexpectedCharacter),
-        (".5", LexDiagnosticKind::UnsupportedFloatLiteral),
+        (".5", LexDiagnosticKind::InvalidFloatLiteral),
     ];
 
     for (source, expected) in cases {

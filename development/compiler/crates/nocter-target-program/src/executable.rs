@@ -619,6 +619,8 @@ fn runtime_type_table(
             TypeKind::Builtin(builtin) => RuntimeType::Primitive(match builtin {
                 BuiltinType::Bool => RuntimePrimitive::Bool,
                 BuiltinType::Char => RuntimePrimitive::Char,
+                BuiltinType::F32 => RuntimePrimitive::Float32,
+                BuiltinType::F64 => RuntimePrimitive::Float64,
                 BuiltinType::I8 => RuntimePrimitive::Signed(8),
                 BuiltinType::I16 => RuntimePrimitive::Signed(16),
                 BuiltinType::I32 => RuntimePrimitive::Signed(32),

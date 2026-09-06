@@ -198,6 +198,8 @@ fn constant_value_matches(program: &DeclarationProgram, ty: TypeId, value: &Cons
         ConstantValue::Character(value) => {
             ty == program.types().builtin(BuiltinType::Char) && char::from_u32(*value).is_some()
         }
+        ConstantValue::Float32(_) => ty == program.types().builtin(BuiltinType::F32),
+        ConstantValue::Float64(_) => ty == program.types().builtin(BuiltinType::F64),
         ConstantValue::Integer(value) => program
             .types()
             .get(ty)

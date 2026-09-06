@@ -8,6 +8,8 @@ use nocter_runtime_contract::PrimitiveRole;
 pub enum MirConstant {
     Bool(bool),
     Character(u32),
+    Float32(u32),
+    Float64(u64),
     Integer(i128),
     Text(Box<str>),
 }

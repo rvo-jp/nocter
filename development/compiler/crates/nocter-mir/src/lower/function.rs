@@ -235,6 +235,8 @@ impl<'a> FunctionLowerer<'a> {
         let constant = match constant {
             ConstantValue::Bool(value) => MirConstant::Bool(*value),
             ConstantValue::Character(value) => MirConstant::Character(*value),
+            ConstantValue::Float32(bits) => MirConstant::Float32(*bits),
+            ConstantValue::Float64(bits) => MirConstant::Float64(*bits),
             ConstantValue::Integer(value) => MirConstant::Integer(*value),
             ConstantValue::Text(value) => MirConstant::Text(value.clone()),
         };

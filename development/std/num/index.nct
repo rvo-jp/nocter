@@ -10,6 +10,12 @@ see ./text.nct
 /// Boolean truth value.
 pub primitive type bool
 
+/// IEEE 754 binary32 floating-point value.
+pub primitive type f32
+
+/// IEEE 754 binary64 floating-point value.
+pub primitive type f64
+
 /// Signed 8-bit integer.
 pub primitive type i8
 

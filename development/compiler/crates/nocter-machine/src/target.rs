@@ -46,6 +46,11 @@ impl MachineTarget {
     }
 
     #[must_use]
+    pub const fn floating_argument_register_count(self) -> u8 {
+        self.schema.floating_argument_register_count()
+    }
+
+    #[must_use]
     pub const fn direct_value_word_limit(self) -> u8 {
         self.schema.direct_value_word_limit()
     }

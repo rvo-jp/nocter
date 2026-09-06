@@ -255,6 +255,16 @@ pub(crate) fn scalar_memory_representation(
             Arm64SelectedLoadExtension::Zero,
             false,
         )),
+        MachineScalar::Float32 => Ok((
+            Arm64LoadStoreSize::Word,
+            Arm64SelectedLoadExtension::Zero,
+            false,
+        )),
+        MachineScalar::Float64 => Ok((
+            Arm64LoadStoreSize::Double,
+            Arm64SelectedLoadExtension::Zero,
+            false,
+        )),
         MachineScalar::Integer { bits, signed } => {
             let (size, register_size) = match bits {
                 8 => (Arm64LoadStoreSize::Byte, Arm64DataSize::Bits32),

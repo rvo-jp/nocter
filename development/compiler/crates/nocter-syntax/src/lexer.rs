@@ -1,7 +1,7 @@
 use nocter_source::{ByteOffset, SourceFile, SourceId, Span, TextRange};
 
 use crate::literal::{
-    CharacterDecodeError, decode_character_content, decode_escape, valid_integer,
+    CharacterDecodeError, decode_character_content, decode_escape, valid_float, valid_integer,
 };
 use crate::{Keyword, Punctuation, StringDelimiter, Token, TokenKind};
 
@@ -56,7 +56,7 @@ pub enum LexDiagnosticKind {
     UnexpectedCharacter,
     UnterminatedBlockComment,
     InvalidIntegerLiteral,
-    UnsupportedFloatLiteral,
+    InvalidFloatLiteral,
     UnterminatedString,
     SingleLineStringNewline,
     MultilineStringOpeningNewline,
@@ -271,6 +271,7 @@ impl<'source> Lexer<'source> {
             Some(
                 TokenKind::Identifier
                     | TokenKind::IntegerLiteral
+                    | TokenKind::FloatLiteral
                     | TokenKind::ByteLiteral
                     | TokenKind::CharacterLiteral
                     | TokenKind::StringEnd(_)
@@ -287,15 +288,18 @@ impl<'source> Lexer<'source> {
 
     fn lex_number(&mut self) {
         let start = self.cursor;
-        while self
-            .bytes
-            .get(self.cursor)
-            .is_some_and(u8::is_ascii_alphanumeric)
-            || self.bytes.get(self.cursor) == Some(&b'_')
-        {
-            self.cursor += 1;
+        if self.starts_with("0x") || self.starts_with("0b") {
+            self.cursor += 2;
+            self.consume_number_word();
+            self.push_token(TokenKind::IntegerLiteral, start, self.cursor);
+            if !valid_integer(&self.text[start..self.cursor]) {
+                self.diagnostic(LexDiagnosticKind::InvalidIntegerLiteral, start, self.cursor);
+            }
+            return;
         }
 
+        self.consume_decimal_digits();
+        let mut float = false;
         if !matches!(
             self.tokens.last().map(|token| token.kind()),
             Some(TokenKind::Punctuation(Punctuation::Dot))
@@ -305,35 +309,70 @@ impl<'source> Lexer<'source> {
                 .get(self.cursor + 1)
                 .is_some_and(u8::is_ascii_digit)
         {
+            float = true;
             self.cursor += 1;
-            while self
+            self.consume_decimal_digits();
+        }
+        if self
+            .bytes
+            .get(self.cursor)
+            .is_some_and(|byte| matches!(byte, b'e' | b'E'))
+        {
+            float = true;
+            self.cursor += 1;
+            if self
                 .bytes
                 .get(self.cursor)
-                .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_' || *byte == b'.')
+                .is_some_and(|byte| matches!(byte, b'+' | b'-'))
             {
                 self.cursor += 1;
             }
-            self.push_token(TokenKind::IntegerLiteral, start, self.cursor);
+            self.consume_decimal_digits();
+        }
+        self.consume_number_word();
+
+        let kind = if float {
+            TokenKind::FloatLiteral
+        } else {
+            TokenKind::IntegerLiteral
+        };
+        self.push_token(kind, start, self.cursor);
+        let candidate = &self.text[start..self.cursor];
+        let valid = if float {
+            valid_float(candidate)
+        } else {
+            valid_integer(candidate)
+        };
+        if !valid {
             self.diagnostic(
-                LexDiagnosticKind::UnsupportedFloatLiteral,
+                if float {
+                    LexDiagnosticKind::InvalidFloatLiteral
+                } else {
+                    LexDiagnosticKind::InvalidIntegerLiteral
+                },
                 start,
                 self.cursor,
             );
-            return;
         }
+    }
 
-        self.push_token(TokenKind::IntegerLiteral, start, self.cursor);
-        let candidate = &self.text[start..self.cursor];
-        if !valid_integer(candidate) {
-            let kind = if !candidate.starts_with("0x")
-                && !candidate.starts_with("0b")
-                && candidate.contains(['e', 'E'])
-            {
-                LexDiagnosticKind::UnsupportedFloatLiteral
-            } else {
-                LexDiagnosticKind::InvalidIntegerLiteral
-            };
-            self.diagnostic(kind, start, self.cursor);
+    fn consume_decimal_digits(&mut self) {
+        while self
+            .bytes
+            .get(self.cursor)
+            .is_some_and(|byte| byte.is_ascii_digit() || *byte == b'_')
+        {
+            self.cursor += 1;
+        }
+    }
+
+    fn consume_number_word(&mut self) {
+        while self
+            .bytes
+            .get(self.cursor)
+            .is_some_and(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+        {
+            self.cursor += 1;
         }
     }
 
@@ -347,12 +386,8 @@ impl<'source> Lexer<'source> {
         {
             self.cursor += 1;
         }
-        self.push_token(TokenKind::IntegerLiteral, start, self.cursor);
-        self.diagnostic(
-            LexDiagnosticKind::UnsupportedFloatLiteral,
-            start,
-            self.cursor,
-        );
+        self.push_token(TokenKind::FloatLiteral, start, self.cursor);
+        self.diagnostic(LexDiagnosticKind::InvalidFloatLiteral, start, self.cursor);
     }
 
     fn lex_line_comment(&mut self) {

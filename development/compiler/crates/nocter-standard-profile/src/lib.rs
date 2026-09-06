@@ -31,6 +31,8 @@ fn builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {
         .map(|builtin| {
             let path = match builtin {
                 BuiltinType::Bool
+                | BuiltinType::F32
+                | BuiltinType::F64
                 | BuiltinType::I8
                 | BuiltinType::I16
                 | BuiltinType::I32

@@ -171,6 +171,7 @@ fn structural_body_bytes(tree: &SyntaxTree, body: NodeId, normalized_text: &str)
                         crate::surface::text_at(normalized_text, token.range()).as_bytes()
                     }
                     TokenKind::IntegerLiteral
+                    | TokenKind::FloatLiteral
                     | TokenKind::ByteLiteral
                     | TokenKind::CharacterLiteral
                     | TokenKind::StringText

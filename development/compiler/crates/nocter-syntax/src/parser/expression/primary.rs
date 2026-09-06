@@ -17,6 +17,7 @@ pub(super) fn primary(parser: &mut Parser<'_>, mode: ExpressionMode) -> Complete
         TokenKind::Punctuation(Punctuation::LeftBracket) => array_literal(parser),
         TokenKind::StringStart(_) => string_expression(parser),
         TokenKind::IntegerLiteral
+        | TokenKind::FloatLiteral
         | TokenKind::ByteLiteral
         | TokenKind::CharacterLiteral
         | TokenKind::Keyword(Keyword::True | Keyword::False | Keyword::None) => {

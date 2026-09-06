@@ -204,6 +204,8 @@ pub(/) primitive func char_code_point_raw(value: char): u32
 ";
 const NUM_SOURCE: &str = "\
 pub primitive type bool
+pub primitive type f32
+pub primitive type f64
 pub primitive type i8
 pub primitive type i16
 pub primitive type i32
@@ -724,6 +726,8 @@ impl CompilerFixture {
     fn module_for_builtin(builtin: BuiltinType) -> ModuleIdentity {
         let path: &[&str] = match builtin {
             BuiltinType::Bool
+            | BuiltinType::F32
+            | BuiltinType::F64
             | BuiltinType::I8
             | BuiltinType::I16
             | BuiltinType::I32

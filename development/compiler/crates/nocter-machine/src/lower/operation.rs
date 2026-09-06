@@ -156,6 +156,8 @@ fn lower_constant(
     match constant {
         MirConstant::Bool(value) => Ok(MachineConstant::Bool(*value)),
         MirConstant::Character(value) => Ok(MachineConstant::Character(*value)),
+        MirConstant::Float32(bits) => Ok(MachineConstant::Float32(*bits)),
+        MirConstant::Float64(bits) => Ok(MachineConstant::Float64(*bits)),
         MirConstant::Integer(value) => Ok(MachineConstant::Integer(*value)),
         MirConstant::Text(text) => data
             .text(text)

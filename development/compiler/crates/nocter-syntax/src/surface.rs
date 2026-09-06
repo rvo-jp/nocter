@@ -237,7 +237,7 @@ const fn lex_diagnostic_name(kind: LexDiagnosticKind) -> &'static str {
         LexDiagnosticKind::UnexpectedCharacter => "unexpected_character",
         LexDiagnosticKind::UnterminatedBlockComment => "unterminated_block_comment",
         LexDiagnosticKind::InvalidIntegerLiteral => "invalid_integer_literal",
-        LexDiagnosticKind::UnsupportedFloatLiteral => "unsupported_float_literal",
+        LexDiagnosticKind::InvalidFloatLiteral => "invalid_float_literal",
         LexDiagnosticKind::UnterminatedString => "unterminated_string",
         LexDiagnosticKind::SingleLineStringNewline => "single_line_string_newline",
         LexDiagnosticKind::MultilineStringOpeningNewline => "multiline_string_opening_newline",

@@ -5,8 +5,8 @@ use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
 use crate::body_check::literal::{
-    contextual_integer_type, fits_negative_integer, is_integer_type, is_signed_integer_type,
-    parse_integer,
+    contextual_integer_type, contextual_numeric_type, fits_negative_integer, is_float_type,
+    is_integer_type, is_signed_integer_type, parse_integer,
 };
 use crate::instance_operations::ComparisonCandidateImplementation;
 use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
@@ -111,12 +111,16 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let operand_syntax = unary_operand(self, node)?;
-        let contextual = contextual_integer_type(self.types, expected);
-        if contextual.is_some_and(|ty| !is_signed_integer_type(self.types, ty)) {
+        let contextual = contextual_numeric_type(self.types, expected);
+        if contextual.is_some_and(|ty| {
+            !is_signed_integer_type(self.types, ty) && !is_float_type(self.types, ty)
+        }) {
             return Err(self.rule(BodyRule::TypeMismatch, node)?);
         }
         let literal_ty = contextual.unwrap_or_else(|| self.types.builtin(BuiltinType::I32));
-        if let Some(token) = direct_integer_literal(self, operand_syntax) {
+        if is_integer_type(self.types, literal_ty)
+            && let Some(token) = direct_integer_literal(self, operand_syntax)
+        {
             let Some(magnitude) = parse_integer(self.token_text(token)?)
                 .filter(|magnitude| fits_negative_integer(self.types, literal_ty, *magnitude))
             else {
@@ -134,7 +138,10 @@ impl BodyChecker<'_, '_> {
         let operand = self.check_expression(operand_syntax, contextual)?;
         let operand_ty = self.node_type(operand)?;
         let never = self.types.builtin(BuiltinType::Never);
-        if operand_ty != never && !is_signed_integer_type(self.types, operand_ty) {
+        if operand_ty != never
+            && !is_signed_integer_type(self.types, operand_ty)
+            && !is_float_type(self.types, operand_ty)
+        {
             return Err(self.rule(BodyRule::TypeMismatch, operand_syntax)?);
         }
         let checked = self.add_node(
@@ -208,8 +215,10 @@ impl BodyChecker<'_, '_> {
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let [left_syntax, right_syntax] = binary_operands(self, node)?;
         let left = self.check_readonly_operand(left_syntax, None)?;
-        let right_expected = (is_integer_type(self.types, left.owner)
+        let right_expected = ((is_integer_type(self.types, left.owner)
             && is_contextual_integer_expression(self, right_syntax))
+            || (is_float_type(self.types, left.owner)
+                && is_contextual_float_expression(self, right_syntax)))
         .then_some(left.owner);
         let right = self.check_readonly_operand(right_syntax, right_expected)?;
         let never = self.types.builtin(BuiltinType::Never);
@@ -416,6 +425,51 @@ fn is_contextual_integer_expression(checker: &BodyChecker<'_, '_>, root: NodeId)
         }
         return direct_integer_literal(checker, current).is_some();
     }
+}
+
+fn is_contextual_float_expression(checker: &BodyChecker<'_, '_>, root: NodeId) -> bool {
+    let mut current = root;
+    loop {
+        let Some(kind) = checker
+            .tree()
+            .node(current)
+            .map(nocter_syntax::SyntaxNode::kind)
+        else {
+            return false;
+        };
+        if is_transparent_expression(kind) {
+            let children = child_nodes(checker.tree(), current);
+            if let [child] = children.as_slice() {
+                current = *child;
+                continue;
+            }
+        }
+        if matches!(
+            kind,
+            NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression
+        ) {
+            return true;
+        }
+        if kind == NodeKind::UnaryExpression
+            && first_direct_token(checker.tree(), current)
+                .is_some_and(|token| token.kind() == TokenKind::Punctuation(Punctuation::Minus))
+        {
+            let children = child_nodes(checker.tree(), current);
+            let [operand] = children.as_slice() else {
+                return false;
+            };
+            return direct_float_literal(checker, *operand);
+        }
+        return direct_float_literal(checker, current);
+    }
+}
+
+fn direct_float_literal(checker: &BodyChecker<'_, '_>, root: NodeId) -> bool {
+    checker.tree().node(root).is_some_and(|node| {
+        node.kind() == NodeKind::ScalarLiteral
+            && first_direct_token(checker.tree(), root)
+                .is_some_and(|token| token.kind() == TokenKind::FloatLiteral)
+    })
 }
 
 fn comparison_derivation(punctuation: Punctuation) -> Option<(ComparisonOperation, bool, bool)> {
