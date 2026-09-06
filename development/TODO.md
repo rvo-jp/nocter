@@ -2,15 +2,14 @@
 
 ## Current State
 
-Publication of the qualified v0.38.0 candidate is authorized and in progress. The retained archive
-was built from release-content commit `ae442a6ff01be5d35b73d69729e3fb25e30ddd6e`; its identity must
-remain unchanged through the public audit.
+Nocter v0.38.0 is published and externally audited. The public tag resolves to publication commit
+`507958b5a7ae648400a64f117910624c3831408f`, and the public archive matches the qualified local
+candidate byte for byte.
 
 ## Next Work
 
-Commit the public latest-release surfaces, create and push one annotated `v0.38.0` tag, upload the
-retained archive as the release's only asset, and verify the public tag, latest-release endpoint,
-asset bytes, extracted installation, and remote `main`. Record that evidence and stop.
+No milestone is active. Preserve the immutable v0.38.0 tag and asset. Define a new version before
+changing released behavior or distribution content.
 
 ## Blockers
 
