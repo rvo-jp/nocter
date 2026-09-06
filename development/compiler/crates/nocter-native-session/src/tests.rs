@@ -500,6 +500,12 @@ fn scalar_floating_values_cross_the_complete_native_session() {
              if unsigned as f32 != 9.0f32 { return 8 }\n\
              let widened = 1.5f32 as f64\n\
              if widened != 1.5 { return 9 }\n\
+             let nan = 0.0 / 0.0\n\
+             if nan <= 1.0 { return 10 }\n\
+             if nan >= 1.0 { return 11 }\n\
+             if nan == nan { return 12 }\n\
+             if !(nan != nan) { return 13 }\n\
+             if !(1.0 <= 1.0) || !(1.0 >= 1.0) { return 14 }\n\
              return 0\n\
          }\n",
     );

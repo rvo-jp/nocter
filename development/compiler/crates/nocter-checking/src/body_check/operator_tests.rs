@@ -4,9 +4,9 @@ use nocter_model::BuiltinType;
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    CheckedControl, CheckedOperation, ComparisonImplementation, ComparisonOperation, ConstantValue,
-    LogicalOperation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
-    ReadonlyOperandPreparation, StaticDispatch, prepare_program_checking,
+    CheckedComparisonPlan, CheckedControl, CheckedOperation, ComparisonImplementation,
+    ComparisonOperation, ConstantValue, LogicalOperation, PrimitiveBinary, PrimitiveOperation,
+    PrimitiveUnary, ReadonlyOperandPreparation, StaticDispatch, prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -28,13 +28,19 @@ fn structural_comparison_evidence(
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .find_map(|(_, node)| match node.operation() {
-            CheckedOperation::Comparison(comparison) => match comparison.implementation() {
-                ComparisonImplementation::Selected(selection) => match selection.dispatch() {
-                    StaticDispatch::StructuralRequirement { evidence } => Some(evidence),
-                    _ => None,
-                },
-                _ => None,
-            },
+            CheckedOperation::Comparison(comparison) => {
+                comparison
+                    .plan()
+                    .steps()
+                    .find_map(|step| match step.implementation() {
+                        ComparisonImplementation::Selected(selection) => match selection.dispatch()
+                        {
+                            StaticDispatch::StructuralRequirement { evidence } => Some(evidence),
+                            _ => None,
+                        },
+                        ComparisonImplementation::Primitive => None,
+                    })
+            }
             _ => None,
         })
         .unwrap()
@@ -263,36 +269,68 @@ fn primitive_comparisons_retain_the_strict_derivation() {
         "enum Flag {\n    on\n    off\n}\nfunc same_flag(left: Flag, right: Flag): bool {\n    left == right\n}\nfunc different(left: bool, right: bool): bool {\n    left != right\n}\nfunc less(left: i32, right: i32): bool {\n    left < right\n}\nfunc at_most(left: i32, right: i32): bool {\n    left <= right\n}\nfunc greater(left: i32, right: i32): bool {\n    left > right\n}\nfunc at_least(left: i32, right: i32): bool {\n    left >= right\n}\n",
     )
     .unwrap();
-    let operations = output
+    let plans = output
         .program()
         .bodies()
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Comparison(comparison)
-                if comparison.implementation() == &ComparisonImplementation::Primitive =>
-            {
-                Some((
-                    comparison.operation(),
-                    comparison.reverse(),
-                    comparison.negate(),
-                ))
-            }
+            CheckedOperation::Comparison(comparison) => Some(comparison.plan()),
             _ => None,
         })
         .collect::<Vec<_>>();
 
+    assert_eq!(plans.len(), 6);
+    let direct = |plan: &&CheckedComparisonPlan| match plan {
+        CheckedComparisonPlan::Direct { step, negate }
+            if step.implementation() == &ComparisonImplementation::Primitive =>
+        {
+            Some((step.operation(), step.reverse(), *negate))
+        }
+        _ => None,
+    };
     assert_eq!(
-        operations,
-        vec![
-            (ComparisonOperation::Equal, false, false),
-            (ComparisonOperation::Equal, false, true),
-            (ComparisonOperation::Less, false, false),
-            (ComparisonOperation::Less, true, true),
-            (ComparisonOperation::Less, true, false),
-            (ComparisonOperation::Less, false, true),
-        ]
+        direct(&plans[0]),
+        Some((ComparisonOperation::Equal, false, false))
     );
+    assert_eq!(
+        direct(&plans[1]),
+        Some((ComparisonOperation::Equal, false, true))
+    );
+    assert_eq!(
+        direct(&plans[2]),
+        Some((ComparisonOperation::Less, false, false))
+    );
+    assert!(matches!(
+        plans[3],
+        CheckedComparisonPlan::Inclusive { strict, equal }
+            if strict.operation() == ComparisonOperation::Less
+                && !strict.reverse()
+                && equal.operation() == ComparisonOperation::Equal
+                && !equal.reverse()
+    ));
+    assert_eq!(
+        direct(&plans[4]),
+        Some((ComparisonOperation::Less, true, false))
+    );
+    assert!(matches!(
+        plans[5],
+        CheckedComparisonPlan::Inclusive { strict, equal }
+            if strict.operation() == ComparisonOperation::Less
+                && strict.reverse()
+                && equal.operation() == ComparisonOperation::Equal
+                && !equal.reverse()
+    ));
+}
+
+#[test]
+fn inclusive_comparison_requires_strict_and_equality_operations() {
+    let error = check(
+        "struct Rank { value: i32 }\ninstance Rank {\n    operator (&self < other: &Self): bool {\n        return self.value < other.value\n    }\n}\nfunc invalid(left: Rank, right: Rank): bool {\n    left <= right\n}\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0389");
 }
 
 #[test]
@@ -350,32 +388,42 @@ fn direct_comparisons_borrow_move_only_places_and_retain_static_dispatch() {
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Comparison(comparison) => {
-                let ComparisonImplementation::Selected(selection) = comparison.implementation()
-                else {
-                    return None;
-                };
-                Some((
-                    comparison.operation(),
-                    comparison.reverse(),
-                    comparison.negate(),
-                    selection.dispatch(),
-                    comparison.left().preparation(),
-                    comparison.right().preparation(),
-                ))
+            CheckedOperation::Comparison(comparison)
+                if comparison.plan().steps().any(|step| {
+                    matches!(step.implementation(), ComparisonImplementation::Selected(_))
+                }) =>
+            {
+                Some(comparison)
             }
             _ => None,
         })
         .collect::<Vec<_>>();
 
     assert_eq!(comparisons.len(), 2);
-    assert_eq!(comparisons[0].0, ComparisonOperation::Equal);
-    assert_eq!(comparisons[1].0, ComparisonOperation::Less);
-    assert_eq!((comparisons[1].1, comparisons[1].2), (false, true));
-    assert!(matches!(comparisons[0].3, StaticDispatch::Direct(_)));
-    assert!(matches!(comparisons[1].3, StaticDispatch::Direct(_)));
+    assert!(matches!(
+        comparisons[0].plan(),
+        CheckedComparisonPlan::Direct { step, negate: false }
+            if step.operation() == ComparisonOperation::Equal
+                && !step.reverse()
+                && matches!(step.implementation(), ComparisonImplementation::Selected(selection)
+                    if matches!(selection.dispatch(), StaticDispatch::Direct(_)))
+    ));
+    assert!(matches!(
+        comparisons[1].plan(),
+        CheckedComparisonPlan::Inclusive { strict, equal }
+            if strict.operation() == ComparisonOperation::Less
+                && strict.reverse()
+                && equal.operation() == ComparisonOperation::Equal
+                && matches!(strict.implementation(), ComparisonImplementation::Selected(selection)
+                    if matches!(selection.dispatch(), StaticDispatch::Direct(_)))
+                && matches!(equal.implementation(), ComparisonImplementation::Selected(selection)
+                    if matches!(selection.dispatch(), StaticDispatch::Direct(_)))
+    ));
     assert_eq!(
-        (comparisons[0].4, comparisons[0].5),
+        (
+            comparisons[0].left().preparation(),
+            comparisons[0].right().preparation(),
+        ),
         (
             ReadonlyOperandPreparation::BorrowPlace,
             ReadonlyOperandPreparation::BorrowPlace,
@@ -394,21 +442,21 @@ fn comparison_coercions_are_attached_to_source_operands_after_semantic_reversal(
         .bodies()
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
-        .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Comparison(comparison)
-                if matches!(
-                    comparison.implementation(),
-                    ComparisonImplementation::Selected(_)
-                ) =>
-            {
-                Some((
-                    comparison.operation(),
-                    comparison.reverse(),
-                    comparison.left().coercion().is_some(),
-                    comparison.right().coercion().is_some(),
-                ))
-            }
-            _ => None,
+        .flat_map(|(_, node)| match node.operation() {
+            CheckedOperation::Comparison(comparison) => comparison
+                .plan()
+                .steps()
+                .filter_map(|step| {
+                    matches!(step.implementation(), ComparisonImplementation::Selected(_))
+                        .then_some((
+                            step.operation(),
+                            step.reverse(),
+                            step.left_coercion().is_some(),
+                            step.right_coercion().is_some(),
+                        ))
+                })
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
         })
         .collect::<Vec<_>>();
 
@@ -434,10 +482,9 @@ fn exact_left_comparison_declaration_outranks_coercion_routes() {
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
             CheckedOperation::Comparison(comparison)
-                if matches!(
-                    comparison.implementation(),
-                    ComparisonImplementation::Selected(_)
-                ) =>
+                if comparison.plan().steps().any(|step| {
+                    matches!(step.implementation(), ComparisonImplementation::Selected(_))
+                }) =>
             {
                 Some(comparison)
             }
@@ -446,8 +493,9 @@ fn exact_left_comparison_declaration_outranks_coercion_routes() {
         .collect::<Vec<_>>();
 
     assert_eq!(comparisons.len(), 1);
-    assert!(comparisons[0].left().coercion().is_none());
-    assert!(comparisons[0].right().coercion().is_none());
+    let step = comparisons[0].plan().steps().next().unwrap();
+    assert!(step.left_coercion().is_none());
+    assert!(step.right_coercion().is_none());
 }
 
 #[test]
@@ -461,16 +509,20 @@ fn generic_comparisons_dispatch_through_the_lexical_requirement() {
         .bodies()
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
-        .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Comparison(comparison) => match comparison.implementation() {
-                ComparisonImplementation::Selected(selection) => Some((
-                    selection.dispatch(),
-                    comparison.left().preparation(),
-                    comparison.right().preparation(),
-                )),
-                ComparisonImplementation::Primitive | ComparisonImplementation::Unreachable => None,
-            },
-            _ => None,
+        .flat_map(|(_, node)| match node.operation() {
+            CheckedOperation::Comparison(comparison) => comparison
+                .plan()
+                .steps()
+                .filter_map(|step| match step.implementation() {
+                    ComparisonImplementation::Selected(selection) => Some((
+                        selection.dispatch(),
+                        comparison.left().preparation(),
+                        comparison.right().preparation(),
+                    )),
+                    ComparisonImplementation::Primitive => None,
+                })
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
         })
         .collect::<Vec<_>>();
 
@@ -506,7 +558,9 @@ fn conditional_comparison_instances_use_recursive_operation_proof() {
             matches!(
                 node.operation(),
                 CheckedOperation::Comparison(comparison)
-                    if matches!(comparison.implementation(), ComparisonImplementation::Selected(_))
+                    if comparison.plan().steps().any(|step| matches!(
+                        step.implementation(), ComparisonImplementation::Selected(_)
+                    ))
             )
         })
         .count();
@@ -530,14 +584,11 @@ fn interface_structural_prerequisite_exposes_equality_to_generic_bodies() {
             .any(|(_, node)| matches!(
                 node.operation(),
                 CheckedOperation::Comparison(comparison)
-                    if matches!(
-                        comparison.implementation(),
+                    if comparison.plan().steps().any(|step| matches!(
+                        step.implementation(),
                         ComparisonImplementation::Selected(selection)
-                            if matches!(
-                                selection.dispatch(),
-                                StaticDispatch::StructuralRequirement { .. }
-                            )
-                    )
+                            if matches!(selection.dispatch(), StaticDispatch::StructuralRequirement { .. })
+                    ))
             ))
     );
 }

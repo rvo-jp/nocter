@@ -34,15 +34,15 @@ pub use loan::{
 pub use node::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation,
     BorrowConversionPreparation, CallTarget, CheckedBindingPattern, CheckedBorrowConversion,
-    CheckedCall, CheckedClosure, CheckedClosureCapture, CheckedComparison, CheckedControl,
-    CheckedInterpolation, CheckedIteratorAcquisition, CheckedLoop, CheckedNode, CheckedOperation,
-    CheckedOutcome, CheckedPackLiteral, CheckedPattern, CheckedPatternArm, CheckedPatternFallback,
-    CheckedPatternSlot, CheckedPatternSubject, CheckedReadonlyOperand, CheckedReceiver,
-    CheckedReceiverCoercion, CoercedReceiverPreparation, ComparisonImplementation,
-    ComparisonOperation, ConstantValue, InterpolationPart, IterationAcquisition, LogicalOperation,
-    LoopKind, PatternBindingMode, PatternRemainder, PatternSubjectPreparation, PrimitiveBinary,
-    PrimitiveOperation, PrimitiveUnary, ReadonlyOperandPreparation, ReceiverPreparation,
-    TypedIteration,
+    CheckedCall, CheckedClosure, CheckedClosureCapture, CheckedComparison, CheckedComparisonPlan,
+    CheckedComparisonStep, CheckedControl, CheckedInterpolation, CheckedIteratorAcquisition,
+    CheckedLoop, CheckedNode, CheckedOperation, CheckedOutcome, CheckedPackLiteral, CheckedPattern,
+    CheckedPatternArm, CheckedPatternFallback, CheckedPatternSlot, CheckedPatternSubject,
+    CheckedReadonlyOperand, CheckedReceiver, CheckedReceiverCoercion, CoercedReceiverPreparation,
+    ComparisonImplementation, ComparisonOperation, ConstantValue, InterpolationPart,
+    IterationAcquisition, LogicalOperation, LoopKind, PatternBindingMode, PatternRemainder,
+    PatternSubjectPreparation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    ReadonlyOperandPreparation, ReceiverPreparation, TypedIteration,
 };
 pub use opaque::{CheckedOpaqueWitness, OpaqueWitnessTable, OpaqueWitnessTableBuildError};
 pub use place::{CheckedPlace, PlaceAccess, PlaceProjection, PlaceRoot};

@@ -11,9 +11,9 @@ use crate::body_check::literal::{
 use crate::instance_operations::ComparisonCandidateImplementation;
 use crate::syntax::{child_nodes, first_direct_token, is_transparent_expression};
 use crate::{
-    CheckedComparison, CheckedControl, CheckedOperation, CheckedReadonlyOperand,
-    ComparisonImplementation, ComparisonOperation, ConstantValue, LogicalOperation,
-    PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
+    CheckedComparison, CheckedComparisonPlan, CheckedComparisonStep, CheckedControl,
+    CheckedOperation, CheckedReadonlyOperand, ComparisonImplementation, ComparisonOperation,
+    ConstantValue, LogicalOperation, PrimitiveBinary, PrimitiveOperation, PrimitiveUnary,
 };
 
 impl BodyChecker<'_, '_> {
@@ -223,47 +223,45 @@ impl BodyChecker<'_, '_> {
         let right = self.check_readonly_operand(right_syntax, right_expected)?;
         let never = self.types.builtin(BuiltinType::Never);
         let punctuation = operator_punctuation(self, node)?;
-        let (operation, reverse, negate) = comparison_derivation(punctuation)
+        let derivation = comparison_derivation(punctuation)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let (implementation, receiver_coercion, argument_coercion) = if left.ty == never
-            || right.ty == never
-        {
-            (ComparisonImplementation::Unreachable, None, None)
+        let plan = if left.ty == never || right.ty == never {
+            CheckedComparisonPlan::Unreachable
         } else {
-            let (semantic_left, semantic_right) = if reverse {
-                (right.owner, left.owner)
-            } else {
-                (left.owner, right.owner)
-            };
-            let candidates = {
-                let mut selector = self.instance_selector();
-                selector
-                    .select_comparison_operations(semantic_left, semantic_right, operation)
-                    .map_err(BodyCheckInternalError::from)?
-            };
-            let mut candidates = candidates.into_iter();
-            let Some(selected) = candidates.next() else {
-                return Err(self.rule(BodyRule::InvalidComparisonOperation, node)?);
-            };
-            if candidates.next().is_some() {
-                return Err(self.rule(BodyRule::InvalidComparisonOperation, node)?);
-            }
-            let implementation = match selected.implementation() {
-                ComparisonCandidateImplementation::Primitive => ComparisonImplementation::Primitive,
-                ComparisonCandidateImplementation::Selected(selection) => {
-                    ComparisonImplementation::Selected(selection.clone())
+            match derivation {
+                ComparisonDerivation::Direct {
+                    operation,
+                    reverse,
+                    negate,
+                } => CheckedComparisonPlan::Direct {
+                    step: self.select_comparison_step(
+                        node,
+                        left.owner,
+                        right.owner,
+                        operation,
+                        reverse,
+                    )?,
+                    negate,
+                },
+                ComparisonDerivation::Inclusive { strict_reverse } => {
+                    CheckedComparisonPlan::Inclusive {
+                        strict: self.select_comparison_step(
+                            node,
+                            left.owner,
+                            right.owner,
+                            ComparisonOperation::Less,
+                            strict_reverse,
+                        )?,
+                        equal: self.select_comparison_step(
+                            node,
+                            left.owner,
+                            right.owner,
+                            ComparisonOperation::Equal,
+                            false,
+                        )?,
+                    }
                 }
-            };
-            (
-                implementation,
-                selected.receiver_coercion().cloned(),
-                selected.argument_coercion().cloned(),
-            )
-        };
-        let (left_coercion, right_coercion) = if reverse {
-            (argument_coercion, receiver_coercion)
-        } else {
-            (receiver_coercion, argument_coercion)
+            }
         };
         let ty = if left.ty == never || right.ty == never {
             never
@@ -274,17 +272,66 @@ impl BodyChecker<'_, '_> {
             node,
             ty,
             CheckedOperation::Comparison(CheckedComparison::new(
-                operation,
-                CheckedReadonlyOperand::new(left.value, left.preparation, left_coercion),
-                CheckedReadonlyOperand::new(right.value, right.preparation, right_coercion),
-                implementation,
-                reverse,
-                negate,
+                CheckedReadonlyOperand::new(left.value, left.preparation, None),
+                CheckedReadonlyOperand::new(right.value, right.preparation, None),
+                plan,
             )),
         )?;
         expected.map_or(Ok(checked), |expected| {
             self.apply_expected(node, checked, expected)
         })
+    }
+
+    fn select_comparison_step(
+        &mut self,
+        node: NodeId,
+        left: TypeId,
+        right: TypeId,
+        operation: ComparisonOperation,
+        reverse: bool,
+    ) -> Result<CheckedComparisonStep, BodyCheckError> {
+        let (semantic_left, semantic_right) = if reverse {
+            (right, left)
+        } else {
+            (left, right)
+        };
+        let candidates = {
+            let mut selector = self.instance_selector();
+            selector
+                .select_comparison_operations(semantic_left, semantic_right, operation)
+                .map_err(BodyCheckInternalError::from)?
+        };
+        let mut candidates = candidates.into_iter();
+        let Some(selected) = candidates.next() else {
+            return Err(self.rule(BodyRule::InvalidComparisonOperation, node)?);
+        };
+        if candidates.next().is_some() {
+            return Err(self.rule(BodyRule::InvalidComparisonOperation, node)?);
+        }
+        let implementation = match selected.implementation() {
+            ComparisonCandidateImplementation::Primitive => ComparisonImplementation::Primitive,
+            ComparisonCandidateImplementation::Selected(selection) => {
+                ComparisonImplementation::Selected(selection.clone())
+            }
+        };
+        let (left_coercion, right_coercion) = if reverse {
+            (
+                selected.argument_coercion().cloned(),
+                selected.receiver_coercion().cloned(),
+            )
+        } else {
+            (
+                selected.receiver_coercion().cloned(),
+                selected.argument_coercion().cloned(),
+            )
+        };
+        Ok(CheckedComparisonStep::new(
+            operation,
+            implementation,
+            reverse,
+            left_coercion,
+            right_coercion,
+        ))
     }
 
     pub(super) fn check_logical(
@@ -472,14 +519,45 @@ fn direct_float_literal(checker: &BodyChecker<'_, '_>, root: NodeId) -> bool {
     })
 }
 
-fn comparison_derivation(punctuation: Punctuation) -> Option<(ComparisonOperation, bool, bool)> {
+enum ComparisonDerivation {
+    Direct {
+        operation: ComparisonOperation,
+        reverse: bool,
+        negate: bool,
+    },
+    Inclusive {
+        strict_reverse: bool,
+    },
+}
+
+fn comparison_derivation(punctuation: Punctuation) -> Option<ComparisonDerivation> {
     match punctuation {
-        Punctuation::EqualEqual => Some((ComparisonOperation::Equal, false, false)),
-        Punctuation::BangEqual => Some((ComparisonOperation::Equal, false, true)),
-        Punctuation::Less => Some((ComparisonOperation::Less, false, false)),
-        Punctuation::LessEqual => Some((ComparisonOperation::Less, true, true)),
-        Punctuation::Greater => Some((ComparisonOperation::Less, true, false)),
-        Punctuation::GreaterEqual => Some((ComparisonOperation::Less, false, true)),
+        Punctuation::EqualEqual => Some(ComparisonDerivation::Direct {
+            operation: ComparisonOperation::Equal,
+            reverse: false,
+            negate: false,
+        }),
+        Punctuation::BangEqual => Some(ComparisonDerivation::Direct {
+            operation: ComparisonOperation::Equal,
+            reverse: false,
+            negate: true,
+        }),
+        Punctuation::Less => Some(ComparisonDerivation::Direct {
+            operation: ComparisonOperation::Less,
+            reverse: false,
+            negate: false,
+        }),
+        Punctuation::LessEqual => Some(ComparisonDerivation::Inclusive {
+            strict_reverse: false,
+        }),
+        Punctuation::Greater => Some(ComparisonDerivation::Direct {
+            operation: ComparisonOperation::Less,
+            reverse: true,
+            negate: false,
+        }),
+        Punctuation::GreaterEqual => Some(ComparisonDerivation::Inclusive {
+            strict_reverse: true,
+        }),
         _ => None,
     }
 }

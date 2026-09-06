@@ -13,9 +13,9 @@ use crate::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckInternalError,
     BodyRelationError, BodyRule, BorrowConversionImplementation, CallTarget, CheckedArgumentPack,
     CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CheckedReadonlyOperand,
-    CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable, ComparisonImplementation,
-    InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot,
-    PrimitiveOperation, StaticDispatch, StaticSelection, TypedIteration,
+    CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable, InterpolationPart,
+    IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot, PrimitiveOperation, StaticDispatch,
+    StaticSelection, TypedIteration,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -424,8 +424,10 @@ impl<'program> Collector<'program> {
             CheckedOperation::Comparison(comparison) => {
                 self.visit_readonly_operand(node, comparison.left())?;
                 self.visit_readonly_operand(node, comparison.right())?;
-                if let ComparisonImplementation::Selected(selection) = comparison.implementation() {
-                    self.record_selection(node, selection)?;
+                for step in comparison.plan().steps() {
+                    for selection in step.selections() {
+                        self.record_selection(node, selection)?;
+                    }
                 }
             }
             CheckedOperation::Primitive(primitive) => match primitive {

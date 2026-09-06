@@ -7,6 +7,10 @@ struct Rank {
 }
 
 instance Rank {
+    operator (&self == other: &Self): bool {
+        return self.value == other.value
+    }
+
     operator (&self < other: &Self): bool {
         return self.value < other.value
     }

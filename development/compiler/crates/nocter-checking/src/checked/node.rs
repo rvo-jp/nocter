@@ -441,63 +441,54 @@ impl CheckedReadonlyOperand {
 pub enum ComparisonImplementation {
     Primitive,
     Selected(StaticSelection),
-    Unreachable,
 }
 
-/// One complete comparison plan with source evaluation and semantic invocation kept separate.
+/// One selected comparison invocation, with coercions expressed in source operand order.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CheckedComparison {
+pub struct CheckedComparisonStep {
     operation: ComparisonOperation,
-    left: CheckedReadonlyOperand,
-    right: CheckedReadonlyOperand,
     implementation: ComparisonImplementation,
     reverse: bool,
-    negate: bool,
+    left_coercion: Option<StaticSelection>,
+    right_coercion: Option<StaticSelection>,
 }
 
-impl CheckedComparison {
+impl CheckedComparisonStep {
     fn rebind(
         &mut self,
         semantics: &super::CheckedSemanticRebinder<'_>,
     ) -> Result<(), super::CheckedSemanticRebindError> {
-        self.left.rebind(semantics)?;
-        self.right.rebind(semantics)?;
         if let ComparisonImplementation::Selected(selection) = &mut self.implementation {
+            selection.rebind(semantics)?;
+        }
+        if let Some(selection) = &mut self.left_coercion {
+            selection.rebind(semantics)?;
+        }
+        if let Some(selection) = &mut self.right_coercion {
             selection.rebind(semantics)?;
         }
         Ok(())
     }
+
     pub(crate) const fn new(
         operation: ComparisonOperation,
-        left: CheckedReadonlyOperand,
-        right: CheckedReadonlyOperand,
         implementation: ComparisonImplementation,
         reverse: bool,
-        negate: bool,
+        left_coercion: Option<StaticSelection>,
+        right_coercion: Option<StaticSelection>,
     ) -> Self {
         Self {
             operation,
-            left,
-            right,
             implementation,
             reverse,
-            negate,
+            left_coercion,
+            right_coercion,
         }
     }
 
     #[must_use]
     pub const fn operation(&self) -> ComparisonOperation {
         self.operation
-    }
-
-    #[must_use]
-    pub const fn left(&self) -> &CheckedReadonlyOperand {
-        &self.left
-    }
-
-    #[must_use]
-    pub const fn right(&self) -> &CheckedReadonlyOperand {
-        &self.right
     }
 
     #[must_use]
@@ -511,8 +502,110 @@ impl CheckedComparison {
     }
 
     #[must_use]
-    pub const fn negate(&self) -> bool {
-        self.negate
+    pub const fn left_coercion(&self) -> Option<&StaticSelection> {
+        self.left_coercion.as_ref()
+    }
+
+    #[must_use]
+    pub const fn right_coercion(&self) -> Option<&StaticSelection> {
+        self.right_coercion.as_ref()
+    }
+
+    pub fn selections(&self) -> impl Iterator<Item = &StaticSelection> {
+        [
+            self.left_coercion.as_ref(),
+            self.right_coercion.as_ref(),
+            match &self.implementation {
+                ComparisonImplementation::Primitive => None,
+                ComparisonImplementation::Selected(selection) => Some(selection),
+            },
+        ]
+        .into_iter()
+        .flatten()
+    }
+}
+
+/// Semantic comparison work after each source operand has been evaluated exactly once.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum CheckedComparisonPlan {
+    Direct {
+        step: CheckedComparisonStep,
+        negate: bool,
+    },
+    Inclusive {
+        strict: CheckedComparisonStep,
+        equal: CheckedComparisonStep,
+    },
+    Unreachable,
+}
+
+impl CheckedComparisonPlan {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        match self {
+            Self::Direct { step, .. } => step.rebind(semantics),
+            Self::Inclusive { strict, equal } => {
+                strict.rebind(semantics)?;
+                equal.rebind(semantics)
+            }
+            Self::Unreachable => Ok(()),
+        }
+    }
+
+    pub fn steps(&self) -> impl Iterator<Item = &CheckedComparisonStep> {
+        let steps = match self {
+            Self::Direct { step, .. } => [Some(step), None],
+            Self::Inclusive { strict, equal } => [Some(strict), Some(equal)],
+            Self::Unreachable => [None, None],
+        };
+        steps.into_iter().flatten()
+    }
+}
+
+/// One complete comparison plan with source evaluation and semantic invocation kept separate.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CheckedComparison {
+    left: CheckedReadonlyOperand,
+    right: CheckedReadonlyOperand,
+    plan: Box<CheckedComparisonPlan>,
+}
+
+impl CheckedComparison {
+    fn rebind(
+        &mut self,
+        semantics: &super::CheckedSemanticRebinder<'_>,
+    ) -> Result<(), super::CheckedSemanticRebindError> {
+        self.left.rebind(semantics)?;
+        self.right.rebind(semantics)?;
+        self.plan.rebind(semantics)
+    }
+    pub(crate) fn new(
+        left: CheckedReadonlyOperand,
+        right: CheckedReadonlyOperand,
+        plan: CheckedComparisonPlan,
+    ) -> Self {
+        Self {
+            left,
+            right,
+            plan: Box::new(plan),
+        }
+    }
+
+    #[must_use]
+    pub const fn left(&self) -> &CheckedReadonlyOperand {
+        &self.left
+    }
+
+    #[must_use]
+    pub const fn right(&self) -> &CheckedReadonlyOperand {
+        &self.right
+    }
+
+    #[must_use]
+    pub fn plan(&self) -> &CheckedComparisonPlan {
+        self.plan.as_ref()
     }
 }
 

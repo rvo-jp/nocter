@@ -5,9 +5,9 @@ use nocter_checking::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment,
     BorrowConversionImplementation, CallTarget, CheckedArgumentPack, CheckedBody, CheckedControl,
     CheckedOperation, CheckedOutcome, CheckedPlace, CheckedReadonlyOperand, CheckedReceiver,
-    CleanupTarget, ComparisonImplementation, DropSelection, InterpolationPart,
-    IterationAcquisition, LoopKind, PlaceProjection, PrimitiveOperation,
-    ReadonlyOperandPreparation, ReceiverPreparation, StaticSelection, TypedIteration,
+    CleanupTarget, DropSelection, InterpolationPart, IterationAcquisition, LoopKind,
+    PlaceProjection, PrimitiveOperation, ReadonlyOperandPreparation, ReceiverPreparation,
+    StaticSelection, TypedIteration,
 };
 use nocter_model::{
     BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, DropId, LocalBindingId, LoopId,
@@ -321,8 +321,10 @@ impl<'program> DependencyCollector<'program> {
             CheckedOperation::Comparison(comparison) => {
                 self.visit_readonly_operand(comparison.left())?;
                 self.visit_readonly_operand(comparison.right())?;
-                if let ComparisonImplementation::Selected(selection) = comparison.implementation() {
-                    self.record_selection(selection);
+                for step in comparison.plan().steps() {
+                    for selection in step.selections() {
+                        self.record_selection(selection);
+                    }
                 }
             }
             CheckedOperation::Primitive(primitive) => match primitive {

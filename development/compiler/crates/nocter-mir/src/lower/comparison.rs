@@ -1,13 +1,16 @@
 use nocter_checking::{
-    CheckedComparison, CheckedReadonlyOperand, ComparisonImplementation, ComparisonOperation,
-    ReadonlyOperandPreparation,
+    CheckedComparison, CheckedComparisonPlan, CheckedComparisonStep, ComparisonImplementation,
+    ComparisonOperation, ReadonlyOperandPreparation, StaticSelection,
 };
-use nocter_model::{BodyNodeId, BorrowCapability, MirValueId, TypeId, TypeKind};
+use nocter_model::{BodyNodeId, BorrowCapability, BuiltinType, MirValueId, TypeId, TypeKind};
 use nocter_target_program::{ExecutableDispatchPlan, ExecutableDispatchStep};
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
-use crate::{MirOperationKind, MirStructuralCall, MirUnaryOperation};
+use crate::{
+    MirBranchTarget, MirConstant, MirOperationKind, MirStructuralCall, MirTerminator,
+    MirUnaryOperation,
+};
 
 impl FunctionLowerer<'_> {
     pub(super) fn lower_comparison(
@@ -15,68 +18,67 @@ impl FunctionLowerer<'_> {
         node: BodyNodeId,
         comparison: &CheckedComparison,
     ) -> Result<Option<MirValueId>, MirLoweringError> {
-        if matches!(
-            comparison.implementation(),
-            ComparisonImplementation::Unreachable
-        ) {
+        if matches!(comparison.plan(), CheckedComparisonPlan::Unreachable) {
             let left = self.lower_node(comparison.left().value())?;
             if self.current.is_none() {
                 return Ok(left);
             }
             return self.lower_node(comparison.right().value());
         }
-        let plan = self.comparison_plan(node, comparison)?;
-        let source_expected = plan.source_parameter_types(comparison.reverse());
-        let source_coercions = plan.source_coercions(comparison.reverse());
-        let left = self.lower_comparison_operand(
+        let left_type = self.readonly_operand_type(comparison.left())?;
+        let right_type = self.readonly_operand_type(comparison.right())?;
+        let left = self.lower_readonly_operand(
             node,
-            comparison.left(),
-            source_coercions[0].as_ref(),
-            source_expected[0],
+            comparison.left().value(),
+            comparison.left().preparation(),
+            left_type,
         )?;
-        let right = self.lower_comparison_operand(
+        let right = self.lower_readonly_operand(
             node,
-            comparison.right(),
-            source_coercions[1].as_ref(),
-            source_expected[1],
+            comparison.right().value(),
+            comparison.right().preparation(),
+            right_type,
         )?;
-        let arguments = if comparison.reverse() {
-            [right, left]
-        } else {
-            [left, right]
-        };
-        let bool_ = self
-            .executable
-            .types()
-            .builtin(nocter_model::BuiltinType::Bool);
-        let result = if let Some(step) = plan.operation {
-            self.emit_dispatch_step(node, bool_, &step, arguments)?
-        } else {
-            self.emit_primitive_comparison(node, comparison, plan.parameter_types[0], arguments)?
-        };
-        if comparison.negate() {
-            self.append_value(
-                bool_,
-                MirOperationKind::Unary {
-                    operation: MirUnaryOperation::LogicalNot,
-                    operand: result,
-                },
-            )
-            .map(Some)
-        } else {
-            Ok(Some(result))
+        match comparison.plan() {
+            CheckedComparisonPlan::Direct { step, negate } => {
+                let result =
+                    self.emit_comparison_step(node, step, [left, right], [left_type, right_type])?;
+                if *negate {
+                    let bool_ = self.executable.types().builtin(BuiltinType::Bool);
+                    self.append_value(
+                        bool_,
+                        MirOperationKind::Unary {
+                            operation: MirUnaryOperation::LogicalNot,
+                            operand: result,
+                        },
+                    )
+                    .map(Some)
+                } else {
+                    Ok(Some(result))
+                }
+            }
+            CheckedComparisonPlan::Inclusive { strict, equal } => self
+                .lower_inclusive_comparison(
+                    node,
+                    strict,
+                    equal,
+                    [left, right],
+                    [left_type, right_type],
+                )
+                .map(Some),
+            CheckedComparisonPlan::Unreachable => unreachable!(),
         }
     }
 
     fn comparison_plan(
         &self,
         node: BodyNodeId,
-        comparison: &CheckedComparison,
+        step: &CheckedComparisonStep,
+        source_types: [TypeId; 2],
     ) -> Result<ComparisonPlan, MirLoweringError> {
-        match comparison.implementation() {
+        match step.implementation() {
             ComparisonImplementation::Primitive => {
-                let left = self.readonly_operand_type(comparison.left())?;
-                let right = self.readonly_operand_type(comparison.right())?;
+                let [left, right] = source_types;
                 if left != right {
                     return Err(MirLoweringError::InvalidDispatch(node));
                 }
@@ -119,36 +121,61 @@ impl FunctionLowerer<'_> {
                     coercions,
                 })
             }
-            ComparisonImplementation::Unreachable => Err(MirLoweringError::InvalidDispatch(node)),
         }
     }
 
-    fn lower_comparison_operand(
+    fn emit_comparison_step(
         &mut self,
         node: BodyNodeId,
-        operand: &CheckedReadonlyOperand,
+        step: &CheckedComparisonStep,
+        source_values: [MirValueId; 2],
+        source_types: [TypeId; 2],
+    ) -> Result<MirValueId, MirLoweringError> {
+        let plan = self.comparison_plan(node, step, source_types)?;
+        let expected = plan.source_parameter_types(step.reverse());
+        let resolved_coercions = plan.source_coercions(step.reverse());
+        let checked_coercions = [step.left_coercion(), step.right_coercion()];
+        let mut arguments = [source_values[0], source_values[1]];
+        for position in 0..2 {
+            arguments[position] = self.apply_comparison_coercions(
+                node,
+                arguments[position],
+                checked_coercions[position],
+                resolved_coercions[position].as_ref(),
+                expected[position],
+            )?;
+        }
+        if step.reverse() {
+            arguments.swap(0, 1);
+        }
+        let bool_ = self.executable.types().builtin(BuiltinType::Bool);
+        if let Some(operation) = plan.operation {
+            self.emit_dispatch_step(node, bool_, &operation, arguments)
+        } else {
+            self.emit_primitive_comparison(
+                node,
+                step.operation(),
+                plan.parameter_types[0],
+                arguments,
+            )
+        }
+    }
+
+    fn apply_comparison_coercions(
+        &mut self,
+        node: BodyNodeId,
+        mut value: MirValueId,
+        checked_coercion: Option<&StaticSelection>,
         resolved_coercion: Option<&ExecutableDispatchStep>,
         expected: TypeId,
     ) -> Result<MirValueId, MirLoweringError> {
-        let checked_coercion = operand
-            .coercion()
+        let checked_coercion = checked_coercion
             .map(|selection| self.invocation_step(node, selection))
             .transpose()?;
         let coercions = [checked_coercion.as_ref(), resolved_coercion]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        let prepared_type = coercions
-            .first()
-            .map(|step| self.unary_step_types(node, step).map(|types| types.0))
-            .transpose()?
-            .unwrap_or(expected);
-        let mut value = self.lower_readonly_operand(
-            node,
-            operand.value(),
-            operand.preparation(),
-            prepared_type,
-        )?;
         for coercion in coercions {
             let (input, result) = self.unary_step_types(node, coercion)?;
             if self.builder.value_type(value) != Some(input) {
@@ -160,6 +187,41 @@ impl FunctionLowerer<'_> {
             return Err(MirLoweringError::InvalidDispatch(node));
         }
         Ok(value)
+    }
+
+    fn lower_inclusive_comparison(
+        &mut self,
+        node: BodyNodeId,
+        strict: &CheckedComparisonStep,
+        equal: &CheckedComparisonStep,
+        source_values: [MirValueId; 2],
+        source_types: [TypeId; 2],
+    ) -> Result<MirValueId, MirLoweringError> {
+        let strict = self.emit_comparison_step(node, strict, source_values, source_types)?;
+        let source = self.current.ok_or(MirLoweringError::MissingCurrentBlock)?;
+        let (short_block, _) = self.builder.create_block([]);
+        let (equal_block, _) = self.builder.create_block([]);
+        self.builder.terminate(
+            source,
+            MirTerminator::Branch {
+                condition: strict,
+                then_target: MirBranchTarget::new(short_block, []),
+                else_target: MirBranchTarget::new(equal_block, []),
+            },
+        )?;
+
+        let bool_ = self.executable.types().builtin(BuiltinType::Bool);
+        self.current = Some(short_block);
+        let short =
+            self.append_value(bool_, MirOperationKind::Constant(MirConstant::Bool(true)))?;
+        let short_exit = self.current.map(|block| (block, Some(short)));
+
+        self.current = Some(equal_block);
+        let equal = self.emit_comparison_step(node, equal, source_values, source_types)?;
+        let equal_exit = self.current.map(|block| (block, Some(equal)));
+
+        self.join_branches(bool_, true, [short_exit, equal_exit])?
+            .ok_or(MirLoweringError::MissingCurrentBlock)
     }
 
     fn unary_step_types(
@@ -177,7 +239,7 @@ impl FunctionLowerer<'_> {
     fn emit_primitive_comparison(
         &mut self,
         node: BodyNodeId,
-        comparison: &CheckedComparison,
+        operation: ComparisonOperation,
         operand: TypeId,
         arguments: [MirValueId; 2],
     ) -> Result<MirValueId, MirLoweringError> {
@@ -188,7 +250,7 @@ impl FunctionLowerer<'_> {
         else {
             return Err(MirLoweringError::InvalidDispatch(node));
         };
-        let target = match comparison.operation() {
+        let target = match operation {
             ComparisonOperation::Equal => MirStructuralCall::Equality {
                 subject: *subject,
                 operand,
