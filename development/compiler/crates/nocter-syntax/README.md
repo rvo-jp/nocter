@@ -25,6 +25,7 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - structural callable modifiers, including authored `noalloc`, without effect interpretation
 - syntax diagnostics and missing/error elements
 - structural navigation and documentation extraction
+- value-free floating-literal decimal/suffix decomposition shared by semantic consumers
 - exact node-completeness queries for recovery consumers
 - validated rebinding of source-independent parse work into one current `SourceMap` identity domain
 - source-neutral declaration-syntax canonicalization with explicit body pruning
@@ -35,6 +36,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
 ## Invariants
 
 - Every syntax token retains its lexical-token identity and exact normalized range.
+- Floating-literal suffix spelling is decomposed once by syntax. Semantic consumers map that
+  lexical suffix to a type and send only the decimal component to target evaluation.
 - Contextual spellings remain identifier tokens; parser responsibilities select them through the
   typed catalog rather than duplicating source-text literals.
 - Parser recovery preserves authored structure without inventing semantic success.

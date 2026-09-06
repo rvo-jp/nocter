@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 
 use nocter_model::CompilationTarget;
+use nocter_syntax::FloatLiteralSuffix;
 
 mod operations;
 
@@ -46,6 +47,15 @@ impl FloatFormat {
         match self {
             Self::Binary32 => 23,
             Self::Binary64 => 52,
+        }
+    }
+}
+
+impl From<FloatLiteralSuffix> for FloatFormat {
+    fn from(suffix: FloatLiteralSuffix) -> Self {
+        match suffix {
+            FloatLiteralSuffix::F32 => Self::Binary32,
+            FloatLiteralSuffix::F64 => Self::Binary64,
         }
     }
 }

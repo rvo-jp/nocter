@@ -9,6 +9,55 @@ pub enum DecodedStringPart {
     Expression(NodeId),
 }
 
+/// One optional type suffix carried by a lexically valid floating-point literal.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum FloatLiteralSuffix {
+    F32,
+    F64,
+}
+
+/// The source-owned components of one floating-point literal spelling.
+///
+/// This projection deliberately does not evaluate the decimal value. Lexing owns the accepted
+/// spelling, while target-aware semantic evaluation owns decimal-to-IEEE conversion.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct FloatLiteralSpelling<'a> {
+    decimal: &'a str,
+    suffix: Option<FloatLiteralSuffix>,
+}
+
+impl<'a> FloatLiteralSpelling<'a> {
+    #[must_use]
+    pub fn from_authored(authored: &'a str) -> Self {
+        if let Some(decimal) = authored.strip_suffix("f32") {
+            Self {
+                decimal,
+                suffix: Some(FloatLiteralSuffix::F32),
+            }
+        } else if let Some(decimal) = authored.strip_suffix("f64") {
+            Self {
+                decimal,
+                suffix: Some(FloatLiteralSuffix::F64),
+            }
+        } else {
+            Self {
+                decimal: authored,
+                suffix: None,
+            }
+        }
+    }
+
+    #[must_use]
+    pub const fn decimal(self) -> &'a str {
+        self.decimal
+    }
+
+    #[must_use]
+    pub const fn suffix(self) -> Option<FloatLiteralSuffix> {
+        self.suffix
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum AuthoredStringUnit {
     Byte(u8),
@@ -49,10 +98,7 @@ pub(super) fn valid_integer(text: &str) -> bool {
 /// Decimal-to-binary conversion belongs to semantic target evaluation. Keeping this function
 /// boolean and value-free prevents the lexer from becoming a second floating-point evaluator.
 pub(super) fn valid_float(text: &str) -> bool {
-    let number = text
-        .strip_suffix("f32")
-        .or_else(|| text.strip_suffix("f64"))
-        .unwrap_or(text);
+    let number = FloatLiteralSpelling::from_authored(text).decimal();
     let (mantissa, exponent) = match number.find(['e', 'E']) {
         Some(index) => {
             if number[index + 1..].contains(['e', 'E']) {
@@ -481,8 +527,9 @@ mod decode_tests {
     use nocter_source::{SourceMap, SourceName};
 
     use super::{
-        DecodedStringPart, decode_byte_literal, decode_character_literal,
-        decode_plain_string_expression, decode_string_expression, decode_string_literal,
+        DecodedStringPart, FloatLiteralSpelling, FloatLiteralSuffix, decode_byte_literal,
+        decode_character_literal, decode_plain_string_expression, decode_string_expression,
+        decode_string_literal,
     };
     use crate::{NodeId, NodeKind, ParseGoal, SyntaxElement, parse};
 
@@ -497,6 +544,21 @@ mod decode_tests {
         assert_eq!(decode_character_literal("'\\u{1F600}'"), Some(0x1F600));
         assert_eq!(decode_character_literal("'\\u{D800}'"), None);
         assert_eq!(decode_character_literal("'ab'"), None);
+    }
+
+    #[test]
+    fn floating_literal_components_have_one_syntax_owned_authority() {
+        let binary32 = FloatLiteralSpelling::from_authored("1.25e-2f32");
+        assert_eq!(binary32.decimal(), "1.25e-2");
+        assert_eq!(binary32.suffix(), Some(FloatLiteralSuffix::F32));
+
+        let binary64 = FloatLiteralSpelling::from_authored("3.0f64");
+        assert_eq!(binary64.decimal(), "3.0");
+        assert_eq!(binary64.suffix(), Some(FloatLiteralSuffix::F64));
+
+        let contextual = FloatLiteralSpelling::from_authored("0.1");
+        assert_eq!(contextual.decimal(), "0.1");
+        assert_eq!(contextual.suffix(), None);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use nocter_constant_evaluation::{FloatBits, FloatFormat, TargetFloatEvaluator};
 use nocter_model::{BodyNodeId, BuiltinType, ConstantValue, TypeId};
-use nocter_syntax::{NodeId, SyntaxToken};
+use nocter_syntax::{FloatLiteralSpelling, NodeId, SyntaxToken};
 
 use super::BodyChecker;
 use crate::CheckedOperation;
@@ -16,13 +16,8 @@ impl BodyChecker<'_, '_> {
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let authored = self.token_text(token)?;
-        let (number, suffix) = if let Some(number) = authored.strip_suffix("f32") {
-            (number, Some(FloatFormat::Binary32))
-        } else if let Some(number) = authored.strip_suffix("f64") {
-            (number, Some(FloatFormat::Binary64))
-        } else {
-            (authored, None)
-        };
+        let spelling = FloatLiteralSpelling::from_authored(authored);
+        let suffix = spelling.suffix().map(FloatFormat::from);
         let contextual = contextual_float_type(self.types, expected);
         if suffix.is_some() && contextual.is_some_and(|(_, contextual)| Some(contextual) != suffix)
         {
@@ -35,7 +30,8 @@ impl BodyChecker<'_, '_> {
             FloatFormat::Binary32 => self.types.builtin(BuiltinType::F32),
             FloatFormat::Binary64 => self.types.builtin(BuiltinType::F64),
         };
-        let Ok(bits) = TargetFloatEvaluator::new(self.graph.target()).decimal_bits(number, format)
+        let Ok(bits) =
+            TargetFloatEvaluator::new(self.graph.target()).decimal_bits(spelling.decimal(), format)
         else {
             return Err(self.rule(BodyRule::FloatOutOfRange, node)?);
         };

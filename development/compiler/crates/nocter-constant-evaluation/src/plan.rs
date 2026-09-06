@@ -4,7 +4,7 @@ use nocter_model::{
     BuiltinType, CompilationTarget, ConstantValue, lossless_builtin_numeric_conversion,
 };
 use nocter_source::SourceFile;
-use nocter_syntax::SyntaxOrigin;
+use nocter_syntax::{FloatLiteralSpelling, SyntaxOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxTree, TokenKind, decode_character_literal,
     decode_plain_string_expression, direct_node, first_direct_token,
@@ -204,7 +204,9 @@ impl<R: ConstantResolver> Planner<'_, R> {
                             .source
                             .text_at(token.range())
                             .ok_or(ConstantPlanError::InvalidSyntax(node))?;
-                        let (_, suffix) = float_literal_parts(authored);
+                        let suffix = FloatLiteralSpelling::from_authored(authored)
+                            .suffix()
+                            .map(FloatFormat::from);
                         suffix
                             .map(ConstantScalarType::Float)
                             .or_else(|| {
@@ -357,7 +359,9 @@ impl<R: ConstantResolver> Planner<'_, R> {
                             .source
                             .text_at(token.range())
                             .ok_or(ConstantPlanError::InvalidSyntax(node))?;
-                        let (_, suffix) = float_literal_parts(authored);
+                        let suffix = FloatLiteralSpelling::from_authored(authored)
+                            .suffix()
+                            .map(FloatFormat::from);
                         suffix.map_or_else(ScalarHint::flexible_float, |format| {
                             ScalarHint::exact(ConstantScalarType::Float(format))
                         })
@@ -523,8 +527,8 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 .map(ConstantOperation::IntegerLiteral)
                 .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node)),
             TokenKind::FloatLiteral => {
-                let (number, _) = float_literal_parts(authored()?);
-                Ok(ConstantOperation::FloatLiteral(number.into()))
+                let spelling = FloatLiteralSpelling::from_authored(authored()?);
+                Ok(ConstantOperation::FloatLiteral(spelling.decimal().into()))
             }
             _ => Err(self.rule(ConstantPlanRule::NonConstantExpression, node)),
         }
@@ -588,15 +592,5 @@ const fn numeric_builtin(ty: ConstantScalarType) -> Option<BuiltinType> {
         ConstantScalarType::Float(FloatFormat::Binary32) => Some(BuiltinType::F32),
         ConstantScalarType::Float(FloatFormat::Binary64) => Some(BuiltinType::F64),
         ConstantScalarType::Bool | ConstantScalarType::Character | ConstantScalarType::Text => None,
-    }
-}
-
-fn float_literal_parts(authored: &str) -> (&str, Option<FloatFormat>) {
-    if let Some(number) = authored.strip_suffix("f32") {
-        (number, Some(FloatFormat::Binary32))
-    } else if let Some(number) = authored.strip_suffix("f64") {
-        (number, Some(FloatFormat::Binary64))
-    } else {
-        (authored, None)
     }
 }

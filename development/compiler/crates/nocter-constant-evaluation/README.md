@@ -15,4 +15,6 @@ generation.
 
 - Evaluation order and supported operations follow the public constant contract.
 - The evaluator receives resolved inputs instead of repeating declaration lookup.
+- Decimal floating evaluation receives syntax-owned suffix decomposition and a selected format;
+  it never parses a suffix or asks the compiler host for a floating-point value.
 - Failure cannot publish a partially evaluated semantic constant.
