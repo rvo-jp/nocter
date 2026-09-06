@@ -2,16 +2,15 @@
 
 ## Current State
 
-Nocter v0.38.0 implementation and source-tree qualification are complete. Released behavior
-remains v0.37.0 until the candidate receives release identity, passes reproducible packaging and
-fresh installed-home qualification, and is published.
+Nocter v0.37.0 is published and externally audited. The v0.38.0 implementation is closed and its
+release identity is frozen at `0.38.0`. Public latest-release references remain at v0.37.0 until
+publication is separately authorized.
 
 ## Next Work
 
-Enter v0.38.0 release preparation. Assign the version through the repository's existing single
-release-identity workflow, prepare English public release notes and version references, run two
-independent complete compiler gates, and qualify byte-identical archives plus a fresh installed
-home. Reuse the retained qualified archive for publication; do not rebuild after qualification.
+Qualify the exact clean v0.38.0 release-content commit through independent compiler gates,
+deterministic packaging, and complete installed-home validation. Record the retained archive
+identity and stop before tagging, pushing, uploading, or changing public latest-release links.
 
 ## Blockers
 
