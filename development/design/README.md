@@ -31,6 +31,7 @@ under `development/history/`, not in current design documents.
 - [Unicode Scalar Representation Boundary](unicode-scalar-design.md)
 - [Static Unicode Data Boundary](unicode-text-data-design.md)
 - [Performance Measurement Boundary](performance-measurement-design.md)
+- [Floating-Point Boundary](floating-point-design.md)
 
 ## Maintenance Contracts
 

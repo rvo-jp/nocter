@@ -2,14 +2,15 @@
 
 ## Current State
 
-Nocter v0.37.0 is published and externally audited. The public tag resolves to publication commit
-`49058ec739849e312f1f2f99886a098352994fcc`, and the public archive matches the qualified local
-candidate byte for byte.
+Nocter v0.38.0 is active. Phase 0 defines the complete floating-point semantic and representation
+contract. Released behavior remains v0.37.0 until the new behavior is implemented, qualified, and
+published.
 
 ## Next Work
 
-No milestone is active. Preserve the immutable v0.37.0 tag and asset. Define a new version before
-changing released behavior or distribution content.
+Implement Phase 1 from `development/history/milestones/v0.38.0.md`: carry `f32` and `f64` through
+the language and native pipeline, including the comparison/total-order separation and an explicit
+Machine register class. Do not publish partial source behavior.
 
 ## Blockers
 
