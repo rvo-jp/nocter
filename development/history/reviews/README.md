@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.37.0 Ordinary-compilation Performance Review](v0.37.0-ordinary-compilation.md)
 - [v0.37.0 Verification-throughput Review](v0.37.0-verification-throughput.md)
 - [v0.37.0 Phase 3 Incremental Finalization Review](v0.37.0-phase-3.md)
 - [v0.37.0 Phase 2 Body-Relation Input Review](v0.37.0-phase-2.md)
