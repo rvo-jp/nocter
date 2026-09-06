@@ -70,6 +70,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - A body type extension distinguishes the immutable prepared-program prefix from dense body-local
   additions. Closure references are body-local as well. Canonical program finalization re-interns
   both domains, so one sibling cannot change another body's reusable type identities.
+- Body type capture proves the exact program prefix from persistent storage identity in logarithmic
+  time and classifies dense suffix identities by a `TypeCursor`. It never rebuilds a program-wide
+  type map or revisits every prefix type for each body.
 - Each body checker opens from the same prepared semantic prefix and an empty closure domain. It
   cannot observe inferred types, copyability memoization, or closure allocation from a preceding
   sibling. Only a successful body recipe is replayed into the canonical program authority, and one

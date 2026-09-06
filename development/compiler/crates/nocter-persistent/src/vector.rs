@@ -76,6 +76,18 @@ impl<T> PersistentVector<T> {
         values[index & BRANCH_MASK].as_deref()
     }
 
+    /// Reports whether two vectors retain the same shared value allocation at `index`.
+    ///
+    /// This is a structural-sharing query, not value equality. Append-only domain owners use it
+    /// to prove that a descendant retains an exact immutable prefix without revisiting every
+    /// value in that prefix.
+    #[must_use]
+    pub fn shares_value_at(&self, other: &Self, index: usize) -> bool {
+        self.get(index)
+            .zip(other.get(index))
+            .is_some_and(|(left, right)| std::ptr::eq(left, right))
+    }
+
     pub fn push(&mut self, value: T) {
         self.push_shared(Arc::new(value));
     }
@@ -298,6 +310,14 @@ mod tests {
         assert_eq!(first.get(40), Some(&100));
         assert_eq!(second.get(40), Some(&200));
         assert_eq!(base.get(40), None);
+        assert!(first.shares_value_at(&base, 39));
+        assert!(!first.shares_value_at(&second, 40));
+
+        let mut equal_but_independent = PersistentVector::default();
+        for value in 0..40 {
+            equal_but_independent.push(value);
+        }
+        assert!(!base.shares_value_at(&equal_but_independent, 39));
     }
 
     #[test]

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use nocter_model::{
     ArgumentPack, BorrowCapability, CallableCapability, CallableContract, ClosureId,
     GenericParameterId, InterfaceId, InvalidParameterOrigin, NominalTypeId, OpaqueTypeId,
-    ResultProvenance, TypeId, TypeKind, TypeStore, TypeTransaction, UnknownTypeId,
+    ResultProvenance, TypeCursor, TypeId, TypeKind, TypeStore, TypeTransaction, UnknownTypeId,
 };
 
 /// Reference from one body-local type extension to either its immutable program prefix or an
@@ -98,9 +98,8 @@ enum BodyTypeKind {
 /// canonical program branch and returns the local-to-current identity map.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct BodyTypeRecipe {
-    program_type_count: usize,
+    program_types: TypeCursor,
     additions: Box<[BodyTypeKind]>,
-    source_references: HashMap<TypeId, BodyTypeRef>,
 }
 
 /// Transient capture authority shared while converting one checked body and its closures.
@@ -142,10 +141,7 @@ impl BodyTypeRecipe {
     /// Returns an integrity error when the type belongs to neither the program prefix nor this
     /// body's extension.
     pub fn reference(&self, ty: TypeId) -> Result<BodyTypeRef, BodyTypeRecipeError> {
-        self.source_references
-            .get(&ty)
-            .copied()
-            .ok_or(BodyTypeRecipeError::UnknownType(ty))
+        type_reference(ty, self.program_types, self.additions.len())
     }
 
     /// Captures only the suffix added to `program` by one body transaction.
@@ -175,42 +171,22 @@ impl BodyTypeRecipe {
         branch: &TypeStore,
         body_closures: &HashMap<ClosureId, BodyClosureRef>,
     ) -> Result<BodyTypeCapture, BodyTypeRecipeError> {
-        if branch.type_count() < program.type_count()
-            || program
-                .iter()
-                .any(|(ty, kind)| branch.get(ty) != Some(kind))
-        {
+        if !branch.preserves_prefix(program) {
             return Err(BodyTypeRecipeError::ProgramPrefixMismatch);
         }
-        let local_ids = branch
-            .iter_from(program.type_count())
-            .enumerate()
-            .map(|(index, (ty, _))| {
-                u32::try_from(index)
-                    .map(|index| (ty, BodyTypeRef::local(index)))
-                    .map_err(|_| BodyTypeRecipeError::TooManyLocalTypes)
-            })
-            .collect::<Result<HashMap<_, _>, _>>()?;
-        let mut references = program
-            .iter()
-            .map(|(ty, _)| (ty, BodyTypeRef::program(ty)))
-            .collect::<HashMap<_, _>>();
-        references.extend(local_ids.iter().map(|(ty, reference)| (*ty, *reference)));
-        let reference = |ty| {
-            references
-                .get(&ty)
-                .copied()
-                .ok_or(BodyTypeRecipeError::UnknownType(ty))
-        };
+        let program_type_count = program.type_count();
+        let program_types = program.cursor();
+        let local_type_count = branch.type_count() - program_type_count;
+        u32::try_from(local_type_count).map_err(|_| BodyTypeRecipeError::TooManyLocalTypes)?;
+        let reference = |ty| type_reference(ty, program_types, local_type_count);
         let additions = branch
-            .iter_from(program.type_count())
+            .iter_from(program_type_count)
             .map(|(_, kind)| capture_kind(kind, &reference, body_closures))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(BodyTypeCapture {
             recipe: Self {
-                program_type_count: program.type_count(),
+                program_types,
                 additions: additions.into_boxed_slice(),
-                source_references: references,
             },
         })
     }
@@ -227,11 +203,7 @@ impl BodyTypeRecipe {
         target: &mut TypeTransaction,
         closures: &[ClosureId],
     ) -> Result<ReplayedBodyTypes, BodyTypeRecipeError> {
-        if program.type_count() != self.program_type_count
-            || program
-                .iter()
-                .any(|(ty, kind)| target.get(ty) != Some(kind))
-        {
+        if program.cursor() != self.program_types || !target.preserves_prefix(program) {
             return Err(BodyTypeRecipeError::ProgramPrefixMismatch);
         }
         let mut locals = Vec::with_capacity(self.additions.len());
@@ -247,6 +219,21 @@ impl BodyTypeRecipe {
             locals: locals.into_boxed_slice(),
         })
     }
+}
+
+fn type_reference(
+    ty: TypeId,
+    program_types: TypeCursor,
+    local_type_count: usize,
+) -> Result<BodyTypeRef, BodyTypeRecipeError> {
+    let Some(local) = program_types.suffix_offset(ty) else {
+        return Ok(BodyTypeRef::program(ty));
+    };
+    if local >= local_type_count {
+        return Err(BodyTypeRecipeError::UnknownType(ty));
+    }
+    let local = u32::try_from(local).map_err(|_| BodyTypeRecipeError::TooManyLocalTypes)?;
+    Ok(BodyTypeRef::local(local))
 }
 
 /// Current identities assigned while replaying one [`BodyTypeRecipe`].
@@ -549,6 +536,17 @@ mod tests {
         assert!(matches!(
             target.get(replayed.locals()[0]),
             Some(TypeKind::Closure { definition, .. }) if *definition == current
+        ));
+    }
+
+    #[test]
+    fn structurally_equal_foreign_store_cannot_supply_a_program_prefix() {
+        let program = TypeAuthority::new();
+        let foreign = TypeAuthority::new();
+
+        assert!(matches!(
+            BodyTypeRecipe::capture(program.store(), foreign.store(), &HashMap::new()),
+            Err(super::BodyTypeRecipeError::ProgramPrefixMismatch)
         ));
     }
 }

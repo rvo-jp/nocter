@@ -231,7 +231,8 @@
                 <span class="markdown-path-text">/development/compiler/crates/nocter-persistent/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-persistent">nocter-persistent</h1><h2 id="responsibility">Responsibility</h2><p>Provide dependency-free persistent vector and ordered-map storage for compiler authorities that need cheap immutable branching.</p><h2 id="contract">Contract</h2><p>The crate exposes generic structural storage only to reviewed semantic owners. It has no knowledge of Nocter types, compiler phases, recovery policy, or source identities.</p><h2 id="invariants">Invariants</h2><ul><li>Cloning a collection shares unchanged roots.</li><li>Updates copy only bounded structural paths.</li><li>Iteration visits tree nodes linearly and does not restart lookup for every element.</li><li>Domain-specific lineage and commit policy remain outside this crate.</li></ul>
+                <h1 id="nocter-persistent">nocter-persistent</h1><h2 id="responsibility">Responsibility</h2><p>Provide dependency-free persistent vector and ordered-map storage for compiler authorities that need cheap immutable branching.</p><h2 id="contract">Contract</h2><p>The crate exposes generic structural storage only to reviewed semantic owners. It has no knowledge of Nocter types, compiler phases, recovery policy, or source identities.</p><h2 id="invariants">Invariants</h2><ul><li>Cloning a collection shares unchanged roots.</li><li>Updates copy only bounded structural paths.</li><li>Iteration visits tree nodes linearly and does not restart lookup for every element.</li><li>Owners can test whether one position retains the same shared value allocation without defining
+  value equality or domain lineage inside this crate.</li><li>Domain-specific lineage and commit policy remain outside this crate.</li></ul>
             </div>
         </main>
     </div>

@@ -362,6 +362,21 @@ pub struct TypeStore {
     builtins: [TypeId; BuiltinType::ALL.len()],
 }
 
+/// Stable boundary after one immutable prefix in the dense type-identity sequence.
+///
+/// The cursor exposes relative suffix positions without exposing the representation of `TypeId`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TypeCursor(usize);
+
+impl TypeCursor {
+    /// Returns the zero-based position of `ty` after this cursor, or `None` when it belongs to the
+    /// prefix.
+    #[must_use]
+    pub fn suffix_offset(self, ty: TypeId) -> Option<usize> {
+        ty.index().checked_sub(self.0)
+    }
+}
+
 impl fmt::Debug for TypeStore {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -477,6 +492,26 @@ impl TypeStore {
     #[must_use]
     pub const fn type_count(&self) -> usize {
         self.kinds.len()
+    }
+
+    /// Returns the stable boundary after every type currently in this store.
+    #[must_use]
+    pub const fn cursor(&self) -> TypeCursor {
+        TypeCursor(self.type_count())
+    }
+
+    /// Reports whether this append-only store retains the exact immutable prefix in `prefix`.
+    ///
+    /// Type stores always contain the closed builtin prefix. Because structural types can only be
+    /// appended and existing entries cannot be replaced, shared identity of the prefix's final
+    /// entry proves identity of every preceding entry. The persistent vector resolves that entry
+    /// in logarithmic time; callers never rescan program-wide types for each body extension.
+    #[must_use]
+    pub fn preserves_prefix(&self, prefix: &Self) -> bool {
+        let prefix_len = prefix.type_count();
+        prefix_len <= self.type_count()
+            && prefix_len > 0
+            && self.kinds.shares_value_at(&prefix.kinds, prefix_len - 1)
     }
 
     fn insert_known(&mut self, kind: TypeKind) -> TypeId {
@@ -726,6 +761,13 @@ mod tests {
             second.get(second_extension),
             Some(&TypeKind::Fallible(value))
         );
+        assert!(first.preserves_prefix(base.store()));
+        assert!(second.preserves_prefix(base.store()));
+        assert!(!first.preserves_prefix(TypeAuthority::new().store()));
+
+        let first = first.commit(&base).unwrap();
+        let descendant = first.transaction();
+        assert!(descendant.preserves_prefix(base.store()));
     }
 
     #[test]

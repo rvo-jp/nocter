@@ -28,4 +28,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
   transaction.
 - A read-only `TypeStore` cannot open a transaction.
 - Sibling or stale authorities cannot exchange or commit bare identities.
+- An append-only descendant proves an exact immutable type prefix through persistent value
+  identity; structural equality from an unrelated store cannot forge that relationship.
+- `TypeCursor` exposes only a stable prefix boundary and relative suffix positions, leaving the
+  representation of `TypeId` private.
 - Storage implementation remains private to the semantic owner.
