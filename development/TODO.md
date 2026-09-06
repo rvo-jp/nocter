@@ -4,7 +4,7 @@
 
 Nocter v0.36.0 is published and externally audited. v0.37.0 Phase 0 through Phase 3 are complete,
 and Phase 4 is closed as unnecessary. Incremental relation reuse reduces measured body-edit latency
-by 25.5 percent and the fifty-edit session by 26.8 percent while keeping major cold-path latency
+by 24.5 percent and the fifty-edit session by 24.7 percent while keeping major cold-path latency
 regressions below five percent.
 
 ## Next Work
