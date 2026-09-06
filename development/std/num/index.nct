@@ -305,14 +305,29 @@ instance u64 {
     /// Adds two values modulo 2^64.
     pub noalloc method self.wrapping_add(other: u64): u64
 
+    /// Subtracts two values modulo 2^64.
+    pub noalloc method self.wrapping_sub(other: u64): u64
+
     /// Multiplies two values modulo 2^64.
     pub noalloc method self.wrapping_mul(other: u64): u64
+
+    /// Returns the high half of the full 128-bit unsigned product.
+    pub noalloc method self.multiply_high(other: u64): u64
+
+    /// Returns the bitwise conjunction of two values.
+    pub noalloc method self.bit_and(other: u64): u64
+
+    /// Returns the bitwise disjunction of two values.
+    pub noalloc method self.bit_or(other: u64): u64
 
     /// Returns the bitwise exclusive OR of two values.
     pub noalloc method self.bit_xor(other: u64): u64
 
     /// Rotates the bits right; only the low six bits of amount are significant.
     pub noalloc method self.rotate_right(amount: u64): u64
+
+    /// Returns the number of zero bits before the most-significant set bit, or 64 for zero.
+    pub noalloc method self.leading_zeros(): u64
 
     /// Returns the shortest ordinary decimal spelling.
     pub method self.to_string(): String

@@ -337,6 +337,7 @@ pub enum Arm64SelectedLoadExtension {
 pub enum Arm64SelectedUnaryOperation {
     LogicalNot,
     Negate,
+    CountLeadingZeros,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -344,11 +345,14 @@ pub enum Arm64SelectedBinaryOperation {
     Add,
     Subtract,
     Multiply,
+    MultiplyHigh,
     Divide { signed: bool },
     Remainder { signed: bool },
     ShiftLeft,
     ShiftRight { signed: bool },
     BitwiseXor,
+    BitwiseAnd,
+    BitwiseOr,
     RotateRight,
     Equal,
     Less { signed: bool },

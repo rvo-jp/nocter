@@ -445,6 +445,25 @@ fn encodes_lossless_integer_widening_with_exact_signedness() {
 }
 
 #[test]
+fn encodes_wide_integer_arithmetic_support() {
+    assert_eq!(
+        word(Arm64Instruction::MultiplyHigh {
+            destination: x(0),
+            left: x(1),
+            right: x(2),
+        }),
+        0x9bc2_7c20
+    );
+    assert_eq!(
+        word(Arm64Instruction::CountLeadingZeros {
+            destination: x(0),
+            source: x(1),
+        }),
+        0xdac0_1020
+    );
+}
+
+#[test]
 fn encodes_scaled_memory_and_control_instructions() {
     assert_eq!(
         word(Arm64Instruction::LoadUnsigned {

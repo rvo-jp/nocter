@@ -503,6 +503,12 @@ fn emit_unary(
                 right: Arm64DataRegister::General(operand),
             });
         }
+        Arm64SelectedUnaryOperation::CountLeadingZeros => {
+            code.append(Arm64Instruction::CountLeadingZeros {
+                destination: destination.register,
+                source: operand,
+            });
+        }
     }
     finish_write(destination, code);
     Ok(())
@@ -545,6 +551,13 @@ fn emit_binary(
                 subtract_product: false,
             });
         }
+        Arm64SelectedBinaryOperation::MultiplyHigh => {
+            code.append(Arm64Instruction::MultiplyHigh {
+                destination: destination.register,
+                left,
+                right,
+            });
+        }
         Arm64SelectedBinaryOperation::Divide { signed } => {
             code.append(Arm64Instruction::Divide {
                 size,
@@ -579,10 +592,18 @@ fn emit_binary(
                 amount: right,
             });
         }
-        Arm64SelectedBinaryOperation::BitwiseXor => {
+        Arm64SelectedBinaryOperation::BitwiseXor
+        | Arm64SelectedBinaryOperation::BitwiseAnd
+        | Arm64SelectedBinaryOperation::BitwiseOr => {
+            let operation = match operation {
+                Arm64SelectedBinaryOperation::BitwiseXor => crate::Arm64Logical::ExclusiveOr,
+                Arm64SelectedBinaryOperation::BitwiseAnd => crate::Arm64Logical::And,
+                Arm64SelectedBinaryOperation::BitwiseOr => crate::Arm64Logical::Or,
+                _ => unreachable!(),
+            };
             code.append(Arm64Instruction::LogicalRegister {
                 size,
-                operation: crate::Arm64Logical::ExclusiveOr,
+                operation,
                 destination: Arm64DataRegister::General(destination.register),
                 left: Arm64DataRegister::General(left),
                 right: Arm64DataRegister::General(right),

@@ -12,8 +12,10 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::LogicalRegister { .. }
         | Arm64Instruction::MoveWide { .. }
         | Arm64Instruction::MultiplyAdd { .. }
+        | Arm64Instruction::MultiplyHigh { .. }
         | Arm64Instruction::Divide { .. }
         | Arm64Instruction::VariableShift { .. }
+        | Arm64Instruction::CountLeadingZeros { .. }
         | Arm64Instruction::BitfieldExtend { .. }
         | Arm64Instruction::FloatMove { .. }
         | Arm64Instruction::FloatMoveFromGeneral { .. }
@@ -70,21 +72,14 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
             immediate,
             shift,
         } => encode_move_wide(size, operation, destination.number(), immediate, shift),
-        Arm64Instruction::MultiplyAdd {
-            size,
+        instruction @ Arm64Instruction::MultiplyAdd { .. } => {
+            Ok(encode_multiply_add_instruction(instruction))
+        }
+        Arm64Instruction::MultiplyHigh {
             destination,
             left,
             right,
-            addend,
-            subtract_product,
-        } => Ok(encode_multiply_add(
-            size,
-            destination.number(),
-            left.number(),
-            right.number(),
-            addend.encoding(),
-            subtract_product,
-        )),
+        } => Ok(encode_multiply_high(destination, left, right)),
         Arm64Instruction::Divide {
             size,
             destination,
@@ -111,6 +106,10 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
             value.number(),
             amount.number(),
         )),
+        Arm64Instruction::CountLeadingZeros {
+            destination,
+            source,
+        } => Ok(encode_count_leading_zeros(destination, source)),
         Arm64Instruction::BitfieldExtend {
             size,
             signed,
@@ -141,6 +140,46 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
             unreachable!("instruction category is closed by encode")
         }
     }
+}
+
+fn encode_multiply_add_instruction(instruction: Arm64Instruction) -> u32 {
+    let Arm64Instruction::MultiplyAdd {
+        size,
+        destination,
+        left,
+        right,
+        addend,
+        subtract_product,
+    } = instruction
+    else {
+        unreachable!()
+    };
+    encode_multiply_add(
+        size,
+        destination.number(),
+        left.number(),
+        right.number(),
+        addend.encoding(),
+        subtract_product,
+    )
+}
+
+fn encode_multiply_high(
+    destination: crate::Arm64Register,
+    left: crate::Arm64Register,
+    right: crate::Arm64Register,
+) -> u32 {
+    0x9bc0_7c00
+        | u32::from(right.number()) << 16
+        | u32::from(left.number()) << 5
+        | u32::from(destination.number())
+}
+
+fn encode_count_leading_zeros(
+    destination: crate::Arm64Register,
+    source: crate::Arm64Register,
+) -> u32 {
+    0xdac0_1000 | u32::from(source.number()) << 5 | u32::from(destination.number())
 }
 
 fn encode_bitfield_extend(

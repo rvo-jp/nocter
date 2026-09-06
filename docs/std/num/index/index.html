@@ -493,14 +493,29 @@
     <span class="token-comment">/// Adds two values modulo 2^64.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_add</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
+    <span class="token-comment">/// Subtracts two values modulo 2^64.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_sub</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
     <span class="token-comment">/// Multiplies two values modulo 2^64.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">wrapping_mul</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+    <span class="token-comment">/// Returns the high half of the full 128-bit unsigned product.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">multiply_high</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+    <span class="token-comment">/// Returns the bitwise conjunction of two values.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">bit_and</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+    <span class="token-comment">/// Returns the bitwise disjunction of two values.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">bit_or</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
     <span class="token-comment">/// Returns the bitwise exclusive OR of two values.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">bit_xor</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
     <span class="token-comment">/// Rotates the bits right; only the low six bits of amount are significant.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">rotate_right</span><span class="token-operator">(</span>amount<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
+
+    <span class="token-comment">/// Returns the number of zero bits before the most-significant set bit, or 64 for zero.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">leading_zeros</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u64</span>
 
     <span class="token-comment">/// Returns the shortest ordinary decimal spelling.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>

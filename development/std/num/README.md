@@ -28,6 +28,12 @@ value overflows to infinity or a finite nonzero value underflows to zero. Non-fi
 its classification. The source implementation proves these preconditions before invoking the
 closed target conversion primitive, so no target saturation or sentinel value becomes public API.
 
+The `u64` fixed-width surface supplies wrapping addition, subtraction, and multiplication; the
+high half of a full unsigned product; bit conjunction, disjunction, and exclusive-or; rotation;
+and leading-zero count. These operations provide the exact wide arithmetic required by decimal
+conversion algorithms without introducing `u128` as a source type or asking ordinary trapping
+operators to acquire a second meaning.
+
 ## Integer Text
 
 Every built-in integer owns the decimal text surface declared by the compiler-checked

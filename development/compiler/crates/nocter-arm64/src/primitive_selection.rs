@@ -73,10 +73,7 @@ pub(crate) fn select(
         PrimitiveRole::PointerAddress
         | PrimitiveRole::PointerFromReference
         | PrimitiveRole::PointerFromReadWriteReference
-        | PrimitiveRole::PointerFromAddress => {
-            validate_register_abi(operation, target, &[1], 1)?;
-            validate_type_arguments(operation, target, 1)
-        }
+        | PrimitiveRole::PointerFromAddress => select_pointer_identity(operation, target),
         PrimitiveRole::PointeeSize | PrimitiveRole::PointeeAlignment => {
             select_pointee_layout(program, operation, target, selected)
         }
@@ -90,10 +87,7 @@ pub(crate) fn select(
         PrimitiveRole::DropValueAtPointer => select_noop_destruction(operation, target),
         PrimitiveRole::StringFromRawParts
         | PrimitiveRole::ByteSliceFromRawParts
-        | PrimitiveRole::MutableByteSliceFromRawParts => {
-            validate_register_abi(operation, target, &[1, 1], 2)?;
-            validate_type_arguments(operation, target, 0)
-        }
+        | PrimitiveRole::MutableByteSliceFromRawParts => select_raw_view(operation, target),
         PrimitiveRole::ValueSliceFromRawParts | PrimitiveRole::MutableValueSliceFromRawParts => {
             validate_register_abi(operation, target, &[1, 1], 2)?;
             validate_type_arguments(operation, target, 1)
@@ -116,9 +110,14 @@ pub(crate) fn select(
         | PrimitiveRole::I16Truncate
         | PrimitiveRole::I32Truncate => select_direct_unary(operation, target),
         PrimitiveRole::U64WrappingAdd
+        | PrimitiveRole::U64WrappingSubtract
         | PrimitiveRole::U64WrappingMultiply
+        | PrimitiveRole::U64MultiplyHigh
+        | PrimitiveRole::U64BitwiseAnd
+        | PrimitiveRole::U64BitwiseOr
         | PrimitiveRole::U64BitwiseXor
-        | PrimitiveRole::U64RotateRight => select_u64_mixing(operation, target, selected),
+        | PrimitiveRole::U64RotateRight
+        | PrimitiveRole::U64LeadingZeros => select_u64_primitive(operation, target, selected),
         PrimitiveRole::F32FromBits
         | PrimitiveRole::F32ToBits
         | PrimitiveRole::F64FromBits
@@ -152,6 +151,22 @@ pub(crate) fn select(
             super::system_primitive_selection::select(program, operation, target, selected)
         }
     }
+}
+
+fn select_pointer_identity(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+) -> Result<(), Arm64SelectionError> {
+    validate_register_abi(operation, target, &[1], 1)?;
+    validate_type_arguments(operation, target, 1)
+}
+
+fn select_raw_view(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+) -> Result<(), Arm64SelectionError> {
+    validate_register_abi(operation, target, &[1, 1], 2)?;
+    validate_type_arguments(operation, target, 0)
 }
 
 fn select_bytes_from_string(
@@ -378,16 +393,31 @@ fn validate_float_register_abi(
     Ok(())
 }
 
-fn select_u64_mixing(
+fn select_u64_primitive(
     operation: MachineOperationId,
     target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
+    if target.role() == PrimitiveRole::U64LeadingZeros {
+        validate_register_abi(operation, target, &[1], 1)?;
+        validate_type_arguments(operation, target, 0)?;
+        selected.push(Arm64SelectedInstruction::Unary {
+            size: Arm64DataSize::Bits64,
+            operation: crate::Arm64SelectedUnaryOperation::CountLeadingZeros,
+            destination: fixed_register(0)?,
+            operand: fixed_register(0)?,
+        });
+        return Ok(());
+    }
     validate_register_abi(operation, target, &[1, 1], 1)?;
     validate_type_arguments(operation, target, 0)?;
     let operation = match target.role() {
         PrimitiveRole::U64WrappingAdd => Arm64SelectedBinaryOperation::Add,
+        PrimitiveRole::U64WrappingSubtract => Arm64SelectedBinaryOperation::Subtract,
         PrimitiveRole::U64WrappingMultiply => Arm64SelectedBinaryOperation::Multiply,
+        PrimitiveRole::U64MultiplyHigh => Arm64SelectedBinaryOperation::MultiplyHigh,
+        PrimitiveRole::U64BitwiseAnd => Arm64SelectedBinaryOperation::BitwiseAnd,
+        PrimitiveRole::U64BitwiseOr => Arm64SelectedBinaryOperation::BitwiseOr,
         PrimitiveRole::U64BitwiseXor => Arm64SelectedBinaryOperation::BitwiseXor,
         PrimitiveRole::U64RotateRight => Arm64SelectedBinaryOperation::RotateRight,
         _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),

@@ -116,15 +116,21 @@ Explicit `u64` bit-mixing APIs are ordinary methods:
 
 ```nct
 let sum = left.wrapping_add(right)
+let difference = left.wrapping_sub(right)
 let product = left.wrapping_mul(right)
+let product_high = left.multiply_high(right)
+let common = left.bit_and(right)
+let combined = left.bit_or(right)
 let mixed = left.bit_xor(right)
 let rotated = left.rotate_right(amount)
+let leading = left.leading_zeros()
 ```
 
-`wrapping_add` and `wrapping_mul` compute modulo 2^64. `rotate_right` uses the low six bits of
-`amount`, so every `u64` amount is valid. These methods do not allocate or fail. Normal arithmetic
-operators retain the trapping rules below; the mixing methods do not introduce new operator
-spellings.
+The wrapping operations compute modulo 2^64. `multiply_high` returns bits 64 through 127 of the
+full unsigned product. The bit methods apply fixed-width operations, and `leading_zeros` returns 64
+for zero. `rotate_right` uses the low six bits of `amount`, so every `u64` amount is valid. These
+methods do not allocate or fail. Normal arithmetic operators retain the trapping rules below; the
+methods do not introduce new operator spellings.
 
 Arithmetic trap rules:
 
@@ -140,5 +146,3 @@ Arithmetic trap rules:
   not trap.
 
 Trap semantics are specified in [Control Flow](control-flow.md#never-and-reachability). These arithmetic safety checks are always-on for every build mode; see [Safety Checks and Build Modes](control-flow.md#safety-checks-and-build-modes).
-
-Other fixed-width numeric mixing APIs are not part of the current standard surface.

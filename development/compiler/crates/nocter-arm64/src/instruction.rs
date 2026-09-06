@@ -187,6 +187,11 @@ pub enum Arm64Instruction {
         addend: Arm64DataRegister,
         subtract_product: bool,
     },
+    MultiplyHigh {
+        destination: Arm64Register,
+        left: Arm64Register,
+        right: Arm64Register,
+    },
     Divide {
         size: Arm64DataSize,
         destination: Arm64Register,
@@ -200,6 +205,10 @@ pub enum Arm64Instruction {
         destination: Arm64Register,
         value: Arm64Register,
         amount: Arm64Register,
+    },
+    CountLeadingZeros {
+        destination: Arm64Register,
+        source: Arm64Register,
     },
     /// Extracts the low `source_bits` and sign- or zero-extends them to `size`.
     BitfieldExtend {

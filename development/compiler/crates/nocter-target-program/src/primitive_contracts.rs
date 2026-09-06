@@ -702,11 +702,16 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::F64ToF32 => make(0, vec![f64()], f32(), private, None, vec![]),
         PrimitiveRole::F64ToI64 => make(0, vec![f64()], i64(), private, None, vec![]),
         PrimitiveRole::U64WrappingAdd
+        | PrimitiveRole::U64WrappingSubtract
         | PrimitiveRole::U64WrappingMultiply
+        | PrimitiveRole::U64MultiplyHigh
+        | PrimitiveRole::U64BitwiseAnd
+        | PrimitiveRole::U64BitwiseOr
         | PrimitiveRole::U64BitwiseXor
         | PrimitiveRole::U64RotateRight => {
             make(0, vec![u64(), u64()], u64(), private, None, vec![])
         }
+        PrimitiveRole::U64LeadingZeros => make(0, vec![u64()], u64(), private, None, vec![]),
         PrimitiveRole::ProcessExit => make(0, vec![i32()], never(), private, arm64_darwin, vec![]),
         PrimitiveRole::ProcessArgumentCount | PrimitiveRole::ProcessEnvironmentCount => {
             make(0, vec![], usize(), private, arm64_darwin, vec![])

@@ -3,17 +3,38 @@
 see ./index.nct
 
 noalloc primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
+noalloc primitive func u64_wrapping_sub_raw(left: u64, right: u64): u64
 noalloc primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
+noalloc primitive func u64_mul_high_raw(left: u64, right: u64): u64
+noalloc primitive func u64_bit_and_raw(left: u64, right: u64): u64
+noalloc primitive func u64_bit_or_raw(left: u64, right: u64): u64
 noalloc primitive func u64_bit_xor_raw(left: u64, right: u64): u64
 noalloc primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
+noalloc primitive func u64_leading_zeros_raw(value: u64): u64
 
 instance u64 {
     noalloc method self.wrapping_add(other: u64): u64 {
         return u64_wrapping_add_raw(self, other)
     }
 
+    noalloc method self.wrapping_sub(other: u64): u64 {
+        return u64_wrapping_sub_raw(self, other)
+    }
+
     noalloc method self.wrapping_mul(other: u64): u64 {
         return u64_wrapping_mul_raw(self, other)
+    }
+
+    noalloc method self.multiply_high(other: u64): u64 {
+        return u64_mul_high_raw(self, other)
+    }
+
+    noalloc method self.bit_and(other: u64): u64 {
+        return u64_bit_and_raw(self, other)
+    }
+
+    noalloc method self.bit_or(other: u64): u64 {
+        return u64_bit_or_raw(self, other)
     }
 
     noalloc method self.bit_xor(other: u64): u64 {
@@ -23,4 +44,25 @@ instance u64 {
     noalloc method self.rotate_right(amount: u64): u64 {
         return u64_rotate_right_raw(self, amount)
     }
+
+    noalloc method self.leading_zeros(): u64 {
+        return u64_leading_zeros_raw(self)
+    }
+}
+
+test fixed_width_u64_operations_expose_exact_bits {
+    let maximum: u64 = 18446744073709551615
+    let zero: u64 = 0
+    let one: u64 = 1
+    let twelve: u64 = 12
+    let high = maximum.multiply_high(maximum)
+    if zero.wrapping_sub(1) != 18446744073709551615
+        || high != 18446744073709551614
+        || twelve.bit_and(10) != 8
+        || twelve.bit_or(3) != 15
+        || one.leading_zeros() != 63
+        || zero.leading_zeros() != 64 {
+        return error.new("std.num.bits", "fixed-width operation changed")
+    }
+    return
 }
