@@ -7,6 +7,7 @@ mod interruption;
 mod literal;
 mod ownership;
 mod pipeline;
+mod program_finalization;
 mod query;
 mod reusable_body;
 mod semantic_transaction;
@@ -77,15 +78,15 @@ pub use interruption::{TypedBodyInterruption, TypedBodyInterruptionKind};
 
 #[cfg(any(test, feature = "test-api"))]
 pub use pipeline::check_prepared_program;
-pub use pipeline::{
+pub(crate) use pipeline::{
+    analyze_prepared_program_bodies, check_prepared_program_recovering,
+    materialize_prepared_program_from_queried_bodies,
+};
+pub use program_finalization::{
     QueriedProgramFinalizationOutcome, QueriedProgramMaterialization,
     QueriedProgramMaterializationOutcome, ReusableProgramRelationFailure,
     ReusableProgramRelationOutcome, ReusableProgramRelations, analyze_queried_program_relations,
     finalize_queried_program_materialization,
-};
-pub(crate) use pipeline::{
-    analyze_prepared_program_bodies, check_prepared_program_recovering,
-    materialize_prepared_program_from_queried_bodies,
 };
 pub use query::{
     ProgramBodyCheckingContext, QueriedBodyRejection, ReusableBodyQueryOutcome,
