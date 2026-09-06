@@ -7,7 +7,7 @@ use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, CheckedControl, LoanId, LoopKind, PlaceRoot,
+    BodyCheckInternalError, BodyRelationError, CheckedControl, LoanId, LoopKind, PlaceRoot,
     ProvenanceProjection,
 };
 
@@ -18,7 +18,7 @@ impl Analyzer<'_, '_> {
         control: &CheckedControl,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         match control {
             CheckedControl::Block {
                 scope,
@@ -132,7 +132,7 @@ impl Analyzer<'_, '_> {
         result: Option<BodyNodeId>,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         self.scopes.push(scope);
         for statement in statements {
             if !self.evaluate(*statement, state, extra)?.1 {
@@ -164,7 +164,7 @@ impl Analyzer<'_, '_> {
         value: BodyNodeId,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let (value, reaches) = self.evaluate(value, state, extra)?;
         if !reaches {
             return Ok((LoanValue::independent(), false));
@@ -188,7 +188,7 @@ impl Analyzer<'_, '_> {
         value: Option<BodyNodeId>,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         if let Some(value) = value {
             self.evaluate(value, state, extra)?;
         }
@@ -204,7 +204,7 @@ impl Analyzer<'_, '_> {
         is_break: bool,
         state: &LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let depth = self.loop_scope_depth(loop_)?;
         self.check_scope_exit_conflicts(
             node,
@@ -229,7 +229,7 @@ impl Analyzer<'_, '_> {
         else_branch: Option<BodyNodeId>,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         if !self.evaluate(condition, state, extra)?.1 {
             return Ok((LoanValue::independent(), false));
         }
@@ -265,7 +265,7 @@ impl Analyzer<'_, '_> {
         unmatched: bool,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let (subject_value, reaches) = self.evaluate(subject.value(), state, extra)?;
         if !reaches {
             return Ok((LoanValue::independent(), false));
@@ -317,7 +317,7 @@ impl Analyzer<'_, '_> {
         loop_: LoopId,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let definition = self
             .input
             .body()
@@ -405,7 +405,7 @@ impl Analyzer<'_, '_> {
         kind: &LoopKind,
         iterator: Option<&LoanValue>,
         state: &mut LoanState,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         match kind {
             LoopKind::While { .. } | LoopKind::Infinite => {}
             LoopKind::Range { binding, .. } => {

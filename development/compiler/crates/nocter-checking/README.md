@@ -81,6 +81,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   proves that checked bodies cover the declaration graph exactly once and pairs each body with its
   source and origin map. Provenance, effects, and loans cannot accept independently ordered input
   slices or rediscover body membership by scanning them.
+- Provenance, effects, and loans report authored failures as source-neutral body/node locators.
+  Only the relation catalog projects those locators through the exact current origin map. Relation
+  computation therefore cannot retain a `SourceDiagnostic` or stale source coordinates across an
+  editor revision.
 - Allocation effects consume the already-checked operation graph and ownership-owned cleanup
   schedules. Ownership freezes each cleanup's exact drop dependencies after generic substitution
   and residual-payload selection. A positive `MayAllocate` fact reaches one least fixed point

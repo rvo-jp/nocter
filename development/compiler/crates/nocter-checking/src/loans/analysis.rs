@@ -15,7 +15,7 @@ use super::liveness::Liveness;
 use super::state::LoanState;
 use super::value::LoanValue;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, CheckedBodyLoans, CheckedLoan, CheckedOperation,
+    BodyCheckInternalError, BodyRelationError, CheckedBodyLoans, CheckedLoan, CheckedOperation,
     ClosureDefinition, ClosureTable, DropTable, LoanId, LoanPlace, LoanRoot, LoanTable, PlaceRoot,
     ProvenanceTable,
     body_relations::{BodyRelationCatalog, BodyRelationInput},
@@ -38,7 +38,7 @@ pub(super) fn analyze_program(
     provenance: &ProvenanceTable,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_, '_>,
-) -> Result<LoanTable, BodyCheckError> {
+) -> Result<LoanTable, BodyRelationError> {
     let facts = ProgramFacts {
         graph,
         types,
@@ -93,7 +93,7 @@ struct RootLoanAnalysis {
 }
 
 impl RootLoanAnalysis {
-    fn merge(&mut self, another: Self) -> Result<(), BodyCheckError> {
+    fn merge(&mut self, another: Self) -> Result<(), BodyRelationError> {
         for (loan, definition) in another.loans {
             if self.loans.insert(loan, definition).is_some() {
                 return Err(BodyCheckInternalError::LoanAnalysis.into());
@@ -158,7 +158,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         }
     }
 
-    fn analyze(mut self) -> Result<RootLoanAnalysis, BodyCheckError> {
+    fn analyze(mut self) -> Result<RootLoanAnalysis, BodyRelationError> {
         let mut state = self.initial_state()?;
         let root = self
             .closure
@@ -302,7 +302,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         node: BodyNodeId,
         state: &mut LoanState,
         extra_active: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         self.record_live(node, state, extra_active);
         let checked = self
             .input
@@ -392,7 +392,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         interpolation: &crate::CheckedInterpolation,
         state: &mut LoanState,
         extra_active: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         self.evaluate_allocation(interpolation.allocation(), state, extra_active)?;
         for (position, part) in interpolation.parts().iter().enumerate() {
             match part {
@@ -424,7 +424,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         acquisition: &crate::CheckedIteratorAcquisition,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let Some(source) = self.evaluate_receiver(node, 0, acquisition.source(), state, extra)?
         else {
             return Ok((LoanValue::independent(), false));
@@ -462,7 +462,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         closure: &crate::CheckedClosure,
         state: &mut LoanState,
         extra_active: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let mut value = LoanValue::independent();
         for capture in closure.captures() {
             let (initializer, reaches) =

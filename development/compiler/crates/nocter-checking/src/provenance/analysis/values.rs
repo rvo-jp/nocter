@@ -6,7 +6,7 @@ use crate::provenance::invocation_place_can_reach_result;
 use crate::provenance::state::ProvenanceState;
 use crate::{
     AggregateConstruction, AllocationSelection, AmbientStorageDependence, ArgumentPackSegment,
-    BodyCheckError, BodyCheckInternalError, CallTarget, CheckedArgumentPack, CheckedCall,
+    BodyCheckInternalError, BodyRelationError, CallTarget, CheckedArgumentPack, CheckedCall,
     CheckedIteratorAcquisition, CheckedOperation, CheckedOutcome, CheckedPackLiteral,
     CheckedReceiver, IterationAcquisition, PlaceRoot, ProvenanceProjection, ProvenanceSource,
     ReceiverPreparation, StaticDispatch, ValueProvenance,
@@ -70,7 +70,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         acquisition: &CheckedIteratorAcquisition,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let Some(source) = self.evaluate_receiver(acquisition.source(), state)? else {
             return Ok((ValueProvenance::independent(), false));
         };
@@ -161,7 +161,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         aggregate: &AggregateConstruction,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let mut result = ValueProvenance::independent();
         match aggregate {
             AggregateConstruction::Struct { fields, .. } => {
@@ -223,7 +223,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         outcome: &CheckedOutcome,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         match outcome {
             CheckedOutcome::Absent => Ok((ValueProvenance::independent(), true)),
             CheckedOutcome::Inject { payload, .. } => {
@@ -293,7 +293,7 @@ impl Analyzer<'_, '_> {
         call: &CheckedCall,
         state: &mut ProvenanceState,
         result_type: TypeId,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let Some(evaluated) = self.evaluate_call_inputs(call, state)? else {
             return Ok((ValueProvenance::independent(), false));
         };
@@ -308,7 +308,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         call: &CheckedCall,
         state: &mut ProvenanceState,
-    ) -> Result<Option<EvaluatedCall>, BodyCheckError> {
+    ) -> Result<Option<EvaluatedCall>, BodyRelationError> {
         let callable = match call.target() {
             CallTarget::CallableValue {
                 value, capability, ..
@@ -386,7 +386,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         pack: &CheckedArgumentPack,
         state: &mut ProvenanceState,
-    ) -> Result<Option<ArgumentProvenance>, BodyCheckError> {
+    ) -> Result<Option<ArgumentProvenance>, BodyRelationError> {
         if let Some(parameter) = pack.forwarded_parameter() {
             return Ok(Some(ArgumentProvenance::carried(
                 state.value(PlaceRoot::Parameter(parameter)),
@@ -446,7 +446,7 @@ impl Analyzer<'_, '_> {
         evaluated: &EvaluatedCall,
         state: &ProvenanceState,
         result_type: TypeId,
-    ) -> Result<ValueProvenance, BodyCheckError> {
+    ) -> Result<ValueProvenance, BodyRelationError> {
         Ok(match call.target() {
             CallTarget::Static(selection) => {
                 let callable = static_callable(selection.dispatch())
@@ -542,7 +542,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         receiver: &CheckedReceiver,
         state: &mut ProvenanceState,
-    ) -> Result<Option<ReceiverProvenance>, BodyCheckError> {
+    ) -> Result<Option<ReceiverProvenance>, BodyRelationError> {
         let (value, reaches) = self.evaluate(receiver.value(), state)?;
         if !reaches {
             return Ok(None);
@@ -642,7 +642,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         sequence: &CheckedPackLiteral,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let mut result = self.allocation_provenance(sequence.allocation(), state)?;
         let mut elements = ValueProvenance::independent();
         for element in sequence.pack().segments() {
@@ -687,7 +687,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         allocation: AllocationSelection,
         state: &mut ProvenanceState,
-    ) -> Result<ValueProvenance, BodyCheckError> {
+    ) -> Result<ValueProvenance, BodyRelationError> {
         match allocation {
             AllocationSelection::CurrentRegion => Ok(state.current_allocation().clone()),
             AllocationSelection::Explicit(allocator) => {

@@ -1,16 +1,14 @@
 use std::collections::BTreeSet;
 
-use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{BodyNodeId, BorrowCapability};
-use nocter_source_index::SourceOrigin;
 
 use super::{AccessKind, Analyzer};
 use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, BodyRule, CheckedLoan, LoanId, LoanPlace,
-    LoanProjection, LoanRoot, PlaceProjection, PlaceRoot,
+    BodyCheckInternalError, BodyRelationError, BodyRelationNote, BodyRule, CheckedLoan, LoanId,
+    LoanPlace, LoanProjection, LoanRoot, PlaceProjection, PlaceRoot,
 };
 
 impl Analyzer<'_, '_> {
@@ -19,7 +17,7 @@ impl Analyzer<'_, '_> {
         place: nocter_model::PlaceId,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let nodes = self
             .input
             .body()
@@ -78,7 +76,7 @@ impl Analyzer<'_, '_> {
         kind: AccessKind,
         state: &LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let place = self
             .input
             .body()
@@ -115,7 +113,7 @@ impl Analyzer<'_, '_> {
                     AccessKind::Borrow(_) => BodyRule::ConflictingLoan,
                     AccessKind::Read | AccessKind::Write => BodyRule::BorrowedPlaceMutation,
                 };
-                return Err(self.loan_error(rule, node, loan)?);
+                return Err(self.loan_error(rule, node, loan));
             }
         }
         Ok(())
@@ -128,7 +126,7 @@ impl Analyzer<'_, '_> {
         capability: BorrowCapability,
         state: &LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<LoanValue, BodyCheckError> {
+    ) -> Result<LoanValue, BodyRelationError> {
         self.issue_loan_as(LoanId::Node(node), node, place, capability, state, extra)
     }
 
@@ -140,7 +138,7 @@ impl Analyzer<'_, '_> {
         capability: BorrowCapability,
         state: &LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<LoanValue, BodyCheckError> {
+    ) -> Result<LoanValue, BodyRelationError> {
         self.check_place_access(node, place, AccessKind::Borrow(capability), state, extra)?;
         let place = self
             .input
@@ -260,31 +258,16 @@ impl Analyzer<'_, '_> {
         rule: BodyRule,
         node: BodyNodeId,
         conflicting: LoanId,
-    ) -> Result<BodyCheckError, BodyCheckInternalError> {
-        let primary = self.node_origin(node)?;
+    ) -> BodyRelationError {
         let notes = match conflicting {
-            LoanId::Node(loan) | LoanId::Operand { node: loan, .. } => vec![DiagnosticNote::new(
+            LoanId::Node(loan) | LoanId::Operand { node: loan, .. } => vec![BodyRelationNote::new(
                 "conflicting loan is created here",
-                self.node_origin(loan)?,
+                loan,
             )],
             LoanId::Parameter(_)
             | LoanId::ClosureParameter { .. }
             | LoanId::ClosureCapture { .. } => Vec::new(),
         };
-        Ok(BodyCheckError::from_rule(
-            rule,
-            rule.diagnostic_with_notes(primary, notes),
-        ))
-    }
-
-    pub(super) fn node_origin(
-        &self,
-        node: BodyNodeId,
-    ) -> Result<SourceOrigin, BodyCheckInternalError> {
-        self.input
-            .origins()
-            .get(&node)
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))
+        self.input.reject_with_notes(rule, node, notes)
     }
 }

@@ -3,7 +3,7 @@ use nocter_model::{BodyNodeId, PlaceId};
 use super::{Analyzer, ReturnEvent};
 use crate::provenance::state::ProvenanceState;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, PlaceProjection, PlaceRoot, ProvenanceProjection,
+    BodyCheckInternalError, BodyRelationError, PlaceProjection, PlaceRoot, ProvenanceProjection,
     ProvenanceSource, ValueProvenance,
 };
 
@@ -12,7 +12,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         place: PlaceId,
         state: &mut ProvenanceState,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let place = self
             .body
             .places()

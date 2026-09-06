@@ -1027,8 +1027,10 @@ fn analyze_checked_body_relations(
         environment.interface_implementations(),
         closures,
         &relations,
-    )?;
-    let effects = analyze_program_effects(environment, closures, &relations)?;
+    )
+    .map_err(|error| error.project(&relations))?;
+    let effects = analyze_program_effects(environment, closures, &relations)
+        .map_err(|error| error.project(&relations))?;
     let loans = analyze_program_loans(
         environment.graph(),
         types,
@@ -1037,6 +1039,7 @@ fn analyze_checked_body_relations(
         &provenance,
         closures,
         &relations,
-    )?;
+    )
+    .map_err(|error| error.project(&relations))?;
     Ok((provenance, effects, loans))
 }

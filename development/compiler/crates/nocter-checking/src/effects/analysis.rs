@@ -10,12 +10,12 @@ use nocter_toolchain_contract::StandardDeclarationRole;
 use super::{AllocationEffect, EffectTable};
 use crate::body_relations::BodyRelationCatalog;
 use crate::{
-    AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckError,
-    BodyCheckInternalError, BodyRule, BorrowConversionImplementation, CallTarget,
-    CheckedArgumentPack, CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome,
-    CheckedReadonlyOperand, CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable,
-    ComparisonImplementation, InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection,
-    PlaceRoot, PrimitiveOperation, StaticDispatch, StaticSelection, TypedIteration,
+    AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckInternalError,
+    BodyRelationError, BodyRule, BorrowConversionImplementation, CallTarget, CheckedArgumentPack,
+    CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CheckedReadonlyOperand,
+    CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable, ComparisonImplementation,
+    InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot,
+    PrimitiveOperation, StaticDispatch, StaticSelection, TypedIteration,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -49,7 +49,7 @@ pub(super) fn analyze_program(
     environment: &crate::program_environment::ProgramEnvironment,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_, '_>,
-) -> Result<EffectTable, BodyCheckError> {
+) -> Result<EffectTable, BodyRelationError> {
     let graph = environment.graph();
     let facts = collect_facts(environment, closures, inputs)?;
     let mut summaries = initial_summaries(graph, closures);
@@ -78,7 +78,7 @@ fn collect_facts(
     environment: &crate::program_environment::ProgramEnvironment,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_, '_>,
-) -> Result<BTreeMap<Root, RootFacts>, BodyCheckError> {
+) -> Result<BTreeMap<Root, RootFacts>, BodyRelationError> {
     let graph = environment.graph();
     let allocation_request = environment
         .standard_semantics()
@@ -195,7 +195,7 @@ fn validate_contracts(
     inputs: &BodyRelationCatalog<'_, '_>,
     facts: &BTreeMap<Root, RootFacts>,
     summaries: &Summaries,
-) -> Result<(), BodyCheckError> {
+) -> Result<(), BodyRelationError> {
     for (callable, declaration) in graph.declarations().callables().iter() {
         if !guaranteed_noalloc(declaration.guarantees())
             || !summaries
@@ -278,18 +278,13 @@ fn contract_error(
     inputs: &BodyRelationCatalog<'_, '_>,
     body: nocter_model::BodyId,
     node: BodyNodeId,
-) -> Result<(), BodyCheckError> {
-    let origin = inputs
-        .get(body)?
-        .origins()
-        .get(&node)
-        .copied()
-        .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))?;
+) -> Result<(), BodyRelationError> {
+    let input = inputs.get(body)?;
     let rule = BodyRule::NoAllocationContractViolation;
-    Err(BodyCheckError::from_rule(rule, rule.diagnostic(origin)))
+    Err(input.reject(rule, node))
 }
 
-fn freeze(summaries: Summaries) -> Result<EffectTable, BodyCheckError> {
+fn freeze(summaries: Summaries) -> Result<EffectTable, BodyRelationError> {
     let mut callables = ArenaBuilder::new();
     for (expected, effect) in summaries.callables {
         if callables.insert(effect) != expected {
@@ -345,12 +340,12 @@ impl<'program> Collector<'program> {
         }
     }
 
-    fn collect(mut self, root: BodyNodeId) -> Result<RootFacts, BodyCheckError> {
+    fn collect(mut self, root: BodyNodeId) -> Result<RootFacts, BodyRelationError> {
         self.visit_node(root)?;
         Ok(self.facts)
     }
 
-    fn visit_node(&mut self, node: BodyNodeId) -> Result<(), BodyCheckError> {
+    fn visit_node(&mut self, node: BodyNodeId) -> Result<(), BodyRelationError> {
         if !self.visited_nodes.insert(node) {
             return Ok(());
         }
@@ -382,7 +377,7 @@ impl<'program> Collector<'program> {
         &mut self,
         node: BodyNodeId,
         operation: &CheckedOperation,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         match operation {
             CheckedOperation::Complete
             | CheckedOperation::Constant(_)
@@ -502,7 +497,7 @@ impl<'program> Collector<'program> {
         &mut self,
         node: BodyNodeId,
         receiver: &CheckedReceiver,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         self.visit_node(receiver.value())?;
         if let Some(coercion) = receiver.coercion() {
             self.record_selection(node, coercion.selection())?;
@@ -514,7 +509,7 @@ impl<'program> Collector<'program> {
         &mut self,
         node: BodyNodeId,
         operand: &CheckedReadonlyOperand,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         self.visit_node(operand.value())?;
         if let Some(coercion) = operand.coercion() {
             self.record_selection(node, coercion)?;
@@ -526,7 +521,7 @@ impl<'program> Collector<'program> {
         &mut self,
         node: BodyNodeId,
         iteration: &TypedIteration,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         self.visit_node(iteration.iterator())?;
         self.record_selection(node, iteration.next())
     }
@@ -535,7 +530,7 @@ impl<'program> Collector<'program> {
         &mut self,
         node: BodyNodeId,
         pack: &CheckedArgumentPack,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         for segment in pack.segments() {
             match segment {
                 ArgumentPackSegment::Value(value) => self.visit_node(*value)?,
@@ -556,14 +551,17 @@ impl<'program> Collector<'program> {
         Ok(())
     }
 
-    fn visit_allocation(&mut self, allocation: AllocationSelection) -> Result<(), BodyCheckError> {
+    fn visit_allocation(
+        &mut self,
+        allocation: AllocationSelection,
+    ) -> Result<(), BodyRelationError> {
         if let AllocationSelection::Explicit(value) = allocation {
             self.visit_node(value)?;
         }
         Ok(())
     }
 
-    fn visit_outcome(&mut self, outcome: &CheckedOutcome) -> Result<(), BodyCheckError> {
+    fn visit_outcome(&mut self, outcome: &CheckedOutcome) -> Result<(), BodyRelationError> {
         match outcome {
             CheckedOutcome::Absent => {}
             CheckedOutcome::Inject { payload, .. }
@@ -588,7 +586,7 @@ impl<'program> Collector<'program> {
         &mut self,
         node: BodyNodeId,
         control: &CheckedControl,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         match control {
             CheckedControl::Block {
                 statements, result, ..
@@ -661,7 +659,7 @@ impl<'program> Collector<'program> {
         Ok(())
     }
 
-    fn visit_loop(&mut self, node: BodyNodeId, loop_: LoopId) -> Result<(), BodyCheckError> {
+    fn visit_loop(&mut self, node: BodyNodeId, loop_: LoopId) -> Result<(), BodyRelationError> {
         if !self.visited_loops.insert(loop_) {
             return Ok(());
         }
@@ -684,7 +682,7 @@ impl<'program> Collector<'program> {
         self.visit_node(loop_.body())
     }
 
-    fn visit_place(&mut self, place: PlaceId) -> Result<(), BodyCheckError> {
+    fn visit_place(&mut self, place: PlaceId) -> Result<(), BodyRelationError> {
         if !self.visited_places.insert(place) {
             return Ok(());
         }
@@ -731,7 +729,7 @@ impl<'program> Collector<'program> {
         &mut self,
         site: BodyNodeId,
         action: &CleanupAction,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         match action.target() {
             CleanupTarget::Path(_) => {}
             CleanupTarget::Place { place, .. } => {
@@ -764,7 +762,7 @@ impl<'program> Collector<'program> {
         &mut self,
         node: BodyNodeId,
         selection: &StaticSelection,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let target = match selection.dispatch() {
             StaticDispatch::Direct(callable)
             | StaticDispatch::InterfaceDefault {

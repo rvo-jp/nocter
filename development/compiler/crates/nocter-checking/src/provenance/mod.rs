@@ -8,7 +8,7 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::TypeStore;
 
 use crate::{
-    BodyCheckError, ClosureTable, InterfaceImplementationTable, ProvenanceTable,
+    BodyRelationError, ClosureTable, InterfaceImplementationTable, ProvenanceTable,
     body_relations::BodyRelationCatalog,
 };
 
@@ -19,7 +19,7 @@ pub(crate) fn analyze_program_provenance(
     interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_, '_>,
-) -> Result<ProvenanceTable, BodyCheckError> {
+) -> Result<ProvenanceTable, BodyRelationError> {
     analysis::analyze_program(
         graph,
         types,

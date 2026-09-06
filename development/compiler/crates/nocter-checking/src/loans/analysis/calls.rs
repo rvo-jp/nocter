@@ -9,7 +9,7 @@ use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::provenance::{invocation_place_can_reach_result, type_can_carry_loan};
 use crate::{
-    BodyCheckError, BodyCheckInternalError, CallTarget, CheckedCall, CheckedOperation, LoanId,
+    BodyCheckInternalError, BodyRelationError, CallTarget, CheckedCall, CheckedOperation, LoanId,
     PlaceRoot, ReceiverPreparation, StaticDispatch,
 };
 
@@ -53,7 +53,7 @@ impl Analyzer<'_, '_> {
         comparison: &crate::CheckedComparison,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let (left, reaches) =
             self.evaluate_readonly_operand(node, 0, comparison.left(), state, extra)?;
         if !reaches {
@@ -73,7 +73,7 @@ impl Analyzer<'_, '_> {
         operand: &crate::CheckedReadonlyOperand,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         match operand.preparation() {
             crate::ReadonlyOperandPreparation::BorrowPlace => {
                 let place = self.place_node(operand.value())?;
@@ -106,7 +106,7 @@ impl Analyzer<'_, '_> {
         call: &CheckedCall,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let (callable_value, callable_environment) = match call.target() {
             CallTarget::CallableValue {
                 value, capability, ..
@@ -195,7 +195,7 @@ impl Analyzer<'_, '_> {
         call: &CheckedCall,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<Option<InvocationLoan>, BodyCheckError> {
+    ) -> Result<Option<InvocationLoan>, BodyRelationError> {
         let Some(receiver) = call.receiver() else {
             return Ok(None);
         };
@@ -209,7 +209,7 @@ impl Analyzer<'_, '_> {
         receiver: &crate::CheckedReceiver,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<Option<InvocationLoan>, BodyCheckError> {
+    ) -> Result<Option<InvocationLoan>, BodyRelationError> {
         let value = match receiver.preparation() {
             ReceiverPreparation::BorrowPlace(capability) => {
                 let place = self.place_node(receiver.value())?;
@@ -249,7 +249,7 @@ impl Analyzer<'_, '_> {
         receiver: Option<&InvocationLoan>,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<Option<Vec<InvocationLoan>>, BodyCheckError> {
+    ) -> Result<Option<Vec<InvocationLoan>>, BodyRelationError> {
         let mut invocation_active = extra.clone();
         if let Some(receiver) = receiver {
             receiver.extend_active(&mut invocation_active);
@@ -345,7 +345,7 @@ impl Analyzer<'_, '_> {
         receiver: Option<&InvocationLoan>,
         arguments: &[InvocationLoan],
         result_type: nocter_model::TypeId,
-    ) -> Result<LoanValue, BodyCheckError> {
+    ) -> Result<LoanValue, BodyRelationError> {
         Ok(match call.target() {
             CallTarget::Static(selection) => {
                 let callable = match selection.dispatch() {

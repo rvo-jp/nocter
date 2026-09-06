@@ -12,6 +12,7 @@ mod associated_type_completion;
 mod associated_type_resolution;
 mod body_check;
 mod body_evidence;
+mod body_relation_error;
 mod body_relations;
 mod body_sources;
 mod body_type_recipe;
@@ -56,6 +57,8 @@ mod type_validity;
 
 #[cfg(test)]
 mod test_support;
+
+pub(crate) use body_relation_error::{BodyRelationError, BodyRelationNote};
 
 pub use associated_type_completion::{
     AssociatedTypeCompletionCandidate, AssociatedTypeCompletionContext,

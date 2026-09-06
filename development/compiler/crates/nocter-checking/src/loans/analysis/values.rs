@@ -5,7 +5,7 @@ use super::calls::InvocationLoan;
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
-    AggregateConstruction, BodyCheckError, BodyCheckInternalError, CheckedOutcome, LoanId,
+    AggregateConstruction, BodyCheckInternalError, BodyRelationError, CheckedOutcome, LoanId,
     PlaceRoot, ProvenanceProjection,
 };
 
@@ -65,7 +65,7 @@ impl Analyzer<'_, '_> {
         operation: &crate::PrimitiveOperation,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         match operation {
             crate::PrimitiveOperation::Unary { operand, .. }
             | crate::PrimitiveOperation::IntegerConversion { operand, .. } => {
@@ -87,7 +87,7 @@ impl Analyzer<'_, '_> {
         aggregate: &AggregateConstruction,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         let mut result = LoanValue::independent();
         match aggregate {
             AggregateConstruction::Struct { fields, .. } => {
@@ -149,7 +149,7 @@ impl Analyzer<'_, '_> {
         outcome: &CheckedOutcome,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         match outcome {
             CheckedOutcome::Inject { payload, .. } => {
                 let (value, reaches) = self.evaluate(*payload, state, extra)?;
@@ -211,7 +211,7 @@ impl Analyzer<'_, '_> {
         selection: crate::AllocationSelection,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         if let crate::AllocationSelection::Explicit(value) = selection {
             self.evaluate(value, state, extra)?;
         }
@@ -223,7 +223,7 @@ impl Analyzer<'_, '_> {
         sequence: &crate::CheckedPackLiteral,
         state: &mut LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(LoanValue, bool), BodyCheckError> {
+    ) -> Result<(LoanValue, bool), BodyRelationError> {
         self.evaluate_allocation(sequence.allocation(), state, extra)?;
         let mut elements = LoanValue::independent();
         for element in sequence.pack().segments() {

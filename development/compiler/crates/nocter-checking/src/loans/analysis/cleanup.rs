@@ -7,7 +7,7 @@ use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, BodyRule, CleanupAction, CleanupTarget, LoanId,
+    BodyCheckInternalError, BodyRelationError, BodyRule, CleanupAction, CleanupTarget, LoanId,
     LoanPlace, LoanProjection, LoanRoot,
 };
 
@@ -20,7 +20,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         state: &LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         for schedule in self
             .input
             .body()
@@ -50,7 +50,7 @@ impl Analyzer<'_, '_> {
                                 BodyRule::BorrowedPlaceMutation,
                                 node,
                                 *loan,
-                            )?);
+                            ));
                         }
                     }
                 }
@@ -70,7 +70,7 @@ impl Analyzer<'_, '_> {
         scopes: impl IntoIterator<Item = nocter_model::BodyScopeId>,
         state: &LoanState,
         extra: &BTreeSet<LoanId>,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let mut locals = Vec::new();
         for scope in scopes {
             let mut scope_locals = self
@@ -122,7 +122,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         target: &LoanPlace,
         active: &BTreeSet<LoanId>,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         for loan in active {
             let definition = self
                 .loans
@@ -133,7 +133,7 @@ impl Analyzer<'_, '_> {
                 .iter()
                 .any(|borrowed| target.overlaps(borrowed))
             {
-                return Err(self.loan_error(BodyRule::BorrowedPlaceMutation, node, *loan)?);
+                return Err(self.loan_error(BodyRule::BorrowedPlaceMutation, node, *loan));
             }
         }
         Ok(())

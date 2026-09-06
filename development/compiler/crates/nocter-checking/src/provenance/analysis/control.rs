@@ -3,7 +3,7 @@ use nocter_model::BodyNodeId;
 use super::{Analyzer, LoopFlow};
 use crate::provenance::state::ProvenanceState;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, CheckedControl, CheckedPatternArm,
+    BodyCheckInternalError, BodyRelationError, CheckedControl, CheckedPatternArm,
     CheckedPatternFallback, CheckedPatternSubject, LoopKind, PlaceRoot, ProvenanceProjection,
     ProvenanceSource, ValueProvenance,
 };
@@ -14,7 +14,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         control: &CheckedControl,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         match control {
             CheckedControl::Block {
                 scope,
@@ -78,7 +78,7 @@ impl Analyzer<'_, '_> {
         statements: &[BodyNodeId],
         result: Option<BodyNodeId>,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         for statement in statements {
             if !self.evaluate(*statement, state)?.1 {
                 self.remove_scope_locals(scope, state);
@@ -107,7 +107,7 @@ impl Analyzer<'_, '_> {
         pattern: &crate::CheckedBindingPattern,
         initializer: BodyNodeId,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let (value, reaches) = self.evaluate(initializer, state)?;
         if reaches {
             self.bind_pattern(node, pattern, &value, state)?;
@@ -121,7 +121,7 @@ impl Analyzer<'_, '_> {
         pattern: &crate::CheckedBindingPattern,
         value: &ValueProvenance,
         state: &mut ProvenanceState,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         match pattern {
             crate::CheckedBindingPattern::Local { binding, .. } => {
                 self.validate_binding_storage(node, *binding, value)?;
@@ -144,7 +144,7 @@ impl Analyzer<'_, '_> {
         target: nocter_model::PlaceId,
         value: BodyNodeId,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let (value, reaches) = self.evaluate(value, state)?;
         if !reaches {
             return Ok((ValueProvenance::independent(), false));
@@ -160,7 +160,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         value: Option<BodyNodeId>,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let returned = if let Some(value) = value {
             let (value, reaches) = self.evaluate(value, state)?;
             if !reaches {
@@ -179,7 +179,7 @@ impl Analyzer<'_, '_> {
         loop_: nocter_model::LoopId,
         is_break: bool,
         state: &ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let frame = self
             .loops
             .last_mut()
@@ -198,7 +198,7 @@ impl Analyzer<'_, '_> {
         left: BodyNodeId,
         right: BodyNodeId,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         if !self.evaluate(left, state)?.1 {
             return Ok((ValueProvenance::independent(), false));
         }
@@ -220,7 +220,7 @@ impl Analyzer<'_, '_> {
         allocator: BodyNodeId,
         body: BodyNodeId,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let (_, reaches) = self.evaluate(allocator, state)?;
         if !reaches {
             return Ok((ValueProvenance::independent(), false));
@@ -243,7 +243,7 @@ impl Analyzer<'_, '_> {
         then_branch: BodyNodeId,
         else_branch: Option<BodyNodeId>,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         if !self.evaluate(condition, state)?.1 {
             return Ok((ValueProvenance::independent(), false));
         }
@@ -278,7 +278,7 @@ impl Analyzer<'_, '_> {
         fallback: Option<CheckedPatternFallback>,
         unmatched: bool,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let (subject_value, reaches) = self.evaluate(subject.value(), state)?;
         if !reaches {
             return Ok((ValueProvenance::independent(), false));
@@ -333,7 +333,7 @@ impl Analyzer<'_, '_> {
         &mut self,
         loop_: nocter_model::LoopId,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let definition = self
             .body
             .loops()

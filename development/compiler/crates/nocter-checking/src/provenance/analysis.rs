@@ -16,7 +16,7 @@ use nocter_model::{
 use super::state::ProvenanceState;
 use crate::body_relations::{BodyRelationCatalog, BodyRelationInput};
 use crate::{
-    AmbientStorageDependence, BodyCheckError, BodyCheckInternalError, BodyRule,
+    AmbientStorageDependence, BodyCheckInternalError, BodyRelationError, BodyRule,
     CallableProvenanceTable, CheckedBody, CheckedBodyProvenance, CheckedOperation,
     ClosureProvenanceTable, ClosureTable, InterfaceImplementationTable, MethodSelection, PlaceRoot,
     PrimitiveOperation, ProvenanceProjection, ProvenanceSource, ProvenanceTable, ValueProvenance,
@@ -134,7 +134,7 @@ pub(super) fn analyze_program(
     interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_, '_>,
-) -> Result<ProvenanceTable, BodyCheckError> {
+) -> Result<ProvenanceTable, BodyRelationError> {
     let facts = ProgramFacts {
         graph,
         types,
@@ -164,7 +164,7 @@ fn infer_program_summaries(
     facts: ProgramFacts<'_>,
     closures: &ClosureTable,
     inputs: &BodyRelationCatalog<'_, '_>,
-) -> Result<ProgramSummaries, BodyCheckError> {
+) -> Result<ProgramSummaries, BodyRelationError> {
     let mut summaries = initial_summaries(facts.graph);
     let mut closure_summaries = closures
         .definitions()
@@ -217,7 +217,7 @@ fn build_body_provenance(
     summaries: &BTreeMap<CallableId, CallableSummary>,
     closure_summaries: &BTreeMap<ClosureId, ClosureSummary>,
     interface_implementation_bounds: &BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>,
-) -> Result<nocter_model::Arena<BodyId, CheckedBodyProvenance>, BodyCheckError> {
+) -> Result<nocter_model::Arena<BodyId, CheckedBodyProvenance>, BodyRelationError> {
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyProvenance>::new();
     for (body, declaration) in facts.graph.declarations().bodies().iter() {
         let input = inputs.get(body)?;
@@ -273,7 +273,7 @@ fn build_body_provenance(
 fn build_callable_provenance(
     graph: &DeclarationGraph,
     summaries: &BTreeMap<CallableId, CallableSummary>,
-) -> Result<nocter_model::Arena<CallableId, crate::CheckedCallableProvenance>, BodyCheckError> {
+) -> Result<nocter_model::Arena<CallableId, crate::CheckedCallableProvenance>, BodyRelationError> {
     let mut callables = ArenaBuilder::<CallableId, crate::CheckedCallableProvenance>::new();
     for (callable, _) in graph.declarations().callables().iter() {
         let summary = summaries
@@ -295,7 +295,7 @@ fn build_callable_provenance(
 fn build_closure_provenance(
     closures: &ClosureTable,
     closure_summaries: &BTreeMap<ClosureId, ClosureSummary>,
-) -> Result<nocter_model::Arena<ClosureId, crate::CheckedClosureProvenance>, BodyCheckError> {
+) -> Result<nocter_model::Arena<ClosureId, crate::CheckedClosureProvenance>, BodyRelationError> {
     let mut checked_closures = ArenaBuilder::<ClosureId, crate::CheckedClosureProvenance>::new();
     for (closure, _) in closures.definitions().iter() {
         let summary = closure_summaries
@@ -319,7 +319,7 @@ fn build_closure_provenance(
 fn interface_implementation_origin_bounds(
     interface_implementations: &InterfaceImplementationTable,
     summaries: &BTreeMap<CallableId, CallableSummary>,
-) -> Result<BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>, BodyCheckError> {
+) -> Result<BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>, BodyRelationError> {
     let mut bounds = BTreeMap::<CallableId, BTreeSet<ProvenanceOrigin>>::new();
     for interface_implementation in interface_implementations.entries().values() {
         for method in interface_implementation.methods() {
@@ -382,7 +382,7 @@ fn validate_callable_returns(
     summaries: &BTreeMap<CallableId, CallableSummary>,
     interface_implementation_bound: Option<&BTreeSet<ProvenanceOrigin>>,
     analysis: &BodyAnalysis,
-) -> Result<(), BodyCheckError> {
+) -> Result<(), BodyRelationError> {
     let allowed = summaries
         .get(&callable)
         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
@@ -412,13 +412,8 @@ fn validate_callable_returns(
                 | ProvenanceSource::Unknown => true,
             });
         if invalid {
-            let origin = input
-                .origins()
-                .get(&event.node)
-                .copied()
-                .ok_or(BodyCheckInternalError::MissingNodeOrigin(event.node))?;
             let rule = BodyRule::InvalidResultProvenance;
-            return Err(BodyCheckError::from_rule(rule, rule.diagnostic(origin)));
+            return Err(input.reject(rule, event.node));
         }
     }
     Ok(())
@@ -430,7 +425,7 @@ fn validate_closure_returns(
     closure: ClosureId,
     definition: &crate::ClosureDefinition,
     analysis: &BodyAnalysis,
-) -> Result<(), BodyCheckError> {
+) -> Result<(), BodyRelationError> {
     for event in &analysis.return_events {
         if !types.may_carry_storage(event.ty) {
             continue;
@@ -464,13 +459,8 @@ fn validate_closure_returns(
                 | ProvenanceSource::Unknown => true,
             });
         if invalid || event.ty != definition.signature().result() {
-            let origin = input
-                .origins()
-                .get(&event.node)
-                .copied()
-                .ok_or(BodyCheckInternalError::MissingNodeOrigin(event.node))?;
             let rule = BodyRule::InvalidResultProvenance;
-            return Err(BodyCheckError::from_rule(rule, rule.diagnostic(origin)));
+            return Err(input.reject(rule, event.node));
         }
     }
     Ok(())
@@ -483,8 +473,8 @@ struct Analyzer<'program, 'syntax> {
     summaries: &'program BTreeMap<CallableId, CallableSummary>,
     closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
     source: crate::BodySource<'syntax>,
+    body_id: BodyId,
     body: &'program CheckedBody,
-    origins: &'program HashMap<BodyNodeId, nocter_source_index::SourceOrigin>,
     node_values: HashMap<BodyNodeId, ValueProvenance>,
     returned: ValueProvenance,
     return_events: Vec<ReturnEvent>,
@@ -520,8 +510,8 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             summaries,
             closure_summaries,
             source: input.source(),
+            body_id: input.body_id(),
             body: input.body(),
-            origins: input.origins(),
             node_values: HashMap::new(),
             returned: ValueProvenance::independent(),
             return_events: Vec::new(),
@@ -543,7 +533,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         self
     }
 
-    fn analyze(mut self) -> Result<BodyAnalysis, BodyCheckError> {
+    fn analyze(mut self) -> Result<BodyAnalysis, BodyRelationError> {
         let mut state = self.initial_state()?;
         let (root_value, reaches) = self.evaluate(self.root, &mut state)?;
         if reaches {
@@ -657,7 +647,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         &mut self,
         node: BodyNodeId,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let checked = self
             .body
             .nodes()
@@ -736,7 +726,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         &mut self,
         closure: &crate::CheckedClosure,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let mut value = ValueProvenance::independent();
         for capture in closure.captures() {
             let (initializer, reaches) = self.evaluate(capture.initializer(), state)?;
@@ -783,7 +773,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         &mut self,
         operation: &PrimitiveOperation,
         state: &mut ProvenanceState,
-    ) -> Result<(ValueProvenance, bool), BodyCheckError> {
+    ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let reaches = match operation {
             PrimitiveOperation::Unary { operand, .. }
             | PrimitiveOperation::IntegerConversion { operand, .. } => {

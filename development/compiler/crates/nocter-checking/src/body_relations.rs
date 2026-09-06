@@ -4,7 +4,10 @@ use nocter_declarations::DeclarationGraph;
 use nocter_model::{Arena, ArenaBuilder, BodyId, BodyNodeId};
 use nocter_source_index::SourceOrigin;
 
-use crate::{BodyCheckInternalError, BodySource, BodySourceCatalog, CheckedBody};
+use crate::{
+    BodyCheckInternalError, BodyRule, BodySource, BodySourceCatalog, CheckedBody,
+    body_relation_error::{BodyRelationError, BodyRelationNote},
+};
 
 /// One checked body's complete input to program-wide semantic relation analysis.
 ///
@@ -12,12 +15,18 @@ use crate::{BodyCheckInternalError, BodySource, BodySourceCatalog, CheckedBody};
 /// a sibling's source or origin map, and do not need to rediscover the association by scanning a
 /// caller-assembled slice.
 pub(crate) struct BodyRelationInput<'program, 'syntax> {
+    body_id: BodyId,
     source: BodySource<'syntax>,
     body: &'program CheckedBody,
     origins: &'program HashMap<BodyNodeId, SourceOrigin>,
 }
 
 impl<'program, 'syntax> BodyRelationInput<'program, 'syntax> {
+    #[must_use]
+    pub(crate) const fn body_id(&self) -> BodyId {
+        self.body_id
+    }
+
     #[must_use]
     pub(crate) const fn source(&self) -> BodySource<'syntax> {
         self.source
@@ -28,9 +37,26 @@ impl<'program, 'syntax> BodyRelationInput<'program, 'syntax> {
         self.body
     }
 
-    #[must_use]
-    pub(crate) const fn origins(&self) -> &'program HashMap<BodyNodeId, SourceOrigin> {
+    pub(crate) fn origin(&self, node: BodyNodeId) -> Result<SourceOrigin, BodyCheckInternalError> {
         self.origins
+            .get(&node)
+            .copied()
+            .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))
+    }
+
+    #[must_use]
+    pub(crate) fn reject(&self, rule: BodyRule, primary: BodyNodeId) -> BodyRelationError {
+        BodyRelationError::rule(self.body_id, rule, primary, [])
+    }
+
+    #[must_use]
+    pub(crate) fn reject_with_notes(
+        &self,
+        rule: BodyRule,
+        primary: BodyNodeId,
+        notes: impl Into<Box<[BodyRelationNote]>>,
+    ) -> BodyRelationError {
+        BodyRelationError::rule(self.body_id, rule, primary, notes)
     }
 }
 
@@ -71,6 +97,7 @@ impl<'program, 'syntax> BodyRelationCatalog<'program, 'syntax> {
                 .get(body)
                 .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
             let actual = inputs.insert(BodyRelationInput {
+                body_id: body,
                 source,
                 body: checked,
                 origins,

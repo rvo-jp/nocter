@@ -3,8 +3,8 @@ use nocter_model::{BodyNodeId, BodyScopeId, LocalBindingId, PlaceId};
 use super::Analyzer;
 use crate::provenance::state::ProvenanceState;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, BodyRule, PlaceProjection, PlaceRoot, ProvenanceSource,
-    ValueProvenance,
+    BodyCheckInternalError, BodyRelationError, BodyRule, PlaceProjection, PlaceRoot,
+    ProvenanceSource, ValueProvenance,
 };
 
 #[derive(Clone, Copy)]
@@ -19,7 +19,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         binding: LocalBindingId,
         value: &ValueProvenance,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let scope = self.local_scope(binding)?;
         self.validate_destination(node, DestinationLifetime::Scope(scope), value)
     }
@@ -29,7 +29,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         target: PlaceId,
         value: &ValueProvenance,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let place = self
             .body
             .places()
@@ -57,7 +57,7 @@ impl Analyzer<'_, '_> {
         &self,
         node: BodyNodeId,
         state: &ProvenanceState,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let escapes = state.values().any(|(_, value)| {
             value
                 .all_sources()
@@ -72,7 +72,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         scope: BodyScopeId,
         value: &ValueProvenance,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         // The callable-result boundary owns root-body diagnostics and its declared provenance
         // contract. Nested blocks instead cross a lexical storage boundary here.
         if node == self.body.root() {
@@ -100,7 +100,7 @@ impl Analyzer<'_, '_> {
         region: LocalBindingId,
         result: &ValueProvenance,
         state: &ProvenanceState,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let carries_region = |value: &ValueProvenance| {
             value
                 .all_sources()
@@ -116,7 +116,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
         destination: DestinationLifetime,
         value: &ValueProvenance,
-    ) -> Result<(), BodyCheckError> {
+    ) -> Result<(), BodyRelationError> {
         let escapes = value
             .all_sources()
             .iter()
@@ -175,16 +175,11 @@ impl Analyzer<'_, '_> {
         }
     }
 
-    fn reject_escape(&self, node: BodyNodeId, escapes: bool) -> Result<(), BodyCheckError> {
+    fn reject_escape(&self, node: BodyNodeId, escapes: bool) -> Result<(), BodyRelationError> {
         if !escapes {
             return Ok(());
         }
-        let origin = self
-            .origins
-            .get(&node)
-            .copied()
-            .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))?;
         let rule = BodyRule::InvalidStorageEscape;
-        Err(BodyCheckError::from_rule(rule, rule.diagnostic(origin)))
+        Err(BodyRelationError::rule(self.body_id, rule, node, []))
     }
 }
