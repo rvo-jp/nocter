@@ -22,6 +22,12 @@ generated standard-library tables without network access. Finally, it creates on
 Rust documentation, and removes it on exit. A complete gate therefore cannot add another Cargo hash
 generation to `development/compiler/target/`.
 
+Compiler workspace crates use test-profile optimization level 1 because the integration suite
+executes the compiler itself as its dominant workload. Third-party dependencies remain
+unoptimized, bounding clean compilation cost. Public examples cross native compilation and actual
+process execution once at the command boundary; lower native-session tests retain focused ABI and
+runtime contracts instead of compiling the same complete example corpus again.
+
 Release packaging invokes the same repository-metadata verifier before building an archive. This
 keeps `development/packaging/RELEASE.json` authoritative for shipped license metadata instead of
 allowing Cargo and release artifacts to drift independently.

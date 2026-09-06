@@ -1027,6 +1027,23 @@ fn expected_example_output(name: &str) -> &'static [u8] {
 #[test]
 fn every_public_package_example_runs_with_its_process_contract() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let examples_root = compiler_root.join("../../examples");
+    let mut discovered = fs::read_dir(&examples_root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.join("index.nct").is_file())
+        .map(|path| path.file_name().unwrap().to_str().unwrap().to_owned())
+        .collect::<Vec<_>>();
+    let mut contracted = PUBLIC_PACKAGE_EXAMPLES
+        .iter()
+        .map(|contract| contract.directory().to_owned())
+        .collect::<Vec<_>>();
+    discovered.sort();
+    contracted.sort();
+    assert_eq!(
+        discovered, contracted,
+        "public package contract is incomplete"
+    );
 
     for contract in PUBLIC_PACKAGE_EXAMPLES {
         run_public_package_example(&compiler_root, *contract);

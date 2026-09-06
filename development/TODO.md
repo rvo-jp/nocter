@@ -9,9 +9,10 @@ regressions below five percent.
 
 ## Next Work
 
-Complete v0.37.0 Phase 5 qualification: run the full compiler, documentation, packaging, installed-
-home, and design-review gates; compare the final candidate with v0.36.0; and record the exact
-release-ready result without changing public release identity.
+Continue v0.37.0 Phase 5 qualification from the completed compiler and verification-throughput
+gates: run documentation, packaging, installed-home, and final design-review gates; compare the
+final candidate with v0.36.0; and record the exact release-ready result without changing public
+release identity.
 
 ## Blockers
 

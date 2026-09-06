@@ -59,7 +59,9 @@ license = "Apache-2.0"
 # object graphs consume substantially more disk than the compiler itself, while release
 # qualification already uses a separate clean target directory. Keep ordinary development caches
 # compact and reproducible. The development compiler retains line tables for debugger use; bulk
-# test executables omit debug payload because complete gates run in disposable external targets.
+# test executables omit debug payload and optimize the workspace compiler itself because complete
+# integration tests repeatedly execute that compiler in-process. External dependencies remain at
+# the fast-to-build default optimization level.
 [profile.dev]
 debug = "line-tables-only"
 incremental = false
@@ -67,6 +69,13 @@ incremental = false
 [profile.test]
 debug = 0
 incremental = false
+opt-level = 1
+
+# The compiler is the workload in integration tests, so its workspace crates must not run through
+# an unoptimized build. Third-party dependencies are support code rather than the measured compiler
+# and remain unoptimized to keep clean test compilation bounded.
+[profile.test.package."*"]
+opt-level = 0
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
