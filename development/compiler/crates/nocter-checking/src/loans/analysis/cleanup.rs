@@ -23,7 +23,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<(), BodyCheckError> {
         for schedule in self
             .input
-            .body
+            .body()
             .cleanups()
             .schedules(node)
             .unwrap_or_default()
@@ -75,7 +75,7 @@ impl Analyzer<'_, '_> {
         for scope in scopes {
             let mut scope_locals = self
                 .input
-                .body
+                .body()
                 .locals()
                 .iter()
                 .filter(|(_, local)| local.declaration().scope() == scope)
@@ -180,7 +180,7 @@ impl Analyzer<'_, '_> {
             CleanupTarget::Place { place, .. } => {
                 let place = self
                     .input
-                    .body
+                    .body()
                     .places()
                     .get(*place)
                     .ok_or(BodyCheckInternalError::InvalidMovePlace(*place))?;
@@ -219,7 +219,7 @@ impl Analyzer<'_, '_> {
             CleanupTarget::Place { place, .. } => {
                 let place = self
                     .input
-                    .body
+                    .body()
                     .places()
                     .get(*place)
                     .ok_or(BodyCheckInternalError::InvalidMovePlace(*place))?;

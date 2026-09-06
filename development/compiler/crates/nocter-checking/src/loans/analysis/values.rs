@@ -17,7 +17,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let acquisition = self
             .input
-            .body
+            .body()
             .nodes()
             .get(iteration.iterator())
             .and_then(|node| match node.operation() {

@@ -174,7 +174,7 @@ impl Analyzer<'_, '_> {
         self.check_cleanup_conflicts(node, state, extra)?;
         let place = self
             .input
-            .body
+            .body()
             .places()
             .get(target)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(target))?;
@@ -320,7 +320,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<(LoanValue, bool), BodyCheckError> {
         let definition = self
             .input
-            .body
+            .body()
             .loops()
             .get(loop_)
             .cloned()
@@ -463,7 +463,7 @@ impl Analyzer<'_, '_> {
         scope: nocter_model::BodyScopeId,
         state: &mut LoanState,
     ) {
-        for (local, definition) in self.input.body.locals().iter() {
+        for (local, definition) in self.input.body().locals().iter() {
             if definition.declaration().scope() == scope {
                 state.remove_root(PlaceRoot::Local(local));
             }

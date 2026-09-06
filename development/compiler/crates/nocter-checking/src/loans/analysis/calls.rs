@@ -170,7 +170,7 @@ impl Analyzer<'_, '_> {
         };
         let result_type = self
             .input
-            .body
+            .body()
             .nodes()
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?
@@ -262,7 +262,7 @@ impl Analyzer<'_, '_> {
             }
             let checked = self
                 .input
-                .body
+                .body()
                 .nodes()
                 .get(*argument)
                 .ok_or(BodyCheckInternalError::MissingNode(*argument))?;
@@ -296,7 +296,7 @@ impl Analyzer<'_, '_> {
                             }
                             let checked = self
                                 .input
-                                .body
+                                .body()
                                 .nodes()
                                 .get(value)
                                 .ok_or(BodyCheckInternalError::MissingNode(value))?;
@@ -494,7 +494,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<nocter_model::PlaceId, BodyCheckInternalError> {
         match self
             .input
-            .body
+            .body()
             .nodes()
             .get(node)
             .map(crate::CheckedNode::operation)

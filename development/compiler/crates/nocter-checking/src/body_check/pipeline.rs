@@ -13,14 +13,15 @@ use super::reusable_body::{
     MaterializedCheckedBody, capture_checked_body, materialize_checked_body,
 };
 use super::semantic_transaction::{BodySemanticAccess, BodySemanticAuthority};
+use crate::body_relations::BodyRelationCatalog;
 use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureAuthority,
     ClosureTransaction,
 };
-use crate::effects::{EffectBodyInput, analyze_program_effects};
-use crate::loans::{LoanBodyInput, analyze_program_loans};
+use crate::effects::analyze_program_effects;
+use crate::loans::analyze_program_loans;
 use crate::preparation::{BodyCheckingParts, PreparedBodyAnalysis};
-use crate::provenance::{ProvenanceBodyInput, analyze_program_provenance};
+use crate::provenance::analyze_program_provenance;
 use crate::{BodySource, BodySourceCatalog, CheckedBody, PreparedChecking, ResolvedBodyNames};
 
 struct CheckedBodyState {
@@ -1012,54 +1013,22 @@ fn analyze_checked_body_relations(
     body_sources: &BodySourceCatalog<'_>,
     checked_bodies: &[(BodyId, CheckedBodyState)],
 ) -> Result<(crate::ProvenanceTable, crate::EffectTable, crate::LoanTable), BodyCheckError> {
-    let provenance_inputs = checked_bodies
-        .iter()
-        .map(|(body, checked)| {
-            let source = body_sources
-                .get(*body)
-                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-            Ok(ProvenanceBodyInput::new(
-                source,
-                &checked.body,
-                &checked.node_origins,
-            ))
-        })
-        .collect::<Result<Vec<_>, BodyCheckError>>()?;
+    let relations = BodyRelationCatalog::new(
+        environment.graph(),
+        body_sources,
+        checked_bodies
+            .iter()
+            .map(|(body, checked)| (*body, &checked.body, &checked.node_origins)),
+    )?;
     let provenance = analyze_program_provenance(
         environment.graph(),
         types,
         environment.capability_evidence(),
         environment.interface_implementations(),
         closures,
-        &provenance_inputs,
+        &relations,
     )?;
-    let effect_inputs = checked_bodies
-        .iter()
-        .map(|(body, checked)| {
-            let source = body_sources
-                .get(*body)
-                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-            Ok(EffectBodyInput::new(
-                source,
-                &checked.body,
-                &checked.node_origins,
-            ))
-        })
-        .collect::<Result<Vec<_>, BodyCheckError>>()?;
-    let effects = analyze_program_effects(environment, closures, &effect_inputs)?;
-    let loan_inputs = checked_bodies
-        .iter()
-        .map(|(body, checked)| {
-            let source = body_sources
-                .get(*body)
-                .ok_or(BodyCheckInternalError::MissingBodySource(*body))?;
-            Ok(LoanBodyInput::new(
-                source,
-                &checked.body,
-                &checked.node_origins,
-            ))
-        })
-        .collect::<Result<Vec<_>, BodyCheckError>>()?;
+    let effects = analyze_program_effects(environment, closures, &relations)?;
     let loans = analyze_program_loans(
         environment.graph(),
         types,
@@ -1067,7 +1036,7 @@ fn analyze_checked_body_relations(
         environment.drops(),
         &provenance,
         closures,
-        &loan_inputs,
+        &relations,
     )?;
     Ok((provenance, effects, loans))
 }

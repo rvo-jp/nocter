@@ -14,7 +14,7 @@ use nocter_model::{
 };
 
 use super::state::ProvenanceState;
-use super::{ProvenanceBodyInput, input_for_body};
+use crate::body_relations::{BodyRelationCatalog, BodyRelationInput};
 use crate::{
     AmbientStorageDependence, BodyCheckError, BodyCheckInternalError, BodyRule,
     CallableProvenanceTable, CheckedBody, CheckedBodyProvenance, CheckedOperation,
@@ -133,7 +133,7 @@ pub(super) fn analyze_program(
     capability_evidence: &crate::body_check::CapabilityEvidenceTable,
     interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
-    inputs: &[ProvenanceBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
 ) -> Result<ProvenanceTable, BodyCheckError> {
     let facts = ProgramFacts {
         graph,
@@ -163,7 +163,7 @@ pub(super) fn analyze_program(
 fn infer_program_summaries(
     facts: ProgramFacts<'_>,
     closures: &ClosureTable,
-    inputs: &[ProvenanceBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
 ) -> Result<ProgramSummaries, BodyCheckError> {
     let mut summaries = initial_summaries(facts.graph);
     let mut closure_summaries = closures
@@ -178,8 +178,7 @@ fn infer_program_summaries(
             let Some(body) = declaration.body() else {
                 continue;
             };
-            let input = input_for_body(inputs, body)
-                .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
+            let input = inputs.get(body)?;
             let analysis =
                 Analyzer::new_declared(facts, &summaries, &closure_summaries, input).analyze()?;
             let actual = CallableSummary::from_returned(&analysis.returned);
@@ -193,9 +192,7 @@ fn infer_program_summaries(
             summaries.insert(callable, effective);
         }
         for (closure, definition) in closures.definitions().iter() {
-            let input = input_for_body(inputs, definition.owner()).ok_or(
-                BodyCheckInternalError::MissingBodySource(definition.owner()),
-            )?;
+            let input = inputs.get(definition.owner())?;
             let analysis = Analyzer::new_declared(facts, &summaries, &closure_summaries, input)
                 .for_closure(closure, definition)
                 .analyze()?;
@@ -216,15 +213,14 @@ fn infer_program_summaries(
 fn build_body_provenance(
     facts: ProgramFacts<'_>,
     closures: &ClosureTable,
-    inputs: &[ProvenanceBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
     summaries: &BTreeMap<CallableId, CallableSummary>,
     closure_summaries: &BTreeMap<ClosureId, ClosureSummary>,
     interface_implementation_bounds: &BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>,
 ) -> Result<nocter_model::Arena<BodyId, CheckedBodyProvenance>, BodyCheckError> {
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyProvenance>::new();
     for (body, declaration) in facts.graph.declarations().bodies().iter() {
-        let input =
-            input_for_body(inputs, body).ok_or(BodyCheckInternalError::MissingBodySource(body))?;
+        let input = inputs.get(body)?;
         let mut analysis =
             Analyzer::new_declared(facts, summaries, closure_summaries, input).analyze()?;
         if let BodyOwner::Callable(callable) = declaration.owner() {
@@ -381,7 +377,7 @@ fn initial_summaries(graph: &DeclarationGraph) -> BTreeMap<CallableId, CallableS
 
 fn validate_callable_returns(
     types: &TypeStore,
-    input: &ProvenanceBodyInput<'_, '_>,
+    input: &BodyRelationInput<'_, '_>,
     callable: CallableId,
     summaries: &BTreeMap<CallableId, CallableSummary>,
     interface_implementation_bound: Option<&BTreeSet<ProvenanceOrigin>>,
@@ -430,7 +426,7 @@ fn validate_callable_returns(
 
 fn validate_closure_returns(
     types: &TypeStore,
-    input: &ProvenanceBodyInput<'_, '_>,
+    input: &BodyRelationInput<'_, '_>,
     closure: ClosureId,
     definition: &crate::ClosureDefinition,
     analysis: &BodyAnalysis,
@@ -503,7 +499,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         facts: ProgramFacts<'program>,
         summaries: &'program BTreeMap<CallableId, CallableSummary>,
         closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
-        input: &ProvenanceBodyInput<'program, 'syntax>,
+        input: &'program BodyRelationInput<'program, 'syntax>,
     ) -> Self {
         let result_type = match input.source().owner() {
             BodyOwner::Callable(callable) => facts

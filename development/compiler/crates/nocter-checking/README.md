@@ -26,6 +26,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - interface implementation and instance-operation selection
 - specialized interface-capability evidence and prerequisite validation
 - ownership, cleanup, allocation effects, loans, provenance, regions, and destruction
+- one exact-coverage body-relation catalog shared by provenance, effects, and loans
 - persistent type/copyability/closure transactions
 - checked and recovery semantic queries
 
@@ -76,6 +77,10 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - Successful body queries are replayed in canonical `BodyId` order before ownership, provenance,
   allocation effects, and loans run once over the complete program. Session never invokes body
   checking again for a complete query-owned body set.
+- Program-wide relation analysis receives one canonical `BodyRelationCatalog`. Its constructor
+  proves that checked bodies cover the declaration graph exactly once and pairs each body with its
+  source and origin map. Provenance, effects, and loans cannot accept independently ordered input
+  slices or rediscover body membership by scanning them.
 - Allocation effects consume the already-checked operation graph and ownership-owned cleanup
   schedules. Ownership freezes each cleanup's exact drop dependencies after generic substitution
   and residual-payload selection. A positive `MayAllocate` fact reaches one least fixed point

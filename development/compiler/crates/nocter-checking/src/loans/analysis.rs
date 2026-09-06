@@ -5,8 +5,6 @@ use nocter_model::{
     ArenaBuilder, BodyId, BodyNodeId, BorrowCapability, ClosureId, LoopId, ParameterOrigin,
     TypeKind, TypeStore,
 };
-use nocter_source_index::SourceOrigin;
-
 mod access;
 mod calls;
 mod cleanup;
@@ -17,30 +15,11 @@ use super::liveness::Liveness;
 use super::state::LoanState;
 use super::value::LoanValue;
 use crate::{
-    BodyCheckError, BodyCheckInternalError, BodySource, CheckedBody, CheckedBodyLoans, CheckedLoan,
-    CheckedOperation, ClosureDefinition, ClosureTable, DropTable, LoanId, LoanPlace, LoanRoot,
-    LoanTable, PlaceRoot, ProvenanceTable,
+    BodyCheckError, BodyCheckInternalError, CheckedBodyLoans, CheckedLoan, CheckedOperation,
+    ClosureDefinition, ClosureTable, DropTable, LoanId, LoanPlace, LoanRoot, LoanTable, PlaceRoot,
+    ProvenanceTable,
+    body_relations::{BodyRelationCatalog, BodyRelationInput},
 };
-
-pub(super) struct LoanBodyInput<'program, 'syntax> {
-    source: BodySource<'syntax>,
-    body: &'program CheckedBody,
-    origins: &'program HashMap<BodyNodeId, SourceOrigin>,
-}
-
-impl<'program, 'syntax> LoanBodyInput<'program, 'syntax> {
-    pub(super) const fn new(
-        source: BodySource<'syntax>,
-        body: &'program CheckedBody,
-        origins: &'program HashMap<BodyNodeId, SourceOrigin>,
-    ) -> Self {
-        Self {
-            source,
-            body,
-            origins,
-        }
-    }
-}
 
 #[derive(Clone, Copy)]
 struct ProgramFacts<'program> {
@@ -58,7 +37,7 @@ pub(super) fn analyze_program(
     drops: &DropTable,
     provenance: &ProvenanceTable,
     closures: &ClosureTable,
-    inputs: &[LoanBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
 ) -> Result<LoanTable, BodyCheckError> {
     let facts = ProgramFacts {
         graph,
@@ -69,24 +48,21 @@ pub(super) fn analyze_program(
     };
     let mut bodies = ArenaBuilder::<BodyId, CheckedBodyLoans>::new();
     for (body, _) in graph.declarations().bodies().iter() {
-        let input = inputs
-            .iter()
-            .find(|input| input.source.body() == body)
-            .ok_or(BodyCheckInternalError::MissingBodySource(body))?;
-        let liveness = super::liveness::analyze(types, drops, input.body, input.body.root())?;
+        let input = inputs.get(body)?;
+        let liveness = super::liveness::analyze(types, drops, input.body(), input.body().root())?;
         let mut checked = Analyzer::new(facts, input, &liveness, None).analyze()?;
         for (closure, definition) in closures
             .definitions()
             .iter()
             .filter(|(_, definition)| definition.owner() == body)
         {
-            let liveness = super::liveness::analyze(types, drops, input.body, definition.body())?;
+            let liveness = super::liveness::analyze(types, drops, input.body(), definition.body())?;
             let closure_checked =
                 Analyzer::new(facts, input, &liveness, Some((closure, definition))).analyze()?;
             checked.merge(closure_checked)?;
         }
         let mut live_before = ArenaBuilder::new();
-        for (node, _) in input.body.nodes().iter() {
+        for (node, _) in input.body().nodes().iter() {
             let loans = checked
                 .live_before
                 .remove(&node)
@@ -150,7 +126,7 @@ struct Analyzer<'program, 'syntax> {
     capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
     drops: &'program DropTable,
     provenance: &'program ProvenanceTable,
-    input: &'program LoanBodyInput<'program, 'syntax>,
+    input: &'program BodyRelationInput<'program, 'syntax>,
     liveness: &'program Liveness,
     loans: BTreeMap<LoanId, CheckedLoan>,
     live_before: HashMap<BodyNodeId, BTreeSet<LoanId>>,
@@ -162,7 +138,7 @@ struct Analyzer<'program, 'syntax> {
 impl<'program, 'syntax> Analyzer<'program, 'syntax> {
     fn new(
         facts: ProgramFacts<'program>,
-        input: &'program LoanBodyInput<'program, 'syntax>,
+        input: &'program BodyRelationInput<'program, 'syntax>,
         liveness: &'program Liveness,
         closure: Option<(ClosureId, &'program ClosureDefinition)>,
     ) -> Self {
@@ -186,7 +162,9 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         let mut state = self.initial_state()?;
         let root = self
             .closure
-            .map_or(self.input.body.root(), |(_, definition)| definition.body());
+            .map_or(self.input.body().root(), |(_, definition)| {
+                definition.body()
+            });
         self.evaluate(root, &mut state, &BTreeSet::new())?;
         Ok(RootLoanAnalysis {
             loans: self.loans,
@@ -241,7 +219,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             let binding = capture.binding();
             let declaration = self
                 .input
-                .body
+                .body()
                 .captures()
                 .get(binding)
                 .ok_or(BodyCheckInternalError::LoanAnalysis)?
@@ -278,7 +256,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
 
     fn initial_declared_state(&mut self) -> Result<LoanState, BodyCheckInternalError> {
         let mut state = LoanState::default();
-        let BodyOwner::Callable(callable) = self.input.source.owner() else {
+        let BodyOwner::Callable(callable) = self.input.source().owner() else {
             return Ok(state);
         };
         let callable = self
@@ -328,7 +306,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
         self.record_live(node, state, extra_active);
         let checked = self
             .input
-            .body
+            .body()
             .nodes()
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?;
@@ -494,7 +472,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             }
             let checked_initializer = self
                 .input
-                .body
+                .body()
                 .nodes()
                 .get(capture.initializer())
                 .ok_or(BodyCheckInternalError::LoanAnalysis)?;

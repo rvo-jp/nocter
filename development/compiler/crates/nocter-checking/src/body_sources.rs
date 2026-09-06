@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_compile_input::CompileUnitInput;
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_frontend_bindings::FrontendBindings;
-use nocter_model::{BodyId, DeclarationSiteId, ModuleId};
+use nocter_model::{Arena, ArenaBuilder, BodyId, DeclarationSiteId, ModuleId};
 use nocter_source::SourceId;
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 
@@ -49,7 +49,7 @@ impl<'syntax> BodySource<'syntax> {
 
 /// Canonical `BodyId`-ordered source inputs for one complete declaration program.
 #[derive(Debug)]
-pub struct BodySourceCatalog<'syntax>(Box<[BodySource<'syntax>]>);
+pub struct BodySourceCatalog<'syntax>(Arena<BodyId, BodySource<'syntax>>);
 
 impl<'syntax> BodySourceCatalog<'syntax> {
     #[must_use]
@@ -64,15 +64,12 @@ impl<'syntax> BodySourceCatalog<'syntax> {
 
     #[must_use]
     pub fn iter(&self) -> impl ExactSizeIterator<Item = BodySource<'syntax>> + '_ {
-        self.0.iter().copied()
+        self.0.iter().map(|(_, source)| *source)
     }
 
     #[must_use]
     pub fn get(&self, body: BodyId) -> Option<BodySource<'syntax>> {
-        self.0
-            .binary_search_by_key(&body, |source| source.body())
-            .ok()
-            .map(|index| self.0[index])
+        self.0.get(body).copied()
     }
 }
 
@@ -216,7 +213,7 @@ pub fn catalog_body_sources<'syntax>(
 ) -> Result<BodySourceCatalog<'syntax>, BodySourceError> {
     let syntax = syntax_by_source(input)?;
     let modules = module_by_source(graph, bindings)?;
-    let mut bodies = Vec::with_capacity(graph.declarations().bodies().len());
+    let mut bodies = ArenaBuilder::new();
 
     for (body, declaration) in graph.declarations().bodies().iter() {
         let blocks = bindings.body_blocks(body);
@@ -237,16 +234,19 @@ pub fn catalog_body_sources<'syntax>(
         if modules.get(&tree.source()).copied() != Some(module) {
             return Err(BodySourceError::BodyOutsideOwnerModule(body));
         }
-        bodies.push(BodySource {
+        let actual = bodies.insert(BodySource {
             body,
             owner: declaration.owner(),
             module,
             syntax: tree,
             block: *block,
         });
+        if actual != body {
+            return Err(BodySourceError::InvalidBodyProjection(body));
+        }
     }
 
-    Ok(BodySourceCatalog(bodies.into_boxed_slice()))
+    Ok(BodySourceCatalog(bodies.finish()))
 }
 
 fn syntax_by_source<'syntax>(

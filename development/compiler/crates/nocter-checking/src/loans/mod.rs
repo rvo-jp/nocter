@@ -3,35 +3,13 @@ mod liveness;
 mod state;
 mod value;
 
-use std::collections::HashMap;
-
 use nocter_declarations::DeclarationGraph;
-use nocter_model::{BodyNodeId, TypeStore};
-use nocter_source_index::SourceOrigin;
+use nocter_model::TypeStore;
 
 use crate::{
-    BodyCheckError, BodySource, CheckedBody, ClosureTable, DropTable, LoanTable, ProvenanceTable,
+    BodyCheckError, ClosureTable, DropTable, LoanTable, ProvenanceTable,
+    body_relations::BodyRelationCatalog,
 };
-
-pub(crate) struct LoanBodyInput<'program, 'syntax> {
-    source: BodySource<'syntax>,
-    body: &'program CheckedBody,
-    origins: &'program HashMap<BodyNodeId, SourceOrigin>,
-}
-
-impl<'program, 'syntax> LoanBodyInput<'program, 'syntax> {
-    pub(crate) const fn new(
-        source: BodySource<'syntax>,
-        body: &'program CheckedBody,
-        origins: &'program HashMap<BodyNodeId, SourceOrigin>,
-    ) -> Self {
-        Self {
-            source,
-            body,
-            origins,
-        }
-    }
-}
 
 pub(crate) fn analyze_program_loans(
     graph: &DeclarationGraph,
@@ -40,12 +18,8 @@ pub(crate) fn analyze_program_loans(
     drops: &DropTable,
     provenance: &ProvenanceTable,
     closures: &ClosureTable,
-    inputs: &[LoanBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
 ) -> Result<LoanTable, BodyCheckError> {
-    let inputs = inputs
-        .iter()
-        .map(|input| analysis::LoanBodyInput::new(input.source, input.body, input.origins))
-        .collect::<Vec<_>>();
     analysis::analyze_program(
         graph,
         types,
@@ -53,6 +27,6 @@ pub(crate) fn analyze_program_loans(
         drops,
         provenance,
         closures,
-        &inputs,
+        inputs,
     )
 }

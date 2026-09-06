@@ -12,6 +12,7 @@ mod associated_type_completion;
 mod associated_type_resolution;
 mod body_check;
 mod body_evidence;
+mod body_relations;
 mod body_sources;
 mod body_type_recipe;
 mod checked;

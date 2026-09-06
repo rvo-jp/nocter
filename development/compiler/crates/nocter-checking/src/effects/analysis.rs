@@ -7,7 +7,8 @@ use nocter_model::{
 };
 use nocter_toolchain_contract::StandardDeclarationRole;
 
-use super::{AllocationEffect, EffectBodyInput, EffectTable, input_for_body};
+use super::{AllocationEffect, EffectTable};
+use crate::body_relations::BodyRelationCatalog;
 use crate::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckError,
     BodyCheckInternalError, BodyRule, BorrowConversionImplementation, CallTarget,
@@ -47,7 +48,7 @@ struct Summaries {
 pub(super) fn analyze_program(
     environment: &crate::program_environment::ProgramEnvironment,
     closures: &ClosureTable,
-    inputs: &[EffectBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
 ) -> Result<EffectTable, BodyCheckError> {
     let graph = environment.graph();
     let facts = collect_facts(environment, closures, inputs)?;
@@ -76,7 +77,7 @@ pub(super) fn analyze_program(
 fn collect_facts(
     environment: &crate::program_environment::ProgramEnvironment,
     closures: &ClosureTable,
-    inputs: &[EffectBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
 ) -> Result<BTreeMap<Root, RootFacts>, BodyCheckError> {
     let graph = environment.graph();
     let allocation_request = environment
@@ -84,8 +85,7 @@ fn collect_facts(
         .callable(StandardDeclarationRole::AllocationRequest);
     let mut facts = BTreeMap::new();
     for (body, declaration) in graph.declarations().bodies().iter() {
-        let input =
-            input_for_body(inputs, body).ok_or(BodyCheckInternalError::MissingBodySource(body))?;
+        let input = inputs.get(body)?;
         let root = match declaration.owner() {
             BodyOwner::Callable(callable) => Some(Root::Callable(callable)),
             BodyOwner::Drop(drop) => Some(Root::Drop(drop)),
@@ -101,9 +101,7 @@ fn collect_facts(
         }
     }
     for (closure, definition) in closures.definitions().iter() {
-        let input = input_for_body(inputs, definition.owner()).ok_or(
-            BodyCheckInternalError::MissingBodySource(definition.owner()),
-        )?;
+        let input = inputs.get(definition.owner())?;
         facts.insert(
             Root::Closure(closure),
             Collector::new(environment, input.body()).collect(definition.body())?,
@@ -194,7 +192,7 @@ fn summary_mut(summaries: &mut Summaries, root: Root) -> Option<&mut AllocationE
 fn validate_contracts(
     graph: &DeclarationGraph,
     closures: &ClosureTable,
-    inputs: &[EffectBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
     facts: &BTreeMap<Root, RootFacts>,
     summaries: &Summaries,
 ) -> Result<(), BodyCheckError> {
@@ -277,12 +275,14 @@ fn validate_contracts(
 }
 
 fn contract_error(
-    inputs: &[EffectBodyInput<'_, '_>],
+    inputs: &BodyRelationCatalog<'_, '_>,
     body: nocter_model::BodyId,
     node: BodyNodeId,
 ) -> Result<(), BodyCheckError> {
-    let origin = input_for_body(inputs, body)
-        .and_then(|input| input.origins().get(&node))
+    let origin = inputs
+        .get(body)?
+        .origins()
+        .get(&node)
         .copied()
         .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))?;
     let rule = BodyRule::NoAllocationContractViolation;

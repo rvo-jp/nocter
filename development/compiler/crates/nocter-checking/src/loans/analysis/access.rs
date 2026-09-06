@@ -22,7 +22,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<(), BodyCheckError> {
         let nodes = self
             .input
-            .body
+            .body()
             .places()
             .get(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?
@@ -43,7 +43,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let place = self
             .input
-            .body
+            .body()
             .places()
             .get(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
@@ -63,7 +63,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<(), BodyCheckInternalError> {
         let place = self
             .input
-            .body
+            .body()
             .places()
             .get(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
@@ -81,7 +81,7 @@ impl Analyzer<'_, '_> {
     ) -> Result<(), BodyCheckError> {
         let place = self
             .input
-            .body
+            .body()
             .places()
             .get(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
@@ -144,7 +144,7 @@ impl Analyzer<'_, '_> {
         self.check_place_access(node, place, AccessKind::Borrow(capability), state, extra)?;
         let place = self
             .input
-            .body
+            .body()
             .places()
             .get(place)
             .ok_or(BodyCheckInternalError::InvalidMovePlace(place))?;
@@ -282,7 +282,7 @@ impl Analyzer<'_, '_> {
         node: BodyNodeId,
     ) -> Result<SourceOrigin, BodyCheckInternalError> {
         self.input
-            .origins
+            .origins()
             .get(&node)
             .copied()
             .ok_or(BodyCheckInternalError::MissingNodeOrigin(node))
