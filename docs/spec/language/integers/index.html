@@ -185,6 +185,7 @@
                     <li><a href="../control-flow/index.html#content">Control Flow</a></li>
                     <li><a href="../equality-and-indexing/index.html#content">Equality, Indexing, and Core Operators</a></li>
                     <li><a href="../errors-and-optionals/index.html#content">Errors and Optionals</a></li>
+                    <li><a href="../floating-point/index.html#content">Floating-Point Values</a></li>
                     <li><a href="../generics-and-interfaces/index.html#content">Generics, Interfaces, and Methods</a></li>
                     <li><a href="./index.html#content" aria-current="page">Integers and Numeric Operations</a></li>
                     <li><a href="../lexical-grammar/index.html#content">Lexical Grammar</a></li>
@@ -216,7 +217,7 @@
   exact minimum value. An expected unsigned type is invalid because unary <code>-</code> requires a signed
   operand.</li><li>Without an expected type, a unary-negative integer literal is checked as <code>i32</code>, including the
   <code>-2^31</code> minimum case. A larger magnitude does not cause inference of a wider type.</li><li>The signed-minimum case becomes one checked integer constant. It does not first construct an
-  out-of-range positive value and does not execute a runtime negation overflow.</li><li>If no context fixes the type, the literal becomes <code>i32</code>.</li><li>Assigning an out-of-range literal is a type error.</li><li>Non-literal integer values are not implicitly converted between integer types.</li><li>Float literals are not supported.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> a <span class="token-operator">=</span> <span class="token-number">10</span>        <span class="token-comment">// i32</span>
+  out-of-range positive value and does not execute a runtime negation overflow.</li><li>If no context fixes the type, the literal becomes <code>i32</code>.</li><li>Assigning an out-of-range literal is a type error.</li><li>Non-literal integer values are not implicitly converted between integer types.</li></ul><p>Examples:</p><pre><code class="language-nct"><span class="token-keyword">let</span> a <span class="token-operator">=</span> <span class="token-number">10</span>        <span class="token-comment">// i32</span>
 <span class="token-keyword">let</span> b<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> <span class="token-number">10</span>   <span class="token-comment">// u64</span>
 <span class="token-keyword">let</span> c<span class="token-operator">:</span> <span class="token-type">u8</span> <span class="token-operator">=</span> <span class="token-number">300</span>   <span class="token-comment">// error: literal out of range</span>
 <span class="token-keyword">let</span> d <span class="token-operator">=</span> 0xFF_FF   <span class="token-comment">// i32</span>
@@ -226,7 +227,7 @@
 
 <span class="token-keyword">let</span> x<span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">=</span> <span class="token-number">10</span>
 <span class="token-keyword">let</span> y<span class="token-operator">:</span> <span class="token-type">u64</span> <span class="token-operator">=</span> x    <span class="token-comment">// error: no implicit integer conversion</span>
-</code></pre><h2 id="numeric-operations-and-conversions">Numeric Operations and Conversions</h2><p>Numeric operations do not perform implicit integer conversion.</p><p>Rules:</p><ul><li>Integer binary arithmetic uses operands of the same integer type.</li><li>Shift operators use operands of the same integer type. Integer literals on the right side may be contextually typed by the left operand type when the value fits.</li><li>Shift expressions return the left operand type.</li><li>Left shift moves the fixed-width bit pattern toward the most-significant end, discards bits that
+</code></pre><p>Floating-point literals and the deliberately narrow integer/floating conversion boundary are defined separately in <a href="../floating-point/index.html#content">Floating-Point Values</a>.</p><h2 id="numeric-operations-and-conversions">Numeric Operations and Conversions</h2><p>Numeric operations do not perform implicit integer conversion.</p><p>Rules:</p><ul><li>Integer binary arithmetic uses operands of the same integer type.</li><li>Shift operators use operands of the same integer type. Integer literals on the right side may be contextually typed by the left operand type when the value fits.</li><li>Shift expressions return the left operand type.</li><li>Left shift moves the fixed-width bit pattern toward the most-significant end, discards bits that
   leave the width, and fills low bits with zero. Discarded bits do not cause an arithmetic overflow
   trap.</li><li>Unsigned right shift fills high bits with zero. Signed right shift uses two's-complement
   arithmetic shift and fills high bits with the original sign bit.</li><li>A zero shift count leaves the value unchanged. A negative count or a count greater than or equal

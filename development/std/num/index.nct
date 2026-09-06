@@ -3,6 +3,7 @@
 use /mem.TryAllocator
 use /string.String
 see ./decimal.nct
+see ./floating.nct
 see ./scalar.nct
 see ./tests.nct
 see ./text.nct
@@ -45,6 +46,98 @@ pub primitive type usize
 
 /// Pointer-sized signed integer.
 pub primitive type isize
+
+/// Positive binary32 infinity.
+pub const F32_INFINITY: f32 = 1.0f32 / 0.0f32
+
+/// Negative binary32 infinity.
+pub const F32_NEG_INFINITY: f32 = -1.0f32 / 0.0f32
+
+/// One quiet binary32 NaN. Arithmetic does not promise to preserve this payload.
+pub const F32_NAN: f32 = 0.0f32 / 0.0f32
+
+/// Positive binary64 infinity.
+pub const F64_INFINITY: f64 = 1.0 / 0.0
+
+/// Negative binary64 infinity.
+pub const F64_NEG_INFINITY: f64 = -1.0 / 0.0
+
+/// One quiet binary64 NaN. Arithmetic does not promise to preserve this payload.
+pub const F64_NAN: f64 = 0.0 / 0.0
+
+construct f32 {
+    /// Creates a binary32 value with exactly the supplied IEEE representation.
+    pub noalloc func from_bits(bits: u32): Self
+}
+
+construct f64 {
+    /// Creates a binary64 value with exactly the supplied IEEE representation.
+    pub noalloc func from_bits(bits: u64): Self
+}
+
+instance f32 {
+    /// Returns the exact stored IEEE representation.
+    pub noalloc method self.to_bits(): u32
+
+    /// Reports whether this value is a NaN.
+    pub noalloc method self.is_nan(): bool
+
+    /// Reports whether this value is positive or negative infinity.
+    pub noalloc method self.is_infinite(): bool
+
+    /// Reports whether this value is finite.
+    pub noalloc method self.is_finite(): bool
+
+    /// Reports whether this value is either sign of zero.
+    pub noalloc method self.is_zero(): bool
+
+    /// Reports whether this finite nonzero value uses the normal representation.
+    pub noalloc method self.is_normal(): bool
+
+    /// Reports whether this value uses the subnormal representation.
+    pub noalloc method self.is_subnormal(): bool
+
+    /// Reports whether the IEEE sign bit is set, including for zero and NaN.
+    pub noalloc method self.is_sign_negative(): bool
+
+    /// Reports whether the IEEE sign bit is clear, including for zero and NaN.
+    pub noalloc method self.is_sign_positive(): bool
+
+    /// Clears the IEEE sign bit without changing the payload.
+    pub noalloc method self.abs(): Self
+}
+
+instance f64 {
+    /// Returns the exact stored IEEE representation.
+    pub noalloc method self.to_bits(): u64
+
+    /// Reports whether this value is a NaN.
+    pub noalloc method self.is_nan(): bool
+
+    /// Reports whether this value is positive or negative infinity.
+    pub noalloc method self.is_infinite(): bool
+
+    /// Reports whether this value is finite.
+    pub noalloc method self.is_finite(): bool
+
+    /// Reports whether this value is either sign of zero.
+    pub noalloc method self.is_zero(): bool
+
+    /// Reports whether this finite nonzero value uses the normal representation.
+    pub noalloc method self.is_normal(): bool
+
+    /// Reports whether this value uses the subnormal representation.
+    pub noalloc method self.is_subnormal(): bool
+
+    /// Reports whether the IEEE sign bit is set, including for zero and NaN.
+    pub noalloc method self.is_sign_negative(): bool
+
+    /// Reports whether the IEEE sign bit is clear, including for zero and NaN.
+    pub noalloc method self.is_sign_positive(): bool
+
+    /// Clears the IEEE sign bit without changing the payload.
+    pub noalloc method self.abs(): Self
+}
 
 construct i8 {
     /// Parses one complete signed decimal integer.

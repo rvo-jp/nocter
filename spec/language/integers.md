@@ -25,7 +25,6 @@ Integer literal rules:
 - If no context fixes the type, the literal becomes `i32`.
 - Assigning an out-of-range literal is a type error.
 - Non-literal integer values are not implicitly converted between integer types.
-- Float literals are not supported.
 
 Examples:
 
@@ -41,6 +40,9 @@ let too_small: i8 = -129 // error
 let x: i32 = 10
 let y: u64 = x    // error: no implicit integer conversion
 ```
+
+Floating-point literals and the deliberately narrow integer/floating conversion boundary are
+defined separately in [Floating-Point Values](floating-point.md).
 
 ## Numeric Operations and Conversions
 
@@ -140,4 +142,3 @@ Arithmetic trap rules:
 Trap semantics are specified in [Control Flow](control-flow.md#never-and-reachability). These arithmetic safety checks are always-on for every build mode; see [Safety Checks and Build Modes](control-flow.md#safety-checks-and-build-modes).
 
 Other fixed-width numeric mixing APIs are not part of the current standard surface.
-

@@ -45,6 +45,42 @@ pub(crate) fn emit_move(
     Ok(())
 }
 
+pub(crate) fn emit_from_bits(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedFloatRegister,
+    source: Arm64SelectedRegister,
+    size: Arm64DataSize,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let source = crate::selected_code::read_register(function, source, 0, code)?;
+    let destination = write_target(function, destination)?;
+    code.append(Arm64Instruction::FloatMoveFromGeneral {
+        size,
+        destination: destination.register,
+        source,
+    });
+    finish_write(destination, size, code);
+    Ok(())
+}
+
+pub(crate) fn emit_to_bits(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedRegister,
+    source: Arm64SelectedFloatRegister,
+    size: Arm64DataSize,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let source = read_register(function, source, 0, size, code)?;
+    let destination = crate::selected_code::write_target(function, destination)?;
+    code.append(Arm64Instruction::FloatMoveToGeneral {
+        size,
+        destination: destination.register,
+        source,
+    });
+    crate::selected_code::finish_write(destination, code);
+    Ok(())
+}
+
 pub(crate) fn emit_from_integer(
     function: &Arm64SelectedFunction,
     destination: Arm64SelectedFloatRegister,

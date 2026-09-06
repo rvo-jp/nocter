@@ -1,0 +1,120 @@
+//! Exact floating-point representation and classification.
+
+see ./index.nct
+
+noalloc primitive func f32_from_bits_raw(bits: u32): f32
+noalloc primitive func f32_to_bits_raw(value: f32): u32
+noalloc primitive func f64_from_bits_raw(bits: u64): f64
+noalloc primitive func f64_to_bits_raw(value: f64): u64
+
+construct f32 {
+    noalloc func from_bits(bits: u32): Self {
+        return f32_from_bits_raw(bits)
+    }
+}
+
+construct f64 {
+    noalloc func from_bits(bits: u64): Self {
+        return f64_from_bits_raw(bits)
+    }
+}
+
+instance f32 {
+    noalloc method self.to_bits(): u32 {
+        return f32_to_bits_raw(self)
+    }
+
+    noalloc method self.is_nan(): bool {
+        let magnitude = f32_magnitude_bits(self.to_bits())
+        return magnitude > 2139095040
+    }
+
+    noalloc method self.is_infinite(): bool {
+        return f32_magnitude_bits(self.to_bits()) == 2139095040
+    }
+
+    noalloc method self.is_finite(): bool {
+        return f32_magnitude_bits(self.to_bits()) < 2139095040
+    }
+
+    noalloc method self.is_zero(): bool {
+        return f32_magnitude_bits(self.to_bits()) == 0
+    }
+
+    noalloc method self.is_normal(): bool {
+        let magnitude = f32_magnitude_bits(self.to_bits())
+        return magnitude >= 8388608 && magnitude < 2139095040
+    }
+
+    noalloc method self.is_subnormal(): bool {
+        let magnitude = f32_magnitude_bits(self.to_bits())
+        return magnitude > 0 && magnitude < 8388608
+    }
+
+    noalloc method self.is_sign_negative(): bool {
+        return self.to_bits() >= 2147483648
+    }
+
+    noalloc method self.is_sign_positive(): bool {
+        return self.to_bits() < 2147483648
+    }
+
+    noalloc method self.abs(): Self {
+        return f32.from_bits(f32_magnitude_bits(self.to_bits()))
+    }
+}
+
+instance f64 {
+    noalloc method self.to_bits(): u64 {
+        return f64_to_bits_raw(self)
+    }
+
+    noalloc method self.is_nan(): bool {
+        let magnitude = f64_magnitude_bits(self.to_bits())
+        return magnitude > 9218868437227405312
+    }
+
+    noalloc method self.is_infinite(): bool {
+        return f64_magnitude_bits(self.to_bits()) == 9218868437227405312
+    }
+
+    noalloc method self.is_finite(): bool {
+        return f64_magnitude_bits(self.to_bits()) < 9218868437227405312
+    }
+
+    noalloc method self.is_zero(): bool {
+        return f64_magnitude_bits(self.to_bits()) == 0
+    }
+
+    noalloc method self.is_normal(): bool {
+        let magnitude = f64_magnitude_bits(self.to_bits())
+        return magnitude >= 4503599627370496 && magnitude < 9218868437227405312
+    }
+
+    noalloc method self.is_subnormal(): bool {
+        let magnitude = f64_magnitude_bits(self.to_bits())
+        return magnitude > 0 && magnitude < 4503599627370496
+    }
+
+    noalloc method self.is_sign_negative(): bool {
+        return self.to_bits() >= 9223372036854775808
+    }
+
+    noalloc method self.is_sign_positive(): bool {
+        return self.to_bits() < 9223372036854775808
+    }
+
+    noalloc method self.abs(): Self {
+        return f64.from_bits(f64_magnitude_bits(self.to_bits()))
+    }
+}
+
+noalloc func f32_magnitude_bits(bits: u32): u32 {
+    if bits >= 2147483648 { return bits - 2147483648 }
+    return bits
+}
+
+noalloc func f64_magnitude_bits(bits: u64): u64 {
+    if bits >= 9223372036854775808 { return bits - 9223372036854775808 }
+    return bits
+}

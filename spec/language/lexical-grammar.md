@@ -418,10 +418,40 @@ Rules:
 - Negative numbers are parsed as unary `-` applied to an integer literal, not as a negative literal
   token. The type checker recognizes a directly grouped literal operand when validating the signed
   minimum value; the lexer does not fuse those tokens.
-- Float literals are not supported. Syntax such as `1.0`, `.5`, and `1e3` is invalid.
 
 The type rules for integer literals are specified in
 [Integers and Numeric Operations](integers.md#integer-literals).
+
+## Floating-Point Literals
+
+A floating-point literal is decimal and must contain a decimal point or an exponent. Its lexical
+forms are:
+
+```text
+digits "." digits exponent? suffix?
+digits exponent suffix?
+
+exponent = ("e" | "E") ("+" | "-")? digits
+suffix   = "f32" | "f64"
+```
+
+`digits` contains ASCII decimal digits and may contain `_` only between two digits. The point must
+have digits on both sides, so `.5` and `1.` are invalid. An exponent marker must be followed by
+digits after its optional sign. Hexadecimal floats and suffixes other than `f32` and `f64` are
+invalid. Negative values use the ordinary unary `-` operator rather than a signed literal token.
+
+Examples:
+
+```text
+0.0
+1_000.25
+6.022e23
+1E+9
+2e-3f32
+3.141_592_653_589_793f64
+```
+
+Typing and evaluation are defined in [Floating-Point Values](floating-point.md).
 
 ## String, Character, and Byte Literals
 
@@ -575,7 +605,6 @@ The following lexical features are intentionally unsupported:
 - Unicode identifiers
 - nested block comments
 - semicolon statement terminators
-- float literals
 - integer type suffixes
 - raw string literals
 - Unicode escapes outside character literals

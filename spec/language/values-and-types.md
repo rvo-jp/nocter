@@ -11,6 +11,7 @@ Named built-in types:
 
 ```text
 bool
+f32 f64
 i8 i16 i32 i64
 u8 u16 u32 u64
 usize isize
@@ -27,7 +28,7 @@ name, documentation, navigation target, and inherent-surface ownership; the comp
 semantic identity and representation. Named built-in types are available in every source type
 context without an import and cannot be shadowed or redeclared by ordinary source.
 
-The active standard package declares integer and boolean types in `std/num`, `char` in `std/char`,
+The active standard package declares floating-point, integer, and boolean types in `std/num`, `char` in `std/char`,
 `str` in `std/str`, `error` in `std/error`, and the completion types `void` and `never` in `std/core`.
 These declarations do not make a built-in nominal or structural type: they have no fields,
 variants, body, generic parameters, source construction form, or source-defined layout.

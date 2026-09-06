@@ -1,4 +1,18 @@
-# Integer Text
+# Numeric Values
+
+## Floating-Point Representation
+
+The built-in `f32` and `f64` types expose their exact IEEE 754 representations through
+`from_bits` and `to_bits`. These operations preserve every bit, including the sign of zero and a
+NaN payload. Classification methods distinguish zero, subnormal, normal, infinity, and NaN values
+without allocating. `is_sign_negative` and `is_sign_positive` inspect the representation, so they
+also classify signed zero and NaN. `abs` clears only the sign bit.
+
+`F32_INFINITY`, `F32_NEG_INFINITY`, `F32_NAN`, `F64_INFINITY`, `F64_NEG_INFINITY`, and `F64_NAN`
+provide module-scoped special values. Arithmetic may canonicalize a NaN; use `from_bits` when an
+exact payload is part of a protocol or file format.
+
+## Integer Text
 
 Every built-in integer owns the decimal text surface declared by the compiler-checked
 [`std/num` contract](index.nct). `parse` is
@@ -13,5 +27,5 @@ aborts on allocation failure. `try_to_string` uses the supplied recoverable allo
 its allocation failure. These operations and `Format` must use one decimal-generation authority;
 parsing must scan an input once through one signed or unsigned decimal authority.
 
-There are no type-named free-function aliases. This contract does not add floating-point values,
-arbitrary radix parsing, locale rules, or a matrix of public integer-to-integer conversions.
+There are no type-named free-function aliases. This contract does not add arbitrary radix parsing,
+locale rules, or a matrix of public integer-to-integer conversions.

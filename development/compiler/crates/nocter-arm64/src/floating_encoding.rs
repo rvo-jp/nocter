@@ -20,6 +20,15 @@ pub(crate) fn arithmetic(instruction: Arm64Instruction) -> u32 {
                 | u32::from(source.number()) << 5
                 | u32::from(destination.number())
         }
+        Arm64Instruction::FloatMoveToGeneral {
+            size,
+            destination,
+            source,
+        } => {
+            size_base(size, 0x1e26_0000, 0x9e66_0000)
+                | u32::from(source.number()) << 5
+                | u32::from(destination.number())
+        }
         Arm64Instruction::FloatFromInteger {
             source_size,
             target_size,

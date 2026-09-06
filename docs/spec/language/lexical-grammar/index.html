@@ -185,6 +185,7 @@
                     <li><a href="../control-flow/index.html#content">Control Flow</a></li>
                     <li><a href="../equality-and-indexing/index.html#content">Equality, Indexing, and Core Operators</a></li>
                     <li><a href="../errors-and-optionals/index.html#content">Errors and Optionals</a></li>
+                    <li><a href="../floating-point/index.html#content">Floating-Point Values</a></li>
                     <li><a href="../generics-and-interfaces/index.html#content">Generics, Interfaces, and Methods</a></li>
                     <li><a href="../integers/index.html#content">Integers and Numeric Operations</a></li>
                     <li><a href="./index.html#content" aria-current="page">Lexical Grammar</a></li>
@@ -385,7 +386,18 @@ eof
 0b1010_0101
 </code></pre><p>Rules:</p><ul><li>Decimal integer literals use digits <code>0</code> through <code>9</code>.</li><li>Hexadecimal integer literals use the lowercase prefix <code>0x</code>.</li><li>Hexadecimal digits may be <code>0</code> through <code>9</code>, <code>a</code> through <code>f</code>, or <code>A</code> through <code>F</code>.</li><li>Binary integer literals use the lowercase prefix <code>0b</code>.</li><li>Binary digits may be <code>0</code> or <code>1</code>.</li><li><code>_</code> may appear only between two valid digits of the literal's base.</li><li><code>_</code> must not appear at the start or end of a literal.</li><li><code>_</code> must not appear immediately after <code>0x</code> or <code>0b</code>.</li><li>Adjacent <code>_</code> separators are invalid.</li><li>Integer literals have no type suffix.</li><li>Negative numbers are parsed as unary <code>-</code> applied to an integer literal, not as a negative literal
   token. The type checker recognizes a directly grouped literal operand when validating the signed
-  minimum value; the lexer does not fuse those tokens.</li><li>Float literals are not supported. Syntax such as <code>1.0</code>, <code>.5</code>, and <code>1e3</code> is invalid.</li></ul><p>The type rules for integer literals are specified in <a href="../integers/index.html#integer-literals">Integers and Numeric Operations</a>.</p><h2 id="string-character-and-byte-literals">String, Character, and Byte Literals</h2><p>Single-line string literals use double quotes:</p><pre><code class="language-nct"><span class="token-keyword">let</span> name <span class="token-operator">=</span> <span class="token-string">"Nocter"</span>
+  minimum value; the lexer does not fuse those tokens.</li></ul><p>The type rules for integer literals are specified in <a href="../integers/index.html#integer-literals">Integers and Numeric Operations</a>.</p><h2 id="floating-point-literals">Floating-Point Literals</h2><p>A floating-point literal is decimal and must contain a decimal point or an exponent. Its lexical forms are:</p><pre><code class="language-text">digits "." digits exponent? suffix?
+digits exponent suffix?
+
+exponent = ("e" | "E") ("+" | "-")? digits
+suffix   = "f32" | "f64"
+</code></pre><p><code>digits</code> contains ASCII decimal digits and may contain <code>_</code> only between two digits. The point must have digits on both sides, so <code>.5</code> and <code>1.</code> are invalid. An exponent marker must be followed by digits after its optional sign. Hexadecimal floats and suffixes other than <code>f32</code> and <code>f64</code> are invalid. Negative values use the ordinary unary <code>-</code> operator rather than a signed literal token.</p><p>Examples:</p><pre><code class="language-text">0.0
+1_000.25
+6.022e23
+1E+9
+2e-3f32
+3.141_592_653_589_793f64
+</code></pre><p>Typing and evaluation are defined in <a href="../floating-point/index.html#content">Floating-Point Values</a>.</p><h2 id="string-character-and-byte-literals">String, Character, and Byte Literals</h2><p>Single-line string literals use double quotes:</p><pre><code class="language-nct"><span class="token-keyword">let</span> name <span class="token-operator">=</span> <span class="token-string">"Nocter"</span>
 </code></pre><p>Multi-line string literals use triple double quotes:</p><pre><code class="language-nct"><span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">""</span><span class="token-string">"
     first line
     second line
@@ -423,7 +435,7 @@ eof
 </code></pre><p>Rules:</p><ul><li>Interpolation is recognized in single-line string forms and multi-line string forms.</li><li>Interpolation is not recognized in byte literals.</li><li><code>${</code> begins an interpolation expression unless the <code>$</code> is escaped as <code>\$</code>.</li><li>The interpolation expression is parsed as a normal Nocter expression.</li><li>The expression ends at the matching <code>}</code> for the <code>${</code>.</li><li>Braces inside nested expressions, such as struct literals, blocks, <code>if</code> expressions, and <code>match</code> expressions, participate in normal brace matching.</li><li>Newline handling inside an interpolation expression follows ordinary expression grammar, not string-literal text rules.</li><li>Escapes in literal text segments are interpreted before the final text is constructed.</li><li>An interpolated string source form is an expression-level construct, not the non-interpolated
   <code>StringLiteral</code> grammar subset. Its type, allocation behavior, evaluation order, and formatting
   rules are specified in
-  <a href="../sequences-and-text/index.html#string-interpolation">Strings, Arrays, Views, and Pointers</a>.</li><li>To include the literal characters <code>${</code> in string text, write <code>\${</code>.</li></ul><p>The type and storage rules for string and byte literals are specified in <a href="../sequences-and-text/index.html#string-and-byte-literals">Strings, Arrays, Views, and Pointers</a>. The complete scalar contract belongs to <a href="../unicode-scalars/index.html#content">Unicode Scalar Values</a>.</p><h2 id="unsupported-tokens-and-forms">Unsupported Tokens and Forms</h2><p>The following lexical features are intentionally unsupported:</p><ul><li>Unicode identifiers</li><li>nested block comments</li><li>semicolon statement terminators</li><li>float literals</li><li>integer type suffixes</li><li>raw string literals</li><li>Unicode escapes outside character literals</li><li>attribute syntax</li></ul>
+  <a href="../sequences-and-text/index.html#string-interpolation">Strings, Arrays, Views, and Pointers</a>.</li><li>To include the literal characters <code>${</code> in string text, write <code>\${</code>.</li></ul><p>The type and storage rules for string and byte literals are specified in <a href="../sequences-and-text/index.html#string-and-byte-literals">Strings, Arrays, Views, and Pointers</a>. The complete scalar contract belongs to <a href="../unicode-scalars/index.html#content">Unicode Scalar Values</a>.</p><h2 id="unsupported-tokens-and-forms">Unsupported Tokens and Forms</h2><p>The following lexical features are intentionally unsupported:</p><ul><li>Unicode identifiers</li><li>nested block comments</li><li>semicolon statement terminators</li><li>integer type suffixes</li><li>raw string literals</li><li>Unicode escapes outside character literals</li><li>attribute syntax</li></ul>
             </div>
         </main>
     </div>

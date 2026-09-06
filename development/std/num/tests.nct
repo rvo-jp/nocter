@@ -252,3 +252,36 @@ test recoverable_integer_text_uses_the_supplied_allocator {
     )?
     return
 }
+
+test floating_bits_and_classification_preserve_ieee_identity {
+    let nan32 = f32.from_bits(2143294004)
+    require(nan32.to_bits() == 2143294004, "f32 NaN payload changed")?
+    require(nan32.is_nan(), "f32 NaN was not classified")?
+    require(!nan32.is_finite(), "f32 NaN was classified as finite")?
+    require(!nan32.is_infinite(), "f32 NaN was classified as infinity")?
+
+    let negative_zero32 = f32.from_bits(2147483648)
+    require(negative_zero32.is_zero(), "negative f32 zero was not zero")?
+    require(negative_zero32.is_sign_negative(), "negative f32 zero lost its sign")?
+    require(!negative_zero32.is_sign_positive(), "negative f32 zero had both signs")?
+    require(negative_zero32.abs().to_bits() == 0, "f32 abs did not clear the sign")?
+    require(f32.from_bits(1).is_subnormal(), "minimum f32 was not subnormal")?
+    require(1.0f32.is_normal(), "ordinary f32 was not normal")?
+
+    let negative_nan64 = f64.from_bits(18444492273895871028)
+    require(negative_nan64.is_nan(), "negative f64 NaN was not classified")?
+    require(negative_nan64.is_sign_negative(), "negative f64 NaN lost its sign")?
+    require(
+        negative_nan64.abs().to_bits() == 9221120237041095220,
+        "f64 abs changed the NaN payload",
+    )?
+    require(f64.from_bits(1).is_subnormal(), "minimum f64 was not subnormal")?
+    require(f64.from_bits(9218868437227405312).is_infinite(), "f64 infinity changed")?
+    require(F32_INFINITY.is_infinite(), "public f32 infinity changed")?
+    require(F32_NEG_INFINITY.is_sign_negative(), "public negative f32 infinity changed")?
+    require(F32_NAN.is_nan(), "public f32 NaN changed")?
+    require(F64_INFINITY.is_infinite(), "public f64 infinity changed")?
+    require(F64_NEG_INFINITY.is_sign_negative(), "public negative f64 infinity changed")?
+    require(F64_NAN.is_nan(), "public f64 NaN changed")?
+    return
+}

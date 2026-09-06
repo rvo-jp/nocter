@@ -108,6 +108,16 @@ fn emit_instruction(
             destination,
             source,
         } => crate::floating_code::emit_move(function, destination, source, size, code),
+        Arm64SelectedInstruction::FloatMoveFromGeneral {
+            size,
+            destination,
+            source,
+        } => crate::floating_code::emit_from_bits(function, destination, source, size, code),
+        Arm64SelectedInstruction::FloatMoveToGeneral {
+            size,
+            destination,
+            source,
+        } => crate::floating_code::emit_to_bits(function, destination, source, size, code),
         Arm64SelectedInstruction::FloatLoadMemory {
             size,
             destination,

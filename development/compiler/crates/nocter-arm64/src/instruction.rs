@@ -243,6 +243,11 @@ pub enum Arm64Instruction {
         destination: Arm64FloatRegister,
         source: Arm64Register,
     },
+    FloatMoveToGeneral {
+        size: Arm64DataSize,
+        destination: Arm64Register,
+        source: Arm64FloatRegister,
+    },
     FloatFromInteger {
         source_size: Arm64DataSize,
         target_size: Arm64DataSize,

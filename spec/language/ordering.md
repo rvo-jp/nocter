@@ -16,9 +16,9 @@ result, and a body. An owned or readwrite receiver, another right-operand type, 
 an unnamed operand, or a bodyless declaration is invalid. Ordinary visibility, declaration type
 patterns, and declaration-wide `where` clauses apply.
 
-The implementation promises a strict total order. It must be irreflexive, transitive, and
-consistent for every pair of values. These algebraic properties are an API contract; the compiler
-does not execute additional comparisons to verify them.
+The declaration defines a strict comparison operation. Its existence alone does not promise that
+every pair is comparable or that the relation is a total order. A standard interface may impose
+those stronger algebraic requirements on generic consumers that need them.
 
 ## Derived Comparisons
 
@@ -27,13 +27,15 @@ One selected `<` operation defines every ordering token:
 ```text
 left <  right  =  less(left, right)
 left >  right  =  less(right, left)
-left <= right  =  !less(right, left)
-left >= right  =  !less(left, right)
+left <= right  =  less(left, right) || equal(left, right)
+left >= right  =  less(right, left) || equal(left, right)
 ```
 
 The operands are always evaluated exactly once from left to right as written. Reversing the
-strict-order call for `>` or `<=` does not reverse source evaluation. `<=` and `>=` negate one
-strict-order result; they do not call equality or execute ordering twice.
+strict-order call for `>` or `>=` does not reverse source evaluation. `<=` and `>=` require both
+applicable `<` and `==` operations and short-circuit equality when strict comparison succeeds.
+This keeps unordered values such as NaN unordered instead of treating incomparability as less than
+or equal.
 
 The selected call borrows its operands and does not consume their owners. Existing borrow and
 coercion syntax remains explicit at ordinary call boundaries. A caller may compare existing
@@ -91,6 +93,7 @@ Compiler-private callable names are never public source or editor labels.
 
 ## Non-goals
 
-Strict ordering does not define partial ordering, three-way comparison values, floating-point
-behavior, comparator callbacks, hashing, or equality. Equality remains an independent operation.
+Strict comparison does not define a total-order proof, three-way comparison values, comparator
+callbacks, or hashing. Equality remains an independent operation, although inclusive comparisons
+require it. Floating-point comparison is defined in [Floating-Point Values](floating-point.md).
 The existence of a standard sorting consumer does not make sorting part of operator selection.

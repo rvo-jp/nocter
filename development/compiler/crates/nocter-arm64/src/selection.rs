@@ -120,6 +120,16 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedFloatRegister,
         source: Arm64SelectedFloatRegister,
     },
+    FloatMoveFromGeneral {
+        size: Arm64DataSize,
+        destination: Arm64SelectedFloatRegister,
+        source: Arm64SelectedRegister,
+    },
+    FloatMoveToGeneral {
+        size: Arm64DataSize,
+        destination: Arm64SelectedRegister,
+        source: Arm64SelectedFloatRegister,
+    },
     FloatLoadMemory {
         size: Arm64DataSize,
         destination: Arm64SelectedFloatRegister,

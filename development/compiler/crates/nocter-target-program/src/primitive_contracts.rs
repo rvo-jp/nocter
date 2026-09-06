@@ -454,6 +454,8 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let i16 = || builtin(BuiltinType::I16);
     let i32 = || builtin(BuiltinType::I32);
     let i64 = || builtin(BuiltinType::I64);
+    let f32 = || builtin(BuiltinType::F32);
+    let f64 = || builtin(BuiltinType::F64);
     let u8 = || builtin(BuiltinType::U8);
     let u16 = || builtin(BuiltinType::U16);
     let u32 = || builtin(BuiltinType::U32);
@@ -683,6 +685,10 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::I8Truncate => make(0, vec![i64()], i8(), private, None, vec![]),
         PrimitiveRole::I16Truncate => make(0, vec![i64()], i16(), private, None, vec![]),
         PrimitiveRole::I32Truncate => make(0, vec![i64()], i32(), private, None, vec![]),
+        PrimitiveRole::F32FromBits => make(0, vec![u32()], f32(), private, None, vec![]),
+        PrimitiveRole::F32ToBits => make(0, vec![f32()], u32(), private, None, vec![]),
+        PrimitiveRole::F64FromBits => make(0, vec![u64()], f64(), private, None, vec![]),
+        PrimitiveRole::F64ToBits => make(0, vec![f64()], u64(), private, None, vec![]),
         PrimitiveRole::U64WrappingAdd
         | PrimitiveRole::U64WrappingMultiply
         | PrimitiveRole::U64BitwiseXor

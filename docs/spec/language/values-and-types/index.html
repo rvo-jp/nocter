@@ -185,6 +185,7 @@
                     <li><a href="../control-flow/index.html#content">Control Flow</a></li>
                     <li><a href="../equality-and-indexing/index.html#content">Equality, Indexing, and Core Operators</a></li>
                     <li><a href="../errors-and-optionals/index.html#content">Errors and Optionals</a></li>
+                    <li><a href="../floating-point/index.html#content">Floating-Point Values</a></li>
                     <li><a href="../generics-and-interfaces/index.html#content">Generics, Interfaces, and Methods</a></li>
                     <li><a href="../integers/index.html#content">Integers and Numeric Operations</a></li>
                     <li><a href="../lexical-grammar/index.html#content">Lexical Grammar</a></li>
@@ -209,6 +210,7 @@
             </div>
             <div class="markdown-body">
                 <h1 id="values-and-types">Values and Types</h1><p>This chapter defines built-in and structural type forms, expected-type propagation, <code>Self</code>, associated projections, built-in literals, and aliases.</p><h2 id="built-in-and-structural-types">Built-in and Structural Types</h2><p>Nocter is value-centered. Data is represented with explicit value types.</p><p>Named built-in types:</p><pre><code class="language-text">bool
+f32 f64
 i8 i16 i32 i64
 u8 u16 u32 u64
 usize isize
@@ -217,7 +219,7 @@ str
 error
 void
 never
-</code></pre><p>Each name above is declared exactly once by the compiler-selected standard package with a <code>primitive type</code> declaration. The declaration is the source authority for the type's canonical name, documentation, navigation target, and inherent-surface ownership; the compiler supplies its semantic identity and representation. Named built-in types are available in every source type context without an import and cannot be shadowed or redeclared by ordinary source.</p><p>The active standard package declares integer and boolean types in <code>std/num</code>, <code>char</code> in <code>std/char</code>, <code>str</code> in <code>std/str</code>, <code>error</code> in <code>std/error</code>, and the completion types <code>void</code> and <code>never</code> in <code>std/core</code>. These declarations do not make a built-in nominal or structural type: they have no fields, variants, body, generic parameters, source construction form, or source-defined layout.</p><p>Structural and contextual type syntax:</p><pre><code class="language-text">*T
+</code></pre><p>Each name above is declared exactly once by the compiler-selected standard package with a <code>primitive type</code> declaration. The declaration is the source authority for the type's canonical name, documentation, navigation target, and inherent-surface ownership; the compiler supplies its semantic identity and representation. Named built-in types are available in every source type context without an import and cannot be shadowed or redeclared by ordinary source.</p><p>The active standard package declares floating-point, integer, and boolean types in <code>std/num</code>, <code>char</code> in <code>std/char</code>, <code>str</code> in <code>std/str</code>, <code>error</code> in <code>std/error</code>, and the completion types <code>void</code> and <code>never</code> in <code>std/core</code>. These declarations do not make a built-in nominal or structural type: they have no fields, variants, body, generic parameters, source construction form, or source-defined layout.</p><p>Structural and contextual type syntax:</p><pre><code class="language-text">*T
 &amp;T
 &amp;+T
 [T]

@@ -99,6 +99,14 @@ fn encodes_scalar_floating_register_arithmetic_and_memory() {
         0x9e67_0083
     );
     assert_eq!(
+        word(Arm64Instruction::FloatMoveToGeneral {
+            size: Arm64DataSize::Bits64,
+            destination: x(3),
+            source: v(4),
+        }),
+        0x9e66_0083
+    );
+    assert_eq!(
         word(Arm64Instruction::FloatFromInteger {
             source_size: Arm64DataSize::Bits32,
             target_size: Arm64DataSize::Bits64,

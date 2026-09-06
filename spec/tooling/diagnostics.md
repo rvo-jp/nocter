@@ -71,7 +71,7 @@ Source-backed lexical diagnostics:
 - `E0100`: an unexpected character appears outside the lexical grammar.
 - `E0101`: a block comment is not terminated.
 - `E0102`: an integer literal has invalid digits or separator placement.
-- `E0103`: a floating-point literal is used even though floating-point literals are not supported.
+- `E0103`: a floating-point literal has invalid punctuation, digits, separators, exponent, or suffix.
 - `E0104`: a string literal is not terminated.
 - `E0105`: a single-line string contains a newline.
 - `E0106`: multiline string content begins on the opening-delimiter line.
@@ -352,6 +352,8 @@ Source-backed checked-body diagnostics:
   allocation-free, or destruction whose allocation effect cannot be proven absent.
 - `E0413`: a tuple projection is not a canonical decimal position, the base is not a tuple, or the
   selected position is outside the tuple's arity.
+- `E0414`: a finite floating-point literal rounds to infinity, or a nonzero literal rounds to zero,
+  in its selected `f32` or `f64` type.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

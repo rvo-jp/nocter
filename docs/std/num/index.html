@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Integer Text - Nocter</title>
-    <meta name="description" content="Every built-in integer owns the decimal text surface declared by the compiler-checked std/num contract. parse is allocation-free and consumes the complete ">
+    <title>Numeric Values - Nocter</title>
+    <meta name="description" content="The built-in f32 and f64 types expose their exact IEEE 754 representations through frombits and tobits. These operations preserve every bit, including the ">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/std/num/">
@@ -12,19 +12,19 @@
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Integer Text - Nocter">
-    <meta property="og:description" content="Every built-in integer owns the decimal text surface declared by the compiler-checked std/num contract. parse is allocation-free and consumes the complete ">
+    <meta property="og:title" content="Numeric Values - Nocter">
+    <meta property="og:description" content="The built-in f32 and f64 types expose their exact IEEE 754 representations through frombits and tobits. These operations preserve every bit, including the ">
     <meta property="og:url" content="https://nocter.dev/std/num/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Integer Text - Nocter">
-    <meta name="twitter:description" content="Every built-in integer owns the decimal text surface declared by the compiler-checked std/num contract. parse is allocation-free and consumes the complete ">
+    <meta name="twitter:title" content="Numeric Values - Nocter">
+    <meta name="twitter:description" content="The built-in f32 and f64 types expose their exact IEEE 754 representations through frombits and tobits. These operations preserve every bit, including the ">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Integer Text - Nocter","description":"Every built-in integer owns the decimal text surface declared by the compiler-checked std/num contract. parse is allocation-free and consumes the complete ","url":"https://nocter.dev/std/num/","mainEntityOfPage":"https://nocter.dev/std/num/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Std","item":"https://nocter.dev/std/"},{"@type":"ListItem","position":3,"name":"Num","item":"https://nocter.dev/std/num/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Numeric Values - Nocter","description":"The built-in f32 and f64 types expose their exact IEEE 754 representations through frombits and tobits. These operations preserve every bit, including the ","url":"https://nocter.dev/std/num/","mainEntityOfPage":"https://nocter.dev/std/num/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Std","item":"https://nocter.dev/std/"},{"@type":"ListItem","position":3,"name":"Num","item":"https://nocter.dev/std/num/"}]}]</script>
 
     <link rel="stylesheet" href="../../style.css">
 </head>
@@ -176,7 +176,7 @@
                 <ol class="document-tree-breadcrumbs"><li><a href="../../index.html#content">Nocter</a></li><li><a href="../index.html#content">Standard Library</a></li></ol>
                 <p class="document-tree-title">std/num/</p>
                 <ul class="document-tree-list">
-                    <li><a href="./index.html#content" aria-current="page">Integer Text</a></li>
+                    <li><a href="./index.html#content" aria-current="page">Numeric Values</a></li>
                     <li><a href="./index/index.html#content">Module Contract</a></li>
                 </ul>
             </nav>
@@ -186,7 +186,7 @@
                 <span class="markdown-path-text">/std/num/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="integer-text">Integer Text</h1><p>Every built-in integer owns the decimal text surface declared by the compiler-checked <a href="./index/index.html#content"><code>std/num</code> contract</a>. <code>parse</code> is allocation-free and consumes the complete input. Unsigned types accept one or more ASCII digits. Signed types additionally accept exactly one leading <code>-</code>. Empty input, a leading <code>+</code>, whitespace, non-ASCII digits, another character, and a mathematical value outside the destination range return <code>none</code>. Leading zeroes are valid, and negative zero produces zero.</p><p><code>to_string</code> produces the shortest ordinary base-ten spelling, with <code>0</code> as the sole zero spelling and a leading <code>-</code> only for a negative signed value. It uses the current allocation context and aborts on allocation failure. <code>try_to_string</code> uses the supplied recoverable allocator and returns its allocation failure. These operations and <code>Format</code> must use one decimal-generation authority; parsing must scan an input once through one signed or unsigned decimal authority.</p><p>There are no type-named free-function aliases. This contract does not add floating-point values, arbitrary radix parsing, locale rules, or a matrix of public integer-to-integer conversions.</p>
+                <h1 id="numeric-values">Numeric Values</h1><h2 id="floating-point-representation">Floating-Point Representation</h2><p>The built-in <code>f32</code> and <code>f64</code> types expose their exact IEEE 754 representations through <code>from_bits</code> and <code>to_bits</code>. These operations preserve every bit, including the sign of zero and a NaN payload. Classification methods distinguish zero, subnormal, normal, infinity, and NaN values without allocating. <code>is_sign_negative</code> and <code>is_sign_positive</code> inspect the representation, so they also classify signed zero and NaN. <code>abs</code> clears only the sign bit.</p><p><code>F32_INFINITY</code>, <code>F32_NEG_INFINITY</code>, <code>F32_NAN</code>, <code>F64_INFINITY</code>, <code>F64_NEG_INFINITY</code>, and <code>F64_NAN</code> provide module-scoped special values. Arithmetic may canonicalize a NaN; use <code>from_bits</code> when an exact payload is part of a protocol or file format.</p><h2 id="integer-text">Integer Text</h2><p>Every built-in integer owns the decimal text surface declared by the compiler-checked <a href="./index/index.html#content"><code>std/num</code> contract</a>. <code>parse</code> is allocation-free and consumes the complete input. Unsigned types accept one or more ASCII digits. Signed types additionally accept exactly one leading <code>-</code>. Empty input, a leading <code>+</code>, whitespace, non-ASCII digits, another character, and a mathematical value outside the destination range return <code>none</code>. Leading zeroes are valid, and negative zero produces zero.</p><p><code>to_string</code> produces the shortest ordinary base-ten spelling, with <code>0</code> as the sole zero spelling and a leading <code>-</code> only for a negative signed value. It uses the current allocation context and aborts on allocation failure. <code>try_to_string</code> uses the supplied recoverable allocator and returns its allocation failure. These operations and <code>Format</code> must use one decimal-generation authority; parsing must scan an input once through one signed or unsigned decimal authority.</p><p>There are no type-named free-function aliases. This contract does not add arbitrary radix parsing, locale rules, or a matrix of public integer-to-integer conversions.</p>
             </div>
         </main>
     </div>

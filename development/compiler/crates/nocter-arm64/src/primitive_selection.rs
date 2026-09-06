@@ -125,6 +125,10 @@ pub(crate) fn select(
         | PrimitiveRole::U64WrappingMultiply
         | PrimitiveRole::U64BitwiseXor
         | PrimitiveRole::U64RotateRight => select_u64_mixing(operation, target, selected),
+        PrimitiveRole::F32FromBits
+        | PrimitiveRole::F32ToBits
+        | PrimitiveRole::F64FromBits
+        | PrimitiveRole::F64ToBits => select_float_bits(operation, target, selected),
         PrimitiveRole::AllocationAbort
         | PrimitiveRole::ProcessExit
         | PrimitiveRole::MonotonicCounterRead
@@ -143,6 +147,78 @@ pub(crate) fn select(
             super::system_primitive_selection::select(program, operation, target, selected)
         }
     }
+}
+
+fn select_float_bits(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_type_arguments(operation, target, 0)?;
+    let (size, float_class, from_bits) = match target.role() {
+        PrimitiveRole::F32FromBits => (Arm64DataSize::Bits32, MachineValueClass::Float32, true),
+        PrimitiveRole::F32ToBits => (Arm64DataSize::Bits32, MachineValueClass::Float32, false),
+        PrimitiveRole::F64FromBits => (Arm64DataSize::Bits64, MachineValueClass::Float64, true),
+        PrimitiveRole::F64ToBits => (Arm64DataSize::Bits64, MachineValueClass::Float64, false),
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    validate_float_bitcast_abi(operation, target, float_class, from_bits)?;
+    let general = fixed_register(0)?;
+    let floating = Arm64NocterAbi::floating_argument_register(0)
+        .map(crate::Arm64SelectedFloatRegister::Fixed)
+        .ok_or(Arm64SelectionError::RegisterOverflow)?;
+    selected.push(if from_bits {
+        Arm64SelectedInstruction::FloatMoveFromGeneral {
+            size,
+            destination: floating,
+            source: general,
+        }
+    } else {
+        Arm64SelectedInstruction::FloatMoveToGeneral {
+            size,
+            destination: general,
+            source: floating,
+        }
+    });
+    Ok(())
+}
+
+fn validate_float_bitcast_abi(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    float_class: MachineValueClass,
+    from_bits: bool,
+) -> Result<(), Arm64SelectionError> {
+    let [argument] = target.abi().arguments() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    let MachineResultAbi::Value(result) = target.abi().result() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    let Some(MachineArgumentLocation::Registers(argument_registers)) = argument.location() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    let MachineResultLocation::Registers(result_registers) = result.location() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    let integer_class = MachineValueClass::Direct { words: 1 };
+    let (expected_argument, expected_result) = if from_bits {
+        (integer_class, float_class)
+    } else {
+        (float_class, integer_class)
+    };
+    if target.abi().pack().is_some()
+        || target.abi().stack_argument_size() != 0
+        || argument.class() != expected_argument
+        || result.class() != expected_result
+        || argument_registers.first() != 0
+        || argument_registers.words() != 1
+        || result_registers.first() != 0
+        || result_registers.words() != 1
+    {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    Ok(())
 }
 
 fn select_u64_mixing(

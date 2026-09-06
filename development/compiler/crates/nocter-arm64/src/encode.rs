@@ -17,6 +17,7 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::BitfieldExtend { .. }
         | Arm64Instruction::FloatMove { .. }
         | Arm64Instruction::FloatMoveFromGeneral { .. }
+        | Arm64Instruction::FloatMoveToGeneral { .. }
         | Arm64Instruction::FloatFromInteger { .. }
         | Arm64Instruction::FloatWiden { .. }
         | Arm64Instruction::FloatNegate { .. }
@@ -122,6 +123,7 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         ),
         instruction @ (Arm64Instruction::FloatMove { .. }
         | Arm64Instruction::FloatMoveFromGeneral { .. }
+        | Arm64Instruction::FloatMoveToGeneral { .. }
         | Arm64Instruction::FloatFromInteger { .. }
         | Arm64Instruction::FloatWiden { .. }
         | Arm64Instruction::FloatNegate { .. }

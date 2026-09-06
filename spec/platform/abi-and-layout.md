@@ -179,7 +179,9 @@ layouts:
 | `bool`, `u8`, `i8` | 1 | 1 |
 | `u16`, `i16` | 2 | 2 |
 | `u32`, `i32` | 4 | 4 |
+| `f32` | 4 | 4 |
 | `u64`, `i64` | 8 | 8 |
+| `f64` | 8 | 8 |
 | `usize`, `isize` | 8 | 8 |
 | `*T`, `&T`, `&+T` | 8 | 8 |
 | `&str`, `&[T]`, `&+[T]` | 16 | 8 |
@@ -193,6 +195,11 @@ of the same width occupy the same number of bytes; they interpret those bits wit
 signed or unsigned value ranges. Multi-byte integers, `usize`, `isize`, pointers, and view words
 are stored least-significant byte first under the target's little-endian rule. Signed ABI-word
 extension replicates the two's-complement sign bit.
+
+`f32` and `f64` store IEEE 754 binary32 and binary64 bit patterns in the target's little-endian
+byte order. Scalar floating-point arguments and returns use the target floating-point register
+class. Aggregate values containing floating-point fields retain ordinary aggregate classification;
+their fields do not turn the aggregate into a floating-point scalar.
 
 Aggregates use their computed aggregate alignment.
 
