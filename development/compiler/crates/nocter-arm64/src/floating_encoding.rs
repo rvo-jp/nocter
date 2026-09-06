@@ -37,23 +37,23 @@ pub(crate) fn arithmetic(instruction: Arm64Instruction) -> u32 {
             signed,
             destination,
             source,
-        } => {
-            let base = match (source_size, target_size, signed) {
-                (Arm64DataSize::Bits32, Arm64DataSize::Bits32, true) => 0x1e22_0000,
-                (Arm64DataSize::Bits32, Arm64DataSize::Bits32, false) => 0x1e23_0000,
-                (Arm64DataSize::Bits32, Arm64DataSize::Bits64, true) => 0x1e62_0000,
-                (Arm64DataSize::Bits32, Arm64DataSize::Bits64, false) => 0x1e63_0000,
-                (Arm64DataSize::Bits64, Arm64DataSize::Bits32, true) => 0x9e22_0000,
-                (Arm64DataSize::Bits64, Arm64DataSize::Bits32, false) => 0x9e23_0000,
-                (Arm64DataSize::Bits64, Arm64DataSize::Bits64, true) => 0x9e62_0000,
-                (Arm64DataSize::Bits64, Arm64DataSize::Bits64, false) => 0x9e63_0000,
-            };
-            base | u32::from(source.number()) << 5 | u32::from(destination.number())
-        }
+        } => from_integer(source_size, target_size, signed, destination, source),
         Arm64Instruction::FloatWiden {
             destination,
             source,
         } => 0x1e22_c000 | u32::from(source.number()) << 5 | u32::from(destination.number()),
+        Arm64Instruction::FloatNarrow {
+            destination,
+            source,
+        } => 0x1e62_4000 | u32::from(source.number()) << 5 | u32::from(destination.number()),
+        Arm64Instruction::FloatToInteger {
+            signed,
+            destination,
+            source,
+        } => {
+            let base = if signed { 0x9e78_0000 } else { 0x9e79_0000 };
+            base | u32::from(source.number()) << 5 | u32::from(destination.number())
+        }
         Arm64Instruction::FloatNegate {
             size,
             destination,
@@ -94,6 +94,26 @@ pub(crate) fn arithmetic(instruction: Arm64Instruction) -> u32 {
         }
         _ => unreachable!("floating arithmetic encoding received another instruction class"),
     }
+}
+
+fn from_integer(
+    source_size: Arm64DataSize,
+    target_size: Arm64DataSize,
+    signed: bool,
+    destination: crate::Arm64FloatRegister,
+    source: crate::Arm64Register,
+) -> u32 {
+    let base = match (source_size, target_size, signed) {
+        (Arm64DataSize::Bits32, Arm64DataSize::Bits32, true) => 0x1e22_0000,
+        (Arm64DataSize::Bits32, Arm64DataSize::Bits32, false) => 0x1e23_0000,
+        (Arm64DataSize::Bits32, Arm64DataSize::Bits64, true) => 0x1e62_0000,
+        (Arm64DataSize::Bits32, Arm64DataSize::Bits64, false) => 0x1e63_0000,
+        (Arm64DataSize::Bits64, Arm64DataSize::Bits32, true) => 0x9e22_0000,
+        (Arm64DataSize::Bits64, Arm64DataSize::Bits32, false) => 0x9e23_0000,
+        (Arm64DataSize::Bits64, Arm64DataSize::Bits64, true) => 0x9e62_0000,
+        (Arm64DataSize::Bits64, Arm64DataSize::Bits64, false) => 0x9e63_0000,
+    };
+    base | u32::from(source.number()) << 5 | u32::from(destination.number())
 }
 
 fn rounding(

@@ -1,12 +1,7 @@
 //! One-pass decimal parsing and exact narrow-destination publication.
 
 see ./index.nct
-
-noalloc primitive func u16_truncate_raw(value: u64): u16
-noalloc primitive func u32_truncate_raw(value: u64): u32
-noalloc primitive func i8_truncate_raw(value: i64): i8
-noalloc primitive func i16_truncate_raw(value: i64): i16
-noalloc primitive func i32_truncate_raw(value: i64): i32
+see ./conversion.nct
 
 noalloc func parse_unsigned_decimal(text: &str): u64? {
     let raw = text.bytes()
@@ -114,7 +109,7 @@ construct isize {
 construct u8 {
     noalloc func parse(text: &str): Self? {
         let value = parse_unsigned_decimal(text) otherwise { return none }
-        return u8.checked(value)
+        return u8.from_u64(value)
     }
 }
 

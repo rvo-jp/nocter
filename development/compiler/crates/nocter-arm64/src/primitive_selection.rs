@@ -98,10 +98,7 @@ pub(crate) fn select(
             validate_register_abi(operation, target, &[1, 1], 2)?;
             validate_type_arguments(operation, target, 1)
         }
-        PrimitiveRole::BytesFromString => {
-            validate_register_abi(operation, target, &[2], 2)?;
-            validate_type_arguments(operation, target, 0)
-        }
+        PrimitiveRole::BytesFromString => select_bytes_from_string(operation, target),
         PrimitiveRole::StringSubviewUnchecked => select_string_subview(operation, target, selected),
         PrimitiveRole::SliceLength | PrimitiveRole::StringLength => {
             select_view_length(operation, target, selected)
@@ -125,15 +122,18 @@ pub(crate) fn select(
         PrimitiveRole::F32FromBits
         | PrimitiveRole::F32ToBits
         | PrimitiveRole::F64FromBits
-        | PrimitiveRole::F64ToBits => select_float_bits(operation, target, selected),
-        PrimitiveRole::F32Floor
+        | PrimitiveRole::F64ToBits
+        | PrimitiveRole::F32Floor
         | PrimitiveRole::F32Ceil
         | PrimitiveRole::F32Trunc
         | PrimitiveRole::F32RoundTiesEven
         | PrimitiveRole::F64Floor
         | PrimitiveRole::F64Ceil
         | PrimitiveRole::F64Trunc
-        | PrimitiveRole::F64RoundTiesEven => select_float_round(operation, target, selected),
+        | PrimitiveRole::F64RoundTiesEven
+        | PrimitiveRole::F64ToF32
+        | PrimitiveRole::F64ToI64
+        | PrimitiveRole::F64ToU64 => select_float_primitive(operation, target, selected),
         PrimitiveRole::AllocationAbort
         | PrimitiveRole::ProcessExit
         | PrimitiveRole::MonotonicCounterRead
@@ -151,6 +151,39 @@ pub(crate) fn select(
         | PrimitiveRole::Unreachable => {
             super::system_primitive_selection::select(program, operation, target, selected)
         }
+    }
+}
+
+fn select_bytes_from_string(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+) -> Result<(), Arm64SelectionError> {
+    validate_register_abi(operation, target, &[2], 2)?;
+    validate_type_arguments(operation, target, 0)
+}
+
+fn select_float_primitive(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    match target.role() {
+        PrimitiveRole::F32FromBits
+        | PrimitiveRole::F32ToBits
+        | PrimitiveRole::F64FromBits
+        | PrimitiveRole::F64ToBits => select_float_bits(operation, target, selected),
+        PrimitiveRole::F32Floor
+        | PrimitiveRole::F32Ceil
+        | PrimitiveRole::F32Trunc
+        | PrimitiveRole::F32RoundTiesEven
+        | PrimitiveRole::F64Floor
+        | PrimitiveRole::F64Ceil
+        | PrimitiveRole::F64Trunc
+        | PrimitiveRole::F64RoundTiesEven => select_float_round(operation, target, selected),
+        PrimitiveRole::F64ToF32 | PrimitiveRole::F64ToI64 | PrimitiveRole::F64ToU64 => {
+            select_float_conversion(operation, target, selected)
+        }
+        _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
 }
 
@@ -255,6 +288,46 @@ fn select_float_round(
         destination: register,
         source: register,
     });
+    Ok(())
+}
+
+fn select_float_conversion(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_type_arguments(operation, target, 0)?;
+    let source = Arm64NocterAbi::floating_argument_register(0)
+        .map(crate::Arm64SelectedFloatRegister::Fixed)
+        .ok_or(Arm64SelectionError::RegisterOverflow)?;
+    match target.role() {
+        PrimitiveRole::F64ToF32 => {
+            validate_float_register_abi(
+                operation,
+                target,
+                MachineValueClass::Float64,
+                MachineValueClass::Float32,
+            )?;
+            selected.push(Arm64SelectedInstruction::FloatNarrow {
+                destination: source,
+                source,
+            });
+        }
+        PrimitiveRole::F64ToI64 | PrimitiveRole::F64ToU64 => {
+            validate_float_register_abi(
+                operation,
+                target,
+                MachineValueClass::Float64,
+                MachineValueClass::Direct { words: 1 },
+            )?;
+            selected.push(Arm64SelectedInstruction::FloatToInteger {
+                signed: target.role() == PrimitiveRole::F64ToI64,
+                destination: fixed_register(0)?,
+                source,
+            });
+        }
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    }
     Ok(())
 }
 

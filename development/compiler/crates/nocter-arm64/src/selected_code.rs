@@ -220,6 +220,15 @@ fn emit_instruction(
             destination,
             source,
         } => crate::floating_code::emit_widen(function, destination, source, code),
+        Arm64SelectedInstruction::FloatNarrow {
+            destination,
+            source,
+        } => crate::floating_code::emit_narrow(function, destination, source, code),
+        Arm64SelectedInstruction::FloatToInteger {
+            signed,
+            destination,
+            source,
+        } => crate::floating_code::emit_to_integer(function, destination, source, signed, code),
         Arm64SelectedInstruction::LoadMemory {
             bytes,
             extension,

@@ -4,6 +4,7 @@ use /mem.TryAllocator
 use /order.Ordering
 use /string.String
 see ./decimal.nct
+see ./conversion.nct
 see ./floating.nct
 see ./scalar.nct
 see ./tests.nct
@@ -69,6 +70,10 @@ pub const F64_NAN: f64 = 0.0 / 0.0
 construct f32 {
     /// Creates a binary32 value with exactly the supplied IEEE representation.
     pub noalloc func from_bits(bits: u32): Self
+
+    /// Rounds a binary64 value to binary32, or returns none if a finite value leaves binary32's
+    /// finite nonzero range.
+    pub noalloc func from_f64(value: f64): Self?
 }
 
 construct f64 {
@@ -171,33 +176,51 @@ instance f64 {
 }
 
 construct i8 {
+    /// Converts an integral binary64 value when it is representable as `i8`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete signed decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct i16 {
+    /// Converts an integral binary64 value when it is representable as `i16`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete signed decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct i32 {
+    /// Converts an integral binary64 value when it is representable as `i32`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete signed decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct i64 {
+    /// Converts an integral binary64 value when it is representable as `i64`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete signed decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct isize {
+    /// Converts an integral binary64 value when it is representable as `isize`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete signed decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct u8 {
-    /// Converts a value when it is representable as `u8`.
-    pub noalloc func checked(value: u64): Self?
+    /// Converts an unsigned value when it is representable as `u8`.
+    pub noalloc func from_u64(value: u64): Self?
+
+    /// Converts an integral binary64 value when it is representable as `u8`.
+    pub noalloc func from_f64(value: f64): Self?
 
     /// Keeps the low eight bits of a value.
     pub noalloc func truncate(value: u64): Self
@@ -207,21 +230,33 @@ construct u8 {
 }
 
 construct u16 {
+    /// Converts an integral binary64 value when it is representable as `u16`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete unsigned decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct u32 {
+    /// Converts an integral binary64 value when it is representable as `u32`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete unsigned decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct u64 {
+    /// Converts an integral binary64 value when it is representable as `u64`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete unsigned decimal integer.
     pub noalloc func parse(text: &str): Self?
 }
 
 construct usize {
+    /// Converts an integral binary64 value when it is representable as `usize`.
+    pub noalloc func from_f64(value: f64): Self?
+
     /// Parses one complete unsigned decimal integer.
     pub noalloc func parse(text: &str): Self?
 }

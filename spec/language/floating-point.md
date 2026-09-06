@@ -91,6 +91,17 @@ representable in the destination floating type. Floating-to-integer conversion, 
 other rounding or narrowing conversions require named library operations rather than inheriting a
 machine instruction's sentinel or saturation behavior.
 
+Every built-in integer declares `from_f64(value: f64): Self?`. It succeeds only when `value` is
+finite, integral, and inside the destination type's mathematical range. It accepts either sign of
+zero as integer zero and rejects NaN, infinity, fractional values, and out-of-range values. A
+binary32 input can first use the lossless `as f64` conversion; the checked decision is still made
+once by the destination constructor.
+
+`f32.from_f64(value)` rounds a finite value to nearest with ties to even. It returns `none` when a
+finite input would become infinity or when a finite nonzero input would become zero. Finite rounded
+results, both infinities, both zero signs, and NaN classification are otherwise retained. This
+range-checked narrowing does not promise to preserve a NaN payload.
+
 Contextual literal typing is not conversion. Write `1.0` for a floating-point value rather than
 expecting the integer token `1` to change domains.
 

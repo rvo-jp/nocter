@@ -20,6 +20,8 @@ pub(crate) fn encode(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::FloatMoveToGeneral { .. }
         | Arm64Instruction::FloatFromInteger { .. }
         | Arm64Instruction::FloatWiden { .. }
+        | Arm64Instruction::FloatNarrow { .. }
+        | Arm64Instruction::FloatToInteger { .. }
         | Arm64Instruction::FloatNegate { .. }
         | Arm64Instruction::FloatRound { .. }
         | Arm64Instruction::FloatBinary { .. }
@@ -127,6 +129,8 @@ fn encode_arithmetic(instruction: Arm64Instruction) -> Result<u32, Arm64Encoding
         | Arm64Instruction::FloatMoveToGeneral { .. }
         | Arm64Instruction::FloatFromInteger { .. }
         | Arm64Instruction::FloatWiden { .. }
+        | Arm64Instruction::FloatNarrow { .. }
+        | Arm64Instruction::FloatToInteger { .. }
         | Arm64Instruction::FloatNegate { .. }
         | Arm64Instruction::FloatRound { .. }
         | Arm64Instruction::FloatBinary { .. }

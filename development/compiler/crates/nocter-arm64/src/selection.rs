@@ -192,6 +192,15 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedFloatRegister,
         source: Arm64SelectedFloatRegister,
     },
+    FloatNarrow {
+        destination: Arm64SelectedFloatRegister,
+        source: Arm64SelectedFloatRegister,
+    },
+    FloatToInteger {
+        signed: bool,
+        destination: Arm64SelectedRegister,
+        source: Arm64SelectedFloatRegister,
+    },
     LoadMemory {
         bytes: u8,
         extension: Arm64SelectedLoadExtension,

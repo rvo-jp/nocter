@@ -17,6 +17,17 @@ exact payload is part of a protocol or file format.
 These operations preserve an already integral value, infinity, NaN classification, and the sign of
 zero. They do not allocate and return the same floating-point type.
 
+## Checked Numeric Conversion
+
+Every integer type exposes `from_f64`. It accepts only finite, mathematically integral values in
+the destination range; fractional values, infinities, NaNs, and overflow return `none`. A binary32
+caller widens with `as f64` without information loss before using the same conversion authority.
+
+`f32.from_f64` performs round-to-nearest, ties-to-even narrowing. It returns `none` if a finite
+value overflows to infinity or a finite nonzero value underflows to zero. Non-finite input retains
+its classification. The source implementation proves these preconditions before invoking the
+closed target conversion primitive, so no target saturation or sentinel value becomes public API.
+
 ## Integer Text
 
 Every built-in integer owns the decimal text surface declared by the compiler-checked

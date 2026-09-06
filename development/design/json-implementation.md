@@ -128,7 +128,7 @@ JSON consumes two package-internal prerequisites from their existing owners:
 1. a package-internal Unicode-scalar encoder in the existing UTF-8 responsibility;
 2. a package-internal active-context `TryAllocator` adapter in the existing memory responsibility.
 
-The numeric contract supplies `u8.checked(u64)` and `u8.truncate(u64)` through the ordinary numeric
+The numeric contract supplies `u8.from_u64(u64)` and `u8.truncate(u64)` through the ordinary numeric
 and runtime boundary. Its source-private primitive role is exercised independently of JSON. It is
 not a JSON declaration, parser operation, or ABI.
 

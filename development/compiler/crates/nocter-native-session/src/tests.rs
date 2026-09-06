@@ -2243,7 +2243,7 @@ fn standard_num_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard numeric tests failed native compilation")
     };
-    assert_eq!(cases.len(), 9);
+    assert_eq!(cases.len(), 10);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -2395,7 +2395,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("allocator failure numeric tests failed native compilation")
     };
-    assert_eq!(cases.len(), 13);
+    assert_eq!(cases.len(), 14);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

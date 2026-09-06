@@ -1,0 +1,129 @@
+//! Checked numeric conversion boundaries.
+
+see ./index.nct
+
+noalloc primitive func u8_truncate_raw(value: u64): u8
+noalloc primitive func u16_truncate_raw(value: u64): u16
+noalloc primitive func u32_truncate_raw(value: u64): u32
+noalloc primitive func i8_truncate_raw(value: i64): i8
+noalloc primitive func i16_truncate_raw(value: i64): i16
+noalloc primitive func i32_truncate_raw(value: i64): i32
+noalloc primitive func f64_to_f32_raw(value: f64): f32
+noalloc primitive func f64_to_i64_raw(value: f64): i64
+noalloc primitive func f64_to_u64_raw(value: f64): u64
+
+construct f32 {
+    noalloc func from_f64(value: f64): Self? {
+        let narrowed = f64_to_f32_raw(value)
+        if value.is_finite() {
+            if !narrowed.is_finite() { return none }
+            if !value.is_zero() && narrowed.is_zero() { return none }
+        }
+        return narrowed
+    }
+}
+
+construct i8 {
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_i64_from_f64(value) otherwise { return none }
+        if whole < -128 || whole > 127 { return none }
+        return i8_truncate_raw(whole)
+    }
+}
+
+construct i16 {
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_i64_from_f64(value) otherwise { return none }
+        if whole < -32768 || whole > 32767 { return none }
+        return i16_truncate_raw(whole)
+    }
+}
+
+construct i32 {
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_i64_from_f64(value) otherwise { return none }
+        if whole < -2147483648 || whole > 2147483647 { return none }
+        return i32_truncate_raw(whole)
+    }
+}
+
+construct i64 {
+    noalloc func from_f64(value: f64): Self? {
+        return exact_i64_from_f64(value)
+    }
+}
+
+construct isize {
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_i64_from_f64(value) otherwise { return none }
+        return whole as isize
+    }
+}
+
+construct u8 {
+    noalloc func from_u64(value: u64): Self? {
+        if value > 255 { return none }
+        return u8_truncate_raw(value)
+    }
+
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_u64_from_f64(value) otherwise { return none }
+        return u8.from_u64(whole)
+    }
+
+    noalloc func truncate(value: u64): Self {
+        return u8_truncate_raw(value)
+    }
+}
+
+construct u16 {
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_u64_from_f64(value) otherwise { return none }
+        if whole > 65535 { return none }
+        return u16_truncate_raw(whole)
+    }
+}
+
+construct u32 {
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_u64_from_f64(value) otherwise { return none }
+        if whole > 4294967295 { return none }
+        return u32_truncate_raw(whole)
+    }
+}
+
+construct u64 {
+    noalloc func from_f64(value: f64): Self? {
+        return exact_u64_from_f64(value)
+    }
+}
+
+construct usize {
+    noalloc func from_f64(value: f64): Self? {
+        let whole = exact_u64_from_f64(value) otherwise { return none }
+        return whole as usize
+    }
+}
+
+noalloc func exact_i64_from_f64(value: f64): i64? {
+    if !value.is_finite() || value.trunc() != value { return none }
+    if value < -9223372036854775808.0 || value >= 9223372036854775808.0 { return none }
+    return f64_to_i64_raw(value)
+}
+
+noalloc func exact_u64_from_f64(value: f64): u64? {
+    if !value.is_finite() || value.trunc() != value { return none }
+    if value < 0.0 || value >= 18446744073709551616.0 { return none }
+    return f64_to_u64_raw(value)
+}
+
+test checked_and_truncating_u8_conversions_are_explicit {
+    let maximum = u8.from_u64(255) otherwise {
+        return error.new("std.num.checked", "u8 maximum was rejected")
+    }
+    if maximum != 255 || u8.truncate(511) != 255 {
+        return error.new("std.num.truncate", "low-byte conversion changed")
+    }
+    let _overflow = u8.from_u64(256) otherwise { return }
+    return error.new("std.num.checked", "out-of-range u8 conversion succeeded")
+}

@@ -180,6 +180,33 @@ fn encodes_scalar_floating_register_arithmetic_and_memory() {
 }
 
 #[test]
+fn encodes_checked_floating_conversions() {
+    assert_eq!(
+        word(Arm64Instruction::FloatNarrow {
+            destination: v(3),
+            source: v(4),
+        }),
+        0x1e62_4083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatToInteger {
+            signed: true,
+            destination: x(3),
+            source: v(4),
+        }),
+        0x9e78_0083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatToInteger {
+            signed: false,
+            destination: x(3),
+            source: v(4),
+        }),
+        0x9e79_0083
+    );
+}
+
+#[test]
 fn encodes_scalar_floating_rounding() {
     assert_eq!(
         word(Arm64Instruction::FloatRound {

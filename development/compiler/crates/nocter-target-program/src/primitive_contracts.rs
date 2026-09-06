@@ -688,7 +688,9 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::F32FromBits => make(0, vec![u32()], f32(), private, None, vec![]),
         PrimitiveRole::F32ToBits => make(0, vec![f32()], u32(), private, None, vec![]),
         PrimitiveRole::F64FromBits => make(0, vec![u64()], f64(), private, None, vec![]),
-        PrimitiveRole::F64ToBits => make(0, vec![f64()], u64(), private, None, vec![]),
+        PrimitiveRole::F64ToBits | PrimitiveRole::F64ToU64 => {
+            make(0, vec![f64()], u64(), private, None, vec![])
+        }
         PrimitiveRole::F32Floor
         | PrimitiveRole::F32Ceil
         | PrimitiveRole::F32Trunc
@@ -697,6 +699,8 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         | PrimitiveRole::F64Ceil
         | PrimitiveRole::F64Trunc
         | PrimitiveRole::F64RoundTiesEven => make(0, vec![f64()], f64(), private, None, vec![]),
+        PrimitiveRole::F64ToF32 => make(0, vec![f64()], f32(), private, None, vec![]),
+        PrimitiveRole::F64ToI64 => make(0, vec![f64()], i64(), private, None, vec![]),
         PrimitiveRole::U64WrappingAdd
         | PrimitiveRole::U64WrappingMultiply
         | PrimitiveRole::U64BitwiseXor

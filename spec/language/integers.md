@@ -98,16 +98,16 @@ let unsigned = signed as u64 // error: not lossless for all i32 values
 
 let big: u64 = 300
 let small = big as u8       // error: narrowing
-let checked = u8.checked(big)    // u8?
+let checked = u8.from_u64(big)   // u8?
 let truncated = u8.truncate(big) // u8
 ```
 
-`checked` and `truncate` are explicit numeric conversion APIs declared as construction functions by
+`from_u64` and `truncate` are explicit numeric conversion APIs declared as construction functions by
 the active standard-library package. Their names have no special grammar meaning:
 
 ```nct
 construct u8 {
-    pub noalloc func checked(value: u64): Self?
+    pub noalloc func from_u64(value: u64): Self?
     pub noalloc func truncate(value: u64): Self
 }
 ```

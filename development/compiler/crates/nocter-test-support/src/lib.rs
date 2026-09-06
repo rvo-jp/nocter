@@ -234,12 +234,15 @@ primitive func f64_floor_raw(value: f64): f64
 primitive func f64_ceil_raw(value: f64): f64
 primitive func f64_trunc_raw(value: f64): f64
 primitive func f64_round_ties_even_raw(value: f64): f64
+primitive func f64_to_f32_raw(value: f64): f32
+primitive func f64_to_i64_raw(value: f64): i64
+primitive func f64_to_u64_raw(value: f64): u64
 primitive func u64_wrapping_add_raw(left: u64, right: u64): u64
 primitive func u64_wrapping_mul_raw(left: u64, right: u64): u64
 primitive func u64_bit_xor_raw(left: u64, right: u64): u64
 primitive func u64_rotate_right_raw(value: u64, amount: u64): u64
 construct u8 {
-    pub func checked(value: u64): Self? {
+    pub func from_u64(value: u64): Self? {
         if value > 255 { return none }
         return u8_truncate_raw(value)
     }

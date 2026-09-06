@@ -337,3 +337,52 @@ test floating_bits_and_classification_preserve_ieee_identity {
     require(F64_NAN.ceil().is_nan(), "rounding made f64 NaN finite")?
     return
 }
+
+test floating_checked_conversions_enforce_range_and_integrality {
+    let signed = i64.from_f64(-9223372036854775808.0) otherwise {
+        return error.new("std.num.convert", "i64 minimum was rejected")
+    }
+    let unsigned = u64.from_f64(18446744073709549568.0) otherwise {
+        return error.new("std.num.convert", "largest representable u64 below 2^64 was rejected")
+    }
+    let small = i8.from_f64(127.0) otherwise {
+        return error.new("std.num.convert", "i8 maximum was rejected")
+    }
+    if signed != -9223372036854775808 || unsigned != 18446744073709549568 || small != 127 {
+        return error.new("std.num.convert", "an exact integer conversion changed its value")
+    }
+    if !is_none(i64.from_f64(1.5)) || !is_none(u64.from_f64(-0.5)) {
+        return error.new("std.num.convert", "a fractional conversion succeeded")
+    }
+    if !is_none(i64.from_f64(F64_INFINITY)) || !is_none(u64.from_f64(F64_NAN)) {
+        return error.new("std.num.convert", "a non-finite integer conversion succeeded")
+    }
+    if !is_none(i64.from_f64(9223372036854775808.0))
+        || !is_none(u64.from_f64(18446744073709551616.0))
+        || !is_none(i8.from_f64(128.0)) {
+        return error.new("std.num.convert", "an out-of-range integer conversion succeeded")
+    }
+
+    let narrowed = f32.from_f64(1.5) otherwise {
+        return error.new("std.num.convert", "finite f32 narrowing was rejected")
+    }
+    if narrowed.to_bits() != 1069547520 {
+        return error.new("std.num.convert", "f32 narrowing did not round predictably")
+    }
+    if !is_none(f32.from_f64(1.0e300)) || !is_none(f32.from_f64(1.0e-300)) {
+        return error.new("std.num.convert", "range-losing f32 narrowing succeeded")
+    }
+    let infinity = f32.from_f64(F64_INFINITY) otherwise {
+        return error.new("std.num.convert", "infinity narrowing was rejected")
+    }
+    let nan = f32.from_f64(F64_NAN) otherwise {
+        return error.new("std.num.convert", "NaN narrowing was rejected")
+    }
+    let negative_zero = f32.from_f64(f64.from_bits(9223372036854775808)) otherwise {
+        return error.new("std.num.convert", "negative zero narrowing was rejected")
+    }
+    if !infinity.is_infinite() || !nan.is_nan() || negative_zero.to_bits() != 2147483648 {
+        return error.new("std.num.convert", "narrowing changed an IEEE classification")
+    }
+    return
+}

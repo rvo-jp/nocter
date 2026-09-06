@@ -192,6 +192,7 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">Ordering</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>decimal<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>conversion<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>floating<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>scalar<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
@@ -257,6 +258,10 @@
 <span class="token-keyword">construct</span> f32 <span class="token-operator">{</span>
     <span class="token-comment">/// Creates a binary32 value with exactly the supplied IEEE representation.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_bits</span><span class="token-operator">(</span>bits<span class="token-operator">:</span> <span class="token-type">u32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds a binary64 value to binary32, or returns none if a finite value leaves binary32's</span>
+    <span class="token-comment">/// finite nonzero range.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> f64 <span class="token-operator">{</span>
@@ -359,33 +364,51 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `i8`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i16</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `i16`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `i32`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i64</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `i64`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">isize</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `isize`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete signed decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u8</span> <span class="token-operator">{</span>
-    <span class="token-comment">/// Converts a value when it is representable as `u8`.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">checked</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+    <span class="token-comment">/// Converts an unsigned value when it is representable as `u8`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_u64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `u8`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 
     <span class="token-comment">/// Keeps the low eight bits of a value.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">truncate</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
@@ -395,21 +418,33 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u16</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `u16`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `u32`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u64</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `u64`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">usize</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an integral binary64 value when it is representable as `usize`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Parses one complete unsigned decimal integer.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 <span class="token-operator">}</span>
