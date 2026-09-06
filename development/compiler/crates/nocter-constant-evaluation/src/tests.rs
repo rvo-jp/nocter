@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use nocter_model::{ArenaBuilder, BuiltinType, ConstantId, ConstantValue};
+use nocter_model::{ArenaBuilder, BuiltinType, CompilationTarget, ConstantId, ConstantValue};
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 use crate::{
     ConstantEvaluationRule, ConstantPlanError, ConstantPlanRule, ConstantReference,
-    ConstantResolver, ConstantScalarType, evaluate_constant_plans, evaluate_expression_plan,
-    plan_expression,
+    ConstantResolver, ConstantScalarType, FloatFormat, evaluate_constant_plans,
+    evaluate_expression_plan, plan_expression,
 };
 
 struct Resolver {
@@ -35,6 +35,7 @@ fn signed_minimum_literal_is_evaluated_in_the_signed_result_domain() {
         conversion: None,
     };
     let plan = plan_expression(
+        CompilationTarget::Arm64Darwin,
         sources.get(tree.source()).unwrap(),
         &tree,
         expression,
@@ -57,6 +58,7 @@ fn short_circuiting_skips_values_but_not_rhs_type_planning() {
         conversion: None,
     };
     let plan = plan_expression(
+        CompilationTarget::Arm64Darwin,
         sources.get(tree.source()).unwrap(),
         &tree,
         expression,
@@ -71,6 +73,7 @@ fn short_circuiting_skips_values_but_not_rhs_type_planning() {
 
     let (sources, tree, expression) = parsed_expression("false && 1");
     let error = plan_expression(
+        CompilationTarget::Arm64Darwin,
         sources.get(tree.source()).unwrap(),
         &tree,
         expression,
@@ -104,6 +107,7 @@ fn authored_dependency_cycles_are_rejected_before_evaluation() {
         conversion: None,
     };
     let first_plan = plan_expression(
+        CompilationTarget::Arm64Darwin,
         first_sources.get(first_tree.source()).unwrap(),
         &first_tree,
         first_expression,
@@ -112,6 +116,7 @@ fn authored_dependency_cycles_are_rejected_before_evaluation() {
     )
     .unwrap();
     let second_plan = plan_expression(
+        CompilationTarget::Arm64Darwin,
         second_sources.get(second_tree.source()).unwrap(),
         &second_tree,
         second_expression,
@@ -125,6 +130,66 @@ fn authored_dependency_cycles_are_rejected_before_evaluation() {
         evaluate_constant_plans(&plans).unwrap_err().rule(),
         ConstantEvaluationRule::DependencyCycle
     );
+}
+
+#[test]
+fn floating_expressions_share_target_literal_arithmetic_and_conversion() {
+    assert_eq!(
+        evaluate_float("0.1 + 0.2", FloatFormat::Binary64),
+        ConstantValue::Float64(0x3fd3_3333_3333_3334)
+    );
+    assert_eq!(
+        evaluate_float("1.5f32 as f64", FloatFormat::Binary64),
+        ConstantValue::Float64(0x3ff8_0000_0000_0000)
+    );
+    assert_eq!(
+        evaluate_float("1.0 / 0.0", FloatFormat::Binary64),
+        ConstantValue::Float64(0x7ff0_0000_0000_0000)
+    );
+    assert_eq!(
+        evaluate_float("-0.0", FloatFormat::Binary64),
+        ConstantValue::Float64(0x8000_0000_0000_0000)
+    );
+}
+
+#[test]
+fn floating_constant_comparison_preserves_nan_incomparability() {
+    let (sources, tree, expression) = parsed_expression("(0.0 / 0.0) <= 1.0");
+    let mut resolver = Resolver {
+        reference: None,
+        conversion: None,
+    };
+    let plan = plan_expression(
+        CompilationTarget::Arm64Darwin,
+        sources.get(tree.source()).unwrap(),
+        &tree,
+        expression,
+        ConstantScalarType::Bool,
+        &mut resolver,
+    )
+    .unwrap();
+    assert_eq!(
+        evaluate_expression_plan(&plan, |_| None).unwrap(),
+        ConstantValue::Bool(false)
+    );
+}
+
+fn evaluate_float(expression: &str, format: FloatFormat) -> ConstantValue {
+    let (sources, tree, expression) = parsed_expression(expression);
+    let mut resolver = Resolver {
+        reference: None,
+        conversion: Some(ConstantScalarType::Float(format)),
+    };
+    let plan = plan_expression(
+        CompilationTarget::Arm64Darwin,
+        sources.get(tree.source()).unwrap(),
+        &tree,
+        expression,
+        ConstantScalarType::Float(format),
+        &mut resolver,
+    )
+    .unwrap();
+    evaluate_expression_plan(&plan, |_| None).unwrap()
 }
 
 fn parsed_expression(text: &str) -> (SourceMap, SyntaxTree, NodeId) {

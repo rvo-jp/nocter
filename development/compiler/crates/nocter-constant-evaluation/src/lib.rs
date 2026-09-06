@@ -18,7 +18,10 @@ pub use evaluate::{
     ConstantEvaluationError, ConstantEvaluationRule, evaluate_constant_plans,
     evaluate_expression_plan, evaluate_frozen_expression_plan,
 };
-pub use floating::{FloatBits, FloatFormat, FloatLiteralError, TargetFloatEvaluator};
+pub use floating::{
+    FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, FloatLiteralError,
+    TargetFloatEvaluator,
+};
 pub use model::{
     ConstantExpressionPlan, ConstantPlanError, ConstantPlanRule, ConstantReference,
     ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,
@@ -61,12 +64,12 @@ impl ConstantExpressionRule {
     pub const fn help(self) -> &'static str {
         match self {
             Self::NonConstantExpression => {
-                "use literals, constants, grouping, built-in operators, or a representable integer conversion"
+                "use literals, constants, grouping, built-in operators, or a permitted lossless numeric conversion"
             }
             Self::TypeMismatch => "make the expression and its required type agree",
             Self::DependencyCycle => "remove one reference in the compile-time dependency cycle",
             Self::ArithmeticFailure => {
-                "change the expression so it cannot overflow, divide by zero, or use an invalid shift"
+                "use representable literals and avoid invalid integer arithmetic or shifts"
             }
         }
     }

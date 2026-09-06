@@ -1,4 +1,4 @@
-use nocter_model::{BuiltinType, ConstantId, ConstantValue};
+use nocter_model::{BuiltinType, CompilationTarget, ConstantId, ConstantValue};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, Punctuation};
 
@@ -8,6 +8,7 @@ use crate::ConstantExpressionRule;
 pub enum ConstantScalarType {
     Bool,
     Character,
+    Float(crate::FloatFormat),
     Integer(BuiltinType),
     Text,
 }
@@ -127,6 +128,7 @@ pub(crate) struct PlanNode {
 #[derive(Clone, Debug)]
 pub(crate) enum ConstantOperation {
     Value(ConstantValue),
+    FloatLiteral(Box<str>),
     IntegerLiteral(u64),
     Reference(ConstantId),
     Unary {
@@ -145,6 +147,7 @@ pub(crate) enum ConstantOperation {
 
 #[derive(Clone, Debug)]
 pub struct ConstantExpressionPlan {
+    pub(crate) target: CompilationTarget,
     pub(crate) nodes: Vec<PlanNode>,
     pub(crate) root: PlanNodeId,
 }
@@ -180,5 +183,10 @@ impl ConstantExpressionPlan {
     #[must_use]
     pub fn result_type(&self) -> ConstantScalarType {
         self.nodes[self.root.0].ty
+    }
+
+    #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.target
     }
 }

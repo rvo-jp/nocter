@@ -15,8 +15,11 @@ const EQUAL: bool = 1 == WIDE
 const MINIMUM: i8 = -128
 const LABEL: &str = "nocter"
 const SCALAR: char = '\u{1F600}'
+const FLOAT_SUM: f64 = 0.1 + 0.2
+const FLOAT_WIDENED: f64 = 1.5f32 as f64
 static LIMITS: [u32; 2] = [65, 90]
 static LABELS: [&str; 2] = ["first", "second"]
+static FLOATS: [f32; 2] = [0.5, 1.5]
 type Bytes = [u8; ANSWER]
 
 #target: "arm64-darwin"
@@ -363,6 +366,8 @@ fn assert_header_constants(program: &nocter_declarations::DeclarationProgram) {
             nocter_model::ConstantValue::Integer(-128),
             nocter_model::ConstantValue::Text("nocter".into()),
             nocter_model::ConstantValue::Character(0x1F600),
+            nocter_model::ConstantValue::Float64(0x3fd3_3333_3333_3334),
+            nocter_model::ConstantValue::Float64(0x3ff8_0000_0000_0000),
         ]
     );
     assert!(
@@ -393,6 +398,14 @@ fn assert_header_statics(program: &nocter_declarations::DeclarationProgram) {
                 )),
                 nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Text(
                     "second".into(),
+                )),
+            ])),
+            nocter_model::FrozenValue::FixedArray(Box::new([
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Float32(
+                    0x3f00_0000,
+                )),
+                nocter_model::FrozenValue::Scalar(nocter_model::ConstantValue::Float32(
+                    0x3fc0_0000,
                 )),
             ])),
         ]

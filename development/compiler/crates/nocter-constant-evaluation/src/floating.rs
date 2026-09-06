@@ -2,6 +2,10 @@ use std::cmp::Ordering;
 
 use nocter_model::CompilationTarget;
 
+mod operations;
+
+pub use operations::{FloatBinaryOperation, FloatComparisonOperation};
+
 /// IEEE binary format selected after contextual source typing.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum FloatFormat {
@@ -39,7 +43,10 @@ impl FloatFormat {
     }
 
     const fn fraction_bits(self) -> u32 {
-        (self.precision() - 1) as u32
+        match self {
+            Self::Binary32 => 23,
+            Self::Binary64 => 52,
+        }
     }
 }
 
@@ -80,30 +87,31 @@ impl TargetFloatEvaluator {
     /// The implementation performs integer-rational rounding and never asks the compiler host to
     /// parse or calculate a floating-point value. The target parameter deliberately remains part
     /// of this contract even while every recognized target uses the same IEEE scalar formats.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FloatLiteralError`] when the spelling is invalid or its nonzero value is outside
+    /// the finite range of the selected format.
     pub fn decimal_bits(
         self,
         spelling: &str,
         format: FloatFormat,
     ) -> Result<FloatBits, FloatLiteralError> {
-        let _target = self.target;
         let decimal = Decimal::parse(spelling)?;
         let bits = decimal.to_ieee(format)?;
-        Ok(match format {
-            FloatFormat::Binary32 => FloatBits::Binary32(
-                u32::try_from(bits).expect("binary32 construction cannot set high bits"),
-            ),
-            FloatFormat::Binary64 => FloatBits::Binary64(bits),
-        })
+        match format {
+            FloatFormat::Binary32 => u32::try_from(bits)
+                .map(FloatBits::Binary32)
+                .map_err(|_| FloatLiteralError::Invalid),
+            FloatFormat::Binary64 => Ok(FloatBits::Binary64(bits)),
+        }
     }
 }
-
-const RETAINED_SIGNIFICANT_DIGITS: usize = 1200;
 
 struct Decimal {
     significand: BigNat,
     significant_decimal_digits: i64,
-    decimal_exponent: i64,
-    discarded_nonzero: bool,
+    exponent10: i64,
 }
 
 impl Decimal {
@@ -138,33 +146,22 @@ impl Decimal {
             return Ok(Self {
                 significand: BigNat::zero(),
                 significant_decimal_digits: 1,
-                decimal_exponent: 0,
-                discarded_nonzero: false,
+                exponent10: 0,
             });
         };
         digits.drain(..first_nonzero);
         let trailing_zeros = digits.iter().rev().take_while(|digit| **digit == 0).count();
         digits.truncate(digits.len() - trailing_zeros);
 
-        let mut decimal_exponent = authored_exponent
+        let exponent10 = authored_exponent
             .saturating_sub(i64::try_from(fraction_digits).unwrap_or(i64::MAX))
             .saturating_add(i64::try_from(trailing_zeros).unwrap_or(i64::MAX));
-        let discarded_nonzero = digits
-            .get(RETAINED_SIGNIFICANT_DIGITS..)
-            .is_some_and(|tail| tail.iter().any(|digit| *digit != 0));
-        if digits.len() > RETAINED_SIGNIFICANT_DIGITS {
-            let discarded = digits.len() - RETAINED_SIGNIFICANT_DIGITS;
-            digits.truncate(RETAINED_SIGNIFICANT_DIGITS);
-            decimal_exponent =
-                decimal_exponent.saturating_add(i64::try_from(discarded).unwrap_or(i64::MAX));
-        }
         let significant_decimal_digits =
             i64::try_from(digits.len()).map_err(|_| FloatLiteralError::Invalid)?;
         Ok(Self {
             significand: BigNat::from_decimal_digits(&digits),
             significant_decimal_digits,
-            decimal_exponent,
-            discarded_nonzero,
+            exponent10,
         })
     }
 
@@ -174,7 +171,7 @@ impl Decimal {
         }
         let adjusted = self
             .significant_decimal_digits
-            .saturating_add(self.decimal_exponent)
+            .saturating_add(self.exponent10)
             .saturating_sub(1);
         if adjusted > 400 {
             return Err(FloatLiteralError::Overflow);
@@ -183,9 +180,9 @@ impl Decimal {
             return Err(FloatLiteralError::Underflow);
         }
 
-        let (numerator, denominator) = if self.decimal_exponent >= 0 {
+        let (numerator, denominator) = if self.exponent10 >= 0 {
             let exponent =
-                usize::try_from(self.decimal_exponent).map_err(|_| FloatLiteralError::Overflow)?;
+                usize::try_from(self.exponent10).map_err(|_| FloatLiteralError::Overflow)?;
             (
                 self.significand
                     .clone()
@@ -193,7 +190,7 @@ impl Decimal {
                 BigNat::one(),
             )
         } else {
-            let exponent = usize::try_from(self.decimal_exponent.unsigned_abs())
+            let exponent = usize::try_from(self.exponent10.unsigned_abs())
                 .map_err(|_| FloatLiteralError::Underflow)?;
             (self.significand.clone(), BigNat::power_of_ten(exponent))
         };
@@ -204,8 +201,7 @@ impl Decimal {
 
         if exponent >= minimum {
             let shift = precision - 1 - exponent;
-            let mut significand =
-                rounded_ratio(&numerator, &denominator, shift, self.discarded_nonzero)?;
+            let mut significand = rounded_ratio(&numerator, &denominator, shift)?;
             let precision_limit = 1_u64 << u32::try_from(precision).expect("IEEE precision");
             if significand == precision_limit {
                 significand >>= 1;
@@ -221,7 +217,7 @@ impl Decimal {
         }
 
         let shift = precision - 1 - minimum;
-        let significand = rounded_ratio(&numerator, &denominator, shift, self.discarded_nonzero)?;
+        let significand = rounded_ratio(&numerator, &denominator, shift)?;
         if significand == 0 {
             return Err(FloatLiteralError::Underflow);
         }
@@ -297,7 +293,6 @@ fn rounded_ratio(
     numerator: &BigNat,
     denominator: &BigNat,
     binary_shift: i32,
-    discarded_nonzero: bool,
 ) -> Result<u64, FloatLiteralError> {
     let (mut scaled_numerator, scaled_denominator) = if binary_shift >= 0 {
         (
@@ -314,7 +309,7 @@ fn rounded_ratio(
     let twice_remainder = scaled_numerator.shifted(1);
     let round_up = match twice_remainder.cmp(&scaled_denominator) {
         Ordering::Greater => true,
-        Ordering::Equal => discarded_nonzero || quotient % 2 == 1,
+        Ordering::Equal => quotient % 2 == 1,
         Ordering::Less => false,
     };
     quotient
@@ -345,6 +340,22 @@ impl BigNat {
         value
     }
 
+    fn from_u128(value: u128) -> Self {
+        let limbs = [
+            limb_from_u128(value),
+            limb_from_u128(value >> 32),
+            limb_from_u128(value >> 64),
+            limb_from_u128(value >> 96),
+        ];
+        let length = limbs
+            .iter()
+            .rposition(|limb| *limb != 0)
+            .map_or(0, |index| index + 1);
+        Self {
+            limbs: limbs[..length].to_vec(),
+        }
+    }
+
     fn power_of_ten(exponent: usize) -> Self {
         Self::one().multiplied_by_power_of_ten(exponent)
     }
@@ -360,11 +371,11 @@ impl BigNat {
         let mut carry = 0_u64;
         for limb in &mut self.limbs {
             let value = u64::from(*limb) * u64::from(multiplier) + carry;
-            *limb = value as u32;
+            *limb = low_limb(value);
             carry = value >> 32;
         }
         if carry != 0 {
-            self.limbs.push(carry as u32);
+            self.limbs.push(low_limb(carry));
         }
     }
 
@@ -372,14 +383,14 @@ impl BigNat {
         let mut carry = u64::from(addend);
         for limb in &mut self.limbs {
             let value = u64::from(*limb) + carry;
-            *limb = value as u32;
+            *limb = low_limb(value);
             carry = value >> 32;
             if carry == 0 {
                 return;
             }
         }
         if carry != 0 {
-            self.limbs.push(carry as u32);
+            self.limbs.push(low_limb(carry));
         }
     }
 
@@ -403,23 +414,24 @@ impl BigNat {
         let mut carry = 0_u64;
         for limb in &self.limbs {
             let value = (u64::from(*limb) << partial) | carry;
-            limbs.push(value as u32);
+            limbs.push(low_limb(value));
             carry = value >> 32;
         }
         if carry != 0 {
-            limbs.push(carry as u32);
+            limbs.push(low_limb(carry));
         }
         Self { limbs }
     }
 
     fn subtract_assign(&mut self, other: &Self) {
-        debug_assert!((&*self).cmp(other) != Ordering::Less);
+        debug_assert!((*self).cmp(other) != Ordering::Less);
         let mut borrow = 0_i64;
         for index in 0..self.limbs.len() {
             let left = i64::from(self.limbs[index]);
             let right = other.limbs.get(index).copied().map_or(0, i64::from);
             let value = left - right - borrow;
-            self.limbs[index] = value as u32;
+            self.limbs[index] = u32::try_from(value.rem_euclid(1_i64 << 32))
+                .expect("one limb subtraction stays within the limb modulus");
             borrow = i64::from(value < 0);
         }
         while self.limbs.last() == Some(&0) {
@@ -427,12 +439,44 @@ impl BigNat {
         }
     }
 
+    fn add_assign(&mut self, other: &Self) {
+        let length = self.limbs.len().max(other.limbs.len());
+        self.limbs.resize(length, 0);
+        let mut carry = 0_u64;
+        for index in 0..length {
+            let value = u64::from(self.limbs[index])
+                + u64::from(other.limbs.get(index).copied().unwrap_or(0))
+                + carry;
+            self.limbs[index] = low_limb(value);
+            carry = value >> 32;
+        }
+        if carry != 0 {
+            self.limbs.push(low_limb(carry));
+        }
+    }
+
+    fn remainder(mut self, denominator: &Self) -> Result<Self, FloatLiteralError> {
+        if denominator.is_zero() {
+            return Err(FloatLiteralError::Invalid);
+        }
+        while self.cmp(denominator) != Ordering::Less {
+            let mut shift = self.bit_len() - denominator.bit_len();
+            let mut shifted = denominator.shifted(shift);
+            if self.cmp(&shifted) == Ordering::Less {
+                shift -= 1;
+                shifted = denominator.shifted(shift);
+            }
+            self.subtract_assign(&shifted);
+        }
+        Ok(self)
+    }
+
     /// Divides in place, leaving the remainder and returning a quotient known to fit in `u64`.
     fn divide_to_u64(&mut self, denominator: &Self) -> Result<u64, FloatLiteralError> {
         if denominator.is_zero() {
             return Err(FloatLiteralError::Invalid);
         }
-        if (&*self).cmp(denominator) == Ordering::Less {
+        if (*self).cmp(denominator) == Ordering::Less {
             return Ok(0);
         }
         let highest = self.bit_len() - denominator.bit_len();
@@ -442,13 +486,21 @@ impl BigNat {
         let mut quotient = 0_u64;
         for bit in (0..=highest).rev() {
             let shifted = denominator.shifted(bit);
-            if (&*self).cmp(&shifted) != Ordering::Less {
+            if (*self).cmp(&shifted) != Ordering::Less {
                 self.subtract_assign(&shifted);
                 quotient |= 1_u64 << bit;
             }
         }
         Ok(quotient)
     }
+}
+
+fn low_limb(value: u64) -> u32 {
+    u32::try_from(value & u64::from(u32::MAX)).expect("masked value fits one limb")
+}
+
+fn limb_from_u128(value: u128) -> u32 {
+    u32::try_from(value & u128::from(u32::MAX)).expect("masked value fits one limb")
 }
 
 impl Ord for BigNat {
@@ -491,11 +543,14 @@ mod tests {
     #[test]
     fn converts_decimal_values_without_host_floating_point() {
         assert_eq!(f32_bits("0.0"), Ok(0));
-        assert_eq!(f32_bits("0.1"), Ok(0x3dcccccd));
-        assert_eq!(f64_bits("1.0"), Ok(0x3ff0000000000000));
-        assert_eq!(f64_bits("0.1"), Ok(0x3fb999999999999a));
+        assert_eq!(f32_bits("0.1"), Ok(0x3dcc_cccd));
+        assert_eq!(f64_bits("1.0"), Ok(0x3ff0_0000_0000_0000));
+        assert_eq!(f64_bits("0.1"), Ok(0x3fb9_9999_9999_999a));
         assert_eq!(f64_bits("0e999999999999999999999999"), Ok(0));
-        assert_eq!(f64_bits("1.7976931348623157e308"), Ok(0x7fefffffffffffff));
+        assert_eq!(
+            f64_bits("1.7976931348623157e308"),
+            Ok(0x7fef_ffff_ffff_ffff)
+        );
         assert_eq!(f64_bits("5e-324"), Ok(1));
         assert_eq!(f32_bits("1.40129846e-45"), Ok(1));
     }
@@ -504,11 +559,11 @@ mod tests {
     fn rounds_exact_halfway_values_to_even() {
         assert_eq!(
             f64_bits("1.00000000000000011102230246251565404236316680908203125"),
-            Ok(0x3ff0000000000000)
+            Ok(0x3ff0_0000_0000_0000)
         );
         assert_eq!(
             f64_bits("1.00000000000000011102230246251565404236316680908203126"),
-            Ok(0x3ff0000000000001)
+            Ok(0x3ff0_0000_0000_0001)
         );
     }
 

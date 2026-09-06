@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::BuildHasher;
 
-use nocter_model::{ConstantId, ConstantValue, FrozenValue};
+use nocter_model::{CompilationTarget, ConstantId, ConstantValue, FrozenValue};
 use nocter_syntax::Punctuation;
 use nocter_syntax::SyntaxOrigin;
 
@@ -11,6 +11,9 @@ use crate::model::{
     PlanNodeId,
 };
 use crate::support::{integer_spec, shift};
+use crate::{
+    FloatBinaryOperation, FloatBits, FloatComparisonOperation, FloatFormat, TargetFloatEvaluator,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ConstantEvaluationRule {
@@ -133,6 +136,9 @@ where
         let entry = plan.nodes[node.0].clone();
         match entry.operation {
             ConstantOperation::Value(value) => Ok(TypedValue { value }),
+            ConstantOperation::FloatLiteral(ref spelling) => {
+                float_literal(&entry, self.plan.target, spelling)
+            }
             ConstantOperation::IntegerLiteral(value) => integer_literal(&entry, value),
             ConstantOperation::Reference(id) => {
                 let value = (self.lookup)(id)?.ok_or(ConstantEvaluationError {
@@ -160,7 +166,7 @@ where
             } => self.evaluate_binary(&entry, operator, left, right),
             ConstantOperation::Conversion { operand } => {
                 let value = self.evaluate(operand)?;
-                evaluate_conversion(&entry, &value)
+                evaluate_conversion(&entry, &value, self.plan.target)
             }
         }
     }
@@ -187,8 +193,24 @@ where
             });
         }
         let right_value = self.evaluate(right)?;
-        evaluate_binary_values(entry, operator, left_value, right_value)
+        evaluate_binary_values(entry, operator, left_value, right_value, self.plan.target)
     }
+}
+
+fn float_literal(
+    entry: &PlanNode,
+    target: CompilationTarget,
+    spelling: &str,
+) -> Result<TypedValue, ConstantEvaluationError> {
+    let ConstantScalarType::Float(format) = entry.ty else {
+        return Err(invalid(entry.origin));
+    };
+    let value = TargetFloatEvaluator::new(target)
+        .decimal_bits(spelling, format)
+        .map_err(|_| arithmetic(entry.origin))?;
+    Ok(TypedValue {
+        value: float_value(value),
+    })
 }
 
 fn integer_literal(entry: &PlanNode, value: u64) -> Result<TypedValue, ConstantEvaluationError> {
@@ -222,6 +244,13 @@ fn evaluate_unary(
             })
         }
         Punctuation::Minus => {
+            if let ConstantScalarType::Float(format) = entry.ty {
+                let operand_value = operand_value.ok_or_else(|| invalid(entry.origin))?;
+                let value = constant_float(&operand_value.value, format, entry.origin)?;
+                return Ok(TypedValue {
+                    value: float_value(TargetFloatEvaluator::new(plan.target).negate(value)),
+                });
+            }
             let ConstantScalarType::Integer(builtin) = entry.ty else {
                 return Err(invalid(entry.origin));
             };
@@ -260,10 +289,31 @@ fn evaluate_binary_values(
     operator: Punctuation,
     left: TypedValue,
     right: TypedValue,
+    target: CompilationTarget,
 ) -> Result<TypedValue, ConstantEvaluationError> {
     match operator {
         Punctuation::EqualEqual | Punctuation::BangEqual => {
-            let equal = left.value == right.value;
+            let equal = match (&left.value, &right.value) {
+                (ConstantValue::Float32(left), ConstantValue::Float32(right)) => {
+                    TargetFloatEvaluator::new(target)
+                        .compare(
+                            FloatComparisonOperation::Equal,
+                            FloatBits::Binary32(*left),
+                            FloatBits::Binary32(*right),
+                        )
+                        .ok_or_else(|| invalid(entry.origin))?
+                }
+                (ConstantValue::Float64(left), ConstantValue::Float64(right)) => {
+                    TargetFloatEvaluator::new(target)
+                        .compare(
+                            FloatComparisonOperation::Equal,
+                            FloatBits::Binary64(*left),
+                            FloatBits::Binary64(*right),
+                        )
+                        .ok_or_else(|| invalid(entry.origin))?
+                }
+                _ => left.value == right.value,
+            };
             Ok(TypedValue {
                 value: ConstantValue::Bool(if operator == Punctuation::EqualEqual {
                     equal
@@ -281,6 +331,24 @@ fn evaluate_binary_values(
                 (ConstantValue::Character(left), ConstantValue::Character(right)) => {
                     left.cmp(&right)
                 }
+                (ConstantValue::Float32(left), ConstantValue::Float32(right)) => {
+                    return evaluate_float_comparison(
+                        entry,
+                        operator,
+                        target,
+                        FloatBits::Binary32(left),
+                        FloatBits::Binary32(right),
+                    );
+                }
+                (ConstantValue::Float64(left), ConstantValue::Float64(right)) => {
+                    return evaluate_float_comparison(
+                        entry,
+                        operator,
+                        target,
+                        FloatBits::Binary64(left),
+                        FloatBits::Binary64(right),
+                    );
+                }
                 _ => return Err(invalid(entry.origin)),
             };
             let value = match operator {
@@ -294,8 +362,69 @@ fn evaluate_binary_values(
                 value: ConstantValue::Bool(value),
             })
         }
+        _ if matches!(entry.ty, ConstantScalarType::Float(_)) => {
+            evaluate_float_binary(entry, operator, &left, &right, target)
+        }
         _ => evaluate_integer_binary(entry, operator, left, right),
     }
+}
+
+fn evaluate_float_comparison(
+    entry: &PlanNode,
+    operator: Punctuation,
+    target: CompilationTarget,
+    left: FloatBits,
+    right: FloatBits,
+) -> Result<TypedValue, ConstantEvaluationError> {
+    let evaluator = TargetFloatEvaluator::new(target);
+    let strict = |left, right| {
+        evaluator
+            .compare(FloatComparisonOperation::Less, left, right)
+            .ok_or_else(|| invalid(entry.origin))
+    };
+    let equal = || {
+        evaluator
+            .compare(FloatComparisonOperation::Equal, left, right)
+            .ok_or_else(|| invalid(entry.origin))
+    };
+    let value = match operator {
+        Punctuation::Less => strict(left, right)?,
+        Punctuation::LessEqual => strict(left, right)? || equal()?,
+        Punctuation::Greater => strict(right, left)?,
+        Punctuation::GreaterEqual => strict(right, left)? || equal()?,
+        _ => return Err(invalid(entry.origin)),
+    };
+    Ok(TypedValue {
+        value: ConstantValue::Bool(value),
+    })
+}
+
+fn evaluate_float_binary(
+    entry: &PlanNode,
+    operator: Punctuation,
+    left: &TypedValue,
+    right: &TypedValue,
+    target: CompilationTarget,
+) -> Result<TypedValue, ConstantEvaluationError> {
+    let ConstantScalarType::Float(format) = entry.ty else {
+        return Err(invalid(entry.origin));
+    };
+    let operation = match operator {
+        Punctuation::Plus => FloatBinaryOperation::Add,
+        Punctuation::Minus => FloatBinaryOperation::Subtract,
+        Punctuation::Star => FloatBinaryOperation::Multiply,
+        Punctuation::Slash => FloatBinaryOperation::Divide,
+        Punctuation::Percent => FloatBinaryOperation::Remainder,
+        _ => return Err(invalid(entry.origin)),
+    };
+    let left = constant_float(&left.value, format, entry.origin)?;
+    let right = constant_float(&right.value, format, entry.origin)?;
+    let value = TargetFloatEvaluator::new(target)
+        .binary(operation, left, right)
+        .ok_or_else(|| invalid(entry.origin))?;
+    Ok(TypedValue {
+        value: float_value(value),
+    })
 }
 
 fn evaluate_integer_binary(
@@ -333,19 +462,46 @@ fn evaluate_integer_binary(
 fn evaluate_conversion(
     entry: &PlanNode,
     operand: &TypedValue,
+    target: CompilationTarget,
 ) -> Result<TypedValue, ConstantEvaluationError> {
-    let ConstantScalarType::Integer(target) = entry.ty else {
-        return Err(invalid(entry.origin));
-    };
-    let ConstantValue::Integer(value) = &operand.value else {
-        return Err(invalid(entry.origin));
-    };
-    if !integer_spec(target).is_some_and(|spec| spec.contains(*value)) {
-        return Err(arithmetic(entry.origin));
+    match (entry.ty, &operand.value) {
+        (ConstantScalarType::Integer(target), ConstantValue::Integer(value)) => {
+            if !integer_spec(target).is_some_and(|spec| spec.contains(*value)) {
+                return Err(arithmetic(entry.origin));
+            }
+            Ok(TypedValue {
+                value: ConstantValue::Integer(*value),
+            })
+        }
+        (ConstantScalarType::Float(format), ConstantValue::Integer(value)) => Ok(TypedValue {
+            value: float_value(TargetFloatEvaluator::new(target).integer(*value, format)),
+        }),
+        (ConstantScalarType::Float(FloatFormat::Binary64), ConstantValue::Float32(value)) => {
+            Ok(TypedValue {
+                value: float_value(TargetFloatEvaluator::new(target).widen_binary32(*value)),
+            })
+        }
+        _ => Err(invalid(entry.origin)),
     }
-    Ok(TypedValue {
-        value: ConstantValue::Integer(*value),
-    })
+}
+
+fn constant_float(
+    value: &ConstantValue,
+    format: FloatFormat,
+    origin: SyntaxOrigin,
+) -> Result<FloatBits, ConstantEvaluationError> {
+    match (format, value) {
+        (FloatFormat::Binary32, ConstantValue::Float32(bits)) => Ok(FloatBits::Binary32(*bits)),
+        (FloatFormat::Binary64, ConstantValue::Float64(bits)) => Ok(FloatBits::Binary64(*bits)),
+        _ => Err(invalid(origin)),
+    }
+}
+
+const fn float_value(value: FloatBits) -> ConstantValue {
+    match value {
+        FloatBits::Binary32(bits) => ConstantValue::Float32(bits),
+        FloatBits::Binary64(bits) => ConstantValue::Float64(bits),
+    }
 }
 
 fn bool_value(value: &TypedValue, origin: SyntaxOrigin) -> Result<bool, ConstantEvaluationError> {

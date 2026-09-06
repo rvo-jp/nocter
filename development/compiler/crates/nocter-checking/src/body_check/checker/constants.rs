@@ -1,6 +1,6 @@
 use nocter_constant_evaluation::{
     ConstantEvaluationError, ConstantEvaluationRule, ConstantPlanError, ConstantPlanRule,
-    ConstantReference, ConstantResolver, ConstantScalarType, evaluate_expression_plan,
+    ConstantReference, ConstantResolver, ConstantScalarType, FloatFormat, evaluate_expression_plan,
     plan_expression,
 };
 use nocter_declarations::ExportedEntity;
@@ -40,6 +40,7 @@ impl BodyChecker<'_, '_> {
         let plan = {
             let mut resolver = BodyConstantResolver { checker: self };
             plan_expression(
+                resolver.checker.graph.target(),
                 &source,
                 &tree,
                 expression,
@@ -170,6 +171,12 @@ fn scalar_type(types: &nocter_model::TypeStore, ty: TypeId) -> Option<ConstantSc
     match types.get(ty)? {
         TypeKind::Builtin(BuiltinType::Bool) => Some(ConstantScalarType::Bool),
         TypeKind::Builtin(BuiltinType::Char) => Some(ConstantScalarType::Character),
+        TypeKind::Builtin(BuiltinType::F32) => {
+            Some(ConstantScalarType::Float(FloatFormat::Binary32))
+        }
+        TypeKind::Builtin(BuiltinType::F64) => {
+            Some(ConstantScalarType::Float(FloatFormat::Binary64))
+        }
         TypeKind::Builtin(builtin) if integer_builtin(*builtin) => {
             Some(ConstantScalarType::Integer(*builtin))
         }

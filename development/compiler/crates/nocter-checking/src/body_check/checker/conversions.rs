@@ -10,7 +10,7 @@ use crate::{CheckedBorrowConversion, CheckedOperation, PrimitiveOperation};
 impl BodyChecker<'_, '_> {
     /// Checks an authored `value as Target` conversion without using the target to infer `value`.
     ///
-    /// The surface construct deliberately has only two meanings: a lossless integer conversion or
+    /// The surface construct deliberately has only two meanings: a lossless numeric conversion or
     /// one exact borrow conversion. Keeping selection here prevents later expected-type inference
     /// from silently widening that contract.
     pub(super) fn check_conversion(

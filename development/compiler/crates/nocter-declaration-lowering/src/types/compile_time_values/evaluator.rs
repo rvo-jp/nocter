@@ -2,12 +2,14 @@ use std::collections::{HashMap, HashSet};
 
 use nocter_constant_evaluation::{
     ConstantEvaluationError, ConstantEvaluationRule, ConstantExpressionPlan, ConstantPlanError,
-    ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType, FrozenType,
-    evaluate_constant_plans, evaluate_expression_plan, evaluate_frozen_expression_plan,
+    ConstantPlanRule, ConstantReference, ConstantResolver, ConstantScalarType, FloatFormat,
+    FrozenType, evaluate_constant_plans, evaluate_expression_plan, evaluate_frozen_expression_plan,
     plan_expression, plan_frozen_expression,
 };
 use nocter_declarations::ExportedEntity;
-use nocter_model::{BorrowCapability, BuiltinType, ConstantId, ConstantValue, ModuleId, StaticId};
+use nocter_model::{
+    BorrowCapability, BuiltinType, CompilationTarget, ConstantId, ConstantValue, ModuleId, StaticId,
+};
 use nocter_source::SourceId;
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
@@ -60,6 +62,14 @@ struct HeaderResolver<'a, 'syntax> {
 pub fn evaluate(
     mut bindings: PreparedTypeBindings<'_>,
 ) -> Result<PreparedTypeBindings<'_>, HeaderDefinitionError> {
+    let target = bindings
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .target();
     let sources = collect_sources(&bindings)?;
     let static_sources = collect_static_sources(&bindings)?;
     let source_ids = bindings
@@ -86,9 +96,11 @@ pub fn evaluate(
         reference_projections: HashMap::new(),
     };
 
-    let values = evaluate_constants(&bindings, &source_ids, &sources, &mut resolver)?;
-    let array_lengths = evaluate_array_lengths(&bindings, &source_ids, &values, &mut resolver)?;
+    let values = evaluate_constants(target, &bindings, &source_ids, &sources, &mut resolver)?;
+    let array_lengths =
+        evaluate_array_lengths(target, &bindings, &source_ids, &values, &mut resolver)?;
     let static_values = evaluate_statics(
+        target,
         &bindings,
         &source_ids,
         &static_sources,
@@ -119,6 +131,7 @@ pub fn evaluate(
 }
 
 fn evaluate_constants(
+    target: CompilationTarget,
     bindings: &PreparedTypeBindings<'_>,
     source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
     sources: &HashMap<ConstantId, ConstantSource>,
@@ -138,7 +151,7 @@ fn evaluate_constants(
                 )
             })?;
         let (file, tree) = syntax_input(bindings, source_ids, source.initializer)?;
-        let plan = plan_expression(file, tree, source.initializer, expected, resolver)
+        let plan = plan_expression(target, file, tree, source.initializer, expected, resolver)
             .map_err(plan_error)?;
         plans.insert(id, plan);
     }
@@ -146,6 +159,7 @@ fn evaluate_constants(
 }
 
 fn evaluate_array_lengths(
+    target: CompilationTarget,
     bindings: &PreparedTypeBindings<'_>,
     source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
     values: &HashMap<ConstantId, ConstantValue>,
@@ -155,8 +169,8 @@ fn evaluate_array_lengths(
     let mut array_lengths = HashMap::new();
     for expression in collect_array_expressions(bindings) {
         let (file, tree) = syntax_input(bindings, source_ids, expression)?;
-        let plan =
-            plan_expression(file, tree, expression, usize_ty, resolver).map_err(plan_error)?;
+        let plan = plan_expression(target, file, tree, expression, usize_ty, resolver)
+            .map_err(plan_error)?;
         let value = evaluate_expression_plan(&plan, |id| values.get(&id).cloned())
             .map_err(evaluation_error)?;
         let ConstantValue::Integer(value) = value else {
@@ -177,6 +191,7 @@ fn evaluate_array_lengths(
 }
 
 fn evaluate_statics(
+    target: CompilationTarget,
     bindings: &PreparedTypeBindings<'_>,
     source_ids: &HashMap<SourceId, crate::SurfaceSourceId>,
     sources: &HashMap<StaticId, StaticSource>,
@@ -198,8 +213,9 @@ fn evaluate_statics(
                 )
             })?;
         let (file, tree) = syntax_input(bindings, source_ids, source.initializer)?;
-        let plan = plan_frozen_expression(file, tree, source.initializer, &expected, resolver)
-            .map_err(plan_error)?;
+        let plan =
+            plan_frozen_expression(target, file, tree, source.initializer, &expected, resolver)
+                .map_err(plan_error)?;
         let value =
             evaluate_frozen_expression_plan(&plan, &mut |constant| values.get(&constant).cloned())
                 .map_err(evaluation_error)?;
@@ -429,6 +445,12 @@ impl HeaderResolver<'_, '_> {
         match self.bindings.kinds.get(ty.index())? {
             BoundTypeKind::Builtin(BuiltinType::Bool) => Some(ConstantScalarType::Bool),
             BoundTypeKind::Builtin(BuiltinType::Char) => Some(ConstantScalarType::Character),
+            BoundTypeKind::Builtin(BuiltinType::F32) => {
+                Some(ConstantScalarType::Float(FloatFormat::Binary32))
+            }
+            BoundTypeKind::Builtin(BuiltinType::F64) => {
+                Some(ConstantScalarType::Float(FloatFormat::Binary64))
+            }
             BoundTypeKind::Builtin(builtin) if integer_builtin(*builtin) => {
                 Some(ConstantScalarType::Integer(*builtin))
             }

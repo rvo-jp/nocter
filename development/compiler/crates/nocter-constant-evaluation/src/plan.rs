@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use nocter_model::{BuiltinType, ConstantValue};
+use nocter_model::{
+    BuiltinType, CompilationTarget, ConstantValue, lossless_builtin_numeric_conversion,
+};
 use nocter_source::SourceFile;
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
@@ -8,6 +10,7 @@ use nocter_syntax::{
     decode_plain_string_expression, direct_node, first_direct_token,
 };
 
+use crate::FloatFormat;
 use crate::model::{
     ConstantExpressionPlan, ConstantOperation, ConstantPlanError, ConstantPlanRule,
     ConstantReference, ConstantResolver, ConstantScalarType, FrozenExpressionPlan, FrozenType,
@@ -27,6 +30,53 @@ struct Planner<'a, R> {
     nodes: Vec<PlanNode>,
 }
 
+#[derive(Clone, Copy)]
+enum NumericDefault {
+    Integer,
+    Float,
+}
+
+#[derive(Clone, Copy)]
+struct ScalarHint {
+    exact: Option<ConstantScalarType>,
+    numeric_default: NumericDefault,
+}
+
+impl ScalarHint {
+    const fn exact(ty: ConstantScalarType) -> Self {
+        Self {
+            exact: Some(ty),
+            numeric_default: if matches!(ty, ConstantScalarType::Float(_)) {
+                NumericDefault::Float
+            } else {
+                NumericDefault::Integer
+            },
+        }
+    }
+
+    const fn flexible_integer() -> Self {
+        Self {
+            exact: None,
+            numeric_default: NumericDefault::Integer,
+        }
+    }
+
+    const fn flexible_float() -> Self {
+        Self {
+            exact: None,
+            numeric_default: NumericDefault::Float,
+        }
+    }
+
+    const fn inferred_or_default(self) -> ConstantScalarType {
+        match (self.exact, self.numeric_default) {
+            (Some(ty), _) => ty,
+            (None, NumericDefault::Integer) => ConstantScalarType::Integer(BuiltinType::I32),
+            (None, NumericDefault::Float) => ConstantScalarType::Float(FloatFormat::Binary64),
+        }
+    }
+}
+
 /// Produces one closed typed plan using the caller-owned name and type authority.
 ///
 /// Both sides of a short-circuit expression are planned. Evaluation may skip the right value, but
@@ -37,6 +87,7 @@ struct Planner<'a, R> {
 /// Returns an authored constant-expression rule, a caller resolver failure, or an invalid syntax
 /// identity when the supplied source, tree, and expression do not describe one coherent input.
 pub fn plan_expression<R: ConstantResolver>(
+    target: CompilationTarget,
     source: &SourceFile,
     tree: &SyntaxTree,
     expression: NodeId,
@@ -55,6 +106,7 @@ pub fn plan_expression<R: ConstantResolver>(
     planner.analyze(expression, Some(expected))?;
     let root = planner.build(expression)?;
     Ok(ConstantExpressionPlan {
+        target,
         nodes: planner.nodes,
         root,
     })
@@ -70,6 +122,7 @@ pub fn plan_expression<R: ConstantResolver>(
 /// Returns the same authored and caller-context failures as scalar planning. A wrong aggregate
 /// shape is reported as a type mismatch at the initializer node.
 pub fn plan_frozen_expression<R: ConstantResolver>(
+    target: CompilationTarget,
     source: &SourceFile,
     tree: &SyntaxTree,
     expression: NodeId,
@@ -80,7 +133,7 @@ pub fn plan_frozen_expression<R: ConstantResolver>(
         unwrap_expression(tree, expression).ok_or(ConstantPlanError::InvalidSyntax(expression))?;
     match expected {
         FrozenType::Scalar(expected) => {
-            plan_expression(source, tree, expression, *expected, resolver)
+            plan_expression(target, source, tree, expression, *expected, resolver)
                 .map(FrozenExpressionPlan::Scalar)
         }
         FrozenType::FixedArray { element, length } => {
@@ -101,7 +154,7 @@ pub fn plan_frozen_expression<R: ConstantResolver>(
             }
             let elements = children
                 .into_iter()
-                .map(|child| plan_frozen_expression(source, tree, child, element, resolver))
+                .map(|child| plan_frozen_expression(target, source, tree, child, element, resolver))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_boxed_slice();
             Ok(FrozenExpressionPlan::FixedArray {
@@ -146,6 +199,19 @@ impl<R: ConstantResolver> Planner<'_, R> {
                     TokenKind::IntegerLiteral => expected
                         .filter(|ty| matches!(ty, ConstantScalarType::Integer(_)))
                         .unwrap_or(ConstantScalarType::Integer(BuiltinType::I32)),
+                    TokenKind::FloatLiteral => {
+                        let authored = self
+                            .source
+                            .text_at(token.range())
+                            .ok_or(ConstantPlanError::InvalidSyntax(node))?;
+                        let (_, suffix) = float_literal_parts(authored);
+                        suffix
+                            .map(ConstantScalarType::Float)
+                            .or_else(|| {
+                                expected.filter(|ty| matches!(ty, ConstantScalarType::Float(_)))
+                            })
+                            .unwrap_or(ConstantScalarType::Float(FloatFormat::Binary64))
+                    }
                     _ => {
                         return Err(self.rule(ConstantPlanRule::NonConstantExpression, node));
                     }
@@ -167,10 +233,15 @@ impl<R: ConstantResolver> Planner<'_, R> {
                         ConstantScalarType::Bool
                     }
                     Punctuation::Minus => {
-                        let ty = expected
-                            .or(self.scalar_hint(operand)?)
-                            .unwrap_or(ConstantScalarType::Integer(BuiltinType::I32));
-                        if !matches!(ty, ConstantScalarType::Integer(builtin) if integer_spec(builtin).is_some_and(|spec| spec.signed))
+                        let ty = match expected {
+                            Some(expected) => expected,
+                            None => self.scalar_hint(operand)?.inferred_or_default(),
+                        };
+                        if !matches!(
+                            ty,
+                            ConstantScalarType::Integer(builtin)
+                                if integer_spec(builtin).is_some_and(|spec| spec.signed)
+                        ) && !matches!(ty, ConstantScalarType::Float(_))
                         {
                             return Err(self.rule(ConstantPlanRule::TypeMismatch, node));
                         }
@@ -192,28 +263,41 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 let operands = self.binary_operands(node)?;
                 let operand_ty = self
                     .merge_hints(operands[0], operands[1], node)?
-                    .unwrap_or(ConstantScalarType::Integer(BuiltinType::I32));
+                    .inferred_or_default();
                 let left = self.analyze(operands[0], Some(operand_ty))?;
                 let right = self.analyze(operands[1], Some(left))?;
                 if left != right
                     || kind == NodeKind::OrderingExpression
                         && !matches!(
                             left,
-                            ConstantScalarType::Integer(_) | ConstantScalarType::Character
+                            ConstantScalarType::Integer(_)
+                                | ConstantScalarType::Character
+                                | ConstantScalarType::Float(_)
                         )
                 {
                     return Err(self.rule(ConstantPlanRule::TypeMismatch, node));
                 }
                 ConstantScalarType::Bool
             }
-            NodeKind::ShiftExpression
-            | NodeKind::AdditiveExpression
-            | NodeKind::MultiplicativeExpression => {
+            NodeKind::ShiftExpression => {
                 let operands = self.binary_operands(node)?;
-                let ty = expected
-                    .or(self.merge_hints(operands[0], operands[1], node)?)
-                    .unwrap_or(ConstantScalarType::Integer(BuiltinType::I32));
+                let hint = self.merge_hints(operands[0], operands[1], node)?;
+                let ty = expected.unwrap_or_else(|| hint.inferred_or_default());
                 if !matches!(ty, ConstantScalarType::Integer(_)) {
+                    return Err(self.rule(ConstantPlanRule::TypeMismatch, node));
+                }
+                self.analyze(operands[0], Some(ty))?;
+                self.analyze(operands[1], Some(ty))?;
+                ty
+            }
+            NodeKind::AdditiveExpression | NodeKind::MultiplicativeExpression => {
+                let operands = self.binary_operands(node)?;
+                let hint = self.merge_hints(operands[0], operands[1], node)?;
+                let ty = expected.unwrap_or_else(|| hint.inferred_or_default());
+                if !matches!(
+                    ty,
+                    ConstantScalarType::Integer(_) | ConstantScalarType::Float(_)
+                ) {
                     return Err(self.rule(ConstantPlanRule::TypeMismatch, node));
                 }
                 self.analyze(operands[0], Some(ty))?;
@@ -228,12 +312,18 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 let target = self
                     .conversion_type(ty_node)?
                     .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node))?;
-                if !matches!(target, ConstantScalarType::Integer(_)) {
-                    return Err(self.rule(ConstantPlanRule::NonConstantExpression, node));
-                }
                 let operand_ty = self.analyze(operand, None)?;
-                if !matches!(operand_ty, ConstantScalarType::Integer(_)) {
-                    return Err(self.rule(ConstantPlanRule::TypeMismatch, node));
+                let valid = match (operand_ty, target) {
+                    (ConstantScalarType::Integer(_), ConstantScalarType::Integer(_)) => true,
+                    (source, target) => match (numeric_builtin(source), numeric_builtin(target)) {
+                        (Some(source), Some(target)) => {
+                            lossless_builtin_numeric_conversion(source, target)
+                        }
+                        _ => false,
+                    },
+                };
+                if !valid {
+                    return Err(self.rule(ConstantPlanRule::NonConstantExpression, node));
                 }
                 target
             }
@@ -246,10 +336,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
         Ok(ty)
     }
 
-    fn scalar_hint(
-        &mut self,
-        node: NodeId,
-    ) -> Result<Option<ConstantScalarType>, ConstantPlanError<R::Error>> {
+    fn scalar_hint(&mut self, node: NodeId) -> Result<ScalarHint, ConstantPlanError<R::Error>> {
         match self.kind(node)? {
             NodeKind::Expression | NodeKind::GroupedExpression => {
                 let child = one_expression_child(self.tree, node)
@@ -261,24 +348,34 @@ impl<R: ConstantResolver> Planner<'_, R> {
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 Ok(match token.kind() {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => {
-                        Some(ConstantScalarType::Bool)
+                        ScalarHint::exact(ConstantScalarType::Bool)
                     }
-                    TokenKind::CharacterLiteral => Some(ConstantScalarType::Character),
-                    TokenKind::IntegerLiteral => None,
+                    TokenKind::CharacterLiteral => ScalarHint::exact(ConstantScalarType::Character),
+                    TokenKind::IntegerLiteral => ScalarHint::flexible_integer(),
+                    TokenKind::FloatLiteral => {
+                        let authored = self
+                            .source
+                            .text_at(token.range())
+                            .ok_or(ConstantPlanError::InvalidSyntax(node))?;
+                        let (_, suffix) = float_literal_parts(authored);
+                        suffix.map_or_else(ScalarHint::flexible_float, |format| {
+                            ScalarHint::exact(ConstantScalarType::Float(format))
+                        })
+                    }
                     _ => {
                         return Err(self.rule(ConstantPlanRule::NonConstantExpression, node));
                     }
                 })
             }
-            NodeKind::StringExpression => Ok(Some(ConstantScalarType::Text)),
-            NodeKind::ReferenceExpression | NodeKind::PostfixExpression => {
-                self.reference(node).map(|reference| Some(reference.ty()))
-            }
+            NodeKind::StringExpression => Ok(ScalarHint::exact(ConstantScalarType::Text)),
+            NodeKind::ReferenceExpression | NodeKind::PostfixExpression => self
+                .reference(node)
+                .map(|reference| ScalarHint::exact(reference.ty())),
             NodeKind::UnaryExpression => {
                 let operator = direct_punctuation(self.tree, node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 if operator == Punctuation::Bang {
-                    Ok(Some(ConstantScalarType::Bool))
+                    Ok(ScalarHint::exact(ConstantScalarType::Bool))
                 } else {
                     let operand = one_expression_child(self.tree, node)
                         .ok_or(ConstantPlanError::InvalidSyntax(node))?;
@@ -288,7 +385,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
             NodeKind::LogicalAndExpression
             | NodeKind::LogicalOrExpression
             | NodeKind::EqualityExpression
-            | NodeKind::OrderingExpression => Ok(Some(ConstantScalarType::Bool)),
+            | NodeKind::OrderingExpression => Ok(ScalarHint::exact(ConstantScalarType::Bool)),
             NodeKind::ShiftExpression
             | NodeKind::AdditiveExpression
             | NodeKind::MultiplicativeExpression => {
@@ -298,7 +395,10 @@ impl<R: ConstantResolver> Planner<'_, R> {
             NodeKind::ConversionExpression => {
                 let ty_node = direct_node(self.tree, node, NodeKind::Type)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
-                self.conversion_type(ty_node)
+                self.conversion_type(ty_node)?.map_or_else(
+                    || Err(self.rule(ConstantPlanRule::NonConstantExpression, node)),
+                    |ty| Ok(ScalarHint::exact(ty)),
+                )
             }
             _ => Err(self.rule(ConstantPlanRule::NonConstantExpression, node)),
         }
@@ -309,16 +409,27 @@ impl<R: ConstantResolver> Planner<'_, R> {
         left: NodeId,
         right: NodeId,
         origin: NodeId,
-    ) -> Result<Option<ConstantScalarType>, ConstantPlanError<R::Error>> {
+    ) -> Result<ScalarHint, ConstantPlanError<R::Error>> {
         let left = self.scalar_hint(left)?;
         let right = self.scalar_hint(right)?;
-        match (left, right) {
+        let exact = match (left.exact, right.exact) {
             (Some(left), Some(right)) if left != right => {
-                Err(self.rule(ConstantPlanRule::TypeMismatch, origin))
+                return Err(self.rule(ConstantPlanRule::TypeMismatch, origin));
             }
-            (Some(ty), _) | (_, Some(ty)) => Ok(Some(ty)),
-            (None, None) => Ok(None),
-        }
+            (Some(ty), _) | (_, Some(ty)) => Some(ty),
+            (None, None) => None,
+        };
+        let numeric_default = if matches!(left.numeric_default, NumericDefault::Float)
+            || matches!(right.numeric_default, NumericDefault::Float)
+        {
+            NumericDefault::Float
+        } else {
+            NumericDefault::Integer
+        };
+        Ok(ScalarHint {
+            exact,
+            numeric_default,
+        })
     }
 
     fn build(&mut self, node: NodeId) -> Result<PlanNodeId, ConstantPlanError<R::Error>> {
@@ -335,36 +446,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
                         .ok_or(ConstantPlanError::InvalidSyntax(node))?,
                 );
             }
-            NodeKind::ScalarLiteral => {
-                let token = first_direct_token(self.tree, node)
-                    .ok_or(ConstantPlanError::InvalidSyntax(node))?;
-                match token.kind() {
-                    TokenKind::Keyword(Keyword::True | Keyword::False) => ConstantOperation::Value(
-                        ConstantValue::Bool(token.kind() == TokenKind::Keyword(Keyword::True)),
-                    ),
-                    TokenKind::CharacterLiteral => {
-                        ConstantOperation::Value(ConstantValue::Character(
-                            decode_character_literal(
-                                self.source
-                                    .text_at(token.range())
-                                    .ok_or(ConstantPlanError::InvalidSyntax(node))?,
-                            )
-                            .ok_or_else(|| {
-                                self.rule(ConstantPlanRule::NonConstantExpression, node)
-                            })?,
-                        ))
-                    }
-                    TokenKind::IntegerLiteral => ConstantOperation::IntegerLiteral(
-                        parse_integer(
-                            self.source
-                                .text_at(token.range())
-                                .ok_or(ConstantPlanError::InvalidSyntax(node))?,
-                        )
-                        .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node))?,
-                    ),
-                    _ => return Err(self.rule(ConstantPlanRule::NonConstantExpression, node)),
-                }
-            }
+            NodeKind::ScalarLiteral => self.build_scalar_literal(node)?,
             NodeKind::StringExpression => ConstantOperation::Value(ConstantValue::Text(
                 decode_plain_string_expression(self.source, self.tree, node)
                     .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node))?,
@@ -418,6 +500,36 @@ impl<R: ConstantResolver> Planner<'_, R> {
         Ok(id)
     }
 
+    fn build_scalar_literal(
+        &self,
+        node: NodeId,
+    ) -> Result<ConstantOperation, ConstantPlanError<R::Error>> {
+        let token =
+            first_direct_token(self.tree, node).ok_or(ConstantPlanError::InvalidSyntax(node))?;
+        let authored = || {
+            self.source
+                .text_at(token.range())
+                .ok_or(ConstantPlanError::InvalidSyntax(node))
+        };
+        match token.kind() {
+            TokenKind::Keyword(Keyword::True | Keyword::False) => Ok(ConstantOperation::Value(
+                ConstantValue::Bool(token.kind() == TokenKind::Keyword(Keyword::True)),
+            )),
+            TokenKind::CharacterLiteral => decode_character_literal(authored()?)
+                .map(ConstantValue::Character)
+                .map(ConstantOperation::Value)
+                .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node)),
+            TokenKind::IntegerLiteral => parse_integer(authored()?)
+                .map(ConstantOperation::IntegerLiteral)
+                .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node)),
+            TokenKind::FloatLiteral => {
+                let (number, _) = float_literal_parts(authored()?);
+                Ok(ConstantOperation::FloatLiteral(number.into()))
+            }
+            _ => Err(self.rule(ConstantPlanRule::NonConstantExpression, node)),
+        }
+    }
+
     fn reference(
         &mut self,
         node: NodeId,
@@ -467,5 +579,24 @@ impl<R: ConstantResolver> Planner<'_, R> {
             rule,
             origin: SyntaxOrigin::Node(node),
         }
+    }
+}
+
+const fn numeric_builtin(ty: ConstantScalarType) -> Option<BuiltinType> {
+    match ty {
+        ConstantScalarType::Integer(builtin) => Some(builtin),
+        ConstantScalarType::Float(FloatFormat::Binary32) => Some(BuiltinType::F32),
+        ConstantScalarType::Float(FloatFormat::Binary64) => Some(BuiltinType::F64),
+        ConstantScalarType::Bool | ConstantScalarType::Character | ConstantScalarType::Text => None,
+    }
+}
+
+fn float_literal_parts(authored: &str) -> (&str, Option<FloatFormat>) {
+    if let Some(number) = authored.strip_suffix("f32") {
+        (number, Some(FloatFormat::Binary32))
+    } else if let Some(number) = authored.strip_suffix("f64") {
+        (number, Some(FloatFormat::Binary64))
+    } else {
+        (authored, None)
     }
 }

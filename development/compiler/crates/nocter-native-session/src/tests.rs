@@ -477,6 +477,9 @@ fn scalar_floating_values_cross_the_complete_native_session() {
         "main.nct",
         "use std/vec.Vec\n\
          \n\
+         const COMPILED_SUM: f64 = 0.1 + 0.2\n\
+         const COMPILED_NAN: f64 = 0.0 / 0.0\n\
+         \n\
          func identity(value: f64): f64 { value }\n\
          func sum9(\n\
              a: f64, b: f64, c: f64, d: f64, e: f64,\n\
@@ -506,6 +509,8 @@ fn scalar_floating_values_cross_the_complete_native_session() {
              if nan == nan { return 12 }\n\
              if !(nan != nan) { return 13 }\n\
              if !(1.0 <= 1.0) || !(1.0 >= 1.0) { return 14 }\n\
+             if COMPILED_SUM != 0.30000000000000004 { return 15 }\n\
+             if COMPILED_NAN <= 1.0 || COMPILED_NAN >= 1.0 { return 16 }\n\
              return 0\n\
          }\n",
     );

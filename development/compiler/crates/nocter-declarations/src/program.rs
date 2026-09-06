@@ -483,6 +483,11 @@ impl DeclarationProgramBuilder {
         &self.symbols
     }
 
+    #[must_use]
+    pub const fn target(&self) -> CompilationTarget {
+        self.target
+    }
+
     /// Adds a package after its exact package-graph identity has been selected by the caller.
     ///
     /// Package insertion order is required to be the caller's canonical package-graph order.
