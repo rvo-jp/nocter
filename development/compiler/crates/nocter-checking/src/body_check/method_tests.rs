@@ -64,6 +64,18 @@ fn private_methods_require_direct_source_access() {
 }
 
 #[test]
+fn module_constants_and_statics_are_method_receivers() {
+    let fixture = Fixture::with_standard(
+        "const BASE: u64 = 1\n\
+         static STORED: u64 = 2\n\
+         func constant_value(): u64 { BASE.identity() }\n\
+         func static_value(): u64 { STORED.identity() }\n",
+        "instance u64 { pub method &self.identity(): u64 { 1 } }\n",
+    );
+    check_fixture(&fixture).unwrap();
+}
+
+#[test]
 fn methods_accept_fixed_parameters_before_their_final_argument_pack() {
     let output = check(
         "struct Counter {}\ninstance Counter {\n    pub method &self.count(seed: usize, ...items: i32): usize { seed + items.len() }\n}\nfunc apply(counter: &Counter): usize { counter.count(10, 1, 2) }\n",

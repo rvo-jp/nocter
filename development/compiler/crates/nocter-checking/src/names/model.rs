@@ -18,6 +18,17 @@ impl NameTarget {
     pub(super) const fn is_callable_binding(self) -> bool {
         matches!(self, Self::Parameter(_) | Self::Local(_) | Self::Capture(_))
     }
+
+    /// Reports whether this name denotes a runtime value rather than a namespace or type owner.
+    pub(crate) const fn is_value(self) -> bool {
+        matches!(
+            self,
+            Self::Parameter(_)
+                | Self::Local(_)
+                | Self::Capture(_)
+                | Self::Exported(ExportedEntity::Constant(_) | ExportedEntity::Static(_))
+        )
+    }
 }
 
 /// The source construct that introduced a body-local binding.

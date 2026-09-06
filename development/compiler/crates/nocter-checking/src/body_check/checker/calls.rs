@@ -161,7 +161,8 @@ impl BodyChecker<'_, '_> {
                 result_context.and_then(CallResultContext::complete_type),
             );
         }
-        if !member_owner_is_value(self, owner)? {
+        let owner_kind = member_owner_kind(self, owner)?;
+        if !owner_kind.is_value() {
             return self.check_construction_function_call(
                 node,
                 owner,
@@ -170,7 +171,7 @@ impl BodyChecker<'_, '_> {
                 result_context,
             );
         }
-        if owner_is_direct_call_result(self, owner)? {
+        if owner_is_direct_call_result(self, owner)? || owner_kind == MemberOwnerKind::Constant {
             return self.check_method_call(node, owner, member, suffix, result_context);
         }
         match self.postfix_place(callee, nocter_model::BorrowCapability::Readonly) {
@@ -245,10 +246,26 @@ fn owner_is_direct_call_result(
         && crate::syntax::direct_node(checker.tree(), node, NodeKind::CallSuffix).is_some())
 }
 
-pub(super) fn member_owner_is_value(
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum MemberOwnerKind {
+    NonValue,
+    Value,
+    Constant,
+}
+
+impl MemberOwnerKind {
+    const fn is_value(self) -> bool {
+        matches!(self, Self::Value | Self::Constant)
+    }
+}
+
+fn member_owner_kind(
     checker: &BodyChecker<'_, '_>,
     mut node: NodeId,
-) -> Result<bool, BodyCheckInternalError> {
+) -> Result<MemberOwnerKind, BodyCheckInternalError> {
+    if checker.is_constant_reference(node) {
+        return Ok(MemberOwnerKind::Constant);
+    }
     loop {
         while checker.kind(node).is_ok_and(is_transparent_expression) {
             let children = child_nodes(checker.tree(), node);
@@ -259,10 +276,11 @@ pub(super) fn member_owner_is_value(
         }
         match checker.kind(node)? {
             NodeKind::ReferenceExpression => {
-                return Ok(matches!(
-                    call_name_target(checker, node)?,
-                    NameTarget::Parameter(_) | NameTarget::Local(_) | NameTarget::Capture(_)
-                ));
+                return Ok(if call_name_target(checker, node)?.is_value() {
+                    MemberOwnerKind::Value
+                } else {
+                    MemberOwnerKind::NonValue
+                });
             }
             NodeKind::PostfixExpression => {
                 let children = child_nodes(checker.tree(), node);
@@ -275,12 +293,12 @@ pub(super) fn member_owner_is_value(
                         PostfixSuffixKind::Call
                         | PostfixSuffixKind::TupleElement
                         | PostfixSuffixKind::Index,
-                    ) => return Ok(true),
+                    ) => return Ok(MemberOwnerKind::Value),
                     None => return Err(BodyCheckInternalError::InvalidSyntax(*suffix)),
                 }
             }
-            NodeKind::GenericOwnerMember => return Ok(false),
-            _ => return Ok(true),
+            NodeKind::GenericOwnerMember => return Ok(MemberOwnerKind::NonValue),
+            _ => return Ok(MemberOwnerKind::Value),
         }
     }
 }
@@ -293,7 +311,9 @@ pub(super) fn construction_member_syntax(
     let [owner, member] = children.as_slice() else {
         return Ok(None);
     };
-    if checker.kind(*member)? != NodeKind::MemberSuffix || member_owner_is_value(checker, *owner)? {
+    if checker.kind(*member)? != NodeKind::MemberSuffix
+        || member_owner_kind(checker, *owner)?.is_value()
+    {
         return Ok(None);
     }
     Ok(Some((*owner, *member)))
