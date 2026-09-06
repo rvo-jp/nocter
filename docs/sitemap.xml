@@ -621,6 +621,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/examples/floating-point/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/examples/hello/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

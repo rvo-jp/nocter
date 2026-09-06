@@ -651,6 +651,18 @@ mod tests {
     }
 
     #[test]
+    fn preserves_floating_literal_spelling_while_formatting_numeric_expressions() {
+        let formatted = format(
+            "func calculate(value:f64):f64 { let minimum:f32=1e-45\nreturn value*3.0+f64.from_f32(minimum)\n}\n",
+        );
+        assert_eq!(
+            formatted,
+            "func calculate(value: f64): f64 { let minimum: f32 = 1e-45\n    return value * 3.0 + f64.from_f32(minimum)\n}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
     fn distinguishes_attached_parentheses_from_grouping_and_closure_heads() {
         assert_eq!(
             format(

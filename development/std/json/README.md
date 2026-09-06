@@ -9,8 +9,7 @@ as language primitives.
 
 The compiler-checked [module contract](index.nct) is the sole authority for exact types, variants,
 signatures, constraints, and provenance. Parsing from a stream, pretty printing, canonical member
-ordering, generic serialization derivation, and floating-point conversion are not implied by that
-contract.
+ordering, and generic serialization derivation are not implied by that contract.
 
 ## Common Use
 
@@ -103,6 +102,22 @@ This exact token model deliberately does not define equality between `Number` va
 equivalence, such as whether `1`, `1.0`, and `1e0` compare equal, requires a separate explicit
 contract. The current `Value` contract therefore has no implicit recursive equality operation.
 
+### Floating-Point Conversion
+
+`Number.from_f32` and `Number.from_f64` accept every finite value and retain the standard shortest
+round-trippable decimal spelling. They return `none` for infinity or NaN because those values are
+outside the JSON number grammar. Their `try_from_f32` and `try_from_f64` forms place optional
+absence inside a recoverable allocation result: `none` still means non-finite input, while failure
+reports destination allocation through the supplied allocator.
+
+`as_f32` and `as_f64` parse the retained exact token and round once to the requested IEEE format
+using the standard numeric parser. They return `none` when a nonzero value would underflow to zero
+or a finite value would overflow to infinity. Converting an IEEE value to `Number` and back to the
+same width preserves its exact bits, including the sign of zero. An arbitrary parsed JSON decimal
+remains exact in `Number`; float projection is an explicit, potentially rounding observation and
+does not replace its token. Its temporary big-integer storage follows the numeric parser's ordinary
+current-allocation-context policy.
+
 ## Parsing
 
 `parse` and `try_parse` accept exactly one complete JSON text with optional JSON whitespace before
@@ -177,7 +192,6 @@ The initial JSON API does not provide:
 - borrowed or lazy DOM values;
 - event-based or streaming input parsing;
 - pretty, sorted, or canonical generation;
-- `f32` or `f64` conversion;
 - reflection, attributes, or automatic struct-to-JSON derivation;
 - compiler-known JSON syntax or lowering.
 

@@ -24,6 +24,18 @@ construct Number {
 
     /// Validates and copies exactly one JSON number token with recoverable allocation.
     pub func try_parse(allocator: &+TryAllocator, text: &str): Self! from allocator
+
+    /// Creates a canonical JSON number from a finite binary32 value.
+    pub func from_f32(value: f32): Self?
+
+    /// Creates the same number with recoverable allocation, or none for a non-finite value.
+    pub func try_from_f32(allocator: &+TryAllocator, value: f32): Self?! from allocator
+
+    /// Creates a canonical JSON number from a finite binary64 value.
+    pub func from_f64(value: f64): Self?
+
+    /// Creates the same number with recoverable allocation, or none for a non-finite value.
+    pub func try_from_f64(allocator: &+TryAllocator, value: f64): Self?! from allocator
 }
 
 instance Number {
@@ -35,6 +47,12 @@ instance Number {
 
     /// Returns the mathematical value when it is exactly representable as u64.
     pub noalloc method &self.as_u64(): u64?
+
+    /// Rounds the mathematical value to binary32, or returns none on range loss.
+    pub method &self.as_f32(): f32?
+
+    /// Rounds the mathematical value to binary64, or returns none on range loss.
+    pub method &self.as_f64(): f64?
 }
 
 /// One owning JSON value.

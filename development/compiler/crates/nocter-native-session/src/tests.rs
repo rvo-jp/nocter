@@ -2126,7 +2126,7 @@ fn standard_format_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard format tests failed native compilation")
     };
-    assert_eq!(cases.len(), 1);
+    assert_eq!(cases.len(), 2);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -2347,6 +2347,19 @@ fn recoverable_allocation_test_source() -> &'static str {
     )
 }
 
+const RECOVERABLE_JSON_FLOAT_TEST_SOURCE: &str = concat!(
+    "use /json.Number\n",
+    "use /mem\n",
+    "test recoverable_json_float_propagates_allocator_failure {\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _number = Number.try_from_f64(&+allocator, 0.1) catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.json.allocator\", \"wrong float allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.json.allocator\", \"invalid allocator created a number\")\n",
+    "}\n",
+);
+
 #[test]
 fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -2354,7 +2367,11 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let standard_package = PackageIdentity::new("toolchain:std");
 
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
-    root_source.push_str("\n#test: { name: \"numeric\", module: \"./num\" }\n");
+    root_source.push_str(concat!(
+        "\n#test: { name: \"numeric\", module: \"./num\" }\n",
+        "#test: { name: \"json-failure\", module: \".\" }\n",
+        "see ./allocator_failure_json_tests.nct\n",
+    ));
 
     let mut mem_contract = fs::read_to_string(standard_root.join("mem/index.nct")).unwrap();
     mem_contract.push_str("\npub(/) func failing_try_allocator_for_test(): TryAllocator\n");
@@ -2382,6 +2399,10 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             standard_root.join("num/allocator_failure_tests.nct"),
             num_failure_tests.to_string(),
         ),
+        (
+            standard_root.join("allocator_failure_json_tests.nct"),
+            RECOVERABLE_JSON_FLOAT_TEST_SOURCE.to_string(),
+        ),
     ] {
         overlay
             .insert_source(path, SourceOverride::new(source.into_bytes()))
@@ -2404,15 +2425,19 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
 
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
-    assert_eq!(compiled.targets().len(), 1);
-    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("allocator failure numeric tests failed native compilation")
-    };
-    assert_eq!(cases.len(), 21);
+    assert_eq!(compiled.targets().len(), 2);
     let output = TempPackage::new();
-    for case in cases {
-        execute_native_test(case.image(), &output.0, case.identity().name());
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("allocator failure tests failed native compilation")
+        };
+        case_count += cases.len();
+        for case in cases {
+            execute_native_test(case.image(), &output.0, case.identity().name());
+        }
     }
+    assert_eq!(case_count, 22);
 }
 
 #[test]
@@ -2461,7 +2486,7 @@ fn standard_json_phase_three_contract_crosses_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 21);
+    assert_eq!(case_count, 23);
 }
 
 #[test]

@@ -1,0 +1,20 @@
+use std/io
+use std/json
+use std/json.{Number, Value}
+
+func main(): i32! {
+    let input = f64.parse("0.1") otherwise {
+        io.eprint("the built-in decimal sample was rejected\n")?
+        return 1
+    }
+    let calculated = input * 3.0
+    let number = Number.from_f64(calculated) otherwise {
+        io.eprint("the calculation produced a non-finite value\n")?
+        return 1
+    }
+    let value = Value.number(move number)
+    let encoded = json.stringify(&value)
+    let report = "0.1 * 3.0 = ${calculated}; JSON = ${encoded}\n"
+    io.print(&report)?
+    return 0
+}

@@ -1014,6 +1014,7 @@ fn expected_example_output(name: &str) -> &'static [u8] {
         "custom-format.nct" => b"point = (3, 4)\n",
         "elapsed.nct" => b"at least two milliseconds elapsed\n",
         "equality.nct" => b"equality found the point\n",
+        "floating-point.nct" => b"0.1 * 3.0 = 0.30000000000000004; JSON = 0.30000000000000004\n",
         "hello.nct" => b"Hello from Nocter\n",
         "indexing.nct" | "recovery.nct" => b"",
         "mutable-iteration.nct" => b"mutable iteration updated every element\n",

@@ -1375,6 +1375,103 @@ mod tests {
     }
 
     #[test]
+    fn floating_source_uses_the_same_semantic_authority_across_editor_features() {
+        let temporary = TemporaryDirectory::new();
+        let text = concat!(
+            "use std/num\n",
+            "func describe(value: f64): String {\n",
+            "    let parsed = f64.parse(\"0.1\")!\n",
+            "    let owned = value.to_string()\n",
+            "    return \"${parsed}:${owned}\"\n",
+            "}\n",
+        );
+        let (mut server, uri) = open_semantic_source(&temporary, text);
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":30,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":24}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("```nocter\\npub method f64.to_string(): String\\n```"),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":31,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":24}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/num/index.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":32,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":28}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("f64.parse(text: &str): f64?"),
+            "{response}"
+        );
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":33,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens.response().unwrap().contains("\"data\":["),
+            "{:?}",
+            tokens.response()
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+        let references = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":34,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":1,\"character\":16}},\"context\":{{\"includeDeclaration\":true}}}}}}"
+        ));
+        let response = references.response().unwrap();
+        assert!(
+            response.contains("\"start\":{\"line\":1,\"character\":14}")
+                && response.contains("\"start\":{\"line\":3,\"character\":16}"),
+            "{response}"
+        );
+        assert!(references.issue().is_none(), "{:?}", references.issue());
+
+        let rename = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":35,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":1,\"character\":16}},\"newName\":\"measurement\"}}}}"
+        ));
+        let response = rename.response().unwrap();
+        assert!(response.contains("measurement"), "{response}");
+        assert!(rename.issue().is_none(), "{:?}", rename.issue());
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":36,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":6,\"character\":0}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        assert!(response.contains("\"label\":\": String\""), "{response}");
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+
+        let incomplete = text.replace("value.to_string()", "value.");
+        let mut incomplete_json = String::new();
+        nocter_json::write_string(&mut incomplete_json, &incomplete);
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":2}},\"contentChanges\":[{{\"text\":{incomplete_json}}}]}}}}"
+        ));
+        let completion = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":37,\"method\":\"textDocument/completion\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":22}}}}}}"
+        ));
+        let response = completion.response().unwrap();
+        assert!(response.contains("\"label\":\"to_string\""), "{response}");
+        assert!(response.contains("\"label\":\"is_finite\""), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn text_transformation_hover_uses_the_public_standard_contract() {
         let temporary = TemporaryDirectory::new();
         let (mut server, _source_uri) =

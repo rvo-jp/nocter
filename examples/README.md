@@ -85,6 +85,15 @@ nocter check examples/elapsed.nct
 nocter run examples/elapsed.nct
 ```
 
+[floating-point.nct](floating-point.nct) parses and calculates a binary64 value, formats it through
+interpolation, converts it to an exact JSON `Number`, and generates compact JSON through the shared
+shortest-decimal authority.
+
+```sh
+nocter check examples/floating-point.nct
+nocter run examples/floating-point.nct
+```
+
 [unicode-text.nct](unicode-text.nct) trims Unicode whitespace, applies full default casing including
 contextual and expanding mappings, queries a scalar property, and removes owned UTF-8 suffixes only
 at scalar boundaries.
