@@ -479,12 +479,18 @@ fn scalar_floating_values_cross_the_complete_native_session() {
          \n\
          const COMPILED_SUM: f64 = 0.1 + 0.2\n\
          const COMPILED_NAN: f64 = 0.0 / 0.0\n\
+         const COMPILED_TINY: f64 = 5e-324\n\
          \n\
          func identity(value: f64): f64 { value }\n\
          func sum9(\n\
              a: f64, b: f64, c: f64, d: f64, e: f64,\n\
              f: f64, g: f64, h: f64, i: f64,\n\
          ): f64 { a + b + c + d + e + f + g + h + i }\n\
+         func mixed9(\n\
+             n0: i32, f0: f64, n1: i32, f1: f64, n2: i32, f2: f64,\n\
+             n3: i32, f3: f64, n4: i32, f4: f64, n5: i32, f5: f64,\n\
+             n6: i32, f6: f64, n7: i32, f7: f64, n8: i32, f8: f64,\n\
+         ): f64 { n8 as f64 + f8 }\n\
          func narrow(value: f32): f32 { -(value * 2.0f32) }\n\
          func main(): i32 {\n\
              let retained = 1.25\n\
@@ -511,6 +517,21 @@ fn scalar_floating_values_cross_the_complete_native_session() {
              if !(1.0 <= 1.0) || !(1.0 >= 1.0) { return 14 }\n\
              if COMPILED_SUM != 0.30000000000000004 { return 15 }\n\
              if COMPILED_NAN <= 1.0 || COMPILED_NAN >= 1.0 { return 16 }\n\
+             let mixed = mixed9(\n\
+                 0, 0.0, 1, 1.0, 2, 2.0, 3, 3.0, 4, 4.0,\n\
+                 5, 5.0, 6, 6.0, 7, 7.0, 8, 8.0,\n\
+             )\n\
+             if mixed != 16.0 { return 17 }\n\
+             let tiny64 = 5e-324\n\
+             if !(tiny64 > 0.0) || tiny64 / 2.0 != 0.0 { return 18 }\n\
+             if COMPILED_TINY != tiny64 { return 19 }\n\
+             let tiny32 = 1e-45f32\n\
+             if !(tiny32 > 0.0f32) || tiny32 / 2.0f32 != 0.0f32 { return 20 }\n\
+             let positive_infinity = 1.0 / 0.0\n\
+             let negative_infinity = 1.0 / -0.0\n\
+             if !(positive_infinity > 1.7976931348623157e308) { return 21 }\n\
+             if !(negative_infinity < -1.7976931348623157e308) { return 22 }\n\
+             if -0.0 != 0.0 { return 23 }\n\
              return 0\n\
          }\n",
     );
