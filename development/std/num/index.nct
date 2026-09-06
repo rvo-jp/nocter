@@ -107,6 +107,18 @@ instance f32 {
     /// Clears the IEEE sign bit without changing the payload.
     pub noalloc method self.abs(): Self
 
+    /// Rounds toward negative infinity.
+    pub noalloc method self.floor(): Self
+
+    /// Rounds toward positive infinity.
+    pub noalloc method self.ceil(): Self
+
+    /// Rounds toward zero.
+    pub noalloc method self.trunc(): Self
+
+    /// Rounds to the nearest integer, choosing the even value at a tie.
+    pub noalloc method self.round_ties_even(): Self
+
     /// Compares every IEEE representation in a deterministic total order.
     pub noalloc method self.total_compare(other: Self): Ordering
 }
@@ -141,6 +153,18 @@ instance f64 {
 
     /// Clears the IEEE sign bit without changing the payload.
     pub noalloc method self.abs(): Self
+
+    /// Rounds toward negative infinity.
+    pub noalloc method self.floor(): Self
+
+    /// Rounds toward positive infinity.
+    pub noalloc method self.ceil(): Self
+
+    /// Rounds toward zero.
+    pub noalloc method self.trunc(): Self
+
+    /// Rounds to the nearest integer, choosing the even value at a tie.
+    pub noalloc method self.round_ties_even(): Self
 
     /// Compares every IEEE representation in a deterministic total order.
     pub noalloc method self.total_compare(other: Self): Ordering

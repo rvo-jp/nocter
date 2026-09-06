@@ -1,8 +1,8 @@
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64DataRegister, Arm64DataSize, Arm64EncodingError, Arm64FloatBinary, Arm64FloatRegister,
-    Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide, Arm64Register, Arm64Shift,
-    Arm64SystemRegister,
+    Arm64FloatRounding, Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide, Arm64Register,
+    Arm64Shift, Arm64SystemRegister,
 };
 
 fn x(number: u8) -> Arm64Register {
@@ -176,6 +176,28 @@ fn encodes_scalar_floating_register_arithmetic_and_memory() {
             offset: 24,
         }),
         0xfd00_0c83
+    );
+}
+
+#[test]
+fn encodes_scalar_floating_rounding() {
+    assert_eq!(
+        word(Arm64Instruction::FloatRound {
+            size: Arm64DataSize::Bits32,
+            operation: Arm64FloatRounding::TiesEven,
+            destination: v(3),
+            source: v(4),
+        }),
+        0x1e24_4083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatRound {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64FloatRounding::Floor,
+            destination: v(3),
+            source: v(4),
+        }),
+        0x1e65_4083
     );
 }
 

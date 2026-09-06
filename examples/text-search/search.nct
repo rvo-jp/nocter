@@ -1,3 +1,5 @@
+see ./index.nct
+
 use std/fs.FileType
 use std/fs
 use std/io.{File, Writer}
@@ -7,12 +9,11 @@ use std/process
 use std/string.String
 use std/vec.Vec
 
-struct SearchPath {
-    full: String
-    display: String
-}
-
 instance SearchPath {
+    operator (&self == other: &Self): bool {
+        return &self.display == &other.display
+    }
+
     operator (&self < other: &Self): bool {
         return &self.display < &other.display
     }

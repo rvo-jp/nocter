@@ -58,12 +58,20 @@ instance f32 {
     pub noalloc method self.is_sign_negative(): bool
     pub noalloc method self.is_sign_positive(): bool
     pub noalloc method self.abs(): Self
+    pub noalloc method self.floor(): Self
+    pub noalloc method self.ceil(): Self
+    pub noalloc method self.trunc(): Self
+    pub noalloc method self.round_ties_even(): Self
 }
 ```
 
 `f64` provides the same methods with `u64` bits. `from_bits` and `to_bits` preserve all bits,
 including signed zero and NaN payloads. The sign methods inspect the representation and therefore
 also classify zero and NaN. `abs` clears only the sign bit.
+
+`floor`, `ceil`, and `trunc` round toward negative infinity, positive infinity, and zero.
+`round_ties_even` selects the nearest integral value and chooses the even neighbor at an exact tie.
+Rounding preserves an already integral value, infinity, NaN classification, and signed zero.
 
 The module constants `F32_INFINITY`, `F32_NEG_INFINITY`, `F32_NAN`, `F64_INFINITY`,
 `F64_NEG_INFINITY`, and `F64_NAN` provide special values. Their module subject remains explicit;

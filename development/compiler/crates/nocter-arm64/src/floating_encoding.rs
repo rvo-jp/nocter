@@ -1,4 +1,6 @@
-use crate::{Arm64DataSize, Arm64EncodingError, Arm64FloatBinary, Arm64Instruction};
+use crate::{
+    Arm64DataSize, Arm64EncodingError, Arm64FloatBinary, Arm64FloatRounding, Arm64Instruction,
+};
 
 pub(crate) fn arithmetic(instruction: Arm64Instruction) -> u32 {
     match instruction {
@@ -61,6 +63,12 @@ pub(crate) fn arithmetic(instruction: Arm64Instruction) -> u32 {
                 | u32::from(source.number()) << 5
                 | u32::from(destination.number())
         }
+        Arm64Instruction::FloatRound {
+            size,
+            operation,
+            destination,
+            source,
+        } => rounding(size, operation, destination, source),
         Arm64Instruction::FloatBinary {
             size,
             operation,
@@ -86,6 +94,23 @@ pub(crate) fn arithmetic(instruction: Arm64Instruction) -> u32 {
         }
         _ => unreachable!("floating arithmetic encoding received another instruction class"),
     }
+}
+
+fn rounding(
+    size: Arm64DataSize,
+    operation: Arm64FloatRounding,
+    destination: crate::Arm64FloatRegister,
+    source: crate::Arm64FloatRegister,
+) -> u32 {
+    let (single, double) = match operation {
+        Arm64FloatRounding::Floor => (0x1e25_4000, 0x1e65_4000),
+        Arm64FloatRounding::Ceil => (0x1e24_c000, 0x1e64_c000),
+        Arm64FloatRounding::Truncate => (0x1e25_c000, 0x1e65_c000),
+        Arm64FloatRounding::TiesEven => (0x1e24_4000, 0x1e64_4000),
+    };
+    size_base(size, single, double)
+        | u32::from(source.number()) << 5
+        | u32::from(destination.number())
 }
 
 pub(crate) fn memory(instruction: Arm64Instruction) -> Result<u32, Arm64EncodingError> {

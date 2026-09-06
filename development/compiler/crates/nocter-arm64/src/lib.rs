@@ -74,8 +74,9 @@ pub use function_frame::{
 };
 pub use identity::{Arm64DataId, Arm64FunctionId};
 pub use instruction::{
-    Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64FloatBinary, Arm64Instruction,
-    Arm64LoadStoreSize, Arm64Logical, Arm64MoveWide, Arm64Shift, Arm64SystemRegister,
+    Arm64AddSubtract, Arm64BranchCondition, Arm64DataSize, Arm64FloatBinary, Arm64FloatRounding,
+    Arm64Instruction, Arm64LoadStoreSize, Arm64Logical, Arm64MoveWide, Arm64Shift,
+    Arm64SystemRegister,
 };
 pub use lower::{Arm64LoweringError, Arm64TestExecutable, Arm64TestSuite};
 pub use pack_callback::{Arm64PackCallbackKey, Arm64PackCallbackKind};

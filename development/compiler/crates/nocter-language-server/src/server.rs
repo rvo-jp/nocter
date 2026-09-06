@@ -1955,7 +1955,7 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("sort(): void where (&T < &T): bool"),
+            response.contains("sort(): void where T impl TotalOrder"),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());

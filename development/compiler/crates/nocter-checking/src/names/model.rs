@@ -29,6 +29,17 @@ impl NameTarget {
                 | Self::Exported(ExportedEntity::Constant(_) | ExportedEntity::Static(_))
         )
     }
+
+    /// Reports whether this value name can root a place.
+    pub(crate) const fn is_addressable(self) -> bool {
+        matches!(
+            self,
+            Self::Parameter(_)
+                | Self::Local(_)
+                | Self::Capture(_)
+                | Self::Exported(ExportedEntity::Static(_))
+        )
+    }
 }
 
 /// The source construct that introduced a body-local binding.

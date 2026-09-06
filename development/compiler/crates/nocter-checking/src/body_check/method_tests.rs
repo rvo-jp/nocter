@@ -69,8 +69,10 @@ fn module_constants_and_statics_are_method_receivers() {
         "const BASE: u64 = 1\n\
          static STORED: u64 = 2\n\
          func constant_value(): u64 { BASE.identity() }\n\
-         func static_value(): u64 { STORED.identity() }\n",
-        "instance u64 { pub method &self.identity(): u64 { 1 } }\n",
+         func static_value(): u64 { STORED.identity() }\n\
+         func produced_value(): i32 { (-1).identity() }\n",
+        "instance u64 { pub method &self.identity(): u64 { 1 } }\n\
+         instance i32 { pub method &self.identity(): i32 { 1 } }\n",
     );
     check_fixture(&fixture).unwrap();
 }

@@ -145,6 +145,12 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedFloatRegister,
         operand: Arm64SelectedFloatRegister,
     },
+    FloatRound {
+        size: Arm64DataSize,
+        operation: crate::Arm64FloatRounding,
+        destination: Arm64SelectedFloatRegister,
+        source: Arm64SelectedFloatRegister,
+    },
     FloatBinary {
         size: Arm64DataSize,
         operation: crate::Arm64FloatBinary,

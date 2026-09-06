@@ -54,6 +54,14 @@ pub enum Arm64FloatBinary {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Arm64FloatRounding {
+    Floor,
+    Ceil,
+    Truncate,
+    TiesEven,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64BranchCondition {
     Equal,
     NotEqual,
@@ -261,6 +269,12 @@ pub enum Arm64Instruction {
     },
     FloatNegate {
         size: Arm64DataSize,
+        destination: Arm64FloatRegister,
+        source: Arm64FloatRegister,
+    },
+    FloatRound {
+        size: Arm64DataSize,
+        operation: Arm64FloatRounding,
         destination: Arm64FloatRegister,
         source: Arm64FloatRegister,
     },

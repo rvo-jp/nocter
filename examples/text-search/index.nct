@@ -7,7 +7,19 @@
     name: "text-search",
 }
 
+use std/order.TotalOrder
+use std/string.String
+
 see ./search.nct
+
+struct SearchPath {
+    full: String
+    display: String
+}
+
+instance SearchPath {
+    impl TotalOrder
+}
 
 func main(): i32 {
     return run()

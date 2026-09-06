@@ -319,5 +319,21 @@ test floating_bits_and_classification_preserve_ieee_identity {
         ordering_is_equal(F64_NAN.total_compare(F64_NAN)),
         "identical f64 NaN representations were not total-order equal",
     )?
+    require(1.75f32.floor() == 1.0f32, "f32 floor rounded incorrectly")?
+    require(1.25f32.ceil() == 2.0f32, "f32 ceil rounded incorrectly")?
+    require((-1.75f32).trunc() == -1.0f32, "f32 trunc rounded incorrectly")?
+    require(2.5f32.round_ties_even() == 2.0f32, "f32 even tie rounded up")?
+    require(3.5f32.round_ties_even() == 4.0f32, "f32 odd tie rounded down")?
+    require((-1.25).floor() == -2.0, "f64 floor rounded incorrectly")?
+    require((-1.75).ceil() == -1.0, "f64 ceil rounded incorrectly")?
+    require((-1.75).trunc() == -1.0, "f64 trunc rounded incorrectly")?
+    require(2.5.round_ties_even() == 2.0, "f64 even tie rounded up")?
+    require(3.5.round_ties_even() == 4.0, "f64 odd tie rounded down")?
+    require(
+        negative_zero32.round_ties_even().to_bits() == 2147483648,
+        "rounding did not preserve negative f32 zero",
+    )?
+    require(F64_INFINITY.floor().is_infinite(), "rounding changed f64 infinity")?
+    require(F64_NAN.ceil().is_nan(), "rounding made f64 NaN finite")?
     return
 }

@@ -133,6 +133,12 @@ fn emit_instruction(
             destination,
             operand,
         } => crate::floating_code::emit_negate(function, destination, operand, size, code),
+        Arm64SelectedInstruction::FloatRound {
+            size,
+            operation,
+            destination,
+            source,
+        } => crate::floating_code::emit_round(function, destination, source, size, operation, code),
         Arm64SelectedInstruction::FloatBinary {
             size,
             operation,

@@ -196,7 +196,19 @@
     name<span class="token-operator">:</span> <span class="token-string">"text-search"</span><span class="token-operator">,</span>
 <span class="token-operator">}</span>
 
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">TotalOrder</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>search<span class="token-operator">.</span>nct
+
+<span class="token-keyword">struct</span> <span class="token-type">SearchPath</span> <span class="token-operator">{</span>
+    full<span class="token-operator">:</span> <span class="token-type">String</span>
+    display<span class="token-operator">:</span> <span class="token-type">String</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">SearchPath</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">TotalOrder</span>
+<span class="token-operator">}</span>
 
 <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
     <span class="token-keyword">return</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span>

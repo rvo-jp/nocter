@@ -12,6 +12,11 @@ also classify signed zero and NaN. `abs` clears only the sign bit.
 provide module-scoped special values. Arithmetic may canonicalize a NaN; use `from_bits` when an
 exact payload is part of a protocol or file format.
 
+`floor`, `ceil`, and `trunc` round toward negative infinity, positive infinity, and zero.
+`round_ties_even` rounds to the nearest integer and selects the even neighbor at an exact tie.
+These operations preserve an already integral value, infinity, NaN classification, and the sign of
+zero. They do not allocate and return the same floating-point type.
+
 ## Integer Text
 
 Every built-in integer owns the decimal text surface declared by the compiler-checked

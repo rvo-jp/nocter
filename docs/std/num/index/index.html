@@ -295,6 +295,18 @@
     <span class="token-comment">/// Clears the IEEE sign bit without changing the payload.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">abs</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
+    <span class="token-comment">/// Rounds toward negative infinity.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">floor</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds toward positive infinity.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">ceil</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds toward zero.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">trunc</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds to the nearest integer, choosing the even value at a tie.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">round_ties_even</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
     <span class="token-comment">/// Compares every IEEE representation in a deterministic total order.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">total_compare</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Ordering</span>
 <span class="token-operator">}</span>
@@ -329,6 +341,18 @@
 
     <span class="token-comment">/// Clears the IEEE sign bit without changing the payload.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">abs</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds toward negative infinity.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">floor</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds toward positive infinity.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">ceil</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds toward zero.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">trunc</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Rounds to the nearest integer, choosing the even value at a tie.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">round_ties_even</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
 
     <span class="token-comment">/// Compares every IEEE representation in a deterministic total order.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">total_compare</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Ordering</span>

@@ -171,7 +171,7 @@ impl BodyChecker<'_, '_> {
                 result_context,
             );
         }
-        if owner_is_direct_call_result(self, owner)? || owner_kind == MemberOwnerKind::Constant {
+        if owner_kind == MemberOwnerKind::Produced {
             return self.check_method_call(node, owner, member, suffix, result_context);
         }
         match self.postfix_place(callee, nocter_model::BorrowCapability::Readonly) {
@@ -231,31 +231,16 @@ impl BodyChecker<'_, '_> {
     }
 }
 
-fn owner_is_direct_call_result(
-    checker: &BodyChecker<'_, '_>,
-    mut node: NodeId,
-) -> Result<bool, BodyCheckInternalError> {
-    while checker.kind(node).is_ok_and(is_transparent_expression) {
-        let children = child_nodes(checker.tree(), node);
-        let [child] = children.as_slice() else {
-            return Err(BodyCheckInternalError::InvalidSyntax(node));
-        };
-        node = *child;
-    }
-    Ok(checker.kind(node)? == NodeKind::PostfixExpression
-        && crate::syntax::direct_node(checker.tree(), node, NodeKind::CallSuffix).is_some())
-}
-
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum MemberOwnerKind {
     NonValue,
-    Value,
-    Constant,
+    Addressable,
+    Produced,
 }
 
 impl MemberOwnerKind {
     const fn is_value(self) -> bool {
-        matches!(self, Self::Value | Self::Constant)
+        matches!(self, Self::Addressable | Self::Produced)
     }
 }
 
@@ -264,7 +249,7 @@ fn member_owner_kind(
     mut node: NodeId,
 ) -> Result<MemberOwnerKind, BodyCheckInternalError> {
     if checker.is_constant_reference(node) {
-        return Ok(MemberOwnerKind::Constant);
+        return Ok(MemberOwnerKind::Produced);
     }
     loop {
         while checker.kind(node).is_ok_and(is_transparent_expression) {
@@ -276,8 +261,11 @@ fn member_owner_kind(
         }
         match checker.kind(node)? {
             NodeKind::ReferenceExpression => {
-                return Ok(if call_name_target(checker, node)?.is_value() {
-                    MemberOwnerKind::Value
+                let target = call_name_target(checker, node)?;
+                return Ok(if target.is_addressable() {
+                    MemberOwnerKind::Addressable
+                } else if target.is_value() {
+                    MemberOwnerKind::Produced
                 } else {
                     MemberOwnerKind::NonValue
                 });
@@ -289,16 +277,15 @@ fn member_owner_kind(
                 };
                 match checker.kind(*suffix)?.postfix_suffix() {
                     Some(PostfixSuffixKind::Member) => node = *base,
-                    Some(
-                        PostfixSuffixKind::Call
-                        | PostfixSuffixKind::TupleElement
-                        | PostfixSuffixKind::Index,
-                    ) => return Ok(MemberOwnerKind::Value),
+                    Some(PostfixSuffixKind::Call) => return Ok(MemberOwnerKind::Produced),
+                    Some(PostfixSuffixKind::TupleElement | PostfixSuffixKind::Index) => {
+                        return Ok(MemberOwnerKind::Addressable);
+                    }
                     None => return Err(BodyCheckInternalError::InvalidSyntax(*suffix)),
                 }
             }
             NodeKind::GenericOwnerMember => return Ok(MemberOwnerKind::NonValue),
-            _ => return Ok(MemberOwnerKind::Value),
+            _ => return Ok(MemberOwnerKind::Produced),
         }
     }
 }

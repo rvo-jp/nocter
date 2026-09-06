@@ -5,9 +5,9 @@ use nocter_machine::{
 use nocter_runtime_contract::PrimitiveRole;
 
 use crate::{
-    Arm64DataSize, Arm64NocterAbi, Arm64SelectedBinaryOperation, Arm64SelectedInstruction,
-    Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress, Arm64SelectedRegister,
-    Arm64SelectionError,
+    Arm64DataSize, Arm64FloatRounding, Arm64NocterAbi, Arm64SelectedBinaryOperation,
+    Arm64SelectedInstruction, Arm64SelectedLoadExtension, Arm64SelectedMemoryAddress,
+    Arm64SelectedRegister, Arm64SelectionError,
 };
 
 /// A primitive call paired with its canonical machine ABI entry.
@@ -117,10 +117,7 @@ pub(crate) fn select(
         | PrimitiveRole::U32Truncate
         | PrimitiveRole::I8Truncate
         | PrimitiveRole::I16Truncate
-        | PrimitiveRole::I32Truncate => {
-            validate_register_abi(operation, target, &[1], 1)?;
-            validate_type_arguments(operation, target, 0)
-        }
+        | PrimitiveRole::I32Truncate => select_direct_unary(operation, target),
         PrimitiveRole::U64WrappingAdd
         | PrimitiveRole::U64WrappingMultiply
         | PrimitiveRole::U64BitwiseXor
@@ -129,6 +126,14 @@ pub(crate) fn select(
         | PrimitiveRole::F32ToBits
         | PrimitiveRole::F64FromBits
         | PrimitiveRole::F64ToBits => select_float_bits(operation, target, selected),
+        PrimitiveRole::F32Floor
+        | PrimitiveRole::F32Ceil
+        | PrimitiveRole::F32Trunc
+        | PrimitiveRole::F32RoundTiesEven
+        | PrimitiveRole::F64Floor
+        | PrimitiveRole::F64Ceil
+        | PrimitiveRole::F64Trunc
+        | PrimitiveRole::F64RoundTiesEven => select_float_round(operation, target, selected),
         PrimitiveRole::AllocationAbort
         | PrimitiveRole::ProcessExit
         | PrimitiveRole::MonotonicCounterRead
@@ -147,6 +152,14 @@ pub(crate) fn select(
             super::system_primitive_selection::select(program, operation, target, selected)
         }
     }
+}
+
+fn select_direct_unary(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+) -> Result<(), Arm64SelectionError> {
+    validate_register_abi(operation, target, &[1], 1)?;
+    validate_type_arguments(operation, target, 0)
 }
 
 fn select_float_bits(
@@ -183,11 +196,88 @@ fn select_float_bits(
     Ok(())
 }
 
+fn select_float_round(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_type_arguments(operation, target, 0)?;
+    let (size, float_class, rounding) = match target.role() {
+        PrimitiveRole::F32Floor => (
+            Arm64DataSize::Bits32,
+            MachineValueClass::Float32,
+            Arm64FloatRounding::Floor,
+        ),
+        PrimitiveRole::F32Ceil => (
+            Arm64DataSize::Bits32,
+            MachineValueClass::Float32,
+            Arm64FloatRounding::Ceil,
+        ),
+        PrimitiveRole::F32Trunc => (
+            Arm64DataSize::Bits32,
+            MachineValueClass::Float32,
+            Arm64FloatRounding::Truncate,
+        ),
+        PrimitiveRole::F32RoundTiesEven => (
+            Arm64DataSize::Bits32,
+            MachineValueClass::Float32,
+            Arm64FloatRounding::TiesEven,
+        ),
+        PrimitiveRole::F64Floor => (
+            Arm64DataSize::Bits64,
+            MachineValueClass::Float64,
+            Arm64FloatRounding::Floor,
+        ),
+        PrimitiveRole::F64Ceil => (
+            Arm64DataSize::Bits64,
+            MachineValueClass::Float64,
+            Arm64FloatRounding::Ceil,
+        ),
+        PrimitiveRole::F64Trunc => (
+            Arm64DataSize::Bits64,
+            MachineValueClass::Float64,
+            Arm64FloatRounding::Truncate,
+        ),
+        PrimitiveRole::F64RoundTiesEven => (
+            Arm64DataSize::Bits64,
+            MachineValueClass::Float64,
+            Arm64FloatRounding::TiesEven,
+        ),
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    validate_float_register_abi(operation, target, float_class, float_class)?;
+    let register = Arm64NocterAbi::floating_argument_register(0)
+        .map(crate::Arm64SelectedFloatRegister::Fixed)
+        .ok_or(Arm64SelectionError::RegisterOverflow)?;
+    selected.push(Arm64SelectedInstruction::FloatRound {
+        size,
+        operation: rounding,
+        destination: register,
+        source: register,
+    });
+    Ok(())
+}
+
 fn validate_float_bitcast_abi(
     operation: MachineOperationId,
     target: Arm64PrimitiveTarget<'_>,
     float_class: MachineValueClass,
     from_bits: bool,
+) -> Result<(), Arm64SelectionError> {
+    let integer_class = MachineValueClass::Direct { words: 1 };
+    let (expected_argument, expected_result) = if from_bits {
+        (integer_class, float_class)
+    } else {
+        (float_class, integer_class)
+    };
+    validate_float_register_abi(operation, target, expected_argument, expected_result)
+}
+
+fn validate_float_register_abi(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    expected_argument: MachineValueClass,
+    expected_result: MachineValueClass,
 ) -> Result<(), Arm64SelectionError> {
     let [argument] = target.abi().arguments() else {
         return Err(Arm64SelectionError::PrimitiveCall(operation));
@@ -200,12 +290,6 @@ fn validate_float_bitcast_abi(
     };
     let MachineResultLocation::Registers(result_registers) = result.location() else {
         return Err(Arm64SelectionError::PrimitiveCall(operation));
-    };
-    let integer_class = MachineValueClass::Direct { words: 1 };
-    let (expected_argument, expected_result) = if from_bits {
-        (integer_class, float_class)
-    } else {
-        (float_class, integer_class)
     };
     if target.abi().pack().is_some()
         || target.abi().stack_argument_size() != 0

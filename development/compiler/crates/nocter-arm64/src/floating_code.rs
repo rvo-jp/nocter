@@ -1,6 +1,6 @@
 use crate::{
     Arm64AddSubtract, Arm64BaseRegister, Arm64BranchCondition, Arm64CodeBuilder, Arm64DataRegister,
-    Arm64DataSize, Arm64FloatBinary, Arm64FloatRegister, Arm64Instruction,
+    Arm64DataSize, Arm64FloatBinary, Arm64FloatRegister, Arm64FloatRounding, Arm64Instruction,
     Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFloatComparisonOperation,
     Arm64SelectedFloatRegister, Arm64SelectedFunction, Arm64SelectedMemoryAddress,
     Arm64SelectedRegister,
@@ -169,6 +169,26 @@ pub(crate) fn emit_negate(
         size,
         destination: destination.register,
         source: operand,
+    });
+    finish_write(destination, size, code);
+    Ok(())
+}
+
+pub(crate) fn emit_round(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedFloatRegister,
+    source: Arm64SelectedFloatRegister,
+    size: Arm64DataSize,
+    operation: Arm64FloatRounding,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let source = read_register(function, source, 0, size, code)?;
+    let destination = write_target(function, destination)?;
+    code.append(Arm64Instruction::FloatRound {
+        size,
+        operation,
+        destination: destination.register,
+        source,
     });
     finish_write(destination, size, code);
     Ok(())
