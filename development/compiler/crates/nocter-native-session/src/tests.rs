@@ -494,6 +494,12 @@ fn scalar_floating_values_cross_the_complete_native_session() {
              var values = Vec [1.5, 2.5]\n\
              let popped = values.pop() otherwise { return 5 }\n\
              if popped != 2.5 { return 6 }\n\
+             let signed: i32 = -7\n\
+             if signed as f64 != -7.0 { return 7 }\n\
+             let unsigned: u16 = 9\n\
+             if unsigned as f32 != 9.0f32 { return 8 }\n\
+             let widened = 1.5f32 as f64\n\
+             if widened != 1.5 { return 9 }\n\
              return 0\n\
          }\n",
     );

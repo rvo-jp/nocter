@@ -99,6 +99,33 @@ fn encodes_scalar_floating_register_arithmetic_and_memory() {
         0x9e67_0083
     );
     assert_eq!(
+        word(Arm64Instruction::FloatFromInteger {
+            source_size: Arm64DataSize::Bits32,
+            target_size: Arm64DataSize::Bits64,
+            signed: true,
+            destination: v(3),
+            source: x(4),
+        }),
+        0x1e62_0083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatFromInteger {
+            source_size: Arm64DataSize::Bits32,
+            target_size: Arm64DataSize::Bits32,
+            signed: false,
+            destination: v(3),
+            source: x(4),
+        }),
+        0x1e23_0083
+    );
+    assert_eq!(
+        word(Arm64Instruction::FloatWiden {
+            destination: v(3),
+            source: v(4),
+        }),
+        0x1e22_c083
+    );
+    assert_eq!(
         word(Arm64Instruction::FloatNegate {
             size: Arm64DataSize::Bits64,
             destination: v(3),

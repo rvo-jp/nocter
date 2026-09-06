@@ -185,6 +185,25 @@ fn emit_instruction(
             signed,
             code,
         ),
+        Arm64SelectedInstruction::FloatFromInteger {
+            source_size,
+            target_size,
+            signed,
+            destination,
+            source,
+        } => crate::floating_code::emit_from_integer(
+            function,
+            destination,
+            source,
+            source_size,
+            target_size,
+            signed,
+            code,
+        ),
+        Arm64SelectedInstruction::FloatWiden {
+            destination,
+            source,
+        } => crate::floating_code::emit_widen(function, destination, source, code),
         Arm64SelectedInstruction::LoadMemory {
             bytes,
             extension,

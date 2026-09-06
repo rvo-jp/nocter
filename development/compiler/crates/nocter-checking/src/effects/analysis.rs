@@ -430,7 +430,7 @@ impl<'program> Collector<'program> {
             }
             CheckedOperation::Primitive(primitive) => match primitive {
                 PrimitiveOperation::Unary { operand, .. }
-                | PrimitiveOperation::IntegerConversion { operand, .. } => {
+                | PrimitiveOperation::NumericConversion { operand, .. } => {
                     self.visit_node(*operand)?;
                 }
                 PrimitiveOperation::Binary { left, right, .. } => {

@@ -106,7 +106,7 @@ pub enum MachineOperationKind {
         left: MachineValueId,
         right: MachineValueId,
     },
-    IntegerConversion {
+    NumericConversion {
         operand: MachineValueId,
     },
     Comparison(crate::MachineComparison),

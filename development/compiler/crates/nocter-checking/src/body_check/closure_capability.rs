@@ -180,7 +180,7 @@ fn append_operands(
         CheckedOperation::OpaqueWitness(witness) => pending.push(witness.value()),
         CheckedOperation::Primitive(
             PrimitiveOperation::Unary { operand, .. }
-            | PrimitiveOperation::IntegerConversion { operand, .. },
+            | PrimitiveOperation::NumericConversion { operand, .. },
         ) => {
             pending.push(*operand);
         }

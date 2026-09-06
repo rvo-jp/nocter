@@ -342,7 +342,7 @@ fn operation_inputs(
             insert_value(body, *value, &mut inputs)?;
         }
         MachineOperationKind::Unary { operand, .. }
-        | MachineOperationKind::IntegerConversion { operand }
+        | MachineOperationKind::NumericConversion { operand }
         | MachineOperationKind::BorrowWeakening { source: operand } => {
             insert_value(body, *operand, &mut inputs)?;
         }

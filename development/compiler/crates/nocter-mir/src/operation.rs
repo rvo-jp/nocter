@@ -270,7 +270,7 @@ pub enum MirOperationKind {
         left: MirValueId,
         right: MirValueId,
     },
-    IntegerConversion {
+    NumericConversion {
         operand: MirValueId,
     },
     Aggregate(MirAggregate),
@@ -311,7 +311,7 @@ impl MirOperationKind {
                 | Self::Borrow { .. }
                 | Self::Unary { .. }
                 | Self::Binary { .. }
-                | Self::IntegerConversion { .. }
+                | Self::NumericConversion { .. }
                 | Self::Aggregate(_)
                 | Self::Call(_)
                 | Self::PackLength

@@ -265,8 +265,8 @@ impl<'a> FunctionLowerer<'a> {
                 left: self.require_value(*left)?,
                 right: self.require_value(*right)?,
             },
-            PrimitiveOperation::IntegerConversion { operand, .. } => {
-                MirOperationKind::IntegerConversion {
+            PrimitiveOperation::NumericConversion { operand, .. } => {
+                MirOperationKind::NumericConversion {
                     operand: self.require_value(*operand)?,
                 }
             }

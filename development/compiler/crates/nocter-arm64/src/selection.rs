@@ -165,6 +165,17 @@ pub enum Arm64SelectedInstruction {
         destination: Arm64SelectedRegister,
         source: Arm64SelectedRegister,
     },
+    FloatFromInteger {
+        source_size: Arm64DataSize,
+        target_size: Arm64DataSize,
+        signed: bool,
+        destination: Arm64SelectedFloatRegister,
+        source: Arm64SelectedRegister,
+    },
+    FloatWiden {
+        destination: Arm64SelectedFloatRegister,
+        source: Arm64SelectedFloatRegister,
+    },
     LoadMemory {
         bytes: u8,
         extension: Arm64SelectedLoadExtension,
@@ -797,7 +808,7 @@ fn select_operation(
             crate::pack_selection::Arm64PackOperation::Destroy,
             selected,
         ),
-        MachineOperationKind::IntegerConversion { operand } => select_integer_conversion(
+        MachineOperationKind::NumericConversion { operand } => select_numeric_conversion(
             (context.program(), context.owner()),
             operation_id,
             *operand,
@@ -930,7 +941,7 @@ fn select_unary(
     Ok(())
 }
 
-fn select_integer_conversion(
+fn select_numeric_conversion(
     scope: (&nocter_machine::MachineProgram, MachineFunctionId),
     operation_id: MachineOperationId,
     operand: MachineValueId,
@@ -939,24 +950,72 @@ fn select_integer_conversion(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     let result = result.ok_or(Arm64SelectionError::MissingResult(operation_id))?;
-    let (source_bits, signed) = integer_value(scope.0, scope.1, operand)?;
-    let (target_bits, _) = integer_value(scope.0, scope.1, result)?;
-    if source_bits > target_bits {
-        return Err(Arm64SelectionError::UnsupportedScalar(operand));
+    match (
+        machine_scalar(scope.0, scope.1, operand)?,
+        machine_scalar(scope.0, scope.1, result)?,
+    ) {
+        (
+            MachineScalar::Integer {
+                bits: source_bits,
+                signed,
+            },
+            MachineScalar::Integer {
+                bits: target_bits, ..
+            },
+        ) if source_bits <= target_bits => {
+            selected.push(Arm64SelectedInstruction::IntegerConversion {
+                size: integer_data_size(target_bits, result)?,
+                source_bits,
+                signed,
+                destination: one_word(values, result)?,
+                source: one_word(values, operand)?,
+            });
+            Ok(())
+        }
+        (
+            MachineScalar::Integer {
+                bits: source_bits,
+                signed,
+            },
+            target @ (MachineScalar::Float32 | MachineScalar::Float64),
+        ) => {
+            selected.push(Arm64SelectedInstruction::FloatFromInteger {
+                source_size: integer_data_size(source_bits, operand)?,
+                target_size: float_scalar_size(target),
+                signed,
+                destination: floating_value(values, result)?.0,
+                source: one_word(values, operand)?,
+            });
+            Ok(())
+        }
+        (MachineScalar::Float32, MachineScalar::Float64) => {
+            selected.push(Arm64SelectedInstruction::FloatWiden {
+                destination: floating_value(values, result)?.0,
+                source: floating_value(values, operand)?.0,
+            });
+            Ok(())
+        }
+        _ => Err(Arm64SelectionError::UnsupportedScalar(result)),
     }
-    let size = match target_bits {
-        1..=32 => Arm64DataSize::Bits32,
-        33..=64 => Arm64DataSize::Bits64,
-        _ => return Err(Arm64SelectionError::UnsupportedScalar(result)),
-    };
-    selected.push(Arm64SelectedInstruction::IntegerConversion {
-        size,
-        source_bits,
-        signed,
-        destination: one_word(values, result)?,
-        source: one_word(values, operand)?,
-    });
-    Ok(())
+}
+
+fn integer_data_size(
+    bits: u8,
+    value: MachineValueId,
+) -> Result<Arm64DataSize, Arm64SelectionError> {
+    match bits {
+        1..=32 => Ok(Arm64DataSize::Bits32),
+        33..=64 => Ok(Arm64DataSize::Bits64),
+        _ => Err(Arm64SelectionError::UnsupportedScalar(value)),
+    }
+}
+
+const fn float_scalar_size(scalar: MachineScalar) -> Arm64DataSize {
+    match scalar {
+        MachineScalar::Float32 => Arm64DataSize::Bits32,
+        MachineScalar::Float64 => Arm64DataSize::Bits64,
+        _ => unreachable!(),
+    }
 }
 
 fn select_binary(
@@ -1339,11 +1398,11 @@ fn scalar_value(
     }
 }
 
-fn integer_value(
+fn machine_scalar(
     program: &nocter_machine::MachineProgram,
     owner: MachineFunctionId,
     value: MachineValueId,
-) -> Result<(u8, bool), Arm64SelectionError> {
+) -> Result<MachineScalar, Arm64SelectionError> {
     let ty = program
         .function(owner)
         .and_then(|function| function.body().value(value))
@@ -1354,9 +1413,7 @@ fn integer_value(
         .get(ty)
         .map(nocter_machine::MachineLayout::kind)
     {
-        Some(MachineLayoutKind::Scalar(MachineScalar::Integer { bits, signed })) => {
-            Ok((*bits, *signed))
-        }
+        Some(MachineLayoutKind::Scalar(scalar)) => Ok(*scalar),
         _ => Err(Arm64SelectionError::UnsupportedScalar(value)),
     }
 }

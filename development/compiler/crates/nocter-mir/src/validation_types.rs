@@ -31,6 +31,13 @@ pub(crate) fn is_float(types: &TypeStore, ty: TypeId) -> bool {
     )
 }
 
+pub(crate) fn builtin_numeric(types: &TypeStore, ty: TypeId) -> Option<BuiltinType> {
+    let Some(TypeKind::Builtin(builtin)) = types.get(ty) else {
+        return None;
+    };
+    nocter_model::BuiltinNumericType::for_builtin(*builtin).map(|_| *builtin)
+}
+
 pub(crate) fn field_type(
     environment: &(impl MirValidationEnvironment + ?Sized),
     owner: TypeId,

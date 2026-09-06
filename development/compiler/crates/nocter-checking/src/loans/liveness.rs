@@ -263,7 +263,7 @@ impl Analyzer<'_> {
     ) -> Result<LiveSet, crate::BodyCheckInternalError> {
         match operation {
             PrimitiveOperation::Unary { operand, .. }
-            | PrimitiveOperation::IntegerConversion { operand, .. } => self.operand(*operand, live),
+            | PrimitiveOperation::NumericConversion { operand, .. } => self.operand(*operand, live),
             PrimitiveOperation::Binary { left, right, .. } => self.operands([*left, *right], live),
         }
     }

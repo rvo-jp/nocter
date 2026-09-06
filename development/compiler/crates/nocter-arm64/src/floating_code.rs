@@ -45,6 +45,44 @@ pub(crate) fn emit_move(
     Ok(())
 }
 
+pub(crate) fn emit_from_integer(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedFloatRegister,
+    source: Arm64SelectedRegister,
+    source_size: Arm64DataSize,
+    target_size: Arm64DataSize,
+    signed: bool,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let source = crate::selected_code::read_register(function, source, 0, code)?;
+    let destination = write_target(function, destination)?;
+    code.append(Arm64Instruction::FloatFromInteger {
+        source_size,
+        target_size,
+        signed,
+        destination: destination.register,
+        source,
+    });
+    finish_write(destination, target_size, code);
+    Ok(())
+}
+
+pub(crate) fn emit_widen(
+    function: &Arm64SelectedFunction,
+    destination: Arm64SelectedFloatRegister,
+    source: Arm64SelectedFloatRegister,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    let source = read_register(function, source, 0, Arm64DataSize::Bits32, code)?;
+    let destination = write_target(function, destination)?;
+    code.append(Arm64Instruction::FloatWiden {
+        destination: destination.register,
+        source,
+    });
+    finish_write(destination, Arm64DataSize::Bits64, code);
+    Ok(())
+}
+
 pub(crate) fn emit_memory_load(
     function: &Arm64SelectedFunction,
     destination: Arm64SelectedFloatRegister,

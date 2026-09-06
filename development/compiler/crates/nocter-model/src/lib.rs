@@ -12,6 +12,7 @@ mod closure_sequence;
 mod constant;
 mod construction_identity;
 mod id;
+mod numeric;
 mod origin;
 mod package;
 mod symbol;
@@ -33,6 +34,7 @@ pub use id::{
     PackageTargetId, ParameterId, PlaceId, RequirementId, StaticId, TestId, TypeAliasId, TypeId,
     VariantId,
 };
+pub use numeric::{BuiltinNumericType, lossless_builtin_numeric_conversion};
 pub use origin::{DuplicateOrigin, ParameterOrigin, ResultProvenance};
 pub use package::PackageIdentity;
 pub use symbol::{Symbol, SymbolTable};

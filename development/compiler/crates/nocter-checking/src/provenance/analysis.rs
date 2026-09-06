@@ -776,7 +776,7 @@ impl<'program> Analyzer<'program> {
     ) -> Result<(ValueProvenance, bool), BodyRelationError> {
         let reaches = match operation {
             PrimitiveOperation::Unary { operand, .. }
-            | PrimitiveOperation::IntegerConversion { operand, .. } => {
+            | PrimitiveOperation::NumericConversion { operand, .. } => {
                 self.evaluate(*operand, state)?.1
             }
             PrimitiveOperation::Binary { left, right, .. } => {

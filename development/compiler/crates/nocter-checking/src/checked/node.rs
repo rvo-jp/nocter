@@ -52,7 +52,7 @@ impl CheckedOperation {
             Self::Call(call) => call.rebind(semantics)?,
             Self::BorrowConversion(conversion) => conversion.rebind(semantics)?,
             Self::Comparison(comparison) => comparison.rebind(semantics)?,
-            Self::Primitive(PrimitiveOperation::IntegerConversion { target, .. }) => {
+            Self::Primitive(PrimitiveOperation::NumericConversion { target, .. }) => {
                 *target = semantics.ty(*target)?;
             }
             Self::OpaqueWitness(witness) => witness.rebind(semantics)?,
@@ -533,7 +533,7 @@ pub enum PrimitiveOperation {
         left: BodyNodeId,
         right: BodyNodeId,
     },
-    IntegerConversion {
+    NumericConversion {
         operand: BodyNodeId,
         target: TypeId,
     },

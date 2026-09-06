@@ -69,8 +69,8 @@ fn lower_operation(
             left: ids.value(*left)?,
             right: ids.value(*right)?,
         },
-        MirOperationKind::IntegerConversion { operand } => {
-            MachineOperationKind::IntegerConversion {
+        MirOperationKind::NumericConversion { operand } => {
+            MachineOperationKind::NumericConversion {
                 operand: ids.value(*operand)?,
             }
         }

@@ -68,7 +68,7 @@ impl Analyzer<'_> {
     ) -> Result<(LoanValue, bool), BodyRelationError> {
         match operation {
             crate::PrimitiveOperation::Unary { operand, .. }
-            | crate::PrimitiveOperation::IntegerConversion { operand, .. } => {
+            | crate::PrimitiveOperation::NumericConversion { operand, .. } => {
                 let (_, reaches) = self.evaluate(*operand, state, extra)?;
                 Ok((LoanValue::independent(), reaches))
             }

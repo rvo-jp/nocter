@@ -257,7 +257,7 @@ impl OwnershipAnalyzer<'_> {
             }) => self.visit_recover(*operand, *binding, *fallback, state),
             CheckedOperation::Primitive(
                 PrimitiveOperation::Unary { operand, .. }
-                | PrimitiveOperation::IntegerConversion { operand, .. },
+                | PrimitiveOperation::NumericConversion { operand, .. },
             ) => self.visit(*operand, state),
             CheckedOperation::Primitive(PrimitiveOperation::Binary { left, right, .. }) => {
                 if !self.visit(*left, state)? {

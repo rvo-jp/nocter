@@ -170,7 +170,7 @@ fn explicit_integer_conversion_records_one_lossless_checked_operation() {
         .iter()
         .flat_map(|(_, body)| body.nodes().iter())
         .filter_map(|(_, node)| match node.operation() {
-            CheckedOperation::Primitive(PrimitiveOperation::IntegerConversion {
+            CheckedOperation::Primitive(PrimitiveOperation::NumericConversion {
                 operand,
                 target,
             }) => Some((*operand, *target, node.ty())),
@@ -192,6 +192,25 @@ fn explicit_integer_conversion_rejects_narrowing_and_signed_to_unsigned_ranges()
         "func narrow(value: u64): u8 {\n    value as u8\n}\n",
         "func change_sign(value: i32): u64 {\n    value as u64\n}\n",
         "func too_wide(value: u64): i64 {\n    value as i64\n}\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0370");
+    }
+}
+
+#[test]
+fn explicit_numeric_conversion_accepts_only_complete_lossless_domains() {
+    check(
+        "func signed(value: i32): f64 { value as f64 }\n\
+         func unsigned(value: u16): f32 { value as f32 }\n\
+         func widen(value: f32): f64 { value as f64 }\n",
+    )
+    .unwrap();
+
+    for source in [
+        "func lossy(value: i32): f32 { value as f32 }\n",
+        "func narrow(value: f64): f32 { value as f32 }\n",
+        "func integer(value: f32): i32 { value as i32 }\n",
     ] {
         let error = check(source).unwrap_err();
         assert_eq!(error.source_diagnostic().unwrap().code(), "E0370");

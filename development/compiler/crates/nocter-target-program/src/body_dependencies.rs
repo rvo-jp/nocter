@@ -327,9 +327,9 @@ impl<'program> DependencyCollector<'program> {
             }
             CheckedOperation::Primitive(primitive) => match primitive {
                 PrimitiveOperation::Unary { operand, .. }
-                | PrimitiveOperation::IntegerConversion { operand, .. } => {
+                | PrimitiveOperation::NumericConversion { operand, .. } => {
                     self.visit_node(*operand)?;
-                    if let PrimitiveOperation::IntegerConversion { target, .. } = primitive {
+                    if let PrimitiveOperation::NumericConversion { target, .. } = primitive {
                         self.record_type(*target)?;
                     }
                 }

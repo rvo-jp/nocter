@@ -10,7 +10,7 @@ use crate::validation_region::{
 };
 use crate::validation_switch::validate_switch_subject;
 use crate::validation_types::{
-    capture_type, field_type, is_float, is_integer, matches_opaque_projection,
+    builtin_numeric, capture_type, field_type, is_float, is_integer, matches_opaque_projection,
     matches_opaque_witness, payload_type, variant_representation,
 };
 use crate::{
@@ -641,9 +641,10 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
-            MirOperationKind::IntegerConversion { operand } => {
-                if !is_integer(self.types, self.value_type(*operand)?)
-                    || !result.is_some_and(|result| is_integer(self.types, result))
+            MirOperationKind::NumericConversion { operand } => {
+                let source = builtin_numeric(self.types, self.value_type(*operand)?);
+                let target = result.and_then(|result| builtin_numeric(self.types, result));
+                if !matches!((source, target), (Some(source), Some(target)) if nocter_model::lossless_builtin_numeric_conversion(source, target))
                 {
                     return Err(mismatch());
                 }
@@ -1013,7 +1014,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 values.push(*value);
             }
             MirOperationKind::Unary { operand, .. }
-            | MirOperationKind::IntegerConversion { operand } => values.push(*operand),
+            | MirOperationKind::NumericConversion { operand } => values.push(*operand),
             MirOperationKind::Binary { left, right, .. } => {
                 values.extend([*left, *right]);
             }

@@ -17,7 +17,7 @@ use nocter_syntax::{
 use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, body_source_access};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
-use super::literal::{contextual_float_type, fits_integer, integer_type, parse_integer};
+use super::literal::{fits_integer, integer_type, parse_integer};
 use crate::checked::{CheckedBodyBuilder, CheckedBodyRecipe, ClosureTransaction};
 use crate::copyability::{CopyProofs, Copyability};
 use crate::instance_operations::{InstanceOperationSelector, InstanceSelectionContext};
@@ -46,6 +46,7 @@ mod construction_planning;
 mod constructions;
 mod conversions;
 mod expected;
+mod floating_literals;
 mod interpolation;
 mod iterations;
 mod loops;
@@ -970,59 +971,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     self.apply_expected(node, checked, expected)
                 })
             }
-            TokenKind::FloatLiteral => {
-                let authored = self.token_text(token)?;
-                let (number, suffix) = if let Some(number) = authored.strip_suffix("f32") {
-                    (
-                        number,
-                        Some(nocter_constant_evaluation::FloatFormat::Binary32),
-                    )
-                } else if let Some(number) = authored.strip_suffix("f64") {
-                    (
-                        number,
-                        Some(nocter_constant_evaluation::FloatFormat::Binary64),
-                    )
-                } else {
-                    (authored, None)
-                };
-                let contextual = contextual_float_type(self.types, expected);
-                if suffix.is_some()
-                    && contextual.is_some_and(|(_, contextual)| Some(contextual) != suffix)
-                {
-                    return Err(self.rule(BodyRule::TypeMismatch, node)?);
-                }
-                let format = suffix
-                    .or_else(|| contextual.map(|(_, format)| format))
-                    .unwrap_or(nocter_constant_evaluation::FloatFormat::Binary64);
-                let ty = match format {
-                    nocter_constant_evaluation::FloatFormat::Binary32 => {
-                        self.types.builtin(BuiltinType::F32)
-                    }
-                    nocter_constant_evaluation::FloatFormat::Binary64 => {
-                        self.types.builtin(BuiltinType::F64)
-                    }
-                };
-                let bits = match nocter_constant_evaluation::TargetFloatEvaluator::new(
-                    self.graph.target(),
-                )
-                .decimal_bits(number, format)
-                {
-                    Ok(bits) => bits,
-                    Err(_) => return Err(self.rule(BodyRule::FloatOutOfRange, node)?),
-                };
-                let value = match bits {
-                    nocter_constant_evaluation::FloatBits::Binary32(bits) => {
-                        ConstantValue::Float32(bits)
-                    }
-                    nocter_constant_evaluation::FloatBits::Binary64(bits) => {
-                        ConstantValue::Float64(bits)
-                    }
-                };
-                let checked = self.add_node(node, ty, CheckedOperation::Constant(value))?;
-                expected.map_or(Ok(checked), |expected| {
-                    self.apply_expected(node, checked, expected)
-                })
-            }
+            TokenKind::FloatLiteral => self.check_float_literal(node, token, expected),
             TokenKind::ByteLiteral => {
                 let value = decode_byte_literal(self.token_text(token)?)
                     .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;

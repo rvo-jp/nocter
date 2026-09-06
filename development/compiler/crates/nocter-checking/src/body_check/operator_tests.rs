@@ -132,7 +132,11 @@ fn floating_literals_retain_target_bits_after_contextual_typing() {
 
     assert_eq!(
         constants,
-        [(64, 0x3fb999999999999a), (32, 0x3dcccccd), (32, 0x3dcccccd),]
+        [
+            (64, 0x3fb9_9999_9999_999a),
+            (32, 0x3dcc_cccd),
+            (32, 0x3dcc_cccd),
+        ]
     );
 }
 
@@ -175,7 +179,7 @@ fn floating_arithmetic_negation_and_comparison_keep_one_exact_operand_type() {
             node.ty() == f64
                 && matches!(
                     node.operation(),
-                    CheckedOperation::Constant(ConstantValue::Float64(0x3ff0000000000000))
+                    CheckedOperation::Constant(ConstantValue::Float64(0x3ff0_0000_0000_0000))
                 )
         })
     }));

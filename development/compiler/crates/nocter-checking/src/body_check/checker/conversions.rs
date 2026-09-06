@@ -31,11 +31,11 @@ impl BodyChecker<'_, '_> {
         let source = self.node_type(operand)?;
         let value = if source == self.types.builtin(BuiltinType::Never) {
             operand
-        } else if lossless_integer_conversion(self.types, source, target) {
+        } else if lossless_numeric_conversion(self.types, source, target) {
             self.add_node(
                 node,
                 target,
-                CheckedOperation::Primitive(PrimitiveOperation::IntegerConversion {
+                CheckedOperation::Primitive(PrimitiveOperation::NumericConversion {
                     operand,
                     target,
                 }),
@@ -63,44 +63,16 @@ impl BodyChecker<'_, '_> {
     }
 }
 
-fn lossless_integer_conversion(
+fn lossless_numeric_conversion(
     types: &nocter_model::TypeStore,
     source: TypeId,
     target: TypeId,
 ) -> bool {
-    let Some(source) = integer_range(types.get(source)) else {
+    let Some(TypeKind::Builtin(source)) = types.get(source) else {
         return false;
     };
-    let Some(target) = integer_range(types.get(target)) else {
+    let Some(TypeKind::Builtin(target)) = types.get(target) else {
         return false;
     };
-    match (source.signed, target.signed) {
-        (false, false) | (true, true) => source.bits <= target.bits,
-        (false, true) => source.bits < target.bits,
-        (true, false) => false,
-    }
-}
-
-#[derive(Clone, Copy)]
-struct IntegerRange {
-    signed: bool,
-    bits: u8,
-}
-
-fn integer_range(kind: Option<&TypeKind>) -> Option<IntegerRange> {
-    let TypeKind::Builtin(builtin) = kind? else {
-        return None;
-    };
-    let (signed, bits) = match builtin {
-        BuiltinType::I8 => (true, 8),
-        BuiltinType::I16 => (true, 16),
-        BuiltinType::I32 => (true, 32),
-        BuiltinType::I64 | BuiltinType::Isize => (true, 64),
-        BuiltinType::U8 => (false, 8),
-        BuiltinType::U16 => (false, 16),
-        BuiltinType::U32 => (false, 32),
-        BuiltinType::U64 | BuiltinType::Usize => (false, 64),
-        _ => return None,
-    };
-    Some(IntegerRange { signed, bits })
+    nocter_model::lossless_builtin_numeric_conversion(*source, *target)
 }
