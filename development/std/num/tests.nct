@@ -33,6 +33,28 @@ func ordering_is_equal(value: Ordering): bool {
     return false
 }
 
+func require_f64_round_trip(value: f64): void! {
+    let text = value.to_string()
+    let parsed = f64.parse(&text) otherwise {
+        return error.new("std.num.round_trip", "generated f64 text was rejected")
+    }
+    if parsed.to_bits() != value.to_bits() {
+        return error.new("std.num.round_trip", "generated f64 text changed its IEEE value")
+    }
+    return
+}
+
+func require_f32_round_trip(value: f32): void! {
+    let text = value.to_string()
+    let parsed = f32.parse(&text) otherwise {
+        return error.new("std.num.round_trip", "generated f32 text was rejected")
+    }
+    if parsed.to_bits() != value.to_bits() {
+        return error.new("std.num.round_trip", "generated f32 text changed its IEEE value")
+    }
+    return
+}
+
 test every_integer_type_owns_the_same_decimal_surface {
     let signed8 = i8.parse("-128") otherwise {
         return error.new("std.num.parse", "i8 parse failed")
@@ -480,6 +502,58 @@ test floating_decimal_parsing_rounds_exactly {
         || !is_none(f64.parse("+1.0"))
         || !is_none(f64.parse("1.0x")) {
         return error.new("std.num.parse", "invalid decimal grammar was accepted")
+    }
+    return
+}
+
+test floating_decimal_generation_has_one_canonical_surface {
+    require_text(0.0.to_string(), "0")?
+    require_text(f64.from_bits(9223372036854775808).to_string(), "-0")?
+    require_text(0.1.to_string(), "0.1")?
+    require_text((-1.5).to_string(), "-1.5")?
+    require_text(0.000001.to_string(), "0.000001")?
+    require_text(0.0000001.to_string(), "1e-7")?
+    require_text(100000000000000000000.0.to_string(), "100000000000000000000")?
+    require_text(1.0e21.to_string(), "1e+21")?
+    require_text(f64.from_bits(1).to_string(), "5e-324")?
+    require_text(f64.from_bits(4503599627370496).to_string(), "2.2250738585072014e-308")?
+    require_text(f64.from_bits(9218868437227405311).to_string(), "1.7976931348623157e+308")?
+    require_text(F64_INFINITY.to_string(), "inf")?
+    require_text(F64_NEG_INFINITY.to_string(), "-inf")?
+    require_text(F64_NAN.to_string(), "NaN")?
+    return
+}
+
+test floating_decimal_generation_round_trips_ieee_boundaries {
+    require_f64_round_trip(f64.from_bits(1))?
+    require_f64_round_trip(f64.from_bits(2))?
+    require_f64_round_trip(f64.from_bits(4503599627370495))?
+    require_f64_round_trip(f64.from_bits(4503599627370496))?
+    require_f64_round_trip(f64.from_bits(4607182418800017407))?
+    require_f64_round_trip(f64.from_bits(4607182418800017408))?
+    require_f64_round_trip(f64.from_bits(4607182418800017409))?
+    require_f64_round_trip(f64.from_bits(9218868437227405311))?
+    require_f64_round_trip(f64.from_bits(13837628693406821656))?
+    require_f32_round_trip(f32.from_bits(1))?
+    require_f32_round_trip(f32.from_bits(8388607))?
+    require_f32_round_trip(f32.from_bits(8388608))?
+    require_f32_round_trip(f32.from_bits(1065353215))?
+    require_f32_round_trip(f32.from_bits(1065353216))?
+    require_f32_round_trip(f32.from_bits(1065353217))?
+    require_f32_round_trip(f32.from_bits(2139095039))?
+    var allocator = mem.page_try_allocator()
+    require_text(0.1.try_to_string(&+allocator)?, "0.1")?
+    return
+}
+
+test floating_decimal_generation_round_trips_a_deterministic_bit_sample {
+    var bits: u64 = 11400714819323198485
+    var checked: usize = 0
+    while checked < 512 {
+        bits = bits.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407)
+        let value = f64.from_bits(bits)
+        if value.is_finite() { require_f64_round_trip(value)? }
+        checked += 1
     }
     return
 }

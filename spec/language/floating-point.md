@@ -131,3 +131,22 @@ that would become zero and a finite value that would become infinity return `non
 subnormals are accepted. Negative decimal zero preserves its sign. Parsing may use temporary
 storage in the current allocation context, but invalid text and numeric range loss are reported by
 the optional result rather than by an error payload.
+
+## Decimal Formatting
+
+`f32.to_string()` and `f64.to_string()` produce the shortest locale-independent decimal spelling
+that parses back to the same type and exact IEEE representation. `try_to_string(allocator)`
+produces the same spelling with recoverable destination allocation. Both methods and the
+`std/fmt.Format` implementations use one generation authority; interpolation therefore cannot
+choose a different decimal representation.
+
+Finite values use fixed notation when the exponent of the first significant decimal digit is from
+-6 through 20. Other finite values use a lowercase `e`, with an explicit `+` for a nonnegative
+exponent. The significand has no redundant trailing zeroes or decimal point. Positive zero is `0`,
+negative zero is `-0`, infinities are `inf` and `-inf`, and every NaN is `NaN`. NaN formatting is a
+value spelling rather than a payload-preserving serialization; use `to_bits` when the payload is
+observable data.
+
+Decimal generation uses exact integer interval arithmetic and round-to-nearest, ties-to-even
+boundaries. Its fixed workspace is sized from the binary64 representation limit and does not
+allocate. Recoverable formatting therefore reports only destination `String` growth failure.

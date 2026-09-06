@@ -64,6 +64,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("char", "internal/unicode"),
     ("fmt", "internal/mem"),
     ("fmt", "internal/ptr"),
+    ("fmt", "internal/safety"),
     ("fmt", "string"),
     ("fs", "internal/io"),
     ("fs", "internal/os"),

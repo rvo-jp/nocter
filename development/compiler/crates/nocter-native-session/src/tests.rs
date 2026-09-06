@@ -2243,7 +2243,7 @@ fn standard_num_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard numeric tests failed native compilation")
     };
-    assert_eq!(cases.len(), 13);
+    assert_eq!(cases.len(), 16);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -2291,30 +2291,8 @@ fn standard_time_value_contract_crosses_native_tests() {
     }
 }
 
-#[test]
-fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
-    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
-    let standard_package = PackageIdentity::new("toolchain:std");
-
-    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
-    root_source.push_str("\n#test: { name: \"numeric\", module: \"./num\" }\n");
-
-    let mut mem_contract = fs::read_to_string(standard_root.join("mem/index.nct")).unwrap();
-    mem_contract.push_str("\npub(/) func failing_try_allocator_for_test(): TryAllocator\n");
-
-    let mut mem_storage = fs::read_to_string(standard_root.join("mem/storage.nct")).unwrap();
-    mem_storage.push_str(concat!(
-        "\nfunc failing_try_allocator_for_test(): TryAllocator {\n",
-        "    return TryAllocator { state: 0, kind: 99 }\n",
-        "}\n",
-    ));
-
-    let num_contract = format!(
-        "see ./allocator_failure_tests.nct\n{}",
-        fs::read_to_string(standard_root.join("num/index.nct")).unwrap()
-    );
-    let num_failure_tests = concat!(
+fn recoverable_allocation_test_source() -> &'static str {
+    concat!(
         "see ./index.nct\n",
         "use /mem\n",
         "use /string.String\n",
@@ -2326,6 +2304,15 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
         "        return error.new(\"std.num.allocator\", \"wrong allocator failure\")\n",
         "    }\n",
         "    return error.new(\"std.num.allocator\", \"invalid allocator succeeded\")\n",
+        "}\n",
+        "test recoverable_float_text_propagates_allocator_failure {\n",
+        "    var allocator = mem.failing_try_allocator_for_test()\n",
+        "    let value: f64 = 1.7976931348623157e308\n",
+        "    let _text = value.try_to_string(&+allocator) catch failure {\n",
+        "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+        "        return error.new(\"std.num.allocator\", \"wrong float allocator failure\")\n",
+        "    }\n",
+        "    return error.new(\"std.num.allocator\", \"invalid allocator formatted a float\")\n",
         "}\n",
         "test recoverable_character_append_is_transactional {\n",
         "    var allocator = mem.failing_try_allocator_for_test()\n",
@@ -2357,7 +2344,33 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
         "    }\n",
         "    return error.new(\"std.str.allocator\", \"invalid allocator uppercased text\")\n",
         "}\n",
+    )
+}
+
+#[test]
+fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"numeric\", module: \"./num\" }\n");
+
+    let mut mem_contract = fs::read_to_string(standard_root.join("mem/index.nct")).unwrap();
+    mem_contract.push_str("\npub(/) func failing_try_allocator_for_test(): TryAllocator\n");
+
+    let mut mem_storage = fs::read_to_string(standard_root.join("mem/storage.nct")).unwrap();
+    mem_storage.push_str(concat!(
+        "\nfunc failing_try_allocator_for_test(): TryAllocator {\n",
+        "    return TryAllocator { state: 0, kind: 99 }\n",
+        "}\n",
+    ));
+
+    let num_contract = format!(
+        "see ./allocator_failure_tests.nct\n{}",
+        fs::read_to_string(standard_root.join("num/index.nct")).unwrap()
     );
+    let num_failure_tests = recoverable_allocation_test_source();
 
     let mut overlay = SourceOverlay::builder();
     for (path, source) in [
@@ -2395,7 +2408,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("allocator failure numeric tests failed native compilation")
     };
-    assert_eq!(cases.len(), 17);
+    assert_eq!(cases.len(), 21);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

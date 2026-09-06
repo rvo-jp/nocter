@@ -134,6 +134,12 @@ instance f32 {
 
     /// Compares every IEEE representation in a deterministic total order.
     pub noalloc method self.total_compare(other: Self): Ordering
+
+    /// Returns the shortest decimal spelling that parses to the same IEEE value.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
 }
 
 instance f64 {
@@ -181,6 +187,12 @@ instance f64 {
 
     /// Compares every IEEE representation in a deterministic total order.
     pub noalloc method self.total_compare(other: Self): Ordering
+
+    /// Returns the shortest decimal spelling that parses to the same IEEE value.
+    pub method self.to_string(): String
+
+    /// Returns the same spelling using a recoverable allocator.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
 }
 
 construct i8 {

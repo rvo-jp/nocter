@@ -1,0 +1,136 @@
+//! Fixed-capacity nonnegative arithmetic for IEEE decimal generation.
+//!
+//! Binary64 needs at most 326 decimal digits while Dragon generation scales exact
+//! interval boundaries. Forty-eight base-1e9 limbs retain 432 digits, so this
+//! workspace never allocates and still detects an invalid capacity assumption.
+
+use /internal/ptr
+use /internal/safety
+
+const FLOAT_BIG_BASE: u64 = 1000000000
+const FLOAT_BIG_CAPACITY: usize = 48
+
+copy struct FormatBig {
+    limbs: [u64; 48]
+    len: usize
+}
+
+construct FormatBig {
+    noalloc func from_u64(value: u64): Self {
+        var result = FormatBig {
+            limbs: [
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            len: 0,
+        }
+        var remaining = value
+        while remaining != 0 {
+            result.limbs[result.len] = remaining % FLOAT_BIG_BASE
+            result.len += 1
+            remaining = remaining / FLOAT_BIG_BASE
+        }
+        return result
+    }
+
+    noalloc func copy(value: &FormatBig): Self {
+        return ptr.copy_value(value)
+    }
+}
+
+instance FormatBig {
+    noalloc method &+self.multiply_small(factor: u64): bool {
+        if factor == 0 {
+            self.len = 0
+            return true
+        }
+        var carry: u64 = 0
+        var index: usize = 0
+        while index < self.len {
+            let product = self.limbs[index] * factor + carry
+            self.limbs[index] = product % FLOAT_BIG_BASE
+            carry = product / FLOAT_BIG_BASE
+            index += 1
+        }
+        while carry != 0 {
+            if self.len == FLOAT_BIG_CAPACITY { return false }
+            self.limbs[self.len] = carry % FLOAT_BIG_BASE
+            self.len += 1
+            carry = carry / FLOAT_BIG_BASE
+        }
+        return true
+    }
+
+    noalloc method &+self.shift_left(amount: usize): bool {
+        var remaining = amount
+        while remaining != 0 {
+            if !self.multiply_small(2) { return false }
+            remaining -= 1
+        }
+        return true
+    }
+
+    noalloc method &+self.add(other: &FormatBig): bool {
+        var carry: u64 = 0
+        var index: usize = 0
+        while index < other.len || carry != 0 {
+            if index == FLOAT_BIG_CAPACITY { return false }
+            let left = if index < self.len { self.limbs[index] } else { 0 }
+            let right = if index < other.len { other.limbs[index] } else { 0 }
+            let total = left + right + carry
+            self.limbs[index] = total % FLOAT_BIG_BASE
+            carry = total / FLOAT_BIG_BASE
+            if index == self.len { self.len += 1 }
+            index += 1
+        }
+        if self.len < other.len { self.len = other.len }
+        return true
+    }
+
+    noalloc method &+self.subtract(other: &FormatBig): void {
+        var borrow: u64 = 0
+        var index: usize = 0
+        while index < self.len {
+            let right = if index < other.len { other.limbs[index] } else { 0 }
+            let required = right + borrow
+            if self.limbs[index] < required {
+                self.limbs[index] = self.limbs[index] + FLOAT_BIG_BASE - required
+                borrow = 1
+            } else {
+                self.limbs[index] = self.limbs[index] - required
+                borrow = 0
+            }
+            index += 1
+        }
+        while self.len != 0 && self.limbs[self.len - 1] == 0 {
+            self.len -= 1
+        }
+        return
+    }
+}
+
+noalloc func format_big_compare(left: &FormatBig, right: &FormatBig): i32 {
+    if left.len < right.len { return -1 }
+    if left.len > right.len { return 1 }
+    var index = left.len
+    while index != 0 {
+        index -= 1
+        if left.limbs[index] < right.limbs[index] { return -1 }
+        if left.limbs[index] > right.limbs[index] { return 1 }
+    }
+    return 0
+}
+
+noalloc func format_big_compare_sum(
+    left: &FormatBig,
+    right: &FormatBig,
+    target: &FormatBig,
+): i32 {
+    var sum = FormatBig.copy(left)
+    if !sum.add(right) { return safety.invariant_abort() }
+    return format_big_compare(&sum, target)
+}

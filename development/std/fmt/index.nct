@@ -5,6 +5,7 @@
 
 use /string.String
 see ./default.nct
+see ./floating.nct
 see ./implementations.nct
 see ./scalar.nct
 see ./tests.nct
@@ -71,5 +72,13 @@ instance u64 {
 }
 
 instance usize {
+    impl Format
+}
+
+instance f32 {
+    impl Format
+}
+
+instance f64 {
     impl Format
 }

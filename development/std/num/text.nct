@@ -6,6 +6,34 @@ use /fmt.Format
 use /mem.TryAllocator
 use /string.String
 
+instance f32 {
+    method self.to_string(): String {
+        var result = String.empty()
+        self.format_into(&+result)
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 24)?
+        self.try_format_into(&+result)?
+        return move result
+    }
+}
+
+instance f64 {
+    method self.to_string(): String {
+        var result = String.empty()
+        self.format_into(&+result)
+        return move result
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var result = String.try_with_capacity(allocator, 24)?
+        self.try_format_into(&+result)?
+        return move result
+    }
+}
+
 instance i8 {
     method self.to_string(): String {
         var result = String.empty()

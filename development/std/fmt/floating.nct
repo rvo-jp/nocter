@@ -1,0 +1,348 @@
+//! Shortest round-trippable spelling for IEEE binary32 and binary64 values.
+
+see ./index.nct
+see ./floating_big.nct
+see ./scalar.nct
+
+use /internal/ptr
+use /internal/safety
+use /string.String
+
+const FLOAT_DIGIT_CAPACITY: usize = 24
+
+copy struct FloatDecimal {
+    digits: [u64; 24]
+    len: usize
+    exponent: i64
+}
+
+construct FloatDecimal {
+    noalloc func empty(): Self {
+        return FloatDecimal {
+            digits: [
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            len: 0,
+            exponent: 0,
+        }
+    }
+}
+
+instance FloatDecimal {
+    noalloc method &+self.push(digit: u64): bool {
+        if self.len == FLOAT_DIGIT_CAPACITY { return false }
+        self.digits[self.len] = digit
+        self.len += 1
+        return true
+    }
+
+    noalloc method &+self.round_up(): void {
+        var index = self.len
+        while index != 0 {
+            index -= 1
+            if self.digits[index] != 9 {
+                self.digits[index] += 1
+                while self.len > 1 && self.digits[self.len - 1] == 0 {
+                    self.len -= 1
+                }
+                return
+            }
+            self.digits[index] = 0
+        }
+        self.digits[0] = 1
+        self.len = 1
+        self.exponent += 1
+        return
+    }
+}
+
+instance f32 {
+    method &self.try_format_into(output: &+String): void! {
+        let value = ptr.copy_value(self)
+        try_format_f32_bits(output, value.to_bits() as u64)?
+        return
+    }
+}
+
+instance f64 {
+    method &self.try_format_into(output: &+String): void! {
+        let value = ptr.copy_value(self)
+        try_format_f64_bits(output, value.to_bits())?
+        return
+    }
+}
+
+func try_format_f32_bits(output: &+String, bits: u64): void! {
+    let negative = bits >= 2147483648
+    let magnitude = if negative { bits - 2147483648 } else { bits }
+    let raw_exponent = magnitude / 8388608
+    let fraction = magnitude % 8388608
+    if raw_exponent == 255 {
+        if fraction != 0 {
+            output.try_push_str("NaN")?
+            return
+        }
+        if negative { output.try_push_str("-")? }
+        output.try_push_str("inf")?
+        return
+    }
+    if magnitude == 0 {
+        if negative { output.try_push_str("-")? }
+        output.try_push_str("0")?
+        return
+    }
+    let significand = if raw_exponent == 0 { fraction } else { fraction + 8388608 }
+    let binary_exponent: i64 = if raw_exponent == 0 {
+        -149
+    } else {
+        format_small_u64_as_i64(raw_exponent) - 150
+    }
+    try_format_finite_float(
+        output,
+        negative,
+        significand,
+        binary_exponent,
+        fraction,
+        raw_exponent,
+    )?
+    return
+}
+
+func try_format_f64_bits(output: &+String, bits: u64): void! {
+    let negative = bits >= 9223372036854775808
+    let magnitude = if negative { bits - 9223372036854775808 } else { bits }
+    let raw_exponent = magnitude / 4503599627370496
+    let fraction = magnitude % 4503599627370496
+    if raw_exponent == 2047 {
+        if fraction != 0 {
+            output.try_push_str("NaN")?
+            return
+        }
+        if negative { output.try_push_str("-")? }
+        output.try_push_str("inf")?
+        return
+    }
+    if magnitude == 0 {
+        if negative { output.try_push_str("-")? }
+        output.try_push_str("0")?
+        return
+    }
+    let significand = if raw_exponent == 0 {
+        fraction
+    } else {
+        fraction + 4503599627370496
+    }
+    let binary_exponent: i64 = if raw_exponent == 0 {
+        -1074
+    } else {
+        format_small_u64_as_i64(raw_exponent) - 1075
+    }
+    try_format_finite_float(
+        output,
+        negative,
+        significand,
+        binary_exponent,
+        fraction,
+        raw_exponent,
+    )?
+    return
+}
+
+func try_format_finite_float(
+    output: &+String,
+    negative: bool,
+    significand: u64,
+    binary_exponent: i64,
+    fraction: u64,
+    raw_exponent: u64,
+): void! {
+    let decimal = shortest_float_decimal(
+        significand,
+        binary_exponent,
+        fraction,
+        raw_exponent,
+    )
+    if negative { output.try_push_str("-")? }
+    try_write_float_decimal(output, &decimal)?
+    return
+}
+
+noalloc func shortest_float_decimal(
+    significand: u64,
+    binary_exponent: i64,
+    fraction: u64,
+    raw_exponent: u64,
+): FloatDecimal {
+    let center = significand * 4
+    let upper = center + 2
+    let lower_shift: u64 = if fraction != 0 || raw_exponent <= 1 { 1 } else { 0 }
+    let lower = center - 1 - lower_shift
+    let scaled_exponent = binary_exponent - 2
+
+    var remainder = FormatBig.from_u64(center)
+    var denominator = FormatBig.from_u64(1)
+    var lower_margin = FormatBig.from_u64(center - lower)
+    var upper_margin = FormatBig.from_u64(upper - center)
+    if scaled_exponent >= 0 {
+        let shift = format_nonnegative_i64_as_usize(scaled_exponent)
+        if !remainder.shift_left(shift)
+            || !lower_margin.shift_left(shift)
+            || !upper_margin.shift_left(shift) {
+            return safety.invariant_abort()
+        }
+    } else {
+        let shift = format_nonnegative_i64_as_usize(0 - scaled_exponent)
+        if !denominator.shift_left(shift) { return safety.invariant_abort() }
+    }
+
+    var decimal_exponent: i64 = 0
+    while format_big_compare(&remainder, &denominator) < 0 {
+        if !remainder.multiply_small(10)
+            || !lower_margin.multiply_small(10)
+            || !upper_margin.multiply_small(10) {
+            return safety.invariant_abort()
+        }
+        decimal_exponent -= 1
+    }
+    var ten_denominator = FormatBig.copy(&denominator)
+    if !ten_denominator.multiply_small(10) { return safety.invariant_abort() }
+    while format_big_compare(&remainder, &ten_denominator) >= 0 {
+        denominator = ten_denominator
+        decimal_exponent += 1
+        ten_denominator = FormatBig.copy(&denominator)
+        if !ten_denominator.multiply_small(10) { return safety.invariant_abort() }
+    }
+
+    let inclusive_boundaries = significand % 2 == 0
+    var result = FloatDecimal.empty()
+    result.exponent = decimal_exponent
+    while true {
+        var digit: u64 = 0
+        while format_big_compare(&remainder, &denominator) >= 0 {
+            remainder.subtract(&denominator)
+            digit += 1
+        }
+        if !result.push(digit) { return safety.invariant_abort() }
+
+        let lower_comparison = format_big_compare(&remainder, &lower_margin)
+        let low = lower_comparison < 0 || (inclusive_boundaries && lower_comparison == 0)
+        let upper_comparison = format_big_compare_sum(
+            &remainder,
+            &upper_margin,
+            &denominator,
+        )
+        let high = upper_comparison > 0 || (inclusive_boundaries && upper_comparison == 0)
+        if low || high {
+            var round_up = high && !low
+            if low && high {
+                var doubled = FormatBig.copy(&remainder)
+                if !doubled.multiply_small(2) { return safety.invariant_abort() }
+                let midpoint = format_big_compare(&doubled, &denominator)
+                round_up = midpoint > 0 || (midpoint == 0 && digit % 2 != 0)
+            }
+            if round_up { result.round_up() }
+            return result
+        }
+        if !remainder.multiply_small(10)
+            || !lower_margin.multiply_small(10)
+            || !upper_margin.multiply_small(10) {
+            return safety.invariant_abort()
+        }
+    }
+    return safety.invariant_abort()
+}
+
+func try_write_float_decimal(output: &+String, value: &FloatDecimal): void! {
+    if value.exponent >= -6 && value.exponent < 21 {
+        try_write_fixed_float(output, value)?
+        return
+    }
+    try_format_digit(output, value.digits[0])?
+    if value.len > 1 {
+        output.try_push_str(".")?
+        var index: usize = 1
+        while index < value.len {
+            try_format_digit(output, value.digits[index])?
+            index += 1
+        }
+    }
+    output.try_push_str("e")?
+    if value.exponent >= 0 { output.try_push_str("+")? }
+    try_format_signed(output, value.exponent)?
+    return
+}
+
+func try_write_fixed_float(output: &+String, value: &FloatDecimal): void! {
+    if value.exponent < 0 {
+        output.try_push_str("0.")?
+        var zeroes: i64 = 0 - value.exponent - 1
+        while zeroes != 0 {
+            output.try_push_str("0")?
+            zeroes -= 1
+        }
+        try_write_float_digits(output, value, 0, value.len)?
+        return
+    }
+
+    let integer_digits = value.exponent + 1
+    if format_small_usize_as_i64(value.len) <= integer_digits {
+        try_write_float_digits(output, value, 0, value.len)?
+        var zeroes = integer_digits - format_small_usize_as_i64(value.len)
+        while zeroes != 0 {
+            output.try_push_str("0")?
+            zeroes -= 1
+        }
+        return
+    }
+    let split = format_nonnegative_i64_as_usize(integer_digits)
+    try_write_float_digits(output, value, 0, split)?
+    output.try_push_str(".")?
+    try_write_float_digits(output, value, split, value.len)?
+    return
+}
+
+noalloc func format_small_u64_as_i64(value: u64): i64 {
+    var remaining = value
+    var result: i64 = 0
+    while remaining != 0 {
+        remaining -= 1
+        result += 1
+    }
+    return result
+}
+
+noalloc func format_nonnegative_i64_as_usize(value: i64): usize {
+    var remaining = value
+    var result: usize = 0
+    while remaining != 0 {
+        remaining -= 1
+        result += 1
+    }
+    return result
+}
+
+noalloc func format_small_usize_as_i64(value: usize): i64 {
+    var remaining = value
+    var result: i64 = 0
+    while remaining != 0 {
+        remaining -= 1
+        result += 1
+    }
+    return result
+}
+
+func try_write_float_digits(
+    output: &+String,
+    value: &FloatDecimal,
+    start: usize,
+    end: usize,
+): void! {
+    var index = start
+    while index < end {
+        try_format_digit(output, value.digits[index])?
+        index += 1
+    }
+    return
+}

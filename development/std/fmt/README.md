@@ -5,13 +5,20 @@ contract. [String Interpolation](../../../spec/language/sequences-and-text.md#st
 defines how the language selects it. `Format` requires one recoverable append operation and derives
 the aborting operation used by owned interpolation.
 
-The distributed library conforms `str`, `String`, `bool`, and every built-in integer. A nominal
+The distributed library conforms `str`, `String`, `bool`, every built-in integer, and both
+floating-point types. Floating values use the shortest round-trippable spelling defined by
+[Floating-Point Values](../../../spec/language/floating-point.md#decimal-formatting). A nominal
 project type may implement the interface and build its representation with canonical members:
 `output.try_push_str` for text and `value.try_format_into(output)` for nested formatted values.
 `try_format_into` reports recoverable destination growth failure and may leave a successfully
 appended prefix. The default `format_into` converts that failure to the ordinary allocation-abort
 policy used by interpolation. Formatting dispatch is static and does not require a runtime
 interface object.
+
+Floating generation uses fixed-capacity exact integer arithmetic. It allocates no intermediate
+storage, and its capacity is derived from the maximum binary64 exponent. Consequently the
+recoverable `Format` path retains the same failure boundary as every other implementation:
+destination growth only.
 
 `std/fmt` publishes the `Format` contract, not one append function for every built-in type. The
 closed scalar append operations used by the old surface are replaced by each scalar's one

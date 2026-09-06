@@ -15,7 +15,9 @@ test standard_values_share_one_recoverable_format_surface {
     minimum.try_format_into(&+output)?
     let maximum: u64 = 18446744073709551615
     maximum.try_format_into(&+output)?
-    if (&output as &str) != "text/ownedtrue😀-922337203685477580818446744073709551615" {
+    let decimal: f64 = 0.1
+    decimal.try_format_into(&+output)?
+    if (&output as &str) != "text/ownedtrue😀-9223372036854775808184467440737095516150.1" {
         return error.new("std.fmt.test", "standard Format spelling diverged")
     }
     return

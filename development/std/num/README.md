@@ -49,6 +49,19 @@ big-integer storage uses the current allocation context; allocation failure foll
 aborting policy. Neither the compiler host parser nor target floating arithmetic defines the
 result.
 
+## Floating-Point Text Output
+
+`to_string` emits the shortest decimal text that parses back to the same type and IEEE bits.
+`try_to_string` emits exactly the same text using a supplied recoverable allocator. Fixed notation
+is used for decimal exponents from -6 through 20; other values use lowercase scientific notation
+with an explicit sign for a nonnegative exponent. Signed zero is preserved as `0` or `-0`.
+Infinities use `inf` and `-inf`; every NaN uses `NaN` because decimal formatting does not serialize
+NaN payloads.
+
+The generation algorithm compares exact rounding intervals in a fixed-capacity, allocation-free
+workspace sized for binary64. Type-owned methods, `Format`, and interpolation share this authority.
+Only the destination `String` can fail to grow on a recoverable formatting path.
+
 ## Integer Text
 
 Every built-in integer owns the decimal text surface declared by the compiler-checked

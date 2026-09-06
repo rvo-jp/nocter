@@ -322,6 +322,12 @@
 
     <span class="token-comment">/// Compares every IEEE representation in a deterministic total order.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">total_compare</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Ordering</span>
+
+    <span class="token-comment">/// Returns the shortest decimal spelling that parses to the same IEEE value.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> f64 <span class="token-operator">{</span>
@@ -369,6 +375,12 @@
 
     <span class="token-comment">/// Compares every IEEE representation in a deterministic total order.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">total_compare</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Ordering</span>
+
+    <span class="token-comment">/// Returns the shortest decimal spelling that parses to the same IEEE value.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Returns the same spelling using a recoverable allocator.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
