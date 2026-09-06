@@ -75,8 +75,12 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   sibling. Only a successful body recipe is replayed into the canonical program authority, and one
   closed rebinder rewrites every checked type, closure, dispatch substitution, place, and witness.
 - Successful body queries are replayed in canonical `BodyId` order before ownership, provenance,
-  allocation effects, and loans run once over the complete program. Session never invokes body
-  checking again for a complete query-owned body set.
+  allocation effects, and loans run over the complete program. Canonical replay closes semantic
+  completion, body arenas, and exact-current source projection into immutable shared authorities.
+  Session never invokes body checking again for a complete query-owned body set.
+- Program-relation results contain only source-neutral provenance, effect, loan, and body-locator
+  facts. The exact-current materialization and final `CheckedProgram` share their closed semantic
+  authorities rather than cloning a second program graph across the query boundary.
 - Program-wide relation analysis receives one canonical `BodyRelationCatalog`. Its constructor
   proves that checked bodies cover the declaration graph exactly once and pairs each body with its
   declaration owner. Provenance, effects, and loans cannot accept independently ordered input

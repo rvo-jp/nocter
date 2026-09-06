@@ -257,11 +257,17 @@
   cannot observe inferred types, copyability memoization, or closure allocation from a preceding
   sibling. Only a successful body recipe is replayed into the canonical program authority, and one
   closed rebinder rewrites every checked type, closure, dispatch substitution, place, and witness.</li><li>Successful body queries are replayed in canonical <code>BodyId</code> order before ownership, provenance,
-  allocation effects, and loans run once over the complete program. Session never invokes body
-  checking again for a complete query-owned body set.</li><li>Program-wide relation analysis receives one canonical <code>BodyRelationCatalog</code>. Its constructor
+  allocation effects, and loans run over the complete program. Canonical replay closes semantic
+  completion, body arenas, and exact-current source projection into immutable shared authorities.
+  Session never invokes body checking again for a complete query-owned body set.</li><li>Program-relation results contain only source-neutral provenance, effect, loan, and body-locator
+  facts. The exact-current materialization and final <code>CheckedProgram</code> share their closed semantic
+  authorities rather than cloning a second program graph across the query boundary.</li><li>Program-wide relation analysis receives one canonical <code>BodyRelationCatalog</code>. Its constructor
   proves that checked bodies cover the declaration graph exactly once and pairs each body with its
-  source and origin map. Provenance, effects, and loans cannot accept independently ordered input
-  slices or rediscover body membership by scanning them.</li><li>Allocation effects consume the already-checked operation graph and ownership-owned cleanup
+  declaration owner. Provenance, effects, and loans cannot accept independently ordered input
+  slices, inspect syntax, or rediscover body membership by scanning them.</li><li>Provenance, effects, and loans report authored failures as source-neutral body/node locators.
+  A separate exact-current <code>BodyRelationProjection</code> projects those locators through origin maps.
+  Relation computation therefore cannot retain a <code>SourceDiagnostic</code>, syntax lifetime, or stale
+  source coordinates across an editor revision.</li><li>Allocation effects consume the already-checked operation graph and ownership-owned cleanup
   schedules. Ownership freezes each cleanup's exact drop dependencies after generic substitution
   and residual-payload selection. A positive <code>MayAllocate</code> fact reaches one least fixed point
   across callables, closures, and drop bodies; the effect pass has no type-store input and cannot

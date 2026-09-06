@@ -21,7 +21,8 @@ requests.
 - content-addressed parse, declaration-surface, and module-surface queries
 - stable body-input collection from declaration surfaces
 - atomic semantic-scope publication
-- private declaration, preparation, body, finalization, and unit query graph
+- private declaration, preparation, body, materialization, relation, finalization, and unit query
+  graph
 - closed unit-analysis demand
 - bounded retention of source revisions and dependency-closed inactive-entry collection
 - execution and reuse statistics for equivalence tests
@@ -49,6 +50,15 @@ requests.
 - A body query receives a sealed exact-body input that binds the demanded physical source identity
   and fingerprint to the declaration identity or lexical product that consumes it. The checking
   context cannot accept an unrelated source token as a procedural invalidation proof.
+- Canonical body replay publishes one exact-current materialization. A relation-input projection
+  narrows its fingerprint only by eliding scalar literal payloads; identifiers, operators, parsed
+  body shape, interpolation expressions, and the complete declaration surface remain exact.
+- Provenance, effect, and loan analysis depend on that narrow structural projection. Finalization
+  depends independently on the exact-current materialization and joins reusable source-neutral
+  relations with its current source projection. A literal edit can therefore reuse relation facts
+  without reusing source positions, body text, or an earlier semantic authority.
+- Structural equivalence is owned by the syntax surface and consumed by computation. Checking does
+  not inspect source text to decide reuse, and LSP does not define an editor-only equivalence rule.
 - Incomplete declaration recovery retains both the authoritative declaration rejection and any
   later preparation or body-check rejection reached while collecting editor evidence.
 - The crate schedules checking through `ReusableCheckingQuery`, but does not construct its internal
