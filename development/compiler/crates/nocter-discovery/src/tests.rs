@@ -15,8 +15,8 @@ use nocter_syntax::{DirectSourceSyntax, NodeKind};
 use nocter_toolchain_contract::StandardDeclarationRole;
 
 use crate::{
-    DiscoveredUnit, DiscoveryError, DiscoveryFailure, DiscoveryRequest, UseFailure,
-    discover_with_source_syntax,
+    DiscoveredModule, DiscoveredUnit, DiscoveryError, DiscoveryFailure, DiscoveryRequest,
+    UseFailure, discover_with_source_syntax,
 };
 
 #[path = "tests/standard_contract.rs"]
@@ -249,6 +249,19 @@ fn discovery_retains_a_builtin_locator_without_selecting_syntax() {
     .unwrap();
 
     let compile_input = unit.compile_input().unwrap();
+    assert!(std::ptr::eq(compile_input, unit.compile_input().unwrap(),));
+    let input_source = &compile_input.modules()[0].sources()[0];
+    let discovered_source = unit
+        .modules()
+        .iter()
+        .flat_map(DiscoveredModule::sources)
+        .find(|source| source.canonical_path() == input_source.canonical_path())
+        .unwrap();
+    let discovered_tree = unit
+        .syntax_trees()
+        .get(discovered_source.syntax_index())
+        .unwrap();
+    assert!(std::ptr::eq(input_source.syntax(), discovered_tree,));
     let builtins = compile_input.toolchain().unwrap().builtin_types();
     assert_eq!(builtins.len(), 1);
     assert_eq!(builtins[0].builtin(), BuiltinType::I32);
@@ -398,7 +411,7 @@ fn explicit_single_file_converges_on_the_common_compile_unit() {
         [Box::<str>::from("value")]
     );
 
-    let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
+    let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(input).unwrap();
     assert_eq!(lowered.program().root_packages().len(), 1);
     assert_eq!(lowered.program().package_targets().len(), 1);
 }
@@ -520,7 +533,7 @@ fn closes_source_folder_module_and_dependency_edges_once() {
             .ends_with("/app/internal/search.nct")
     );
     assert_eq!(input.use_resolutions().len(), 2);
-    nocter_declaration_lowering::collect_declaration_surface(&input).unwrap();
+    nocter_declaration_lowering::collect_declaration_surface(input).unwrap();
 }
 
 #[test]
@@ -552,7 +565,7 @@ fn selected_declared_roots_retain_exact_package_target_directives() {
     let input = unit.compile_input().unwrap();
     assert_eq!(input.package_target_resolutions().len(), 2);
     assert_eq!(input.package_target_resolutions()[0].module(), &root);
-    nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
+    nocter_declaration_lowering::lower_compile_unit_declarations(input).unwrap();
 }
 
 #[test]
@@ -600,7 +613,7 @@ fn declared_module_inventory_includes_an_overlay_only_source_with_physical_owner
             .iter()
             .any(|source| source.canonical_path() == virtual_source.to_str().unwrap())
     );
-    nocter_declaration_lowering::lower_compile_unit_declarations(&unit.compile_input().unwrap())
+    nocter_declaration_lowering::lower_compile_unit_declarations(unit.compile_input().unwrap())
         .unwrap();
 }
 
@@ -773,7 +786,7 @@ fn unknown_target_reaches_the_authored_declaration_diagnostic_boundary() {
     let input = unit.compile_input().unwrap();
 
     let Err(nocter_declaration_lowering::DeclarationLoweringError::Surface(diagnostic)) =
-        nocter_declaration_lowering::lower_compile_unit_declarations(&input)
+        nocter_declaration_lowering::lower_compile_unit_declarations(input)
     else {
         panic!("unknown target did not reach the authored surface diagnostic");
     };
@@ -971,19 +984,15 @@ fn authored_standard_library_is_one_discoverable_declaration_unit() {
     );
     standard_contract::assert_standard_root_visibility_boundaries(&unit);
     let input = unit.compile_input().unwrap();
-    standard_contract::assert_standard_self_uses_are_package_absolute(&input);
-    standard_contract::assert_reviewed_standard_dependencies(&input);
-    let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(&input).unwrap();
+    standard_contract::assert_standard_self_uses_are_package_absolute(input);
+    standard_contract::assert_reviewed_standard_dependencies(input);
+    let lowered = nocter_declaration_lowering::lower_compile_unit_declarations(input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
-    let prepared = nocter_checking::prepare_program_checking(
-        &input,
-        program,
-        &frontend_bindings,
-        source_index,
-    )
-    .unwrap();
+    let prepared =
+        nocter_checking::prepare_program_checking(input, program, &frontend_bindings, source_index)
+            .unwrap();
     let checked =
-        nocter_checking::check_prepared_program(&input, prepared).unwrap_or_else(|error| {
+        nocter_checking::check_prepared_program(input, prepared).unwrap_or_else(|error| {
             let source = error
                 .source_diagnostic()
                 .and_then(|diagnostic| unit.sources().get(diagnostic.primary().source()))

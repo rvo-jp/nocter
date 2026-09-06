@@ -1,16 +1,12 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
-use nocter_compile_input::{
-    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageInput, PackageMode, PackageTargetResolutionInput, SourceVisibilityResolutionInput,
-    ToolchainInput, UseResolutionInput,
-};
+use nocter_compile_input::{CompileUnitInput, ModuleIdentity, ModuleSourceKind, PackageMode};
 use nocter_filesystem::SourceOverlay;
 use nocter_model::{CompilationTarget, PackageIdentity};
 use nocter_source::SourceMap;
 use nocter_syntax::SyntaxTree;
-use nocter_target_selection::TargetSelection;
 
 #[derive(Clone, Debug)]
 pub struct DiscoveredSource {
@@ -102,25 +98,19 @@ pub(crate) struct DiscoveredPackage {
 
 #[derive(Debug)]
 pub struct DiscoveredUnit {
-    pub(crate) target: CompilationTarget,
     pub(crate) source_overlay: SourceOverlay,
-    pub(crate) sources: SourceMap,
-    pub(crate) syntax: Vec<SyntaxTree>,
+    pub(crate) sources: Arc<SourceMap>,
+    pub(crate) syntax: Arc<[SyntaxTree]>,
     pub(crate) packages: Vec<DiscoveredPackage>,
-    pub(crate) root_packages: Vec<PackageIdentity>,
     pub(crate) modules: Vec<DiscoveredModule>,
     pub(crate) module_dependencies: Vec<DiscoveredModuleDependency>,
-    pub(crate) source_visibility_resolutions: Vec<SourceVisibilityResolutionInput>,
-    pub(crate) use_resolutions: Vec<UseResolutionInput>,
-    pub(crate) package_target_resolutions: Vec<PackageTargetResolutionInput>,
-    pub(crate) target_selection: TargetSelection,
-    pub(crate) toolchain: Option<ToolchainInput>,
+    pub(crate) compile_input: CompileUnitInput<'static>,
 }
 
 impl DiscoveredUnit {
     #[must_use]
-    pub const fn target(&self) -> CompilationTarget {
-        self.target
+    pub fn target(&self) -> CompilationTarget {
+        self.compile_input.target()
     }
 
     #[must_use]
@@ -129,7 +119,7 @@ impl DiscoveredUnit {
     }
 
     #[must_use]
-    pub const fn sources(&self) -> &SourceMap {
+    pub fn sources(&self) -> &SourceMap {
         &self.sources
     }
 
@@ -146,7 +136,7 @@ impl DiscoveredUnit {
     /// Returns the exact packages selected before dependency traversal.
     #[must_use]
     pub fn root_packages(&self) -> &[PackageIdentity] {
-        &self.root_packages
+        self.compile_input.root_packages()
     }
 
     /// Returns the exact authored dependency aliases of one resolved package.
@@ -178,7 +168,7 @@ impl DiscoveredUnit {
     #[must_use]
     pub fn is_root_package_source(&self, canonical_path: &str) -> bool {
         self.modules.iter().any(|module| {
-            self.root_packages.contains(module.identity().package())
+            self.root_packages().contains(module.identity().package())
                 && module
                     .sources()
                     .iter()
@@ -205,7 +195,7 @@ impl DiscoveredUnit {
     /// presentation after a failed compiler session.
     #[must_use]
     pub fn into_sources(self) -> SourceMap {
-        self.sources
+        Arc::unwrap_or_clone(self.sources)
     }
 
     /// Borrows this immutable discovery snapshot as the sole declaration-lowering input.
@@ -215,7 +205,7 @@ impl DiscoveredUnit {
     /// Returns an error while any loaded source has lexical or parse diagnostics, or when an
     /// incomplete snapshot lacks the toolchain profile selected by discovery. Callers retain this
     /// snapshot and can project syntax diagnostics through its source map and syntax trees.
-    pub fn compile_input(&self) -> Result<CompileUnitInput<'_>, CompileInputError> {
+    pub fn compile_input(&self) -> Result<&CompileUnitInput<'static>, CompileInputError> {
         if self.has_syntax_errors() {
             return Err(CompileInputError::SyntaxErrorsPresent);
         }
@@ -233,54 +223,11 @@ impl DiscoveredUnit {
     ///
     /// Returns an error when the incomplete snapshot lacks the toolchain profile selected by
     /// discovery.
-    pub fn analysis_input(&self) -> Result<CompileUnitInput<'_>, CompileInputError> {
-        let packages = self
-            .packages
-            .iter()
-            .map(|package| {
-                PackageInput::new(
-                    package.identity.clone(),
-                    package.display_name.clone(),
-                    package.mode,
-                )
-            })
-            .collect();
-        let modules = self
-            .modules
-            .iter()
-            .map(|module| {
-                ModuleInput::new(
-                    module.identity.clone(),
-                    module
-                        .sources
-                        .iter()
-                        .map(|source| {
-                            ModuleSourceInput::new(
-                                source.canonical_path.clone(),
-                                source.kind,
-                                &self.syntax[source.syntax],
-                            )
-                        })
-                        .collect(),
-                )
-            })
-            .collect();
-        let toolchain = self
-            .toolchain
-            .clone()
-            .ok_or(CompileInputError::MissingToolchainProfile)?;
-        Ok(CompileUnitInput::from_target_selection(
-            self.target,
-            &self.sources,
-            packages,
-            modules,
-            self.use_resolutions.clone(),
-            self.target_selection.clone(),
-        )
-        .with_source_visibility_resolutions(self.source_visibility_resolutions.clone())
-        .with_root_packages(self.root_packages.clone())
-        .with_package_target_resolutions(self.package_target_resolutions.clone())
-        .with_toolchain(toolchain))
+    pub fn analysis_input(&self) -> Result<&CompileUnitInput<'static>, CompileInputError> {
+        if self.compile_input.toolchain().is_none() {
+            return Err(CompileInputError::MissingToolchainProfile);
+        }
+        Ok(&self.compile_input)
     }
 }
 

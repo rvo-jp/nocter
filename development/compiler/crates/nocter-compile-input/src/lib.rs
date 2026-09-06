@@ -10,6 +10,7 @@ use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
+use std::sync::Arc;
 
 mod dependency;
 mod identity;
@@ -354,10 +355,98 @@ impl ToolchainInput {
 }
 
 #[derive(Clone, Debug)]
+enum InputStorage<'input, T> {
+    Borrowed(&'input T),
+    Shared(Arc<T>),
+}
+
+impl<T> InputStorage<'_, T> {
+    fn get(&self) -> &T {
+        match self {
+            Self::Borrowed(value) => value,
+            Self::Shared(value) => value,
+        }
+    }
+}
+
+/// Retainable access to the immutable normalized sources of one compile unit.
+///
+/// Focused clients may borrow an existing map; discovery-backed inputs share ownership so
+/// semantic products never borrow the `CompileUnitInput` wrapper itself.
+#[derive(Clone, Debug)]
+pub struct SourceMapHandle<'source>(InputStorage<'source, SourceMap>);
+
+impl<'source> SourceMapHandle<'source> {
+    fn borrowed(sources: &'source SourceMap) -> Self {
+        Self(InputStorage::Borrowed(sources))
+    }
+
+    fn shared(sources: Arc<SourceMap>) -> SourceMapHandle<'static> {
+        SourceMapHandle(InputStorage::Shared(sources))
+    }
+
+    #[must_use]
+    pub fn as_source_map(&self) -> &SourceMap {
+        self.0.get()
+    }
+}
+
+impl std::ops::Deref for SourceMapHandle<'_> {
+    type Target = SourceMap;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_source_map()
+    }
+}
+
+#[derive(Clone, Debug)]
+enum SyntaxStorage<'syntax> {
+    Borrowed(&'syntax SyntaxTree),
+    Shared {
+        trees: Arc<[SyntaxTree]>,
+        index: usize,
+    },
+}
+
+/// Retainable access to one immutable parsed source.
+///
+/// The handle carries either the caller's syntax lifetime or shared ownership of discovery's
+/// syntax snapshot. Later lowering stages clone this handle instead of borrowing an input wrapper.
+#[derive(Clone, Debug)]
+pub struct SyntaxTreeHandle<'syntax>(SyntaxStorage<'syntax>);
+
+impl<'syntax> SyntaxTreeHandle<'syntax> {
+    fn borrowed(tree: &'syntax SyntaxTree) -> Self {
+        Self(SyntaxStorage::Borrowed(tree))
+    }
+
+    fn shared(trees: Arc<[SyntaxTree]>, index: usize) -> Option<SyntaxTreeHandle<'static>> {
+        trees.get(index)?;
+        Some(SyntaxTreeHandle(SyntaxStorage::Shared { trees, index }))
+    }
+
+    #[must_use]
+    pub fn as_syntax_tree(&self) -> &SyntaxTree {
+        match &self.0 {
+            SyntaxStorage::Borrowed(tree) => tree,
+            SyntaxStorage::Shared { trees, index } => &trees[*index],
+        }
+    }
+}
+
+impl std::ops::Deref for SyntaxTreeHandle<'_> {
+    type Target = SyntaxTree;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_syntax_tree()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct ModuleSourceInput<'syntax> {
     canonical_path: Box<str>,
     kind: ModuleSourceKind,
-    syntax: &'syntax SyntaxTree,
+    syntax: SyntaxTreeHandle<'syntax>,
 }
 
 impl<'syntax> ModuleSourceInput<'syntax> {
@@ -370,8 +459,26 @@ impl<'syntax> ModuleSourceInput<'syntax> {
         Self {
             canonical_path: canonical_path.into(),
             kind,
-            syntax,
+            syntax: SyntaxTreeHandle::borrowed(syntax),
         }
+    }
+
+    /// Constructs a source input that shares ownership of immutable parsed syntax.
+    ///
+    /// Returns `None` when `index` does not select a tree. The input therefore cannot retain an
+    /// invalid shared-syntax reference that would fail later during semantic analysis.
+    #[must_use]
+    pub fn shared(
+        canonical_path: impl Into<Box<str>>,
+        kind: ModuleSourceKind,
+        trees: Arc<[SyntaxTree]>,
+        index: usize,
+    ) -> Option<ModuleSourceInput<'static>> {
+        Some(ModuleSourceInput {
+            canonical_path: canonical_path.into(),
+            kind,
+            syntax: SyntaxTreeHandle::shared(trees, index)?,
+        })
     }
 
     #[must_use]
@@ -385,8 +492,13 @@ impl<'syntax> ModuleSourceInput<'syntax> {
     }
 
     #[must_use]
-    pub const fn syntax(&self) -> &'syntax SyntaxTree {
-        self.syntax
+    pub fn syntax(&self) -> &SyntaxTree {
+        self.syntax.as_syntax_tree()
+    }
+
+    #[must_use]
+    pub fn syntax_handle(&self) -> SyntaxTreeHandle<'syntax> {
+        self.syntax.clone()
     }
 }
 
@@ -416,7 +528,7 @@ impl<'syntax> ModuleInput<'syntax> {
 #[derive(Debug)]
 pub struct CompileUnitInput<'syntax> {
     target: CompilationTarget,
-    sources: &'syntax SourceMap,
+    sources: SourceMapHandle<'syntax>,
     packages: Vec<PackageInput>,
     root_packages: Vec<PackageIdentity>,
     modules: Vec<ModuleInput<'syntax>>,
@@ -445,7 +557,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
         );
         Self {
             target,
-            sources,
+            sources: SourceMapHandle::borrowed(sources),
             packages,
             root_packages: Vec::new(),
             modules,
@@ -473,7 +585,35 @@ impl<'syntax> CompileUnitInput<'syntax> {
     ) -> Self {
         Self {
             target,
-            sources,
+            sources: SourceMapHandle::borrowed(sources),
+            packages,
+            root_packages: Vec::new(),
+            modules,
+            source_visibility_resolutions: Vec::new(),
+            use_resolutions,
+            package_target_resolutions: Vec::new(),
+            toolchain: None,
+            target_selection: Ok(target_selection),
+        }
+    }
+
+    /// Constructs the closed, ownership-sharing input retained by one discovery snapshot.
+    ///
+    /// Unlike borrowing constructors used by focused compiler clients, this boundary keeps the
+    /// normalized source map and every parsed source alive without rebuilding their topology for
+    /// each semantic query.
+    #[must_use]
+    pub fn from_shared_target_selection(
+        target: CompilationTarget,
+        sources: Arc<SourceMap>,
+        packages: Vec<PackageInput>,
+        modules: Vec<ModuleInput<'static>>,
+        use_resolutions: Vec<UseResolutionInput>,
+        target_selection: TargetSelection,
+    ) -> CompileUnitInput<'static> {
+        CompileUnitInput {
+            target,
+            sources: SourceMapHandle::shared(sources),
             packages,
             root_packages: Vec::new(),
             modules,
@@ -519,7 +659,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
         self.target = target;
         self.target_selection = TargetSelection::prepare(
             target,
-            self.sources,
+            self.sources(),
             self.modules
                 .iter()
                 .flat_map(|module| module.sources().iter().map(ModuleSourceInput::syntax)),
@@ -550,8 +690,13 @@ impl<'syntax> CompileUnitInput<'syntax> {
     }
 
     #[must_use]
-    pub const fn sources(&self) -> &'syntax SourceMap {
-        self.sources
+    pub fn sources(&self) -> &SourceMap {
+        self.sources.as_source_map()
+    }
+
+    #[must_use]
+    pub fn source_map_handle(&self) -> SourceMapHandle<'syntax> {
+        self.sources.clone()
     }
 
     #[must_use]
@@ -574,7 +719,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
     /// Consumers use this identity lookup to project an already-selected syntax origin. It does
     /// not rediscover module topology or source visibility.
     #[must_use]
-    pub fn syntax_tree(&self, source: SourceId) -> Option<&'syntax SyntaxTree> {
+    pub fn syntax_tree(&self, source: SourceId) -> Option<&SyntaxTree> {
         self.modules
             .iter()
             .flat_map(ModuleInput::sources)
@@ -600,5 +745,45 @@ impl<'syntax> CompileUnitInput<'syntax> {
     #[must_use]
     pub const fn toolchain(&self) -> Option<&ToolchainInput> {
         self.toolchain.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ModuleSourceInput, ModuleSourceKind};
+    use nocter_source::{SourceMap, SourceName};
+    use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+    use std::sync::Arc;
+
+    fn syntax_snapshot() -> Arc<[SyntaxTree]> {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("source.nct"), b"func value(): i32")
+            .unwrap();
+        vec![parse(sources.get(source).unwrap(), ParseGoal::SourceFile)].into()
+    }
+
+    #[test]
+    fn shared_source_validates_and_retains_its_syntax_selection() {
+        let trees = syntax_snapshot();
+        assert!(
+            ModuleSourceInput::shared(
+                "source.nct",
+                ModuleSourceKind::Implementation,
+                Arc::clone(&trees),
+                trees.len(),
+            )
+            .is_none()
+        );
+
+        let source = ModuleSourceInput::shared(
+            "source.nct",
+            ModuleSourceKind::Implementation,
+            Arc::clone(&trees),
+            0,
+        )
+        .unwrap();
+        drop(trees);
+        assert_eq!(source.syntax().source().index(), 0);
     }
 }

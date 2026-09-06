@@ -8,8 +8,8 @@
 use nocter_compile_input::ToolchainInput;
 use nocter_compile_input::{
     CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
-    PackageInput, PackageMode, PackageTargetResolutionInput, SourceVisibilityResolutionInput,
-    UseResolutionInput,
+    PackageInput, PackageMode, PackageTargetResolutionInput, SourceMapHandle,
+    SourceVisibilityResolutionInput, SyntaxTreeHandle, UseResolutionInput,
 };
 use nocter_diagnostics::{DiagnosticNote, SourceDiagnostic};
 use nocter_model::PackageIdentity;

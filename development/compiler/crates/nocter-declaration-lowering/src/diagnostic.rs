@@ -26,9 +26,9 @@ pub(crate) fn origin_from_syntax<'syntax>(
     }
 }
 
-pub(crate) fn input_trees<'input, 'syntax: 'input>(
-    input: &'input CompileUnitInput<'syntax>,
-) -> impl Iterator<Item = &'syntax SyntaxTree> + 'input {
+pub(crate) fn input_trees<'input>(
+    input: &'input CompileUnitInput<'_>,
+) -> impl Iterator<Item = &'input SyntaxTree> + 'input {
     input.modules().iter().flat_map(|module| {
         module
             .sources()

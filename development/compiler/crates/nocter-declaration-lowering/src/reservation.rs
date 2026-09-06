@@ -18,9 +18,9 @@ use crate::package_targets::{reserve_package_targets, reserve_single_file_target
 use crate::surface::SurfaceParts;
 use crate::{
     DeclarationContractError, DeclarationContracts, DeclarationSurface, ModuleIdentity,
-    ModuleSourceKind, PackageInput, ReservationError::InconsistentSurface, SurfaceBlockImport,
-    SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind, SurfaceImport, SurfaceSource,
-    SurfaceVisibility,
+    ModuleSourceKind, PackageInput, ReservationError::InconsistentSurface, SourceMapHandle,
+    SurfaceBlockImport, SurfaceDeclaration, SurfaceDeclarationId, SurfaceDeclarationKind,
+    SurfaceImport, SurfaceSource, SurfaceVisibility,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -223,7 +223,7 @@ impl From<crate::ToolchainError> for ReservationError {
 pub struct ReservedDeclarations<'syntax> {
     pub(crate) program: DeclarationProgramBuilder,
     pub(crate) source_index: crate::frontend_projection::FrontendProjectionBuilder,
-    pub(crate) source_map: &'syntax SourceMap,
+    pub(crate) source_map: SourceMapHandle<'syntax>,
     pub(crate) packages: Box<[PackageInput]>,
     pub(crate) package_ids: Box<[PackageId]>,
     pub(crate) modules: Box<[ModuleIdentity]>,
@@ -246,8 +246,8 @@ impl ReservedDeclarations<'_> {
     }
 
     #[must_use]
-    pub const fn source_map(&self) -> &SourceMap {
-        self.source_map
+    pub fn source_map(&self) -> &SourceMap {
+        self.source_map.as_source_map()
     }
 
     #[must_use]
@@ -361,19 +361,12 @@ pub(crate) fn reserve_with_contracts(
         declarations,
     } = surface.into_parts();
     let mut program = DeclarationProgramBuilder::new(target, symbols);
-    let mut source_index =
-        crate::frontend_projection::FrontendProjectionBuilder::new(source_map, &sources)?;
+    let mut source_index = crate::frontend_projection::FrontendProjectionBuilder::new(
+        source_map.as_source_map(),
+        &sources,
+    )?;
     let package_ids = reserve_packages(&packages, &sources, &mut program, &mut source_index)?;
-    let semantic_roots = root_packages
-        .iter()
-        .map(|identity| {
-            package_ids
-                .get(identity)
-                .copied()
-                .ok_or_else(|| ReservationError::UnknownRootPackage(identity.clone()))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    program.set_root_packages(semantic_roots)?;
+    reserve_root_packages(&root_packages, &package_ids, &mut program)?;
     let module_ids = reserve_modules(&modules, &package_ids, &mut program)?;
     project_block_imports(&block_imports, &module_ids, &mut source_index)?;
     reserve_single_file_targets(
@@ -446,6 +439,24 @@ pub(crate) fn reserve_with_contracts(
         toolchain,
         primitive_bindings: primitive_bindings.into_boxed_slice(),
     })
+}
+
+fn reserve_root_packages(
+    roots: &[crate::PackageIdentity],
+    package_ids: &BTreeMap<crate::PackageIdentity, PackageId>,
+    program: &mut DeclarationProgramBuilder,
+) -> Result<(), ReservationError> {
+    let semantic_roots = roots
+        .iter()
+        .map(|identity| {
+            package_ids
+                .get(identity)
+                .copied()
+                .ok_or_else(|| ReservationError::UnknownRootPackage(identity.clone()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    program.set_root_packages(semantic_roots)?;
+    Ok(())
 }
 
 fn resolve_primitive_bindings(

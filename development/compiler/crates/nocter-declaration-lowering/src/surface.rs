@@ -12,7 +12,10 @@ use nocter_syntax::{
 use crate::topology::{
     PreparedCompileUnit, SourceVisibilityResolutionKey, UseResolutionKey, prepare_compile_unit,
 };
-use crate::{CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput};
+use crate::{
+    CompileUnitInput, LoweringError, ModuleIdentity, ModuleSourceKind, PackageInput,
+    SourceMapHandle, SyntaxTreeHandle,
+};
 use nocter_target_selection::TargetSelection;
 
 /// Temporary identity of a declaration surface entry before semantic domains are reserved.
@@ -83,7 +86,7 @@ pub struct SurfaceSource<'syntax> {
     module: ModuleIdentity,
     canonical_path: Box<str>,
     kind: ModuleSourceKind,
-    syntax: &'syntax SyntaxTree,
+    syntax: SyntaxTreeHandle<'syntax>,
 }
 
 impl<'syntax> SurfaceSource<'syntax> {
@@ -91,7 +94,7 @@ impl<'syntax> SurfaceSource<'syntax> {
         module: ModuleIdentity,
         canonical_path: impl Into<Box<str>>,
         kind: ModuleSourceKind,
-        syntax: &'syntax SyntaxTree,
+        syntax: SyntaxTreeHandle<'syntax>,
     ) -> Self {
         Self {
             module,
@@ -117,8 +120,12 @@ impl<'syntax> SurfaceSource<'syntax> {
     }
 
     #[must_use]
-    pub const fn syntax(&self) -> &'syntax SyntaxTree {
-        self.syntax
+    pub fn syntax(&self) -> &SyntaxTree {
+        self.syntax.as_syntax_tree()
+    }
+
+    pub(crate) fn syntax_handle(&self) -> SyntaxTreeHandle<'syntax> {
+        self.syntax.clone()
     }
 }
 
@@ -258,7 +265,7 @@ impl SurfaceDeclaration {
 #[derive(Debug)]
 pub struct DeclarationSurface<'syntax> {
     target: CompilationTarget,
-    source_map: &'syntax SourceMap,
+    source_map: SourceMapHandle<'syntax>,
     symbols: SymbolTable,
     packages: Box<[PackageInput]>,
     root_packages: Box<[crate::PackageIdentity]>,
@@ -278,8 +285,8 @@ impl<'syntax> DeclarationSurface<'syntax> {
     }
 
     #[must_use]
-    pub const fn source_map(&self) -> &'syntax SourceMap {
-        self.source_map
+    pub fn source_map(&self) -> &SourceMap {
+        self.source_map.as_source_map()
     }
 
     #[must_use]
@@ -342,7 +349,7 @@ impl<'syntax> DeclarationSurface<'syntax> {
 
 pub(crate) struct SurfaceParts<'syntax> {
     pub(crate) target: CompilationTarget,
-    pub(crate) source_map: &'syntax SourceMap,
+    pub(crate) source_map: SourceMapHandle<'syntax>,
     pub(crate) symbols: SymbolTable,
     pub(crate) packages: Box<[PackageInput]>,
     pub(crate) root_packages: Box<[crate::PackageIdentity]>,
@@ -500,7 +507,7 @@ fn collect_declaration_surface_with<'syntax>(
                 module.identity().clone(),
                 source.canonical_path(),
                 source.kind(),
-                source.syntax(),
+                source.syntax_handle(),
             ));
         }
     }
@@ -528,7 +535,7 @@ fn collect_declaration_surface_with<'syntax>(
     }
     Ok(DeclarationSurface {
         target: input.target(),
-        source_map: input.sources(),
+        source_map: input.source_map_handle(),
         symbols,
         packages: packages
             .into_iter()

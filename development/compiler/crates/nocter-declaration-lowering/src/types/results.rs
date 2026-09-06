@@ -41,8 +41,9 @@ pub(super) fn bind_all(
         else {
             continue;
         };
-        let tree =
-            namespaces.imports.generics.headers.reserved.sources[surface.source().index()].syntax();
+        let syntax = namespaces.imports.generics.headers.reserved.sources[surface.source().index()]
+            .syntax_handle();
+        let tree = syntax.as_syntax_tree();
         match entity {
             ReservedEntity::OpaqueType(opaque_id) => {
                 let owner = surface

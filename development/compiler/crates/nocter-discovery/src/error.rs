@@ -84,6 +84,10 @@ pub enum DiscoveryError {
     TargetSelection(TargetSelectionError),
     InconsistentSyntax(NodeId),
     InconsistentSourceSnapshot(SourceId),
+    InconsistentSyntaxSnapshot {
+        index: usize,
+        tree_count: usize,
+    },
 }
 
 impl fmt::Display for DiscoveryError {
@@ -176,6 +180,10 @@ impl fmt::Display for DiscoveryError {
             Self::InconsistentSourceSnapshot(source) => {
                 write!(formatter, "source snapshot is inconsistent at {source}")
             }
+            Self::InconsistentSyntaxSnapshot { index, tree_count } => write!(
+                formatter,
+                "syntax snapshot index {index} is outside its {tree_count} trees"
+            ),
         }
     }
 }
@@ -200,7 +208,8 @@ impl std::error::Error for DiscoveryError {
             | Self::Source { .. }
             | Self::TargetSelection(_)
             | Self::InconsistentSyntax(_)
-            | Self::InconsistentSourceSnapshot(_) => None,
+            | Self::InconsistentSourceSnapshot(_)
+            | Self::InconsistentSyntaxSnapshot { .. } => None,
         }
     }
 }

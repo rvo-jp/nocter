@@ -264,7 +264,7 @@ impl Query for DeclarationQuery {
             });
         }
         let failure = match semantic.unit.compile_input() {
-            Ok(input) => match lower_reusable_declarations(&input) {
+            Ok(input) => match lower_reusable_declarations(input) {
                 Ok(lowered) => {
                     return Ok(DeclarationQueryProduct {
                         outcome: DeclarationQueryOutcome::Accepted(Arc::new(lowered)),

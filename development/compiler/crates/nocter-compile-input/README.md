@@ -14,6 +14,8 @@ not discover files or perform semantic lowering.
 ## Invariants
 
 - Every source, syntax tree, module, and dependency edge belongs to one compile unit.
+- Production discovery constructs one owned input and shares its immutable source and syntax
+  storage; semantic queries borrow that same input rather than rebuilding topology.
 - Target selection is supplied as one completed authority and is never recomputed downstream.
 - Dependency identities are canonical; display names and paths cannot substitute for them.
 - Directly constructed test inputs obey the same validation boundary as production inputs.

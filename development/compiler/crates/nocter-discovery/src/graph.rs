@@ -1,10 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 
 use nocter_compile_input::{
-    ModuleIdentity, ModuleSourceKind, PackageMode, PackageTargetResolutionInput,
-    SourceVisibilityResolutionInput, ToolchainInput, UseResolutionInput,
+    CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    PackageInput, PackageMode, PackageTargetResolutionInput, SourceVisibilityResolutionInput,
+    ToolchainInput, UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
 use nocter_model::PackageIdentity;
@@ -202,9 +204,11 @@ impl<'syntax> Builder<'syntax> {
             }
         }
 
-        let toolchain = Some(self.toolchain.clone());
+        if let Err(error) = self.validate_syntax_snapshot() {
+            return Err(self.into_failure(error));
+        }
 
-        let packages = self
+        let packages: Vec<_> = self
             .packages
             .into_values()
             .map(|state| DiscoveredPackage {
@@ -214,7 +218,7 @@ impl<'syntax> Builder<'syntax> {
                 dependencies: state.dependencies,
             })
             .collect();
-        let modules = self
+        let modules: Vec<_> = self
             .modules
             .into_iter()
             .map(|(identity, mut sources)| {
@@ -238,25 +242,59 @@ impl<'syntax> Builder<'syntax> {
         });
         self.module_dependencies.sort_unstable();
         self.module_dependencies.dedup();
+        let sources = Arc::new(self.sources);
+        let syntax: Arc<[SyntaxTree]> = self.syntax.into();
+        let compile_packages = packages
+            .iter()
+            .map(|package| {
+                PackageInput::new(
+                    package.identity.clone(),
+                    package.display_name.clone(),
+                    package.mode,
+                )
+            })
+            .collect();
+        let compile_modules = compile_modules(&modules, &syntax);
+        let compile_input = CompileUnitInput::from_shared_target_selection(
+            self.target,
+            Arc::clone(&sources),
+            compile_packages,
+            compile_modules,
+            self.use_resolutions,
+            self.target_selection.finish(),
+        )
+        .with_source_visibility_resolutions(self.source_visibility_resolutions)
+        .with_root_packages(self.root_packages)
+        .with_package_target_resolutions(self.package_target_resolutions)
+        .with_toolchain(self.toolchain);
         Ok(DiscoveredUnit {
-            target: self.target,
             source_overlay: self.source_overlay,
-            sources: self.sources,
-            syntax: self.syntax,
+            sources,
+            syntax,
             packages,
-            root_packages: self.root_packages,
             modules,
             module_dependencies: self.module_dependencies,
-            source_visibility_resolutions: self.source_visibility_resolutions,
-            use_resolutions: self.use_resolutions,
-            package_target_resolutions: self.package_target_resolutions,
-            target_selection: self.target_selection.finish(),
-            toolchain,
+            compile_input,
         })
     }
 
     fn into_failure(self, error: DiscoveryError) -> DiscoveryFailure {
         DiscoveryFailure::from_snapshot(error, self.source_overlay, self.sources, self.syntax)
+    }
+
+    fn validate_syntax_snapshot(&self) -> Result<(), DiscoveryError> {
+        let Some(source) = self
+            .modules
+            .values()
+            .flatten()
+            .find(|source| source.syntax_index() >= self.syntax.len())
+        else {
+            return Ok(());
+        };
+        Err(DiscoveryError::InconsistentSyntaxSnapshot {
+            index: source.syntax_index(),
+            tree_count: self.syntax.len(),
+        })
     }
 
     fn load_module(&mut self, module: ModuleIdentity) -> Result<(), DiscoveryError> {
@@ -668,6 +706,31 @@ impl<'syntax> Builder<'syntax> {
         }
         Ok(())
     }
+}
+
+fn compile_modules(
+    modules: &[DiscoveredModule],
+    syntax: &Arc<[SyntaxTree]>,
+) -> Vec<ModuleInput<'static>> {
+    modules
+        .iter()
+        .map(|module| {
+            let sources = module
+                .sources()
+                .iter()
+                .map(|source| {
+                    ModuleSourceInput::shared(
+                        source.canonical_path(),
+                        source.kind(),
+                        Arc::clone(syntax),
+                        source.syntax_index(),
+                    )
+                    .expect("syntax snapshot indices were validated before ownership transfer")
+                })
+                .collect();
+            ModuleInput::new(module.identity().clone(), sources)
+        })
+        .collect()
 }
 
 fn discover_package_targets(

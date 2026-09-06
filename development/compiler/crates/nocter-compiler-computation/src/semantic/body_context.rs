@@ -52,7 +52,7 @@ impl BodySemanticContextProduct {
             .map_err(|error| Arc::new(error.into()))?;
         context
             .checking
-            .resolve_names(&input, exact_body.body())
+            .resolve_names(input, exact_body.body())
             .map_err(|error| Arc::new(error.into()))
     }
 
@@ -71,7 +71,7 @@ impl BodySemanticContextProduct {
             .map_err(|error| Arc::new(error.into()))?;
         context
             .checking
-            .check(&input, exact_body.names())
+            .check(input, exact_body.names())
             .map_err(|error| Arc::new(error.into()))
     }
 
@@ -105,7 +105,7 @@ impl BodySemanticContextProduct {
         context
             .checking
             .materialize(
-                &input,
+                input,
                 &body_names,
                 &body_name_rejections,
                 &bodies,
@@ -130,7 +130,7 @@ impl BodySemanticContextProduct {
         let (names, rejections) = Self::queried_name_inputs(body_names);
         let failure = context
             .checking
-            .prepare_names(&input, &names, &rejections)
+            .prepare_names(input, &names, &rejections)
             .err()
             .ok_or_else(|| Arc::new(super::SemanticQueryFailure::UnexpectedAcceptedNameCatalog))?;
         nocter_checking::QueriedNameResolutionFailure::from_preparation_failure(failure).map_err(
@@ -177,7 +177,7 @@ impl Query for BodySemanticContextQuery {
             }
         };
         let state = match current.unit.compile_input() {
-            Ok(input) => match prepared.open_current(&input) {
+            Ok(input) => match prepared.open_current(input) {
                 Ok(checking) => BodySemanticContextState::Ready(Box::new(BodySemanticContext {
                     unit: Arc::clone(&current.unit),
                     checking,

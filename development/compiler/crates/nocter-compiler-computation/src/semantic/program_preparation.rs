@@ -83,17 +83,18 @@ impl Query for ProgramPreparationQuery {
             Ok(input) => input,
             Err(error) => return failed(database, key, error.into()),
         };
-        let outcome =
-            match nocter_checking::ReusableCheckingQuery::prepare(&input, Arc::clone(declarations))
-            {
-                Ok(outcome) => outcome,
-                Err(nocter_checking::ReusableCheckingQueryError::CurrentProjection(error)) => {
-                    return failed(database, key, error.into());
-                }
-                Err(nocter_checking::ReusableCheckingQueryError::Preparation(error)) => {
-                    return failed(database, key, error.into());
-                }
-            };
+        let outcome = match nocter_checking::ReusableCheckingQuery::prepare(
+            input,
+            Arc::clone(declarations),
+        ) {
+            Ok(outcome) => outcome,
+            Err(nocter_checking::ReusableCheckingQueryError::CurrentProjection(error)) => {
+                return failed(database, key, error.into());
+            }
+            Err(nocter_checking::ReusableCheckingQueryError::Preparation(error)) => {
+                return failed(database, key, error.into());
+            }
+        };
         match outcome {
             nocter_checking::ReusableCheckingQueryOutcome::Prepared(prepared) => {
                 Ok(ProgramPreparationProduct {

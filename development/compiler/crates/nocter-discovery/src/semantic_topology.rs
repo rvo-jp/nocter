@@ -36,7 +36,7 @@ impl DiscoveredUnit {
     ) -> Result<SemanticTopologySurface, SemanticTopologyError> {
         let sources = canonical_sources(self)?;
         let mut canonical = Vec::new();
-        encode(self.target.name().as_bytes(), &mut canonical);
+        encode(self.target().name().as_bytes(), &mut canonical);
         encode_packages(self, &mut canonical);
         encode_modules(self, &mut canonical);
         encode_resolutions(self, &sources, &mut canonical)?;
@@ -63,7 +63,7 @@ fn encode_packages(unit: &DiscoveredUnit, output: &mut Vec<u8>) {
             encode(identity.as_str().as_bytes(), output);
         }
     }
-    let mut roots = unit.root_packages.iter().collect::<Vec<_>>();
+    let mut roots = unit.root_packages().iter().collect::<Vec<_>>();
     roots.sort_unstable();
     for root in roots {
         output.push(0x12);
@@ -102,11 +102,13 @@ fn encode_resolutions(
         .collect::<BTreeSet<_>>();
     let mut declarations = BTreeSet::new();
     for declaration in unit
-        .source_visibility_resolutions
+        .compile_input
+        .source_visibility_resolutions()
         .iter()
         .map(nocter_compile_input::SourceVisibilityResolutionInput::declaration)
         .chain(
-            unit.use_resolutions
+            unit.compile_input
+                .use_resolutions()
                 .iter()
                 .map(nocter_compile_input::UseResolutionInput::declaration),
         )
@@ -121,7 +123,8 @@ fn encode_resolutions(
     for source in sources {
         let tree = &unit.syntax[source.syntax];
         let mut visibility = unit
-            .source_visibility_resolutions
+            .compile_input
+            .source_visibility_resolutions()
             .iter()
             .filter(|resolution| resolution.declaration().source() == source.id)
             .collect::<Vec<_>>();
@@ -142,7 +145,8 @@ fn encode_resolutions(
             encode(resolution.target_source().as_bytes(), output);
         }
         let mut uses = unit
-            .use_resolutions
+            .compile_input
+            .use_resolutions()
             .iter()
             .filter(|resolution| resolution.declaration().source() == source.id)
             .collect::<Vec<_>>();
@@ -176,7 +180,11 @@ fn encode_resolutions(
 }
 
 fn encode_targets(unit: &DiscoveredUnit, output: &mut Vec<u8>) {
-    let mut targets = unit.package_target_resolutions.iter().collect::<Vec<_>>();
+    let mut targets = unit
+        .compile_input
+        .package_target_resolutions()
+        .iter()
+        .collect::<Vec<_>>();
     targets.sort_unstable_by(|left, right| {
         left.module()
             .package()
@@ -200,8 +208,8 @@ fn encode_toolchain(
     output: &mut Vec<u8>,
 ) -> Result<(), SemanticTopologyError> {
     let toolchain = unit
-        .toolchain
-        .as_ref()
+        .compile_input
+        .toolchain()
         .ok_or(SemanticTopologyError::MissingToolchain)?;
     output.push(0x50);
     encode(toolchain.standard_package().as_str().as_bytes(), output);

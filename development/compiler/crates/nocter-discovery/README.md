@@ -33,6 +33,8 @@ does not lower declarations or interpret body semantics.
 - Package-boundary validation extends and reuses the graph's exact root catalog; it does not probe
   the same directory through a second source authority.
 - Later stages receive the closed graph and cannot rediscover files.
+- The closed compile input is constructed once with the discovery snapshot. Repeated semantic
+  demands receive the same input and shared source/syntax ownership, never a reconstructed graph.
 - A syntax provider cannot change discovery topology or attach a tree from another source identity.
 - Production discovery requires a caller-owned syntax provider; it cannot construct a direct parser
   and bypass compiler-computation source authority.

@@ -175,15 +175,15 @@ fn analyze_incomplete_semantics(
             };
         }
     };
-    let lowered = match lower_incomplete_body_declarations_recovering(&input) {
+    let lowered = match lower_incomplete_body_declarations_recovering(input) {
         Ok(lowered) => lowered,
         Err(failure) => {
             return IncompleteSemanticAnalysis {
-                failure: Some(continue_declaration_failure(&input, failure)),
+                failure: Some(continue_declaration_failure(input, failure)),
             };
         }
     };
-    let failure = match nocter_checking::check_lowered_program_recovering(&input, lowered) {
+    let failure = match nocter_checking::check_lowered_program_recovering(input, lowered) {
         Ok(_) => None,
         Err(nocter_checking::LoweredProgramCheckFailure::Preparation(failure)) => {
             let (error, evidence) = failure.into_parts();

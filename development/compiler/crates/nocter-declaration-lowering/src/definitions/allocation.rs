@@ -137,14 +137,14 @@ pub(super) fn finish_recovering(
         .collect::<Vec<_>>()
         .into_boxed_slice();
     let current_symbols = crate::current_symbols::CurrentCheckingSymbols::from_sources(
-        reserved.source_map,
+        reserved.source_map.as_source_map(),
         &reserved.sources,
     )
     .map_err(HeaderDefinitionError::from)
     .map_err(HeaderDefinitionFailure::without_recovery)?;
     let (projection_recipe, source_index, frontend_bindings) = reserved
         .source_index
-        .finish(reserved.source_map, &reserved.sources)
+        .finish(reserved.source_map.as_source_map(), &reserved.sources)
         .map_err(HeaderDefinitionError::from)
         .map_err(HeaderDefinitionFailure::without_recovery)?;
     match reserved.program.finish_recovering() {

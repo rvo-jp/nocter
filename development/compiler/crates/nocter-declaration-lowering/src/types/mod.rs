@@ -377,7 +377,7 @@ pub fn bind_header_type_syntax(
     for index in 0..declaration_count {
         let declaration = SurfaceDeclarationId::from_index(index);
         let surface = namespaces.imports.generics.headers.reserved.declarations[index];
-        let tree = namespaces
+        let syntax = namespaces
             .imports
             .generics
             .headers
@@ -385,7 +385,8 @@ pub fn bind_header_type_syntax(
             .sources
             .get(surface.source().index())
             .ok_or(TypeBindingError::MissingSource(declaration))?
-            .syntax();
+            .syntax_handle();
+        let tree = syntax.as_syntax_tree();
         let type_roots = header_type_roots(tree, surface.node(), &declaration_nodes);
         for root in type_roots {
             if arena.roots.contains_key(&root) {

@@ -77,7 +77,7 @@ impl Query for ProgramAnalysisQuery {
                 Ok(input) => {
                     ProgramAnalysisOutcome::DeclarationsRejected(FailedDeclarationAnalysis {
                         failure: Arc::new(super::analyze_declaration_failure(
-                            &input,
+                            input,
                             rejection.failure(),
                         )),
                     })

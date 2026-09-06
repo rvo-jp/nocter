@@ -178,7 +178,7 @@ fn public_file_documentation_has_one_semantic_owner() {
     let module = reserved.module_ids()[0];
     let (_, source_index, _) = reserved
         .source_index
-        .finish(reserved.source_map, &reserved.sources)
+        .finish(reserved.source_map.as_source_map(), &reserved.sources)
         .unwrap();
 
     assert_eq!(

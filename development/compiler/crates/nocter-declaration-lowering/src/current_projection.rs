@@ -97,7 +97,7 @@ pub(crate) fn canonical_sources<'syntax>(
                 module.identity().clone(),
                 source.canonical_path(),
                 source.kind(),
-                source.syntax(),
+                source.syntax_handle(),
             )
         }));
     }
