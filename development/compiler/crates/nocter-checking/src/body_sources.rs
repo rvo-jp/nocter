@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::sync::Arc;
 
-use nocter_compile_input::CompileUnitInput;
+use nocter_compile_input::{CompileUnitInput, SyntaxTreeHandle};
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{Arena, ArenaBuilder, BodyId, DeclarationSiteId, ModuleId};
 use nocter_source::SourceId;
-use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
+use nocter_syntax::{BodySyntaxProjection, NodeId, NodeKind, SyntaxTree};
 
 /// The exact syntax body selected for one declaration `BodyId`.
 ///
@@ -48,28 +49,102 @@ impl<'syntax> BodySource<'syntax> {
 }
 
 /// Canonical `BodyId`-ordered source inputs for one complete declaration program.
-#[derive(Debug)]
-pub struct BodySourceCatalog<'syntax>(Arena<BodyId, BodySource<'syntax>>);
+#[derive(Clone, Debug)]
+pub struct BodySourceCatalog<'syntax> {
+    sources: Arc<Arena<BodyId, BodySourceEntry<'syntax>>>,
+}
 
-impl<'syntax> BodySourceCatalog<'syntax> {
+#[derive(Clone, Debug)]
+struct BodySourceEntry<'syntax> {
+    owner: BodyOwner,
+    module: ModuleId,
+    syntax: SyntaxTreeHandle<'syntax>,
+    block: NodeId,
+    projection: BodySyntaxProjection,
+}
+
+impl BodySourceCatalog<'_> {
     #[must_use]
-    pub const fn len(&self) -> usize {
-        self.0.len()
+    pub fn len(&self) -> usize {
+        self.sources.len()
     }
 
     #[must_use]
-    pub const fn is_empty(&self) -> bool {
-        self.0.is_empty()
+    pub fn is_empty(&self) -> bool {
+        self.sources.is_empty()
     }
 
     #[must_use]
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = BodySource<'syntax>> + '_ {
-        self.0.iter().map(|(_, source)| *source)
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = BodySource<'_>> + '_ {
+        self.sources
+            .iter()
+            .map(|(body, source)| source.project(body))
     }
 
     #[must_use]
-    pub fn get(&self, body: BodyId) -> Option<BodySource<'syntax>> {
-        self.0.get(body).copied()
+    pub fn get(&self, body: BodyId) -> Option<BodySource<'_>> {
+        self.sources.get(body).map(|source| source.project(body))
+    }
+
+    /// Returns the sole current-generation locator projection for `body`.
+    ///
+    /// Name and type query materialization share this value instead of independently walking the
+    /// same body syntax. Its identity is owned by the catalog that already proves the body/source
+    /// association.
+    #[must_use]
+    fn projection(&self, body: BodyId) -> Option<&BodySyntaxProjection> {
+        self.sources.get(body).map(|source| &source.projection)
+    }
+
+    /// Returns the body and locator projection proven by this catalog as one inseparable value.
+    #[must_use]
+    pub fn project(&self, body: BodyId) -> Option<CatalogedBodySource<'_>> {
+        Some(CatalogedBodySource {
+            source: self.get(body)?,
+            syntax: self.projection(body)?,
+        })
+    }
+
+    /// Visits every canonical body together with its already-derived locator projection.
+    #[must_use]
+    pub fn projected(&self) -> impl ExactSizeIterator<Item = CatalogedBodySource<'_>> + '_ {
+        self.sources
+            .iter()
+            .map(|(body, source)| CatalogedBodySource {
+                source: source.project(body),
+                syntax: &source.projection,
+            })
+    }
+}
+
+/// One exact body source paired with the locator projection derived for it by its catalog.
+#[derive(Clone, Copy, Debug)]
+pub struct CatalogedBodySource<'catalog> {
+    source: BodySource<'catalog>,
+    syntax: &'catalog BodySyntaxProjection,
+}
+
+impl<'catalog> CatalogedBodySource<'catalog> {
+    #[must_use]
+    pub const fn source(self) -> BodySource<'catalog> {
+        self.source
+    }
+
+    #[must_use]
+    pub const fn syntax(self) -> &'catalog BodySyntaxProjection {
+        self.syntax
+    }
+}
+
+impl BodySourceEntry<'_> {
+    fn project(&self, body: BodyId) -> BodySource<'_> {
+        BodySource {
+            body,
+            owner: self.owner,
+            module: self.module,
+            syntax: self.syntax.as_syntax_tree(),
+            block: self.block,
+        }
     }
 }
 
@@ -150,52 +225,6 @@ impl fmt::Display for BodySourceError {
 
 impl std::error::Error for BodySourceError {}
 
-/// Selects one exact declaration body without cataloging sibling bodies.
-///
-/// # Errors
-///
-/// Returns an integrity failure when declaration, frontend, and syntax ownership disagree.
-pub fn catalog_body_source<'syntax>(
-    input: &'syntax CompileUnitInput<'syntax>,
-    graph: &DeclarationGraph,
-    bindings: &FrontendBindings,
-    body: BodyId,
-) -> Result<BodySource<'syntax>, BodySourceError> {
-    let declaration = graph
-        .declarations()
-        .bodies()
-        .get(body)
-        .ok_or(BodySourceError::InvalidBodyOwner(body))?;
-    let blocks = bindings.body_blocks(body);
-    let [block] = blocks else {
-        if blocks.is_empty() {
-            return Err(BodySourceError::MissingBodyProjection(body));
-        }
-        return Err(BodySourceError::DuplicateBodyProjection(body));
-    };
-    let tree = input
-        .syntax_tree(block.source())
-        .ok_or(BodySourceError::MissingSyntaxSource(body))?;
-    if tree.node(*block).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::Block) {
-        return Err(BodySourceError::InvalidBodyProjection(body));
-    }
-    let module = body_module(graph, body, declaration.owner())?;
-    let source_module = bindings
-        .source_ownership()
-        .module_for_source(tree.source())
-        .map_err(|_| BodySourceError::MissingSourceOwnership(tree.source()))?;
-    if source_module != module {
-        return Err(BodySourceError::BodyOutsideOwnerModule(body));
-    }
-    Ok(BodySource {
-        body,
-        owner: declaration.owner(),
-        module,
-        syntax: tree,
-        block: *block,
-    })
-}
-
 /// Selects every declaration body from exact source projections.
 ///
 /// This function never scans source containment to discover a body and never reconstructs module
@@ -207,7 +236,7 @@ pub fn catalog_body_source<'syntax>(
 /// Returns [`BodySourceError`] when the declaration program, source index, or syntax input does not
 /// describe one complete and mutually consistent compile unit.
 pub fn catalog_body_sources<'syntax>(
-    input: &'syntax CompileUnitInput<'syntax>,
+    input: &CompileUnitInput<'syntax>,
     graph: &DeclarationGraph,
     bindings: &FrontendBindings,
 ) -> Result<BodySourceCatalog<'syntax>, BodySourceError> {
@@ -225,7 +254,7 @@ pub fn catalog_body_sources<'syntax>(
         };
         let tree = syntax
             .get(&block.source())
-            .copied()
+            .cloned()
             .ok_or(BodySourceError::MissingSyntaxSource(body))?;
         if tree.node(*block).map(nocter_syntax::SyntaxNode::kind) != Some(NodeKind::Block) {
             return Err(BodySourceError::InvalidBodyProjection(body));
@@ -234,30 +263,34 @@ pub fn catalog_body_sources<'syntax>(
         if modules.get(&tree.source()).copied() != Some(module) {
             return Err(BodySourceError::BodyOutsideOwnerModule(body));
         }
-        let actual = bodies.insert(BodySource {
-            body,
+        let projection = BodySyntaxProjection::for_body(&tree, *block)
+            .ok_or(BodySourceError::InvalidBodyProjection(body))?;
+        let actual = bodies.insert(BodySourceEntry {
             owner: declaration.owner(),
             module,
-            syntax: tree,
+            syntax: tree.clone(),
             block: *block,
+            projection,
         });
         if actual != body {
             return Err(BodySourceError::InvalidBodyProjection(body));
         }
     }
 
-    Ok(BodySourceCatalog(bodies.finish()))
+    Ok(BodySourceCatalog {
+        sources: Arc::new(bodies.finish()),
+    })
 }
 
 fn syntax_by_source<'syntax>(
-    input: &'syntax CompileUnitInput<'syntax>,
-) -> Result<HashMap<SourceId, &'syntax SyntaxTree>, BodySourceError> {
+    input: &CompileUnitInput<'syntax>,
+) -> Result<HashMap<SourceId, SyntaxTreeHandle<'syntax>>, BodySourceError> {
     let mut result = HashMap::new();
     for module in input.modules() {
         for source in module.sources() {
-            let tree = source.syntax();
-            if result.insert(tree.source(), tree).is_some() {
-                return Err(BodySourceError::DuplicateSyntaxSource(tree.source()));
+            let syntax = source.syntax_handle();
+            if result.insert(syntax.source(), syntax.clone()).is_some() {
+                return Err(BodySourceError::DuplicateSyntaxSource(syntax.source()));
             }
         }
     }
@@ -386,6 +419,7 @@ mod tests {
             let catalog = catalog_body_sources(&input, program.graph(), &bindings).unwrap();
             assert_eq!(catalog.len(), 2);
             assert!(!catalog.is_empty());
+            let shared_catalog = catalog.clone();
             let entries: Vec<_> = catalog
                 .iter()
                 .map(|entry| {
@@ -397,6 +431,10 @@ mod tests {
                         Some(NodeKind::Block)
                     );
                     assert_eq!(catalog.get(entry.body()).unwrap().block(), entry.block());
+                    assert!(std::ptr::eq(
+                        catalog.project(entry.body()).unwrap().syntax(),
+                        shared_catalog.project(entry.body()).unwrap().syntax(),
+                    ));
                     (
                         entry.body(),
                         entry.owner(),

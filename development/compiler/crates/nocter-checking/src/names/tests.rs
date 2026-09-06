@@ -34,10 +34,13 @@ fn reusable_body_names_round_trip_all_body_local_identity_domains() {
                 .is_some()
         })
         .unwrap();
+    let syntax = catalog.project(source.body()).unwrap().syntax();
     let reusable =
-        resolve_reusable_body_names(&input, program.graph(), &frontend_bindings, source).unwrap();
+        resolve_reusable_body_names(&input, program.graph(), &frontend_bindings, source, syntax)
+            .unwrap();
     let (materialized, source_index) =
-        materialize_reusable_body_names(&reusable, program.graph(), source, source_index).unwrap();
+        materialize_reusable_body_names(&reusable, program.graph(), source, syntax, source_index)
+            .unwrap();
 
     assert_eq!(materialized.body(), source.body());
     assert!(materialized.locals().len() >= 2);

@@ -235,7 +235,9 @@
   typed catalog rather than duplicating source-text literals.</li><li>Parser recovery preserves authored structure without inventing semantic success.</li><li>Callable modifiers have dedicated nodes; downstream stages never recover guarantees from token
   text or declaration spelling.</li><li>A consumer never infers subtree completeness from file-wide diagnostic presence.</li><li>Bounded ambiguity is parsed once transactionally rather than reparsed after lookahead.</li><li>Reusing parse work rewrites every embedded source identity and rejects unequal normalized text.</li><li>Body edits and body-local diagnostics do not change the declaration-syntax surface; declaration
   shape, body presence, and declaration-local diagnostics do.</li><li>Editing one body changes only that body's exact surface; unchanged sibling bodies retain equal
-  locators and bytes.</li></ul>
+  locators and bytes.</li><li>A <code>BodySyntaxProjection</code> is a complete immutable locator table. The checking body-source catalog
+  constructs it once for a current body and lends that same table to every semantic recipe
+  capture and materialization operation.</li></ul>
             </div>
         </main>
     </div>

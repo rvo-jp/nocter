@@ -50,6 +50,9 @@ requests.
 - A body query receives a sealed exact-body input that binds the demanded physical source identity
   and fingerprint to the declaration identity or lexical product that consumes it. The checking
   context cannot accept an unrelated source token as a procedural invalidation proof.
+- The current checking context owns one immutable body-source catalog for its complete query graph.
+  Per-body name and type queries select from that catalog, while final materialization shares the
+  same catalog allocation; computation does not ask checking to rediscover body syntax per stage.
 - Canonical body replay publishes one exact-current materialization. A relation-input projection
   narrows its fingerprint only by eliding scalar literal payloads; identifiers, operators, parsed
   body shape, interpolation expressions, and the complete declaration surface remain exact.

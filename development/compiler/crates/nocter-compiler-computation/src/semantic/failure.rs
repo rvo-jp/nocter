@@ -12,6 +12,7 @@ use std::fmt;
 pub enum SemanticQueryFailure {
     CompileInput(nocter_discovery::CompileInputError),
     CurrentProjection(nocter_declaration_lowering::CurrentProjectionError),
+    BodySource(nocter_checking::BodySourceError),
     ProgramPreparation(nocter_checking::PreparationError),
     BodyNameResolution(nocter_checking::ReusableProgramBodyNameError),
     BodyChecking(nocter_checking::ReusableProgramBodyCheckError),
@@ -36,6 +37,7 @@ impl fmt::Display for SemanticQueryFailure {
         match self {
             Self::CompileInput(error) => error.fmt(formatter),
             Self::CurrentProjection(error) => error.fmt(formatter),
+            Self::BodySource(error) => error.fmt(formatter),
             Self::ProgramPreparation(error) => error.fmt(formatter),
             Self::BodyNameResolution(error) => error.fmt(formatter),
             Self::BodyChecking(error) => error.fmt(formatter),
@@ -77,6 +79,7 @@ impl std::error::Error for SemanticQueryFailure {
         match self {
             Self::CompileInput(error) => Some(error),
             Self::CurrentProjection(error) => Some(error),
+            Self::BodySource(error) => Some(error),
             Self::ProgramPreparation(error) => Some(error),
             Self::BodyNameResolution(error) => Some(error),
             Self::BodyChecking(error) => Some(error),
@@ -99,6 +102,12 @@ impl From<nocter_discovery::CompileInputError> for SemanticQueryFailure {
 impl From<nocter_declaration_lowering::CurrentProjectionError> for SemanticQueryFailure {
     fn from(error: nocter_declaration_lowering::CurrentProjectionError) -> Self {
         Self::CurrentProjection(error)
+    }
+}
+
+impl From<nocter_checking::BodySourceError> for SemanticQueryFailure {
+    fn from(error: nocter_checking::BodySourceError) -> Self {
+        Self::BodySource(error)
     }
 }
 

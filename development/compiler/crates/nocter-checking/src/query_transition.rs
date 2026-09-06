@@ -33,6 +33,13 @@ pub enum ReusableCheckingQueryError {
     Preparation(PreparationError),
 }
 
+/// Failure to bind reusable program authority to one exact current body-source catalog.
+#[derive(Debug)]
+pub enum CurrentCheckingContextError {
+    CurrentProjection(CurrentProjectionError),
+    BodySource(crate::BodySourceError),
+}
+
 impl ReusableCheckingQuery {
     /// Builds program-wide checking authorities while retaining the only declaration recipe that
     /// may later materialize their exact-current body context.
@@ -73,12 +80,16 @@ impl ReusableCheckingQuery {
     /// # Errors
     ///
     /// Returns an integrity error when the current source domain cannot materialize the recipe.
-    pub fn open_current(
+    pub fn open_current<'syntax>(
         &self,
-        input: &CompileUnitInput<'_>,
-    ) -> Result<ProgramBodyCheckingContext, CurrentProjectionError> {
-        let projection = self.declarations.materialize_projection(input)?;
-        Ok(ProgramBodyCheckingContext::new(&self.prepared, projection))
+        input: &CompileUnitInput<'syntax>,
+    ) -> Result<ProgramBodyCheckingContext<'syntax>, CurrentCheckingContextError> {
+        let projection = self
+            .declarations
+            .materialize_projection(input)
+            .map_err(CurrentCheckingContextError::CurrentProjection)?;
+        ProgramBodyCheckingContext::new(&self.prepared, projection, input)
+            .map_err(CurrentCheckingContextError::BodySource)
     }
 }
 

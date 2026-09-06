@@ -821,15 +821,13 @@ pub(crate) fn prepare_reusable_program_for_query(
 }
 
 pub(crate) fn prepare_program_checking_from_current_queried_names<'syntax>(
-    input: &'syntax CompileUnitInput<'syntax>,
     semantic: PreparedSemanticProgram,
     bindings: &FrontendBindings,
     source_index: SourceIndex,
+    body_sources: BodySourceCatalog<'syntax>,
     names: &[&crate::ReusableBodyNames],
     rejections: &[&crate::QueriedBodyNameRejection],
 ) -> Result<PreparedChecking<'syntax>, PreparationFailure> {
-    let body_sources =
-        prepare_body_sources(input, semantic.graph(), bindings).map_err(PreparationFailure::new)?;
     let catalog = crate::names::materialize_queried_body_name_catalog(
         semantic.graph(),
         &body_sources,

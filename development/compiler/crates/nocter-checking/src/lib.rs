@@ -78,7 +78,7 @@ pub use body_check::{
 pub use body_check::{analyze_queried_program_relations, finalize_queried_program_materialization};
 pub use body_evidence::{BodyEvidence, BodyRejection, BodyRejectionReason};
 pub use body_sources::{
-    BodySource, BodySourceCatalog, BodySourceError, catalog_body_source, catalog_body_sources,
+    BodySource, BodySourceCatalog, BodySourceError, CatalogedBodySource, catalog_body_sources,
 };
 pub use body_type_recipe::{
     BodyClosureRef, BodyTypeCapture, BodyTypeRecipe, BodyTypeRecipeError, BodyTypeRef,
@@ -174,9 +174,9 @@ pub use preparation::{
     PreparedChecking, PreparedSemanticProgram, QueriedProgramPreparationRejection,
 };
 pub use query_transition::{
-    DeclarationBodyAnalysisFailure, LoweredProgramCheckFailure, ReusableCheckingQuery,
-    ReusableCheckingQueryError, ReusableCheckingQueryOutcome, analyze_declaration_bodies,
-    check_lowered_program_recovering,
+    CurrentCheckingContextError, DeclarationBodyAnalysisFailure, LoweredProgramCheckFailure,
+    ReusableCheckingQuery, ReusableCheckingQueryError, ReusableCheckingQueryOutcome,
+    analyze_declaration_bodies, check_lowered_program_recovering,
 };
 pub use recovery::{BodyAnalysisRecovery, DeclarationAnalysisRecovery, InterruptionEvidenceError};
 pub use source_visibility::{SourceAccessContext, SourceVisibilityError};

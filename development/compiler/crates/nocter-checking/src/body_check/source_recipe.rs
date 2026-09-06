@@ -41,30 +41,30 @@ pub(super) struct CurrentBodySourceEvidence {
 impl BodySourceRecipe {
     pub(super) fn capture(
         source: BodySource<'_>,
+        syntax: &BodySyntaxProjection,
         projections: Vec<NodeProjection>,
         node_origins: HashMap<BodyNodeId, SourceOrigin>,
         associated_type_completion_contexts: Vec<AssociatedTypeCompletionContext>,
     ) -> Result<Self, BodySourceRecipeError> {
-        let syntax = projection(source)?;
         let projections = projections
             .into_iter()
             .map(|projection| {
                 Ok(ProjectionRecipe {
                     entity: projection.entity,
-                    origin: locate(&syntax, projection.origin.syntax())?,
+                    origin: locate(syntax, projection.origin.syntax())?,
                     access: projection.access,
                 })
             })
             .collect::<Result<Vec<_>, BodySourceRecipeError>>()?;
         let node_origins = node_origins
             .into_iter()
-            .map(|(node, origin)| Ok((node, locate(&syntax, origin.syntax())?)))
+            .map(|(node, origin)| Ok((node, locate(syntax, origin.syntax())?)))
             .collect::<Result<_, BodySourceRecipeError>>()?;
         let associated_type_completion_contexts = associated_type_completion_contexts
             .into_iter()
             .map(|context| {
                 Ok(AssociatedTypeCompletionRecipe {
-                    origin: locate(&syntax, context.origin().syntax())?,
+                    origin: locate(syntax, context.origin().syntax())?,
                     candidates: context.candidates().into(),
                 })
             })
@@ -81,18 +81,18 @@ impl BodySourceRecipe {
     pub(super) fn materialize(
         &self,
         source: BodySource<'_>,
+        syntax: &BodySyntaxProjection,
     ) -> Result<CurrentBodySourceEvidence, BodySourceRecipeError> {
         if source.body() != self.body {
             return Err(BodySourceRecipeError::BodyMismatch);
         }
-        let syntax = projection(source)?;
         let projections = self
             .projections
             .iter()
             .map(|recipe| {
                 Ok(NodeProjection {
                     entity: recipe.entity,
-                    origin: source_origin(source, resolve(&syntax, recipe.origin)?)?,
+                    origin: source_origin(source, resolve(syntax, recipe.origin)?)?,
                     access: recipe.access,
                 })
             })
@@ -100,14 +100,14 @@ impl BodySourceRecipe {
         let node_origins = self
             .node_origins
             .iter()
-            .map(|(node, locator)| Ok((*node, source_origin(source, resolve(&syntax, *locator)?)?)))
+            .map(|(node, locator)| Ok((*node, source_origin(source, resolve(syntax, *locator)?)?)))
             .collect::<Result<_, BodySourceRecipeError>>()?;
         let associated_type_completion_contexts = self
             .associated_type_completion_contexts
             .iter()
             .map(|recipe| {
                 Ok(AssociatedTypeCompletionContext::new(
-                    source_origin(source, resolve(&syntax, recipe.origin)?)?,
+                    source_origin(source, resolve(syntax, recipe.origin)?)?,
                     recipe.candidates.clone(),
                 ))
             })
@@ -118,11 +118,6 @@ impl BodySourceRecipe {
             associated_type_completion_contexts,
         })
     }
-}
-
-fn projection(source: BodySource<'_>) -> Result<BodySyntaxProjection, BodySourceRecipeError> {
-    BodySyntaxProjection::for_body(source.syntax(), source.block())
-        .ok_or(BodySourceRecipeError::InvalidBody)
 }
 
 fn locate(

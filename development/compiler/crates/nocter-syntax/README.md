@@ -47,3 +47,6 @@ package or discovery code. It does not resolve names or apply semantic rules.
   shape, body presence, and declaration-local diagnostics do.
 - Editing one body changes only that body's exact surface; unchanged sibling bodies retain equal
   locators and bytes.
+- A `BodySyntaxProjection` is a complete immutable locator table. The checking body-source catalog
+  constructs it once for a current body and lends that same table to every semantic recipe
+  capture and materialization operation.

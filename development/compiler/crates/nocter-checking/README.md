@@ -20,6 +20,7 @@ diagnostics. Source projection is extended beside, never inside, semantic output
 - program-wide preparation and standard semantic roles
 - lexical name evidence and body scopes
 - source-neutral lexical recipes with current body-local locator and spelling rebinding
+- one current-generation body-source catalog that owns each body-local locator projection
 - body-local structural type-extension recipes independent of sibling allocation order
 - source-neutral checked-body and source-evidence recipes with canonical current replay
 - type checking, inference, operations, construction, and calls
@@ -67,6 +68,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   Node origins, references, and associated-type completion sites use one body-local locator recipe.
   Local and capture declarations are restored from the lexical recipe instead of being duplicated
   in the typed result.
+- Opening one current body-query context constructs its exact body-source catalog once. Name
+  resolution, typed checking, rejection recovery, and canonical materialization share the same
+  body/source pair and locator projection; none may walk the body again to reconstruct that join.
 - A body type extension distinguishes the immutable prepared-program prefix from dense body-local
   additions. Closure references are body-local as well. Canonical program finalization re-interns
   both domains, so one sibling cannot change another body's reusable type identities.

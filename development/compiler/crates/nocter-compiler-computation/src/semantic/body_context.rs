@@ -10,7 +10,7 @@ pub(super) struct BodySemanticContextQuery;
 
 struct BodySemanticContext {
     unit: Arc<nocter_discovery::DiscoveredUnit>,
-    checking: nocter_checking::ProgramBodyCheckingContext,
+    checking: nocter_checking::ProgramBodyCheckingContext<'static>,
 }
 
 pub(super) struct BodySemanticContextProduct {
@@ -87,10 +87,6 @@ impl BodySemanticContextProduct {
             BodySemanticContextState::Ready(context) => context,
             BodySemanticContextState::Failed(failure) => return Err(Arc::clone(failure)),
         };
-        let input = context
-            .unit
-            .compile_input()
-            .map_err(|error| Arc::new(error.into()))?;
         let (body_names, body_name_rejections) = Self::queried_name_inputs(body_names);
         let bodies = typed_bodies
             .entries()
@@ -105,7 +101,6 @@ impl BodySemanticContextProduct {
         context
             .checking
             .materialize(
-                input,
                 &body_names,
                 &body_name_rejections,
                 &bodies,
@@ -123,14 +118,10 @@ impl BodySemanticContextProduct {
             BodySemanticContextState::Ready(context) => context,
             BodySemanticContextState::Failed(failure) => return Err(Arc::clone(failure)),
         };
-        let input = context
-            .unit
-            .compile_input()
-            .map_err(|error| Arc::new(error.into()))?;
         let (names, rejections) = Self::queried_name_inputs(body_names);
         let failure = context
             .checking
-            .prepare_names(input, &names, &rejections)
+            .prepare_names(&names, &rejections)
             .err()
             .ok_or_else(|| Arc::new(super::SemanticQueryFailure::UnexpectedAcceptedNameCatalog))?;
         nocter_checking::QueriedNameResolutionFailure::from_preparation_failure(failure).map_err(
@@ -182,7 +173,12 @@ impl Query for BodySemanticContextQuery {
                     unit: Arc::clone(&current.unit),
                     checking,
                 })),
-                Err(error) => BodySemanticContextState::Failed(Arc::new(error.into())),
+                Err(nocter_checking::CurrentCheckingContextError::CurrentProjection(error)) => {
+                    BodySemanticContextState::Failed(Arc::new(error.into()))
+                }
+                Err(nocter_checking::CurrentCheckingContextError::BodySource(error)) => {
+                    BodySemanticContextState::Failed(Arc::new(error.into()))
+                }
             },
             Err(error) => BodySemanticContextState::Failed(Arc::new(error.into())),
         };

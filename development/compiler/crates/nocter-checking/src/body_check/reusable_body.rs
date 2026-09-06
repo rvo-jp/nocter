@@ -35,6 +35,7 @@ pub(super) fn capture_checked_body(
     program_semantics: &crate::semantic_authority::SemanticAuthority,
     body_semantics: &BodySemanticAuthority,
     source: BodySource<'_>,
+    syntax: &nocter_syntax::BodySyntaxProjection,
     output: CheckedBodyDraft,
 ) -> Result<ReusableCheckedBody, BodyCheckInternalError> {
     let body = source.body();
@@ -50,6 +51,7 @@ pub(super) fn capture_checked_body(
             .capture_body_recipe(body, &closure_identities, &type_capture)?;
     let source_recipe = BodySourceRecipe::capture(
         source,
+        syntax,
         output.projections,
         output.node_origins,
         output.associated_type_completion_contexts,
@@ -79,6 +81,7 @@ pub(super) fn materialize_checked_body(
     graph: &DeclarationGraph,
     program_semantics: &crate::semantic_authority::SemanticAuthority,
     source: BodySource<'_>,
+    syntax: &nocter_syntax::BodySyntaxProjection,
     names: &crate::ResolvedBodyNames,
     reusable: &ReusableCheckedBody,
     accepted: &mut BodySemanticAuthority,
@@ -120,7 +123,7 @@ pub(super) fn materialize_checked_body(
             Ok::<_, crate::CheckedSemanticRebindError>((opaque, semantics.ty(witness)?))
         })
         .transpose()?;
-    let source_evidence = reusable.source.materialize(source)?;
+    let source_evidence = reusable.source.materialize(source, syntax)?;
     *accepted = transaction
         .commit(accepted)
         .map_err(|_| BodyCheckInternalError::BodySemanticCommit)?;

@@ -67,12 +67,10 @@ impl ReusableBodyNames {
 
     pub(super) fn capture(
         graph: &DeclarationGraph,
-        source: BodySource<'_>,
+        syntax: &BodySyntaxProjection,
         names: &ResolvedBodyNames,
         projections: Vec<Projection>,
     ) -> Result<Self, ReusableBodyNamesError> {
-        let syntax = BodySyntaxProjection::for_body(source.syntax(), source.block())
-            .ok_or(ReusableBodyNamesError::InvalidBody)?;
         let scopes = names
             .scopes()
             .iter()
@@ -114,17 +112,17 @@ impl ReusableBodyNames {
         let local_origins = names
             .local_origins()
             .iter()
-            .map(|(_, origin)| locate(&syntax, *origin))
+            .map(|(_, origin)| locate(syntax, *origin))
             .collect::<Result<Vec<_>, _>>()?;
         let capture_origins = names
             .capture_origins()
             .iter()
-            .map(|(_, origin)| locate(&syntax, *origin))
+            .map(|(_, origin)| locate(syntax, *origin))
             .collect::<Result<Vec<_>, _>>()?;
         let mut block_scopes = names
             .block_scopes()
             .iter()
-            .map(|(block, scope)| Ok((locate(&syntax, SyntaxOrigin::Node(*block))?, *scope)))
+            .map(|(block, scope)| Ok((locate(syntax, SyntaxOrigin::Node(*block))?, *scope)))
             .collect::<Result<Vec<_>, ReusableBodyNamesError>>()?;
         block_scopes.sort_unstable_by_key(|(locator, _)| *locator);
         let uses = names
@@ -132,7 +130,7 @@ impl ReusableBodyNames {
             .iter()
             .map(|use_| {
                 Ok(UseRecipe {
-                    origin: locate(&syntax, use_.origin())?,
+                    origin: locate(syntax, use_.origin())?,
                     target: use_.target(),
                 })
             })
@@ -143,7 +141,7 @@ impl ReusableBodyNames {
                 Ok(ProjectionRecipe {
                     entity: projection.entity,
                     role: projection.role,
-                    origin: locate(&syntax, projection.origin.syntax())?,
+                    origin: locate(syntax, projection.origin.syntax())?,
                     documentation: projection.documentation,
                 })
             })
@@ -165,12 +163,11 @@ impl ReusableBodyNames {
         &self,
         graph: &DeclarationGraph,
         source: BodySource<'_>,
+        syntax: &BodySyntaxProjection,
     ) -> Result<(ResolvedBodyNames, Vec<Projection>), ReusableBodyNamesError> {
         if source.body() != self.body {
             return Err(ReusableBodyNamesError::BodyMismatch);
         }
-        let syntax = BodySyntaxProjection::for_body(source.syntax(), source.block())
-            .ok_or(ReusableBodyNamesError::InvalidBody)?;
         let mut scopes = ArenaBuilder::new();
         for recipe in &self.scopes {
             let mut scope = BodyScope::new(recipe.parent);
@@ -198,16 +195,16 @@ impl ReusableBodyNames {
         }
         let mut local_origins = ArenaBuilder::<LocalBindingId, SyntaxOrigin>::new();
         for locator in &self.local_origins {
-            local_origins.insert(resolve(&syntax, *locator)?);
+            local_origins.insert(resolve(syntax, *locator)?);
         }
         let mut capture_origins = ArenaBuilder::<CaptureId, SyntaxOrigin>::new();
         for locator in &self.capture_origins {
-            capture_origins.insert(resolve(&syntax, *locator)?);
+            capture_origins.insert(resolve(syntax, *locator)?);
         }
         let block_scopes = self
             .block_scopes
             .iter()
-            .map(|(locator, scope)| match resolve(&syntax, *locator)? {
+            .map(|(locator, scope)| match resolve(syntax, *locator)? {
                 SyntaxOrigin::Node(node) => Ok((node, *scope)),
                 SyntaxOrigin::Token(_) => Err(ReusableBodyNamesError::ExpectedNode),
             })
@@ -217,7 +214,7 @@ impl ReusableBodyNames {
             .iter()
             .map(|recipe| {
                 Ok(ResolvedNameUse::new(
-                    resolve(&syntax, recipe.origin)?,
+                    resolve(syntax, recipe.origin)?,
                     recipe.target,
                 ))
             })
@@ -229,7 +226,7 @@ impl ReusableBodyNames {
                 Ok(Projection {
                     entity: recipe.entity,
                     role: recipe.role,
-                    origin: source_origin(source, resolve(&syntax, recipe.origin)?)?,
+                    origin: source_origin(source, resolve(syntax, recipe.origin)?)?,
                     documentation: recipe.documentation.clone(),
                 })
             })

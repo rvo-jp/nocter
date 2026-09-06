@@ -129,7 +129,7 @@ fn materialize_reusable_bodies(
     for (body, _) in graph.declarations().bodies().iter() {
         let source = prepared
             .body_sources
-            .get(body)
+            .project(body)
             .ok_or(BodyCheckInternalError::MissingBodySource(body))
             .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
         let names = prepared
@@ -160,9 +160,16 @@ fn materialize_reusable_bodies(
                 None,
             )
         })?;
-        let mut output =
-            materialize_checked_body(graph, program_semantics, source, names, reusable, semantics)
-                .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+        let mut output = materialize_checked_body(
+            graph,
+            program_semantics,
+            source.source(),
+            source.syntax(),
+            names,
+            reusable,
+            semantics,
+        )
+        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
         projections.append(&mut output.projections);
         associated_type_completion_contexts.append(&mut output.associated_type_completion_contexts);
         if let Some(witness) = output.opaque_witness {
@@ -620,7 +627,7 @@ fn check_declared_bodies<'input, 'syntax>(
         let attempt = attempt_body(
             input,
             facts,
-            source,
+            source.source(),
             names,
             retain_recovery,
             &mut body_semantics,
@@ -701,13 +708,19 @@ fn check_declared_bodies<'input, 'syntax>(
     })
 }
 
-fn body_construction_unit<'input, 'syntax>(
+fn body_construction_unit<'input>(
     body: BodyId,
-    sources: &'input BodySourceCatalog<'syntax>,
+    sources: &'input BodySourceCatalog<'_>,
     names: &'input Arena<BodyId, ResolvedBodyNames>,
-) -> Result<(BodySource<'syntax>, &'input ResolvedBodyNames), RecoveringBodyConstructionFailure> {
+) -> Result<
+    (
+        crate::CatalogedBodySource<'input>,
+        &'input ResolvedBodyNames,
+    ),
+    RecoveringBodyConstructionFailure,
+> {
     let source = sources
-        .get(body)
+        .project(body)
         .ok_or(BodyCheckInternalError::MissingBodySource(body))
         .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
     let names = names
@@ -724,18 +737,31 @@ fn body_construction_unit<'input, 'syntax>(
 
 fn merge_checked_body(
     graph: &nocter_declarations::DeclarationGraph,
-    source: BodySource<'_>,
+    source: crate::CatalogedBodySource<'_>,
     names: &ResolvedBodyNames,
     program_semantics: &crate::semantic_authority::SemanticAuthority,
     body_semantics: &BodySemanticAuthority,
     accepted: &mut BodySemanticAuthority,
     output: CheckedBodyDraft,
 ) -> Result<MaterializedCheckedBody, RecoveringBodyConstructionFailure> {
-    let reusable = capture_checked_body(program_semantics, body_semantics, source, output)
-        .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
-    let output =
-        materialize_checked_body(graph, program_semantics, source, names, &reusable, accepted)
-            .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    let reusable = capture_checked_body(
+        program_semantics,
+        body_semantics,
+        source.source(),
+        source.syntax(),
+        output,
+    )
+    .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
+    let output = materialize_checked_body(
+        graph,
+        program_semantics,
+        source.source(),
+        source.syntax(),
+        names,
+        &reusable,
+        accepted,
+    )
+    .map_err(|error| RecoveringBodyConstructionFailure::single(error.into()))?;
     Ok(output)
 }
 

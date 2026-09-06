@@ -13,6 +13,7 @@ pub enum BodySyntaxLocator {
 }
 
 /// Bidirectional current-generation interpretation of body-local syntax locators.
+#[derive(Clone, Debug)]
 pub struct BodySyntaxProjection {
     nodes: Box<[NodeId]>,
     tokens: Box<[SyntaxToken]>,

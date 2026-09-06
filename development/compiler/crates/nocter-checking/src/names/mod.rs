@@ -237,11 +237,12 @@ pub(crate) fn resolve_reusable_body_names(
     graph: &DeclarationGraph,
     bindings: &FrontendBindings,
     source: crate::BodySource<'_>,
+    syntax: &nocter_syntax::BodySyntaxProjection,
 ) -> Result<ReusableBodyNames, ReusableBodyResolutionError> {
     let resolved = BodyNameResolver::new(input, graph, bindings, source)
         .resolve_recovering()
         .map_err(|failure| ReusableBodyResolutionError::Resolution(*failure.error))?;
-    ReusableBodyNames::capture(graph, source, &resolved.body, resolved.projections)
+    ReusableBodyNames::capture(graph, syntax, &resolved.body, resolved.projections)
         .map_err(ReusableBodyResolutionError::Projection)
 }
 
@@ -254,10 +255,11 @@ pub(crate) fn resolve_reusable_body_names_for_query(
     graph: &DeclarationGraph,
     bindings: &FrontendBindings,
     source: crate::BodySource<'_>,
+    syntax: &nocter_syntax::BodySyntaxProjection,
 ) -> Result<ReusableBodyNameQueryOutcome, ReusableBodyResolutionError> {
     match BodyNameResolver::new(input, graph, bindings, source).resolve_recovering() {
         Ok(resolved) => {
-            ReusableBodyNames::capture(graph, source, &resolved.body, resolved.projections)
+            ReusableBodyNames::capture(graph, syntax, &resolved.body, resolved.projections)
                 .map(ReusableBodyNameQueryOutcome::Resolved)
                 .map_err(ReusableBodyResolutionError::Projection)
         }
@@ -268,7 +270,7 @@ pub(crate) fn resolve_reusable_body_names_for_query(
             };
             let partial = partial
                 .map(|partial| {
-                    ReusableBodyNames::capture(graph, source, &partial.body, partial.projections)
+                    ReusableBodyNames::capture(graph, syntax, &partial.body, partial.projections)
                 })
                 .transpose()
                 .map_err(ReusableBodyResolutionError::Projection)?;
@@ -291,9 +293,10 @@ pub(crate) fn materialize_reusable_body_names(
     reusable: &ReusableBodyNames,
     graph: &DeclarationGraph,
     source: crate::BodySource<'_>,
+    syntax: &nocter_syntax::BodySyntaxProjection,
     source_index: SourceIndex,
 ) -> Result<(ResolvedBodyNames, SourceIndex), ReusableBodyNamesError> {
-    let (names, projections) = reusable.materialize(graph, source)?;
+    let (names, projections) = reusable.materialize(graph, source, syntax)?;
     Ok((names, extend_name_source_index(source_index, projections)))
 }
 
@@ -317,13 +320,15 @@ fn materialize_reusable_body_name_catalog(
     }
     let mut bodies = ArenaBuilder::new();
     let mut projections = Vec::new();
-    for source in sources.iter() {
+    for projected in sources.projected() {
+        let source = projected.source();
+        let syntax = projected.syntax();
         let body = source.body();
         let recipe = by_body
             .remove(&body)
             .ok_or(ReusableBodyNameCatalogError::Missing(body))?;
         let (names, mut body_projections) = recipe
-            .materialize(graph, source)
+            .materialize(graph, source, syntax)
             .map_err(ReusableBodyNameCatalogError::Projection)?;
         let actual = bodies.insert(names);
         if actual != body {
@@ -396,7 +401,9 @@ pub(crate) fn materialize_queried_body_name_catalog(
 
     let mut bodies = ArenaBuilder::new();
     let mut projections = Vec::new();
-    for source in sources.iter() {
+    for projected in sources.projected() {
+        let source = projected.source();
+        let syntax = projected.syntax();
         let body = source.body();
         let recipe = by_body
             .remove(&body)
@@ -404,7 +411,7 @@ pub(crate) fn materialize_queried_body_name_catalog(
         let evidence = match recipe {
             QueriedBodyNameRecipe::Resolved(recipe) => {
                 let (names, mut body_projections) = recipe
-                    .materialize(graph, source)
+                    .materialize(graph, source, syntax)
                     .map_err(ReusableBodyNameCatalogError::Projection)?;
                 projections.append(&mut body_projections);
                 BodyNameEvidence::Resolved(names)
@@ -412,7 +419,7 @@ pub(crate) fn materialize_queried_body_name_catalog(
             QueriedBodyNameRecipe::Rejected(rejection) => {
                 let partial = rejection
                     .partial_names()
-                    .map(|names| names.materialize(graph, source))
+                    .map(|names| names.materialize(graph, source, syntax))
                     .transpose()
                     .map_err(ReusableBodyNameCatalogError::Projection)?
                     .map(|(names, mut body_projections)| {
