@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use nocter_declarations::DeclarationGraph;
 use nocter_frontend_bindings::SourceAccessTable;
 use nocter_model::{Arena, BodyId, TypeStore};
@@ -15,36 +17,36 @@ use super::{CheckedBody, OpaqueWitnessTable};
 /// Complete syntax-independent Phase 3 program.
 #[derive(Clone, Debug)]
 pub struct CheckedProgram {
-    environment: crate::program_environment::ProgramEnvironment,
-    source_access: SourceAccessTable,
-    semantics: crate::body_check::CheckedSemanticAuthority,
-    provenance: ProvenanceTable,
-    effects: crate::EffectTable,
-    loans: LoanTable,
-    opaque_witnesses: OpaqueWitnessTable,
-    bodies: Arena<BodyId, CheckedBody>,
-    associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
+    environment: Arc<crate::program_environment::ProgramEnvironment>,
+    source_access: Arc<SourceAccessTable>,
+    semantics: Arc<crate::body_check::CheckedSemanticAuthority>,
+    provenance: Arc<ProvenanceTable>,
+    effects: Arc<crate::EffectTable>,
+    loans: Arc<LoanTable>,
+    opaque_witnesses: Arc<OpaqueWitnessTable>,
+    bodies: Arc<Arena<BodyId, CheckedBody>>,
+    associated_type_completion_contexts: Arc<[AssociatedTypeCompletionContext]>,
 }
 
 pub(crate) struct CheckedProgramAuthorities {
-    pub(crate) provenance: ProvenanceTable,
-    pub(crate) effects: crate::EffectTable,
-    pub(crate) loans: LoanTable,
-    pub(crate) opaque_witnesses: OpaqueWitnessTable,
-    pub(crate) associated_type_completion_contexts: Box<[AssociatedTypeCompletionContext]>,
+    pub(crate) provenance: Arc<ProvenanceTable>,
+    pub(crate) effects: Arc<crate::EffectTable>,
+    pub(crate) loans: Arc<LoanTable>,
+    pub(crate) opaque_witnesses: Arc<OpaqueWitnessTable>,
+    pub(crate) associated_type_completion_contexts: Arc<[AssociatedTypeCompletionContext]>,
 }
 
 impl CheckedProgram {
-    pub(crate) const fn environment(&self) -> &crate::program_environment::ProgramEnvironment {
+    pub(crate) fn environment(&self) -> &crate::program_environment::ProgramEnvironment {
         &self.environment
     }
 
     pub(crate) fn new(
-        environment: crate::program_environment::ProgramEnvironment,
-        semantics: crate::body_check::CheckedSemanticAuthority,
+        environment: Arc<crate::program_environment::ProgramEnvironment>,
+        semantics: Arc<crate::body_check::CheckedSemanticAuthority>,
         authorities: CheckedProgramAuthorities,
-        bodies: Arena<BodyId, CheckedBody>,
-        source_access: SourceAccessTable,
+        bodies: Arc<Arena<BodyId, CheckedBody>>,
+        source_access: Arc<SourceAccessTable>,
     ) -> Self {
         Self {
             environment,
@@ -65,7 +67,7 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn types(&self) -> &TypeStore {
+    pub fn types(&self) -> &TypeStore {
         self.semantics.semantics().types()
     }
 
@@ -93,11 +95,11 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn copyabilities(&self) -> &CopyabilityTable {
+    pub fn copyabilities(&self) -> &CopyabilityTable {
         self.semantics.semantics().copyabilities()
     }
 
-    pub(crate) const fn semantic_authority(&self) -> &crate::semantic_authority::SemanticAuthority {
+    pub(crate) fn semantic_authority(&self) -> &crate::semantic_authority::SemanticAuthority {
         self.semantics.semantics()
     }
 
@@ -112,32 +114,32 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn provenance(&self) -> &ProvenanceTable {
+    pub fn provenance(&self) -> &ProvenanceTable {
         &self.provenance
     }
 
     #[must_use]
-    pub const fn effects(&self) -> &crate::EffectTable {
+    pub fn effects(&self) -> &crate::EffectTable {
         &self.effects
     }
 
     #[must_use]
-    pub const fn loans(&self) -> &LoanTable {
+    pub fn loans(&self) -> &LoanTable {
         &self.loans
     }
 
     #[must_use]
-    pub const fn closures(&self) -> &ClosureTable {
+    pub fn closures(&self) -> &ClosureTable {
         self.semantics.closures()
     }
 
     #[must_use]
-    pub(crate) const fn source_access(&self) -> &SourceAccessTable {
+    pub(crate) fn source_access(&self) -> &SourceAccessTable {
         &self.source_access
     }
 
     #[must_use]
-    pub const fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
+    pub fn source_ownership(&self) -> &nocter_frontend_bindings::SourceOwnershipTable {
         self.source_access.ownership()
     }
 
@@ -155,17 +157,17 @@ impl CheckedProgram {
     }
 
     #[must_use]
-    pub const fn opaque_witnesses(&self) -> &OpaqueWitnessTable {
+    pub fn opaque_witnesses(&self) -> &OpaqueWitnessTable {
         &self.opaque_witnesses
     }
 
     #[must_use]
-    pub const fn bodies(&self) -> &Arena<BodyId, CheckedBody> {
+    pub fn bodies(&self) -> &Arena<BodyId, CheckedBody> {
         &self.bodies
     }
 
     #[must_use]
-    pub const fn associated_type_completion_contexts(&self) -> &[AssociatedTypeCompletionContext] {
+    pub fn associated_type_completion_contexts(&self) -> &[AssociatedTypeCompletionContext] {
         &self.associated_type_completion_contexts
     }
 }
@@ -174,7 +176,7 @@ impl CheckedProgram {
 #[derive(Clone, Debug)]
 pub struct CheckedProgramOutput {
     program: CheckedProgram,
-    source_index: SourceIndex,
+    source_index: Arc<SourceIndex>,
 }
 
 /// A rejected semantic-component transform with the exact checked output restored.
@@ -193,7 +195,7 @@ impl<E> CheckedProgramMapFailure<E> {
 
 impl CheckedProgramOutput {
     #[must_use]
-    pub(crate) const fn new(program: CheckedProgram, source_index: SourceIndex) -> Self {
+    pub(crate) const fn new(program: CheckedProgram, source_index: Arc<SourceIndex>) -> Self {
         Self {
             program,
             source_index,
@@ -206,13 +208,13 @@ impl CheckedProgramOutput {
     }
 
     #[must_use]
-    pub const fn source_index(&self) -> &SourceIndex {
+    pub fn source_index(&self) -> &SourceIndex {
         &self.source_index
     }
 
     #[must_use]
     pub fn into_parts(self) -> (CheckedProgram, SourceIndex) {
-        (self.program, self.source_index)
+        (self.program, Arc::unwrap_or_clone(self.source_index))
     }
 
     /// Transforms only the semantic component while preserving its exact source projection.
@@ -232,7 +234,7 @@ impl CheckedProgramOutput {
             source_index,
         } = self;
         match transform(program) {
-            Ok(transformed) => Ok((transformed, source_index)),
+            Ok(transformed) => Ok((transformed, Arc::unwrap_or_clone(source_index))),
             Err(failure) => {
                 let (error, program) = *failure;
                 Err(Box::new(CheckedProgramMapFailure {

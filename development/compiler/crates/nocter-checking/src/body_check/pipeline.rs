@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use nocter_compile_input::CompileUnitInput;
 use nocter_model::{Arena, ArenaBuilder, BodyId, TypeId, TypeStore};
@@ -99,22 +100,23 @@ fn try_materialize_prepared_program_from_queried_bodies(
 /// generation's lifetime.
 #[derive(Clone, Debug)]
 pub struct QueriedProgramMaterialization {
-    environment: crate::program_environment::ProgramEnvironment,
-    source_access: nocter_frontend_bindings::SourceAccessTable,
-    body_names: Arena<BodyId, ResolvedBodyNames>,
-    source_index: SourceIndex,
-    semantics: super::CheckedSemanticAuthority,
-    bodies: Vec<(BodyId, CheckedBodyState)>,
-    projections: Vec<NodeProjection>,
-    opaque_witnesses: crate::OpaqueWitnessTable,
-    associated_type_completion_contexts: Box<[crate::AssociatedTypeCompletionContext]>,
+    environment: Arc<crate::program_environment::ProgramEnvironment>,
+    source_access: Arc<nocter_frontend_bindings::SourceAccessTable>,
+    body_names: Arc<Arena<BodyId, ResolvedBodyNames>>,
+    source_index: Arc<SourceIndex>,
+    semantics: Arc<super::CheckedSemanticAuthority>,
+    bodies: Arc<Arena<BodyId, CheckedBody>>,
+    node_origins:
+        Arc<Arena<BodyId, HashMap<nocter_model::BodyNodeId, nocter_source_index::SourceOrigin>>>,
+    opaque_witnesses: Arc<crate::OpaqueWitnessTable>,
+    associated_type_completion_contexts: Arc<[crate::AssociatedTypeCompletionContext]>,
 }
 
 #[derive(Clone, Debug)]
 pub struct ReusableProgramRelations {
-    provenance: crate::ProvenanceTable,
-    effects: crate::EffectTable,
-    loans: crate::LoanTable,
+    provenance: Arc<crate::ProvenanceTable>,
+    effects: Arc<crate::EffectTable>,
+    loans: Arc<crate::LoanTable>,
 }
 
 #[derive(Clone, Debug)]
@@ -463,24 +465,49 @@ fn materialize_checked_program(
         ));
     }
     checked_semantics.accept(cleanup);
+    let mut semantic_completion = checked_semantics.transaction();
+    let (completion_types, completion_copyabilities) =
+        semantic_completion.access().into_reasoning_parts();
+    completion_copyabilities
+        .complete(prepared.environment.graph(), completion_types)
+        .map_err(BodyCheckInternalError::Copyability)
+        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
+    checked_semantics.accept(semantic_completion);
+
+    let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
+    let mut node_origins = ArenaBuilder::new();
+    for (body, checked) in checked_bodies {
+        let actual = bodies.insert(checked.body);
+        if actual != body || node_origins.insert(checked.node_origins) != body {
+            return Err(crate::BodyCheckFailure::new(
+                BodyCheckInternalError::NonCanonicalBody(body).into(),
+                None,
+            ));
+        }
+    }
+    let source_index = extend_source_index(
+        prepared.source_index,
+        projections,
+        prepared.environment.capability_evidence(),
+    );
     let BodyCheckingParts {
         environment,
         source_access,
         body_sources: _,
         body_names,
         source_namespaces: _,
-        source_index,
+        source_index: _,
     } = prepared;
     Ok(QueriedProgramMaterialization {
-        environment,
-        source_access,
-        body_names,
-        source_index,
-        semantics: checked_semantics,
-        bodies: checked_bodies,
-        projections,
-        opaque_witnesses,
-        associated_type_completion_contexts: associated_type_completion_contexts.into_boxed_slice(),
+        environment: Arc::new(environment),
+        source_access: Arc::new(source_access),
+        body_names: Arc::new(body_names),
+        source_index: Arc::new(source_index),
+        semantics: Arc::new(checked_semantics),
+        bodies: Arc::new(bodies.finish()),
+        node_origins: Arc::new(node_origins.finish()),
+        opaque_witnesses: Arc::new(opaque_witnesses),
+        associated_type_completion_contexts: associated_type_completion_contexts.into(),
     })
 }
 
@@ -510,10 +537,7 @@ fn finalize_materialized_program(
         ReusableProgramRelationOutcome::Failed(failure) => {
             let projection = BodyRelationProjection::new(
                 materialized.environment.graph(),
-                materialized
-                    .bodies
-                    .iter()
-                    .map(|(body, checked)| (*body, &checked.node_origins)),
+                materialized.node_origins.iter(),
             )
             .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
             let error = failure.0.clone().project(&projection);
@@ -527,7 +551,7 @@ fn finalize_materialized_program(
             ));
         }
     };
-    finish_checked_program(materialized, relations)
+    Ok(finish_checked_program(materialized, relations))
 }
 
 fn build_materialized_body_recovery(
@@ -540,27 +564,25 @@ fn build_materialized_body_recovery(
         source_index,
         semantics,
         bodies,
-        projections,
+        node_origins: _,
         opaque_witnesses: _,
         associated_type_completion_contexts: _,
     } = materialized;
-    let source_index =
-        extend_source_index(source_index, projections, environment.capability_evidence());
     let mut evidence = ArenaBuilder::new();
-    for (body, checked) in bodies {
-        if evidence.insert(crate::BodyEvidence::Typed(checked.body)) != body {
+    for (body, checked) in bodies.iter() {
+        if evidence.insert(crate::BodyEvidence::Typed(checked.clone())) != body {
             return Err(BodyCheckInternalError::NonCanonicalBody(body));
         }
     }
     let program = crate::PreparedSemanticProgram::from_checked_parts(
-        environment,
+        Arc::unwrap_or_clone(environment),
         semantics.semantics().clone(),
-        source_access,
+        Arc::unwrap_or_clone(source_access),
     );
     Ok(crate::BodyAnalysisRecovery::new(
         program,
-        body_names,
-        source_index,
+        Arc::unwrap_or_clone(body_names),
+        Arc::unwrap_or_clone(source_index),
         evidence.finish(),
     ))
 }
@@ -645,15 +667,15 @@ fn build_body_analysis_recovery(
 fn finish_checked_program(
     materialized: QueriedProgramMaterialization,
     relations: ReusableProgramRelations,
-) -> Result<CheckedProgramOutput, crate::BodyCheckFailure> {
+) -> CheckedProgramOutput {
     let QueriedProgramMaterialization {
         environment,
         source_access,
         body_names: _,
         source_index,
-        mut semantics,
-        bodies: checked_bodies,
-        projections,
+        semantics,
+        bodies,
+        node_origins: _,
         opaque_witnesses,
         associated_type_completion_contexts,
     } = materialized;
@@ -662,29 +684,7 @@ fn finish_checked_program(
         effects,
         loans,
     } = relations;
-    let mut bodies = ArenaBuilder::<BodyId, CheckedBody>::new();
-    for (body, checked) in checked_bodies {
-        let actual = bodies.insert(checked.body);
-        if actual != body {
-            return Err(crate::BodyCheckFailure::new(
-                BodyCheckInternalError::NonCanonicalBody(body).into(),
-                None,
-            ));
-        }
-    }
-
-    let graph = environment.graph();
-    let source_index =
-        extend_source_index(source_index, projections, environment.capability_evidence());
-    let mut semantic_completion = semantics.transaction();
-    let (completion_types, completion_copyabilities) =
-        semantic_completion.access().into_reasoning_parts();
-    completion_copyabilities
-        .complete(graph, completion_types)
-        .map_err(BodyCheckInternalError::Copyability)
-        .map_err(|error| crate::BodyCheckFailure::new(error.into(), None))?;
-    semantics.accept(semantic_completion);
-    Ok(CheckedProgramOutput::new(
+    CheckedProgramOutput::new(
         CheckedProgram::new(
             environment,
             semantics,
@@ -695,11 +695,11 @@ fn finish_checked_program(
                 opaque_witnesses,
                 associated_type_completion_contexts,
             },
-            bodies.finish(),
+            bodies,
             source_access,
         ),
         source_index,
-    ))
+    )
 }
 
 fn extend_source_index(
@@ -1121,14 +1121,9 @@ fn analyze_checked_body_relations(
     environment: &crate::program_environment::ProgramEnvironment,
     types: &TypeStore,
     closures: &crate::ClosureTable,
-    checked_bodies: &[(BodyId, CheckedBodyState)],
+    checked_bodies: &Arena<BodyId, CheckedBody>,
 ) -> Result<ReusableProgramRelations, crate::BodyRelationError> {
-    let relations = BodyRelationCatalog::new(
-        environment.graph(),
-        checked_bodies
-            .iter()
-            .map(|(body, checked)| (*body, &checked.body)),
-    )?;
+    let relations = BodyRelationCatalog::new(environment.graph(), checked_bodies.iter())?;
     let provenance = analyze_program_provenance(
         environment.graph(),
         types,
@@ -1148,8 +1143,8 @@ fn analyze_checked_body_relations(
         &relations,
     )?;
     Ok(ReusableProgramRelations {
-        provenance,
-        effects,
-        loans,
+        provenance: Arc::new(provenance),
+        effects: Arc::new(effects),
+        loans: Arc::new(loans),
     })
 }
