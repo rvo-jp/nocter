@@ -69,6 +69,12 @@ The module constants `F32_INFINITY`, `F32_NEG_INFINITY`, `F32_NAN`, `F64_INFINIT
 `F64_NEG_INFINITY`, and `F64_NAN` provide special values. Their module subject remains explicit;
 they are not prelude globals.
 
+`total_compare` returns `std/order.Ordering` and orders every representation. Negative NaNs precede
+negative infinity; negative zero precedes positive zero; positive infinity precedes positive NaNs.
+NaN sign, signaling bit, and payload participate in the order. This named operation does not make
+ordinary floating comparison total and does not give either floating type a `TotalOrder`
+implementation.
+
 ## Explicit Conversions
 
 `as` accepts only numeric conversions that preserve every value of the source type. `f32 as f64`

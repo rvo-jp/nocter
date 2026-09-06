@@ -191,6 +191,7 @@
 <span class="token-comment">//! `[T]` is a compiler built-in unsized type. Its public behavior is ordinary</span>
 <span class="token-comment">//! source built on the narrow representation query below.</span>
 
+<span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">TotalOrder</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>ordering<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>views<span class="token-operator">.</span>nct
 
@@ -228,7 +229,7 @@
     <span class="token-comment">/// Orders elements in place without requesting auxiliary storage itself.</span>
     <span class="token-comment">/// The selected `&lt;` implementation may allocate.</span>
     <span class="token-comment">/// Equivalent elements may move relative to one another.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">sort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> <span class="token-function">where</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span><span class="token-type">T</span> <span class="token-operator">&lt;</span> <span class="token-operator">&amp;</span><span class="token-type">T</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">sort</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span> where <span class="token-type">T</span> <span class="token-keyword">impl</span> <span class="token-type">TotalOrder</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

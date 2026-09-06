@@ -56,6 +56,27 @@ The requirement proves strict ordering for that exact operand pair and a `bool` 
 runtime witness or dispatch value. Concrete specialization must find primitive integer ordering,
 an accessible source declaration, or a declaration reached through one readonly coercion.
 
+## Total-Order Contract
+
+The standard `TotalOrder` interface makes the stronger algebraic promise explicit:
+
+```nct
+pub interface TotalOrder where (&Self == &Self): bool, (&Self < &Self): bool {}
+```
+
+An implementation promises that `<` is irreflexive and transitive, equality is consistent with the
+order, and every pair is comparable. Interface prerequisites provide the two operations to generic
+code; they do not prove those laws. Implementations remain explicit and the compiler does not
+create one merely because both operators exist.
+
+Generic algorithms that require deterministic ordering use `where T impl TotalOrder`. The standard
+in-place slice sort follows this rule. Integers, Unicode scalar values, borrowed text, and owned
+strings implement the contract. Floating-point types do not because their ordinary NaN comparison
+is partial.
+
+The shared `Ordering` enum has `less`, `equal`, and `greater` variants. A named comparison API may
+return it without changing the meaning of source operators.
+
 ## Selection
 
 For the semantic left operand, selection uses this order:
@@ -75,7 +96,7 @@ order from disagreeing.
 ## Standard Types
 
 Matching integer types retain primitive ordering. `bool`, payloadless enums, and arbitrary structs
-do not receive generated ordering.
+do not receive generated ordering or `TotalOrder` implementations.
 
 Source-defined ordering for borrowed text and slices, including coercion from their owning
 containers, belongs to the compiler-checked [`std/str`](../../development/std/str/index.nct) and

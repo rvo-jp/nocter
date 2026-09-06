@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>std/prelude/index.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for std/prelude/index.nct.">
+    <title>Total Ordering - Nocter</title>
+    <meta name="description" content="The compiler-checked std/order contract separates the existence of == and &lt; from the stronger promise that they form one total order. TotalOrder has no run">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/std/prelude/index/">
-    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/std/order/">
+    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="std/prelude/index.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for std/prelude/index.nct.">
-    <meta property="og:url" content="https://nocter.dev/std/prelude/index/">
+    <meta property="og:title" content="Total Ordering - Nocter">
+    <meta property="og:description" content="The compiler-checked std/order contract separates the existence of == and &lt; from the stronger promise that they form one total order. TotalOrder has no run">
+    <meta property="og:url" content="https://nocter.dev/std/order/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="std/prelude/index.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for std/prelude/index.nct.">
+    <meta name="twitter:title" content="Total Ordering - Nocter">
+    <meta name="twitter:description" content="The compiler-checked std/order contract separates the existence of == and &lt; from the stronger promise that they form one total order. TotalOrder has no run">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"std/prelude/index.nct - Nocter","description":"Nocter source code for std/prelude/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/std/prelude/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Std","item":"https://nocter.dev/std/"},{"@type":"ListItem","position":3,"name":"Prelude","item":"https://nocter.dev/std/prelude/"},{"@type":"ListItem","position":4,"name":"Index","item":"https://nocter.dev/std/prelude/index/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Total Ordering - Nocter","description":"The compiler-checked std/order contract separates the existence of == and < from the stronger promise that they form one total order. TotalOrder has no run","url":"https://nocter.dev/std/order/","mainEntityOfPage":"https://nocter.dev/std/order/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Std","item":"https://nocter.dev/std/"},{"@type":"ListItem","position":3,"name":"Order","item":"https://nocter.dev/std/order/"}]}]</script>
 
-    <link rel="stylesheet" href="../../../style.css">
+    <link rel="stylesheet" href="../../style.css">
 </head>
 <body class="has-document-tree">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Specification</a>
+                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Specification</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -173,57 +173,20 @@
     <div class="docs-shell">
         <aside class="document-tree">
             <nav aria-label="Documentation tree">
-                <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li></ol>
-                <p class="document-tree-title">std/</p>
+                <ol class="document-tree-breadcrumbs"><li><a href="../../index.html#content">Nocter</a></li><li><a href="../index.html#content">Standard Library</a></li></ol>
+                <p class="document-tree-title">std/order/</p>
                 <ul class="document-tree-list">
-                    <li><a href="../../index.html#content">Standard Library</a></li>
-                    <li><a href="../../index/index.html#content">Module Contract</a></li>
-                    <li><a href="../../char/index.html#content">char</a></li>
-                    <li><a href="../../core/index/index.html#content">core</a></li>
-                    <li><a href="../../error/index.html#content">error</a></li>
-                    <li><a href="../../fmt/index.html#content">fmt</a></li>
-                    <li><a href="../../fs/index.html#content">fs</a></li>
-                    <li><a href="../../hash/index/index.html#content">hash</a></li>
-                    <li><a href="../../io/index.html#content">io</a></li>
-                    <li><a href="../../iter/index.html#content">iter</a></li>
-                    <li><a href="../../json/index.html#content">json</a></li>
-                    <li><a href="../../map/index.html#content">map</a></li>
-                    <li><a href="../../mem/index.html#content">mem</a></li>
-                    <li><a href="../../num/index.html#content">num</a></li>
-                    <li><a href="../../order/index.html#content">order</a></li>
-                    <li><a href="../../path/index/index.html#content">path</a></li>
-                    <li><a href="./index.html#content" aria-current="page">prelude</a></li>
-                    <li><a href="../../process/index.html#content">process</a></li>
-                    <li><a href="../../ptr/index.html#content">ptr</a></li>
-                    <li><a href="../../set/index/index.html#content">set</a></li>
-                    <li><a href="../../slice/index.html#content">slice</a></li>
-                    <li><a href="../../str/index.html#content">str</a></li>
-                    <li><a href="../../string/index.html#content">string</a></li>
-                    <li><a href="../../testing/index.html#content">testing</a></li>
-                    <li><a href="../../time/index.html#content">time</a></li>
-                    <li><a href="../../vec/index.html#content">vec</a></li>
+                    <li><a href="./index.html#content" aria-current="page">Total Ordering</a></li>
+                    <li><a href="./index/index.html#content">Module Contract</a></li>
                 </ul>
             </nav>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/std/prelude/index.nct</span>
+                <span class="markdown-path-text">/std/order/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Synthetic user prelude.</span>
-<span class="token-comment">//!</span>
-<span class="token-comment">//! User project modules receive this compiler-managed prelude automatically.</span>
-<span class="token-comment">//! This module must remain small: core aliases and ubiquitous standard-library</span>
-<span class="token-comment">//! types only.</span>
-
-<span class="token-keyword">use</span> <span class="token-operator">/</span>fmt
-
-<span class="token-keyword">pub</span> <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">use</span> <span class="token-operator">/</span>iter<span class="token-operator">.</span><span class="token-type">Iterator</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">use</span> <span class="token-operator">/</span>map<span class="token-operator">.</span><span class="token-type">Map</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">use</span> <span class="token-operator">/</span>set<span class="token-operator">.</span><span class="token-type">Set</span>
-</code></pre>
+                <h1 id="total-ordering">Total Ordering</h1><p>The compiler-checked <a href="./index/index.html#content"><code>std/order</code> contract</a> separates the existence of <code>==</code> and <code>&lt;</code> from the stronger promise that they form one total order. <code>TotalOrder</code> has no runtime witness and no method of its own. Its equality and strict-comparison prerequisites make the promised operations available to generic code, while an explicit <code>impl TotalOrder</code> supplies the algebraic guarantee.</p><p>The standard library implements the contract for integers, Unicode scalar values, borrowed UTF-8 text, and owned strings. Floating-point values deliberately do not implement it because NaN is unordered under ordinary comparison. Their <code>total_compare</code> methods instead return <code>Ordering</code> and order all IEEE representations, including signed zero and NaN payloads.</p><p>Algorithms that require deterministic ordering, such as in-place slice sorting, require <code>T impl TotalOrder</code>. An API that merely performs a caller-defined comparison may keep a structural operator requirement instead.</p>
             </div>
         </main>
     </div>
@@ -239,6 +202,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../../script.js" defer></script>
+    <script src="../../script.js" defer></script>
 </body>
 </html>

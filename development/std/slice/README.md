@@ -13,8 +13,10 @@ coercions, so direct Vec indexing and slice indexing select the same implementat
 Readwrite slices order elements in place with constant auxiliary storage and `O(n log n)`
 worst-case comparisons and moves. No later element is strictly less than an earlier element after
 sorting. Equivalent elements may change relative order. Rearrangement transfers values without
-copying or destroying them. The selected comparison may allocate or trap, so the operation does
-not claim a transitive `noalloc` guarantee.
+copying or destroying them. Sorting requires the element type's explicit `TotalOrder` guarantee;
+the existence of `<` alone is insufficient because it may describe a partial comparison. The
+selected comparison may allocate or trap, so the operation does not claim a transitive `noalloc`
+guarantee.
 
 Pointer observation returns a non-owning address and grants no additional access or lifetime.
 Internal raw-view construction remains package-private and is not a public slice operation.

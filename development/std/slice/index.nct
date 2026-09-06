@@ -3,6 +3,7 @@
 //! `[T]` is a compiler built-in unsized type. Its public behavior is ordinary
 //! source built on the narrow representation query below.
 
+use /order.TotalOrder
 see ./ordering.nct
 see ./views.nct
 
@@ -40,5 +41,5 @@ instance [T] {
     /// Orders elements in place without requesting auxiliary storage itself.
     /// The selected `<` implementation may allocate.
     /// Equivalent elements may move relative to one another.
-    pub method &+self.sort(): void where (&T < &T): bool
+    pub method &+self.sort(): void where T impl TotalOrder
 }

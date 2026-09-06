@@ -3,6 +3,7 @@
 see ./index.nct
 
 use /mem
+use /order.Ordering
 use /string.String
 
 func require(condition: bool, message: &str): void! {
@@ -20,6 +21,16 @@ func require_text(actual: String, expected: &str): void! {
         return error.new("std.num.text", "decimal spelling changed")
     }
     return
+}
+
+func ordering_is_less(value: Ordering): bool {
+    if value is Ordering.less { return true }
+    return false
+}
+
+func ordering_is_equal(value: Ordering): bool {
+    if value is Ordering.equal { return true }
+    return false
 }
 
 test every_integer_type_owns_the_same_decimal_surface {
@@ -283,5 +294,30 @@ test floating_bits_and_classification_preserve_ieee_identity {
     require(F64_INFINITY.is_infinite(), "public f64 infinity changed")?
     require(F64_NEG_INFINITY.is_sign_negative(), "public negative f64 infinity changed")?
     require(F64_NAN.is_nan(), "public f64 NaN changed")?
+
+    require(
+        ordering_is_less(f32.from_bits(4290772993).total_compare(F32_NEG_INFINITY)),
+        "negative f32 NaN did not precede negative infinity",
+    )?
+    require(
+        ordering_is_less(F32_NEG_INFINITY.total_compare(negative_zero32)),
+        "negative f32 infinity did not precede negative zero",
+    )?
+    require(
+        ordering_is_less(negative_zero32.total_compare(0.0f32)),
+        "signed f32 zeroes collapsed in total order",
+    )?
+    require(
+        ordering_is_less(0.0f32.total_compare(F32_INFINITY)),
+        "positive f32 infinity was not ordered after finite values",
+    )?
+    require(
+        ordering_is_less(F32_INFINITY.total_compare(nan32)),
+        "positive f32 NaN did not follow infinity",
+    )?
+    require(
+        ordering_is_equal(F64_NAN.total_compare(F64_NAN)),
+        "identical f64 NaN representations were not total-order equal",
+    )?
     return
 }

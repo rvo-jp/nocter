@@ -2,6 +2,8 @@
 
 see ./index.nct
 
+use /order.Ordering
+
 noalloc primitive func f32_from_bits_raw(bits: u32): f32
 noalloc primitive func f32_to_bits_raw(value: f32): u32
 noalloc primitive func f64_from_bits_raw(bits: u64): f64
@@ -62,6 +64,10 @@ instance f32 {
     noalloc method self.abs(): Self {
         return f32.from_bits(f32_magnitude_bits(self.to_bits()))
     }
+
+    noalloc method self.total_compare(other: Self): Ordering {
+        return compare_f32_bits(self.to_bits(), other.to_bits())
+    }
 }
 
 instance f64 {
@@ -107,6 +113,38 @@ instance f64 {
     noalloc method self.abs(): Self {
         return f64.from_bits(f64_magnitude_bits(self.to_bits()))
     }
+
+    noalloc method self.total_compare(other: Self): Ordering {
+        return compare_f64_bits(self.to_bits(), other.to_bits())
+    }
+}
+
+noalloc func compare_f32_bits(left: u32, right: u32): Ordering {
+    if left == right { return Ordering.equal }
+    let left_negative = left >= 2147483648
+    let right_negative = right >= 2147483648
+    if left_negative {
+        if !right_negative { return Ordering.less }
+        if left > right { return Ordering.less }
+        return Ordering.greater
+    }
+    if right_negative { return Ordering.greater }
+    if left < right { return Ordering.less }
+    return Ordering.greater
+}
+
+noalloc func compare_f64_bits(left: u64, right: u64): Ordering {
+    if left == right { return Ordering.equal }
+    let left_negative = left >= 9223372036854775808
+    let right_negative = right >= 9223372036854775808
+    if left_negative {
+        if !right_negative { return Ordering.less }
+        if left > right { return Ordering.less }
+        return Ordering.greater
+    }
+    if right_negative { return Ordering.greater }
+    if left < right { return Ordering.less }
+    return Ordering.greater
 }
 
 noalloc func f32_magnitude_bits(bits: u32): u32 {

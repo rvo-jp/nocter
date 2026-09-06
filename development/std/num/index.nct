@@ -1,6 +1,7 @@
 //! Decimal integer parsing and text conversion.
 
 use /mem.TryAllocator
+use /order.Ordering
 use /string.String
 see ./decimal.nct
 see ./floating.nct
@@ -105,6 +106,9 @@ instance f32 {
 
     /// Clears the IEEE sign bit without changing the payload.
     pub noalloc method self.abs(): Self
+
+    /// Compares every IEEE representation in a deterministic total order.
+    pub noalloc method self.total_compare(other: Self): Ordering
 }
 
 instance f64 {
@@ -137,6 +141,9 @@ instance f64 {
 
     /// Clears the IEEE sign bit without changing the payload.
     pub noalloc method self.abs(): Self
+
+    /// Compares every IEEE representation in a deterministic total order.
+    pub noalloc method self.total_compare(other: Self): Ordering
 }
 
 construct i8 {

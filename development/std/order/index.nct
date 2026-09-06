@@ -1,0 +1,65 @@
+//! Explicit total-order contracts and three-way comparison results.
+
+use /string.String
+
+/// The result of comparing two values in a total order.
+pub enum Ordering {
+    less
+    equal
+    greater
+}
+
+/// Values whose ordinary equality and strict comparison form a total order.
+pub interface TotalOrder where (&Self == &Self): bool, (&Self < &Self): bool {}
+
+instance i8 {
+    impl TotalOrder
+}
+
+instance i16 {
+    impl TotalOrder
+}
+
+instance i32 {
+    impl TotalOrder
+}
+
+instance i64 {
+    impl TotalOrder
+}
+
+instance isize {
+    impl TotalOrder
+}
+
+instance u8 {
+    impl TotalOrder
+}
+
+instance u16 {
+    impl TotalOrder
+}
+
+instance u32 {
+    impl TotalOrder
+}
+
+instance u64 {
+    impl TotalOrder
+}
+
+instance usize {
+    impl TotalOrder
+}
+
+instance char {
+    impl TotalOrder
+}
+
+instance str {
+    impl TotalOrder
+}
+
+instance String {
+    impl TotalOrder
+}

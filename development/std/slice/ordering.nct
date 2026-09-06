@@ -3,6 +3,7 @@
 see ./index.nct
 
 use /internal/ptr
+use /order.TotalOrder
 
 func swap_elements<T>(values: &+[T], left: usize, right: usize): void {
     if left == right {
@@ -17,7 +18,7 @@ func swap_elements<T>(values: &+[T], left: usize, right: usize): void {
     return
 }
 
-func sift_down<T>(values: &+[T], initial_root: usize, end: usize): void where (&T < &T): bool {
+func sift_down<T>(values: &+[T], initial_root: usize, end: usize): void where T impl TotalOrder {
     var root = initial_root
     while root < end / 2 {
         var child = root * 2 + 1
@@ -35,7 +36,7 @@ func sift_down<T>(values: &+[T], initial_root: usize, end: usize): void where (&
 }
 
 instance [T] {
-    method &+self.sort(): void where (&T < &T): bool {
+    method &+self.sort(): void where T impl TotalOrder {
         if self.len() < 2 {
             return
         }

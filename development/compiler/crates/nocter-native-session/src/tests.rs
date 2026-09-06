@@ -615,7 +615,8 @@ test invalid_utf8_name_is_terminal {
 }
 "#;
 
-const COLLECTION_ORDERING_TEST_SOURCE: &str = r#"use std/string.String
+const COLLECTION_ORDERING_TEST_SOURCE: &str = r#"use std/order.TotalOrder
+use std/string.String
 use std/vec.Vec
 
 struct Counter {
@@ -638,6 +639,12 @@ struct Tracked {
 }
 
 instance Tracked {
+    impl TotalOrder
+
+    operator (&self == other: &Self): bool {
+        return self.key == other.key
+    }
+
     operator (&self < other: &Self): bool {
         return self.key < other.key
     }

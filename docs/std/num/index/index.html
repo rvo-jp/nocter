@@ -189,6 +189,7 @@
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Decimal integer parsing and text conversion.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">Ordering</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>decimal<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>floating<span class="token-operator">.</span>nct
@@ -293,6 +294,9 @@
 
     <span class="token-comment">/// Clears the IEEE sign bit without changing the payload.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">abs</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Compares every IEEE representation in a deterministic total order.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">total_compare</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Ordering</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> f64 <span class="token-operator">{</span>
@@ -325,6 +329,9 @@
 
     <span class="token-comment">/// Clears the IEEE sign bit without changing the payload.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">abs</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Compares every IEEE representation in a deterministic total order.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">total_compare</span><span class="token-operator">(</span>other<span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Ordering</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">i8</span> <span class="token-operator">{</span>
