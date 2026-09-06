@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.37.0 Phase 1 Bottleneck Attribution](v0.37.0-phase-1.md)
 - [v0.36.0 Wall-clock and UTC Calendar Final Review](v0.36.0-final.md)
 - [v0.35.0 Phase 6 Qualification and Final Review](v0.35.0-phase-6.md)
 - [v0.35.0 Phase 5 Tooling and Practical Integration Review](v0.35.0-phase-5.md)
