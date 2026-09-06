@@ -2,17 +2,16 @@
 
 ## Current State
 
-Nocter v0.36.0 is published and externally audited. v0.37.0 performance work is complete. The final
-candidate comparison reduces single-file and package check medians by 23.6 percent, first checked
-hover by 28.0 percent, body-edit hover by 32.7 percent, and the fifty-edit session by 33.2 percent.
-Compiler verification is 46.3 percent faster. The final review found no semantic shortcut,
-duplicated authority, editor divergence, or confirmed major-path regression.
+Nocter v0.36.0 is published and externally audited. The v0.37.0 implementation is closed and its
+release identity is frozen at `0.37.0`. Public latest-release references remain at v0.36.0 until
+publication is separately authorized.
 
 ## Next Work
 
-Enter v0.37.0 release preparation: assign the 0.37.0 release identity, update user-facing release
-metadata, run reproducible packaging and the complete installed-home qualification, record the
-release audit, and stop before publication.
+Qualify the exact clean v0.37.0 release-content commit through independent compiler gates, explicit
+public-HTTPS acquisition, deterministic packaging, and complete installed-home validation. Record
+the retained archive identity and stop before tagging, pushing, uploading, or changing public
+latest-release links.
 
 ## Blockers
 
