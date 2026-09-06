@@ -27,8 +27,9 @@ I/O, or code generation. A query-count regression is structural even when a fast
 
 - Compare released and candidate installed homes in the same invocation and alternate their sample
   order.
-- Record compiler digests, host facts, repository revision, clean-worktree state, exact scenario
-  source digests, and sample counts.
+- Record compiler and installed-manifest digests, the manifest's standard-library tree identity,
+  host facts, repository revision, clean-worktree state, exact scenario source digests, and sample
+  counts.
 - Use medians for the primary comparison and retain distribution summaries rather than one run.
 - Keep correctness and diagnostic expectations in conformance tests. A benchmark fails only when
   its scenario cannot execute faithfully.

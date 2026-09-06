@@ -47,9 +47,11 @@ sample counts.
 
 Run measurements on an otherwise idle machine, preserve power and thermal conditions, and compare
 the same scenarios in one invocation. Commit a result only as milestone evidence together with the
-host description, compiler digests, sample configuration, repository revision, clean-worktree
-state, and scenario-source digests emitted by the runner. Do not turn elapsed-time thresholds into
-conformance tests.
+host description, compiler and installed-home identities, sample configuration, repository
+revision, clean-worktree state, and scenario-source digests emitted by the runner. Do not turn
+elapsed-time thresholds into conformance tests. Schema 2 records the installed manifest digest and
+its standard-library tree identity; the retained v0.36.0 baseline uses the earlier schema 1 and
+remains a historical record.
 
 ## Two Independent Signals
 

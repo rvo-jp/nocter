@@ -8,6 +8,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { runProcessScenario } = require("./lib/process-scenario");
 const { runLspSession } = require("./lib/lsp-scenario");
+const { installedHomeIdentity } = require("./lib/installed-home-identity");
 const { sourceIdentity } = require("./lib/source-identity");
 const { summarize } = require("./lib/statistics");
 
@@ -78,10 +79,12 @@ function parseArguments(argv, repository) {
 function compilerIdentity(compiler) {
   const version = spawnSync(compiler.binary, ["--version"], { encoding: "utf8" });
   if (version.status !== 0) fail(`${compiler.binary} --version failed: ${version.stderr}`);
+  const sha256 = crypto.createHash("sha256").update(fs.readFileSync(compiler.binary)).digest("hex");
   return {
     label: compiler.label,
-    sha256: crypto.createHash("sha256").update(fs.readFileSync(compiler.binary)).digest("hex"),
+    sha256,
     version: version.stdout.trim().split("\n"),
+    installed_home: installedHomeIdentity(compiler.binary, sha256),
   };
 }
 
@@ -174,7 +177,7 @@ async function main() {
   const repository = path.resolve(__dirname, "../..");
   const options = parseArguments(process.argv.slice(2), repository);
   const result = {
-    schema: 1,
+    schema: 2,
     recorded_at: new Date().toISOString(),
     repository_revision: repositoryRevision(repository),
     repository_clean: repositoryClean(repository),

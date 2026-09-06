@@ -8,7 +8,7 @@ use crate::{
 /// Source-neutral failure produced by whole-program body-relation analysis.
 ///
 /// Relation passes retain semantic body and node identities instead of current-generation source
-/// spans. Projection joins those identities with the exact current [`BodyRelationCatalog`] only
+/// spans. Projection joins those identities with the exact current [`BodyRelationProjection`] only
 /// after analysis has finished, so a reusable relation result can never retain stale editor
 /// coordinates.
 #[derive(Clone, Debug)]

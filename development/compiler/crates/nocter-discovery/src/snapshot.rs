@@ -191,13 +191,6 @@ impl DiscoveredUnit {
         nocter_diagnostics::syntax_diagnostics(&self.syntax)
     }
 
-    /// Consumes the discovery snapshot and retains its immutable normalized sources for
-    /// presentation after a failed compiler session.
-    #[must_use]
-    pub fn into_sources(self) -> SourceMap {
-        Arc::unwrap_or_clone(self.sources)
-    }
-
     /// Borrows this immutable discovery snapshot as the sole declaration-lowering input.
     ///
     /// # Errors
