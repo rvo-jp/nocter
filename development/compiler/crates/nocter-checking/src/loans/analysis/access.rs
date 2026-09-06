@@ -11,7 +11,7 @@ use crate::{
     LoanPlace, LoanProjection, LoanRoot, PlaceProjection, PlaceRoot,
 };
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub(super) fn evaluate_place_indices(
         &mut self,
         place: nocter_model::PlaceId,

@@ -37,7 +37,7 @@ pub(super) fn analyze_program(
     drops: &DropTable,
     provenance: &ProvenanceTable,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<LoanTable, BodyRelationError> {
     let facts = ProgramFacts {
         graph,
@@ -120,13 +120,13 @@ struct LoopFlow {
     continues: Vec<LoanState>,
 }
 
-struct Analyzer<'program, 'syntax> {
+struct Analyzer<'program> {
     graph: &'program DeclarationGraph,
     types: &'program TypeStore,
     capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
     drops: &'program DropTable,
     provenance: &'program ProvenanceTable,
-    input: &'program BodyRelationInput<'program, 'syntax>,
+    input: &'program BodyRelationInput<'program>,
     liveness: &'program Liveness,
     loans: BTreeMap<LoanId, CheckedLoan>,
     live_before: HashMap<BodyNodeId, BTreeSet<LoanId>>,
@@ -135,10 +135,10 @@ struct Analyzer<'program, 'syntax> {
     closure: Option<(ClosureId, &'program ClosureDefinition)>,
 }
 
-impl<'program, 'syntax> Analyzer<'program, 'syntax> {
+impl<'program> Analyzer<'program> {
     fn new(
         facts: ProgramFacts<'program>,
-        input: &'program BodyRelationInput<'program, 'syntax>,
+        input: &'program BodyRelationInput<'program>,
         liveness: &'program Liveness,
         closure: Option<(ClosureId, &'program ClosureDefinition)>,
     ) -> Self {
@@ -256,7 +256,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
 
     fn initial_declared_state(&mut self) -> Result<LoanState, BodyCheckInternalError> {
         let mut state = LoanState::default();
-        let BodyOwner::Callable(callable) = self.input.source().owner() else {
+        let BodyOwner::Callable(callable) = self.input.owner() else {
             return Ok(state);
         };
         let callable = self

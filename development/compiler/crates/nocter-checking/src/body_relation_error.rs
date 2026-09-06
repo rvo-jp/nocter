@@ -2,7 +2,7 @@ use nocter_diagnostics::DiagnosticNote;
 use nocter_model::{BodyId, BodyNodeId};
 
 use crate::{
-    BodyCheckError, BodyCheckInternalError, BodyRule, body_relations::BodyRelationCatalog,
+    BodyCheckError, BodyCheckInternalError, BodyRule, body_relations::BodyRelationProjection,
 };
 
 /// Source-neutral failure produced by whole-program body-relation analysis.
@@ -51,7 +51,7 @@ impl BodyRelationError {
         }
     }
 
-    pub(crate) fn project(self, catalog: &BodyRelationCatalog<'_, '_>) -> BodyCheckError {
+    pub(crate) fn project(self, projection: &BodyRelationProjection<'_>) -> BodyCheckError {
         let (body, rule, primary, notes) = match self {
             Self::Rule {
                 body,
@@ -62,14 +62,13 @@ impl BodyRelationError {
             Self::Internal(error) => return error.into(),
         };
         let projected = (|| {
-            let input = catalog.get(body)?;
-            let primary = input.origin(primary)?;
+            let primary = projection.origin(body, primary)?;
             let notes = notes
                 .into_vec()
                 .into_iter()
                 .map(|note| {
-                    input
-                        .origin(note.node)
+                    projection
+                        .origin(body, note.node)
                         .map(|origin| DiagnosticNote::new(note.message, origin))
                 })
                 .collect::<Result<Vec<_>, BodyCheckInternalError>>()?;

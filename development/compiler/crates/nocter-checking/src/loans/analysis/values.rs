@@ -9,7 +9,7 @@ use crate::{
     PlaceRoot, ProvenanceProjection,
 };
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub(super) fn iteration_item_loans(
         &self,
         iteration: &crate::TypedIteration,

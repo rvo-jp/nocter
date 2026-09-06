@@ -8,7 +8,7 @@ pub use table::{AllocationEffect, EffectTable};
 pub(crate) fn analyze_program_effects(
     environment: &crate::program_environment::ProgramEnvironment,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<EffectTable, BodyRelationError> {
     analysis::analyze_program(environment, closures, inputs)
 }

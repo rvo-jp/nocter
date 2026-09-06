@@ -65,7 +65,7 @@ struct EvaluatedCall {
     arguments: Vec<ArgumentProvenance>,
 }
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub(super) fn evaluate_iterator_acquisition(
         &mut self,
         acquisition: &CheckedIteratorAcquisition,

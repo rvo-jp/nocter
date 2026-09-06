@@ -8,7 +8,7 @@ use crate::{
     ProvenanceSource, ValueProvenance,
 };
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub(super) fn evaluate_control(
         &mut self,
         node: BodyNodeId,

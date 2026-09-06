@@ -7,7 +7,7 @@ use crate::{
     ProvenanceSource, ValueProvenance,
 };
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub(super) fn evaluate_place_indices(
         &mut self,
         place: PlaceId,

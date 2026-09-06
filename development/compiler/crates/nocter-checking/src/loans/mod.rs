@@ -18,7 +18,7 @@ pub(crate) fn analyze_program_loans(
     drops: &DropTable,
     provenance: &ProvenanceTable,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<LoanTable, BodyRelationError> {
     analysis::analyze_program(
         graph,

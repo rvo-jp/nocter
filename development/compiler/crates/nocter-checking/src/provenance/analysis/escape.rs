@@ -13,7 +13,7 @@ enum DestinationLifetime {
     External,
 }
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub(super) fn validate_binding_storage(
         &self,
         node: BodyNodeId,

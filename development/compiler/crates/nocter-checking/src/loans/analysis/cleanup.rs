@@ -11,7 +11,7 @@ use crate::{
     LoanPlace, LoanProjection, LoanRoot,
 };
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     /// Checks destruction in its scheduled order. A type-owned drop body observes every loan
     /// stored in its value until that action runs; structural destruction without such a body does
     /// not invent a read of non-owning fields.

@@ -46,7 +46,7 @@ impl InvocationLoan {
     }
 }
 
-impl Analyzer<'_, '_> {
+impl Analyzer<'_> {
     pub(super) fn evaluate_comparison(
         &mut self,
         node: BodyNodeId,

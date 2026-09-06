@@ -18,7 +18,7 @@ pub(crate) fn analyze_program_provenance(
     capability_evidence: &crate::body_check::CapabilityEvidenceTable,
     interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<ProvenanceTable, BodyRelationError> {
     analysis::analyze_program(
         graph,

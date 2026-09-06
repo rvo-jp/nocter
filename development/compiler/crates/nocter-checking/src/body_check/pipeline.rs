@@ -13,7 +13,7 @@ use super::reusable_body::{
     MaterializedCheckedBody, capture_checked_body, materialize_checked_body,
 };
 use super::semantic_transaction::{BodySemanticAccess, BodySemanticAuthority};
-use crate::body_relations::BodyRelationCatalog;
+use crate::body_relations::{BodyRelationCatalog, BodyRelationProjection};
 use crate::checked::{
     CheckedProgram, CheckedProgramAuthorities, CheckedProgramOutput, ClosureAuthority,
     ClosureTransaction,
@@ -402,7 +402,6 @@ fn complete_checked_program(
         &prepared.environment,
         checked_semantics.semantics().types(),
         checked_semantics.closures(),
-        &prepared.body_sources,
         &checked_bodies,
     ) {
         Ok(relations) => relations,
@@ -1010,15 +1009,19 @@ fn analyze_checked_body_relations(
     environment: &crate::program_environment::ProgramEnvironment,
     types: &TypeStore,
     closures: &crate::ClosureTable,
-    body_sources: &BodySourceCatalog<'_>,
     checked_bodies: &[(BodyId, CheckedBodyState)],
 ) -> Result<(crate::ProvenanceTable, crate::EffectTable, crate::LoanTable), BodyCheckError> {
     let relations = BodyRelationCatalog::new(
         environment.graph(),
-        body_sources,
         checked_bodies
             .iter()
-            .map(|(body, checked)| (*body, &checked.body, &checked.node_origins)),
+            .map(|(body, checked)| (*body, &checked.body)),
+    )?;
+    let projection = BodyRelationProjection::new(
+        environment.graph(),
+        checked_bodies
+            .iter()
+            .map(|(body, checked)| (*body, &checked.node_origins)),
     )?;
     let provenance = analyze_program_provenance(
         environment.graph(),
@@ -1028,9 +1031,9 @@ fn analyze_checked_body_relations(
         closures,
         &relations,
     )
-    .map_err(|error| error.project(&relations))?;
+    .map_err(|error| error.project(&projection))?;
     let effects = analyze_program_effects(environment, closures, &relations)
-        .map_err(|error| error.project(&relations))?;
+        .map_err(|error| error.project(&projection))?;
     let loans = analyze_program_loans(
         environment.graph(),
         types,
@@ -1040,6 +1043,6 @@ fn analyze_checked_body_relations(
         closures,
         &relations,
     )
-    .map_err(|error| error.project(&relations))?;
+    .map_err(|error| error.project(&projection))?;
     Ok((provenance, effects, loans))
 }

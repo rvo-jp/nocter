@@ -133,7 +133,7 @@ pub(super) fn analyze_program(
     capability_evidence: &crate::body_check::CapabilityEvidenceTable,
     interface_implementations: &InterfaceImplementationTable,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<ProvenanceTable, BodyRelationError> {
     let facts = ProgramFacts {
         graph,
@@ -163,7 +163,7 @@ pub(super) fn analyze_program(
 fn infer_program_summaries(
     facts: ProgramFacts<'_>,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<ProgramSummaries, BodyRelationError> {
     let mut summaries = initial_summaries(facts.graph);
     let mut closure_summaries = closures
@@ -213,7 +213,7 @@ fn infer_program_summaries(
 fn build_body_provenance(
     facts: ProgramFacts<'_>,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
     summaries: &BTreeMap<CallableId, CallableSummary>,
     closure_summaries: &BTreeMap<ClosureId, ClosureSummary>,
     interface_implementation_bounds: &BTreeMap<CallableId, BTreeSet<ProvenanceOrigin>>,
@@ -377,7 +377,7 @@ fn initial_summaries(graph: &DeclarationGraph) -> BTreeMap<CallableId, CallableS
 
 fn validate_callable_returns(
     types: &TypeStore,
-    input: &BodyRelationInput<'_, '_>,
+    input: &BodyRelationInput<'_>,
     callable: CallableId,
     summaries: &BTreeMap<CallableId, CallableSummary>,
     interface_implementation_bound: Option<&BTreeSet<ProvenanceOrigin>>,
@@ -421,7 +421,7 @@ fn validate_callable_returns(
 
 fn validate_closure_returns(
     types: &TypeStore,
-    input: &BodyRelationInput<'_, '_>,
+    input: &BodyRelationInput<'_>,
     closure: ClosureId,
     definition: &crate::ClosureDefinition,
     analysis: &BodyAnalysis,
@@ -466,13 +466,13 @@ fn validate_closure_returns(
     Ok(())
 }
 
-struct Analyzer<'program, 'syntax> {
+struct Analyzer<'program> {
     graph: &'program DeclarationGraph,
     types: &'program TypeStore,
     capability_evidence: &'program crate::body_check::CapabilityEvidenceTable,
     summaries: &'program BTreeMap<CallableId, CallableSummary>,
     closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
-    source: crate::BodySource<'syntax>,
+    owner: BodyOwner,
     body_id: BodyId,
     body: &'program CheckedBody,
     node_values: HashMap<BodyNodeId, ValueProvenance>,
@@ -484,14 +484,14 @@ struct Analyzer<'program, 'syntax> {
     closure: Option<(ClosureId, &'program crate::ClosureDefinition)>,
 }
 
-impl<'program, 'syntax> Analyzer<'program, 'syntax> {
+impl<'program> Analyzer<'program> {
     fn new_declared(
         facts: ProgramFacts<'program>,
         summaries: &'program BTreeMap<CallableId, CallableSummary>,
         closure_summaries: &'program BTreeMap<ClosureId, ClosureSummary>,
-        input: &'program BodyRelationInput<'program, 'syntax>,
+        input: &'program BodyRelationInput<'program>,
     ) -> Self {
-        let result_type = match input.source().owner() {
+        let result_type = match input.owner() {
             BodyOwner::Callable(callable) => facts
                 .graph
                 .declarations()
@@ -509,7 +509,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             capability_evidence: facts.capability_evidence,
             summaries,
             closure_summaries,
-            source: input.source(),
+            owner: input.owner(),
             body_id: input.body_id(),
             body: input.body(),
             node_values: HashMap::new(),
@@ -587,7 +587,7 @@ impl<'program, 'syntax> Analyzer<'program, 'syntax> {
             }
             return Ok(state);
         }
-        match self.source.owner() {
+        match self.owner {
             BodyOwner::Callable(callable) => {
                 let declaration = self
                     .graph

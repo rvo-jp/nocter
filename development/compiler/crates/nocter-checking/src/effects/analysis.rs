@@ -48,7 +48,7 @@ struct Summaries {
 pub(super) fn analyze_program(
     environment: &crate::program_environment::ProgramEnvironment,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<EffectTable, BodyRelationError> {
     let graph = environment.graph();
     let facts = collect_facts(environment, closures, inputs)?;
@@ -77,7 +77,7 @@ pub(super) fn analyze_program(
 fn collect_facts(
     environment: &crate::program_environment::ProgramEnvironment,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
 ) -> Result<BTreeMap<Root, RootFacts>, BodyRelationError> {
     let graph = environment.graph();
     let allocation_request = environment
@@ -192,7 +192,7 @@ fn summary_mut(summaries: &mut Summaries, root: Root) -> Option<&mut AllocationE
 fn validate_contracts(
     graph: &DeclarationGraph,
     closures: &ClosureTable,
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
     facts: &BTreeMap<Root, RootFacts>,
     summaries: &Summaries,
 ) -> Result<(), BodyRelationError> {
@@ -275,7 +275,7 @@ fn validate_contracts(
 }
 
 fn contract_error(
-    inputs: &BodyRelationCatalog<'_, '_>,
+    inputs: &BodyRelationCatalog<'_>,
     body: nocter_model::BodyId,
     node: BodyNodeId,
 ) -> Result<(), BodyRelationError> {
