@@ -2314,6 +2314,14 @@ fn recoverable_allocation_test_source() -> &'static str {
         "    }\n",
         "    return error.new(\"std.num.allocator\", \"invalid allocator formatted a float\")\n",
         "}\n",
+        "test recoverable_float_parse_propagates_allocator_failure {\n",
+        "    var allocator = mem.failing_try_allocator_for_test()\n",
+        "    let _value = f64.try_parse(&+allocator, \"0.1\") catch failure {\n",
+        "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+        "        return error.new(\"std.num.allocator\", \"wrong float parse allocator failure\")\n",
+        "    }\n",
+        "    return error.new(\"std.num.allocator\", \"invalid allocator parsed a float\")\n",
+        "}\n",
         "test recoverable_character_append_is_transactional {\n",
         "    var allocator = mem.failing_try_allocator_for_test()\n",
         "    var text = String.try_with_capacity(&+allocator, 0)?\n",
@@ -2437,7 +2445,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 22);
+    assert_eq!(case_count, 23);
 }
 
 #[test]

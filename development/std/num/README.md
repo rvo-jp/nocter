@@ -42,12 +42,16 @@ and an optional `e` or `E` exponent whose own sign may be written. They also acc
 non-finite spellings `inf`, `-inf`, and `NaN`. Whitespace, digit separators, a leading `+`, a
 missing digit, and trailing input return `none`.
 
+`try_parse(allocator, text)` accepts the same spellings and produces the same optional value while
+reporting temporary-storage allocation failure through its outer result. Ordinary `parse` uses the
+current allocation context and aborts if that allocation fails. Both adapters execute the same
+recoverable parser.
+
 The parser retains the decimal significand as an arbitrary-precision integer and rounds the exact
 rational value directly to the destination's IEEE representation with ties to even. It returns
 `none` when a nonzero finite input rounds to zero or a finite input rounds to infinity. Temporary
-big-integer storage uses the current allocation context; allocation failure follows the ordinary
-aborting policy. Neither the compiler host parser nor target floating arithmetic defines the
-result.
+big-integer storage follows the selected adapter's allocator policy. Neither the compiler host
+parser nor target floating arithmetic defines the result.
 
 ## Floating-Point Text Output
 

@@ -267,6 +267,9 @@
 
     <span class="token-comment">/// Parses one complete locale-independent decimal or canonical non-finite spelling.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Parses the same spelling with recoverable temporary allocation.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_parse</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> f64 <span class="token-operator">{</span>
@@ -275,6 +278,9 @@
 
     <span class="token-comment">/// Parses one complete locale-independent decimal or canonical non-finite spelling.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Parses the same spelling with recoverable temporary allocation.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_parse</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> f32 <span class="token-operator">{</span>

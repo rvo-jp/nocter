@@ -4,6 +4,10 @@ see ./index.nct
 see ./conversion.nct
 see ./float_big.nct
 
+use /internal/mem
+use /mem.TryAllocator
+use /mem as mem_module
+
 struct ParsedFloatDecimal {
     magnitude: FloatBig
     exponent: i64
@@ -13,23 +17,42 @@ struct ParsedFloatDecimal {
 
 construct f32 {
     func parse(text: &str): Self? {
+        var allocator = mem_module.current_try_allocator()
+        return f32.try_parse(&+allocator, text) catch _ { return mem.allocation_abort() }
+    }
+
+    func try_parse(allocator: &+TryAllocator, text: &str): Self?! {
         if text == "inf" { return F32_INFINITY }
         if text == "-inf" { return F32_NEG_INFINITY }
         if text == "NaN" { return F32_NAN }
-        let parsed = parse_float_decimal(text) otherwise { return none }
-        let bits = decimal_to_float_bits(move parsed, 24, -126, 127, 127, 8388608, 2147483648)
-            otherwise { return none }
+        let parsed = try_parse_float_decimal(allocator, text)? otherwise { return none }
+        let bits = try_decimal_to_float_bits(
+            allocator,
+            move parsed,
+            24,
+            -126,
+            127,
+            127,
+            8388608,
+            2147483648,
+        )? otherwise { return none }
         return f32.from_bits(u32_truncate_raw(bits))
     }
 }
 
 construct f64 {
     func parse(text: &str): Self? {
+        var allocator = mem_module.current_try_allocator()
+        return f64.try_parse(&+allocator, text) catch _ { return mem.allocation_abort() }
+    }
+
+    func try_parse(allocator: &+TryAllocator, text: &str): Self?! {
         if text == "inf" { return F64_INFINITY }
         if text == "-inf" { return F64_NEG_INFINITY }
         if text == "NaN" { return F64_NAN }
-        let parsed = parse_float_decimal(text) otherwise { return none }
-        let bits = decimal_to_float_bits(
+        let parsed = try_parse_float_decimal(allocator, text)? otherwise { return none }
+        let bits = try_decimal_to_float_bits(
+            allocator,
             move parsed,
             53,
             -1022,
@@ -37,12 +60,15 @@ construct f64 {
             1023,
             4503599627370496,
             9223372036854775808,
-        ) otherwise { return none }
+        )? otherwise { return none }
         return f64.from_bits(bits)
     }
 }
 
-func parse_float_decimal(text: &str): ParsedFloatDecimal? {
+func try_parse_float_decimal(
+    allocator: &+TryAllocator,
+    text: &str,
+): ParsedFloatDecimal?! from allocator {
     let length = text.len()
     if length == 0 { return none }
     var index: usize = 0
@@ -53,13 +79,13 @@ func parse_float_decimal(text: &str): ParsedFloatDecimal? {
         if index == length { return none }
     }
 
-    var magnitude = FloatBig.from_u64(0)
+    var magnitude = FloatBig.try_from_u64(allocator, 0)?
     var significant_digits: i64 = 0
     var saw_nonzero = false
     var integer_digits: usize = 0
     while index < length && is_decimal_digit(text[index]) {
         let digit = (text[index] - 48) as u64
-        magnitude.add_digit(digit)
+        magnitude.try_add_digit(digit)?
         if saw_nonzero || digit != 0 {
             saw_nonzero = true
             significant_digits += 1
@@ -75,7 +101,7 @@ func parse_float_decimal(text: &str): ParsedFloatDecimal? {
         let fraction_start = index
         while index < length && is_decimal_digit(text[index]) {
             let digit = (text[index] - 48) as u64
-            magnitude.add_digit(digit)
+            magnitude.try_add_digit(digit)?
             fractional_digits += 1
             if saw_nonzero || digit != 0 {
                 saw_nonzero = true
@@ -132,7 +158,8 @@ func parse_float_decimal(text: &str): ParsedFloatDecimal? {
     }
 }
 
-func decimal_to_float_bits(
+func try_decimal_to_float_bits(
+    allocator: &+TryAllocator,
     parsed: ParsedFloatDecimal,
     precision: i64,
     minimum_exponent: i64,
@@ -140,7 +167,7 @@ func decimal_to_float_bits(
     bias: i64,
     implicit_bit: u64,
     sign_bit: u64,
-): u64? {
+): u64?! {
     var input = move parsed
     if input.magnitude.is_zero() {
         if input.negative { return sign_bit }
@@ -152,25 +179,25 @@ func decimal_to_float_bits(
     if decimal_order > 310 || decimal_order < -325 { return none }
 
     var numerator = move input.magnitude
-    var denominator = FloatBig.from_u64(1)
+    var denominator = FloatBig.try_from_u64(allocator, 1)?
     var decimal_exponent = input.exponent
     while decimal_exponent > 0 {
-        numerator.multiply_small(10)
+        numerator.try_multiply_small(10)?
         decimal_exponent -= 1
     }
     while decimal_exponent < 0 {
-        denominator.multiply_small(10)
+        denominator.try_multiply_small(10)?
         decimal_exponent += 1
     }
 
     var binary_exponent: i64 = 0
     while float_big_compare(&numerator, &denominator) < 0 {
-        numerator.multiply_small(2)
+        numerator.try_multiply_small(2)?
         binary_exponent -= 1
     }
     loop {
-        var doubled_denominator = FloatBig.copy(&denominator)
-        doubled_denominator.multiply_small(2)
+        var doubled_denominator = FloatBig.try_copy(allocator, &denominator)?
+        doubled_denominator.try_multiply_small(2)?
         if float_big_compare(&numerator, &doubled_denominator) < 0 { break }
         denominator = move doubled_denominator
         binary_exponent += 1
@@ -197,7 +224,7 @@ func decimal_to_float_bits(
                 numerator.subtract(&denominator)
                 significand += 1
             }
-            numerator.multiply_small(2)
+            numerator.try_multiply_small(2)?
             generated += 1
         }
         let guard = float_big_compare(&numerator, &denominator) >= 0

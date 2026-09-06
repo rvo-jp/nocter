@@ -410,6 +410,13 @@ test floating_checked_conversions_enforce_range_and_integrality {
 }
 
 test floating_decimal_parsing_rounds_exactly {
+    var allocator = mem.page_try_allocator()
+    let recovered = f64.try_parse(&+allocator, "0.1")?
+        otherwise { return error.new("std.num.parse", "recoverable f64 tenth was rejected") }
+    if recovered.to_bits() != 4591870180066957722 {
+        return error.new("std.num.parse", "recoverable decimal parsing rounded differently")
+    }
+
     let tenth64 = f64.parse("0.1") otherwise {
         return error.new("std.num.parse", "f64 tenth was rejected")
     }

@@ -115,7 +115,11 @@ host's floating-point parser.
 ## Decimal Parsing
 
 The standard constructors `f32.parse(text)` and `f64.parse(text)` consume one complete
-locale-independent spelling. Decimal input has this form:
+locale-independent spelling. `try_parse(allocator, text)` accepts the same language and returns
+`T?!`: the inner optional reports invalid text or range loss, while the outer result reports
+temporary-storage allocation failure. Ordinary `parse` uses the current allocation context and
+aborts if that allocation fails. Both forms use one recoverable parser. Decimal input has this
+form:
 
 ```text
 "-"? digits ("." digits)? (("e" | "E") ("+" | "-")? digits)?
@@ -128,9 +132,8 @@ Whitespace, separators, a leading `+`, and trailing characters are invalid. The 
 The complete decimal significand and exponent denote an exact rational value. Parsing rounds that
 value once to the destination format using round-to-nearest, ties-to-even. A nonzero finite value
 that would become zero and a finite value that would become infinity return `none`; representable
-subnormals are accepted. Negative decimal zero preserves its sign. Parsing may use temporary
-storage in the current allocation context, but invalid text and numeric range loss are reported by
-the optional result rather than by an error payload.
+subnormals are accepted. Negative decimal zero preserves its sign. Invalid text and numeric range
+loss are reported by the optional result rather than by an error payload.
 
 ## Decimal Formatting
 

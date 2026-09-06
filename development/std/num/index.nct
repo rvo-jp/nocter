@@ -79,6 +79,9 @@ construct f32 {
 
     /// Parses one complete locale-independent decimal or canonical non-finite spelling.
     pub func parse(text: &str): Self?
+
+    /// Parses the same spelling with recoverable temporary allocation.
+    pub func try_parse(allocator: &+TryAllocator, text: &str): Self?!
 }
 
 construct f64 {
@@ -87,6 +90,9 @@ construct f64 {
 
     /// Parses one complete locale-independent decimal or canonical non-finite spelling.
     pub func parse(text: &str): Self?
+
+    /// Parses the same spelling with recoverable temporary allocation.
+    pub func try_parse(allocator: &+TryAllocator, text: &str): Self?!
 }
 
 instance f32 {

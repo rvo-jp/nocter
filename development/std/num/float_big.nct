@@ -2,6 +2,8 @@
 
 see ./index.nct
 
+use /mem.TryAllocator
+use /mem
 use /vec.Vec
 
 const BIG_BASE: u64 = 1000000000
@@ -11,19 +13,22 @@ struct FloatBig {
 }
 
 construct FloatBig {
-    func from_u64(value: u64): Self {
-        var limbs: Vec<u64> = Vec.empty()
+    func try_from_u64(allocator: &+TryAllocator, value: u64): Self! from allocator {
+        var limbs: Vec<u64> = Vec.try_with_capacity(allocator, 0)?
         var remaining = value
         while remaining != 0 {
-            limbs.push(remaining % BIG_BASE)
+            limbs.try_push(remaining % BIG_BASE)?
             remaining = remaining / BIG_BASE
         }
         return FloatBig { limbs: move limbs }
     }
 
-    func copy(value: &FloatBig): Self {
+    func try_copy(
+        allocator: &+TryAllocator,
+        value: &FloatBig,
+    ): Self! from allocator | value {
         let source: &[u64] = &value.limbs
-        return FloatBig { limbs: Vec.from_slice(source) }
+        return FloatBig { limbs: Vec.try_from_slice(allocator, source)? }
     }
 }
 
@@ -37,18 +42,18 @@ instance FloatBig {
         return self.limbs[0] % 10 == 0
     }
 
-    method &+self.add_digit(digit: u64): void {
-        self.multiply_small(10)
-        self.add_small(digit)
+    method &+self.try_add_digit(digit: u64): void! {
+        self.try_multiply_small(10)?
+        self.try_add_small(digit)?
         return
     }
 
-    method &+self.add_small(value: u64): void {
+    method &+self.try_add_small(value: u64): void! {
         var carry = value
         var index: usize = 0
         while carry != 0 {
             if index == self.limbs.len() {
-                self.limbs.push(carry)
+                self.limbs.try_push(carry)?
                 return
             }
             let total = self.limbs[index] + carry
@@ -59,7 +64,7 @@ instance FloatBig {
         return
     }
 
-    method &+self.multiply_small(factor: u64): void {
+    method &+self.try_multiply_small(factor: u64): void! {
         if factor == 0 {
             self.limbs.clear()
             return
@@ -73,7 +78,7 @@ instance FloatBig {
             index += 1
         }
         while carry != 0 {
-            self.limbs.push(carry % BIG_BASE)
+            self.limbs.try_push(carry % BIG_BASE)?
             carry = carry / BIG_BASE
         }
         return
@@ -134,20 +139,21 @@ func float_big_trim(value: &+FloatBig): void {
 }
 
 test float_big_preserves_carry_borrow_and_decimal_scale {
-    var value = FloatBig.from_u64(999999999)
-    value.add_digit(9)
-    let expected = FloatBig.from_u64(9999999999)
+    var allocator = mem.page_try_allocator()
+    var value = FloatBig.try_from_u64(&+allocator, 999999999)?
+    value.try_add_digit(9)?
+    let expected = FloatBig.try_from_u64(&+allocator, 9999999999)?
     if float_big_compare(&value, &expected) != 0 {
         return error.new("std.num.big", "decimal carry changed")
     }
-    let decrement = FloatBig.from_u64(9999999998)
+    let decrement = FloatBig.try_from_u64(&+allocator, 9999999998)?
     value.subtract(&decrement)
-    let one = FloatBig.from_u64(1)
+    let one = FloatBig.try_from_u64(&+allocator, 1)?
     if float_big_compare(&value, &one) != 0 {
         return error.new("std.num.big", "borrow changed")
     }
-    value.multiply_small(100)
-    let ten = FloatBig.from_u64(10)
+    value.try_multiply_small(100)?
+    let ten = FloatBig.try_from_u64(&+allocator, 10)?
     if value.divide_small(10) != 0 || float_big_compare(&value, &ten) != 0 {
         return error.new("std.num.big", "decimal scale changed")
     }
