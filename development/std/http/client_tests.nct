@@ -242,7 +242,7 @@ test tunnel_and_protocol_upgrade_paths_are_rejected_explicitly {
 }
 
 test public_client_applies_limits_before_opening_a_connection {
-    let limits = Limits.new(8, 64, 4, 32, 16, 64)?
+    let limits = Limits.new(8, 64, 4, 16, 32, 16, 64)?
     let client = Client.with_limits(limits)
     let request = Request.get(Url.parse("http://127.0.0.1:1/")?)?
     let _response = client.send(move request) catch failure {

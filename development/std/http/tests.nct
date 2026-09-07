@@ -4,6 +4,7 @@ see ./body.nct
 see ./codec.nct
 see ./index.nct
 see ./request.nct
+see ./response_head.nct
 see ./storage.nct
 see ./values.nct
 
@@ -32,7 +33,11 @@ func expect_head_failure(
     limits: Limits,
     code: &str,
 ): void! {
-    let attempt = parse_response_head(text.bytes(), request_method, limits)
+    let attempt = advance_response_head(
+        response_head_decoder(limits),
+        text.bytes(),
+        request_method,
+    )
     match move attempt {
         ResponseHeadAttempt.failed(failure) {
             if failure.has_code(code) { return }
@@ -111,7 +116,7 @@ test request_targets_and_generated_fields_obey_their_exact_limits {
             if !target_failure.has_code("std.http.invalid_target") {
                 return error.new("std.http.test", "request-target character failure changed")
             }
-            let tight = Limits.new(32, 32, 1, 17, 8, 100)?
+            let tight = Limits.new(32, 32, 1, 16, 17, 8, 100)?
             let empty = RequestHead.new(Method.get(), "/")?
             let _head = encode_request_head(&empty, 10, tight) catch limit_failure {
                 if limit_failure.has_code("std.http.syntax_limit") { return }
@@ -127,7 +132,11 @@ test request_targets_and_generated_fields_obey_their_exact_limits {
 test response_head_selects_fixed_length_once_and_preserves_fields {
     let request_method = Method.get()
     let input = "HTTP/1.1 200 OK\r\nContent-Length: 5, 5\r\nX-Test: one\r\nX-Test: two\r\n\r\nhelloextra"
-    let attempt = parse_response_head(input.bytes(), &request_method, Limits.standard())
+    let attempt = advance_response_head(
+        response_head_decoder(Limits.standard()),
+        input.bytes(),
+        &request_method,
+    )
     match move attempt {
         ResponseHeadAttempt.ready(parsed) {
             if parsed.head.status().code() != 200 || parsed.head.headers().len() != 3 {
@@ -177,10 +186,10 @@ test response_head_rejects_ambiguous_and_unsupported_framing {
 
 test bodyless_and_informational_responses_leave_following_bytes_unconsumed {
     let head_method = Method.head()
-    let head_attempt = parse_response_head(
+    let head_attempt = advance_response_head(
+        response_head_decoder(Limits.standard()),
         "HTTP/1.1 200 OK\r\nContent-Length: 99\r\n\r\nbody".bytes(),
         &head_method,
-        Limits.standard(),
     )
     match move head_attempt {
         ResponseHeadAttempt.ready(parsed) {
@@ -194,16 +203,17 @@ test bodyless_and_informational_responses_leave_following_bytes_unconsumed {
 
     let request_method = Method.get()
     let sequence = "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n"
-    let first = parse_response_head(sequence.bytes(), &request_method, Limits.standard())
+    let first = advance_response_head(
+        response_head_decoder(Limits.standard()),
+        sequence.bytes(),
+        &request_method,
+    )
     match move first {
-        ResponseHeadAttempt.ready(parsed) {
-            if !parsed.head.status().is_informational() || parsed.consumed != 25 {
+        ResponseHeadAttempt.informational(status, decoder) {
+            if !status.is_informational() || decoder.head_start != 25 {
                 return error.new("std.http.test", "informational response boundary changed")
             }
-            match parsed.decoder.state {
-                BodyState.bodyless { return }
-                _ { return error.new("std.http.test", "informational response gained a body") }
-            }
+            return
         }
         _ { return error.new("std.http.test", "informational response was rejected") }
     }
@@ -211,12 +221,20 @@ test bodyless_and_informational_responses_leave_following_bytes_unconsumed {
 
 test partial_head_and_close_delimited_body_have_explicit_completion {
     let request_method = Method.get()
-    let partial = parse_response_head("HTTP/1.1 200 OK\r\nContent-Len".bytes(), &request_method, Limits.standard())
+    let partial = advance_response_head(
+        response_head_decoder(Limits.standard()),
+        "HTTP/1.1 200 OK\r\nContent-Len".bytes(),
+        &request_method,
+    )
     match move partial {
-        ResponseHeadAttempt.incomplete {}
+        ResponseHeadAttempt.incomplete(_) {}
         _ { return error.new("std.http.test", "partial head was not retained") }
     }
-    let complete = parse_response_head("HTTP/1.1 200 OK\r\n\r\nabc".bytes(), &request_method, Limits.standard())
+    let complete = advance_response_head(
+        response_head_decoder(Limits.standard()),
+        "HTTP/1.1 200 OK\r\n\r\nabc".bytes(),
+        &request_method,
+    )
     let parsed = match move complete {
         ResponseHeadAttempt.ready(value) { move value }
         _ { return error.new("std.http.test", "close-delimited head was rejected") }
@@ -233,6 +251,60 @@ test partial_head_and_close_delimited_body_have_explicit_completion {
         return
     }
     return error.new("std.http.test", "close-delimited completion changed")
+}
+
+test response_head_decoder_retains_completed_work_across_partial_input {
+    let request_method = Method.get()
+    let prefix = "HTTP/1.1 200 OK\r\nX-One: first\r\nX-Two"
+    let partial = advance_response_head(
+        response_head_decoder(Limits.standard()),
+        prefix.bytes(),
+        &request_method,
+    )
+    let decoder = match move partial {
+        ResponseHeadAttempt.incomplete(value) {
+            if value.headers.len() != 1 || value.scan_offset != prefix.len() {
+                return error.new("std.http.test", "incremental head state lost its cursor")
+            }
+            move value
+        }
+        _ { return error.new("std.http.test", "partial response head did not suspend") }
+    }
+    let complete = advance_response_head(
+        move decoder,
+        "HTTP/1.1 200 OK\r\nX-One: first\r\nX-Two: second\r\n\r\nbody".bytes(),
+        &request_method,
+    )
+    match move complete {
+        ResponseHeadAttempt.ready(parsed) {
+            if parsed.head.headers().len() == 2 { return }
+            return error.new("std.http.test", "incremental head fields changed")
+        }
+        _ { return error.new("std.http.test", "completed incremental head was rejected") }
+    }
+}
+
+test informational_response_sequences_obey_their_aggregate_limit {
+    let request_method = Method.get()
+    let limits = Limits.new(64, 256, 8, 1, 64, 16, 64)?
+    let input = "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 102 Processing\r\n\r\nHTTP/1.1 200 OK\r\n\r\n"
+    let first = advance_response_head(
+        response_head_decoder(limits),
+        input.bytes(),
+        &request_method,
+    )
+    let decoder = match move first {
+        ResponseHeadAttempt.informational(_, value) { move value }
+        _ { return error.new("std.http.test", "first informational response was rejected") }
+    }
+    let second = advance_response_head(move decoder, input.bytes(), &request_method)
+    match move second {
+        ResponseHeadAttempt.failed(failure) {
+            if failure.has_code("std.http.syntax_limit") { return }
+            return error.new("std.http.test", "informational limit failure changed")
+        }
+        _ { return error.new("std.http.test", "informational response limit was ignored") }
+    }
 }
 
 test chunked_body_decodes_partial_data_and_validates_trailers {
@@ -275,6 +347,34 @@ test chunked_body_decodes_partial_data_and_validates_trailers {
     return error.new("std.http.test", "framing field was accepted in trailers")
 }
 
+test chunk_extension_quoted_pairs_share_the_http_quoted_character_contract {
+    var accepted = body_decoder(BodyFraming.chunked, Limits.standard())
+    var output = byte_buffer(1)
+    let progress = decode_body(
+        &+accepted,
+        "1;note=\"a\\\t b\"\r\nx\r\n0\r\n\r\n".bytes(),
+        0,
+        &+output,
+        false,
+    )?
+    if !progress.complete || output[0] != 120 {
+        return error.new("std.http.test", "valid quoted chunk extension was rejected")
+    }
+
+    var rejected = body_decoder(BodyFraming.chunked, Limits.standard())
+    let _invalid = decode_body(
+        &+rejected,
+        "1;note=\"\\\0\"\r\nx\r\n0\r\n\r\n".bytes(),
+        0,
+        &+output,
+        false,
+    ) catch failure {
+        if failure.has_code("std.http.invalid_syntax") { return }
+        return error.new("std.http.test", "quoted control failure changed")
+    }
+    return error.new("std.http.test", "escaped chunk-extension control was accepted")
+}
+
 test premature_eof_and_limits_fail_before_unbounded_growth {
     var fixed = body_decoder(BodyFraming.fixed(4), Limits.standard())
     var output = byte_buffer(4)
@@ -282,7 +382,7 @@ test premature_eof_and_limits_fail_before_unbounded_growth {
         if !failure.has_code("std.http.premature_eof") {
             return error.new("std.http.test", "premature EOF failure changed")
         }
-        let limits = Limits.new(32, 128, 4, 64, 16, 3)?
+        let limits = Limits.new(32, 128, 4, 16, 64, 16, 3)?
         let request_method = Method.get()
         expect_head_failure(
             "HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n",
@@ -308,7 +408,7 @@ test body_decoders_never_consume_or_write_beyond_the_selected_boundary {
         return error.new("std.http.test", "fixed decoder crossed its selected boundary")
     }
 
-    let limits = Limits.new(32, 128, 4, 64, 16, 3)?
+    let limits = Limits.new(32, 128, 4, 16, 64, 16, 3)?
     var close = body_decoder(BodyFraming.close_delimited, limits)
     var close_output = byte_buffer(8)
     let _overflow = decode_body(&+close, "four".bytes(), 0, &+close_output, true) catch failure {
@@ -339,7 +439,7 @@ test malformed_lines_and_obs_fold_are_rejected_without_reinterpretation {
         limits,
         "std.http.invalid_header_name",
     )?
-    let aggregate = Limits.new(64, 24, 8, 64, 16, 64)?
+    let aggregate = Limits.new(64, 24, 8, 16, 64, 16, 64)?
     expect_head_failure(
         "HTTP/1.1 200 OK\r\nX-Unfinished: data",
         &request_method,

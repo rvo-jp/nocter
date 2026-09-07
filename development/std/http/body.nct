@@ -67,6 +67,14 @@ noalloc func copy_body_bytes(
     return count
 }
 
+noalloc func valid_quoted_pair_byte(value: u8): bool {
+    return value == 9 || (value >= 32 && value != 127)
+}
+
+noalloc func valid_quoted_text_byte(value: u8): bool {
+    return valid_quoted_pair_byte(value) && value != 34 && value != 92
+}
+
 noalloc func valid_chunk_extensions(bytes: &[u8], start: usize, end: usize): bool {
     var offset = start
     while offset < end {
@@ -95,9 +103,8 @@ noalloc func valid_chunk_extensions(bytes: &[u8], start: usize, end: usize): boo
                     if value == 92 {
                         offset += 1
                         if offset == end { return false }
-                        let quoted = bytes[offset]
-                        if quoted == 10 || quoted == 13 || quoted == 127 { return false }
-                    } else if value == 10 || value == 13 || value == 127 || (value < 32 && value != 9) {
+                        if !valid_quoted_pair_byte(bytes[offset]) { return false }
+                    } else if !valid_quoted_text_byte(value) {
                         return false
                     }
                     offset += 1

@@ -9,22 +9,45 @@ enum LineScan {
     too_long
 }
 
-noalloc func scan_line(input: &[u8], start: usize, limit: usize): LineScan {
-    var offset = start
+enum LineAdvance {
+    incomplete(next: usize)
+    ready(end: usize)
+    malformed
+    too_long
+}
+
+noalloc func advance_line(
+    input: &[u8],
+    start: usize,
+    next: usize,
+    limit: usize,
+): LineAdvance {
+    if start > input.len() || next < start || next > input.len() {
+        return LineAdvance.malformed
+    }
+    var offset = next
     while offset < input.len() {
-        if offset - start > limit { return LineScan.too_long }
+        if offset - start > limit { return LineAdvance.too_long }
         let value = input[offset]
-        if value == 10 { return LineScan.malformed }
+        if value == 10 { return LineAdvance.malformed }
         if value == 13 {
-            if offset + 1 == input.len() { return LineScan.incomplete }
-            if input[offset + 1] != 10 { return LineScan.malformed }
-            if offset - start > limit { return LineScan.too_long }
-            return LineScan.ready(offset)
+            if offset + 1 == input.len() { return LineAdvance.incomplete(offset) }
+            if input[offset + 1] != 10 { return LineAdvance.malformed }
+            return LineAdvance.ready(offset)
         }
         offset += 1
     }
-    if input.len() - start > limit { return LineScan.too_long }
-    return LineScan.incomplete
+    if input.len() - start > limit { return LineAdvance.too_long }
+    return LineAdvance.incomplete(input.len())
+}
+
+noalloc func scan_line(input: &[u8], start: usize, limit: usize): LineScan {
+    match advance_line(input, start, start, limit) {
+        LineAdvance.incomplete(_) { return LineScan.incomplete }
+        LineAdvance.ready(end) { return LineScan.ready(end) }
+        LineAdvance.malformed { return LineScan.malformed }
+        LineAdvance.too_long { return LineScan.too_long }
+    }
 }
 
 noalloc func range_ascii_equal(

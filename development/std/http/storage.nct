@@ -34,6 +34,7 @@ copy struct Limits {
     start_line_bytes: usize
     header_bytes: usize
     header_count: usize
+    informational_responses: usize
     field_bytes: usize
     chunk_line_bytes: usize
     body_bytes: usize

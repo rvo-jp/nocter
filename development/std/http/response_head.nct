@@ -1,0 +1,253 @@
+//! Stateful, incremental HTTP/1.1 response-head decoding.
+
+see ./body.nct
+see ./codec.nct
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+see ./values.nct
+see ./wire.nct
+
+enum ResponseHeadPhase {
+    status
+    fields(status: Status)
+}
+
+struct ResponseHeadDecoder {
+    phase: ResponseHeadPhase
+    head_start: usize
+    line_start: usize
+    scan_offset: usize
+    headers: Headers
+    content_length: usize
+    has_content_length: bool
+    has_transfer_encoding: bool
+    transfer_kind: u8
+    informational_count: usize
+    limits: Limits
+}
+
+enum ResponseHeadAttempt {
+    incomplete(decoder: ResponseHeadDecoder)
+    informational(status: Status, decoder: ResponseHeadDecoder)
+    ready(parsed: ParsedResponseHead)
+    failed(failure: error)
+}
+
+struct ParsedResponseHead {
+    head: ResponseHead
+    decoder: BodyDecoder
+    consumed: usize
+}
+
+noalloc func response_head_decoder_at(
+    limits: Limits,
+    start: usize,
+    informational_count: usize,
+): ResponseHeadDecoder {
+    return ResponseHeadDecoder {
+        phase: ResponseHeadPhase.status,
+        head_start: start,
+        line_start: start,
+        scan_offset: start,
+        headers: Headers.empty(),
+        content_length: 0,
+        has_content_length: false,
+        has_transfer_encoding: false,
+        transfer_kind: 0,
+        informational_count: informational_count,
+        limits: limits,
+    }
+}
+
+noalloc func response_head_decoder(limits: Limits): ResponseHeadDecoder {
+    return response_head_decoder_at(limits, 0, 0)
+}
+
+noalloc func status_from_line(input: &[u8], start: usize, end: usize): Status! {
+    if end - start < 13
+        || input[start] != 72
+        || input[start + 1] != 84
+        || input[start + 2] != 84
+        || input[start + 3] != 80
+        || input[start + 4] != 47
+        || input[start + 5] != 49
+        || input[start + 6] != 46
+        || input[start + 7] != 49
+        || input[start + 8] != 32
+        || input[start + 9] < 48
+        || input[start + 9] > 57
+        || input[start + 10] < 48
+        || input[start + 10] > 57
+        || input[start + 11] < 48
+        || input[start + 11] > 57
+        || input[start + 12] != 32 {
+        return invalid_syntax()
+    }
+    var reason_offset = start + 13
+    while reason_offset < end {
+        if !valid_header_value_byte(input[reason_offset]) { return invalid_syntax() }
+        reason_offset += 1
+    }
+    let code = ((input[start + 9] - 48) as u16) * 100
+        + ((input[start + 10] - 48) as u16) * 10
+        + ((input[start + 11] - 48) as u16)
+    return Status.new(code)?
+}
+
+func retain_response_field(
+    decoder: &+ResponseHeadDecoder,
+    input: &[u8],
+    start: usize,
+    end: usize,
+): void! {
+    if decoder.headers.len() == decoder.limits.header_count { return syntax_limit() }
+    var colon = start
+    while colon < end && input[colon] != 58 { colon += 1 }
+    if colon == end { return invalid_syntax() }
+    let name = header_name_from_range(input, start, colon)?
+    let value = header_value_from_range(input, colon + 1, end)?
+    if name.text() == "content-length" {
+        let length = match parse_decimal_list(value.bytes()) {
+            DecimalList.valid(number) { number }
+            DecimalList.invalid { return ambiguous_framing() }
+        }
+        if decoder.has_content_length && decoder.content_length != length {
+            return ambiguous_framing()
+        }
+        decoder.content_length = length
+        decoder.has_content_length = true
+    }
+    if name.text() == "transfer-encoding" {
+        if decoder.has_transfer_encoding { return ambiguous_framing() }
+        decoder.transfer_kind = transfer_coding_kind(value.bytes())
+        decoder.has_transfer_encoding = true
+    }
+    decoder.headers.append(Header.new(move name, move value))
+    return
+}
+
+noalloc func selected_body_framing(
+    decoder: &ResponseHeadDecoder,
+    request_method: &Method,
+    status: Status,
+): BodyFraming! {
+    if decoder.has_transfer_encoding && decoder.has_content_length {
+        return ambiguous_framing()
+    }
+    if decoder.has_transfer_encoding && decoder.transfer_kind == 1 {
+        return unsupported_transfer_coding()
+    }
+    if decoder.has_transfer_encoding && decoder.transfer_kind != 0 {
+        return ambiguous_framing()
+    }
+    if bodyless_response(request_method, status) { return BodyFraming.bodyless }
+    if decoder.has_transfer_encoding { return BodyFraming.chunked }
+    if decoder.has_content_length {
+        if decoder.content_length > decoder.limits.body_bytes { return body_limit() }
+        return BodyFraming.fixed(decoder.content_length)
+    }
+    return BodyFraming.close_delimited
+}
+
+func advance_response_head(
+    decoder: ResponseHeadDecoder,
+    input: &[u8],
+    request_method: &Method,
+): ResponseHeadAttempt {
+    var state = move decoder
+    loop {
+        match state.phase {
+            ResponseHeadPhase.status {
+                let line_end = match advance_line(
+                    input,
+                    state.line_start,
+                    state.scan_offset,
+                    state.limits.start_line_bytes,
+                ) {
+                    LineAdvance.incomplete(next) {
+                        state.scan_offset = next
+                        return ResponseHeadAttempt.incomplete(move state)
+                    }
+                    LineAdvance.ready(end) { end }
+                    LineAdvance.malformed {
+                        return ResponseHeadAttempt.failed(invalid_syntax())
+                    }
+                    LineAdvance.too_long {
+                        return ResponseHeadAttempt.failed(syntax_limit())
+                    }
+                }
+                if line_end + 2 - state.head_start > state.limits.header_bytes {
+                    return ResponseHeadAttempt.failed(syntax_limit())
+                }
+                let status = status_from_line(input, state.line_start, line_end) catch failure {
+                    return ResponseHeadAttempt.failed(move failure)
+                }
+                state.line_start = line_end + 2
+                state.scan_offset = state.line_start
+                state.phase = ResponseHeadPhase.fields(status)
+            }
+            ResponseHeadPhase.fields(status) {
+                let line_end = match advance_line(
+                    input,
+                    state.line_start,
+                    state.scan_offset,
+                    state.limits.field_bytes,
+                ) {
+                    LineAdvance.incomplete(next) {
+                        if input.len() - state.head_start > state.limits.header_bytes {
+                            return ResponseHeadAttempt.failed(syntax_limit())
+                        }
+                        state.scan_offset = next
+                        return ResponseHeadAttempt.incomplete(move state)
+                    }
+                    LineAdvance.ready(end) { end }
+                    LineAdvance.malformed {
+                        return ResponseHeadAttempt.failed(invalid_syntax())
+                    }
+                    LineAdvance.too_long {
+                        return ResponseHeadAttempt.failed(syntax_limit())
+                    }
+                }
+                if line_end + 2 - state.head_start > state.limits.header_bytes {
+                    return ResponseHeadAttempt.failed(syntax_limit())
+                }
+                if line_end != state.line_start {
+                    let field_start = state.line_start
+                    retain_response_field(
+                        &+state,
+                        input,
+                        field_start,
+                        line_end,
+                    ) catch failure {
+                        return ResponseHeadAttempt.failed(move failure)
+                    }
+                    state.line_start = line_end + 2
+                    state.scan_offset = state.line_start
+                    continue
+                }
+
+                let consumed = line_end + 2
+                let framing = selected_body_framing(&state, request_method, status) catch failure {
+                    return ResponseHeadAttempt.failed(move failure)
+                }
+                if status.is_informational() {
+                    if state.informational_count == state.limits.informational_responses {
+                        return ResponseHeadAttempt.failed(syntax_limit())
+                    }
+                    let next = response_head_decoder_at(
+                        state.limits,
+                        consumed,
+                        state.informational_count + 1,
+                    )
+                    return ResponseHeadAttempt.informational(status, move next)
+                }
+                return ResponseHeadAttempt.ready(ParsedResponseHead {
+                    head: response_head_from_parts(status, move state.headers),
+                    decoder: body_decoder(move framing, state.limits),
+                    consumed: consumed,
+                })
+            }
+        }
+    }
+}

@@ -242,6 +242,7 @@ construct Limits {
             start_line_bytes: 8192,
             header_bytes: 65536,
             header_count: 128,
+            informational_responses: 16,
             field_bytes: 8192,
             chunk_line_bytes: 1024,
             body_bytes: 67108864,
@@ -252,6 +253,7 @@ construct Limits {
         max_start_line_bytes: usize,
         max_header_bytes: usize,
         max_header_count: usize,
+        max_informational_responses: usize,
         max_field_bytes: usize,
         max_chunk_line_bytes: usize,
         max_body_bytes: usize,
@@ -259,6 +261,7 @@ construct Limits {
         if max_start_line_bytes == 0
             || max_header_bytes == 0
             || max_header_count == 0
+            || max_informational_responses == 0
             || max_field_bytes == 0
             || max_chunk_line_bytes == 0
             || max_body_bytes == 0 {
@@ -268,6 +271,7 @@ construct Limits {
             start_line_bytes: max_start_line_bytes,
             header_bytes: max_header_bytes,
             header_count: max_header_count,
+            informational_responses: max_informational_responses,
             field_bytes: max_field_bytes,
             chunk_line_bytes: max_chunk_line_bytes,
             body_bytes: max_body_bytes,

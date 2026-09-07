@@ -14,6 +14,7 @@ see ./client_tests.nct
 see ./codec.nct
 see ./errors.nct
 see ./request.nct
+see ./response_head.nct
 see ./storage.nct
 see ./tests.nct
 see ./values.nct
@@ -150,6 +151,7 @@ construct Limits {
         max_start_line_bytes: usize,
         max_header_bytes: usize,
         max_header_count: usize,
+        max_informational_responses: usize,
         max_field_bytes: usize,
         max_chunk_line_bytes: usize,
         max_body_bytes: usize,
