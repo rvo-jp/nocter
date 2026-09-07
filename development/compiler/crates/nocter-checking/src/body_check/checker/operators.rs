@@ -54,7 +54,7 @@ impl BodyChecker<'_, '_> {
             };
             return Err(self.rule(rule, operand)?);
         }
-        let place = self.postfix_place(operand, capability)?;
+        let place = self.explicit_borrow_place(operand, capability)?;
         if capability == BorrowCapability::ReadWrite && !self.is_writable_place(place.id)? {
             return Err(self.rule(BodyRule::InvalidReadWriteBorrow, operand)?);
         }

@@ -318,6 +318,10 @@ fn constants_remain_values_in_place_only_contexts() {
             BodyRule::InvalidBorrowSource,
         ),
         (
+            "func invalid(): void {\n    let value = &[1]\n    return\n}\n",
+            BodyRule::InvalidBorrowSource,
+        ),
+        (
             "const ANSWER: i32 = 42\nfunc invalid(): void {\n    let value = move ANSWER\n    return\n}\n",
             BodyRule::InvalidMoveSource,
         ),

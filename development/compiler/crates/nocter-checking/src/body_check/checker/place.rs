@@ -67,6 +67,30 @@ impl BodyChecker<'_, '_> {
         self.resolve_place_syntax(syntax, capability)
     }
 
+    /// Resolves an explicitly borrowed operand while retaining a source-level rejection for a
+    /// well-formed expression that is not an addressable place.
+    pub(super) fn explicit_borrow_place(
+        &mut self,
+        node: NodeId,
+        capability: BorrowCapability,
+    ) -> Result<ResolvedPlace, BodyCheckError> {
+        let syntax = match collect_postfix_operations(self.tree(), node) {
+            Ok(syntax) => syntax,
+            Err(PlaceSyntaxError::NotPlace(_)) => {
+                let rule = if capability == BorrowCapability::ReadWrite {
+                    BodyRule::InvalidReadWriteBorrow
+                } else {
+                    BodyRule::InvalidBorrowSource
+                };
+                return Err(self.rule(rule, node)?);
+            }
+            Err(PlaceSyntaxError::InvalidSyntax(invalid)) => {
+                return Err(BodyCheckInternalError::InvalidSyntax(invalid).into());
+            }
+        };
+        self.resolve_place_syntax(syntax, capability)
+    }
+
     pub(super) fn assignment_place(
         &mut self,
         node: NodeId,

@@ -771,6 +771,16 @@ pub(super) fn classify_body_rejection(
     interruption_state: Option<crate::body_evidence::TypedInterruptionEvidence>,
 ) -> Result<(crate::BodyRejection, BodyCheckError), BodyCheckError> {
     let (error, interruption) = failure.into_parts();
+    // `InvalidSyntax` is the checker's explicit incomplete-source signal. Typed recovery may
+    // classify only that internal variant as incomplete syntax; every other internal error is a
+    // compiler consistency failure and must remain visible as such.
+    if matches!(
+        error,
+        BodyCheckError::Internal(ref internal)
+            if !matches!(internal, BodyCheckInternalError::InvalidSyntax(_))
+    ) {
+        return Err(error);
+    }
     let diagnostic = error.source_diagnostic().cloned();
     let recovery = match (interruption, interruption_state) {
         (Some(interruption), Some(evidence)) => {
