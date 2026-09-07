@@ -12,6 +12,7 @@ use /internal/net.{
     SocketDescriptor,
     UnitAttempt,
 }
+use /time.Duration
 
 struct UdpSocket {
     descriptor: SocketDescriptor
@@ -81,6 +82,24 @@ instance UdpSocket {
             AddressAttempt.ready(address) { return public_address(address) }
             AddressAttempt.failed(failure) { return network_error(move failure) }
         }
+    }
+
+    noalloc method &+self.set_read_timeout(timeout: Duration?): void {
+        self.descriptor.set_read_timeout(timeout)
+        return
+    }
+
+    noalloc method &self.read_timeout(): Duration? {
+        return self.descriptor.read_timeout()
+    }
+
+    noalloc method &+self.set_write_timeout(timeout: Duration?): void {
+        self.descriptor.set_write_timeout(timeout)
+        return
+    }
+
+    noalloc method &self.write_timeout(): Duration? {
+        return self.descriptor.write_timeout()
     }
 
     noalloc method &+self.close(): void {

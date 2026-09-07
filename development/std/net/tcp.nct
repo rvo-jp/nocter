@@ -15,6 +15,7 @@ use /internal/net.{
     UnitAttempt,
 }
 use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /time.Duration
 
 struct TcpStream {
     descriptor: SocketDescriptor
@@ -62,7 +63,16 @@ noalloc func stream_from_descriptor(descriptor: SocketDescriptor): TcpStream {
 
 construct TcpStream {
     noalloc func connect(address: SocketAddress): Self! {
-        match net.connect_tcp(substrate_address(&address)) {
+        match net.connect_tcp(substrate_address(&address), none) {
+            DescriptorAttempt.ready(descriptor) {
+                return stream_from_descriptor(move descriptor)
+            }
+            DescriptorAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc func connect_with_timeout(address: SocketAddress, timeout: Duration): Self! {
+        match net.connect_tcp(substrate_address(&address), timeout) {
             DescriptorAttempt.ready(descriptor) {
                 return stream_from_descriptor(move descriptor)
             }
@@ -98,6 +108,24 @@ instance TcpStream {
             AddressAttempt.ready(address) { return public_address(address) }
             AddressAttempt.failed(failure) { return network_error(move failure) }
         }
+    }
+
+    noalloc method &+self.set_read_timeout(timeout: Duration?): void {
+        self.descriptor.set_read_timeout(timeout)
+        return
+    }
+
+    noalloc method &self.read_timeout(): Duration? {
+        return self.descriptor.read_timeout()
+    }
+
+    noalloc method &+self.set_write_timeout(timeout: Duration?): void {
+        self.descriptor.set_write_timeout(timeout)
+        return
+    }
+
+    noalloc method &self.write_timeout(): Duration? {
+        return self.descriptor.write_timeout()
     }
 
     noalloc method &+self.shutdown(direction: TcpShutdown): void! {
@@ -149,6 +177,15 @@ instance TcpListener {
             }
             AcceptAttempt.failed(failure) { return network_error(move failure) }
         }
+    }
+
+    noalloc method &+self.set_accept_timeout(timeout: Duration?): void {
+        self.descriptor.set_read_timeout(timeout)
+        return
+    }
+
+    noalloc method &self.accept_timeout(): Duration? {
+        return self.descriptor.read_timeout()
     }
 
     noalloc method &+self.close(): void {

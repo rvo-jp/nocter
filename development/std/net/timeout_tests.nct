@@ -1,0 +1,95 @@
+//! Native loopback qualification for monotonic socket-operation deadlines.
+
+see ./index.nct
+see ./tcp_tests.nct
+see ./udp_tests.nct
+
+use /time.Duration
+use /vec.Vec
+
+test tcp_accept_timeout_round_trips_and_reports_one_stable_error {
+    var listener = loopback_listener()?
+    let timeout = Duration.from_milliseconds(2)
+    listener.set_accept_timeout(timeout)
+    let configured = listener.accept_timeout() otherwise {
+        return error.new("std.net.test", "accept timeout was not retained")
+    }
+    if configured != timeout {
+        return error.new("std.net.test", "accept timeout value changed")
+    }
+    let _ = listener.accept() catch failure {
+        if !failure.has_code("std.net.timed_out") {
+            return error.new("std.net.test", "accept timeout lost its stable error")
+        }
+        listener.set_accept_timeout(none)
+        let unexpected = listener.accept_timeout() otherwise { return }
+        return error.new("std.net.test", "cleared accept timeout remained configured")
+    }
+    return error.new("std.net.test", "accept without a client ignored its timeout")
+}
+
+test tcp_connect_and_read_share_finite_timeout_policy {
+    var listener = loopback_listener()?
+    let address = listener.local_address()?
+    var client = TcpStream.connect_with_timeout(address, Duration.from_seconds(1))?
+    let accepted = listener.accept()?
+    var server = move accepted.0
+    let timeout = Duration.from_milliseconds(2)
+    server.set_read_timeout(timeout)
+    server.set_write_timeout(timeout)
+    let read_timeout = server.read_timeout() otherwise {
+        return error.new("std.net.test", "stream read timeout was not retained")
+    }
+    let write_timeout = server.write_timeout() otherwise {
+        return error.new("std.net.test", "stream write timeout was not retained")
+    }
+    if read_timeout != timeout || write_timeout != timeout {
+        return error.new("std.net.test", "stream timeout value changed")
+    }
+    var byte: Vec<u8> = Vec [u8.truncate(0)]
+    let _ = server.read(&+byte) catch failure {
+        if !failure.has_code("std.net.timed_out") {
+            return error.new("std.net.test", "stream read timeout lost its stable error")
+        }
+        return
+    }
+    return error.new("std.net.test", "empty stream ignored its read timeout")
+}
+
+test udp_receive_timeout_round_trips_and_expires {
+    var socket = udp_loopback_v4()?
+    let timeout = Duration.from_milliseconds(2)
+    socket.set_read_timeout(timeout)
+    socket.set_write_timeout(timeout)
+    let read_timeout = socket.read_timeout() otherwise {
+        return error.new("std.net.test", "UDP read timeout was not retained")
+    }
+    let write_timeout = socket.write_timeout() otherwise {
+        return error.new("std.net.test", "UDP write timeout was not retained")
+    }
+    if read_timeout != timeout || write_timeout != timeout {
+        return error.new("std.net.test", "UDP timeout value changed")
+    }
+    var byte: Vec<u8> = Vec [u8.truncate(0)]
+    let _ = socket.receive(&+byte) catch failure {
+        if !failure.has_code("std.net.timed_out") {
+            return error.new("std.net.test", "UDP timeout lost its stable error")
+        }
+        return
+    }
+    return error.new("std.net.test", "empty UDP socket ignored its receive timeout")
+}
+
+test zero_timeout_permits_an_immediately_ready_datagram {
+    var sender = udp_loopback_v4()?
+    var receiver = udp_loopback_v4()?
+    sender.send_to("z".bytes(), receiver.local_address()?)?
+    receiver.set_read_timeout(Duration.from_seconds(0))
+    var byte: Vec<u8> = Vec [u8.truncate(0)]
+    let received = receiver.receive(&+byte)?
+    if received.copied_len() != 1 || byte[0] != 122 {
+        return error.new("std.net.test", "zero timeout rejected ready data")
+    }
+    return
+}
+

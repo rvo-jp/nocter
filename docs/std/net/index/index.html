@@ -197,6 +197,7 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">TotalOrder</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-type">Duration</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>contracts<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>formatting<span class="token-operator">.</span>nct
@@ -207,6 +208,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tcp_tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>udp<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>udp_tests<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>timeout_tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>values<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// The Internet protocol address family represented by an `IpAddress`.</span>
@@ -410,6 +412,9 @@
 <span class="token-keyword">construct</span> <span class="token-type">TcpStream</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Connects synchronously to one numeric socket address.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">connect</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Connects synchronously, returning `std.net.timed_out` when `timeout` expires.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">connect_with_timeout</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">,</span> timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">TcpStream</span> <span class="token-operator">{</span>
@@ -421,6 +426,18 @@
 
     <span class="token-comment">/// Returns the connected peer socket address.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">peer_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Replaces the read timeout; absence permits an unlimited wait.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_read_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Returns the configured read timeout.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">read_timeout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Replaces the write timeout; absence permits an unlimited wait.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_write_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Returns the configured write timeout.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">write_timeout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span>
 
     <span class="token-comment">/// Shuts down selected local stream directions without closing the socket.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">shutdown</span><span class="token-operator">(</span>direction<span class="token-operator">:</span> <span class="token-type">TcpShutdown</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
@@ -440,6 +457,12 @@
 
     <span class="token-comment">/// Accepts one connected stream and returns its peer address.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">accept</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">TcpStream</span><span class="token-operator">,</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Replaces the accept timeout; absence permits an unlimited wait.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_accept_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Returns the configured accept timeout.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">accept_timeout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span>
 
     <span class="token-comment">/// Makes the listener terminal and releases its descriptor at most once.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
@@ -468,6 +491,18 @@
 
     <span class="token-comment">/// Returns the connected peer address or an error when no peer is connected.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">peer_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Replaces the receive timeout; absence permits an unlimited wait.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_read_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Returns the configured receive timeout.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">read_timeout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Replaces the connect and send timeout; absence permits an unlimited wait.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_write_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Returns the configured connect and send timeout.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">write_timeout</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">?</span>
 
     <span class="token-comment">/// Makes the socket terminal and releases its descriptor at most once.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>

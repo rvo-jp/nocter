@@ -6,12 +6,14 @@
 
 use /internal/os.OSError
 use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /time.Duration
 
 see ./descriptor.nct
 
 pub(/) enum NetworkFailure {
     os(value: OSError)
     closed
+    timed_out
     invalid_target_result
 }
 
@@ -55,7 +57,10 @@ pub(/) enum NetworkShutdown {
 }
 
 /// Creates and synchronously connects one configured TCP descriptor.
-pub(/) noalloc func connect_tcp(address: NetworkAddress): DescriptorAttempt
+pub(/) noalloc func connect_tcp(
+    address: NetworkAddress,
+    timeout: Duration?,
+): DescriptorAttempt
 
 /// Creates, binds, and starts listening on one configured TCP descriptor.
 pub(/) noalloc func listen_tcp(address: NetworkAddress): DescriptorAttempt
@@ -66,6 +71,18 @@ pub(/) noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt
 instance SocketDescriptor {
     /// Accepts one configured TCP descriptor and its logical peer address.
     pub(/) noalloc method &self.accept_tcp(): AcceptAttempt
+
+    /// Replaces the finite read-side operation timeout; absence permits an unlimited wait.
+    pub(/) noalloc method &+self.set_read_timeout(timeout: Duration?): void
+
+    /// Returns the configured read-side operation timeout.
+    pub(/) noalloc method &self.read_timeout(): Duration?
+
+    /// Replaces the finite write-side operation timeout; absence permits an unlimited wait.
+    pub(/) noalloc method &+self.set_write_timeout(timeout: Duration?): void
+
+    /// Returns the configured write-side operation timeout.
+    pub(/) noalloc method &self.write_timeout(): Duration?
 
     /// Reads once after transparently handling interruption and readiness waits.
     pub(/) noalloc method &self.read_stream(buffer: &+[u8]): TransferAttempt

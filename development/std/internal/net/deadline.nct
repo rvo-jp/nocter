@@ -1,0 +1,52 @@
+//! Monotonic operation deadlines and portable poll-timeout projection.
+
+use /time.{Duration, Instant}
+
+const MAX_POLL_MILLISECONDS: u64 = 2147483647
+const MILLISECONDS_PER_SECOND: u64 = 1000
+const NANOSECONDS_PER_MILLISECOND: u64 = 1000000
+
+enum OperationDeadline {
+    unlimited
+    finite(start: Instant, duration: Duration)
+}
+
+noalloc func operation_deadline(timeout: Duration?): OperationDeadline {
+    let duration = timeout otherwise { return OperationDeadline.unlimited }
+    return OperationDeadline.finite(Instant.now(), duration)
+}
+
+noalloc func deadline_expired(deadline: &OperationDeadline): bool {
+    match deadline {
+        OperationDeadline.unlimited { return false }
+        OperationDeadline.finite(start, duration) {
+            let elapsed = start.elapsed()
+            let remaining = duration.checked_sub(&elapsed) otherwise { return true }
+            return remaining.is_zero()
+        }
+    }
+}
+
+noalloc func poll_timeout_milliseconds(deadline: &OperationDeadline): usize? {
+    match deadline {
+        OperationDeadline.unlimited { return none }
+        OperationDeadline.finite(start, duration) {
+            let elapsed = start.elapsed()
+            let remaining = duration.checked_sub(&elapsed) otherwise { return 0 }
+            if remaining.is_zero() { return 0 }
+            let seconds = remaining.whole_seconds()
+            if seconds > MAX_POLL_MILLISECONDS / MILLISECONDS_PER_SECOND {
+                return MAX_POLL_MILLISECONDS as usize
+            }
+            var milliseconds = seconds * MILLISECONDS_PER_SECOND
+                + remaining.subsecond_nanoseconds() / NANOSECONDS_PER_MILLISECOND
+            if remaining.subsecond_nanoseconds() % NANOSECONDS_PER_MILLISECOND != 0 {
+                milliseconds += 1
+            }
+            if milliseconds > MAX_POLL_MILLISECONDS {
+                return MAX_POLL_MILLISECONDS as usize
+            }
+            return milliseconds as usize
+        }
+    }
+}

@@ -10,6 +10,9 @@ noalloc func network_error(failure: NetworkFailure): error {
         NetworkFailure.closed {
             return error.new("std.net.closed", "network socket is closed")
         }
+        NetworkFailure.timed_out {
+            return error.new("std.net.timed_out", "network operation timed out")
+        }
         NetworkFailure.invalid_target_result {
             return error.new("std.net.target_error", "network target returned an invalid result")
         }

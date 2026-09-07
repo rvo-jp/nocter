@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.39.0 Phase 4 Network-timeout Review](v0.39.0-phase-4.md)
 - [v0.38.0 Phase 3 Floating-Point Qualification Review](v0.38.0-phase-3.md)
 - [v0.37.0 Performance Closure Review](v0.37.0-performance-closure.md)
 - [v0.37.0 Ordinary-compilation Performance Review](v0.37.0-ordinary-compilation.md)

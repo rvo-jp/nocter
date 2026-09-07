@@ -9,6 +9,7 @@ use /io.{Reader, Writer}
 use /mem.TryAllocator
 use /order.TotalOrder
 use /string.String
+use /time.Duration
 
 see ./contracts.nct
 see ./formatting.nct
@@ -19,6 +20,7 @@ see ./errors.nct
 see ./tcp_tests.nct
 see ./udp.nct
 see ./udp_tests.nct
+see ./timeout_tests.nct
 see ./values.nct
 
 /// The Internet protocol address family represented by an `IpAddress`.
@@ -222,6 +224,9 @@ instance SocketAddress {
 construct TcpStream {
     /// Connects synchronously to one numeric socket address.
     pub noalloc func connect(address: SocketAddress): Self!
+
+    /// Connects synchronously, returning `std.net.timed_out` when `timeout` expires.
+    pub noalloc func connect_with_timeout(address: SocketAddress, timeout: Duration): Self!
 }
 
 instance TcpStream {
@@ -233,6 +238,18 @@ instance TcpStream {
 
     /// Returns the connected peer socket address.
     pub noalloc method &self.peer_address(): SocketAddress!
+
+    /// Replaces the read timeout; absence permits an unlimited wait.
+    pub noalloc method &+self.set_read_timeout(timeout: Duration?): void
+
+    /// Returns the configured read timeout.
+    pub noalloc method &self.read_timeout(): Duration?
+
+    /// Replaces the write timeout; absence permits an unlimited wait.
+    pub noalloc method &+self.set_write_timeout(timeout: Duration?): void
+
+    /// Returns the configured write timeout.
+    pub noalloc method &self.write_timeout(): Duration?
 
     /// Shuts down selected local stream directions without closing the socket.
     pub noalloc method &+self.shutdown(direction: TcpShutdown): void!
@@ -252,6 +269,12 @@ instance TcpListener {
 
     /// Accepts one connected stream and returns its peer address.
     pub noalloc method &+self.accept(): (TcpStream, SocketAddress)!
+
+    /// Replaces the accept timeout; absence permits an unlimited wait.
+    pub noalloc method &+self.set_accept_timeout(timeout: Duration?): void
+
+    /// Returns the configured accept timeout.
+    pub noalloc method &self.accept_timeout(): Duration?
 
     /// Makes the listener terminal and releases its descriptor at most once.
     pub noalloc method &+self.close(): void
@@ -280,6 +303,18 @@ instance UdpSocket {
 
     /// Returns the connected peer address or an error when no peer is connected.
     pub noalloc method &self.peer_address(): SocketAddress!
+
+    /// Replaces the receive timeout; absence permits an unlimited wait.
+    pub noalloc method &+self.set_read_timeout(timeout: Duration?): void
+
+    /// Returns the configured receive timeout.
+    pub noalloc method &self.read_timeout(): Duration?
+
+    /// Replaces the connect and send timeout; absence permits an unlimited wait.
+    pub noalloc method &+self.set_write_timeout(timeout: Duration?): void
+
+    /// Returns the configured connect and send timeout.
+    pub noalloc method &self.write_timeout(): Duration?
 
     /// Makes the socket terminal and releases its descriptor at most once.
     pub noalloc method &+self.close(): void

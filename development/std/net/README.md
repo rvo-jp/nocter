@@ -2,7 +2,7 @@
 
 The compiler-checked [`std/net` contract](index.nct) is the sole authority for exact public
 declarations. This guide expands observable address, TCP, and UDP behavior already present in that
-checked contract. Finite deadlines remain planned v0.39.0 work and are not available yet.
+checked contract, including finite monotonic operation timeouts.
 
 ## Address Values
 
@@ -51,12 +51,17 @@ descriptor at most once. `shutdown` changes the selected stream direction withou
 descriptor. Stream writes cannot terminate the process through `SIGPIPE`, and owned descriptors do
 not leak across process execution.
 
-Current TCP operations are synchronous and can wait without a finite deadline. The implementation
-uses nonblocking descriptors internally only to centralize interruption and readiness handling;
-this does not expose a public nonblocking mode. Public failures use stable `std.net.*` codes rather
-than native errno values. The stable categories include closed sockets, connection refusal,
-connection reset or abort, address conflict or unavailability, unreachable networks, permission
-denial, broken pipes, oversized datagrams, unsupported operations, and invalid target results.
+TCP operations are synchronous. `connect_with_timeout` bounds connection establishment.
+`set_read_timeout` and `set_write_timeout` bound later stream operations, while
+`set_accept_timeout` bounds listener acceptance. Passing absence to a setter restores unlimited
+waiting. The corresponding observation methods return the exact configured `Duration?`.
+
+The implementation uses nonblocking descriptors internally only to centralize interruption,
+readiness, and deadline handling; this does not expose a public nonblocking mode. Public failures
+use stable `std.net.*` codes rather than native errno values. The stable categories include closed
+sockets, timeout, connection refusal, connection reset or abort, address conflict or
+unavailability, unreachable networks, permission denial, broken pipes, oversized datagrams,
+unsupported operations, and invalid target results.
 
 ## UDP Datagrams
 
@@ -72,9 +77,24 @@ number of bytes copied, and an explicit truncation flag. If a datagram exceeds t
 buffer, the unread suffix is discarded and cannot appear in the next receive. A zero-length
 datagram is a successful receive with copied length zero, not end of stream.
 
+UDP read timeouts bound `receive`. UDP write timeouts bound `connect`, `send`, and `send_to`.
+Timeout configuration does not change datagram boundaries or expose native socket options.
+
+## Timeout Semantics
+
+Each finite relative timeout becomes one fixed monotonic deadline when an operation begins.
+Interruption, readiness waits, and partial stream writes reuse that deadline; none restart the
+relative duration. A zero timeout still performs one immediate operation attempt, so already-ready
+data or capacity succeeds without waiting. If the operation would wait after its deadline, it
+returns `std.net.timed_out`.
+
+Timeouts measure the complete public operation rather than idle time between progress events.
+Consequently a full-stream write may return `std.net.timed_out` after a prefix has reached the peer.
+That prefix remains externally observable, as it does for another write failure. Wall-clock changes
+cannot affect these deadlines.
+
 ## Current Boundary
 
-Numeric addresses, synchronous TCP, and boundary-preserving UDP are implemented. Public monotonic
-timeouts enter in a later v0.39.0 phase over the same private descriptor, readiness, and
-target-adapter boundaries. Name resolution, URLs, HTTP, TLS, async I/O, and public nonblocking
-sockets are outside v0.39.0.
+Numeric addresses, synchronous TCP, boundary-preserving UDP, and monotonic operation timeouts are
+implemented. Name resolution, URLs, HTTP, TLS, async I/O, and public nonblocking sockets are outside
+v0.39.0.

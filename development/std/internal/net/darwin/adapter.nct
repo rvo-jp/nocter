@@ -518,8 +518,16 @@ noalloc func receive_from_once(
 }
 
 #target: "arm64-darwin"
-noalloc func poll_once(fd: usize, events: u16): RawUnitAttempt {
-    let descriptor = descriptor_i32(fd) otherwise { return RawUnitAttempt.malformed }
+noalloc func poll_once(
+    fd: usize,
+    events: u16,
+    timeout_milliseconds: usize?,
+): RawWaitAttempt {
+    let descriptor = descriptor_i32(fd) otherwise { return RawWaitAttempt.malformed }
+    let native_timeout = timeout_milliseconds otherwise { POLL_INFINITE_TIMEOUT }
+    if native_timeout != POLL_INFINITE_TIMEOUT && native_timeout > 2147483647 {
+        return RawWaitAttempt.malformed
+    }
     var poll_descriptor = PollDescriptor {
         fd: descriptor,
         events: events,
@@ -529,36 +537,43 @@ noalloc func poll_once(fd: usize, events: u16): RawUnitAttempt {
         darwin.SYS_POLL,
         ptr.addr(ptr.from_ref_mut(&+poll_descriptor)),
         1,
-        POLL_INFINITE_TIMEOUT,
+        native_timeout,
     )
-    if result.errno == darwin.ERRNO_INTERRUPTED { return RawUnitAttempt.interrupted }
-    if result.errno != 0 { return RawUnitAttempt.failed(os_error(result.errno)) }
-    if result.value != 1 { return RawUnitAttempt.malformed }
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawWaitAttempt.interrupted }
+    if result.errno != 0 { return RawWaitAttempt.failed(os_error(result.errno)) }
+    if result.value == 0 { return RawWaitAttempt.timed_out }
+    if result.value != 1 { return RawWaitAttempt.malformed }
     let returned = poll_descriptor.returned_events
-    if returned / POLL_INVALID % 2 == 1 { return RawUnitAttempt.malformed }
+    if returned / POLL_INVALID % 2 == 1 { return RawWaitAttempt.malformed }
     var known: u16 = 0
     if returned / POLL_INPUT % 2 == 1 { known += POLL_INPUT }
     if returned / POLL_OUTPUT % 2 == 1 { known += POLL_OUTPUT }
     if returned / POLL_ERROR % 2 == 1 { known += POLL_ERROR }
     if returned / POLL_HANGUP % 2 == 1 { known += POLL_HANGUP }
-    if returned == 0 || returned != known { return RawUnitAttempt.malformed }
+    if returned == 0 || returned != known { return RawWaitAttempt.malformed }
     if events == POLL_INPUT && returned / POLL_OUTPUT % 2 == 1 {
-        return RawUnitAttempt.malformed
+        return RawWaitAttempt.malformed
     }
     if events == POLL_OUTPUT && returned / POLL_INPUT % 2 == 1 {
-        return RawUnitAttempt.malformed
+        return RawWaitAttempt.malformed
     }
-    return RawUnitAttempt.ready
+    return RawWaitAttempt.ready
 }
 
 #target: "arm64-darwin"
-noalloc func wait_readable_once(fd: usize): RawUnitAttempt {
-    return poll_once(fd, POLL_INPUT)
+noalloc func wait_readable_once(
+    fd: usize,
+    timeout_milliseconds: usize?,
+): RawWaitAttempt {
+    return poll_once(fd, POLL_INPUT, timeout_milliseconds)
 }
 
 #target: "arm64-darwin"
-noalloc func wait_writable_once(fd: usize): RawUnitAttempt {
-    return poll_once(fd, POLL_OUTPUT)
+noalloc func wait_writable_once(
+    fd: usize,
+    timeout_milliseconds: usize?,
+): RawWaitAttempt {
+    return poll_once(fd, POLL_OUTPUT, timeout_milliseconds)
 }
 
 #target: "arm64-darwin"

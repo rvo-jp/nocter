@@ -26,6 +26,15 @@ pub(/) enum RawUnitAttempt {
 }
 
 #target: "arm64-darwin"
+pub(/) enum RawWaitAttempt {
+    ready
+    timed_out
+    interrupted
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
 pub(/) enum RawTransferAttempt {
     ready(count: usize)
     end
@@ -105,10 +114,16 @@ pub(/) noalloc func receive_from_once(
 ): RawDatagramAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func wait_readable_once(fd: usize): RawUnitAttempt
+pub(/) noalloc func wait_readable_once(
+    fd: usize,
+    timeout_milliseconds: usize?,
+): RawWaitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func wait_writable_once(fd: usize): RawUnitAttempt
+pub(/) noalloc func wait_writable_once(
+    fd: usize,
+    timeout_milliseconds: usize?,
+): RawWaitAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func local_address_once(fd: usize): RawAddressAttempt
