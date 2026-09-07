@@ -128,7 +128,7 @@ pub(super) fn finish_recovering(
         })
         .map_err(HeaderDefinitionFailure::without_recovery)?;
     let reserved = types.namespaces.imports.generics.headers.reserved;
-    let primitive_bindings = reserved.primitive_bindings;
+    let runtime_bindings = reserved.runtime_bindings;
     let module_bindings = reserved
         .modules
         .iter()
@@ -152,7 +152,7 @@ pub(super) fn finish_recovering(
             program,
             frontend_bindings,
             source_index,
-            primitive_bindings,
+            runtime_bindings,
             module_bindings,
             projection_recipe,
             current_symbols,

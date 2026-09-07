@@ -151,6 +151,10 @@ pub enum MirCallTarget {
         signature: MirCallSignature,
         dependency: crate::MirPrimitiveDependency,
     },
+    TargetService {
+        descriptor: nocter_runtime_contract::TargetServiceDescriptor,
+        signature: MirCallSignature,
+    },
     Structural(MirStructuralCall),
 }
 

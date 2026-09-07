@@ -18,12 +18,16 @@ enum ResolvedCallTarget<'program> {
         abi: &'program nocter_machine::MachineCallableAbi,
     },
     Primitive(crate::primitive_selection::Arm64PrimitiveTarget<'program>),
+    Imported {
+        import: nocter_machine::MachineImportId,
+        abi: &'program nocter_machine::MachineCallableAbi,
+    },
 }
 
 impl<'program> ResolvedCallTarget<'program> {
     const fn abi(self) -> &'program nocter_machine::MachineCallableAbi {
         match self {
-            Self::Direct { abi, .. } => abi,
+            Self::Direct { abi, .. } | Self::Imported { abi, .. } => abi,
             Self::Primitive(target) => target.abi(),
         }
     }
@@ -51,6 +55,21 @@ fn resolve_call_target<'program>(
             crate::primitive_selection::Arm64PrimitiveTarget::resolve(program, target)
                 .map(ResolvedCallTarget::Primitive)
                 .ok_or(Arm64SelectionError::PrimitiveCall(operation))
+        }
+        MachineCallTarget::Imported(target) => {
+            let descriptor = program
+                .import(target.import())
+                .ok_or(Arm64SelectionError::UnknownImport(target.import()))?;
+            match descriptor.calling_convention() {
+                nocter_runtime_contract::TargetServiceCallingConvention::PlatformC => {}
+            }
+            program
+                .imported_abi(target)
+                .map(|abi| ResolvedCallTarget::Imported {
+                    import: target.import(),
+                    abi,
+                })
+                .ok_or(Arm64SelectionError::ImportedCall(operation))
         }
     }
 }
@@ -245,6 +264,9 @@ pub(crate) fn select_call(
                 target,
                 selected,
             )?;
+        }
+        ResolvedCallTarget::Imported { import, .. } => {
+            selected.push(Arm64SelectedInstruction::CallImported(import));
         }
     }
     select_call_result(operation, abi.result(), result, context.values(), selected)

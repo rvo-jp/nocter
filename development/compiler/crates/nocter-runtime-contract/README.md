@@ -18,6 +18,7 @@ public source-level imports.
 - primitive role identities
 - closed positive effect evidence for primitive roles
 - trusted operating-system library and loader-symbol identities
+- finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
 - canonical representation classes
 - target runtime capability requirements
 - closed runtime environment schemas
@@ -27,6 +28,8 @@ public source-level imports.
 - A role has one numeric and structural authority.
 - Source spelling and visibility are not runtime identities.
 - A loader symbol is validated once and cannot be selected from user source.
+- A target-service binding owns its closed descriptor; later stages cannot reconstruct the
+  descriptor from its role or declaration spelling.
 - Machine consumers cannot reach declaration or checking storage through this contract.
 - Primitive effect facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.

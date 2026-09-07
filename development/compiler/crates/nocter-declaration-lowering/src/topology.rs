@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_declarations::{AcceptedDeclarationProgram, DeclarationProgram, ProgramBuildError};
 use nocter_frontend_bindings::FrontendBindings;
 use nocter_model::{ModuleId, SymbolTable};
-use nocter_runtime_contract::PrimitiveBinding;
+use nocter_runtime_contract::{PrimitiveBinding, TargetServiceBinding};
 use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
 use nocter_syntax::{NodeId, NodeKind, SyntaxElement, TokenKind};
@@ -62,7 +62,7 @@ pub struct LoweredDeclarations {
 #[derive(Debug)]
 pub struct ReusableDeclarations {
     program: AcceptedDeclarationProgram,
-    primitive_bindings: Box<[PrimitiveBinding]>,
+    runtime_bindings: crate::runtime_bindings::RuntimeCallBindings,
     module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
     projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
     body_identities: Box<[crate::ReusableBodyIdentity]>,
@@ -106,7 +106,7 @@ impl LoweredDeclarations {
         program: AcceptedDeclarationProgram,
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
-        primitive_bindings: Box<[PrimitiveBinding]>,
+        runtime_bindings: crate::runtime_bindings::RuntimeCallBindings,
         module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
         projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
         current_symbols: crate::current_symbols::CurrentCheckingSymbols,
@@ -115,7 +115,7 @@ impl LoweredDeclarations {
         Self {
             reusable: ReusableDeclarations {
                 program,
-                primitive_bindings,
+                runtime_bindings,
                 module_bindings,
                 projection_recipe,
                 body_identities,
@@ -139,6 +139,11 @@ impl LoweredDeclarations {
     #[must_use]
     pub const fn primitive_bindings(&self) -> &[PrimitiveBinding] {
         self.reusable.primitive_bindings()
+    }
+
+    #[must_use]
+    pub const fn target_service_bindings(&self) -> &[TargetServiceBinding] {
+        self.reusable.target_service_bindings()
     }
 
     /// Returns the source-neutral projection recipe emitted with this semantic program.
@@ -188,7 +193,12 @@ impl ReusableDeclarations {
 
     #[must_use]
     pub const fn primitive_bindings(&self) -> &[PrimitiveBinding] {
-        &self.primitive_bindings
+        self.runtime_bindings.primitives()
+    }
+
+    #[must_use]
+    pub const fn target_service_bindings(&self) -> &[TargetServiceBinding] {
+        self.runtime_bindings.target_services()
     }
 
     #[must_use]

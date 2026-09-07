@@ -110,8 +110,9 @@ pub(crate) fn target_from_finalized_program(
     finalized: &nocter_semantic_product::FinalizedProgram,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let primitive_bindings = finalized.declarations().primitive_bindings().to_vec();
+    let target_service_bindings = finalized.declarations().target_service_bindings().to_vec();
     let checked = finalized.current_branch();
-    finish_semantic_product(unit, primitive_bindings, checked)
+    finish_semantic_product(unit, primitive_bindings, target_service_bindings, checked)
 }
 
 pub(crate) fn failure_from_finalization(
@@ -181,6 +182,7 @@ fn semantic_failure_parts(
 fn finish_semantic_product(
     unit: &DiscoveredUnit,
     primitive_bindings: Vec<nocter_runtime_contract::PrimitiveBinding>,
+    target_service_bindings: Vec<nocter_runtime_contract::TargetServiceBinding>,
     checked: CheckedProgramOutput,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let primitives = match nocter_runtime_contract::PrimitiveRegistry::new(primitive_bindings) {
@@ -189,12 +191,20 @@ fn finish_semantic_product(
             return Err(Box::new(failure_with_checked(error.into(), checked)));
         }
     };
-    finish_checked_target(unit.target(), primitives, checked)
+    let target_services =
+        match nocter_runtime_contract::TargetServiceRegistry::new(target_service_bindings) {
+            Ok(target_services) => target_services,
+            Err(error) => {
+                return Err(Box::new(failure_with_checked(error.into(), checked)));
+            }
+        };
+    finish_checked_target(unit.target(), primitives, target_services, checked)
 }
 
 fn finish_checked_target(
     target: nocter_model::CompilationTarget,
     primitives: nocter_runtime_contract::PrimitiveRegistry,
+    target_services: nocter_runtime_contract::TargetServiceRegistry,
     checked: CheckedProgramOutput,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let Some(standard_package) = checked.program().graph().standard_package() else {
@@ -203,12 +213,13 @@ fn finish_checked_target(
             checked,
         )));
     };
-    let snapshot = match ToolchainSnapshot::select(target, standard_package, primitives) {
-        Ok(snapshot) => snapshot,
-        Err(error) => {
-            return Err(Box::new(failure_with_checked(error.into(), checked)));
-        }
-    };
+    let snapshot =
+        match ToolchainSnapshot::select(target, standard_package, primitives, target_services) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                return Err(Box::new(failure_with_checked(error.into(), checked)));
+            }
+        };
     let (program, source_index) = match checked.try_map_program(|program| {
         TargetProgram::build_retaining_checked(program, snapshot)
             .map_err(|failure| Box::new((*failure).into_parts()))

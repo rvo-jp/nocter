@@ -28,9 +28,13 @@ fn complete_closed_registry_constructs_a_target_program() {
     let output = check_prepared_program(&input, prepared).unwrap();
     let standard_package = output.program().graph().standard_package().unwrap();
     let registry = registry_for(output.program());
-    let snapshot =
-        ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
-            .unwrap();
+    let snapshot = ToolchainSnapshot::select(
+        CompilationTarget::Arm64Darwin,
+        standard_package,
+        registry,
+        nocter_runtime_contract::TargetServiceRegistry::empty(),
+    )
+    .unwrap();
     let (checked, _) = output.into_parts();
     let target = TargetProgram::build(checked, snapshot).unwrap();
     assert_eq!(
@@ -66,6 +70,7 @@ fn target_rejection_returns_the_unchanged_checked_program() {
         CompilationTarget::Arm64Darwin,
         nonstandard_package,
         registry,
+        nocter_runtime_contract::TargetServiceRegistry::empty(),
     )
     .unwrap();
 
@@ -649,6 +654,7 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
         CompilationTarget::Arm64Darwin,
         standard_package,
         PrimitiveRegistry::new(bindings).unwrap(),
+        nocter_runtime_contract::TargetServiceRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = output.into_parts();
@@ -678,9 +684,13 @@ fn build_target_program(fixture: &Fixture) -> TargetProgram {
     let output = check_prepared_program(&input, prepared).unwrap();
     let standard_package = output.program().graph().standard_package().unwrap();
     let registry = registry_for(output.program());
-    let snapshot =
-        ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
-            .unwrap();
+    let snapshot = ToolchainSnapshot::select(
+        CompilationTarget::Arm64Darwin,
+        standard_package,
+        registry,
+        nocter_runtime_contract::TargetServiceRegistry::empty(),
+    )
+    .unwrap();
     let (checked, _) = output.into_parts();
     TargetProgram::build(checked, snapshot).unwrap()
 }

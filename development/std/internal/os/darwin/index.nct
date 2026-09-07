@@ -3,6 +3,7 @@
 use /internal/os.{OSError, OSErrorKind, Platform}
 see ./implementation.nct
 see ./pair_tests.nct
+see ./resolver.nct
 
 #target: "arm64-darwin"
 pub(/) copy struct SyscallResult {

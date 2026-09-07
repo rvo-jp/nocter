@@ -3,7 +3,7 @@
 ## Responsibility
 
 Close machine layout and lower validated MIR into a target-independent machine program with explicit
-ABI transport, storage, linkage, and primitive dependencies.
+ABI transport, storage, linkage, primitive dependencies, and trusted function imports.
 
 ## Contract
 
@@ -15,7 +15,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 
 - stored layout and aggregate representation
 - immutable-static serialization and data-to-data relocation construction
-- call/result ABI classification and transport
+- call/result ABI classification and transport shared by primitive and imported calls
+- one canonical imported-service identity domain retained independently of MIR
 - stack objects, machine control flow, and dataflow
 - structural copy/destruction expansion
 - deterministic linkage and primitive dependency closure
@@ -26,6 +27,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - Machine code cannot reach checking or target-program storage.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.
+- Imported calls retain only a dense machine import identity; their catalog descriptor is stored
+  once in the program and cannot be rebuilt from source spelling.
 - Each reachable static retains its declaration identity as one addressable data object; text
   payloads may be shared, but equal static values cannot be merged.
 

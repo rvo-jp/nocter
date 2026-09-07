@@ -13,13 +13,14 @@ CheckedProgram + ToolchainSnapshot
   -> MirProgram
 ```
 
-`TargetProgram` is the common public acceptance boundary for `check`, `build`, and `run`. It owns the
-selected target and validates target availability, toolchain primitive completeness, package target
-identity, and target-dependent buildability once. A library-only check may stop at this boundary.
+`TargetProgram` is the common public acceptance boundary for `check`, `build`, and `run`. It owns
+the selected target and validates target availability, toolchain primitive and trusted-service
+completeness, package target identity, and target-dependent buildability once. A library-only check
+may stop at this boundary.
 
 `ExecutableProgram` consumes one exact executable or native-test selection and closes its reachable
-monomorphized callable graph. It freezes concrete dispatch, closure/drop instances, primitive
-dependencies, and executable type representations before MIR.
+monomorphized callable graph. It freezes concrete dispatch, closure/drop instances, primitive and
+trusted-service dependencies, and executable type representations before MIR.
 
 `MirProgram` consumes that closed graph and expresses concrete control flow, places, operations,
 cleanup, regions, outcomes, packs, and calls. MIR validation checks internal representation
@@ -29,8 +30,8 @@ integrity; it cannot reject a source-language capability already accepted by Tar
 
 Checking retains abstract requirements for generic bodies and owns the selector capable of proving
 their concrete substitutions. Executable specialization asks that authority once and stores the
-selected direct callable, primitive, closure body, coercion-plus-operation plan, or other closed
-dispatch result.
+selected direct callable, primitive, trusted target-service descriptor, closure body,
+coercion-plus-operation plan, or other closed dispatch result.
 
 MIR receives only that result. It cannot inspect interface implementations, instance declarations,
 requirements, method names, or source visibility. Callable values are statically witnessed and do
@@ -54,6 +55,7 @@ symbol spelling is generated after selection and cannot be used to locate a sema
 - Target acceptance is shared by all commands and runs once per checked/toolchain pair.
 - Executable roots cannot be invented for library-only packages.
 - Concrete substitutions contain every owner and callable generic argument exactly once.
-- Every reachable call has a frozen target or primitive role before MIR.
+- Every reachable call has a frozen target, primitive role, or catalog-owned target-service
+  descriptor before MIR.
 - MIR cannot inspect syntax, declarations, source projection, or generic proof inputs.
 - A later backend failure is an integrity/output failure, not a second language diagnostic.

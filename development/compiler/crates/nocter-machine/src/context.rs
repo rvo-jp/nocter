@@ -264,6 +264,7 @@ fn target_requires_context(
         MachineCallTarget::Primitive(primitive) => {
             Ok(primitive_uses_context(kind, primitive.role()))
         }
+        MachineCallTarget::Imported(_) => Ok(false),
     }
 }
 

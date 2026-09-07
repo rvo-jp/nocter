@@ -1,0 +1,14 @@
+//! Compiler-trusted Darwin resolver service declarations.
+
+see ./index.nct
+
+#target: "arm64-darwin"
+noalloc primitive func get_address_info_raw(
+    node: *u8,
+    service: *u8,
+    hints: *u8,
+    result: *usize,
+): i32
+
+#target: "arm64-darwin"
+noalloc primitive func free_address_info_raw(result: *u8): void

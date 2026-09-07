@@ -23,6 +23,7 @@ impl Arm64SelectedFunction {
         &self,
         functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
         data: &[(MachineDataId, crate::Arm64DataId)],
+        imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
         pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
         allocation_failure_error: crate::Arm64DataId,
     ) -> Result<Arm64Code, Arm64MaterializationError> {
@@ -36,6 +37,7 @@ impl Arm64SelectedFunction {
             function: self,
             functions,
             data,
+            imports,
             pack_callbacks,
             allocation_failure_error,
         };
@@ -59,6 +61,7 @@ struct InstructionMaterialization<'selected> {
     function: &'selected Arm64SelectedFunction,
     functions: &'selected [(MachineFunctionId, crate::Arm64FunctionId)],
     data: &'selected [(MachineDataId, crate::Arm64DataId)],
+    imports: &'selected [(nocter_machine::MachineImportId, crate::Arm64DataId)],
     pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
     allocation_failure_error: crate::Arm64DataId,
 }
@@ -314,6 +317,27 @@ fn emit_instruction(
         ),
         Arm64SelectedInstruction::Call(target) => {
             function_target(context.functions, target).map(|target| code.call(target))
+        }
+        Arm64SelectedInstruction::CallImported(import) => {
+            let slot = context
+                .imports
+                .get(import.index())
+                .and_then(|(actual, slot)| (*actual == import).then_some(*slot))
+                .ok_or(Arm64MaterializationError::UnknownImport(import))?;
+            let scratch = Arm64NocterAbi::compiler_scratch_register(0)
+                .ok_or(Arm64MaterializationError::MissingScratchRegister)?;
+            code.load_data_address(slot, scratch);
+            code.append(Arm64Instruction::LoadUnsigned {
+                size: Arm64LoadStoreSize::Double,
+                destination: Arm64DataRegister::General(scratch),
+                base: Arm64BaseRegister::General(scratch),
+                offset: 0,
+            });
+            code.append(Arm64Instruction::BranchRegister {
+                target: scratch,
+                link: true,
+            });
+            Ok(())
         }
         Arm64SelectedInstruction::CallRegister(target) => {
             emit_indirect_call(function, target, code)
@@ -1095,6 +1119,8 @@ pub enum Arm64MaterializationError {
     UnknownPackCallback(crate::Arm64PackCallbackKey),
     InvalidPackCallback(crate::Arm64PackCallbackKey),
     UnknownData(MachineDataId),
+    UnknownImport(nocter_machine::MachineImportId),
+    MissingScratchRegister,
     UnknownBlock(MachineBlockId),
     UnknownSelectedAddress(nocter_machine::MachineAddressId),
     UnknownVirtualRegister(crate::Arm64VirtualRegister),

@@ -8,10 +8,10 @@ and an owned synchronous client lifecycle.
 
 ## Next Work
 
-Complete Phase 0 by implementing the source-independent trusted target-service catalog and the
-minimal Darwin C-call/Mach-O import path required by system name resolution. Keep this toolchain-
-private: do not introduce public FFI or URL, resolver, or HTTP meaning into semantic IR. Preserve
-the immutable v0.39.0 tag and asset.
+Begin Phase 1 with the immutable `std/url` value boundary. Define URL components and parsing before
+transport integration; parsing, canonical formatting, hashing, equality, relative resolution, and
+HTTP request-target projection must consume one retained representation. Keep DNS, sockets, and
+HTTP policy outside the URL module. Preserve the immutable v0.39.0 tag and asset.
 
 ## Blockers
 

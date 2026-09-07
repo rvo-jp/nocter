@@ -14,7 +14,8 @@ use super::{
     ExecutableBody, ExecutableBorrowEdge, ExecutableClosureEdge, ExecutableDestructionEdge,
     ExecutableDispatchEdge, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
     ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram,
-    ExecutableProgramError, ExecutableRoot, ExecutableTestCase, ExecutableTypeEdge,
+    ExecutableProgramError, ExecutableRoot, ExecutableTargetServiceCall, ExecutableTestCase,
+    ExecutableTypeEdge,
 };
 
 mod pack_literal;
@@ -515,6 +516,24 @@ impl<'program> ExecutableClosureBuilder<'program> {
                             )?,
                         },
                     ))
+                } else if let Some(binding) = self
+                    .target
+                    .toolchain()
+                    .target_services()
+                    .binding(dispatch.callable())
+                {
+                    let signature = callable_signature(
+                        self.target,
+                        &mut self.resolver,
+                        &callable_key,
+                        &callable_key.substitution(),
+                    )?;
+                    Ok(DraftDispatchStep::TargetService(
+                        ExecutableTargetServiceCall {
+                            descriptor: binding.descriptor().clone(),
+                            signature,
+                        },
+                    ))
                 } else {
                     Err(ExecutableProgramError::BodylessCallable(
                         dispatch.callable(),
@@ -845,6 +864,7 @@ enum DraftDispatchPlan {
 enum DraftDispatchStep {
     Direct(ExecutableItemKey),
     StandardPrimitive(ExecutablePrimitiveCall),
+    TargetService(ExecutableTargetServiceCall),
     StructuralPrimitive(nocter_checking::ResolvedPrimitiveDispatch),
     CallableValue(DraftCallableInvocation),
 }
@@ -982,6 +1002,7 @@ fn freeze_dispatch_step(
         DraftDispatchStep::StandardPrimitive(call) => {
             ExecutableDispatchStep::StandardPrimitive(call)
         }
+        DraftDispatchStep::TargetService(call) => ExecutableDispatchStep::TargetService(call),
         DraftDispatchStep::StructuralPrimitive(primitive) => {
             ExecutableDispatchStep::StructuralPrimitive(primitive)
         }

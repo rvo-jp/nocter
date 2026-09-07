@@ -5,7 +5,7 @@
 //! consumers treat every identity and edge as immutable input.
 
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTargetKind};
-use nocter_runtime_contract::PrimitiveRole;
+use nocter_runtime_contract::{PrimitiveRole, TargetServiceRole};
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
@@ -152,6 +152,40 @@ pub struct PrimitiveRoleLocator {
     name: Box<str>,
 }
 
+/// Semantic callable selected for one compiler-trusted target service.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct TargetServiceRoleLocator {
+    role: TargetServiceRole,
+    module: ModuleIdentity,
+    name: Box<str>,
+}
+
+impl TargetServiceRoleLocator {
+    #[must_use]
+    pub fn new(role: TargetServiceRole, module: ModuleIdentity, name: impl Into<Box<str>>) -> Self {
+        Self {
+            role,
+            module,
+            name: name.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn role(&self) -> TargetServiceRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
+}
+
 /// Semantic shape required for one compiler-represented built-in type declaration.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct BuiltinTypeLocator {
@@ -284,6 +318,7 @@ pub struct ToolchainInput {
     structural_attachments: Vec<StructuralAttachmentInput>,
     standard_roles: Vec<StandardRoleLocator>,
     primitive_roles: Vec<PrimitiveRoleLocator>,
+    target_service_roles: Vec<TargetServiceRoleLocator>,
     builtin_types: Vec<BuiltinTypeLocator>,
 }
 
@@ -301,6 +336,7 @@ impl ToolchainInput {
             structural_attachments,
             standard_roles,
             primitive_roles: Vec::new(),
+            target_service_roles: Vec::new(),
             builtin_types: Vec::new(),
         }
     }
@@ -331,6 +367,11 @@ impl ToolchainInput {
     }
 
     #[must_use]
+    pub fn target_service_roles(&self) -> &[TargetServiceRoleLocator] {
+        &self.target_service_roles
+    }
+
+    #[must_use]
     pub fn builtin_types(&self) -> &[BuiltinTypeLocator] {
         &self.builtin_types
     }
@@ -344,6 +385,12 @@ impl ToolchainInput {
     #[must_use]
     pub fn with_primitive_roles(mut self, roles: Vec<PrimitiveRoleLocator>) -> Self {
         self.primitive_roles = roles;
+        self
+    }
+
+    #[must_use]
+    pub fn with_target_service_roles(mut self, roles: Vec<TargetServiceRoleLocator>) -> Self {
+        self.target_service_roles = roles;
         self
     }
 

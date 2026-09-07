@@ -1,7 +1,7 @@
 use nocter_model::TypeId;
 use nocter_runtime_contract::PrimitiveRole;
 
-use crate::identity::MachinePrimitiveAbiId;
+use crate::identity::MachineRuntimeCallAbiId;
 use crate::{
     MachineAddressId, MachineFunctionId, MachinePackId, MachinePrimitiveDependency, MachineStackId,
     MachineValueId,
@@ -12,7 +12,7 @@ use crate::{
 pub struct MachinePrimitiveTarget {
     role: PrimitiveRole,
     type_arguments: Box<[TypeId]>,
-    abi: MachinePrimitiveAbiId,
+    abi: MachineRuntimeCallAbiId,
     dependency: MachinePrimitiveDependency,
 }
 
@@ -20,7 +20,7 @@ impl MachinePrimitiveTarget {
     pub(crate) fn new(
         role: PrimitiveRole,
         type_arguments: impl Into<Box<[TypeId]>>,
-        abi: MachinePrimitiveAbiId,
+        abi: MachineRuntimeCallAbiId,
         dependency: MachinePrimitiveDependency,
     ) -> Self {
         Self {
@@ -42,7 +42,7 @@ impl MachinePrimitiveTarget {
     }
 
     #[must_use]
-    pub(crate) const fn abi_id(&self) -> MachinePrimitiveAbiId {
+    pub(crate) const fn abi_id(&self) -> MachineRuntimeCallAbiId {
         self.abi
     }
 
@@ -52,11 +52,35 @@ impl MachinePrimitiveTarget {
     }
 }
 
+/// One imported target-service call retaining the closed descriptor and planned machine ABI.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MachineImportedTarget {
+    import: crate::MachineImportId,
+    abi: MachineRuntimeCallAbiId,
+}
+
+impl MachineImportedTarget {
+    pub(crate) const fn new(import: crate::MachineImportId, abi: MachineRuntimeCallAbiId) -> Self {
+        Self { import, abi }
+    }
+
+    #[must_use]
+    pub const fn import(&self) -> crate::MachineImportId {
+        self.import
+    }
+
+    #[must_use]
+    pub(crate) const fn abi_id(&self) -> MachineRuntimeCallAbiId {
+        self.abi
+    }
+}
+
 /// The closed runtime target selected before target-machine instruction lowering.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MachineCallTarget {
     Direct(MachineFunctionId),
     Primitive(MachinePrimitiveTarget),
+    Imported(MachineImportedTarget),
 }
 
 /// Allocation context visible only for the duration of one call.

@@ -1494,6 +1494,7 @@ fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
         CompilationTarget::Arm64Darwin,
         standard_package,
         primitive_registry(checked.program()),
+        nocter_runtime_contract::TargetServiceRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = checked.into_parts();

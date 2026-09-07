@@ -7,7 +7,7 @@ use nocter_mir::{
 use nocter_model::{Arena, ArenaBuilder, ExecutableItemId, TypeId};
 use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
-use crate::identity::{MachineId, MachinePrimitiveAbiId, MachineTable};
+use crate::identity::{MachineId, MachineRuntimeCallAbiId, MachineTable};
 use crate::{MachineLayout, MachineLayoutStore, MachineTarget};
 
 /// Stored-value classification before a caller or callee assigns concrete ABI locations.
@@ -226,33 +226,33 @@ impl MachineCallableAbi {
 
 /// Temporary whole-program ABI authority used while lowering MIR into machine operations.
 ///
-/// Direct callable entries are moved into their final machine functions. Primitive signatures are
-/// interned here, referenced by identity from calls, and transferred as one dense final table.
+/// Direct callable entries are moved into their final machine functions. Runtime-call signatures
+/// are interned here, referenced by identity from calls, and transferred as one dense final table.
 #[derive(Debug)]
 pub(crate) struct MachineAbiPlan {
     callables: Arena<ExecutableItemId, MachineCallableAbi>,
-    primitive_signatures: MachinePrimitiveSignatureIndex,
-    primitive_abis: Vec<MachineCallableAbi>,
+    runtime_call_signatures: MachineRuntimeCallSignatureIndex,
+    runtime_call_abis: Vec<MachineCallableAbi>,
 }
 
-/// Machine-owned lookup from a borrowed MIR signature to the canonical primitive ABI identity.
+/// Machine-owned lookup from a borrowed MIR signature to the canonical runtime-call ABI identity.
 ///
 /// The two-level map permits lookup by `&[TypeId]` without requiring MIR signatures to implement
 /// ordering or allocating a temporary owned key for repeated calls.
 #[derive(Debug, Default)]
-struct MachinePrimitiveSignatureIndex {
-    by_parameters: BTreeMap<Box<[TypeId]>, BTreeMap<TypeId, MachinePrimitiveAbiId>>,
+struct MachineRuntimeCallSignatureIndex {
+    by_parameters: BTreeMap<Box<[TypeId]>, BTreeMap<TypeId, MachineRuntimeCallAbiId>>,
 }
 
-impl MachinePrimitiveSignatureIndex {
-    fn get(&self, signature: &MirCallSignature) -> Option<MachinePrimitiveAbiId> {
+impl MachineRuntimeCallSignatureIndex {
+    fn get(&self, signature: &MirCallSignature) -> Option<MachineRuntimeCallAbiId> {
         self.by_parameters
             .get(signature.parameters())?
             .get(&signature.result())
             .copied()
     }
 
-    fn insert(&mut self, signature: &MirCallSignature, id: MachinePrimitiveAbiId) {
+    fn insert(&mut self, signature: &MirCallSignature, id: MachineRuntimeCallAbiId) {
         let previous = self
             .by_parameters
             .entry(signature.parameters().into())
@@ -260,25 +260,25 @@ impl MachinePrimitiveSignatureIndex {
             .insert(signature.result(), id);
         assert!(
             previous.is_none(),
-            "primitive ABI signature was indexed twice"
+            "runtime-call ABI signature was indexed twice"
         );
     }
 }
 
-/// Final primitive ABI authority retained after MIR signature lookup is no longer needed.
+/// Final runtime-call ABI authority retained after MIR signature lookup is no longer needed.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct MachinePrimitiveAbiTable {
-    values: MachineTable<MachinePrimitiveAbiId, MachineCallableAbi>,
+pub(crate) struct MachineRuntimeCallAbiTable {
+    values: MachineTable<MachineRuntimeCallAbiId, MachineCallableAbi>,
 }
 
-impl MachinePrimitiveAbiTable {
-    pub(crate) fn get(&self, id: MachinePrimitiveAbiId) -> Option<&MachineCallableAbi> {
+impl MachineRuntimeCallAbiTable {
+    pub(crate) fn get(&self, id: MachineRuntimeCallAbiId) -> Option<&MachineCallableAbi> {
         self.values.get(id)
     }
 }
 
 impl MachineAbiPlan {
-    /// Plans every direct function and unique primitive signature from exact MIR types.
+    /// Plans every direct function and unique runtime-call signature from exact MIR types.
     ///
     /// # Errors
     ///
@@ -290,45 +290,45 @@ impl MachineAbiPlan {
     ) -> Result<Self, MachineAbiError> {
         let types = program.types();
         let mut callables = ArenaBuilder::new();
-        let mut primitive_signatures = MachinePrimitiveSignatureIndex::default();
-        let mut primitive_abis = Vec::new();
+        let mut runtime_call_signatures = MachineRuntimeCallSignatureIndex::default();
+        let mut runtime_call_abis = Vec::new();
         for (expected, function) in program.functions().iter() {
             let actual = callables.insert(plan_function(function, types, layouts)?);
             if actual != expected {
                 return Err(MachineAbiError::MismatchedFunctionIdentity { expected, actual });
             }
-            collect_primitive_abis(
+            collect_runtime_call_abis(
                 function.body(),
                 types,
                 layouts,
-                &mut primitive_signatures,
-                &mut primitive_abis,
+                &mut runtime_call_signatures,
+                &mut runtime_call_abis,
             )?;
         }
         match program.root() {
-            MirRoot::Process(root) => collect_primitive_abis(
+            MirRoot::Process(root) => collect_runtime_call_abis(
                 root.body(),
                 types,
                 layouts,
-                &mut primitive_signatures,
-                &mut primitive_abis,
+                &mut runtime_call_signatures,
+                &mut runtime_call_abis,
             )?,
             MirRoot::Tests { cases, .. } => {
                 for root in cases {
-                    collect_primitive_abis(
+                    collect_runtime_call_abis(
                         root.body(),
                         types,
                         layouts,
-                        &mut primitive_signatures,
-                        &mut primitive_abis,
+                        &mut runtime_call_signatures,
+                        &mut runtime_call_abis,
                     )?;
                 }
             }
         }
         Ok(Self {
             callables: callables.finish(),
-            primitive_signatures,
-            primitive_abis,
+            runtime_call_signatures,
+            runtime_call_abis,
         })
     }
 
@@ -345,38 +345,40 @@ impl MachineAbiPlan {
         self.callables.iter()
     }
 
-    pub(crate) fn primitive_signature_id(
+    pub(crate) fn runtime_call_signature_id(
         &self,
         signature: &MirCallSignature,
-    ) -> Option<MachinePrimitiveAbiId> {
-        self.primitive_signatures.get(signature)
+    ) -> Option<MachineRuntimeCallAbiId> {
+        self.runtime_call_signatures.get(signature)
     }
 
-    pub(crate) fn finish(self) -> MachinePrimitiveAbiTable {
-        MachinePrimitiveAbiTable {
-            values: MachineTable::from_values(self.primitive_abis),
+    pub(crate) fn finish(self) -> MachineRuntimeCallAbiTable {
+        MachineRuntimeCallAbiTable {
+            values: MachineTable::from_values(self.runtime_call_abis),
         }
     }
 }
 
-fn collect_primitive_abis(
+fn collect_runtime_call_abis(
     body: &MirBody,
     types: &RuntimeTypeTable,
     layouts: &MachineLayoutStore,
-    signatures: &mut MachinePrimitiveSignatureIndex,
+    signatures: &mut MachineRuntimeCallSignatureIndex,
     abis: &mut Vec<MachineCallableAbi>,
 ) -> Result<(), MachineAbiError> {
     for (_, operation) in body.operations().iter() {
         let MirOperationKind::Call(call) = operation.kind() else {
             continue;
         };
-        let MirCallTarget::StandardPrimitive { signature, .. } = call.target() else {
-            continue;
+        let signature = match call.target() {
+            MirCallTarget::StandardPrimitive { signature, .. }
+            | MirCallTarget::TargetService { signature, .. } => signature,
+            MirCallTarget::Direct(_) | MirCallTarget::Structural(_) => continue,
         };
         if signatures.get(signature).is_some() {
             continue;
         }
-        let id = MachinePrimitiveAbiId::new(abis.len());
+        let id = MachineRuntimeCallAbiId::new(abis.len());
         let abi = plan_signature(
             types,
             layouts,

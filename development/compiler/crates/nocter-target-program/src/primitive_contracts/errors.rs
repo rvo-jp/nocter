@@ -82,35 +82,3 @@ impl fmt::Display for PrimitiveContractError {
 }
 
 impl std::error::Error for PrimitiveContractError {}
-
-/// Failure to prove that the checked standard package is exactly the compiler registry.
-#[derive(Clone, Copy, Eq, PartialEq)]
-pub enum PrimitiveRegistryValidationError {
-    Contract(PrimitiveContractError),
-    UnregisteredPrimitive(CallableId),
-}
-
-impl fmt::Debug for PrimitiveRegistryValidationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Contract(error) => formatter.debug_tuple("Contract").field(error).finish(),
-            Self::UnregisteredPrimitive(callable) => formatter
-                .debug_tuple("UnregisteredPrimitive")
-                .field(callable)
-                .finish(),
-        }
-    }
-}
-
-impl fmt::Display for PrimitiveRegistryValidationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Contract(error) => error.fmt(formatter),
-            Self::UnregisteredPrimitive(_) => {
-                formatter.write_str("standard package declares an unregistered primitive")
-            }
-        }
-    }
-}
-
-impl std::error::Error for PrimitiveRegistryValidationError {}

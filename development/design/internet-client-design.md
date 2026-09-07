@@ -40,7 +40,7 @@ services already supplied by the selected operating system.
 
 This mechanism is not public FFI and introduces no user-facing declaration form:
 
-- standard-library target adapters declare package-private `primitive func` callables;
+- standard-library target adapters declare source-private `primitive func` callables;
 - the selected toolchain profile is the sole authority mapping each exact declaration identity to
   a target-service descriptor;
 - target closure validates the exact callable type once and produces a closed service-call plan;
@@ -49,12 +49,13 @@ This mechanism is not public FFI and introduces no user-facing declaration form:
 - the native selector applies the already chosen foreign calling convention;
 - the executable serializer owns dylib imports, symbol spellings, stubs, and loader binding data.
 
-A target-service descriptor contains a stable internal identity, library identity, external symbol,
+A target-service binding connects one stable compiler role and exact semantic callable to a closed
+descriptor. The descriptor contains the target identity, library identity, external symbol,
 validated calling convention, and argument/result ABI classes. No later stage may reconstruct one
 of these fields from another. Source-controlled strings cannot select a symbol or library.
 
-The initial foreign-call subset admits only fixed-arity word-sized integers and pointers, a
-word-sized result or no result, the platform C calling convention, and ordinary caller-clobber
+The initial foreign-call subset admits only fixed-arity C integers, machine words, and pointers,
+one scalar result or no result, the platform C calling convention, and ordinary caller-clobber
 effects. It does not admit variadic calls, callbacks, aggregate values by value, foreign ownership,
 or user declarations. Future services must extend this contract deliberately instead of treating
 an arbitrary C signature as compatible.

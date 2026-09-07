@@ -9,6 +9,7 @@ mod import;
 mod primitive;
 mod representation;
 mod target;
+mod target_service;
 
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{RuntimeFunctionImport, RuntimeFunctionImportError, RuntimeLibraryIdentity};
@@ -18,6 +19,11 @@ pub use primitive::{
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,
+};
+pub use target_service::{
+    TargetServiceBinding, TargetServiceBindingError, TargetServiceCallingConvention,
+    TargetServiceDescriptor, TargetServiceRegistry, TargetServiceRole, TargetServiceSignature,
+    TargetServiceValueAbi,
 };
 pub use types::{
     RuntimePrimitive, RuntimeType, RuntimeTypeTable, RuntimeTypeTableBuildError,

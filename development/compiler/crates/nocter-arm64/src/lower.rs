@@ -141,6 +141,15 @@ fn lower_machine_entry(
         runtime.allocation_failure_error_node(),
         runtime.error().alignment(),
     )?;
+    let imports = machine
+        .imports()
+        .map(|(source, descriptor)| {
+            Ok((
+                source,
+                builder.add_function_import(descriptor.import().clone())?,
+            ))
+        })
+        .collect::<Result<Vec<_>, Arm64ProgramError>>()?;
     let mut data = Vec::with_capacity(machine.data().len());
     for (source, definition) in machine.data().iter() {
         if source.index() != data.len() {
@@ -171,7 +180,13 @@ fn lower_machine_entry(
             .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
         builder.define_function(
             target,
-            function.materialize(&functions, &data, &pack_callbacks, allocation_failure_error)?,
+            function.materialize(
+                &functions,
+                &data,
+                &imports,
+                &pack_callbacks,
+                allocation_failure_error,
+            )?,
         )?;
     }
     for (key, target) in &pack_callbacks {

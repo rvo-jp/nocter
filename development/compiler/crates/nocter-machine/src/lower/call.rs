@@ -6,8 +6,8 @@ use super::body::BodyIdentities;
 use super::context::ProgramLoweringContext;
 use super::structural::lower_structural;
 use crate::{
-    MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget, MachineOperationKind,
-    MachinePrimitiveDependency, MachinePrimitiveTarget,
+    MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget, MachineImportedTarget,
+    MachineOperationKind, MachinePrimitiveDependency, MachinePrimitiveTarget,
 };
 
 pub(super) fn lower_call(
@@ -86,7 +86,7 @@ pub(super) fn lower_call_target(
             }
             let abi = context
                 .abi
-                .primitive_signature_id(signature)
+                .runtime_call_signature_id(signature)
                 .ok_or(MachineProgramError::MissingPrimitiveAbi(operation))?;
             let dependency = match dependency {
                 MirPrimitiveDependency::None => MachinePrimitiveDependency::None,
@@ -105,6 +105,22 @@ pub(super) fn lower_call_target(
                 type_arguments.clone(),
                 abi,
                 dependency,
+            )))
+        }
+        MirCallTarget::TargetService {
+            descriptor,
+            signature,
+        } => {
+            let abi = context
+                .abi
+                .runtime_call_signature_id(signature)
+                .ok_or(MachineProgramError::MissingRuntimeCallAbi(operation))?;
+            let import = context
+                .imports
+                .id(descriptor)
+                .ok_or(MachineProgramError::MissingTargetServiceImport(operation))?;
+            Ok(MachineCallTarget::Imported(MachineImportedTarget::new(
+                import, abi,
             )))
         }
         MirCallTarget::Structural(_) => Err(MachineProgramError::InvalidPackTarget {

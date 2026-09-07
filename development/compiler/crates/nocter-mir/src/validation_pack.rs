@@ -15,7 +15,9 @@ pub(crate) fn validate_call_pack(
 ) -> Result<(), MirValidationError> {
     let expected = match call.target() {
         MirCallTarget::Direct(item) => environment.item_pack_input(*item),
-        MirCallTarget::StandardPrimitive { .. } | MirCallTarget::Structural(_) => None,
+        MirCallTarget::StandardPrimitive { .. }
+        | MirCallTarget::TargetService { .. }
+        | MirCallTarget::Structural(_) => None,
     };
     match (expected, call.pack()) {
         (None, None) => Ok(()),

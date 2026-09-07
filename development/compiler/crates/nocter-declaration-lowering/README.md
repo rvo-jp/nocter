@@ -9,10 +9,10 @@ contracts, and publish accepted or explicitly recoverable declaration evidence.
 
 The crate consumes syntax, compile-unit topology, target selection, toolchain/runtime contracts, and
 model construction authority. It produces `DeclarationProgram`, `AcceptedDeclarationProgram`, and
-one source-neutral `ReusableDeclarations` result containing the accepted authority, primitive
-bindings, and `FrontendProjectionRecipe`. The recipe materializes frontend bindings,
-diagnostic origins, and source projection together for one current syntax generation. It does not
-check callable bodies.
+one source-neutral `ReusableDeclarations` result containing the accepted authority, primitive and
+trusted target-service bindings, and `FrontendProjectionRecipe`. The recipe materializes frontend
+bindings, diagnostic origins, and source projection together for one current syntax generation. It
+does not check callable bodies.
 
 ## Internal Responsibilities
 
@@ -27,7 +27,7 @@ check callable bodies.
 - one-way binding of authored callable guarantees into declaration and structural-type contracts
 - construction-time binding of inherited associated names before declaration capability freeze
 - declaration surfaces and contract/definition joins
-- primitive, builtin, standard-role, and package-target projection
+- primitive, trusted target-service, builtin, standard-role, and package-target projection
 - declaration recovery and diagnostic classification
 
 ## Invariants
@@ -36,7 +36,8 @@ check callable bodies.
 - The eager whole-stage convenience entry exists only behind the `test-api` feature or the crate's
   own test build. Production consumers can use reusable query contracts but cannot invoke a second
   declaration scheduler.
-- Target directives, primitive roles, and standard roles are selected once upstream or here.
+- Target directives, primitive roles, target-service roles, and standard roles are selected once
+  upstream or here.
 - `SourceIndex` is output projection, never semantic input.
 - A projection recipe contains semantic identities and declaration-surface locators, never
   `SourceId`, `NodeId`, token ranges, documentation text, or body-local syntax.

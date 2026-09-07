@@ -8,7 +8,7 @@ use nocter_model::{
     InterfaceId, InterfaceImplementationId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
     StaticId, TestId, TypeAliasId, VariantId,
 };
-use nocter_runtime_contract::PrimitiveBinding;
+use nocter_runtime_contract::{PrimitiveBinding, TargetServiceBinding};
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::NodeId;
@@ -236,7 +236,7 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) contracts: DeclarationContracts,
     pub(crate) entity_index: ReservedEntityIndex,
     pub(crate) toolchain: crate::toolchain::ResolvedToolchainInput,
-    pub(crate) primitive_bindings: Box<[PrimitiveBinding]>,
+    pub(crate) runtime_bindings: crate::runtime_bindings::RuntimeCallBindings,
 }
 
 impl ReservedDeclarations<'_> {
@@ -395,6 +395,11 @@ pub(crate) fn reserve_with_contracts(
     )?;
     let primitive_bindings =
         resolve_primitive_bindings(&declarations, &entity_index, toolchain.primitive_roles())?;
+    let target_service_bindings = resolve_target_service_bindings(
+        &declarations,
+        &entity_index,
+        toolchain.target_service_roles(),
+    )?;
     project_declaration_documentation(
         &sources,
         &declarations,
@@ -437,7 +442,10 @@ pub(crate) fn reserve_with_contracts(
         contracts,
         entity_index,
         toolchain,
-        primitive_bindings: primitive_bindings.into_boxed_slice(),
+        runtime_bindings: crate::runtime_bindings::RuntimeCallBindings::new(
+            primitive_bindings.into_boxed_slice(),
+            target_service_bindings.into_boxed_slice(),
+        ),
     })
 }
 
@@ -480,6 +488,30 @@ fn resolve_primitive_bindings(
                 return Err(InconsistentSurface(role.declaration()));
             }
             Ok(PrimitiveBinding::new(role.role(), callable))
+        })
+        .collect()
+}
+
+fn resolve_target_service_bindings(
+    declarations: &[SurfaceDeclaration],
+    entities: &ReservedEntityIndex,
+    roles: &[crate::toolchain::ResolvedTargetServiceRole],
+) -> Result<Vec<TargetServiceBinding>, ReservationError> {
+    roles
+        .iter()
+        .copied()
+        .map(|role| {
+            let declaration = declarations
+                .get(role.declaration().index())
+                .ok_or(InconsistentSurface(role.declaration()))?;
+            let Some(ReservedEntity::Callable(callable)) = entities.entity(role.declaration())
+            else {
+                return Err(InconsistentSurface(role.declaration()));
+            };
+            if declaration.kind() != SurfaceDeclarationKind::PrimitiveFunction {
+                return Err(InconsistentSurface(role.declaration()));
+            }
+            Ok(TargetServiceBinding::new(role.role(), callable))
         })
         .collect()
 }

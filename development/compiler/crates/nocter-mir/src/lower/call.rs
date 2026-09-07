@@ -225,6 +225,7 @@ impl FunctionLowerer<'_> {
             ExecutableDispatchStep::StandardPrimitive(call) => {
                 executable_signature(call.signature())
             }
+            ExecutableDispatchStep::TargetService(call) => executable_signature(call.signature()),
             ExecutableDispatchStep::StructuralPrimitive(primitive) => {
                 structural_signature(self.executable, primitive)
             }
@@ -243,6 +244,10 @@ impl FunctionLowerer<'_> {
         match step {
             ExecutableDispatchStep::Direct(callee) => Ok(MirCallTarget::Direct(*callee)),
             ExecutableDispatchStep::StandardPrimitive(call) => self.primitive_target(owner, call),
+            ExecutableDispatchStep::TargetService(call) => Ok(MirCallTarget::TargetService {
+                descriptor: call.descriptor().clone(),
+                signature: executable_signature(call.signature()),
+            }),
             ExecutableDispatchStep::StructuralPrimitive(primitive) => {
                 Ok(MirCallTarget::Structural(structural_target(primitive)))
             }
@@ -267,6 +272,7 @@ impl FunctionLowerer<'_> {
                 Ok(MirCallTarget::Structural(structural_target(primitive)))
             }
             ExecutableDispatchStep::StandardPrimitive(_)
+            | ExecutableDispatchStep::TargetService(_)
             | ExecutableDispatchStep::CallableValue(_) => {
                 Err(MirLoweringError::InvalidPlaceDispatch(place))
             }

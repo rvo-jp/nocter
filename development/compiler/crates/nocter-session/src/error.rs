@@ -14,6 +14,7 @@ pub enum CompileSessionError {
     Checking(nocter_checking::BodyCheckError),
     MissingStandardPackage,
     Primitive(nocter_runtime_contract::PrimitiveBindingError),
+    TargetService(nocter_runtime_contract::TargetServiceBindingError),
     TargetUnavailable(nocter_target_program::TargetUnavailable),
     Target(nocter_target_program::TargetProgramError),
 }
@@ -111,6 +112,7 @@ impl CompileSessionError {
             | Self::CurrentSymbols(_)
             | Self::MissingStandardPackage
             | Self::Primitive(_)
+            | Self::TargetService(_)
             | Self::TargetUnavailable(_)
             | Self::Target(_) => &[],
         }
@@ -130,6 +132,7 @@ impl CompileSessionError {
             | Self::Checking(_)
             | Self::MissingStandardPackage
             | Self::Primitive(_)
+            | Self::TargetService(_)
             | Self::Target(_) => None,
         }
     }
@@ -149,6 +152,7 @@ impl fmt::Display for CompileSessionError {
                 formatter.write_str("checked program has no selected standard package")
             }
             Self::Primitive(error) => error.fmt(formatter),
+            Self::TargetService(error) => error.fmt(formatter),
             Self::TargetUnavailable(error) => error.fmt(formatter),
             Self::Target(error) => error.fmt(formatter),
         }
@@ -166,6 +170,7 @@ impl std::error::Error for CompileSessionError {
             Self::Preparation(error) => Some(error),
             Self::Checking(error) => Some(error),
             Self::Primitive(error) => Some(error),
+            Self::TargetService(error) => Some(error),
             Self::TargetUnavailable(error) => Some(error),
             Self::Target(error) => Some(error),
         }
@@ -230,6 +235,12 @@ impl From<nocter_semantic_product::IncompleteSemanticError> for CompileSessionEr
 impl From<nocter_runtime_contract::PrimitiveBindingError> for CompileSessionError {
     fn from(error: nocter_runtime_contract::PrimitiveBindingError) -> Self {
         Self::Primitive(error)
+    }
+}
+
+impl From<nocter_runtime_contract::TargetServiceBindingError> for CompileSessionError {
+    fn from(error: nocter_runtime_contract::TargetServiceBindingError) -> Self {
+        Self::TargetService(error)
     }
 }
 

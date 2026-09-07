@@ -3,8 +3,10 @@ use std::fmt;
 use nocter_checking::CheckedProgram;
 use nocter_model::{CompilationTarget, PackageId};
 
-use crate::primitive_contracts::validate_primitive_registry;
-use crate::{PrimitiveRegistryValidationError, ToolchainSnapshot};
+use crate::ToolchainSnapshot;
+use crate::primitive_contracts::validate_primitive_contracts;
+use crate::runtime_call_contracts::validate_runtime_call_coverage;
+use crate::target_service_contracts::validate_target_services;
 
 /// The complete selected-target success boundary shared by check, build, and run.
 ///
@@ -80,8 +82,12 @@ fn validate_target_program(
             toolchain: toolchain.standard_package(),
         });
     }
-    validate_primitive_registry(graph, checked.types(), toolchain)
-        .map_err(TargetProgramError::PrimitiveRegistry)?;
+    validate_primitive_contracts(graph, checked.types(), toolchain)
+        .map_err(TargetProgramError::Primitive)?;
+    validate_target_services(graph, checked.types(), toolchain)
+        .map_err(TargetProgramError::TargetService)?;
+    validate_runtime_call_coverage(graph, toolchain)
+        .map_err(TargetProgramError::RuntimeCallCoverage)?;
     Ok(())
 }
 
@@ -111,7 +117,9 @@ pub enum TargetProgramError {
         checked: PackageId,
         toolchain: PackageId,
     },
-    PrimitiveRegistry(PrimitiveRegistryValidationError),
+    Primitive(crate::PrimitiveContractError),
+    TargetService(crate::TargetServiceContractError),
+    RuntimeCallCoverage(crate::UnregisteredRuntimeCall),
 }
 
 impl fmt::Display for TargetProgramError {
@@ -127,7 +135,9 @@ impl fmt::Display for TargetProgramError {
             Self::StandardPackageMismatch { .. } => formatter.write_str(
                 "checked standard package does not match the toolchain standard package",
             ),
-            Self::PrimitiveRegistry(error) => error.fmt(formatter),
+            Self::Primitive(error) => error.fmt(formatter),
+            Self::TargetService(error) => error.fmt(formatter),
+            Self::RuntimeCallCoverage(error) => error.fmt(formatter),
         }
     }
 }
@@ -135,7 +145,9 @@ impl fmt::Display for TargetProgramError {
 impl std::error::Error for TargetProgramError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::PrimitiveRegistry(error) => Some(error),
+            Self::Primitive(error) => Some(error),
+            Self::TargetService(error) => Some(error),
+            Self::RuntimeCallCoverage(error) => Some(error),
             Self::TargetMismatch { .. }
             | Self::MissingStandardPackage
             | Self::StandardPackageMismatch { .. } => None,

@@ -2161,9 +2161,13 @@ fn target_fixture(fixture: &CompilerFixture) -> (TargetProgram, nocter_model::Pa
     let checked = check_prepared_program(&input, prepared).unwrap();
     let standard_package = checked.program().graph().standard_package().unwrap();
     let registry = primitive_registry(checked.program());
-    let snapshot =
-        ToolchainSnapshot::select(CompilationTarget::Arm64Darwin, standard_package, registry)
-            .unwrap();
+    let snapshot = ToolchainSnapshot::select(
+        CompilationTarget::Arm64Darwin,
+        standard_package,
+        registry,
+        nocter_runtime_contract::TargetServiceRegistry::empty(),
+    )
+    .unwrap();
     let (checked, _) = checked.into_parts();
     let target = TargetProgram::build(checked, snapshot).unwrap();
     let selected = target

@@ -10,6 +10,7 @@ pub(super) struct ProgramLoweringContext<'a> {
     pub(super) types: &'a RuntimeTypeTable,
     pub(super) layouts: &'a MachineLayoutPlan,
     pub(super) abi: &'a MachineAbiPlan,
+    pub(super) imports: &'a crate::import::MachineImportPlan,
     pub(super) data: &'a crate::data::MachineDataPlan,
     pub(super) functions: crate::function_domain::MachineFunctionDomain<'a>,
     pub(super) destructions: &'a crate::destruction_table::MachineDestructionPlanTable,

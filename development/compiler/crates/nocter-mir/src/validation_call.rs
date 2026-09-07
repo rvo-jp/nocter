@@ -66,6 +66,49 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
                 }
                 self.validate_primitive_dependency(*role, type_arguments, dependency)?;
             }
+            MirCallTarget::TargetService {
+                descriptor,
+                signature,
+            } => {
+                for ty in signature.parameters() {
+                    self.require_type(*ty)?;
+                }
+                self.require_type(signature.result())?;
+                if arguments.len() != signature.parameters().len()
+                    || arguments
+                        .iter()
+                        .copied()
+                        .zip(signature.parameters().iter().copied())
+                        .any(|(argument, expected)| self.value_type(argument) != Ok(expected))
+                    || self.result != signature.result()
+                {
+                    return Err(self.invalid());
+                }
+                if descriptor.signature().parameters().len() != signature.parameters().len()
+                    || descriptor
+                        .signature()
+                        .parameters()
+                        .iter()
+                        .copied()
+                        .zip(signature.parameters().iter().copied())
+                        .any(|(expected, actual)| {
+                            !target_service_type(self.environment.types(), actual, expected)
+                        })
+                    || match descriptor.signature().result() {
+                        Some(expected) => !target_service_type(
+                            self.environment.types(),
+                            signature.result(),
+                            expected,
+                        ),
+                        None => {
+                            self.environment.types().get(signature.result())
+                                != Some(&TypeKind::Builtin(BuiltinType::Void))
+                        }
+                    }
+                {
+                    return Err(self.invalid());
+                }
+            }
             MirCallTarget::Structural(structural) => {
                 self.validate_structural(structural, arguments)?;
             }
@@ -250,5 +293,23 @@ impl<E: MirValidationEnvironment + ?Sized> CallValidation<'_, E> {
 
     const fn invalid(&self) -> MirValidationError {
         MirValidationError::OperationType(self.operation)
+    }
+}
+
+fn target_service_type(
+    types: &nocter_model::TypeStore,
+    ty: TypeId,
+    expected: nocter_runtime_contract::TargetServiceValueAbi,
+) -> bool {
+    match expected {
+        nocter_runtime_contract::TargetServiceValueAbi::CInt => {
+            types.get(ty) == Some(&TypeKind::Builtin(BuiltinType::I32))
+        }
+        nocter_runtime_contract::TargetServiceValueAbi::Word => {
+            types.get(ty) == Some(&TypeKind::Builtin(BuiltinType::Usize))
+        }
+        nocter_runtime_contract::TargetServiceValueAbi::Pointer => {
+            matches!(types.get(ty), Some(TypeKind::Pointer(_)))
+        }
     }
 }

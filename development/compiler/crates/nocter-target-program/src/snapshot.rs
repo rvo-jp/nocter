@@ -1,4 +1,5 @@
 use nocter_model::{CompilationTarget, PackageId};
+use nocter_runtime_contract::TargetServiceRegistry;
 
 use crate::capabilities::capabilities_for;
 use crate::{
@@ -18,6 +19,7 @@ pub struct ToolchainSnapshot {
     executable_writer: ExecutableWriterIdentity,
     standard_package: PackageId,
     primitives: PrimitiveRegistry,
+    target_services: TargetServiceRegistry,
 }
 
 impl ToolchainSnapshot {
@@ -31,6 +33,7 @@ impl ToolchainSnapshot {
         target: CompilationTarget,
         standard_package: PackageId,
         primitives: PrimitiveRegistry,
+        target_services: TargetServiceRegistry,
     ) -> Result<Self, TargetUnavailable> {
         let (backend, abi, executable_writer) = capabilities_for(target)?;
         Ok(Self {
@@ -40,6 +43,7 @@ impl ToolchainSnapshot {
             executable_writer,
             standard_package,
             primitives,
+            target_services,
         })
     }
 
@@ -72,6 +76,11 @@ impl ToolchainSnapshot {
     pub const fn primitives(&self) -> &PrimitiveRegistry {
         &self.primitives
     }
+
+    #[must_use]
+    pub const fn target_services(&self) -> &TargetServiceRegistry {
+        &self.target_services
+    }
 }
 
 #[cfg(test)]
@@ -80,6 +89,7 @@ mod tests {
     use nocter_model::{CompilationTarget, SymbolTable};
     use nocter_runtime_contract::{
         PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, RuntimeAbiIdentity,
+        TargetServiceBinding, TargetServiceRegistry, TargetServiceRole,
     };
 
     use crate::{ExecutableWriterIdentity, TargetBackendIdentity, ToolchainSnapshot};
@@ -91,6 +101,17 @@ mod tests {
                 .iter()
                 .copied()
                 .map(|role| PrimitiveBinding::new(role, declarations.reserve_callable())),
+        )
+        .unwrap()
+    }
+
+    fn complete_target_services() -> TargetServiceRegistry {
+        let mut declarations = DeclarationArenaBuilder::new();
+        TargetServiceRegistry::new(
+            TargetServiceRole::ALL
+                .iter()
+                .copied()
+                .map(|role| TargetServiceBinding::new(role, declarations.reserve_callable())),
         )
         .unwrap()
     }
@@ -109,6 +130,7 @@ mod tests {
             CompilationTarget::Arm64Darwin,
             standard_package(),
             complete_registry(),
+            complete_target_services(),
         )
         .unwrap();
         assert_eq!(snapshot.backend(), TargetBackendIdentity::Arm64V1);
@@ -127,8 +149,13 @@ mod tests {
             CompilationTarget::X64Windows,
             CompilationTarget::Arm64Windows,
         ] {
-            let error = ToolchainSnapshot::select(target, standard_package(), complete_registry())
-                .unwrap_err();
+            let error = ToolchainSnapshot::select(
+                target,
+                standard_package(),
+                complete_registry(),
+                complete_target_services(),
+            )
+            .unwrap_err();
             assert_eq!(error.target(), target);
         }
     }

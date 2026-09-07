@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_compile_input::ToolchainInput;
 use nocter_declarations::ProgramBuildError;
 use nocter_model::{BuiltinType, PackageIdentity};
-use nocter_runtime_contract::PrimitiveRole;
+use nocter_runtime_contract::{PrimitiveRole, TargetServiceRole};
 use nocter_syntax::NodeId;
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
@@ -29,6 +29,8 @@ pub enum ToolchainError {
     InvalidStandardDeclaration(StandardDeclarationRole),
     MissingPrimitiveDeclaration(PrimitiveRole),
     DuplicatePrimitiveDeclaration(PrimitiveRole),
+    MissingTargetServiceDeclaration(TargetServiceRole),
+    DuplicateTargetServiceDeclaration(TargetServiceRole),
     InconsistentImport(NodeId),
     Program(ProgramBuildError),
 }
@@ -92,6 +94,14 @@ impl fmt::Display for ToolchainError {
                 formatter,
                 "toolchain primitive role {role:?} has multiple declarations"
             ),
+            Self::MissingTargetServiceDeclaration(role) => write!(
+                formatter,
+                "toolchain target-service role {role:?} has no declaration"
+            ),
+            Self::DuplicateTargetServiceDeclaration(role) => write!(
+                formatter,
+                "toolchain target-service role {role:?} has multiple declarations"
+            ),
             Self::InconsistentImport(import) => {
                 write!(formatter, "authored import {import:?} has no retained path")
             }
@@ -136,6 +146,22 @@ pub(crate) struct ResolvedPrimitiveRole {
     declaration: SurfaceDeclarationId,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ResolvedTargetServiceRole {
+    role: TargetServiceRole,
+    declaration: SurfaceDeclarationId,
+}
+
+impl ResolvedTargetServiceRole {
+    pub(crate) const fn role(self) -> TargetServiceRole {
+        self.role
+    }
+
+    pub(crate) const fn declaration(self) -> SurfaceDeclarationId {
+        self.declaration
+    }
+}
+
 impl ResolvedPrimitiveRole {
     pub(crate) const fn role(self) -> PrimitiveRole {
         self.role
@@ -164,6 +190,7 @@ pub(crate) struct ResolvedToolchainInput {
     structural_attachments: Box<[(StructuralAttachment, ModuleIdentity)]>,
     standard_roles: Box<[ResolvedStandardRole]>,
     primitive_roles: Box<[ResolvedPrimitiveRole]>,
+    target_service_roles: Box<[ResolvedTargetServiceRole]>,
     builtin_types: Box<[ResolvedBuiltinType]>,
 }
 
@@ -188,6 +215,10 @@ impl ResolvedToolchainInput {
         &self.primitive_roles
     }
 
+    pub(crate) fn target_service_roles(&self) -> &[ResolvedTargetServiceRole] {
+        &self.target_service_roles
+    }
+
     pub(crate) fn builtin_types(&self) -> &[ResolvedBuiltinType] {
         &self.builtin_types
     }
@@ -197,6 +228,27 @@ pub(crate) fn resolve_toolchain_surface(
     surface: &DeclarationSurface<'_>,
     input: &ToolchainInput,
 ) -> Result<ResolvedToolchainInput, ToolchainError> {
+    validate_locator_modules(input)?;
+    let standard_roles = resolve_standard_roles(surface, input)?;
+    let builtin_types = resolve_builtin_types(surface, input)?;
+    let primitive_roles = resolve_primitive_roles(surface, input)?;
+    let target_service_roles = resolve_target_service_roles(surface, input)?;
+    Ok(ResolvedToolchainInput {
+        standard_package: input.standard_package().clone(),
+        prelude: input.prelude().clone(),
+        structural_attachments: input
+            .structural_attachments()
+            .iter()
+            .map(|attachment| (attachment.attachment(), attachment.module().clone()))
+            .collect(),
+        standard_roles: standard_roles.into_boxed_slice(),
+        primitive_roles: primitive_roles.into_boxed_slice(),
+        target_service_roles: target_service_roles.into_boxed_slice(),
+        builtin_types: builtin_types.into_boxed_slice(),
+    })
+}
+
+fn validate_locator_modules(input: &ToolchainInput) -> Result<(), ToolchainError> {
     for module in input
         .standard_roles()
         .iter()
@@ -213,6 +265,12 @@ pub(crate) fn resolve_toolchain_surface(
                 .iter()
                 .map(nocter_compile_input::BuiltinTypeLocator::module),
         )
+        .chain(
+            input
+                .target_service_roles()
+                .iter()
+                .map(nocter_compile_input::TargetServiceRoleLocator::module),
+        )
     {
         if module.package() != input.standard_package() {
             return Err(ToolchainError::DeclarationModuleOutsideStandardPackage(
@@ -220,7 +278,14 @@ pub(crate) fn resolve_toolchain_surface(
             ));
         }
     }
-    let standard_roles = input
+    Ok(())
+}
+
+fn resolve_standard_roles(
+    surface: &DeclarationSurface<'_>,
+    input: &ToolchainInput,
+) -> Result<Vec<ResolvedStandardRole>, ToolchainError> {
+    input
         .standard_roles()
         .iter()
         .map(|locator| {
@@ -238,8 +303,14 @@ pub(crate) fn resolve_toolchain_surface(
                 _ => Err(ToolchainError::DuplicateStandardDeclaration(locator.role())),
             }
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    let builtin_types = input
+        .collect()
+}
+
+fn resolve_builtin_types(
+    surface: &DeclarationSurface<'_>,
+    input: &ToolchainInput,
+) -> Result<Vec<ResolvedBuiltinType>, ToolchainError> {
+    input
         .builtin_types()
         .iter()
         .map(|locator| {
@@ -257,8 +328,14 @@ pub(crate) fn resolve_toolchain_surface(
                 _ => Err(ToolchainError::DuplicateBuiltinType(locator.builtin())),
             }
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    let primitive_roles = input
+        .collect()
+}
+
+fn resolve_primitive_roles(
+    surface: &DeclarationSurface<'_>,
+    input: &ToolchainInput,
+) -> Result<Vec<ResolvedPrimitiveRole>, ToolchainError> {
+    input
         .primitive_roles()
         .iter()
         .map(|locator| {
@@ -277,19 +354,35 @@ pub(crate) fn resolve_toolchain_surface(
                 )),
             }
         })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(ResolvedToolchainInput {
-        standard_package: input.standard_package().clone(),
-        prelude: input.prelude().clone(),
-        structural_attachments: input
-            .structural_attachments()
-            .iter()
-            .map(|attachment| (attachment.attachment(), attachment.module().clone()))
-            .collect(),
-        standard_roles: standard_roles.into_boxed_slice(),
-        primitive_roles: primitive_roles.into_boxed_slice(),
-        builtin_types: builtin_types.into_boxed_slice(),
-    })
+        .collect()
+}
+
+fn resolve_target_service_roles(
+    surface: &DeclarationSurface<'_>,
+    input: &ToolchainInput,
+) -> Result<Vec<ResolvedTargetServiceRole>, ToolchainError> {
+    input
+        .target_service_roles()
+        .iter()
+        .map(|locator| {
+            let matches =
+                matching_declarations(surface, locator.module(), locator.name(), |item| {
+                    item.kind() == SurfaceDeclarationKind::PrimitiveFunction
+                });
+            match matches.as_slice() {
+                [declaration] => Ok(ResolvedTargetServiceRole {
+                    role: locator.role(),
+                    declaration: *declaration,
+                }),
+                [] => Err(ToolchainError::MissingTargetServiceDeclaration(
+                    locator.role(),
+                )),
+                _ => Err(ToolchainError::DuplicateTargetServiceDeclaration(
+                    locator.role(),
+                )),
+            }
+        })
+        .collect()
 }
 
 fn matching_declarations(

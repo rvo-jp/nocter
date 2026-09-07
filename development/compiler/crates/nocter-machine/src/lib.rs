@@ -13,6 +13,7 @@ mod destruction_table;
 mod function_domain;
 mod generated_destruction;
 mod identity;
+mod import;
 mod layout;
 mod linkage;
 mod lower;
@@ -26,7 +27,8 @@ mod target;
 mod transport;
 
 pub use call::{
-    MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget, MachinePrimitiveTarget,
+    MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget, MachineImportedTarget,
+    MachinePrimitiveTarget,
 };
 pub use context::{
     MachineContextError, MachineContextKind, MachineContextPlan, MachineContextPlans,
@@ -47,8 +49,8 @@ pub(crate) use destruction::{
 };
 pub use identity::{
     MachineAddressId, MachineBlockId, MachineDataId, MachineDestructionId, MachineDropFlagId,
-    MachineFunctionId, MachineLinkageId, MachineOperationId, MachinePackId, MachineStackId,
-    MachineTestId, MachineValueId,
+    MachineFunctionId, MachineImportId, MachineLinkageId, MachineOperationId, MachinePackId,
+    MachineStackId, MachineTestId, MachineValueId,
 };
 
 pub(crate) use layout::MachineLayoutPlan;

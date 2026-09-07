@@ -7,9 +7,10 @@ Lower one closed executable program into concrete target-independent semantic co
 ## Contract
 
 MIR consumes monomorphized items, selected operations, concrete representations, cleanup plans, and
-runtime roles. It publishes validated functions, immutable static identities and frozen values,
-places, values, blocks, operations, packs, and primitive dependencies. It does not inspect syntax,
-resolve names, prove requirements, or assign a machine ABI.
+runtime roles, and closed target-service descriptors. It publishes validated functions, immutable
+static identities and frozen values, places, values, blocks, operations, packs, primitive
+dependencies, and foreign-call plans. It does not inspect syntax, resolve names, prove requirements,
+or assign a machine ABI.
 
 ## Internal Responsibilities
 
@@ -23,5 +24,6 @@ resolve names, prove requirements, or assign a machine ABI.
 
 - Each block has one exact terminator and typed merge contract.
 - Cleanup timing comes from checked plans, not operation-shape inference.
-- Calls target concrete executable item identities.
+- Calls target concrete executable item identities, closed primitive roles, or already validated
+  target-service descriptors.
 - Validation checks representation integrity, not source-language acceptance.

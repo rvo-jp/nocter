@@ -244,7 +244,8 @@ pub enum MachineProgramRoot {
 #[derive(Debug)]
 pub struct MachineProgram {
     layouts: MachineLayoutStore,
-    primitive_abis: crate::transport::MachinePrimitiveAbiTable,
+    runtime_call_abis: crate::transport::MachineRuntimeCallAbiTable,
+    imports: crate::import::MachineImportTable,
     contexts: crate::MachineContextPlans,
     data: MachineDataTable,
     functions: MachineTable<MachineFunctionId, MachineFunction>,
@@ -253,7 +254,8 @@ pub struct MachineProgram {
 
 pub(crate) struct MachineProgramParts {
     pub(crate) layouts: MachineLayoutStore,
-    pub(crate) primitive_abis: crate::transport::MachinePrimitiveAbiTable,
+    pub(crate) runtime_call_abis: crate::transport::MachineRuntimeCallAbiTable,
+    pub(crate) imports: crate::import::MachineImportTable,
     pub(crate) contexts: crate::MachineContextPlans,
     pub(crate) data: MachineDataTable,
     pub(crate) functions: MachineTable<MachineFunctionId, MachineFunction>,
@@ -264,7 +266,8 @@ impl MachineProgram {
     pub(crate) fn new(parts: MachineProgramParts) -> Self {
         Self {
             layouts: parts.layouts,
-            primitive_abis: parts.primitive_abis,
+            runtime_call_abis: parts.runtime_call_abis,
+            imports: parts.imports,
             contexts: parts.contexts,
             data: parts.data,
             functions: parts.functions,
@@ -282,7 +285,35 @@ impl MachineProgram {
         &self,
         target: &crate::MachinePrimitiveTarget,
     ) -> Option<&crate::MachineCallableAbi> {
-        self.primitive_abis.get(target.abi_id())
+        self.runtime_call_abis.get(target.abi_id())
+    }
+
+    #[must_use]
+    pub fn imported_abi(
+        &self,
+        target: &crate::MachineImportedTarget,
+    ) -> Option<&crate::MachineCallableAbi> {
+        self.runtime_call_abis.get(target.abi_id())
+    }
+
+    #[must_use]
+    pub fn import(
+        &self,
+        id: crate::MachineImportId,
+    ) -> Option<&nocter_runtime_contract::TargetServiceDescriptor> {
+        self.imports.get(id)
+    }
+
+    #[must_use]
+    pub fn imports(
+        &self,
+    ) -> impl ExactSizeIterator<
+        Item = (
+            crate::MachineImportId,
+            &nocter_runtime_contract::TargetServiceDescriptor,
+        ),
+    > {
+        self.imports.iter()
     }
 
     #[must_use]

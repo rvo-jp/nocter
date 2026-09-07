@@ -719,6 +719,7 @@ fn bodyless_standard_calls_become_typed_primitive_steps() {
             ExecutableDispatchStep::StandardPrimitive(call) => Some(call.role()),
             ExecutableDispatchStep::Direct(_)
             | ExecutableDispatchStep::StructuralPrimitive(_)
+            | ExecutableDispatchStep::TargetService(_)
             | ExecutableDispatchStep::CallableValue(_) => None,
         })
         .collect::<Vec<_>>();

@@ -37,6 +37,7 @@ mod projection_recipe;
 mod recovery;
 mod representation_contract;
 mod reservation;
+mod runtime_bindings;
 mod surface;
 mod surface_diagnostic;
 mod surface_origin;

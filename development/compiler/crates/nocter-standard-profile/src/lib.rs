@@ -2,10 +2,10 @@
 
 use nocter_compile_input::{
     BuiltinTypeLocator, ModuleIdentity, PrimitiveRoleLocator, StandardRoleLocator,
-    StructuralAttachmentInput, ToolchainInput,
+    StructuralAttachmentInput, TargetServiceRoleLocator, ToolchainInput,
 };
 use nocter_model::{BuiltinType, PackageIdentity};
-use nocter_runtime_contract::PrimitiveRole;
+use nocter_runtime_contract::{PrimitiveRole, TargetServiceRole};
 use nocter_syntax::NodeKind;
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
@@ -21,6 +21,7 @@ pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
         standard_roles(package),
     )
     .with_primitive_roles(primitive_roles(package))
+    .with_target_service_roles(target_service_roles(package))
     .with_builtin_types(builtin_types(package))
 }
 
@@ -113,6 +114,24 @@ fn primitive_roles(package: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
         .map(|role| {
             let (path, name) = bundled_primitive_source_location(role);
             PrimitiveRoleLocator::new(role, module(package, path), name)
+        })
+        .collect()
+}
+
+fn target_service_roles(package: &PackageIdentity) -> Vec<TargetServiceRoleLocator> {
+    TargetServiceRole::ALL
+        .iter()
+        .copied()
+        .map(|role| {
+            let name = match role {
+                TargetServiceRole::DarwinGetAddressInfo => "get_address_info_raw",
+                TargetServiceRole::DarwinFreeAddressInfo => "free_address_info_raw",
+            };
+            TargetServiceRoleLocator::new(
+                role,
+                module(package, &["internal", "os", "darwin"]),
+                name,
+            )
         })
         .collect()
 }

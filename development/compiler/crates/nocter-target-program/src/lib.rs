@@ -13,7 +13,9 @@ mod executable;
 mod instance_key;
 mod primitive_contracts;
 mod program;
+mod runtime_call_contracts;
 mod snapshot;
+mod target_service_contracts;
 mod test_entry;
 
 pub use body_dependencies::{
@@ -35,17 +37,17 @@ pub use executable::{
     ExecutablePackInput, ExecutablePackLiteralPlan, ExecutablePackSegment, ExecutablePackSpread,
     ExecutablePrimitiveCall, ExecutablePrimitiveDependency, ExecutableProgram,
     ExecutableProgramError, ExecutableRoot, ExecutableSignature, ExecutableStatic,
-    ExecutableTestCase, ExecutableTypeEdge,
+    ExecutableTargetServiceCall, ExecutableTestCase, ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 use nocter_runtime_contract::{
     PrimitiveRegistry, PrimitiveRole, RuntimeAbiIdentity, RuntimeTypeRepresentationTable,
 };
-pub use primitive_contracts::{
-    PrimitiveContractError, PrimitiveContractRule, PrimitiveRegistryValidationError,
-};
+pub use primitive_contracts::{PrimitiveContractError, PrimitiveContractRule};
 pub use program::{TargetProgram, TargetProgramError, TargetProgramFailure};
+pub use runtime_call_contracts::UnregisteredRuntimeCall;
 pub use snapshot::ToolchainSnapshot;
+pub use target_service_contracts::{TargetServiceContractError, TargetServiceContractRule};
 pub use test_entry::{
     SelectedTest, SelectedTestTarget, TestCaseSelectionError, TestSelectionError, select_test_case,
     select_test_target,

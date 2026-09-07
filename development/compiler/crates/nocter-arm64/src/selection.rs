@@ -310,6 +310,7 @@ pub enum Arm64SelectedInstruction {
         right: Arm64SelectedRegister,
     },
     Call(MachineFunctionId),
+    CallImported(nocter_machine::MachineImportId),
     CallRegister(Arm64SelectedRegister),
 }
 

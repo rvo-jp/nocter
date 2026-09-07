@@ -256,6 +256,19 @@ fn encode_toolchain(
         encode_module(locator.module(), output);
         encode(locator.name().as_bytes(), output);
     }
+    let mut target_services = toolchain.target_service_roles().iter().collect::<Vec<_>>();
+    target_services.sort_unstable_by(|left, right| {
+        left.role()
+            .cmp(&right.role())
+            .then_with(|| left.module().cmp(right.module()))
+            .then_with(|| left.name().cmp(right.name()))
+    });
+    for locator in target_services {
+        output.push(0x55);
+        encode(locator.role().name().as_bytes(), output);
+        encode_module(locator.module(), output);
+        encode(locator.name().as_bytes(), output);
+    }
     let mut builtins = toolchain.builtin_types().iter().collect::<Vec<_>>();
     builtins.sort_unstable_by(|left, right| {
         left.builtin()

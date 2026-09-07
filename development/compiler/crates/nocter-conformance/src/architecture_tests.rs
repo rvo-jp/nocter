@@ -151,11 +151,7 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
         ),
         (
             "nocter-macho",
-            &[
-                "nocter-arm64",
-                "nocter-hash",
-                "nocter-runtime-contract",
-            ][..],
+            &["nocter-arm64", "nocter-hash", "nocter-runtime-contract"][..],
         ),
     ];
     for (crate_name, allowed) in expected {

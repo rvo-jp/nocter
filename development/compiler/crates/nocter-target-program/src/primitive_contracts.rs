@@ -1,8 +1,6 @@
-use std::collections::BTreeSet;
-
 mod errors;
 
-pub use errors::{PrimitiveContractError, PrimitiveContractRule, PrimitiveRegistryValidationError};
+pub use errors::{PrimitiveContractError, PrimitiveContractRule};
 
 use nocter_declarations::{
     CallableKind, CallableOwner, CallableProvenanceContract, DeclarationGraph, GenericOwner,
@@ -71,11 +69,11 @@ enum PrimitiveExposure {
     Package,
 }
 
-pub(crate) fn validate_primitive_registry(
+pub(crate) fn validate_primitive_contracts(
     graph: &DeclarationGraph,
     types: &TypeStore,
     snapshot: &ToolchainSnapshot,
-) -> Result<(), PrimitiveRegistryValidationError> {
+) -> Result<(), PrimitiveContractError> {
     let registry = snapshot.primitives();
     for binding in registry.bindings() {
         validate_binding(
@@ -86,24 +84,6 @@ pub(crate) fn validate_primitive_registry(
             binding.callable(),
         )?;
     }
-    let registered = registry
-        .bindings()
-        .iter()
-        .map(|binding| binding.callable())
-        .collect::<BTreeSet<_>>();
-    if let Some((callable, _)) =
-        graph
-            .declarations()
-            .callables()
-            .iter()
-            .find(|(callable, declaration)| {
-                declaration.kind() == CallableKind::Primitive && !registered.contains(callable)
-            })
-    {
-        return Err(PrimitiveRegistryValidationError::UnregisteredPrimitive(
-            callable,
-        ));
-    }
     Ok(())
 }
 
@@ -113,7 +93,7 @@ fn validate_binding(
     standard_package: PackageId,
     role: PrimitiveRole,
     callable: CallableId,
-) -> Result<(), PrimitiveRegistryValidationError> {
+) -> Result<(), PrimitiveContractError> {
     let contract = contract(role);
     let declaration = graph
         .declarations()
@@ -138,12 +118,8 @@ fn contract_error(
     role: PrimitiveRole,
     callable: CallableId,
     violated_rule: PrimitiveContractRule,
-) -> PrimitiveRegistryValidationError {
-    PrimitiveRegistryValidationError::Contract(PrimitiveContractError::new(
-        role,
-        callable,
-        violated_rule,
-    ))
+) -> PrimitiveContractError {
+    PrimitiveContractError::new(role, callable, violated_rule)
 }
 
 fn validate_identity(

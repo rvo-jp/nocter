@@ -508,6 +508,10 @@ fn call_stack_size(
             .primitive_abi(target)
             .map(nocter_machine::MachineCallableAbi::stack_argument_size)
             .ok_or(Arm64FunctionFrameError::MissingPrimitiveAbi),
+        MachineCallTarget::Imported(target) => program
+            .imported_abi(target)
+            .map(nocter_machine::MachineCallableAbi::stack_argument_size)
+            .ok_or(Arm64FunctionFrameError::MissingImportedAbi),
     }
 }
 
@@ -531,6 +535,7 @@ pub enum Arm64FunctionFrameError {
     UnknownFunction(MachineFunctionId),
     NonCallableTarget(MachineFunctionId),
     MissingPrimitiveAbi,
+    MissingImportedAbi,
     ForeignValuePlan {
         expected: nocter_machine::MachineLinkageId,
         actual: nocter_machine::MachineLinkageId,
@@ -564,6 +569,7 @@ impl std::error::Error for Arm64FunctionFrameError {
             Self::UnknownFunction(_)
             | Self::NonCallableTarget(_)
             | Self::MissingPrimitiveAbi
+            | Self::MissingImportedAbi
             | Self::ForeignValuePlan { .. }
             | Self::MissingAllocation(_)
             | Self::MissingProcessContext(_)

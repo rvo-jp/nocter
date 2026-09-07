@@ -955,6 +955,15 @@ fn validate_toolchain(
             ));
         }
     }
+    let mut target_service_kinds = BTreeSet::new();
+    for role in toolchain.target_service_roles() {
+        validate_toolchain_module(toolchain, role.module())?;
+        if !target_service_kinds.insert(role.role()) {
+            return Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::DuplicateTargetServiceRole(role.role()),
+            ));
+        }
+    }
     let mut builtin_kinds = BTreeSet::new();
     for builtin in toolchain.builtin_types() {
         validate_toolchain_module(toolchain, builtin.module())?;
@@ -1004,6 +1013,12 @@ fn initial_work(
     pending.extend(
         toolchain
             .primitive_roles()
+            .iter()
+            .map(|role| Work::Module(role.module().clone())),
+    );
+    pending.extend(
+        toolchain
+            .target_service_roles()
             .iter()
             .map(|role| Work::Module(role.module().clone())),
     );

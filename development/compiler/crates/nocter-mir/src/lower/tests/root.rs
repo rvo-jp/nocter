@@ -161,7 +161,9 @@ fn direct_calls(body: &crate::MirBody) -> Vec<nocter_model::ExecutableItemId> {
         .filter_map(|(_, operation)| match operation.kind() {
             MirOperationKind::Call(call) => match call.target() {
                 MirCallTarget::Direct(item) => Some(*item),
-                MirCallTarget::StandardPrimitive { .. } | MirCallTarget::Structural(_) => None,
+                MirCallTarget::StandardPrimitive { .. }
+                | MirCallTarget::TargetService { .. }
+                | MirCallTarget::Structural(_) => None,
             },
             _ => None,
         })

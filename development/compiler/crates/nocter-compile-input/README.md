@@ -8,8 +8,9 @@ target validation.
 ## Contract
 
 The crate packages reached sources and syntax trees, package/module identity, dependency edges,
-selected target facts, toolchain bindings, and runtime contract input into immutable values. It does
-not discover files or perform semantic lowering.
+selected target facts, toolchain declaration locators, and runtime contract input into immutable
+values. Primitive and trusted target-service locators name exact declarations but contain no
+resolved semantic identity. The crate does not discover files or perform semantic lowering.
 
 ## Invariants
 

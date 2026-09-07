@@ -84,6 +84,25 @@ pub struct ExecutablePrimitiveCall {
     dependency: ExecutablePrimitiveDependency,
 }
 
+/// One target-service call after declaration identity and foreign ABI have been closed.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExecutableTargetServiceCall {
+    descriptor: nocter_runtime_contract::TargetServiceDescriptor,
+    signature: ExecutableSignature,
+}
+
+impl ExecutableTargetServiceCall {
+    #[must_use]
+    pub const fn descriptor(&self) -> &nocter_runtime_contract::TargetServiceDescriptor {
+        &self.descriptor
+    }
+
+    #[must_use]
+    pub const fn signature(&self) -> &ExecutableSignature {
+        &self.signature
+    }
+}
+
 impl ExecutablePrimitiveCall {
     #[must_use]
     pub const fn role(&self) -> PrimitiveRole {
@@ -111,6 +130,7 @@ impl ExecutablePrimitiveCall {
 pub enum ExecutableDispatchStep {
     Direct(ExecutableItemId),
     StandardPrimitive(ExecutablePrimitiveCall),
+    TargetService(ExecutableTargetServiceCall),
     StructuralPrimitive(ResolvedPrimitiveDispatch),
     CallableValue(ExecutableCallableInvocation),
 }
