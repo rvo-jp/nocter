@@ -172,7 +172,17 @@ noalloc func connect_tcp(
     address: NetworkAddress,
     timeout: Duration?,
 ): DescriptorAttempt {
-    let deadline = operation_deadline(timeout)
+    var deadline = connection_deadline(timeout)
+    return connect_tcp_before(address, &+deadline)
+}
+
+noalloc func connect_tcp_before(
+    address: NetworkAddress,
+    deadline: &+ConnectionDeadline,
+): DescriptorAttempt {
+    if !claim_connection_attempt(deadline) {
+        return DescriptorAttempt.failed(NetworkFailure.timed_out)
+    }
     let fd = match darwin.create_tcp(address.family) {
         RawDescriptorAttempt.ready(value) { value }
         RawDescriptorAttempt.failed(failure) {
@@ -183,7 +193,7 @@ noalloc func connect_tcp(
         }
     }
     var descriptor = descriptor_from_raw(fd)
-    match connect_address(descriptor.fd, &address, &deadline) {
+    match connect_address(descriptor.fd, &address, &deadline.operation) {
         UnitAttempt.ready { return DescriptorAttempt.ready(move descriptor) }
         UnitAttempt.failed(failure) {
             return fail_created(&+descriptor, move failure)

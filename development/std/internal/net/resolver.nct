@@ -1,0 +1,29 @@
+//! Target-independent resolver ownership and result classification.
+
+see ./index.nct
+
+use /internal/net/darwin
+use /internal/net/darwin.RawResolveAttempt
+use /internal/net/model.ResolverNext
+
+struct ResolverResults {
+    raw: darwin.RawResolverResults
+}
+
+noalloc func resolve_host_once(node: *u8): ResolveAttempt {
+    let attempt = darwin.resolve_host_once(node)
+    match move attempt {
+        RawResolveAttempt.ready(raw) {
+            return ResolveAttempt.ready(ResolverResults { raw: move raw })
+        }
+        RawResolveAttempt.failed(failure) {
+            return ResolveAttempt.failed(failure)
+        }
+    }
+}
+
+instance ResolverResults {
+    noalloc method &+self.next(): ResolverNext {
+        return self.raw.next()
+    }
+}

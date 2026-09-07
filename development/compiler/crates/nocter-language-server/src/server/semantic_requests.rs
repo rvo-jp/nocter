@@ -2138,6 +2138,82 @@ mod tests {
     }
 
     #[test]
+    fn host_resolution_contract_drives_hover_navigation_signature_and_completion() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/net\n",
+            "func main(): void! {\n",
+            "    let addresses = net.resolve(\"localhost\", 80)?\n",
+            "    let stream = net.TcpStream.connect_host(\"localhost\", 80)?\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":24}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub struct TcpStream"), "{response}");
+        assert!(!response.contains("descriptor:"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":24}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/net/index.nct"), "{response}");
+        assert!(!response.contains("resolution.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":58}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("func TcpStream.connect_host(host: &str, port: u16): TcpStream!"),
+            "{response}"
+        );
+        assert!(response.contains("\"activeParameter\":1"), "{response}");
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let incomplete = text.replace(
+            "net.TcpStream.connect_host(\"localhost\", 80)",
+            "net.TcpStream.",
+        );
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 5, 3, 31);
+        let response = completion.response().unwrap();
+        for constructor in ["connect", "connect_with_timeout", "connect_host"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{constructor}\",\"kind\":4")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("descriptor"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn json_value_parser_and_generator_contracts_are_visible_from_the_root_source() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

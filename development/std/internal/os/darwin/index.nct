@@ -30,6 +30,19 @@ pub(/) noalloc func errno(code: i32): Errno
 #target: "arm64-darwin"
 pub(/) noalloc func error_from_errno(value: Errno): OSError
 
+/// Calls the compiler-bound Darwin system resolver with caller-owned native records.
+#target: "arm64-darwin"
+pub(/) noalloc func call_get_address_info(
+    node: *u8,
+    service: *u8,
+    hints: *u8,
+    result: *usize,
+): i32
+
+/// Releases one complete successful Darwin resolver result list.
+#target: "arm64-darwin"
+pub(/) noalloc func release_address_info(result: *u8): void
+
 #target: "arm64-darwin"
 pub(/) const SYS_FORK: usize
 

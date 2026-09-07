@@ -1,5 +1,7 @@
 //! Monotonic operation deadlines and portable poll-timeout projection.
 
+see ./index.nct
+
 use /time.{Duration, Instant}
 
 const MAX_POLL_MILLISECONDS: u64 = 2147483647
@@ -11,9 +13,27 @@ enum OperationDeadline {
     finite(start: Instant, duration: Duration)
 }
 
+struct ConnectionDeadline {
+    operation: OperationDeadline
+    attempt_started: bool
+}
+
 noalloc func operation_deadline(timeout: Duration?): OperationDeadline {
     let duration = timeout otherwise { return OperationDeadline.unlimited }
     return OperationDeadline.finite(Instant.now(), duration)
+}
+
+noalloc func connection_deadline(timeout: Duration?): ConnectionDeadline {
+    return ConnectionDeadline {
+        operation: operation_deadline(timeout),
+        attempt_started: false,
+    }
+}
+
+noalloc func claim_connection_attempt(deadline: &+ConnectionDeadline): bool {
+    if deadline.attempt_started && deadline_expired(&deadline.operation) { return false }
+    deadline.attempt_started = true
+    return true
 }
 
 noalloc func deadline_expired(deadline: &OperationDeadline): bool {

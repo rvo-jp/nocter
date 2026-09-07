@@ -1,0 +1,129 @@
+//! Darwin resolver-record ownership and logical address projection.
+
+see ./adapter.nct
+see ./index.nct
+
+use /internal/net/model.{NetworkAddress, ResolverFailure, ResolverNext}
+use /internal/os/darwin as os_darwin
+use /internal/ptr as raw_ptr
+use /ptr
+
+#target: "arm64-darwin"
+const ADDRESS_FAMILY_UNSPECIFIED: i32 = 0
+#target: "arm64-darwin"
+const RESOLVER_SOCKET_STREAM: i32 = 1
+#target: "arm64-darwin"
+const PROTOCOL_TCP: i32 = 6
+#target: "arm64-darwin"
+const RESOLVER_ADDRESS_FAMILY_IPV4: i32 = 2
+#target: "arm64-darwin"
+const RESOLVER_ADDRESS_FAMILY_IPV6: i32 = 30
+#target: "arm64-darwin"
+const EAI_AGAIN: i32 = 2
+#target: "arm64-darwin"
+const EAI_MEMORY: i32 = 6
+#target: "arm64-darwin"
+const EAI_NO_DATA: i32 = 7
+#target: "arm64-darwin"
+const EAI_NO_NAME: i32 = 8
+#target: "arm64-darwin"
+const MAX_RESOLVER_RECORDS: usize = 4096
+
+#target: "arm64-darwin"
+copy struct NativeAddressInfo {
+    flags: i32
+    family: i32
+    socket_type: i32
+    protocol: i32
+    address_len: u32
+    canonical_name: usize
+    address: usize
+    next: usize
+}
+
+#target: "arm64-darwin"
+struct RawResolverResults {
+    root: usize
+    current: usize
+    remaining_records: usize
+    open: bool
+}
+
+#target: "arm64-darwin"
+noalloc func resolver_failure(code: i32): ResolverFailure {
+    if code == EAI_AGAIN { return ResolverFailure.temporary }
+    if code == EAI_MEMORY { return ResolverFailure.memory }
+    if code == EAI_NO_DATA || code == EAI_NO_NAME { return ResolverFailure.not_found }
+    return ResolverFailure.unavailable
+}
+
+#target: "arm64-darwin"
+noalloc func resolve_host_once(node: *u8): RawResolveAttempt {
+    let hints = NativeAddressInfo {
+        flags: 0,
+        family: ADDRESS_FAMILY_UNSPECIFIED,
+        socket_type: RESOLVER_SOCKET_STREAM,
+        protocol: PROTOCOL_TCP,
+        address_len: 0,
+        canonical_name: 0,
+        address: 0,
+        next: 0,
+    }
+    let null: *u8 = raw_ptr.from_addr(0)
+    let hints_pointer: *u8 = raw_ptr.from_addr(ptr.addr(ptr.from_ref(&hints)))
+    var result_address: usize = 0
+    let status = os_darwin.call_get_address_info(
+        node,
+        null,
+        hints_pointer,
+        ptr.from_ref_mut(&+result_address),
+    )
+    if status != 0 { return RawResolveAttempt.failed(resolver_failure(status)) }
+    if result_address == 0 {
+        return RawResolveAttempt.failed(ResolverFailure.malformed)
+    }
+    return RawResolveAttempt.ready(RawResolverResults {
+        root: result_address,
+        current: result_address,
+        remaining_records: MAX_RESOLVER_RECORDS,
+        open: true,
+    })
+}
+
+instance RawResolverResults {
+    noalloc method &+self.next(): ResolverNext {
+        while self.current != 0 {
+            if self.remaining_records == 0 { return ResolverNext.malformed }
+            self.remaining_records -= 1
+            let entry_pointer: *NativeAddressInfo = raw_ptr.from_addr(self.current)
+            let entry = raw_ptr.take_value_at_ptr(entry_pointer, 0)
+            if entry.next == self.current { return ResolverNext.malformed }
+            self.current = entry.next
+
+            if entry.family != RESOLVER_ADDRESS_FAMILY_IPV4
+                && entry.family != RESOLVER_ADDRESS_FAMILY_IPV6 {
+                continue
+            }
+            let length = entry.address_len as usize
+            if entry.address == 0 || (length != 16 && length != 28) {
+                return ResolverNext.malformed
+            }
+            let address_pointer: *u8 = raw_ptr.from_addr(entry.address)
+            let address = logical_address_from_pointer(address_pointer, length) otherwise {
+                return ResolverNext.malformed
+            }
+            return ResolverNext.ready(address)
+        }
+        return ResolverNext.end
+    }
+}
+
+noalloc drop RawResolverResults(&+self) {
+    if self.open {
+        os_darwin.release_address_info(raw_ptr.from_addr(self.root))
+        self.root = 0
+        self.current = 0
+        self.open = false
+    }
+    return
+}

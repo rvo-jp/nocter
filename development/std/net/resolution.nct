@@ -1,0 +1,217 @@
+//! Host validation, logical resolver results, deduplication, and candidate connection policy.
+
+see ./errors.nct
+see ./index.nct
+see ./tcp.nct
+see ./values.nct
+
+use /internal/mem as internal_mem
+use /internal/net as substrate
+use /internal/net.{
+    DescriptorAttempt,
+    ConnectionDeadline,
+    ResolveAttempt,
+}
+use /internal/net/model.{ResolverFailure, ResolverNext}
+use /mem as mem_module
+use /mem.TryAllocator
+use /string.String
+use /time.Duration
+use /vec.Vec
+
+enum HostResolutionAttempt {
+    ready(addresses: Vec<SocketAddress>)
+    input(failure: error)
+    resolver(failure: error)
+    allocation(failure: error)
+}
+
+noalloc func invalid_host(): error {
+    return error.new(
+        "std.net.invalid_host",
+        "host names must be non-empty ASCII text without NUL bytes",
+    )
+}
+
+noalloc func resolver_error(failure: ResolverFailure): error {
+    match failure {
+        ResolverFailure.not_found {
+            return error.new("std.net.host_not_found", "host name was not found")
+        }
+        ResolverFailure.temporary {
+            return error.new(
+                "std.net.name_resolution_temporary",
+                "host name resolution failed temporarily",
+            )
+        }
+        ResolverFailure.memory {
+            return error.new(
+                "std.net.name_resolution_unavailable",
+                "system resolver storage was unavailable",
+            )
+        }
+        ResolverFailure.unavailable {
+            return error.new("std.net.name_resolution_failed", "host name resolution failed")
+        }
+        ResolverFailure.malformed {
+            return error.new("std.net.target_error", "system resolver returned an invalid result")
+        }
+    }
+}
+
+noalloc func valid_host(host: &str): bool {
+    if host.len() == 0 { return false }
+    let bytes = host.bytes()
+    var offset: usize = 0
+    while offset < bytes.len() {
+        if bytes[offset] == 0 || bytes[offset] >= 128 { return false }
+        offset += 1
+    }
+    return true
+}
+
+noalloc func contains_address(
+    addresses: &[SocketAddress],
+    candidate: &SocketAddress,
+): bool {
+    var index: usize = 0
+    while index < addresses.len() {
+        if &addresses[index] == candidate { return true }
+        index += 1
+    }
+    return false
+}
+
+func numeric_result(
+    allocator: &+TryAllocator,
+    address: IpAddress,
+    port: u16,
+): HostResolutionAttempt {
+    var addresses: Vec<SocketAddress> = Vec.try_with_capacity(allocator, 1) catch failure {
+        return HostResolutionAttempt.allocation(move failure)
+    }
+    addresses.try_push(SocketAddress.new(address, port)) catch failure {
+        return HostResolutionAttempt.allocation(move failure)
+    }
+    return HostResolutionAttempt.ready(move addresses)
+}
+
+func resolve_core(
+    allocator: &+TryAllocator,
+    host: &str,
+    port: u16,
+): HostResolutionAttempt {
+    if !valid_host(host) { return HostResolutionAttempt.input(invalid_host()) }
+    let numeric = IpAddress.parse(host) otherwise {
+        var node = String.try_copy(allocator, host) catch failure {
+            return HostResolutionAttempt.allocation(move failure)
+        }
+        node.try_push('\u{0}') catch failure {
+            return HostResolutionAttempt.allocation(move failure)
+        }
+        let node_text: &str = &node
+        let result_attempt = substrate.resolve_host_once(node_text.ptr())
+        var results = match move result_attempt {
+            ResolveAttempt.ready(value) { move value }
+            ResolveAttempt.failed(failure) {
+                return HostResolutionAttempt.resolver(resolver_error(failure))
+            }
+        }
+        var addresses: Vec<SocketAddress> = Vec.try_with_capacity(allocator, 0) catch failure {
+            return HostResolutionAttempt.allocation(move failure)
+        }
+        while true {
+            let next = results.next()
+            match next {
+                ResolverNext.ready(raw) {
+                    let candidate = SocketAddress.new(public_address(raw).ip(), port)
+                    if !contains_address(&addresses, &candidate) {
+                        addresses.try_push(candidate) catch failure {
+                            return HostResolutionAttempt.allocation(move failure)
+                        }
+                    }
+                }
+                ResolverNext.end {
+                    if addresses.len() == 0 {
+                        return HostResolutionAttempt.resolver(error.new(
+                            "std.net.no_addresses",
+                            "host resolution produced no usable addresses",
+                        ))
+                    }
+                    return HostResolutionAttempt.ready(move addresses)
+                }
+                ResolverNext.malformed {
+                    return HostResolutionAttempt.resolver(error.new(
+                        "std.net.target_error",
+                        "system resolver returned an invalid result",
+                    ))
+                }
+            }
+        }
+        return HostResolutionAttempt.resolver(error.new(
+            "std.net.target_error",
+            "system resolver iteration terminated unexpectedly",
+        ))
+    }
+    return numeric_result(allocator, numeric, port)
+}
+
+func resolve(host: &str, port: u16): Vec<SocketAddress>! {
+    var allocator = mem_module.current_try_allocator()
+    let attempt = resolve_core(&+allocator, host, port)
+    match move attempt {
+        HostResolutionAttempt.ready(addresses) { return move addresses }
+        HostResolutionAttempt.input(failure) { return move failure }
+        HostResolutionAttempt.resolver(failure) { return move failure }
+        HostResolutionAttempt.allocation(_) { return internal_mem.allocation_abort() }
+    }
+}
+
+func try_resolve(
+    allocator: &+TryAllocator,
+    host: &str,
+    port: u16,
+): Vec<SocketAddress>! from allocator {
+    let attempt = resolve_core(allocator, host, port)
+    match move attempt {
+        HostResolutionAttempt.ready(addresses) { return move addresses }
+        HostResolutionAttempt.input(failure) { return move failure }
+        HostResolutionAttempt.resolver(failure) { return move failure }
+        HostResolutionAttempt.allocation(failure) { return move failure }
+    }
+}
+
+noalloc func connect_resolved(
+    addresses: &[SocketAddress],
+    deadline: &+ConnectionDeadline,
+): TcpStream! {
+    var offset: usize = 0
+    var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
+    while offset < addresses.len() {
+        let address = addresses[offset]
+        match substrate.connect_tcp_before(substrate_address(&address), deadline) {
+            DescriptorAttempt.ready(descriptor) {
+                return stream_from_descriptor(move descriptor)
+            }
+            DescriptorAttempt.failed(failure) {
+                last_failure = network_error(move failure)
+            }
+        }
+        offset += 1
+    }
+    return last_failure.context("every resolved address failed to connect")
+}
+
+construct TcpStream {
+    func connect_host(host: &str, port: u16): Self! {
+        var deadline = substrate.connection_deadline(none)
+        let addresses = resolve(host, port)?
+        return connect_resolved(&addresses, &+deadline)
+    }
+
+    func connect_host_with_timeout(host: &str, port: u16, timeout: Duration): Self! {
+        var deadline = substrate.connection_deadline(timeout)
+        let addresses = resolve(host, port)?
+        return connect_resolved(&addresses, &+deadline)
+    }
+}

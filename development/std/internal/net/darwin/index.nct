@@ -3,10 +3,12 @@
 //! Native address and poll layouts, socket constants, byte order, and raw syscall classification
 //! are confined to this module. Consumers receive closed logical attempts.
 
-use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /internal/net/model.{NetworkAddress, NetworkFamily, ResolverFailure, ResolverNext}
 use /internal/os.OSError
 
 see ./adapter.nct
+see ./resolver.nct
+see ./resolver_tests.nct
 
 #target: "arm64-darwin"
 pub(/) enum RawDescriptorAttempt {
@@ -68,6 +70,24 @@ pub(/) enum RawDatagramAttempt {
     would_block
     failed(error: OSError)
     malformed
+}
+
+#target: "arm64-darwin"
+pub(/) struct RawResolverResults
+
+#target: "arm64-darwin"
+pub(/) enum RawResolveAttempt {
+    ready(results: RawResolverResults)
+    failed(failure: ResolverFailure)
+}
+
+/// Starts one system resolver query for a validated null-terminated host.
+#target: "arm64-darwin"
+pub(/) noalloc func resolve_host_once(node: *u8): RawResolveAttempt
+
+instance RawResolverResults {
+    /// Returns the next usable logical address without exposing a native record.
+    pub(/) noalloc method &+self.next(): ResolverNext
 }
 
 #target: "arm64-darwin"

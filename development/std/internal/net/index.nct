@@ -5,10 +5,12 @@
 //! `std/net`.
 
 use /internal/os.OSError
-use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /internal/net/model.{NetworkAddress, NetworkFamily, ResolverFailure, ResolverNext}
 use /time.Duration
 
 see ./descriptor.nct
+see ./deadline.nct
+see ./resolver.nct
 
 pub(/) enum NetworkFailure {
     os(value: OSError)
@@ -19,6 +21,9 @@ pub(/) enum NetworkFailure {
 
 /// One uniquely owned socket descriptor with explicit terminal state.
 pub(/) struct SocketDescriptor
+
+/// One opaque monotonic deadline and candidate-attempt state for a connection operation.
+pub(/) struct ConnectionDeadline
 
 pub(/) enum DescriptorAttempt {
     ready(descriptor: SocketDescriptor)
@@ -50,6 +55,16 @@ pub(/) enum UnitAttempt {
     failed(failure: NetworkFailure)
 }
 
+pub(/) struct ResolverResults
+
+pub(/) enum ResolveAttempt {
+    ready(results: ResolverResults)
+    failed(failure: ResolverFailure)
+}
+
+/// Starts one system resolver query for a validated null-terminated host.
+pub(/) noalloc func resolve_host_once(node: *u8): ResolveAttempt
+
 pub(/) enum NetworkShutdown {
     read
     write
@@ -61,6 +76,20 @@ pub(/) noalloc func connect_tcp(
     address: NetworkAddress,
     timeout: Duration?,
 ): DescriptorAttempt
+
+/// Creates one deadline before a multi-candidate connection operation begins.
+pub(/) noalloc func connection_deadline(timeout: Duration?): ConnectionDeadline
+
+/// Creates and connects one TCP descriptor without restarting `deadline`.
+pub(/) noalloc func connect_tcp_before(
+    address: NetworkAddress,
+    deadline: &+ConnectionDeadline,
+): DescriptorAttempt
+
+instance ResolverResults {
+    /// Returns the next usable logical address without exposing a target record.
+    pub(/) noalloc method &+self.next(): ResolverNext
+}
 
 /// Creates, binds, and starts listening on one configured TCP descriptor.
 pub(/) noalloc func listen_tcp(address: NetworkAddress): DescriptorAttempt

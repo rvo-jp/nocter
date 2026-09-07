@@ -10,10 +10,13 @@ use /mem.TryAllocator
 use /order.TotalOrder
 use /string.String
 use /time.Duration
+use /vec.Vec
 
 see ./contracts.nct
 see ./formatting.nct
 see ./parsing.nct
+see ./resolution.nct
+see ./resolution_tests.nct
 see ./tests.nct
 see ./tcp.nct
 see ./errors.nct
@@ -227,7 +230,23 @@ construct TcpStream {
 
     /// Connects synchronously, returning `std.net.timed_out` when `timeout` expires.
     pub noalloc func connect_with_timeout(address: SocketAddress, timeout: Duration): Self!
+
+    /// Resolves `host` and connects to the first reachable address in system order.
+    pub func connect_host(host: &str, port: u16): Self!
+
+    /// Resolves and connects without restarting `timeout` for each candidate.
+    pub func connect_host_with_timeout(host: &str, port: u16, timeout: Duration): Self!
 }
+
+/// Resolves one ASCII host into numeric socket addresses in system order.
+pub func resolve(host: &str, port: u16): Vec<SocketAddress>!
+
+/// Resolves using recoverable result storage from `allocator`.
+pub func try_resolve(
+    allocator: &+TryAllocator,
+    host: &str,
+    port: u16,
+): Vec<SocketAddress>! from allocator
 
 instance TcpStream {
     impl Reader

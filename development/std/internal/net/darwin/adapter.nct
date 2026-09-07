@@ -195,6 +195,18 @@ noalloc func logical_address(bytes: &[u8; 28], len: usize): NetworkAddress? {
 }
 
 #target: "arm64-darwin"
+noalloc func logical_address_from_pointer(pointer: *u8, len: usize): NetworkAddress? {
+    if len != 16 && len != 28 { return none }
+    var native = empty_native_address()
+    var index: usize = 0
+    while index < len {
+        native.bytes[index] = internal_ptr.take_value_at_ptr(pointer, index)
+        index += 1
+    }
+    return logical_address(&native.bytes, len)
+}
+
+#target: "arm64-darwin"
 noalloc func configure_descriptor(fd: usize): ConfigureAttempt {
     var flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFD, 0)
     while flags.errno == darwin.ERRNO_INTERRUPTED {

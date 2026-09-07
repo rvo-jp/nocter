@@ -1,0 +1,64 @@
+//! Native resolver failure and record-boundary qualification.
+
+see ./index.nct
+see ./resolver.nct
+
+use /internal/net/model.{ResolverFailure, ResolverNext}
+use /ptr
+
+test resolver_failure_codes_are_classified_once {
+    match resolver_failure(2) {
+        ResolverFailure.temporary {}
+        _ { return error.new("std.net.test", "temporary resolver status changed") }
+    }
+    match resolver_failure(6) {
+        ResolverFailure.memory {}
+        _ { return error.new("std.net.test", "memory resolver status changed") }
+    }
+    match resolver_failure(7) {
+        ResolverFailure.not_found {}
+        _ { return error.new("std.net.test", "no-data resolver status changed") }
+    }
+    match resolver_failure(8) {
+        ResolverFailure.not_found {}
+        _ { return error.new("std.net.test", "missing-name resolver status changed") }
+    }
+    match resolver_failure(4) {
+        ResolverFailure.unavailable { return }
+        _ { return error.new("std.net.test", "unavailable resolver status changed") }
+    }
+}
+
+test resolver_iteration_rejects_empty_and_malformed_native_records {
+    var empty = RawResolverResults {
+        root: 0,
+        current: 0,
+        remaining_records: 1,
+        open: false,
+    }
+    match empty.next() {
+        ResolverNext.end {}
+        _ { return error.new("std.net.test", "empty resolver list was not terminal") }
+    }
+
+    let record = NativeAddressInfo {
+        flags: 0,
+        family: 2,
+        socket_type: 1,
+        protocol: 6,
+        address_len: 16,
+        canonical_name: 0,
+        address: 0,
+        next: 0,
+    }
+    var malformed = RawResolverResults {
+        root: 0,
+        current: ptr.addr(ptr.from_ref(&record)),
+        remaining_records: 1,
+        open: false,
+    }
+    match malformed.next() {
+        ResolverNext.malformed { return }
+        _ { return error.new("std.net.test", "null native address was accepted") }
+    }
+}

@@ -32,13 +32,35 @@ the logical address before the port. Hashing contributes the same equality-relev
 native padding. Direct string conversion and the shared `Format` contract use the same canonical
 generators.
 
+## Host Resolution
+
+`net.resolve` accepts one non-empty ASCII host without a NUL byte and returns owned logical
+`SocketAddress` values using the current allocation context. `net.try_resolve` provides the same
+operation with recoverable result storage from an explicit `TryAllocator`. A numeric IPv4 or IPv6
+host bypasses the system resolver. Other hosts use the operating-system resolver with TCP-family
+hints, retain its usable IPv4 and IPv6 order, apply the requested logical port, and remove only
+exact duplicate addresses.
+
+Native resolver records never cross the target adapter. The adapter validates each native record,
+copies only its logical address, and owns the complete result list until destruction releases it
+exactly once. Empty or malformed results and native resolver failures become stable `std.net.*`
+errors; native status codes and pointers are not observable.
+
+`TcpStream.connect_host` resolves and tries candidates in returned order.
+`TcpStream.connect_host_with_timeout` creates one monotonic deadline before resolution and does not
+restart it for each candidate. The platform resolver is a synchronous operating-system service and
+cannot itself be interrupted by this timeout. Time spent resolving still consumes the deadline, so
+connection work cannot receive a fresh duration afterward. As with other zero-duration network
+operations, one immediate connection attempt is permitted and later candidates require remaining
+time.
+
 ## TCP Streams and Listeners
 
 `TcpStream` is a uniquely owned byte stream implementing `Reader` and `Writer`. Connecting accepts
-one numeric `SocketAddress`; host-name resolution is deliberately separate. Reads initialize at
-most the supplied mutable byte view and return zero at peer EOF. Writes complete the entire byte
-view or return a failure after any already-written prefix remains observable. Empty transfers
-follow the ordinary stream contracts.
+one numeric `SocketAddress`, while the host constructors compose the separate resolution contract
+with ordered candidate connection. Reads initialize at most the supplied mutable byte view and
+return zero at peer EOF. Writes complete the entire byte view or return a failure after any
+already-written prefix remains observable. Empty transfers follow the ordinary stream contracts.
 
 `TcpListener` binds one numeric address and accepts uniquely owned streams. Port zero asks the
 kernel to select an available port; `local_address` reports the effective address. `accept` also
@@ -95,6 +117,6 @@ cannot affect these deadlines.
 
 ## Current Boundary
 
-Numeric addresses, synchronous TCP, boundary-preserving UDP, and monotonic operation timeouts are
-implemented. Name resolution, URLs, HTTP, TLS, async I/O, and public nonblocking sockets are outside
-v0.39.0.
+Numeric addresses, system host resolution, ordered host connection, synchronous TCP,
+boundary-preserving UDP, and monotonic operation timeouts are implemented. URLs are provided by
+`std/url`. HTTP, TLS, async I/O, and public nonblocking sockets remain outside this module.

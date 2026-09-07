@@ -1,0 +1,140 @@
+//! Native qualification for system resolution and ordered host connection.
+
+see ./index.nct
+see ./resolution.nct
+see ./tcp_tests.nct
+
+use /internal/net as substrate
+use /time.Duration
+use /vec.Vec
+
+test numeric_hosts_bypass_resolution_without_changing_values {
+    let ipv4 = resolve("127.0.0.1", 8080)?
+    if ipv4.len() != 1
+        || ipv4[0] != SocketAddress.new(
+            IpAddress.from_ipv4(Ipv4Address.loopback()),
+            8080,
+        ) {
+        return error.new("std.net.test", "numeric IPv4 resolution changed the address")
+    }
+
+    let ipv6 = resolve("::1", 8443)?
+    if ipv6.len() != 1
+        || ipv6[0] != SocketAddress.new(
+            IpAddress.from_ipv6(Ipv6Address.loopback()),
+            8443,
+        ) {
+        return error.new("std.net.test", "numeric IPv6 resolution changed the address")
+    }
+    return
+}
+
+test localhost_resolution_is_logical_ordered_and_unique {
+    let addresses = resolve("localhost", 9090)?
+    if addresses.len() == 0 {
+        return error.new("std.net.test", "localhost produced no usable address")
+    }
+    var index: usize = 0
+    while index < addresses.len() {
+        if addresses[index].port() != 9090 {
+            return error.new("std.net.test", "resolution changed the requested port")
+        }
+        var earlier: usize = 0
+        while earlier < index {
+            if addresses[earlier] == addresses[index] {
+                return error.new("std.net.test", "resolution retained an exact duplicate")
+            }
+            earlier += 1
+        }
+        index += 1
+    }
+    return
+}
+
+test invalid_and_missing_hosts_have_stable_public_errors {
+    let _empty = resolve("", 80) catch failure {
+        if !failure.has_code("std.net.invalid_host") {
+            return error.new("std.net.test", "empty host lost its stable error")
+        }
+        let _nul = resolve("bad\0host", 80) catch nul_failure {
+            if !nul_failure.has_code("std.net.invalid_host") {
+                return error.new("std.net.test", "NUL host lost its stable error")
+            }
+            let _unicode = resolve("café.invalid", 80) catch unicode_failure {
+                if !unicode_failure.has_code("std.net.invalid_host") {
+                    return error.new("std.net.test", "non-ASCII host lost its stable error")
+                }
+                let _missing = resolve("nocter-does-not-exist.invalid", 80) catch missing {
+                    if missing.has_code("std.net.host_not_found") { return }
+                    return error.new("std.net.test", "missing host lost its stable error")
+                }
+                return error.new("std.net.test", "missing host unexpectedly resolved")
+            }
+            return error.new("std.net.test", "non-ASCII host unexpectedly resolved")
+        }
+        return error.new("std.net.test", "NUL host unexpectedly resolved")
+    }
+    return error.new("std.net.test", "empty host unexpectedly resolved")
+}
+
+func ordered_loopback_candidates(port: u16): Vec<SocketAddress> {
+    return Vec [
+        SocketAddress.new(IpAddress.from_ipv6(Ipv6Address.loopback()), port),
+        SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), port),
+    ]
+}
+
+test host_connection_falls_back_in_candidate_order {
+    var listener = loopback_listener()?
+    let address = listener.local_address()?
+    let candidates = ordered_loopback_candidates(address.port())
+    var deadline = substrate.connection_deadline(Duration.from_seconds(1))
+    var client = connect_resolved(&candidates, &+deadline)?
+    let accepted = listener.accept()?
+    var server = move accepted.0
+    client.write("ok".bytes())?
+    var received: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0)]
+    if server.read(&+received)? != 2 || received[0] != 111 || received[1] != 107 {
+        return error.new("std.net.test", "fallback connection lost stream bytes")
+    }
+    return
+}
+
+test public_host_connection_resolves_and_transfers_bytes {
+    var listener = loopback_listener()?
+    let address = listener.local_address()?
+    var client = TcpStream.connect_host("localhost", address.port())?
+    let accepted = listener.accept()?
+    var server = move accepted.0
+    client.write("h".bytes())?
+    var received: Vec<u8> = Vec [u8.truncate(0)]
+    if server.read(&+received)? != 1 || received[0] != 104 {
+        return error.new("std.net.test", "host connection lost stream bytes")
+    }
+    return
+}
+
+test complete_candidate_exhaustion_retains_the_last_stable_error {
+    var listener = loopback_listener()?
+    let address = listener.local_address()?
+    listener.close()
+    let candidates = ordered_loopback_candidates(address.port())
+    var deadline = substrate.connection_deadline(Duration.from_seconds(1))
+    let _stream = connect_resolved(&candidates, &+deadline) catch failure {
+        if failure.has_code("std.net.connection_refused") { return }
+        return error.new("std.net.test", "candidate exhaustion lost its stable error")
+    }
+    return error.new("std.net.test", "closed candidate set unexpectedly connected")
+}
+
+test candidate_connections_share_one_deadline {
+    var listener = loopback_listener()?
+    let address = listener.local_address()?
+    let candidates = ordered_loopback_candidates(address.port())
+    var deadline = substrate.connection_deadline(Duration.from_seconds(0))
+    let _stream = connect_resolved(&candidates, &+deadline) catch failure {
+        if failure.has_code("std.net.timed_out") { return }
+        return error.new("std.net.test", "shared deadline lost its timeout error")
+    }
+    return error.new("std.net.test", "candidate retry restarted an expired deadline")
+}

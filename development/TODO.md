@@ -2,18 +2,18 @@
 
 ## Current State
 
-Nocter v0.39.0 is published and externally audited. v0.40.0 Phases 0-1 are complete. The active
+Nocter v0.39.0 is published and externally audited. v0.40.0 Phases 0-2 are complete. The active
 release remains one synchronous Internet client foundation spanning trusted target services, URLs,
 system name resolution, HTTP/1.1 framing, and an owned synchronous client lifecycle.
 
 ## Next Work
 
-Begin Phase 2 with system name resolution and host connection policy in `std/net`. Bind only the
-Phase 0 trusted resolver services in the Darwin adapter, copy native results into logical
-`SocketAddress` values, and release every native result exactly once. Preserve operating-system
-candidate order, remove exact duplicates, bypass the resolver for numeric hosts, and share one
-monotonic deadline across candidate connection attempts. Keep URL parsing and HTTP framing outside
-the resolver boundary. Preserve the immutable v0.39.0 tag and asset.
+Begin Phase 3 with validated HTTP/1.1 message values and one transport-independent framing codec.
+Keep method, status, header, body-framing, syntax-limit, and buffer-limit decisions independent of
+DNS and socket ownership. Select message framing exactly once, reject ambiguous or unbounded input
+before allocation, and cover partial input, informational responses, trailers, premature EOF,
+overflow, conflicting lengths, unsupported transfer codings, and smuggling-prone combinations.
+Preserve the immutable v0.39.0 tag and asset.
 
 ## Blockers
 

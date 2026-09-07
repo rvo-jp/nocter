@@ -2180,7 +2180,10 @@ fn standard_network_contract_crosses_native_tests() {
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
-    root_source.push_str("\n#test: { name: \"net\", module: \"./net\" }\n");
+    root_source.push_str(concat!(
+        "\n#test: { name: \"net\", module: \"./net\" }\n",
+        "#test: { name: \"net-resolver-adapter\", module: \"./internal/net/darwin\" }\n",
+    ));
     let mut overlay = SourceOverlay::builder();
     overlay
         .insert_source(
@@ -2197,6 +2200,7 @@ fn standard_network_contract_crosses_native_tests() {
         vec![
             ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(standard_package.clone(), ["net"]),
+            ModuleIdentity::new(standard_package.clone(), ["internal", "net", "darwin"]),
         ],
         bundled_standard_toolchain(&standard_package),
     ))
@@ -2204,15 +2208,19 @@ fn standard_network_contract_crosses_native_tests() {
 
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
-    assert_eq!(compiled.targets().len(), 1);
-    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("standard network tests failed native compilation")
-    };
-    assert_eq!(cases.len(), 18);
+    assert_eq!(compiled.targets().len(), 2);
     let output = TempPackage::new();
-    for case in cases {
-        execute_native_test(case.image(), &output.0, case.identity().name());
+    let mut case_count = 0;
+    for target in compiled.targets() {
+        let NativeTestTargetOutcome::Compiled(cases) = target.outcome() else {
+            panic!("standard network tests failed native compilation")
+        };
+        case_count += cases.len();
+        for case in cases {
+            execute_native_test(case.image(), &output.0, case.identity().name());
+        }
     }
+    assert_eq!(case_count, 27);
 }
 
 #[test]
@@ -2490,6 +2498,27 @@ const RECOVERABLE_URL_TEST_SOURCE: &str = concat!(
     "}\n",
 );
 
+const RECOVERABLE_NET_TEST_SOURCE: &str = concat!(
+    "use /mem\n",
+    "use /net\n",
+    "test recoverable_numeric_resolution_propagates_allocator_failure {\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _addresses = net.try_resolve(&+allocator, \"127.0.0.1\", 80) catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.net.allocator\", \"wrong numeric allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.net.allocator\", \"invalid allocator resolved numeric host\")\n",
+    "}\n",
+    "test recoverable_named_resolution_propagates_allocator_failure {\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _addresses = net.try_resolve(&+allocator, \"localhost\", 80) catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.net.allocator\", \"wrong named-host allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.net.allocator\", \"invalid allocator resolved named host\")\n",
+    "}\n",
+);
+
 #[test]
 fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -2502,6 +2531,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
         "#test: { name: \"json-failure\", module: \".\" }\n",
         "see ./allocator_failure_json_tests.nct\n",
         "see ./allocator_failure_url_tests.nct\n",
+        "see ./allocator_failure_net_tests.nct\n",
     ));
 
     let mut mem_contract = fs::read_to_string(standard_root.join("mem/index.nct")).unwrap();
@@ -2538,6 +2568,10 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             standard_root.join("allocator_failure_url_tests.nct"),
             RECOVERABLE_URL_TEST_SOURCE.to_string(),
         ),
+        (
+            standard_root.join("allocator_failure_net_tests.nct"),
+            RECOVERABLE_NET_TEST_SOURCE.to_string(),
+        ),
     ] {
         overlay
             .insert_source(path, SourceOverride::new(source.into_bytes()))
@@ -2572,7 +2606,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 27);
+    assert_eq!(case_count, 29);
 }
 
 #[test]

@@ -7,6 +7,22 @@ pub(/) enum NetworkFamily {
     ipv6
 }
 
+/// One target-independent classification of a system resolver outcome.
+pub(/) enum ResolverFailure {
+    not_found
+    temporary
+    memory
+    unavailable
+    malformed
+}
+
+/// One validated step through a system resolver result sequence.
+pub(/) enum ResolverNext {
+    ready(address: NetworkAddress)
+    end
+    malformed
+}
+
 /// One logical numeric socket address at the target boundary.
 pub(/) copy struct NetworkAddress {
     pub family: NetworkFamily
