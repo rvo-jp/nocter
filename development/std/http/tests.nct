@@ -33,7 +33,7 @@ func decode_single_head_fragment(
     limits: Limits,
 ): ResponseHeadAttempt {
     var decoder = response_head_decoder(limits)
-    append_response_head_input(&+decoder, text.bytes(), text.len()) catch failure {
+    append_response_head_input_range(&+decoder, text.bytes(), 0, text.len()) catch failure {
         return ResponseHeadAttempt.failed(move failure)
     }
     return advance_response_head(move decoder, request_method)
@@ -257,7 +257,7 @@ test response_head_decoder_retains_completed_work_across_partial_input {
     let request_method = Method.get()
     let prefix = "HTTP/1.1 200 OK\r\nX-One: first\r\nX-Two"
     var initial = response_head_decoder(Limits.standard())
-    append_response_head_input(&+initial, prefix.bytes(), prefix.len())?
+    append_response_head_input_range(&+initial, prefix.bytes(), 0, prefix.len())?
     let partial = advance_response_head(move initial, &request_method)
     var decoder = match move partial {
         ResponseHeadAttempt.incomplete(value) {
@@ -269,7 +269,7 @@ test response_head_decoder_retains_completed_work_across_partial_input {
         _ { return error.new("std.http.test", "partial response head did not suspend") }
     }
     let suffix = ": second\r\n\r\nbody"
-    append_response_head_input(&+decoder, suffix.bytes(), suffix.len())?
+    append_response_head_input_range(&+decoder, suffix.bytes(), 0, suffix.len())?
     let complete = advance_response_head(move decoder, &request_method)
     match move complete {
         ResponseHeadAttempt.ready(parsed) {
@@ -278,6 +278,34 @@ test response_head_decoder_retains_completed_work_across_partial_input {
         }
         _ { return error.new("std.http.test", "completed incremental head was rejected") }
     }
+}
+
+test response_head_decoder_accepts_every_single_fragment_boundary {
+    let request_method = Method.get()
+    let input = "HTTP/1.1 200 OK\r\nX-One: first\r\nContent-Length: 0\r\n\r\n"
+    let bytes = input.bytes()
+    var split: usize = 0
+    while split < bytes.len() {
+        var decoder = response_head_decoder(Limits.standard())
+        append_response_head_input_range(&+decoder, bytes, 0, split)?
+        let partial = advance_response_head(move decoder, &request_method)
+        var suspended = match move partial {
+            ResponseHeadAttempt.incomplete(value) { move value }
+            _ { return error.new("std.http.test", "incomplete fragment was accepted early") }
+        }
+        append_response_head_input_range(&+suspended, bytes, split, bytes.len())?
+        let complete = advance_response_head(move suspended, &request_method)
+        match move complete {
+            ResponseHeadAttempt.ready(parsed) {
+                if parsed.consumed != bytes.len() || parsed.head.headers().len() != 2 {
+                    return error.new("std.http.test", "fragment boundary changed head output")
+                }
+            }
+            _ { return error.new("std.http.test", "fragmented response head was rejected") }
+        }
+        split += 1
+    }
+    return
 }
 
 test informational_response_sequences_obey_their_aggregate_limit {

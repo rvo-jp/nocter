@@ -99,7 +99,7 @@ func read_response_head(
                     return failure.context("while reading the HTTP response head")
                 }
                 if received == 0 { return premature_eof() }
-                append_response_head_input(&+decoder, &scratch, received)?
+                append_response_head_input_range(&+decoder, &scratch, 0, received)?
             }
         }
     }

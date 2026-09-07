@@ -67,14 +67,15 @@ noalloc func response_head_decoder(limits: Limits): ResponseHeadDecoder {
     }
 }
 
-func append_response_head_input(
+func append_response_head_input_range(
     decoder: &+ResponseHeadDecoder,
     input: &[u8],
-    count: usize,
+    start: usize,
+    end: usize,
 ): void! {
-    if count > input.len() { return invalid_syntax() }
-    var offset: usize = 0
-    while offset < count {
+    if start > end || end > input.len() { return invalid_syntax() }
+    var offset = start
+    while offset < end {
         decoder.input.push(input[offset])
         offset += 1
     }
