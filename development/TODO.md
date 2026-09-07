@@ -2,16 +2,18 @@
 
 ## Current State
 
-Nocter v0.39.0 is published and externally audited. v0.40.0 is active as one synchronous Internet
-client foundation spanning trusted target services, URLs, system name resolution, HTTP/1.1 framing,
-and an owned synchronous client lifecycle.
+Nocter v0.39.0 is published and externally audited. v0.40.0 Phases 0-1 are complete. The active
+release remains one synchronous Internet client foundation spanning trusted target services, URLs,
+system name resolution, HTTP/1.1 framing, and an owned synchronous client lifecycle.
 
 ## Next Work
 
-Begin Phase 1 with the immutable `std/url` value boundary. Define URL components and parsing before
-transport integration; parsing, canonical formatting, hashing, equality, relative resolution, and
-HTTP request-target projection must consume one retained representation. Keep DNS, sockets, and
-HTTP policy outside the URL module. Preserve the immutable v0.39.0 tag and asset.
+Begin Phase 2 with system name resolution and host connection policy in `std/net`. Bind only the
+Phase 0 trusted resolver services in the Darwin adapter, copy native results into logical
+`SocketAddress` values, and release every native result exactly once. Preserve operating-system
+candidate order, remove exact duplicates, bypass the resolver for numeric hosts, and share one
+monotonic deadline across candidate connection attempts. Keep URL parsing and HTTP framing outside
+the resolver boundary. Preserve the immutable v0.39.0 tag and asset.
 
 ## Blockers
 

@@ -2056,6 +2056,88 @@ mod tests {
     }
 
     #[test]
+    fn url_contract_drives_hover_navigation_signature_and_completion() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/url.Url\n",
+            "func main(): void! {\n",
+            "    let value = Url.parse(\"https://example.com/a\")?\n",
+            "    let rendered = value.to_string()\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(response.contains("pub struct Url"), "{response}");
+        assert!(!response.contains("host_text"), "{response}");
+        assert!(!response.contains("https_scheme"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/url/index.nct"), "{response}");
+        assert!(!response.contains("storage.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":35}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("func Url.parse(text: &str): Url!"),
+            "{response}"
+        );
+        assert!(response.contains("\"activeParameter\":0"), "{response}");
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let incomplete = text.replace("value.to_string()", "value.");
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 5, 3, 25);
+        let response = completion.response().unwrap();
+        for method in [
+            "host",
+            "path",
+            "query",
+            "resolve",
+            "request_target",
+            "to_string",
+        ] {
+            assert!(
+                response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("host_text"), "{response}");
+        assert!(!response.contains("https_scheme"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
     fn json_value_parser_and_generator_contracts_are_visible_from_the_root_source() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");

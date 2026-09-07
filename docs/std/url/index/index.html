@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nocter Standard Library</title>
-    <meta name="description" content="Compiler-checked public standard-library declarations and their observable module contracts.">
+    <title>std/url/index.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for std/url/index.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/std/">
-    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/std/url/index/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="Nocter Standard Library">
-    <meta property="og:description" content="Compiler-checked public standard-library declarations and their observable module contracts.">
-    <meta property="og:url" content="https://nocter.dev/std/">
+    <meta property="og:title" content="std/url/index.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for std/url/index.nct.">
+    <meta property="og:url" content="https://nocter.dev/std/url/index/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nocter Standard Library">
-    <meta name="twitter:description" content="Compiler-checked public standard-library declarations and their observable module contracts.">
+    <meta name="twitter:title" content="std/url/index.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for std/url/index.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"Nocter Standard Library","description":"Compiler-checked public standard-library declarations and their observable module contracts.","url":"https://nocter.dev/std/","mainEntityOfPage":"https://nocter.dev/std/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Std","item":"https://nocter.dev/std/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"std/url/index.nct - Nocter","description":"Nocter source code for std/url/index.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/std/url/index/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Std","item":"https://nocter.dev/std/"},{"@type":"ListItem","position":3,"name":"Url","item":"https://nocter.dev/std/url/"},{"@type":"ListItem","position":4,"name":"Index","item":"https://nocter.dev/std/url/index/"}]}]</script>
 
-    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-document-tree">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../spec/index.html#content">Specification</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Specification</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -173,46 +173,102 @@
     <div class="docs-shell">
         <aside class="document-tree">
             <nav aria-label="Documentation tree">
-                <ol class="document-tree-breadcrumbs"><li><a href="../index.html#content">Nocter</a></li></ol>
-                <p class="document-tree-title">std/</p>
+                <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li><li><a href="../../index.html#content">Standard Library</a></li></ol>
+                <p class="document-tree-title">std/url/</p>
                 <ul class="document-tree-list">
-                    <li><a href="./index.html#content" aria-current="page">Standard Library</a></li>
-                    <li><a href="./index/index.html#content">Module Contract</a></li>
-                    <li><a href="./char/index.html#content">char</a></li>
-                    <li><a href="./core/index/index.html#content">core</a></li>
-                    <li><a href="./error/index.html#content">error</a></li>
-                    <li><a href="./fmt/index.html#content">fmt</a></li>
-                    <li><a href="./fs/index.html#content">fs</a></li>
-                    <li><a href="./hash/index/index.html#content">hash</a></li>
-                    <li><a href="./io/index.html#content">io</a></li>
-                    <li><a href="./iter/index.html#content">iter</a></li>
-                    <li><a href="./json/index.html#content">json</a></li>
-                    <li><a href="./map/index.html#content">map</a></li>
-                    <li><a href="./mem/index.html#content">mem</a></li>
-                    <li><a href="./net/index.html#content">net</a></li>
-                    <li><a href="./num/index.html#content">num</a></li>
-                    <li><a href="./order/index.html#content">order</a></li>
-                    <li><a href="./path/index/index.html#content">path</a></li>
-                    <li><a href="./prelude/index/index.html#content">prelude</a></li>
-                    <li><a href="./process/index.html#content">process</a></li>
-                    <li><a href="./ptr/index.html#content">ptr</a></li>
-                    <li><a href="./set/index/index.html#content">set</a></li>
-                    <li><a href="./slice/index.html#content">slice</a></li>
-                    <li><a href="./str/index.html#content">str</a></li>
-                    <li><a href="./string/index.html#content">string</a></li>
-                    <li><a href="./testing/index.html#content">testing</a></li>
-                    <li><a href="./time/index.html#content">time</a></li>
-                    <li><a href="./url/index.html#content">url</a></li>
-                    <li><a href="./vec/index.html#content">vec</a></li>
+                    <li><a href="../index.html#content">URL</a></li>
+                    <li><a href="./index.html#content" aria-current="page">Module Contract</a></li>
                 </ul>
             </nav>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/std/README.md</span>
+                <span class="markdown-path-text">/std/url/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1 id="standard-library">Standard Library</h1><p>This directory is the sole authority for the portable public modules distributed with Nocter. Every module <code>index.nct</code> owns its compiler-checked public declarations and declaration doc comments. The catalog below assigns each longer observable subject to one behavior guide. A guide may span tightly coupled modules when separating their cross-operation invariants would create duplicate authorities. Declarations answer what can be called; guides explain observable behavior, failure, complexity, and invariants without repeating signatures. The package identity itself is defined by the checked <a href="./index/index.html#content">root declaration</a>.</p><p>Language constructs and target primitives are referenced from their owning specification chapters rather than redefined here. Generated contract pages show the exact checked <code>index.nct</code> source: only declarations with public language visibility are public API, while visible <code>see</code> edges and restricted declarations remain source-level module assembly and package contracts. Independent package-only modules live under <code>std/internal</code> and are excluded from generated navigation. The guides below cover modules whose observable behavior needs more explanation than declaration comments.</p><h2 id="behavior-guide-authority">Behavior Guide Authority</h2><table><thead><tr><th>Observable subject</th><th>Sole guide</th><th>Checked contracts</th></tr></thead><tbody><tr><td>borrowed UTF-8 text</td><td><a href="./str/index.html#content">Borrowed Text</a></td><td><code>std/str</code></td></tr><tr><td>owned UTF-8 text</td><td><a href="./string/index.html#content">Owned Strings</a></td><td><code>std/string</code></td></tr><tr><td>growable sequences</td><td><a href="./vec/index.html#content">Vectors</a></td><td><code>std/vec</code></td></tr><tr><td>borrowed sequences</td><td><a href="./slice/index.html#content">Slices</a></td><td><code>std/slice</code></td></tr><tr><td>iteration and collection</td><td><a href="./iter/index.html#content">Iteration</a></td><td><code>std/iter</code>, <code>std/iter/collect</code></td></tr><tr><td>value formatting</td><td><a href="./fmt/index.html#content">Formatting</a></td><td><code>std/fmt</code></td></tr><tr><td>byte streams and buffering</td><td><a href="./io/index.html#content">I/O</a></td><td><code>std/io</code>, <code>std/io/buffer</code></td></tr><tr><td>paths and filesystem operations</td><td><a href="./fs/index.html#content">Filesystem</a></td><td><code>std/path</code>, <code>std/fs</code></td></tr><tr><td>numeric values and text conversion</td><td><a href="./num/index.html#content">Numeric Values</a></td><td><code>std/num</code></td></tr><tr><td>total ordering and comparison results</td><td><a href="./order/index.html#content">Total Ordering</a></td><td><code>std/order</code></td></tr><tr><td>allocation and storage failure</td><td><a href="./mem/index.html#content">Allocation and Failure</a></td><td><code>std/mem</code></td></tr><tr><td>recoverable failure payloads</td><td><a href="./error/index.html#content">Recoverable Errors</a></td><td><code>std/error</code></td></tr><tr><td>pointers and addresses</td><td><a href="./ptr/index.html#content">Pointer and Address Conversion</a></td><td><code>std/ptr</code></td></tr><tr><td>hashing and unordered collections</td><td><a href="./map/index.html#content">Associative Collections</a></td><td><code>std/hash</code>, <code>std/map</code>, <code>std/set</code></td></tr><tr><td>JSON values, parsing, and generation</td><td><a href="./json/index.html#content">JSON Values and Text</a></td><td><code>std/json</code></td></tr><tr><td>durations, monotonic time, wall-clock time, and UTC calendar values</td><td><a href="./time/index.html#content">Time</a></td><td><code>std/time</code></td></tr><tr><td>synchronous processes and process context</td><td><a href="./process/index.html#content">Synchronous Processes</a></td><td><code>std/process</code></td></tr><tr><td>numeric network addresses and synchronous sockets</td><td><a href="./net/index.html#content">Synchronous Network I/O</a></td><td><code>std/net</code></td></tr><tr><td>absolute HTTP-family URLs and request targets</td><td><a href="./url/index.html#content">URL</a></td><td><code>std/url</code></td></tr><tr><td>Unicode scalars and text transforms</td><td><a href="./char/index.html#content">Unicode Text and Scalars</a></td><td><code>std/char</code>, Unicode operations on <code>std/str</code> and <code>std/string</code></td></tr><tr><td>native assertions</td><td><a href="./testing/index.html#content">Native Assertions</a></td><td><code>std/testing</code></td></tr></tbody></table>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Parsed absolute HTTP URLs and canonical component projections.</span>
+
+<span class="token-keyword">use</span> <span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-type">Hash</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>failure<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>formatting<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>normalization<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>parsing<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>reference<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>resolving<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
+
+<span class="token-comment">/// A recognized HTTP-family URL scheme.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">enum</span> <span class="token-type">UrlScheme</span> <span class="token-operator">{</span>
+    http
+    https
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// One immutable, parsed absolute HTTP-family URL.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Url</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Url</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Parses and canonicalizes one complete absolute `http` or `https` URL.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">parse</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Parses with recoverable allocation from `allocator`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_parse</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span> text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span> from allocator
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Url</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Hash</span>
+
+    <span class="token-comment">/// Returns the recognized scheme.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">scheme</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">UrlScheme</span>
+
+    <span class="token-comment">/// Returns the canonical host without IPv6 brackets.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">host</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+
+    <span class="token-comment">/// Returns the effective port after applying the scheme default.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">port</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u16</span>
+
+    <span class="token-comment">/// Returns the non-default explicit port, when one remains significant.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">explicit_port</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Returns the canonical absolute path. An omitted input path becomes `/`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">path</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span>
+
+    <span class="token-comment">/// Returns the canonical query without `?`, preserving present-empty query values.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">query</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Returns the canonical fragment without `#`, preserving present-empty fragments.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">fragment</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span>
+
+    <span class="token-comment">/// Generates the canonical absolute URL.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Generates the canonical absolute URL with recoverable allocation.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_to_string</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+
+    <span class="token-comment">/// Generates the HTTP origin-form request target, excluding any fragment.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">request_target</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span>
+
+    <span class="token-comment">/// Generates the request target with recoverable allocation.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_request_target</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
+
+    <span class="token-comment">/// Resolves one RFC 3986 relative reference against this absolute base URL.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">resolve</span><span class="token-operator">(</span>reference<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Url</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Resolves a relative reference with recoverable allocation from `allocator`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_resolve</span><span class="token-operator">(</span>
+        allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
+        reference<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Url</span><span class="token-operator">!</span> from allocator
+
+    <span class="token-comment">/// Compares canonical logical URL components.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">=</span><span class="token-operator">=</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+</code></pre>
             </div>
         </main>
     </div>
@@ -228,6 +284,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

@@ -1,0 +1,104 @@
+//! Shared path, query, and fragment grammar for absolute and relative references.
+
+see ./failure.nct
+see ./normalization.nct
+
+use /mem.TryAllocator
+use /string.String
+
+struct ReferenceTail {
+    path: String
+    query: String
+    has_query: bool
+    fragment: String
+    has_fragment: bool
+}
+
+func empty_component(allocator: &+TryAllocator): UrlAttempt<String> {
+    let value = String.try_with_capacity(allocator, 0) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    return UrlAttempt.success(move value)
+}
+
+func parse_reference_tail(
+    allocator: &+TryAllocator,
+    text: &str,
+    start: usize,
+): UrlAttempt<ReferenceTail> {
+    if start > text.len() { return invalid_url() }
+    var path_end = start
+    while path_end < text.len() && text[path_end] != 63 && text[path_end] != 35 {
+        path_end += 1
+    }
+    let path_source = text.get_range(start, path_end) otherwise { return invalid_url() }
+    let path_attempt = normalized_component(allocator, path_source, PATH_COMPONENT, false)
+    let path = match move path_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+
+    let empty_query_attempt = empty_component(allocator)
+    var query = match move empty_query_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+    var has_query = false
+    var fragment_start = path_end
+    if path_end < text.len() && text[path_end] == 63 {
+        has_query = true
+        var query_end = path_end + 1
+        while query_end < text.len() && text[query_end] != 35 { query_end += 1 }
+        let query_source = text.get_range(path_end + 1, query_end) otherwise {
+            return invalid_url()
+        }
+        let query_attempt = normalized_component(
+            allocator,
+            query_source,
+            QUERY_COMPONENT,
+            false,
+        )
+        query = match move query_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+        fragment_start = query_end
+    }
+
+    let empty_fragment_attempt = empty_component(allocator)
+    var fragment = match move empty_fragment_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+    var has_fragment = false
+    if fragment_start < text.len() {
+        if text[fragment_start] != 35 { return invalid_url() }
+        has_fragment = true
+        let fragment_source = text.get_range(fragment_start + 1, text.len()) otherwise {
+            return invalid_url()
+        }
+        let fragment_attempt = normalized_component(
+            allocator,
+            fragment_source,
+            FRAGMENT_COMPONENT,
+            false,
+        )
+        fragment = match move fragment_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    }
+
+    return UrlAttempt.success(ReferenceTail {
+        path: move path,
+        query: move query,
+        has_query: has_query,
+        fragment: move fragment,
+        has_fragment: has_fragment,
+    })
+}

@@ -1,0 +1,205 @@
+//! Absolute URL grammar and construction of the canonical component model.
+
+see ./failure.nct
+see ./index.nct
+see ./normalization.nct
+see ./reference.nct
+see ./storage.nct
+
+use /internal/mem as internal_mem
+use /mem as mem_module
+use /mem.TryAllocator
+use /net.{Ipv4Address, Ipv6Address}
+use /string.String
+
+noalloc func scheme_equal(text: &str, expected: &str): bool {
+    if text.len() != expected.len() { return false }
+    var offset: usize = 0
+    while offset < text.len() {
+        var value = text[offset]
+        if value >= 65 && value <= 90 { value += 32 }
+        if value != expected[offset] { return false }
+        offset += 1
+    }
+    return true
+}
+
+noalloc func default_port(scheme: UrlScheme): u16 {
+    match scheme {
+        UrlScheme.http { return 80 }
+        UrlScheme.https { return 443 }
+    }
+}
+
+func canonical_host(
+    allocator: &+TryAllocator,
+    authority: &str,
+): UrlAttempt<(String, bool, u16, bool)> {
+    if authority.len() == 0 { return invalid_url() }
+    var offset: usize = 0
+    while offset < authority.len() {
+        if authority[offset] == 64 { return unsupported_userinfo() }
+        offset += 1
+    }
+
+    var host_end = authority.len()
+    var port_start = authority.len()
+    var has_port = false
+    var ipv6 = false
+    if authority[0] == 91 {
+        ipv6 = true
+        var close: usize = 1
+        while close < authority.len() && authority[close] != 93 { close += 1 }
+        if close == authority.len() || close == 1 { return invalid_url() }
+        host_end = close + 1
+        if host_end < authority.len() {
+            if authority[host_end] != 58 { return invalid_url() }
+            port_start = host_end + 1
+            has_port = true
+        }
+    } else {
+        var colon = authority.len()
+        offset = 0
+        while offset < authority.len() {
+            if authority[offset] == 58 {
+                if colon != authority.len() { return invalid_url() }
+                colon = offset
+            }
+            offset += 1
+        }
+        if colon != authority.len() {
+            host_end = colon
+            port_start = colon + 1
+            has_port = true
+        }
+    }
+
+    if host_end == 0 { return invalid_url() }
+    var port: u16 = 0
+    if has_port {
+        if port_start == authority.len() { return invalid_url() }
+        let port_text = authority.get_range(port_start, authority.len()) otherwise {
+            return invalid_url()
+        }
+        port = u16.parse(port_text) otherwise { return invalid_url() }
+    }
+
+    if ipv6 {
+        let host_text = authority.get_range(1, host_end - 1) otherwise { return invalid_url() }
+        let address = Ipv6Address.parse(host_text) otherwise { return invalid_url() }
+        let canonical = address.try_to_string(allocator) catch failure {
+            return UrlAttempt.allocation(move failure)
+        }
+        return UrlAttempt.success((move canonical, true, port, has_port))
+    }
+
+    let host_text = authority.get_range(0, host_end) otherwise { return invalid_url() }
+    if host_text.len() == 0 { return invalid_url() }
+    let ipv4 = Ipv4Address.parse(host_text) otherwise {
+        let normalized = normalized_component(allocator, host_text, HOST_COMPONENT, true)
+        match move normalized {
+            UrlAttempt.success(value) {
+                return UrlAttempt.success((move value, false, port, has_port))
+            }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    }
+    let canonical = ipv4.try_to_string(allocator) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    return UrlAttempt.success((move canonical, false, port, has_port))
+}
+
+func parse_core(allocator: &+TryAllocator, text: &str): UrlAttempt<Url> {
+    var scheme_end: usize = 0
+    while scheme_end < text.len() && text[scheme_end] != 58 {
+        if text[scheme_end] == 47 || text[scheme_end] == 63 || text[scheme_end] == 35 {
+            return invalid_url()
+        }
+        scheme_end += 1
+    }
+    if scheme_end == 0 || scheme_end == text.len() { return invalid_url() }
+    let scheme_text = text.get_range(0, scheme_end) otherwise { return invalid_url() }
+    var scheme = UrlScheme.http
+    if scheme_equal(scheme_text, "http") {
+        scheme = UrlScheme.http
+    } else if scheme_equal(scheme_text, "https") {
+        scheme = UrlScheme.https
+    } else {
+        return unsupported_scheme()
+    }
+    if scheme_end + 2 >= text.len() || text[scheme_end + 1] != 47 || text[scheme_end + 2] != 47 {
+        return invalid_url()
+    }
+
+    let authority_start = scheme_end + 3
+    var authority_end = authority_start
+    while authority_end < text.len()
+        && text[authority_end] != 47
+        && text[authority_end] != 63
+        && text[authority_end] != 35 {
+        authority_end += 1
+    }
+    let authority = text.get_range(authority_start, authority_end) otherwise {
+        return invalid_url()
+    }
+    let host_attempt = canonical_host(allocator, authority)
+    let host_result = match move host_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+
+    let tail_attempt = parse_reference_tail(allocator, text, authority_end)
+    let tail = match move tail_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+    let path_attempt = normalized_path(allocator, &tail.path)
+    let path = match move path_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+
+    let explicit_port = host_result.2
+    let has_explicit_port = host_result.3 && explicit_port != default_port(scheme)
+    let retained_port: u16 = if has_explicit_port { explicit_port } else { 0 }
+    let https_scheme: bool = if scheme is UrlScheme.https { true } else { false }
+    let value = url_from_parts(
+        https_scheme,
+        move host_result.0,
+        host_result.1,
+        retained_port,
+        has_explicit_port,
+        move path,
+        move tail.query,
+        tail.has_query,
+        move tail.fragment,
+        tail.has_fragment,
+    )
+    return UrlAttempt.success(move value)
+}
+
+construct Url {
+    func parse(text: &str): Self! {
+        var allocator = mem_module.current_try_allocator()
+        let attempt = parse_core(&+allocator, text)
+        match move attempt {
+            UrlAttempt.success(value) { return move value }
+            UrlAttempt.input(failure) { return move failure }
+            UrlAttempt.allocation(_) { return internal_mem.allocation_abort() }
+        }
+    }
+
+    func try_parse(allocator: &+TryAllocator, text: &str): Self! from allocator {
+        let attempt = parse_core(allocator, text)
+        match move attempt {
+            UrlAttempt.success(value) { return move value }
+            UrlAttempt.input(failure) { return move failure }
+            UrlAttempt.allocation(failure) { return move failure }
+        }
+    }
+}

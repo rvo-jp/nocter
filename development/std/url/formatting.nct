@@ -1,0 +1,107 @@
+//! Canonical text, request-target, equality, and hash projections.
+
+see ./index.nct
+see ./storage.nct
+
+use /hash.HashState
+use /internal/mem
+use /mem.TryAllocator
+use /string.String
+
+func try_write_authority(output: &+String, value: &Url): void! {
+    if value.ipv6_host { output.try_push_str("[")? }
+    output.try_push_str(value.host())?
+    if value.ipv6_host { output.try_push_str("]")? }
+    if value.has_explicit_port {
+        output.try_push_str(":")?
+        value.explicit_port_value.try_format_into(output)?
+    }
+    return
+}
+
+func try_write_url(output: &+String, value: &Url): void! {
+    if value.https_scheme {
+        output.try_push_str("https://")?
+    } else {
+        output.try_push_str("http://")?
+    }
+    try_write_authority(output, value)?
+    output.try_push_str(value.path())?
+    if value.has_query {
+        output.try_push_str("?")?
+        output.try_push_str(&value.query_text)?
+    }
+    if value.has_fragment {
+        output.try_push_str("#")?
+        output.try_push_str(&value.fragment_text)?
+    }
+    return
+}
+
+func try_write_request_target(output: &+String, value: &Url): void! {
+    output.try_push_str(value.path())?
+    if value.has_query {
+        output.try_push_str("?")?
+        output.try_push_str(&value.query_text)?
+    }
+    return
+}
+
+instance Url {
+    method &self.try_format_into(output: &+String): void! {
+        try_write_url(output, self)?
+        return
+    }
+
+    method &self.to_string(): String {
+        var output = String.empty()
+        try_write_url(&+output, self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+
+    method &self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var output = String.try_with_capacity(allocator, 0)?
+        try_write_url(&+output, self)?
+        return move output
+    }
+
+    method &self.request_target(): String {
+        var output = String.empty()
+        try_write_request_target(&+output, self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+
+    method &self.try_request_target(allocator: &+TryAllocator): String! from allocator {
+        var output = String.try_with_capacity(allocator, 0)?
+        try_write_request_target(&+output, self)?
+        return move output
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        if self.https_scheme != other.https_scheme { return false }
+        return (&self.host_text as &str) == (&other.host_text as &str)
+            && self.ipv6_host == other.ipv6_host
+            && self.explicit_port_value == other.explicit_port_value
+            && self.has_explicit_port == other.has_explicit_port
+            && (&self.path_text as &str) == (&other.path_text as &str)
+            && self.has_query == other.has_query
+            && (&self.query_text as &str) == (&other.query_text as &str)
+            && self.has_fragment == other.has_fragment
+            && (&self.fragment_text as &str) == (&other.fragment_text as &str)
+    }
+
+    noalloc method &self.hash_into(state: &+HashState): void {
+        let scheme_tag: u8 = if self.https_scheme { 1 } else { 0 }
+        scheme_tag.hash_into(state)
+        self.host_text.hash_into(state)
+        self.ipv6_host.hash_into(state)
+        self.has_explicit_port.hash_into(state)
+        if self.has_explicit_port { self.explicit_port_value.hash_into(state) }
+        self.path_text.hash_into(state)
+        self.has_query.hash_into(state)
+        if self.has_query { self.query_text.hash_into(state) }
+        self.has_fragment.hash_into(state)
+        if self.has_fragment { self.fragment_text.hash_into(state) }
+        return
+    }
+}

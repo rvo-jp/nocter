@@ -1,0 +1,82 @@
+//! Parsed absolute HTTP URLs and canonical component projections.
+
+use /fmt.Format
+use /hash.Hash
+use /mem.TryAllocator
+use /string.String
+
+see ./failure.nct
+see ./formatting.nct
+see ./normalization.nct
+see ./parsing.nct
+see ./reference.nct
+see ./resolving.nct
+see ./storage.nct
+see ./tests.nct
+
+/// A recognized HTTP-family URL scheme.
+pub enum UrlScheme {
+    http
+    https
+}
+
+/// One immutable, parsed absolute HTTP-family URL.
+pub struct Url
+
+construct Url {
+    /// Parses and canonicalizes one complete absolute `http` or `https` URL.
+    pub func parse(text: &str): Self!
+
+    /// Parses with recoverable allocation from `allocator`.
+    pub func try_parse(allocator: &+TryAllocator, text: &str): Self! from allocator
+}
+
+instance Url {
+    impl Format
+    impl Hash
+
+    /// Returns the recognized scheme.
+    pub noalloc method &self.scheme(): UrlScheme
+
+    /// Returns the canonical host without IPv6 brackets.
+    pub noalloc method &self.host(): &str
+
+    /// Returns the effective port after applying the scheme default.
+    pub noalloc method &self.port(): u16
+
+    /// Returns the non-default explicit port, when one remains significant.
+    pub noalloc method &self.explicit_port(): u16?
+
+    /// Returns the canonical absolute path. An omitted input path becomes `/`.
+    pub noalloc method &self.path(): &str
+
+    /// Returns the canonical query without `?`, preserving present-empty query values.
+    pub noalloc method &self.query(): &str?
+
+    /// Returns the canonical fragment without `#`, preserving present-empty fragments.
+    pub noalloc method &self.fragment(): &str?
+
+    /// Generates the canonical absolute URL.
+    pub method &self.to_string(): String
+
+    /// Generates the canonical absolute URL with recoverable allocation.
+    pub method &self.try_to_string(allocator: &+TryAllocator): String! from allocator
+
+    /// Generates the HTTP origin-form request target, excluding any fragment.
+    pub method &self.request_target(): String
+
+    /// Generates the request target with recoverable allocation.
+    pub method &self.try_request_target(allocator: &+TryAllocator): String! from allocator
+
+    /// Resolves one RFC 3986 relative reference against this absolute base URL.
+    pub method &self.resolve(reference: &str): Url!
+
+    /// Resolves a relative reference with recoverable allocation from `allocator`.
+    pub method &self.try_resolve(
+        allocator: &+TryAllocator,
+        reference: &str,
+    ): Url! from allocator
+
+    /// Compares canonical logical URL components.
+    pub noalloc operator (&self == other: &Self): bool
+}

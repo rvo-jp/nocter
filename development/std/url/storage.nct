@@ -1,0 +1,105 @@
+//! Sole owned representation and allocation-free URL projections.
+
+see ./index.nct
+
+use /string.String
+
+struct Url {
+    https_scheme: bool
+    host_text: String
+    ipv6_host: bool
+    explicit_port_value: u16
+    has_explicit_port: bool
+    path_text: String
+    query_text: String
+    has_query: bool
+    fragment_text: String
+    has_fragment: bool
+}
+
+func url_from_parts(
+    https_scheme: bool,
+    host: String,
+    ipv6_host: bool,
+    explicit_port: u16,
+    has_explicit_port: bool,
+    path: String,
+    query: String,
+    has_query: bool,
+    fragment: String,
+    has_fragment: bool,
+): Url {
+    return Url {
+        https_scheme: https_scheme,
+        host_text: move host,
+        ipv6_host: ipv6_host,
+        explicit_port_value: explicit_port,
+        has_explicit_port: has_explicit_port,
+        path_text: move path,
+        query_text: move query,
+        has_query: has_query,
+        fragment_text: move fragment,
+        has_fragment: has_fragment,
+    }
+}
+
+instance Url {
+    noalloc method &self.ipv6_host_value(): bool {
+        return self.ipv6_host
+    }
+
+    noalloc method &self.explicit_port_value_or_zero(): u16 {
+        return self.explicit_port_value
+    }
+
+    noalloc method &self.has_explicit_port_value(): bool {
+        return self.has_explicit_port
+    }
+
+    noalloc method &self.has_query_value(): bool {
+        return self.has_query
+    }
+
+    noalloc method &self.query_text_value(): &str {
+        let value: &str = &self.query_text
+        return value
+    }
+
+    noalloc method &self.scheme(): UrlScheme {
+        if self.https_scheme { return UrlScheme.https }
+        return UrlScheme.http
+    }
+
+    noalloc method &self.host(): &str {
+        let value: &str = &self.host_text
+        return value
+    }
+
+    noalloc method &self.port(): u16 {
+        if self.has_explicit_port { return self.explicit_port_value }
+        if self.https_scheme { return 443 }
+        return 80
+    }
+
+    noalloc method &self.explicit_port(): u16? {
+        if !self.has_explicit_port { return none }
+        return self.explicit_port_value
+    }
+
+    noalloc method &self.path(): &str {
+        let value: &str = &self.path_text
+        return value
+    }
+
+    noalloc method &self.query(): &str? {
+        if !self.has_query { return none }
+        let value: &str = &self.query_text
+        return value
+    }
+
+    noalloc method &self.fragment(): &str? {
+        if !self.has_fragment { return none }
+        let value: &str = &self.fragment_text
+        return value
+    }
+}

@@ -2003,6 +2003,47 @@ fn standard_path_lexical_contract_crosses_native_tests() {
 }
 
 #[test]
+fn standard_url_contract_crosses_native_tests() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#test: { name: \"url\", module: \"./url\" }\n");
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["url"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+
+    let target = compile_for_test(unit);
+    let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
+    assert_eq!(compiled.targets().len(), 1);
+    let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
+        panic!("standard URL tests failed native compilation")
+    };
+    assert_eq!(cases.len(), 11);
+    let output = TempPackage::new();
+    for case in cases {
+        execute_native_test(case.image(), &output.0, case.identity().name());
+    }
+}
+
+#[test]
 fn standard_str_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
@@ -2409,6 +2450,46 @@ const RECOVERABLE_JSON_FLOAT_TEST_SOURCE: &str = concat!(
     "}\n",
 );
 
+const RECOVERABLE_URL_TEST_SOURCE: &str = concat!(
+    "use /mem\n",
+    "use /url.Url\n",
+    "test recoverable_url_parse_propagates_allocator_failure {\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _value = Url.try_parse(&+allocator, \"https://example.com/a\") catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.url.allocator\", \"wrong parse allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.url.allocator\", \"invalid allocator parsed a URL\")\n",
+    "}\n",
+    "test recoverable_url_resolution_propagates_allocator_failure {\n",
+    "    let base = Url.parse(\"https://example.com/a/b\")?\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _value = base.try_resolve(&+allocator, \"../c\") catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.url.allocator\", \"wrong resolve allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.url.allocator\", \"invalid allocator resolved a URL\")\n",
+    "}\n",
+    "test recoverable_url_text_generation_propagates_allocator_failure {\n",
+    "    let value = Url.parse(\"https://example.com/a\")?\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _text = value.try_to_string(&+allocator) catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.url.allocator\", \"wrong format allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.url.allocator\", \"invalid allocator formatted a URL\")\n",
+    "}\n",
+    "test recoverable_request_target_propagates_allocator_failure {\n",
+    "    let value = Url.parse(\"https://example.com/a?q\")?\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _text = value.try_request_target(&+allocator) catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.url.allocator\", \"wrong target allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.url.allocator\", \"invalid allocator made a request target\")\n",
+    "}\n",
+);
+
 #[test]
 fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -2420,6 +2501,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
         "\n#test: { name: \"numeric\", module: \"./num\" }\n",
         "#test: { name: \"json-failure\", module: \".\" }\n",
         "see ./allocator_failure_json_tests.nct\n",
+        "see ./allocator_failure_url_tests.nct\n",
     ));
 
     let mut mem_contract = fs::read_to_string(standard_root.join("mem/index.nct")).unwrap();
@@ -2451,6 +2533,10 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
         (
             standard_root.join("allocator_failure_json_tests.nct"),
             RECOVERABLE_JSON_FLOAT_TEST_SOURCE.to_string(),
+        ),
+        (
+            standard_root.join("allocator_failure_url_tests.nct"),
+            RECOVERABLE_URL_TEST_SOURCE.to_string(),
         ),
     ] {
         overlay
@@ -2486,7 +2572,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 23);
+    assert_eq!(case_count, 27);
 }
 
 #[test]

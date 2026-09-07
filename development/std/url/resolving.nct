@@ -1,0 +1,201 @@
+//! RFC 3986 relative-reference resolution over retained URL components.
+
+see ./failure.nct
+see ./index.nct
+see ./normalization.nct
+see ./parsing.nct
+see ./reference.nct
+see ./storage.nct
+
+use /internal/mem as internal_mem
+use /mem as mem_module
+use /mem.TryAllocator
+use /string.String
+
+func copy_text(allocator: &+TryAllocator, text: &str): UrlAttempt<String> {
+    let value = String.try_copy(allocator, text) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    return UrlAttempt.success(move value)
+}
+
+noalloc func reference_scheme_end(reference: &str): usize? {
+    var offset: usize = 0
+    while offset < reference.len() {
+        let byte = reference[offset]
+        if byte == 58 { return offset }
+        if byte == 47 || byte == 63 || byte == 35 { return none }
+        offset += 1
+    }
+    return none
+}
+
+func merged_path(
+    allocator: &+TryAllocator,
+    base: &str,
+    relative: &str,
+): UrlAttempt<String> {
+    var prefix_end = base.len()
+    while prefix_end > 0 {
+        if base[prefix_end - 1] == 47 { break }
+        prefix_end -= 1
+    }
+    var combined = String.try_with_capacity(allocator, 0) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    let prefix = base.get_range(0, prefix_end) otherwise { return invalid_url() }
+    combined.try_push_str(prefix) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    combined.try_push_str(relative) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    return normalized_path(allocator, &combined)
+}
+
+func resolved_core(
+    allocator: &+TryAllocator,
+    base: &Url,
+    reference: &str,
+): UrlAttempt<Url> {
+    let _absolute_scheme = reference_scheme_end(reference) otherwise {
+        return resolve_relative_core(allocator, base, reference)
+    }
+    return parse_core(allocator, reference)
+}
+
+func resolve_relative_core(
+    allocator: &+TryAllocator,
+    base: &Url,
+    reference: &str,
+): UrlAttempt<Url> {
+    var tail_start: usize = 0
+    var has_reference_authority = false
+    let host_copy_attempt = copy_text(allocator, base.host())
+    var host = match move host_copy_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+    let scheme = base.scheme()
+    let https_scheme: bool = if scheme is UrlScheme.https { true } else { false }
+    var ipv6_host = base.ipv6_host_value()
+    var explicit_port = base.explicit_port_value_or_zero()
+    var has_explicit_port = base.has_explicit_port_value()
+
+    if reference.len() >= 2 && reference[0] == 47 && reference[1] == 47 {
+        has_reference_authority = true
+        let authority_start: usize = 2
+        var authority_end = authority_start
+        while authority_end < reference.len()
+            && reference[authority_end] != 47
+            && reference[authority_end] != 63
+            && reference[authority_end] != 35 {
+            authority_end += 1
+        }
+        let authority = reference.get_range(authority_start, authority_end) otherwise {
+            return invalid_url()
+        }
+        let host_attempt = canonical_host(allocator, authority)
+        let host_result = match move host_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+        host = move host_result.0
+        ipv6_host = host_result.1
+        explicit_port = host_result.2
+        has_explicit_port = host_result.3
+            && explicit_port != default_port(scheme)
+        if !has_explicit_port { explicit_port = 0 }
+        tail_start = authority_end
+    }
+
+    let tail_attempt = parse_reference_tail(allocator, reference, tail_start)
+    let tail = match move tail_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+
+    let path = if has_reference_authority {
+        let path_normalization = normalized_path(allocator, &tail.path)
+        match move path_normalization {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    } else if tail.path.len() == 0 {
+        let path_copy_attempt = copy_text(allocator, base.path())
+        match move path_copy_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    } else if tail.path[0] == 47 {
+        let path_normalization = normalized_path(allocator, &tail.path)
+        match move path_normalization {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    } else {
+        let path_merge = merged_path(allocator, base.path(), &tail.path)
+        match move path_merge {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    }
+
+    let inherit_query = !has_reference_authority && tail.path.len() == 0 && !tail.has_query
+    var has_query = tail.has_query
+    var query = move tail.query
+    if inherit_query {
+        has_query = base.has_query_value()
+        let query_copy_attempt = copy_text(allocator, base.query_text_value())
+        query = match move query_copy_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    }
+
+    let value = url_from_parts(
+        https_scheme,
+        move host,
+        ipv6_host,
+        explicit_port,
+        has_explicit_port,
+        move path,
+        move query,
+        has_query,
+        move tail.fragment,
+        tail.has_fragment,
+    )
+    return UrlAttempt.success(move value)
+}
+
+instance Url {
+    method &self.resolve(reference: &str): Url! {
+        var allocator = mem_module.current_try_allocator()
+        let attempt = resolved_core(&+allocator, self, reference)
+        match move attempt {
+            UrlAttempt.success(value) { return move value }
+            UrlAttempt.input(failure) { return move failure }
+            UrlAttempt.allocation(_) { return internal_mem.allocation_abort() }
+        }
+    }
+
+    method &self.try_resolve(
+        allocator: &+TryAllocator,
+        reference: &str,
+    ): Url! from allocator {
+        let attempt = resolved_core(allocator, self, reference)
+        match move attempt {
+            UrlAttempt.success(value) { return move value }
+            UrlAttempt.input(failure) { return move failure }
+            UrlAttempt.allocation(failure) { return move failure }
+        }
+    }
+}

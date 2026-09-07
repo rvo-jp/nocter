@@ -1,0 +1,182 @@
+//! Absolute URL value contract tests.
+
+see ./index.nct
+
+use /hash.HashState
+use /string.String
+
+func expect_url(source: &str, canonical: &str, target: &str): void! {
+    let value = Url.parse(source)?
+    let rendered = value.to_string()
+    if (&rendered as &str) != canonical {
+        return error.new("std.url.test", "canonical URL text changed")
+    }
+    let request_target = value.request_target()
+    if (&request_target as &str) != target {
+        return error.new("std.url.test", "HTTP request target changed")
+    }
+    let reparsed = Url.parse(&rendered)?
+    if value != reparsed {
+        return error.new("std.url.test", "canonical URL round trip changed the value")
+    }
+    return
+}
+
+func expect_invalid(source: &str): void! {
+    let _value = Url.parse(source) catch _ { return }
+    return error.new("std.url.test", "invalid URL was accepted")
+}
+
+func expect_resolved(base: &Url, reference: &str, canonical: &str): void! {
+    let value = base.resolve(reference)?
+    let rendered = value.to_string()
+    if (&rendered as &str) != canonical {
+        return error.new("std.url.test", "relative URL resolution changed")
+    }
+    return
+}
+
+test absolute_urls_normalize_scheme_and_registered_hosts {
+    expect_url("HTTP://Example.COM:80", "http://example.com/", "/")?
+    return
+}
+
+test absolute_urls_normalize_ports_and_percent_escapes {
+    expect_url(
+        "https://Example.COM:8443/a%2fb?q=%af#Frag",
+        "https://example.com:8443/a%2Fb?q=%AF#Frag",
+        "/a%2Fb?q=%AF",
+    )?
+    return
+}
+
+test absolute_urls_canonicalize_ipv4_hosts {
+    expect_url("http://192.168.1.1:8080", "http://192.168.1.1:8080/", "/")?
+    return
+}
+
+test absolute_urls_canonicalize_bracketed_ipv6_hosts {
+    expect_url("http://[2001:0DB8::1]:80/a", "http://[2001:db8::1]/a", "/a")?
+    return
+}
+
+test absolute_urls_remove_dot_segments_without_collapsing_other_segments {
+    expect_url("http://example.com/a/b/./../../c/", "http://example.com/c/", "/c/")?
+    expect_url("http://example.com/a//b/../c", "http://example.com/a//c", "/a//c")?
+    expect_url("http://example.com/.?", "http://example.com/?", "/?")?
+    return
+}
+
+test absolute_url_components_preserve_present_empty_values {
+    let value = Url.parse("https://example.com/path?#")?
+    if value.scheme() is UrlScheme.http {
+        return error.new("std.url.test", "scheme projection changed")
+    }
+    if value.port() != 443 {
+        return error.new("std.url.test", "scheme default projection changed")
+    }
+    if value.host() != "example.com" || value.path() != "/path" {
+        return error.new("std.url.test", "component projection changed")
+    }
+    let query = value.query() otherwise {
+        return error.new("std.url.test", "present empty query became absent")
+    }
+    let fragment = value.fragment() otherwise {
+        return error.new("std.url.test", "present empty fragment became absent")
+    }
+    if query != "" || fragment != "" {
+        return error.new("std.url.test", "empty component text changed")
+    }
+    let _port = value.explicit_port() otherwise { return }
+    return error.new("std.url.test", "default port remained explicit")
+}
+
+test absolute_urls_reject_invalid_or_unsupported_surface {
+    expect_invalid("")?
+    expect_invalid("ftp://example.com/")?
+    expect_invalid("http:example.com")?
+    expect_invalid("http:///path")?
+    expect_invalid("http://user@example.com/")?
+    expect_invalid("http://example.com:65536/")?
+    expect_invalid("http://example.com:/")?
+    expect_invalid("http://[2001::db8::1]/")?
+    expect_invalid("http://example.com/%")?
+    expect_invalid("http://example.com/%xz")?
+    expect_invalid("http://example.com/a b")?
+    expect_invalid("http://example.com/é")?
+    expect_invalid("http://example.com/a?x y")?
+    expect_invalid("http://例.example/")?
+    return
+}
+
+test url_format_and_hash_share_canonical_value_semantics {
+    let first = Url.parse("HTTP://EXAMPLE.COM:80/a/../b?q=x#f")?
+    let second = Url.parse("http://example.com/b?q=x#f")?
+    if first != second {
+        return error.new("std.url.test", "equivalent URLs compared unequal")
+    }
+    var rendered = String.empty()
+    first.try_format_into(&+rendered)?
+    if (&rendered as &str) != "http://example.com/b?q=x#f" {
+        return error.new("std.url.test", "Format diverged from canonical URL text")
+    }
+    let template = HashState.fresh()
+    var first_hash = template.restart()
+    var second_hash = template.restart()
+    first.hash_into(&+first_hash)
+    second.hash_into(&+second_hash)
+    if first_hash.finish() != second_hash.finish() {
+        return error.new("std.url.test", "equal URLs produced different hashes")
+    }
+    return
+}
+
+test relative_references_follow_rfc3986_merge_and_inheritance {
+    let base = Url.parse("http://a/b/c/d;p?q")?
+    expect_resolved(&base, "", "http://a/b/c/d;p?q")?
+    expect_resolved(&base, "g", "http://a/b/c/g")?
+    expect_resolved(&base, "./g", "http://a/b/c/g")?
+    expect_resolved(&base, "g/", "http://a/b/c/g/")?
+    expect_resolved(&base, "/g", "http://a/g")?
+    expect_resolved(&base, "//g", "http://g/")?
+    expect_resolved(&base, "//g/x", "http://g/x")?
+    expect_resolved(&base, "//g?y", "http://g/?y")?
+    expect_resolved(&base, "?y", "http://a/b/c/d;p?y")?
+    expect_resolved(&base, "g?y", "http://a/b/c/g?y")?
+    expect_resolved(&base, "#s", "http://a/b/c/d;p?q#s")?
+    expect_resolved(&base, "../g", "http://a/b/g")?
+    expect_resolved(&base, "../../g", "http://a/g")?
+    return
+}
+
+test relative_resolution_accepts_complete_absolute_replacements {
+    let base = Url.parse("http://a/b/c")?
+    expect_resolved(&base, "https://Example.COM:443/a/./b", "https://example.com/a/b")?
+    return
+}
+
+test relative_resolution_handles_rfc3986_dot_segment_edges {
+    let base = Url.parse("http://a/b/c/d;p?q")?
+    expect_resolved(&base, ".", "http://a/b/c/")?
+    expect_resolved(&base, "./", "http://a/b/c/")?
+    expect_resolved(&base, "..", "http://a/b/")?
+    expect_resolved(&base, "../", "http://a/b/")?
+    expect_resolved(&base, "../..", "http://a/")?
+    expect_resolved(&base, "../../", "http://a/")?
+    expect_resolved(&base, "../../../g", "http://a/g")?
+    expect_resolved(&base, "../../../../g", "http://a/g")?
+    expect_resolved(&base, "/./g", "http://a/g")?
+    expect_resolved(&base, "/../g", "http://a/g")?
+    expect_resolved(&base, "g.", "http://a/b/c/g.")?
+    expect_resolved(&base, ".g", "http://a/b/c/.g")?
+    expect_resolved(&base, "g..", "http://a/b/c/g..")?
+    expect_resolved(&base, "..g", "http://a/b/c/..g")?
+    expect_resolved(&base, "./../g", "http://a/b/g")?
+    expect_resolved(&base, "./g/.", "http://a/b/c/g/")?
+    expect_resolved(&base, "g/./h", "http://a/b/c/g/h")?
+    expect_resolved(&base, "g/../h", "http://a/b/c/h")?
+    expect_resolved(&base, "g;x=1/../y", "http://a/b/c/y")?
+    expect_resolved(&base, "g?y/./x", "http://a/b/c/g?y/./x")?
+    expect_resolved(&base, "g#s/../x", "http://a/b/c/g#s/../x")?
+    return
+}

@@ -1,0 +1,32 @@
+//! Typed private parse outcomes keep syntax and allocation policy separate.
+
+enum UrlAttempt<T> {
+    success(value: T)
+    input(failure: error)
+    allocation(failure: error)
+}
+
+noalloc func invalid_url<T>(): UrlAttempt<T> {
+    return UrlAttempt.input(error.new("std.url.invalid_url", "invalid absolute HTTP URL"))
+}
+
+noalloc func unsupported_scheme<T>(): UrlAttempt<T> {
+    return UrlAttempt.input(error.new(
+        "std.url.unsupported_scheme",
+        "URL scheme must be http or https",
+    ))
+}
+
+noalloc func unsupported_userinfo<T>(): UrlAttempt<T> {
+    return UrlAttempt.input(error.new(
+        "std.url.userinfo_unsupported",
+        "URL user information is not supported",
+    ))
+}
+
+noalloc func non_ascii_host<T>(): UrlAttempt<T> {
+    return UrlAttempt.input(error.new(
+        "std.url.non_ascii_host",
+        "registered URL hosts must be ASCII",
+    ))
+}

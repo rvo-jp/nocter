@@ -1,0 +1,216 @@
+//! Component validation, percent normalization, and RFC 3986 dot-segment removal.
+
+see ./failure.nct
+
+use /mem.TryAllocator
+use /string.String
+
+const HOST_COMPONENT: u8 = 0
+const PATH_COMPONENT: u8 = 1
+const QUERY_COMPONENT: u8 = 2
+const FRAGMENT_COMPONENT: u8 = 3
+
+noalloc func is_alpha(value: u8): bool {
+    return (value >= 65 && value <= 90) || (value >= 97 && value <= 122)
+}
+
+noalloc func is_digit(value: u8): bool {
+    return value >= 48 && value <= 57
+}
+
+noalloc func is_unreserved(value: u8): bool {
+    return is_alpha(value)
+        || is_digit(value)
+        || value == 45
+        || value == 46
+        || value == 95
+        || value == 126
+}
+
+noalloc func is_sub_delimiter(value: u8): bool {
+    return value == 33
+        || value == 36
+        || value == 38
+        || value == 39
+        || value == 40
+        || value == 41
+        || value == 42
+        || value == 43
+        || value == 44
+        || value == 59
+        || value == 61
+}
+
+noalloc func allowed_component_byte(value: u8, component: u8): bool {
+    if is_unreserved(value) || is_sub_delimiter(value) { return true }
+    if component != HOST_COMPONENT && (value == 58 || value == 64) { return true }
+    if component >= QUERY_COMPONENT && (value == 47 || value == 63) { return true }
+    if component == PATH_COMPONENT && value == 47 { return true }
+    return false
+}
+
+noalloc func hex_value(value: u8): u8? {
+    if value >= 48 && value <= 57 { return value - 48 }
+    if value >= 65 && value <= 70 { return value - 65 + 10 }
+    if value >= 97 && value <= 102 { return value - 97 + 10 }
+    return none
+}
+
+noalloc func uppercase_hex(value: u8): u8 {
+    if value >= 97 && value <= 102 { return value - 32 }
+    return value
+}
+
+noalloc func ascii_char(value: u8): char {
+    return char.from_u32(value as u32) otherwise { return '\u{0}' }
+}
+
+func normalized_component(
+    allocator: &+TryAllocator,
+    text: &str,
+    component: u8,
+    lowercase: bool,
+): UrlAttempt<String> {
+    var output = String.try_with_capacity(allocator, text.len()) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    let bytes = text.bytes()
+    var offset: usize = 0
+    while offset < bytes.len() {
+        let byte = bytes[offset]
+        if byte >= 128 {
+            if component == HOST_COMPONENT { return non_ascii_host() }
+            return invalid_url()
+        }
+        if byte == 37 {
+            if offset + 2 >= bytes.len() { return invalid_url() }
+            let _high = hex_value(bytes[offset + 1]) otherwise { return invalid_url() }
+            let _low = hex_value(bytes[offset + 2]) otherwise { return invalid_url() }
+            output.try_push('%') catch failure {
+                return UrlAttempt.allocation(move failure)
+            }
+            output.try_push(ascii_char(uppercase_hex(bytes[offset + 1]))) catch failure {
+                return UrlAttempt.allocation(move failure)
+            }
+            output.try_push(ascii_char(uppercase_hex(bytes[offset + 2]))) catch failure {
+                return UrlAttempt.allocation(move failure)
+            }
+            offset += 3
+            continue
+        }
+        if !allowed_component_byte(byte, component) { return invalid_url() }
+        var normalized = byte
+        if lowercase && byte >= 65 && byte <= 90 { normalized = byte + 32 }
+        output.try_push(ascii_char(normalized)) catch failure {
+            return UrlAttempt.allocation(move failure)
+        }
+        offset += 1
+    }
+    return UrlAttempt.success(move output)
+}
+
+noalloc func starts_at(text: &str, offset: usize, prefix: &str): bool {
+    if offset > text.len() { return false }
+    if prefix.len() > text.len() - offset { return false }
+    var index: usize = 0
+    while index < prefix.len() {
+        if text[offset + index] != prefix[index] { return false }
+        index += 1
+    }
+    return true
+}
+
+noalloc func remove_last_segment(output: &+String): void! {
+    var offset = output.len()
+    while offset > 0 {
+        offset -= 1
+        if output[offset] == 47 {
+            output.truncate(offset)?
+            return
+        }
+    }
+    output.clear()
+    return
+}
+
+func remove_dot_segments(
+    allocator: &+TryAllocator,
+    path: &str,
+): UrlAttempt<String> {
+    var output = String.try_with_capacity(allocator, path.len()) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    var cursor: usize = 0
+    while cursor < path.len() {
+        if starts_at(path, cursor, "../") {
+            cursor += 3
+            continue
+        }
+        if starts_at(path, cursor, "./") {
+            cursor += 2
+            continue
+        }
+        if starts_at(path, cursor, "/./") {
+            cursor += 2
+            continue
+        }
+        if starts_at(path, cursor, "/.") && cursor + 2 == path.len() {
+            output.try_push_str("/") catch failure {
+                return UrlAttempt.allocation(move failure)
+            }
+            cursor += 2
+            continue
+        }
+        if starts_at(path, cursor, "/../") {
+            remove_last_segment(&+output) catch failure {
+                return UrlAttempt.input(move failure)
+            }
+            cursor += 3
+            continue
+        }
+        if starts_at(path, cursor, "/..") && cursor + 3 == path.len() {
+            remove_last_segment(&+output) catch failure {
+                return UrlAttempt.input(move failure)
+            }
+            output.try_push_str("/") catch failure {
+                return UrlAttempt.allocation(move failure)
+            }
+            cursor += 3
+            continue
+        }
+        if starts_at(path, cursor, ".") && cursor + 1 == path.len() {
+            cursor += 1
+            continue
+        }
+        if starts_at(path, cursor, "..") && cursor + 2 == path.len() {
+            cursor += 2
+            continue
+        }
+
+        var end = cursor
+        if path[end] == 47 { end += 1 }
+        while end < path.len() && path[end] != 47 { end += 1 }
+        let segment = path.get_range(cursor, end) otherwise { return invalid_url() }
+        output.try_push_str(segment) catch failure {
+            return UrlAttempt.allocation(move failure)
+        }
+        cursor = end
+    }
+    return UrlAttempt.success(move output)
+}
+
+func normalized_path(allocator: &+TryAllocator, text: &str): UrlAttempt<String> {
+    if text.len() == 0 {
+        let root = String.try_copy(allocator, "/") catch failure {
+            return UrlAttempt.allocation(move failure)
+        }
+        return UrlAttempt.success(move root)
+    }
+    if text[0] != 47 { return invalid_url() }
+    let normalized = normalized_component(allocator, text, PATH_COMPONENT, false)
+    match move normalized {
+        UrlAttempt.success(value) { return remove_dot_segments(allocator, &value) }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+}
