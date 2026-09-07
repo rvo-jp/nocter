@@ -37,5 +37,6 @@ comments.
 | JSON values, parsing, and generation | [JSON Values and Text](json/README.md) | `std/json` |
 | durations, monotonic time, wall-clock time, and UTC calendar values | [Time](time/README.md) | `std/time` |
 | synchronous processes and process context | [Synchronous Processes](process/README.md) | `std/process` |
+| numeric network addresses and synchronous sockets | [Numeric Network Addresses](net/README.md) | `std/net` |
 | Unicode scalars and text transforms | [Unicode Text and Scalars](char/README.md) | `std/char`, Unicode operations on `std/str` and `std/string` |
 | native assertions | [Native Assertions](testing/README.md) | `std/testing` |

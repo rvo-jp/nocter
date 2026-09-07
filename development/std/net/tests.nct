@@ -1,0 +1,143 @@
+//! Numeric address boundary tests.
+
+see ./index.nct
+
+use /hash.HashState
+use /string.String
+
+func expect_ipv4(text: &str, canonical: &str): void! {
+    let address = Ipv4Address.parse(text) otherwise {
+        return error.new("std.net.ipv4", "a valid IPv4 address was rejected")
+    }
+    let rendered = address.to_string()
+    if rendered != canonical {
+        return error.new("std.net.ipv4", "IPv4 canonical rendering changed")
+    }
+    return
+}
+
+func expect_invalid_ipv4(text: &str): void! {
+    let _address = Ipv4Address.parse(text) otherwise { return }
+    return error.new("std.net.ipv4", "an invalid IPv4 address was accepted")
+}
+
+func expect_ipv6(text: &str, canonical: &str): void! {
+    let address = Ipv6Address.parse(text) otherwise {
+        return error.new("std.net.ipv6", "a valid IPv6 address was rejected")
+    }
+    let rendered = address.to_string()
+    if rendered != canonical {
+        return error.new("std.net.ipv6", "IPv6 canonical rendering changed")
+    }
+    let reparsed = Ipv6Address.parse(&rendered as &str) otherwise {
+        return error.new("std.net.ipv6", "canonical IPv6 text was not parseable")
+    }
+    if address != reparsed {
+        return error.new("std.net.ipv6", "IPv6 canonical rendering changed the value")
+    }
+    return
+}
+
+func expect_invalid_ipv6(text: &str): void! {
+    let _address = Ipv6Address.parse(text) otherwise { return }
+    return error.new("std.net.ipv6", "an invalid IPv6 address was accepted")
+}
+
+test ipv4_parsing_and_canonical_text_cover_boundaries {
+    expect_ipv4("0.0.0.0", "0.0.0.0")?
+    expect_ipv4("127.0.0.1", "127.0.0.1")?
+    expect_ipv4("255.255.255.255", "255.255.255.255")?
+    expect_invalid_ipv4("")?
+    expect_invalid_ipv4("1.2.3")?
+    expect_invalid_ipv4("1.2.3.4.5")?
+    expect_invalid_ipv4("01.2.3.4")?
+    expect_invalid_ipv4("256.2.3.4")?
+    expect_invalid_ipv4("1..3.4")?
+    return
+}
+
+test ipv6_parsing_and_rfc5952_text_cover_boundaries {
+    expect_ipv6("::", "::")?
+    expect_ipv6("::1", "::1")?
+    expect_ipv6("2001:0DB8:0000:0000:0000:FF00:0042:8329", "2001:db8::ff00:42:8329")?
+    expect_ipv6("2001:0:0:1:0:0:1:1", "2001::1:0:0:1:1")?
+    expect_ipv6("0:0:1:0:0:1:0:0", "::1:0:0:1:0:0")?
+    expect_ipv6("::ffff:192.0.2.128", "::ffff:c000:280")?
+    expect_invalid_ipv6("")?
+    expect_invalid_ipv6(":")?
+    expect_invalid_ipv6("1:2:3:4:5:6:7")?
+    expect_invalid_ipv6("1:2:3:4:5:6:7:8:9")?
+    expect_invalid_ipv6("1:2:3:4:5:6:7:8::")?
+    expect_invalid_ipv6("1::2::3")?
+    expect_invalid_ipv6("1:2:3:4:5:6:7:")?
+    return
+}
+
+test address_format_and_hash_contracts_share_value_semantics {
+    let parsed = IpAddress.parse("2001:db8::1") otherwise {
+        return error.new("std.net.contract", "valid IP address was rejected")
+    }
+    let constructed = IpAddress.from_ipv6(
+        Ipv6Address.from_segments(8193, 3512, 0, 0, 0, 0, 0, 1),
+    )
+    if parsed != constructed {
+        return error.new("std.net.contract", "equivalent IP construction changed equality")
+    }
+
+    var formatted = String.empty()
+    parsed.try_format_into(&+formatted)?
+    if (&formatted as &str) != "2001:db8::1" {
+        return error.new("std.net.contract", "Format diverged from canonical address text")
+    }
+
+    let template = HashState.fresh()
+    var parsed_hash = template.restart()
+    var constructed_hash = template.restart()
+    parsed.hash_into(&+parsed_hash)
+    constructed.hash_into(&+constructed_hash)
+    if parsed_hash.finish() != constructed_hash.finish() {
+        return error.new("std.net.contract", "equal IP addresses produced different hashes")
+    }
+    return
+}
+
+test address_family_projection_and_order_are_logical {
+    let ipv4 = Ipv4Address.loopback()
+    if !ipv4.is_loopback() || ipv4.is_unspecified() {
+        return error.new("std.net.ipv4", "IPv4 classification changed")
+    }
+    let ipv6 = Ipv6Address.loopback()
+    if !ipv6.is_loopback() || ipv6.is_unspecified() {
+        return error.new("std.net.ipv6", "IPv6 classification changed")
+    }
+    let first = IpAddress.from_ipv4(ipv4)
+    let second = IpAddress.from_ipv6(ipv6)
+    if !(first < second) {
+        return error.new("std.net.ip", "IP family ordering changed")
+    }
+    let projected = first.as_ipv4() otherwise {
+        return error.new("std.net.ip", "IPv4 projection disappeared")
+    }
+    if projected != ipv4 {
+        return error.new("std.net.ip", "IPv4 projection changed octets")
+    }
+    let _wrong = first.as_ipv6() otherwise { return }
+    return error.new("std.net.ip", "IPv4 projected as IPv6")
+}
+
+test socket_address_parsing_requires_unambiguous_ipv6_brackets {
+    let ipv4 = SocketAddress.parse("127.0.0.1:8080") otherwise {
+        return error.new("std.net.socket_address", "valid IPv4 socket address was rejected")
+    }
+    if ipv4.to_string() != "127.0.0.1:8080" || ipv4.port() != 8080 {
+        return error.new("std.net.socket_address", "IPv4 socket address changed")
+    }
+    let ipv6 = SocketAddress.parse("[2001:db8::1]:443") otherwise {
+        return error.new("std.net.socket_address", "valid IPv6 socket address was rejected")
+    }
+    if ipv6.to_string() != "[2001:db8::1]:443" {
+        return error.new("std.net.socket_address", "IPv6 socket address changed")
+    }
+    let _bare = SocketAddress.parse("2001:db8::1:443") otherwise { return }
+    return error.new("std.net.socket_address", "unbracketed IPv6 socket address was accepted")
+}

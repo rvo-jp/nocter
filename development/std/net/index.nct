@@ -1,0 +1,195 @@
+//! Numeric Internet addresses for synchronous network I/O.
+//!
+//! v0.39.0 begins with target-independent address values. TCP, UDP, and timeout
+//! operations are added by later phases over the same address representations.
+
+use /fmt.Format
+use /hash.Hash
+use /mem.TryAllocator
+use /order.TotalOrder
+use /string.String
+
+see ./contracts.nct
+see ./formatting.nct
+see ./parsing.nct
+see ./tests.nct
+see ./values.nct
+
+/// The Internet protocol address family represented by an `IpAddress`.
+pub enum IpFamily {
+    ipv4
+    ipv6
+}
+
+/// One copyable 32-bit Internet Protocol version 4 address.
+pub copy struct Ipv4Address
+
+/// One copyable 128-bit Internet Protocol version 6 address.
+pub copy struct Ipv6Address
+
+/// One copyable numeric IPv4 or IPv6 address.
+pub copy struct IpAddress
+
+/// One copyable numeric IP address and logical transport port.
+pub copy struct SocketAddress
+
+construct Ipv4Address {
+    /// Creates an address from four octets in text order.
+    pub noalloc func from_octets(first: u8, second: u8, third: u8, fourth: u8): Self
+
+    /// Parses one complete dotted-decimal IPv4 spelling.
+    pub noalloc func parse(text: &str): Self?
+
+    /// Creates the unspecified address `0.0.0.0`.
+    pub noalloc func unspecified(): Self
+
+    /// Creates the loopback address `127.0.0.1`.
+    pub noalloc func loopback(): Self
+}
+
+instance Ipv4Address {
+    impl Format
+    impl Hash
+    impl TotalOrder
+
+    /// Returns the four address octets in text order.
+    pub noalloc method &self.octets(): [u8; 4]
+
+    /// Reports whether this is the unspecified address.
+    pub noalloc method &self.is_unspecified(): bool
+
+    /// Reports whether this belongs to the `127.0.0.0/8` loopback range.
+    pub noalloc method &self.is_loopback(): bool
+
+    /// Returns the canonical dotted-decimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the canonical spelling using recoverable storage from `allocator`.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+
+    /// Compares exact address octets.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders exact address octets lexicographically.
+    pub noalloc operator (&self < other: &Self): bool
+}
+
+construct Ipv6Address {
+    /// Creates an address from eight 16-bit components in text order.
+    pub noalloc func from_segments(
+        first: u16,
+        second: u16,
+        third: u16,
+        fourth: u16,
+        fifth: u16,
+        sixth: u16,
+        seventh: u16,
+        eighth: u16,
+    ): Self
+
+    /// Parses one complete numeric IPv6 spelling, including an optional embedded IPv4 tail.
+    pub noalloc func parse(text: &str): Self?
+
+    /// Creates the unspecified address `::`.
+    pub noalloc func unspecified(): Self
+
+    /// Creates the loopback address `::1`.
+    pub noalloc func loopback(): Self
+}
+
+instance Ipv6Address {
+    impl Format
+    impl Hash
+    impl TotalOrder
+
+    /// Returns the eight 16-bit components in text order.
+    pub noalloc method &self.segments(): [u16; 8]
+
+    /// Reports whether this is the unspecified address.
+    pub noalloc method &self.is_unspecified(): bool
+
+    /// Reports whether this is the loopback address.
+    pub noalloc method &self.is_loopback(): bool
+
+    /// Returns the canonical RFC 5952 hexadecimal spelling.
+    pub method self.to_string(): String
+
+    /// Returns the canonical spelling using recoverable storage from `allocator`.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+
+    /// Compares exact address octets.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders exact address octets lexicographically.
+    pub noalloc operator (&self < other: &Self): bool
+}
+
+construct IpAddress {
+    /// Wraps one IPv4 address without changing its octets.
+    pub noalloc func from_ipv4(address: Ipv4Address): Self
+
+    /// Wraps one IPv6 address without changing its octets.
+    pub noalloc func from_ipv6(address: Ipv6Address): Self
+
+    /// Parses one complete numeric IPv4 or IPv6 spelling.
+    pub noalloc func parse(text: &str): Self?
+}
+
+instance IpAddress {
+    impl Format
+    impl Hash
+    impl TotalOrder
+
+    /// Returns this address's explicit family.
+    pub noalloc method &self.family(): IpFamily
+
+    /// Returns the represented IPv4 address, or absence for IPv6.
+    pub noalloc method &self.as_ipv4(): Ipv4Address?
+
+    /// Returns the represented IPv6 address, or absence for IPv4.
+    pub noalloc method &self.as_ipv6(): Ipv6Address?
+
+    /// Returns the canonical numeric spelling.
+    pub method self.to_string(): String
+
+    /// Returns the canonical spelling using recoverable storage from `allocator`.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+
+    /// Compares the family and exact address octets.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders IPv4 before IPv6, then orders exact address octets lexicographically.
+    pub noalloc operator (&self < other: &Self): bool
+}
+
+construct SocketAddress {
+    /// Combines a numeric address with one logical transport port.
+    pub noalloc func new(address: IpAddress, port: u16): Self
+
+    /// Parses `IPv4:port` or `[IPv6]:port` from one complete input.
+    pub noalloc func parse(text: &str): Self?
+}
+
+instance SocketAddress {
+    impl Format
+    impl Hash
+    impl TotalOrder
+
+    /// Returns the numeric IP address.
+    pub noalloc method &self.ip(): IpAddress
+
+    /// Returns the logical transport port.
+    pub noalloc method &self.port(): u16
+
+    /// Returns the canonical address and decimal port spelling.
+    pub method self.to_string(): String
+
+    /// Returns the canonical spelling using recoverable storage from `allocator`.
+    pub method self.try_to_string(allocator: &+TryAllocator): String! from allocator
+
+    /// Compares the logical IP address and port.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Orders by logical IP address, then by port.
+    pub noalloc operator (&self < other: &Self): bool
+}

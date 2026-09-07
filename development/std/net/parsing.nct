@@ -1,0 +1,205 @@
+//! Complete allocation-free numeric address parsers.
+
+see ./index.nct
+see ./values.nct
+
+noalloc func parse_ipv4_bytes(text: &str): [u8; 4]? {
+    let bytes = text.bytes()
+    if bytes.len() == 0 { return none }
+
+    var result: [u8; 4] = [0, 0, 0, 0]
+    var component: usize = 0
+    var value: u16 = 0
+    var digits: usize = 0
+    var first_is_zero = false
+    var offset: usize = 0
+
+    while offset < bytes.len() {
+        let byte = bytes[offset]
+        if byte == 46 {
+            if component >= 3 || digits == 0 { return none }
+            if digits > 1 && first_is_zero { return none }
+            let narrowed = u8.from_u64(value as u64) otherwise { return none }
+            result[component] = narrowed
+            component += 1
+            value = 0
+            digits = 0
+            first_is_zero = false
+            offset += 1
+            continue
+        }
+        if byte < 48 || byte > 57 { return none }
+        if digits == 0 { first_is_zero = byte == 48 }
+        if digits == 3 { return none }
+        value = value * 10 + (byte - 48) as u16
+        if value > 255 { return none }
+        digits += 1
+        offset += 1
+    }
+
+    if component != 3 || digits == 0 { return none }
+    if digits > 1 && first_is_zero { return none }
+    result[3] = u8.from_u64(value as u64)?
+    return result
+}
+
+noalloc func hex_value(byte: u8): u16? {
+    if byte >= 48 && byte <= 57 { return (byte - 48) as u16 }
+    if byte >= 65 && byte <= 70 { return (byte - 65 + 10) as u16 }
+    if byte >= 97 && byte <= 102 { return (byte - 97 + 10) as u16 }
+    return none
+}
+
+noalloc func ipv6_from_parsed_segments(
+    source: &[u16; 8],
+    written: usize,
+    compression: usize,
+): Ipv6Address? {
+    var segments: [u16; 8] = [0, 0, 0, 0, 0, 0, 0, 0]
+    if compression < 8 {
+        if written >= 8 { return none }
+        var prefix: usize = 0
+        while prefix < compression {
+            segments[prefix] = source[prefix]
+            prefix += 1
+        }
+        let tail_len = written - compression
+        var tail: usize = 0
+        while tail < tail_len {
+            segments[8 - tail_len + tail] = source[compression + tail]
+            tail += 1
+        }
+    } else {
+        if written != 8 { return none }
+        var index: usize = 0
+        while index < 8 {
+            segments[index] = source[index]
+            index += 1
+        }
+    }
+    return Ipv6Address.from_segments(
+        segments[0],
+        segments[1],
+        segments[2],
+        segments[3],
+        segments[4],
+        segments[5],
+        segments[6],
+        segments[7],
+    )
+}
+
+noalloc func parse_ipv6(text: &str): Ipv6Address? {
+    let bytes = text.bytes()
+    if bytes.len() == 0 { return none }
+
+    var segments: [u16; 8] = [0, 0, 0, 0, 0, 0, 0, 0]
+    var written: usize = 0
+    // Eight is the absent sentinel; a valid compression point is in 0 through 7.
+    var compression: usize = 8
+    var offset: usize = 0
+    var saw_colon = false
+
+    if bytes.len() >= 2 && bytes[0] == 58 && bytes[1] == 58 {
+        compression = 0
+        saw_colon = true
+        offset = 2
+        if offset == bytes.len() {
+            return Ipv6Address.unspecified()
+        }
+    } else if bytes[0] == 58 {
+        return none
+    }
+
+    while offset < bytes.len() {
+        if written >= 8 { return none }
+        let component_start = offset
+        var value: u16 = 0
+        var digits: usize = 0
+        var embedded_ipv4 = false
+
+        while offset < bytes.len() && bytes[offset] != 58 {
+            if bytes[offset] == 46 {
+                embedded_ipv4 = true
+                break
+            }
+            let digit = hex_value(bytes[offset]) otherwise { return none }
+            if digits == 4 { return none }
+            value = value * 16 + digit
+            digits += 1
+            offset += 1
+        }
+
+        if embedded_ipv4 {
+            if !saw_colon || written > 6 { return none }
+            let tail = text.get_range(component_start, bytes.len()) otherwise { return none }
+            let ipv4 = Ipv4Address.parse(tail) otherwise { return none }
+            let octets = ipv4.octets()
+            segments[written] = (octets[0] as u16) * 256 + octets[1] as u16
+            segments[written + 1] = (octets[2] as u16) * 256 + octets[3] as u16
+            written += 2
+            offset = bytes.len()
+            continue
+        }
+
+        if digits == 0 { return none }
+        segments[written] = value
+        written += 1
+        if offset == bytes.len() { continue }
+
+        saw_colon = true
+        offset += 1
+        if offset == bytes.len() { return none }
+        if bytes[offset] == 58 {
+            if compression < 8 || written >= 8 { return none }
+            compression = written
+            offset += 1
+            if offset == bytes.len() { break }
+        }
+    }
+
+    return ipv6_from_parsed_segments(&segments, written, compression)
+}
+
+construct Ipv4Address {
+    noalloc func parse(text: &str): Self? {
+        let bytes = parse_ipv4_bytes(text)?
+        return Ipv4Address.from_octets(bytes[0], bytes[1], bytes[2], bytes[3])
+    }
+}
+
+construct Ipv6Address {
+    noalloc func parse(text: &str): Self? {
+        return parse_ipv6(text)
+    }
+}
+
+construct IpAddress {
+    noalloc func parse(text: &str): Self? {
+        if text.contains(":") {
+            return IpAddress.from_ipv6(Ipv6Address.parse(text)?)
+        }
+        return IpAddress.from_ipv4(Ipv4Address.parse(text)?)
+    }
+}
+
+construct SocketAddress {
+    noalloc func parse(text: &str): Self? {
+        if text.starts_with("[") {
+            let closing = text.find("]") otherwise { return none }
+            if closing <= 1 { return none }
+            let separator = closing + 1
+            if separator >= text.len() || text.bytes()[separator] != 58 { return none }
+            let address_text = text.get_range(1, closing) otherwise { return none }
+            let port_text = text.get_range(separator + 1, text.len()) otherwise { return none }
+            let address = Ipv6Address.parse(address_text) otherwise { return none }
+            let port = u16.parse(port_text) otherwise { return none }
+            return SocketAddress.new(IpAddress.from_ipv6(address), port)
+        }
+
+        let parts = text.split_once(":") otherwise { return none }
+        let address = Ipv4Address.parse(parts.0) otherwise { return none }
+        let port = u16.parse(parts.1) otherwise { return none }
+        return SocketAddress.new(IpAddress.from_ipv4(address), port)
+    }
+}

@@ -1,0 +1,167 @@
+//! Sole canonical address-text generators.
+
+see ./index.nct
+see ./values.nct
+
+use /fmt.Format
+use /internal/mem
+use /mem.TryAllocator
+use /string.String
+
+func try_write_ipv4(output: &+String, address: &Ipv4Address): void! {
+    let octets = address.octets()
+    var index: usize = 0
+    while index < 4 {
+        if index != 0 { output.try_push_str(".")? }
+        octets[index].try_format_into(output)?
+        index += 1
+    }
+    return
+}
+
+noalloc func hex_digit(value: u16): char {
+    if value < 10 {
+        return char.from_u32((value + 48) as u32) otherwise { return '0' }
+    }
+    return char.from_u32((value - 10 + 97) as u32) otherwise { return 'a' }
+}
+
+func try_write_hex_segment(output: &+String, value: u16): void! {
+    var divisor: u16 = 4096
+    var started = false
+    while divisor > 0 {
+        let digit = value / divisor % 16
+        if digit != 0 || started || divisor == 1 {
+            output.try_push(hex_digit(digit))?
+            started = true
+        }
+        divisor = divisor / 16
+    }
+    return
+}
+
+noalloc func longest_zero_run(address: &Ipv6Address): (usize, usize) {
+    var best_start: usize = 8
+    var best_len: usize = 0
+    var index: usize = 0
+    while index < 8 {
+        if address.raw_segment(index) != 0 {
+            index += 1
+            continue
+        }
+        let start = index
+        while index < 8 && address.raw_segment(index) == 0 {
+            index += 1
+        }
+        let len = index - start
+        if len >= 2 && len > best_len {
+            best_start = start
+            best_len = len
+        }
+    }
+    return (best_start, best_len)
+}
+
+func try_write_ipv6(output: &+String, address: &Ipv6Address): void! {
+    let run = longest_zero_run(address)
+    var index: usize = 0
+    while index < 8 {
+        if index == run.0 {
+            output.try_push_str("::")?
+            index += run.1
+            if index == 8 { return }
+            continue
+        }
+        if index != 0 && index != run.0 + run.1 {
+            output.try_push_str(":")?
+        }
+        try_write_hex_segment(output, address.raw_segment(index))?
+        index += 1
+    }
+    return
+}
+
+func try_write_ip(output: &+String, address: &IpAddress): void! {
+    match address.family() {
+        IpFamily.ipv4 {
+            let ipv4 = address.as_ipv4() otherwise { return }
+            try_write_ipv4(output, &ipv4)?
+        }
+        IpFamily.ipv6 {
+            let ipv6 = address.as_ipv6() otherwise { return }
+            try_write_ipv6(output, &ipv6)?
+        }
+    }
+    return
+}
+
+func try_write_socket(output: &+String, address: &SocketAddress): void! {
+    let ip = address.ip()
+    match ip.family() {
+        IpFamily.ipv4 { try_write_ip(output, &ip)? }
+        IpFamily.ipv6 {
+            output.try_push_str("[")?
+            try_write_ip(output, &ip)?
+            output.try_push_str("]")?
+        }
+    }
+    output.try_push_str(":")?
+    address.port().try_format_into(output)?
+    return
+}
+
+instance Ipv4Address {
+    method self.to_string(): String {
+        var output = String.with_capacity(15)
+        try_write_ipv4(&+output, &self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var output = String.try_with_capacity(allocator, 15)?
+        try_write_ipv4(&+output, &self)?
+        return move output
+    }
+}
+
+instance Ipv6Address {
+    method self.to_string(): String {
+        var output = String.with_capacity(39)
+        try_write_ipv6(&+output, &self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var output = String.try_with_capacity(allocator, 39)?
+        try_write_ipv6(&+output, &self)?
+        return move output
+    }
+}
+
+instance IpAddress {
+    method self.to_string(): String {
+        var output = String.with_capacity(39)
+        try_write_ip(&+output, &self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var output = String.try_with_capacity(allocator, 39)?
+        try_write_ip(&+output, &self)?
+        return move output
+    }
+}
+
+instance SocketAddress {
+    method self.to_string(): String {
+        var output = String.with_capacity(47)
+        try_write_socket(&+output, &self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+
+    method self.try_to_string(allocator: &+TryAllocator): String! from allocator {
+        var output = String.try_with_capacity(allocator, 47)?
+        try_write_socket(&+output, &self)?
+        return move output
+    }
+}
