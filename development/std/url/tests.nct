@@ -38,6 +38,7 @@ func expect_resolved(base: &Url, reference: &str, canonical: &str): void! {
 
 test absolute_urls_normalize_scheme_and_registered_hosts {
     expect_url("HTTP://Example.COM:80", "http://example.com/", "/")?
+    expect_url("http://%65XAMPLE%2eCOM/", "http://example.com/", "/")?
     return
 }
 
@@ -114,6 +115,9 @@ test absolute_urls_reject_invalid_or_unsupported_surface {
     expect_invalid("http://example.com/é")?
     expect_invalid("http://example.com/a?x y")?
     expect_invalid("http://例.example/")?
+    expect_invalid("http://%C3%A9.example/")?
+    expect_invalid("http://example%2fpath/")?
+    expect_invalid("http://example%00.com/")?
     return
 }
 
@@ -147,6 +151,7 @@ test relative_references_follow_rfc3986_merge_and_inheritance {
     expect_resolved(&base, "g/", "http://a/b/c/g/")?
     expect_resolved(&base, "/g", "http://a/g")?
     expect_resolved(&base, "//g", "http://g/")?
+    expect_resolved(&base, "//%47.EXAMPLE/", "http://g.example/")?
     expect_resolved(&base, "//g/x", "http://g/x")?
     expect_resolved(&base, "//g?y", "http://g/?y")?
     expect_resolved(&base, "?y", "http://a/b/c/d;p?y")?

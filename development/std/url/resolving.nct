@@ -71,76 +71,91 @@ func resolve_relative_core(
 ): UrlAttempt<Url> {
     var tail_start: usize = 0
     var has_reference_authority = false
-    let host_copy_attempt = copy_text(allocator, base.host())
-    var host = match move host_copy_attempt {
-        UrlAttempt.success(value) { move value }
-        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
-        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
-    }
     let scheme = base.scheme()
     let https_scheme: bool = if scheme is UrlScheme.https { true } else { false }
     var ipv6_host = base.ipv6_host_value()
     var explicit_port = base.explicit_port_value_or_zero()
     var has_explicit_port = base.has_explicit_port_value()
+    var authority_end: usize = 0
 
     if reference.len() >= 2 && reference[0] == 47 && reference[1] == 47 {
         has_reference_authority = true
-        let authority_start: usize = 2
-        var authority_end = authority_start
+        authority_end = 2
         while authority_end < reference.len()
             && reference[authority_end] != 47
             && reference[authority_end] != 63
             && reference[authority_end] != 35 {
             authority_end += 1
         }
-        let authority = reference.get_range(authority_start, authority_end) otherwise {
-            return invalid_url()
-        }
-        let host_attempt = canonical_host(allocator, authority)
-        let host_result = match move host_attempt {
-            UrlAttempt.success(value) { move value }
-            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
-            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
-        }
-        host = move host_result.0
-        ipv6_host = host_result.1
-        explicit_port = host_result.2
-        has_explicit_port = host_result.3
-            && explicit_port != default_port(scheme)
-        if !has_explicit_port { explicit_port = 0 }
         tail_start = authority_end
     }
 
-    let tail_attempt = parse_reference_tail(allocator, reference, tail_start)
+    let tail_attempt = parse_reference_tail(reference, tail_start)
     let tail = match move tail_attempt {
         UrlAttempt.success(value) { move value }
         UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
         UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
     }
 
+    let host = if has_reference_authority {
+        let authority = reference.get_range(2, authority_end) otherwise { return invalid_url() }
+        let host_attempt = canonical_host(allocator, authority)
+        let host_result = match move host_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+        ipv6_host = host_result.1
+        explicit_port = host_result.2
+        has_explicit_port = host_result.3 && explicit_port != default_port(scheme)
+        if !has_explicit_port { explicit_port = 0 }
+        move host_result.0
+    } else {
+        let host_copy_attempt = copy_text(allocator, base.host())
+        match move host_copy_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    }
+
+    let path_is_empty = tail.path_start == tail.path_end
     let path = if has_reference_authority {
-        let path_normalization = normalized_path(allocator, &tail.path)
+        let path_normalization = normalized_path_range(
+            allocator,
+            reference,
+            tail.path_start,
+            tail.path_end,
+        )
         match move path_normalization {
             UrlAttempt.success(value) { move value }
             UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
             UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
         }
-    } else if tail.path.len() == 0 {
+    } else if path_is_empty {
         let path_copy_attempt = copy_text(allocator, base.path())
         match move path_copy_attempt {
             UrlAttempt.success(value) { move value }
             UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
             UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
         }
-    } else if tail.path[0] == 47 {
-        let path_normalization = normalized_path(allocator, &tail.path)
+    } else if reference[tail.path_start] == 47 {
+        let path_normalization = normalized_path_range(
+            allocator,
+            reference,
+            tail.path_start,
+            tail.path_end,
+        )
         match move path_normalization {
             UrlAttempt.success(value) { move value }
             UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
             UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
         }
     } else {
-        let path_merge = merged_path(allocator, base.path(), &tail.path)
+        let relative_path = reference.get_range(tail.path_start, tail.path_end) otherwise {
+            return invalid_url()
+        }
+        let path_merge = merged_path(allocator, base.path(), relative_path)
         match move path_merge {
             UrlAttempt.success(value) { move value }
             UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
@@ -148,17 +163,54 @@ func resolve_relative_core(
         }
     }
 
-    let inherit_query = !has_reference_authority && tail.path.len() == 0 && !tail.has_query
-    var has_query = tail.has_query
-    var query = move tail.query
-    if inherit_query {
-        has_query = base.has_query_value()
+    let inherit_query = !has_reference_authority && path_is_empty && !tail.has_query
+    let has_query = if inherit_query { base.has_query_value() } else { tail.has_query }
+    let query = if inherit_query {
         let query_copy_attempt = copy_text(allocator, base.query_text_value())
-        query = match move query_copy_attempt {
+        match move query_copy_attempt {
             UrlAttempt.success(value) { move value }
             UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
             UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
         }
+    } else if tail.has_query {
+        let query_attempt = normalized_component_range(
+            allocator,
+            reference,
+            tail.query_start,
+            tail.query_end,
+            QUERY_COMPONENT,
+            false,
+        )
+        match move query_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    } else {
+        let query_attempt = empty_component(allocator)
+        match move query_attempt {
+            UrlAttempt.success(value) { move value }
+            UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+            UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+        }
+    }
+
+    let fragment_attempt = if tail.has_fragment {
+        normalized_component_range(
+            allocator,
+            reference,
+            tail.fragment_start,
+            tail.fragment_end,
+            FRAGMENT_COMPONENT,
+            false,
+        )
+    } else {
+        empty_component(allocator)
+    }
+    let fragment = match move fragment_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
     }
 
     let value = url_from_parts(
@@ -170,7 +222,7 @@ func resolve_relative_core(
         move path,
         move query,
         has_query,
-        move tail.fragment,
+        move fragment,
         tail.has_fragment,
     )
     return UrlAttempt.success(move value)

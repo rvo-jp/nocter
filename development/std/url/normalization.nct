@@ -84,8 +84,20 @@ func normalized_component(
         }
         if byte == 37 {
             if offset + 2 >= bytes.len() { return invalid_url() }
-            let _high = hex_value(bytes[offset + 1]) otherwise { return invalid_url() }
-            let _low = hex_value(bytes[offset + 2]) otherwise { return invalid_url() }
+            let high = hex_value(bytes[offset + 1]) otherwise { return invalid_url() }
+            let low = hex_value(bytes[offset + 2]) otherwise { return invalid_url() }
+            if component == HOST_COMPONENT {
+                let decoded = high * 16 + low
+                if decoded >= 128 { return non_ascii_host() }
+                if !allowed_component_byte(decoded, HOST_COMPONENT) { return invalid_url() }
+                var normalized = decoded
+                if lowercase && decoded >= 65 && decoded <= 90 { normalized = decoded + 32 }
+                output.try_push(ascii_char(normalized)) catch failure {
+                    return UrlAttempt.allocation(move failure)
+                }
+                offset += 3
+                continue
+            }
             output.try_push('%') catch failure {
                 return UrlAttempt.allocation(move failure)
             }
@@ -107,6 +119,25 @@ func normalized_component(
         offset += 1
     }
     return UrlAttempt.success(move output)
+}
+
+func normalized_component_range(
+    allocator: &+TryAllocator,
+    text: &str,
+    start: usize,
+    end: usize,
+    component: u8,
+    lowercase: bool,
+): UrlAttempt<String> {
+    let source = text.get_range(start, end) otherwise { return invalid_url() }
+    return normalized_component(allocator, source, component, lowercase)
+}
+
+func empty_component(allocator: &+TryAllocator): UrlAttempt<String> {
+    let value = String.try_with_capacity(allocator, 0) catch failure {
+        return UrlAttempt.allocation(move failure)
+    }
+    return UrlAttempt.success(move value)
 }
 
 noalloc func starts_at(text: &str, offset: usize, prefix: &str): bool {
@@ -213,4 +244,14 @@ func normalized_path(allocator: &+TryAllocator, text: &str): UrlAttempt<String> 
         UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
         UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
     }
+}
+
+func normalized_path_range(
+    allocator: &+TryAllocator,
+    text: &str,
+    start: usize,
+    end: usize,
+): UrlAttempt<String> {
+    let source = text.get_range(start, end) otherwise { return invalid_url() }
+    return normalized_path(allocator, source)
 }

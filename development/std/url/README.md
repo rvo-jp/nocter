@@ -6,8 +6,11 @@ declarations. `std/url` owns immutable absolute HTTP-family URLs. `Url.parse` ac
 rather than the caller's source text.
 
 The initial URL boundary accepts numeric IPv4 hosts, bracketed numeric IPv6 hosts, and ASCII
-registered names. User information and raw non-ASCII registered names are rejected. International
-host names require a future explicit IDNA contract instead of locale-dependent conversion.
+registered names. Percent-encoded ASCII registered-name bytes are decoded into the logical host
+before storage and name resolution; escapes for non-ASCII bytes or bytes outside the accepted
+registered-name alphabet are rejected. User information and raw non-ASCII registered names are
+rejected. International host names require a future explicit IDNA contract instead of
+locale-dependent conversion.
 
 Canonical text uses lowercase schemes and registered names, canonical numeric addresses, uppercase
 percent-escape digits, removed dot segments, `/` for an omitted path, and no explicit scheme-default
@@ -27,4 +30,6 @@ does the same for relative resolution. Syntax failures use stable `std.url.*` co
 relabeled as allocation failures. Raw non-ASCII URL components must be percent-encoded.
 
 Equality, hashing, formatting, projections, and request-target generation consume the same retained
-component representation. Consumers must not parse canonical text again to recover URL meaning.
+component representation. Reference parsing first classifies non-owning source ranges, then
+constructs only the path, authority, query, and fragment selected by absolute parsing or relative
+resolution. Consumers must not parse canonical text again to recover URL meaning.

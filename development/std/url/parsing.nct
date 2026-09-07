@@ -151,14 +151,54 @@ func parse_core(allocator: &+TryAllocator, text: &str): UrlAttempt<Url> {
         UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
     }
 
-    let tail_attempt = parse_reference_tail(allocator, text, authority_end)
+    let tail_attempt = parse_reference_tail(text, authority_end)
     let tail = match move tail_attempt {
         UrlAttempt.success(value) { move value }
         UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
         UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
     }
-    let path_attempt = normalized_path(allocator, &tail.path)
+    let path_attempt = normalized_path_range(
+        allocator,
+        text,
+        tail.path_start,
+        tail.path_end,
+    )
     let path = match move path_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+
+    let query_attempt = if tail.has_query {
+        normalized_component_range(
+            allocator,
+            text,
+            tail.query_start,
+            tail.query_end,
+            QUERY_COMPONENT,
+            false,
+        )
+    } else {
+        empty_component(allocator)
+    }
+    let query = match move query_attempt {
+        UrlAttempt.success(value) { move value }
+        UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
+        UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
+    }
+    let fragment_attempt = if tail.has_fragment {
+        normalized_component_range(
+            allocator,
+            text,
+            tail.fragment_start,
+            tail.fragment_end,
+            FRAGMENT_COMPONENT,
+            false,
+        )
+    } else {
+        empty_component(allocator)
+    }
+    let fragment = match move fragment_attempt {
         UrlAttempt.success(value) { move value }
         UrlAttempt.input(failure) { return UrlAttempt.input(move failure) }
         UrlAttempt.allocation(failure) { return UrlAttempt.allocation(move failure) }
@@ -175,9 +215,9 @@ func parse_core(allocator: &+TryAllocator, text: &str): UrlAttempt<Url> {
         retained_port,
         has_explicit_port,
         move path,
-        move tail.query,
+        move query,
         tail.has_query,
-        move tail.fragment,
+        move fragment,
         tail.has_fragment,
     )
     return UrlAttempt.success(move value)
