@@ -2,18 +2,16 @@
 
 ## Current State
 
-Nocter v0.39.0 is published and externally audited. The v0.40.0 synchronous Internet client
-implementation is complete and reviewed. Trusted target services, canonical URLs, system name
-resolution, bounded HTTP/1.1 framing, the owned synchronous client lifecycle, examples, installed-
-home execution, editor tooling, and source-tree qualification are closed.
+Nocter v0.39.0 is published and externally audited. The v0.40.0 implementation is closed and its
+release identity is frozen at `0.40.0`. Public latest-release references remain at v0.39.0 until
+publication is separately authorized.
 
 ## Next Work
 
-Begin v0.40.0 release preparation only when requested. Set the exact release identity, write public
-release notes, rerun the complete disposable-target verification and documentation gates, build two
-independent optimized packages, compare archives and installed homes, qualify a fresh installation,
-and retain but do not publish the candidate without explicit authorization. Preserve the immutable
-v0.39.0 tag and asset.
+Qualify the exact clean v0.40.0 release-content commit through two independent compiler gates, the
+explicit public-HTTPS dependency-acquisition test, deterministic packaging, and complete installed-
+home validation. Record the retained archive identity and stop before tagging, pushing, uploading,
+or changing public latest-release links. Preserve the immutable v0.39.0 tag and asset.
 
 ## Blockers
 
