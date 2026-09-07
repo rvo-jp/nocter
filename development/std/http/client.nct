@@ -73,17 +73,16 @@ func read_response_head(
     request_method: &Method,
     limits: Limits,
 ): ReceivedResponseHead! {
-    var input: Vec<u8> = Vec.empty()
     var scratch = initialized_bytes(CLIENT_BUFFER_BYTES)
     var decoder = response_head_decoder(limits)
     loop {
-        let attempt = advance_response_head(move decoder, &input, request_method)
+        let attempt = advance_response_head(move decoder, request_method)
         match move attempt {
             ResponseHeadAttempt.ready(parsed) {
                 return ReceivedResponseHead {
                     head: move parsed.head,
                     decoder: move parsed.decoder,
-                    pending: move input,
+                    pending: move parsed.pending,
                     pending_start: parsed.consumed,
                 }
             }
@@ -100,7 +99,7 @@ func read_response_head(
                     return failure.context("while reading the HTTP response head")
                 }
                 if received == 0 { return premature_eof() }
-                append_prefix(&+input, &scratch, received)
+                append_response_head_input(&+decoder, &scratch, received)?
             }
         }
     }

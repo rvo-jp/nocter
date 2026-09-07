@@ -8,12 +8,14 @@ see ./storage.nct
 see ./values.nct
 see ./wire.nct
 
+use /vec.Vec
+
 enum ResponseHeadPhase {
     status
     fields(status: Status)
 }
 
-struct ResponseHeadDecoder {
+struct ResponseHeadState {
     phase: ResponseHeadPhase
     head_start: usize
     line_start: usize
@@ -27,6 +29,11 @@ struct ResponseHeadDecoder {
     limits: Limits
 }
 
+struct ResponseHeadDecoder {
+    input: Vec<u8>
+    state: ResponseHeadState
+}
+
 enum ResponseHeadAttempt {
     incomplete(decoder: ResponseHeadDecoder)
     informational(status: Status, decoder: ResponseHeadDecoder)
@@ -37,31 +44,41 @@ enum ResponseHeadAttempt {
 struct ParsedResponseHead {
     head: ResponseHead
     decoder: BodyDecoder
+    pending: Vec<u8>
     consumed: usize
 }
 
-noalloc func response_head_decoder_at(
-    limits: Limits,
-    start: usize,
-    informational_count: usize,
-): ResponseHeadDecoder {
+noalloc func response_head_decoder(limits: Limits): ResponseHeadDecoder {
     return ResponseHeadDecoder {
-        phase: ResponseHeadPhase.status,
-        head_start: start,
-        line_start: start,
-        scan_offset: start,
-        headers: Headers.empty(),
-        content_length: 0,
-        has_content_length: false,
-        has_transfer_encoding: false,
-        transfer_kind: 0,
-        informational_count: informational_count,
-        limits: limits,
+        input: Vec.empty(),
+        state: ResponseHeadState {
+            phase: ResponseHeadPhase.status,
+            head_start: 0,
+            line_start: 0,
+            scan_offset: 0,
+            headers: Headers.empty(),
+            content_length: 0,
+            has_content_length: false,
+            has_transfer_encoding: false,
+            transfer_kind: 0,
+            informational_count: 0,
+            limits: limits,
+        },
     }
 }
 
-noalloc func response_head_decoder(limits: Limits): ResponseHeadDecoder {
-    return response_head_decoder_at(limits, 0, 0)
+func append_response_head_input(
+    decoder: &+ResponseHeadDecoder,
+    input: &[u8],
+    count: usize,
+): void! {
+    if count > input.len() { return invalid_syntax() }
+    var offset: usize = 0
+    while offset < count {
+        decoder.input.push(input[offset])
+        offset += 1
+    }
+    return
 }
 
 noalloc func status_from_line(input: &[u8], start: usize, end: usize): Status! {
@@ -96,7 +113,7 @@ noalloc func status_from_line(input: &[u8], start: usize, end: usize): Status! {
 }
 
 func retain_response_field(
-    decoder: &+ResponseHeadDecoder,
+    decoder: &+ResponseHeadState,
     input: &[u8],
     start: usize,
     end: usize,
@@ -128,7 +145,7 @@ func retain_response_field(
 }
 
 noalloc func selected_body_framing(
-    decoder: &ResponseHeadDecoder,
+    decoder: &ResponseHeadState,
     request_method: &Method,
     status: Status,
 ): BodyFraming! {
@@ -152,22 +169,22 @@ noalloc func selected_body_framing(
 
 func advance_response_head(
     decoder: ResponseHeadDecoder,
-    input: &[u8],
     request_method: &Method,
 ): ResponseHeadAttempt {
-    var state = move decoder
+    var owner = move decoder
+    let input: &[u8] = &owner.input
     loop {
-        match state.phase {
+        match owner.state.phase {
             ResponseHeadPhase.status {
                 let line_end = match advance_line(
                     input,
-                    state.line_start,
-                    state.scan_offset,
-                    state.limits.start_line_bytes,
+                    owner.state.line_start,
+                    owner.state.scan_offset,
+                    owner.state.limits.start_line_bytes,
                 ) {
                     LineAdvance.incomplete(next) {
-                        state.scan_offset = next
-                        return ResponseHeadAttempt.incomplete(move state)
+                        owner.state.scan_offset = next
+                        return ResponseHeadAttempt.incomplete(move owner)
                     }
                     LineAdvance.ready(end) { end }
                     LineAdvance.malformed {
@@ -177,29 +194,29 @@ func advance_response_head(
                         return ResponseHeadAttempt.failed(syntax_limit())
                     }
                 }
-                if line_end + 2 - state.head_start > state.limits.header_bytes {
+                if line_end + 2 - owner.state.head_start > owner.state.limits.header_bytes {
                     return ResponseHeadAttempt.failed(syntax_limit())
                 }
-                let status = status_from_line(input, state.line_start, line_end) catch failure {
+                let status = status_from_line(input, owner.state.line_start, line_end) catch failure {
                     return ResponseHeadAttempt.failed(move failure)
                 }
-                state.line_start = line_end + 2
-                state.scan_offset = state.line_start
-                state.phase = ResponseHeadPhase.fields(status)
+                owner.state.line_start = line_end + 2
+                owner.state.scan_offset = owner.state.line_start
+                owner.state.phase = ResponseHeadPhase.fields(status)
             }
             ResponseHeadPhase.fields(status) {
                 let line_end = match advance_line(
                     input,
-                    state.line_start,
-                    state.scan_offset,
-                    state.limits.field_bytes,
+                    owner.state.line_start,
+                    owner.state.scan_offset,
+                    owner.state.limits.field_bytes,
                 ) {
                     LineAdvance.incomplete(next) {
-                        if input.len() - state.head_start > state.limits.header_bytes {
+                        if input.len() - owner.state.head_start > owner.state.limits.header_bytes {
                             return ResponseHeadAttempt.failed(syntax_limit())
                         }
-                        state.scan_offset = next
-                        return ResponseHeadAttempt.incomplete(move state)
+                        owner.state.scan_offset = next
+                        return ResponseHeadAttempt.incomplete(move owner)
                     }
                     LineAdvance.ready(end) { end }
                     LineAdvance.malformed {
@@ -209,42 +226,52 @@ func advance_response_head(
                         return ResponseHeadAttempt.failed(syntax_limit())
                     }
                 }
-                if line_end + 2 - state.head_start > state.limits.header_bytes {
+                if line_end + 2 - owner.state.head_start > owner.state.limits.header_bytes {
                     return ResponseHeadAttempt.failed(syntax_limit())
                 }
-                if line_end != state.line_start {
-                    let field_start = state.line_start
+                if line_end != owner.state.line_start {
+                    let field_start = owner.state.line_start
                     retain_response_field(
-                        &+state,
+                        &+owner.state,
                         input,
                         field_start,
                         line_end,
                     ) catch failure {
                         return ResponseHeadAttempt.failed(move failure)
                     }
-                    state.line_start = line_end + 2
-                    state.scan_offset = state.line_start
+                    owner.state.line_start = line_end + 2
+                    owner.state.scan_offset = owner.state.line_start
                     continue
                 }
 
                 let consumed = line_end + 2
-                let framing = selected_body_framing(&state, request_method, status) catch failure {
+                let framing = selected_body_framing(
+                    &owner.state,
+                    request_method,
+                    status,
+                ) catch failure {
                     return ResponseHeadAttempt.failed(move failure)
                 }
                 if status.is_informational() {
-                    if state.informational_count == state.limits.informational_responses {
+                    if owner.state.informational_count == owner.state.limits.informational_responses {
                         return ResponseHeadAttempt.failed(syntax_limit())
                     }
-                    let next = response_head_decoder_at(
-                        state.limits,
-                        consumed,
-                        state.informational_count + 1,
-                    )
-                    return ResponseHeadAttempt.informational(status, move next)
+                    owner.state.phase = ResponseHeadPhase.status
+                    owner.state.head_start = consumed
+                    owner.state.line_start = consumed
+                    owner.state.scan_offset = consumed
+                    owner.state.headers = Headers.empty()
+                    owner.state.content_length = 0
+                    owner.state.has_content_length = false
+                    owner.state.has_transfer_encoding = false
+                    owner.state.transfer_kind = 0
+                    owner.state.informational_count += 1
+                    return ResponseHeadAttempt.informational(status, move owner)
                 }
                 return ResponseHeadAttempt.ready(ParsedResponseHead {
-                    head: response_head_from_parts(status, move state.headers),
-                    decoder: body_decoder(move framing, state.limits),
+                    head: response_head_from_parts(status, move owner.state.headers),
+                    decoder: body_decoder(move framing, owner.state.limits),
+                    pending: move owner.input,
                     consumed: consumed,
                 })
             }

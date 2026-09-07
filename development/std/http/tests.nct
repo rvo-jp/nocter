@@ -27,17 +27,25 @@ noalloc func bytes_equal(left: &[u8], right: &[u8]): bool {
     return true
 }
 
+func decode_single_head_fragment(
+    text: &str,
+    request_method: &Method,
+    limits: Limits,
+): ResponseHeadAttempt {
+    var decoder = response_head_decoder(limits)
+    append_response_head_input(&+decoder, text.bytes(), text.len()) catch failure {
+        return ResponseHeadAttempt.failed(move failure)
+    }
+    return advance_response_head(move decoder, request_method)
+}
+
 func expect_head_failure(
     text: &str,
     request_method: &Method,
     limits: Limits,
     code: &str,
 ): void! {
-    let attempt = advance_response_head(
-        response_head_decoder(limits),
-        text.bytes(),
-        request_method,
-    )
+    let attempt = decode_single_head_fragment(text, request_method, limits)
     match move attempt {
         ResponseHeadAttempt.failed(failure) {
             if failure.has_code(code) { return }
@@ -132,11 +140,7 @@ test request_targets_and_generated_fields_obey_their_exact_limits {
 test response_head_selects_fixed_length_once_and_preserves_fields {
     let request_method = Method.get()
     let input = "HTTP/1.1 200 OK\r\nContent-Length: 5, 5\r\nX-Test: one\r\nX-Test: two\r\n\r\nhelloextra"
-    let attempt = advance_response_head(
-        response_head_decoder(Limits.standard()),
-        input.bytes(),
-        &request_method,
-    )
+    let attempt = decode_single_head_fragment(input, &request_method, Limits.standard())
     match move attempt {
         ResponseHeadAttempt.ready(parsed) {
             if parsed.head.status().code() != 200 || parsed.head.headers().len() != 3 {
@@ -186,10 +190,10 @@ test response_head_rejects_ambiguous_and_unsupported_framing {
 
 test bodyless_and_informational_responses_leave_following_bytes_unconsumed {
     let head_method = Method.head()
-    let head_attempt = advance_response_head(
-        response_head_decoder(Limits.standard()),
-        "HTTP/1.1 200 OK\r\nContent-Length: 99\r\n\r\nbody".bytes(),
+    let head_attempt = decode_single_head_fragment(
+        "HTTP/1.1 200 OK\r\nContent-Length: 99\r\n\r\nbody",
         &head_method,
+        Limits.standard(),
     )
     match move head_attempt {
         ResponseHeadAttempt.ready(parsed) {
@@ -203,14 +207,10 @@ test bodyless_and_informational_responses_leave_following_bytes_unconsumed {
 
     let request_method = Method.get()
     let sequence = "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n"
-    let first = advance_response_head(
-        response_head_decoder(Limits.standard()),
-        sequence.bytes(),
-        &request_method,
-    )
+    let first = decode_single_head_fragment(sequence, &request_method, Limits.standard())
     match move first {
         ResponseHeadAttempt.informational(status, decoder) {
-            if !status.is_informational() || decoder.head_start != 25 {
+            if !status.is_informational() || decoder.state.head_start != 25 {
                 return error.new("std.http.test", "informational response boundary changed")
             }
             return
@@ -221,19 +221,19 @@ test bodyless_and_informational_responses_leave_following_bytes_unconsumed {
 
 test partial_head_and_close_delimited_body_have_explicit_completion {
     let request_method = Method.get()
-    let partial = advance_response_head(
-        response_head_decoder(Limits.standard()),
-        "HTTP/1.1 200 OK\r\nContent-Len".bytes(),
+    let partial = decode_single_head_fragment(
+        "HTTP/1.1 200 OK\r\nContent-Len",
         &request_method,
+        Limits.standard(),
     )
     match move partial {
         ResponseHeadAttempt.incomplete(_) {}
         _ { return error.new("std.http.test", "partial head was not retained") }
     }
-    let complete = advance_response_head(
-        response_head_decoder(Limits.standard()),
-        "HTTP/1.1 200 OK\r\n\r\nabc".bytes(),
+    let complete = decode_single_head_fragment(
+        "HTTP/1.1 200 OK\r\n\r\nabc",
         &request_method,
+        Limits.standard(),
     )
     let parsed = match move complete {
         ResponseHeadAttempt.ready(value) { move value }
@@ -256,25 +256,21 @@ test partial_head_and_close_delimited_body_have_explicit_completion {
 test response_head_decoder_retains_completed_work_across_partial_input {
     let request_method = Method.get()
     let prefix = "HTTP/1.1 200 OK\r\nX-One: first\r\nX-Two"
-    let partial = advance_response_head(
-        response_head_decoder(Limits.standard()),
-        prefix.bytes(),
-        &request_method,
-    )
-    let decoder = match move partial {
+    var initial = response_head_decoder(Limits.standard())
+    append_response_head_input(&+initial, prefix.bytes(), prefix.len())?
+    let partial = advance_response_head(move initial, &request_method)
+    var decoder = match move partial {
         ResponseHeadAttempt.incomplete(value) {
-            if value.headers.len() != 1 || value.scan_offset != prefix.len() {
+            if value.state.headers.len() != 1 || value.state.scan_offset != prefix.len() {
                 return error.new("std.http.test", "incremental head state lost its cursor")
             }
             move value
         }
         _ { return error.new("std.http.test", "partial response head did not suspend") }
     }
-    let complete = advance_response_head(
-        move decoder,
-        "HTTP/1.1 200 OK\r\nX-One: first\r\nX-Two: second\r\n\r\nbody".bytes(),
-        &request_method,
-    )
+    let suffix = ": second\r\n\r\nbody"
+    append_response_head_input(&+decoder, suffix.bytes(), suffix.len())?
+    let complete = advance_response_head(move decoder, &request_method)
     match move complete {
         ResponseHeadAttempt.ready(parsed) {
             if parsed.head.headers().len() == 2 { return }
@@ -288,16 +284,12 @@ test informational_response_sequences_obey_their_aggregate_limit {
     let request_method = Method.get()
     let limits = Limits.new(64, 256, 8, 1, 64, 16, 64)?
     let input = "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 102 Processing\r\n\r\nHTTP/1.1 200 OK\r\n\r\n"
-    let first = advance_response_head(
-        response_head_decoder(limits),
-        input.bytes(),
-        &request_method,
-    )
+    let first = decode_single_head_fragment(input, &request_method, limits)
     let decoder = match move first {
         ResponseHeadAttempt.informational(_, value) { move value }
         _ { return error.new("std.http.test", "first informational response was rejected") }
     }
-    let second = advance_response_head(move decoder, input.bytes(), &request_method)
+    let second = advance_response_head(move decoder, &request_method)
     match move second {
         ResponseHeadAttempt.failed(failure) {
             if failure.has_code("std.http.syntax_limit") { return }
