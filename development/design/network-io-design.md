@@ -1,9 +1,9 @@
 # Network I/O Boundary
 
-This document defines the cross-responsibility contract for synchronous network I/O. It is an
-adopted implementation design for v0.39.0, not a statement that the public `std/net` API is already
-available. Exact checked declarations will belong to `development/std/net/index.nct`; observable
-behavior will belong to the one standard-library guide assigned by `development/std/README.md`.
+This document defines the cross-responsibility contract for synchronous network I/O. It is the
+adopted implementation design for v0.39.0; implemented availability remains defined by the exact
+checked declarations in `development/std/net/index.nct` and the behavior guide assigned by
+`development/std/README.md`.
 
 ## Purpose
 

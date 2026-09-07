@@ -1,0 +1,329 @@
+//! Shared descriptor ownership, interruption retry, readiness, and stream progress.
+
+see ./index.nct
+
+use /internal/net/darwin
+use /internal/net/darwin.{
+    RawAcceptAttempt,
+    RawAddressAttempt,
+    RawDescriptorAttempt,
+    RawTransferAttempt,
+    RawUnitAttempt,
+}
+use /internal/net/model.NetworkAddress
+use /internal/os.OSError
+
+enum DescriptorState {
+    open
+    closed
+}
+
+struct SocketDescriptor {
+    fd: usize
+    state: DescriptorState
+}
+
+noalloc func failure_from_raw(os_error: OSError): NetworkFailure {
+    return NetworkFailure.os(os_error)
+}
+
+noalloc func descriptor_from_raw(fd: usize): SocketDescriptor {
+    return SocketDescriptor { fd: fd, state: DescriptorState.open }
+}
+
+noalloc func close_raw_owner(descriptor: &+SocketDescriptor): void {
+    if descriptor.state is DescriptorState.open {
+        darwin.close_once(descriptor.fd)
+        descriptor.state = DescriptorState.closed
+    }
+    return
+}
+
+noalloc func fail_created(
+    descriptor: &+SocketDescriptor,
+    failure: NetworkFailure,
+): DescriptorAttempt {
+    close_raw_owner(descriptor)
+    return DescriptorAttempt.failed(move failure)
+}
+
+noalloc func invalid_unit(): UnitAttempt {
+    return UnitAttempt.failed(NetworkFailure.invalid_target_result)
+}
+
+noalloc func wait_readable(fd: usize): UnitAttempt {
+    while true {
+        match darwin.wait_readable_once(fd) {
+            RawUnitAttempt.ready { return UnitAttempt.ready }
+            RawUnitAttempt.interrupted {}
+            RawUnitAttempt.failed(value) {
+                return UnitAttempt.failed(failure_from_raw(value))
+            }
+            RawUnitAttempt.would_block { return invalid_unit() }
+            RawUnitAttempt.in_progress { return invalid_unit() }
+            RawUnitAttempt.malformed { return invalid_unit() }
+        }
+    }
+    return invalid_unit()
+}
+
+noalloc func wait_writable(fd: usize): UnitAttempt {
+    while true {
+        match darwin.wait_writable_once(fd) {
+            RawUnitAttempt.ready { return UnitAttempt.ready }
+            RawUnitAttempt.interrupted {}
+            RawUnitAttempt.failed(value) {
+                return UnitAttempt.failed(failure_from_raw(value))
+            }
+            RawUnitAttempt.would_block { return invalid_unit() }
+            RawUnitAttempt.in_progress { return invalid_unit() }
+            RawUnitAttempt.malformed { return invalid_unit() }
+        }
+    }
+    return invalid_unit()
+}
+
+noalloc func finish_connect(fd: usize): UnitAttempt {
+    match wait_writable(fd) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(failure) { return UnitAttempt.failed(move failure) }
+    }
+    while true {
+        match darwin.finish_connect_once(fd) {
+            RawUnitAttempt.ready { return UnitAttempt.ready }
+            RawUnitAttempt.interrupted {}
+            RawUnitAttempt.failed(failure) {
+                return UnitAttempt.failed(failure_from_raw(failure))
+            }
+            RawUnitAttempt.would_block { return invalid_unit() }
+            RawUnitAttempt.in_progress { return invalid_unit() }
+            RawUnitAttempt.malformed { return invalid_unit() }
+        }
+    }
+    return invalid_unit()
+}
+
+noalloc func connect_tcp(address: NetworkAddress): DescriptorAttempt {
+    let fd = match darwin.create_tcp(address.family) {
+        RawDescriptorAttempt.ready(value) { value }
+        RawDescriptorAttempt.failed(failure) {
+            return DescriptorAttempt.failed(failure_from_raw(failure))
+        }
+        RawDescriptorAttempt.malformed {
+            return DescriptorAttempt.failed(NetworkFailure.invalid_target_result)
+        }
+    }
+    var descriptor = descriptor_from_raw(fd)
+    while true {
+        match darwin.connect_once(descriptor.fd, &address) {
+            RawUnitAttempt.ready { return DescriptorAttempt.ready(move descriptor) }
+            RawUnitAttempt.interrupted {}
+            RawUnitAttempt.in_progress {
+                match finish_connect(descriptor.fd) {
+                    UnitAttempt.ready { return DescriptorAttempt.ready(move descriptor) }
+                    UnitAttempt.failed(failure) {
+                        return fail_created(&+descriptor, move failure)
+                    }
+                }
+            }
+            RawUnitAttempt.would_block {
+                match finish_connect(descriptor.fd) {
+                    UnitAttempt.ready { return DescriptorAttempt.ready(move descriptor) }
+                    UnitAttempt.failed(failure) {
+                        return fail_created(&+descriptor, move failure)
+                    }
+                }
+            }
+            RawUnitAttempt.failed(failure) {
+                return fail_created(&+descriptor, failure_from_raw(failure))
+            }
+            RawUnitAttempt.malformed {
+                return fail_created(&+descriptor, NetworkFailure.invalid_target_result)
+            }
+        }
+    }
+    return fail_created(&+descriptor, NetworkFailure.invalid_target_result)
+}
+
+noalloc func listen_tcp(address: NetworkAddress): DescriptorAttempt {
+    let fd = match darwin.create_tcp(address.family) {
+        RawDescriptorAttempt.ready(value) { value }
+        RawDescriptorAttempt.failed(failure) {
+            return DescriptorAttempt.failed(failure_from_raw(failure))
+        }
+        RawDescriptorAttempt.malformed {
+            return DescriptorAttempt.failed(NetworkFailure.invalid_target_result)
+        }
+    }
+    var descriptor = descriptor_from_raw(fd)
+    while true {
+        match darwin.bind_once(descriptor.fd, &address) {
+            RawUnitAttempt.ready { break }
+            RawUnitAttempt.interrupted {}
+            RawUnitAttempt.failed(failure) {
+                return fail_created(&+descriptor, failure_from_raw(failure))
+            }
+            _ {
+                return fail_created(&+descriptor, NetworkFailure.invalid_target_result)
+            }
+        }
+    }
+    while true {
+        match darwin.listen_once(descriptor.fd) {
+            RawUnitAttempt.ready { return DescriptorAttempt.ready(move descriptor) }
+            RawUnitAttempt.interrupted {}
+            RawUnitAttempt.failed(failure) {
+                return fail_created(&+descriptor, failure_from_raw(failure))
+            }
+            _ {
+                return fail_created(&+descriptor, NetworkFailure.invalid_target_result)
+            }
+        }
+    }
+    return fail_created(&+descriptor, NetworkFailure.invalid_target_result)
+}
+
+noalloc func descriptor_is_open(descriptor: &SocketDescriptor): bool {
+    if descriptor.state is DescriptorState.open { return true }
+    return false
+}
+
+instance SocketDescriptor {
+    noalloc method &self.accept_tcp(): AcceptAttempt {
+        if !descriptor_is_open(self) { return AcceptAttempt.failed(NetworkFailure.closed) }
+        while true {
+            match darwin.accept_once(self.fd) {
+                RawAcceptAttempt.ready(fd, peer) {
+                    return AcceptAttempt.ready(descriptor_from_raw(fd), peer)
+                }
+                RawAcceptAttempt.interrupted {}
+                RawAcceptAttempt.would_block {
+                    match wait_readable(self.fd) {
+                        UnitAttempt.ready {}
+                        UnitAttempt.failed(value) { return AcceptAttempt.failed(move value) }
+                    }
+                }
+                RawAcceptAttempt.failed(value) {
+                    return AcceptAttempt.failed(failure_from_raw(value))
+                }
+                RawAcceptAttempt.malformed {
+                    return AcceptAttempt.failed(NetworkFailure.invalid_target_result)
+                }
+            }
+        }
+        return AcceptAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+
+    noalloc method &self.read_stream(buffer: &+[u8]): TransferAttempt {
+        if !descriptor_is_open(self) { return TransferAttempt.failed(NetworkFailure.closed) }
+        if buffer.len() == 0 { return TransferAttempt.ready(0) }
+        while true {
+            match darwin.read_once(self.fd, buffer) {
+                RawTransferAttempt.ready(count) { return TransferAttempt.ready(count) }
+                RawTransferAttempt.end { return TransferAttempt.ready(0) }
+                RawTransferAttempt.interrupted {}
+                RawTransferAttempt.would_block {
+                    match wait_readable(self.fd) {
+                        UnitAttempt.ready {}
+                        UnitAttempt.failed(value) { return TransferAttempt.failed(move value) }
+                    }
+                }
+                RawTransferAttempt.failed(value) {
+                    return TransferAttempt.failed(failure_from_raw(value))
+                }
+                RawTransferAttempt.malformed {
+                    return TransferAttempt.failed(NetworkFailure.invalid_target_result)
+                }
+            }
+        }
+        return TransferAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+
+    noalloc method &self.write_stream(bytes: &[u8]): UnitAttempt {
+        if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
+        if bytes.len() == 0 { return UnitAttempt.ready }
+        var offset: usize = 0
+        while offset < bytes.len() {
+            match darwin.write_once(self.fd, bytes, offset) {
+                RawTransferAttempt.ready(count) { offset += count }
+                RawTransferAttempt.interrupted {}
+                RawTransferAttempt.would_block {
+                    match wait_writable(self.fd) {
+                        UnitAttempt.ready {}
+                        UnitAttempt.failed(value) { return UnitAttempt.failed(move value) }
+                    }
+                }
+                RawTransferAttempt.failed(value) {
+                    return UnitAttempt.failed(failure_from_raw(value))
+                }
+                RawTransferAttempt.end { return invalid_unit() }
+                RawTransferAttempt.malformed { return invalid_unit() }
+            }
+        }
+        return UnitAttempt.ready
+    }
+
+    noalloc method &self.local_address(): AddressAttempt {
+        if !descriptor_is_open(self) { return AddressAttempt.failed(NetworkFailure.closed) }
+        while true {
+            match darwin.local_address_once(self.fd) {
+                RawAddressAttempt.ready(address) { return AddressAttempt.ready(address) }
+                RawAddressAttempt.interrupted {}
+                RawAddressAttempt.failed(value) {
+                    return AddressAttempt.failed(failure_from_raw(value))
+                }
+                RawAddressAttempt.malformed {
+                    return AddressAttempt.failed(NetworkFailure.invalid_target_result)
+                }
+            }
+        }
+        return AddressAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+
+    noalloc method &self.peer_address(): AddressAttempt {
+        if !descriptor_is_open(self) { return AddressAttempt.failed(NetworkFailure.closed) }
+        while true {
+            match darwin.peer_address_once(self.fd) {
+                RawAddressAttempt.ready(address) { return AddressAttempt.ready(address) }
+                RawAddressAttempt.interrupted {}
+                RawAddressAttempt.failed(value) {
+                    return AddressAttempt.failed(failure_from_raw(value))
+                }
+                RawAddressAttempt.malformed {
+                    return AddressAttempt.failed(NetworkFailure.invalid_target_result)
+                }
+            }
+        }
+        return AddressAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+
+    noalloc method &self.shutdown(direction: NetworkShutdown): UnitAttempt {
+        if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
+        let native: usize = match direction {
+            NetworkShutdown.read { 0 }
+            NetworkShutdown.write { 1 }
+            NetworkShutdown.both { 2 }
+        }
+        while true {
+            match darwin.shutdown_once(self.fd, native) {
+                RawUnitAttempt.ready { return UnitAttempt.ready }
+                RawUnitAttempt.interrupted {}
+                RawUnitAttempt.failed(value) {
+                    return UnitAttempt.failed(failure_from_raw(value))
+                }
+                _ { return invalid_unit() }
+            }
+        }
+        return invalid_unit()
+    }
+
+    noalloc method &+self.close(): void {
+        close_raw_owner(self)
+        return
+    }
+}
+
+noalloc drop SocketDescriptor(&+self) {
+    close_raw_owner(self)
+    return
+}

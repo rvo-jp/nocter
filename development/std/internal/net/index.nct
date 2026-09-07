@@ -1,0 +1,79 @@
+//! Target-independent socket ownership and synchronous operation policy.
+//!
+//! This package-private module owns descriptor state and retry/readiness policy. The selected
+//! target adapter owns native records, constants, and syscalls; public network errors remain in
+//! `std/net`.
+
+use /internal/os.OSError
+use /internal/net/model.{NetworkAddress, NetworkFamily}
+
+see ./descriptor.nct
+
+pub(/) enum NetworkFailure {
+    os(value: OSError)
+    closed
+    invalid_target_result
+}
+
+/// One uniquely owned socket descriptor with explicit terminal state.
+pub(/) struct SocketDescriptor
+
+pub(/) enum DescriptorAttempt {
+    ready(descriptor: SocketDescriptor)
+    failed(failure: NetworkFailure)
+}
+
+pub(/) enum AcceptAttempt {
+    ready(descriptor: SocketDescriptor, peer: NetworkAddress)
+    failed(failure: NetworkFailure)
+}
+
+pub(/) enum AddressAttempt {
+    ready(address: NetworkAddress)
+    failed(failure: NetworkFailure)
+}
+
+pub(/) enum TransferAttempt {
+    ready(count: usize)
+    failed(failure: NetworkFailure)
+}
+
+pub(/) enum UnitAttempt {
+    ready
+    failed(failure: NetworkFailure)
+}
+
+pub(/) enum NetworkShutdown {
+    read
+    write
+    both
+}
+
+/// Creates and synchronously connects one configured TCP descriptor.
+pub(/) noalloc func connect_tcp(address: NetworkAddress): DescriptorAttempt
+
+/// Creates, binds, and starts listening on one configured TCP descriptor.
+pub(/) noalloc func listen_tcp(address: NetworkAddress): DescriptorAttempt
+
+instance SocketDescriptor {
+    /// Accepts one configured TCP descriptor and its logical peer address.
+    pub(/) noalloc method &self.accept_tcp(): AcceptAttempt
+
+    /// Reads once after transparently handling interruption and readiness waits.
+    pub(/) noalloc method &self.read_stream(buffer: &+[u8]): TransferAttempt
+
+    /// Writes the complete byte view after transparently handling partial progress.
+    pub(/) noalloc method &self.write_stream(bytes: &[u8]): UnitAttempt
+
+    /// Reports the effective logical local address.
+    pub(/) noalloc method &self.local_address(): AddressAttempt
+
+    /// Reports the connected logical peer address.
+    pub(/) noalloc method &self.peer_address(): AddressAttempt
+
+    /// Shuts down selected connected-stream directions without releasing ownership.
+    pub(/) noalloc method &self.shutdown(direction: NetworkShutdown): UnitAttempt
+
+    /// Makes this owner terminal and releases an open descriptor at most once.
+    pub(/) noalloc method &+self.close(): void
+}

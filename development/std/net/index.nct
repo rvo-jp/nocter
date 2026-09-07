@@ -5,6 +5,7 @@
 
 use /fmt.Format
 use /hash.Hash
+use /io.{Reader, Writer}
 use /mem.TryAllocator
 use /order.TotalOrder
 use /string.String
@@ -13,6 +14,9 @@ see ./contracts.nct
 see ./formatting.nct
 see ./parsing.nct
 see ./tests.nct
+see ./tcp.nct
+see ./tcp_errors.nct
+see ./tcp_tests.nct
 see ./values.nct
 
 /// The Internet protocol address family represented by an `IpAddress`.
@@ -32,6 +36,19 @@ pub copy struct IpAddress
 
 /// One copyable numeric IP address and logical transport port.
 pub copy struct SocketAddress
+
+/// One uniquely owned connected TCP byte stream.
+pub struct TcpStream
+
+/// One uniquely owned TCP listening socket.
+pub struct TcpListener
+
+/// Connected TCP directions selected for local shutdown.
+pub enum TcpShutdown {
+    read
+    write
+    both
+}
 
 construct Ipv4Address {
     /// Creates an address from four octets in text order.
@@ -192,4 +209,42 @@ instance SocketAddress {
 
     /// Orders by logical IP address, then by port.
     pub noalloc operator (&self < other: &Self): bool
+}
+
+construct TcpStream {
+    /// Connects synchronously to one numeric socket address.
+    pub noalloc func connect(address: SocketAddress): Self!
+}
+
+instance TcpStream {
+    impl Reader
+    impl Writer
+
+    /// Returns the effective local socket address.
+    pub noalloc method &self.local_address(): SocketAddress!
+
+    /// Returns the connected peer socket address.
+    pub noalloc method &self.peer_address(): SocketAddress!
+
+    /// Shuts down selected local stream directions without closing the socket.
+    pub noalloc method &self.shutdown(direction: TcpShutdown): void!
+
+    /// Makes the stream terminal and releases its descriptor at most once.
+    pub noalloc method &+self.close(): void
+}
+
+construct TcpListener {
+    /// Binds one numeric address and starts listening with the platform's standard backlog.
+    pub noalloc func bind(address: SocketAddress): Self!
+}
+
+instance TcpListener {
+    /// Returns the effective local address, including a kernel-selected port.
+    pub noalloc method &self.local_address(): SocketAddress!
+
+    /// Accepts one connected stream and returns its peer address.
+    pub noalloc method &self.accept(): (TcpStream, SocketAddress)!
+
+    /// Makes the listener terminal and releases its descriptor at most once.
+    pub noalloc method &+self.close(): void
 }

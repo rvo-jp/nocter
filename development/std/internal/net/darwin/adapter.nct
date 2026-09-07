@@ -1,0 +1,480 @@
+//! Sole Darwin ARM64 socket record and syscall implementation.
+
+see ./index.nct
+
+use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /internal/os/darwin.SyscallResult
+use /internal/os/darwin
+use /internal/os.OSError
+use /internal/ptr as internal_ptr
+use /ptr
+
+#target: "arm64-darwin"
+const SYS_ACCEPT: usize = 0x0200001e
+#target: "arm64-darwin"
+const SYS_GETPEERNAME: usize = 0x0200001f
+#target: "arm64-darwin"
+const SYS_GETSOCKNAME: usize = 0x02000020
+#target: "arm64-darwin"
+const SYS_SOCKET: usize = 0x02000061
+#target: "arm64-darwin"
+const SYS_CONNECT: usize = 0x02000062
+#target: "arm64-darwin"
+const SYS_BIND: usize = 0x02000068
+#target: "arm64-darwin"
+const SYS_SETSOCKOPT: usize = 0x02000069
+#target: "arm64-darwin"
+const SYS_LISTEN: usize = 0x0200006a
+#target: "arm64-darwin"
+const SYS_GETSOCKOPT: usize = 0x02000076
+#target: "arm64-darwin"
+const SYS_SHUTDOWN: usize = 0x02000086
+
+#target: "arm64-darwin"
+const ADDRESS_FAMILY_IPV4: usize = 2
+#target: "arm64-darwin"
+const ADDRESS_FAMILY_IPV6: usize = 30
+#target: "arm64-darwin"
+const SOCKET_STREAM: usize = 1
+#target: "arm64-darwin"
+const SOCKET_LEVEL: usize = 0xffff
+#target: "arm64-darwin"
+const SOCKET_ERROR: usize = 0x1007
+#target: "arm64-darwin"
+const IPV6_LEVEL: usize = 41
+#target: "arm64-darwin"
+const IPV6_ONLY: usize = 27
+#target: "arm64-darwin"
+const LISTEN_BACKLOG: usize = 128
+#target: "arm64-darwin"
+const F_SETFD: usize = 2
+#target: "arm64-darwin"
+const ERRNO_IN_PROGRESS: i32 = 36
+#target: "arm64-darwin"
+const ERRNO_ALREADY_IN_PROGRESS: i32 = 37
+#target: "arm64-darwin"
+const ERRNO_ALREADY_CONNECTED: i32 = 56
+
+#target: "arm64-darwin"
+const POLL_INPUT: u16 = 1
+#target: "arm64-darwin"
+const POLL_OUTPUT: u16 = 4
+#target: "arm64-darwin"
+const POLL_ERROR: u16 = 8
+#target: "arm64-darwin"
+const POLL_HANGUP: u16 = 16
+#target: "arm64-darwin"
+const POLL_INVALID: u16 = 32
+#target: "arm64-darwin"
+const POLL_INFINITE_TIMEOUT: usize = 0xffffffffffffffff
+
+#target: "arm64-darwin"
+copy struct PollDescriptor {
+    fd: i32
+    events: u16
+    returned_events: u16
+}
+
+#target: "arm64-darwin"
+struct NativeSocketAddress {
+    bytes: [u8; 28]
+    len: usize
+}
+
+#target: "arm64-darwin"
+enum ConfigureAttempt {
+    ready
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
+noalloc func os_error(errno: i32): OSError {
+    return darwin.error_from_errno(darwin.errno(errno))
+}
+
+#target: "arm64-darwin"
+noalloc func descriptor_i32(fd: usize): i32? {
+    if fd > 2147483647 { return none }
+    let raw = fd
+    let pointer: *i32 = internal_ptr.from_addr(ptr.addr(ptr.from_ref(&raw)))
+    return internal_ptr.take_value_at_ptr(pointer, 0)
+}
+
+#target: "arm64-darwin"
+noalloc func native_address(address: &NetworkAddress): NativeSocketAddress {
+    var bytes: [u8; 28] = [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]
+    bytes[2] = u8.truncate((address.port / 256) as u64)
+    bytes[3] = u8.truncate((address.port % 256) as u64)
+    match address.family {
+        NetworkFamily.ipv4 {
+            bytes[0] = 16
+            bytes[1] = 2
+            var index: usize = 0
+            while index < 4 {
+                bytes[4 + index] = address.bytes[index]
+                index += 1
+            }
+            return NativeSocketAddress { bytes: bytes, len: 16 }
+        }
+        NetworkFamily.ipv6 {
+            bytes[0] = 28
+            bytes[1] = 30
+            var index: usize = 0
+            while index < 16 {
+                bytes[8 + index] = address.bytes[index]
+                index += 1
+            }
+            return NativeSocketAddress { bytes: bytes, len: 28 }
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func empty_native_address(): NativeSocketAddress {
+    return NativeSocketAddress {
+        bytes: [
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ],
+        len: 28,
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func logical_address(bytes: &[u8; 28], len: usize): NetworkAddress? {
+    if len == 16 && bytes[0] == 16 && bytes[1] == 2 {
+        return NetworkAddress.ipv4(
+            [bytes[4], bytes[5], bytes[6], bytes[7]],
+            (bytes[2] as u16) * 256 + bytes[3] as u16,
+        )
+    }
+    if len == 28 && bytes[0] == 28 && bytes[1] == 30 {
+        let address: [u8; 16] = [
+            bytes[8], bytes[9], bytes[10], bytes[11],
+            bytes[12], bytes[13], bytes[14], bytes[15],
+            bytes[16], bytes[17], bytes[18], bytes[19],
+            bytes[20], bytes[21], bytes[22], bytes[23],
+        ]
+        return NetworkAddress.ipv6(
+            address,
+            (bytes[2] as u16) * 256 + bytes[3] as u16,
+        )
+    }
+    return none
+}
+
+#target: "arm64-darwin"
+noalloc func configure_descriptor(fd: usize): ConfigureAttempt {
+    var flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFD, 0)
+    while flags.errno == darwin.ERRNO_INTERRUPTED {
+        flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFD, 0)
+    }
+    if flags.errno != 0 { return ConfigureAttempt.failed(os_error(flags.errno)) }
+    var descriptor_flags = flags.value
+    if descriptor_flags / darwin.FD_CLOEXEC % 2 == 0 {
+        descriptor_flags += darwin.FD_CLOEXEC
+    }
+    var result = darwin.syscall3(darwin.SYS_FCNTL, fd, F_SETFD, descriptor_flags)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(darwin.SYS_FCNTL, fd, F_SETFD, descriptor_flags)
+    }
+    if result.errno != 0 { return ConfigureAttempt.failed(os_error(result.errno)) }
+    if result.value != 0 { return ConfigureAttempt.malformed }
+
+    result = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_SETNOSIGPIPE, 1)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_SETNOSIGPIPE, 1)
+    }
+    if result.errno != 0 { return ConfigureAttempt.failed(os_error(result.errno)) }
+    if result.value != 0 { return ConfigureAttempt.malformed }
+
+    flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFL, 0)
+    while flags.errno == darwin.ERRNO_INTERRUPTED {
+        flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFL, 0)
+    }
+    if flags.errno != 0 { return ConfigureAttempt.failed(os_error(flags.errno)) }
+    var status_flags = flags.value
+    if status_flags / darwin.O_NONBLOCK % 2 == 0 {
+        status_flags += darwin.O_NONBLOCK
+    }
+    result = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_SETFL, status_flags)
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_SETFL, status_flags)
+    }
+    if result.errno != 0 { return ConfigureAttempt.failed(os_error(result.errno)) }
+    if result.value != 0 { return ConfigureAttempt.malformed }
+    return ConfigureAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func configure_family(fd: usize, family: NetworkFamily): ConfigureAttempt {
+    if family is NetworkFamily.ipv4 { return ConfigureAttempt.ready }
+    var enabled: i32 = 1
+    var result = darwin.syscall5(
+        SYS_SETSOCKOPT,
+        fd,
+        IPV6_LEVEL,
+        IPV6_ONLY,
+        ptr.addr(ptr.from_ref_mut(&+enabled)),
+        4,
+    )
+    while result.errno == darwin.ERRNO_INTERRUPTED {
+        result = darwin.syscall5(
+            SYS_SETSOCKOPT,
+            fd,
+            IPV6_LEVEL,
+            IPV6_ONLY,
+            ptr.addr(ptr.from_ref_mut(&+enabled)),
+            4,
+        )
+    }
+    if result.errno != 0 { return ConfigureAttempt.failed(os_error(result.errno)) }
+    if result.value != 0 { return ConfigureAttempt.malformed }
+    return ConfigureAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func close_once(fd: usize): void {
+    let _ = darwin.syscall1(darwin.SYS_CLOSE, fd)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func create_tcp(family: NetworkFamily): RawDescriptorAttempt {
+    let native_family = match family {
+        NetworkFamily.ipv4 { ADDRESS_FAMILY_IPV4 }
+        NetworkFamily.ipv6 { ADDRESS_FAMILY_IPV6 }
+    }
+    let result = darwin.syscall3(SYS_SOCKET, native_family, SOCKET_STREAM, 0)
+    if result.errno != 0 { return RawDescriptorAttempt.failed(os_error(result.errno)) }
+    match configure_descriptor(result.value) {
+        ConfigureAttempt.ready {}
+        ConfigureAttempt.failed(failure) {
+            close_once(result.value)
+            return RawDescriptorAttempt.failed(failure)
+        }
+        ConfigureAttempt.malformed {
+            close_once(result.value)
+            return RawDescriptorAttempt.malformed
+        }
+    }
+    match configure_family(result.value, family) {
+        ConfigureAttempt.ready { return RawDescriptorAttempt.ready(result.value) }
+        ConfigureAttempt.failed(failure) {
+            close_once(result.value)
+            return RawDescriptorAttempt.failed(failure)
+        }
+        ConfigureAttempt.malformed {
+            close_once(result.value)
+            return RawDescriptorAttempt.malformed
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func classify_unit(result: SyscallResult): RawUnitAttempt {
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawUnitAttempt.interrupted }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return RawUnitAttempt.would_block }
+    if result.errno != 0 { return RawUnitAttempt.failed(os_error(result.errno)) }
+    if result.value != 0 { return RawUnitAttempt.malformed }
+    return RawUnitAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func connect_once(fd: usize, address: &NetworkAddress): RawUnitAttempt {
+    let native = native_address(address)
+    let result = darwin.syscall3(
+        SYS_CONNECT,
+        fd,
+        ptr.addr(ptr.from_ref(&native.bytes[0])),
+        native.len,
+    )
+    if result.errno == ERRNO_IN_PROGRESS || result.errno == ERRNO_ALREADY_IN_PROGRESS {
+        return RawUnitAttempt.in_progress
+    }
+    if result.errno == ERRNO_ALREADY_CONNECTED { return RawUnitAttempt.ready }
+    return classify_unit(result)
+}
+
+#target: "arm64-darwin"
+noalloc func finish_connect_once(fd: usize): RawUnitAttempt {
+    var pending_error: i32 = 0
+    var length: u32 = 4
+    let result = darwin.syscall5(
+        SYS_GETSOCKOPT,
+        fd,
+        SOCKET_LEVEL,
+        SOCKET_ERROR,
+        ptr.addr(ptr.from_ref_mut(&+pending_error)),
+        ptr.addr(ptr.from_ref_mut(&+length)),
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawUnitAttempt.interrupted }
+    if result.errno != 0 { return RawUnitAttempt.failed(os_error(result.errno)) }
+    if result.value != 0 || length != 4 { return RawUnitAttempt.malformed }
+    if pending_error != 0 { return RawUnitAttempt.failed(os_error(pending_error)) }
+    return RawUnitAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt {
+    let native = native_address(address)
+    return classify_unit(darwin.syscall3(
+        SYS_BIND,
+        fd,
+        ptr.addr(ptr.from_ref(&native.bytes[0])),
+        native.len,
+    ))
+}
+
+#target: "arm64-darwin"
+noalloc func listen_once(fd: usize): RawUnitAttempt {
+    return classify_unit(darwin.syscall2(SYS_LISTEN, fd, LISTEN_BACKLOG))
+}
+
+#target: "arm64-darwin"
+noalloc func accept_once(fd: usize): RawAcceptAttempt {
+    var native = empty_native_address()
+    var length: u32 = 28
+    let result = darwin.syscall3(
+        SYS_ACCEPT,
+        fd,
+        ptr.addr(ptr.from_ref_mut(&+native.bytes[0])),
+        ptr.addr(ptr.from_ref_mut(&+length)),
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawAcceptAttempt.interrupted }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return RawAcceptAttempt.would_block }
+    if result.errno != 0 { return RawAcceptAttempt.failed(os_error(result.errno)) }
+    let peer = logical_address(&native.bytes, length as usize) otherwise {
+        close_once(result.value)
+        return RawAcceptAttempt.malformed
+    }
+    match configure_descriptor(result.value) {
+        ConfigureAttempt.ready { return RawAcceptAttempt.ready(result.value, peer) }
+        ConfigureAttempt.failed(failure) {
+            close_once(result.value)
+            return RawAcceptAttempt.failed(failure)
+        }
+        ConfigureAttempt.malformed {
+            close_once(result.value)
+            return RawAcceptAttempt.malformed
+        }
+    }
+}
+
+#target: "arm64-darwin"
+noalloc func read_once(fd: usize, buffer: &+[u8]): RawTransferAttempt {
+    if buffer.len() == 0 { return RawTransferAttempt.ready(0) }
+    let result = darwin.syscall3(
+        darwin.SYS_READ,
+        fd,
+        ptr.addr(buffer.ptr()),
+        buffer.len(),
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawTransferAttempt.interrupted }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return RawTransferAttempt.would_block }
+    if result.errno != 0 { return RawTransferAttempt.failed(os_error(result.errno)) }
+    if result.value > buffer.len() { return RawTransferAttempt.malformed }
+    if result.value == 0 { return RawTransferAttempt.end }
+    return RawTransferAttempt.ready(result.value)
+}
+
+#target: "arm64-darwin"
+noalloc func write_once(fd: usize, bytes: &[u8], offset: usize): RawTransferAttempt {
+    if offset >= bytes.len() { return RawTransferAttempt.malformed }
+    let available = bytes.len() - offset
+    let result = darwin.syscall3(
+        darwin.SYS_WRITE,
+        fd,
+        ptr.addr(bytes.ptr()) + offset,
+        available,
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawTransferAttempt.interrupted }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return RawTransferAttempt.would_block }
+    if result.errno != 0 { return RawTransferAttempt.failed(os_error(result.errno)) }
+    if result.value == 0 || result.value > available { return RawTransferAttempt.malformed }
+    return RawTransferAttempt.ready(result.value)
+}
+
+#target: "arm64-darwin"
+noalloc func poll_once(fd: usize, events: u16): RawUnitAttempt {
+    let descriptor = descriptor_i32(fd) otherwise { return RawUnitAttempt.malformed }
+    var poll_descriptor = PollDescriptor {
+        fd: descriptor,
+        events: events,
+        returned_events: 0,
+    }
+    let result = darwin.syscall3(
+        darwin.SYS_POLL,
+        ptr.addr(ptr.from_ref_mut(&+poll_descriptor)),
+        1,
+        POLL_INFINITE_TIMEOUT,
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawUnitAttempt.interrupted }
+    if result.errno != 0 { return RawUnitAttempt.failed(os_error(result.errno)) }
+    if result.value != 1 { return RawUnitAttempt.malformed }
+    let returned = poll_descriptor.returned_events
+    if returned / POLL_INVALID % 2 == 1 { return RawUnitAttempt.malformed }
+    var known: u16 = 0
+    if returned / POLL_INPUT % 2 == 1 { known += POLL_INPUT }
+    if returned / POLL_OUTPUT % 2 == 1 { known += POLL_OUTPUT }
+    if returned / POLL_ERROR % 2 == 1 { known += POLL_ERROR }
+    if returned / POLL_HANGUP % 2 == 1 { known += POLL_HANGUP }
+    if returned == 0 || returned != known { return RawUnitAttempt.malformed }
+    if events == POLL_INPUT && returned / POLL_OUTPUT % 2 == 1 {
+        return RawUnitAttempt.malformed
+    }
+    if events == POLL_OUTPUT && returned / POLL_INPUT % 2 == 1 {
+        return RawUnitAttempt.malformed
+    }
+    return RawUnitAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func wait_readable_once(fd: usize): RawUnitAttempt {
+    return poll_once(fd, POLL_INPUT)
+}
+
+#target: "arm64-darwin"
+noalloc func wait_writable_once(fd: usize): RawUnitAttempt {
+    return poll_once(fd, POLL_OUTPUT)
+}
+
+#target: "arm64-darwin"
+noalloc func address_once(fd: usize, peer: bool): RawAddressAttempt {
+    var native = empty_native_address()
+    var length: u32 = 28
+    let syscall = if peer { SYS_GETPEERNAME } else { SYS_GETSOCKNAME }
+    let result = darwin.syscall3(
+        syscall,
+        fd,
+        ptr.addr(ptr.from_ref_mut(&+native.bytes[0])),
+        ptr.addr(ptr.from_ref_mut(&+length)),
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawAddressAttempt.interrupted }
+    if result.errno != 0 { return RawAddressAttempt.failed(os_error(result.errno)) }
+    if result.value != 0 { return RawAddressAttempt.malformed }
+    let address = logical_address(&native.bytes, length as usize) otherwise {
+        return RawAddressAttempt.malformed
+    }
+    return RawAddressAttempt.ready(address)
+}
+
+#target: "arm64-darwin"
+noalloc func local_address_once(fd: usize): RawAddressAttempt {
+    return address_once(fd, false)
+}
+
+#target: "arm64-darwin"
+noalloc func peer_address_once(fd: usize): RawAddressAttempt {
+    return address_once(fd, true)
+}
+
+#target: "arm64-darwin"
+noalloc func shutdown_once(fd: usize, direction: usize): RawUnitAttempt {
+    if direction > 2 { return RawUnitAttempt.malformed }
+    return classify_unit(darwin.syscall2(SYS_SHUTDOWN, fd, direction))
+}

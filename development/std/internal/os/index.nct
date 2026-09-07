@@ -20,6 +20,13 @@ pub(/) enum OSErrorKind {
     directory_not_empty
     invalid_input
     broken_pipe
+    connection_aborted
+    connection_refused
+    connection_reset
+    not_connected
+    address_in_use
+    address_not_available
+    network_unreachable
     timed_out
     unsupported
     unknown

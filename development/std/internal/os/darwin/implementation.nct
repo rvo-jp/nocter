@@ -50,6 +50,27 @@ noalloc func kind_from_errno(value: Errno): OSErrorKind {
     if value.code == 32 {
         return OSErrorKind.broken_pipe
     }
+    if value.code == 53 {
+        return OSErrorKind.connection_aborted
+    }
+    if value.code == 61 {
+        return OSErrorKind.connection_refused
+    }
+    if value.code == 54 {
+        return OSErrorKind.connection_reset
+    }
+    if value.code == 57 {
+        return OSErrorKind.not_connected
+    }
+    if value.code == 48 {
+        return OSErrorKind.address_in_use
+    }
+    if value.code == 49 {
+        return OSErrorKind.address_not_available
+    }
+    if value.code == 51 || value.code == 65 {
+        return OSErrorKind.network_unreachable
+    }
     if value.code == 60 {
         return OSErrorKind.timed_out
     }

@@ -3,16 +3,15 @@
 ## Current State
 
 Nocter v0.38.0 is published and externally audited. v0.39.0 is active as the synchronous network
-I/O foundation. Phases 0 and 1 are complete: the cross-responsibility contract is fixed and
-`std/net` provides checked, native-tested, target-independent numeric address values without
-introducing network concepts into the compiler pipeline.
+I/O foundation. Phases 0 through 2 are complete: `std/net` provides checked, native-tested numeric
+addresses and synchronous TCP over one private descriptor policy and one Darwin ABI adapter,
+without introducing network concepts into the compiler pipeline.
 
 ## Next Work
 
-Implement v0.39.0 Phase 2 as one shared socket-substrate and TCP change. Extend the Darwin target
-adapter with logical socket operations and opaque native records, then build descriptor ownership,
-cleanup, readiness, and absolute-deadline policy once beneath `TcpStream` and `TcpListener`.
-Preserve the immutable v0.38.0 tag and asset.
+Implement v0.39.0 Phase 3 as boundary-preserving UDP over the existing logical address, descriptor,
+readiness, Darwin ABI, and public-error authorities. Do not conform datagrams to byte-stream
+interfaces or duplicate TCP retry and cleanup policy. Preserve the immutable v0.38.0 tag and asset.
 
 ## Blockers
 

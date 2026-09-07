@@ -1,0 +1,20 @@
+//! Logical socket address construction independent of native ABI layout.
+
+see ./index.nct
+
+construct NetworkAddress {
+    noalloc func ipv4(bytes: [u8; 4], port: u16): Self {
+        return NetworkAddress {
+            family: NetworkFamily.ipv4,
+            bytes: [
+                bytes[0], bytes[1], bytes[2], bytes[3],
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+            port: port,
+        }
+    }
+
+    noalloc func ipv6(bytes: [u8; 16], port: u16): Self {
+        return NetworkAddress { family: NetworkFamily.ipv6, bytes: bytes, port: port }
+    }
+}

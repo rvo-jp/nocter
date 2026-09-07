@@ -1,0 +1,95 @@
+//! Darwin ARM64 socket ABI adapter.
+//!
+//! Native address and poll layouts, socket constants, byte order, and raw syscall classification
+//! are confined to this module. Consumers receive closed logical attempts.
+
+use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /internal/os.OSError
+
+see ./adapter.nct
+
+#target: "arm64-darwin"
+pub(/) enum RawDescriptorAttempt {
+    ready(fd: usize)
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
+pub(/) enum RawUnitAttempt {
+    ready
+    interrupted
+    would_block
+    in_progress
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
+pub(/) enum RawTransferAttempt {
+    ready(count: usize)
+    end
+    interrupted
+    would_block
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
+pub(/) enum RawAcceptAttempt {
+    ready(fd: usize, peer: NetworkAddress)
+    interrupted
+    would_block
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
+pub(/) enum RawAddressAttempt {
+    ready(address: NetworkAddress)
+    interrupted
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
+pub(/) noalloc func create_tcp(family: NetworkFamily): RawDescriptorAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func connect_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func finish_connect_once(fd: usize): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func listen_once(fd: usize): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func accept_once(fd: usize): RawAcceptAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func read_once(fd: usize, buffer: &+[u8]): RawTransferAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func write_once(fd: usize, bytes: &[u8], offset: usize): RawTransferAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func wait_readable_once(fd: usize): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func wait_writable_once(fd: usize): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func local_address_once(fd: usize): RawAddressAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func peer_address_once(fd: usize): RawAddressAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func shutdown_once(fd: usize, direction: usize): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func close_once(fd: usize): void

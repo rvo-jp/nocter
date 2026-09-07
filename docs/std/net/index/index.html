@@ -176,7 +176,7 @@
                 <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li><li><a href="../../index.html#content">Standard Library</a></li></ol>
                 <p class="document-tree-title">std/net/</p>
                 <ul class="document-tree-list">
-                    <li><a href="../index.html#content">Numeric Network Addresses</a></li>
+                    <li><a href="../index.html#content">Synchronous Network I/O</a></li>
                     <li><a href="./index.html#content" aria-current="page">Module Contract</a></li>
                 </ul>
             </nav>
@@ -193,6 +193,7 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-type">Hash</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">TotalOrder</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
@@ -201,6 +202,9 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>formatting<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>parsing<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tcp<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tcp_errors<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tcp_tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>values<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// The Internet protocol address family represented by an `IpAddress`.</span>
@@ -220,6 +224,19 @@
 
 <span class="token-comment">/// One copyable numeric IP address and logical transport port.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">SocketAddress</span>
+
+<span class="token-comment">/// One uniquely owned connected TCP byte stream.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">TcpStream</span>
+
+<span class="token-comment">/// One uniquely owned TCP listening socket.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">TcpListener</span>
+
+<span class="token-comment">/// Connected TCP directions selected for local shutdown.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">enum</span> <span class="token-type">TcpShutdown</span> <span class="token-operator">{</span>
+    read
+    write
+    both
+<span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">Ipv4Address</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Creates an address from four octets in text order.</span>
@@ -380,6 +397,44 @@
 
     <span class="token-comment">/// Orders by logical IP address, then by port.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">&lt;</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">TcpStream</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Connects synchronously to one numeric socket address.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">connect</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">TcpStream</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+
+    <span class="token-comment">/// Returns the effective local socket address.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Returns the connected peer socket address.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">peer_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Shuts down selected local stream directions without closing the socket.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">shutdown</span><span class="token-operator">(</span>direction<span class="token-operator">:</span> <span class="token-type">TcpShutdown</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Makes the stream terminal and releases its descriptor at most once.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">TcpListener</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Binds one numeric address and starts listening with the platform's standard backlog.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">bind</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">TcpListener</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the effective local address, including a kernel-selected port.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Accepts one connected stream and returns its peer address.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">accept</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">TcpStream</span><span class="token-operator">,</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Makes the listener terminal and releases its descriptor at most once.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

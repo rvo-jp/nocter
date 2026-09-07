@@ -1,8 +1,8 @@
-# Numeric Network Addresses
+# Synchronous Network I/O
 
 The compiler-checked [`std/net` contract](index.nct) is the sole authority for exact public
-declarations. v0.39.0 builds synchronous TCP and UDP over these target-independent address values;
-this guide expands only observable behavior already present in the checked contract.
+declarations. This guide expands observable address and TCP behavior already present in that
+checked contract. UDP and finite deadlines remain planned v0.39.0 work and are not available yet.
 
 ## Address Values
 
@@ -32,9 +32,35 @@ the logical address before the port. Hashing contributes the same equality-relev
 native padding. Direct string conversion and the shared `Format` contract use the same canonical
 generators.
 
+## TCP Streams and Listeners
+
+`TcpStream` is a uniquely owned byte stream implementing `Reader` and `Writer`. Connecting accepts
+one numeric `SocketAddress`; host-name resolution is deliberately separate. Reads initialize at
+most the supplied mutable byte view and return zero at peer EOF. Writes complete the entire byte
+view or return a failure after any already-written prefix remains observable. Empty transfers
+follow the ordinary stream contracts.
+
+`TcpListener` binds one numeric address and accepts uniquely owned streams. Port zero asks the
+kernel to select an available port; `local_address` reports the effective address. `accept` also
+returns the connected peer address. IPv6 sockets are explicitly IPv6-only, so code serving both
+families owns one listener for each family.
+
+Socket descriptors are never exposed. A successful constructor transfers one descriptor into one
+move-only public value. Explicit `close` is terminal and idempotent; destruction closes a still-open
+descriptor at most once. `shutdown` changes the selected stream direction without releasing the
+descriptor. Stream writes cannot terminate the process through `SIGPIPE`, and owned descriptors do
+not leak across process execution.
+
+Current TCP operations are synchronous and can wait without a finite deadline. The implementation
+uses nonblocking descriptors internally only to centralize interruption and readiness handling;
+this does not expose a public nonblocking mode. Public failures use stable `std.net.*` codes rather
+than native errno values. The stable categories include closed sockets, connection refusal,
+connection reset or abort, address conflict or unavailability, unreachable networks, permission
+denial, broken pipes, unsupported operations, and invalid target results.
+
 ## Current Boundary
 
-The current checked module contains numeric address values only. TCP streams, listeners, UDP
-datagrams, and synchronous deadlines enter in later v0.39.0 phases after the shared descriptor and
-target-adapter boundary is implemented. Name resolution, URLs, HTTP, TLS, async I/O, and public
-nonblocking sockets are outside v0.39.0.
+Numeric addresses and synchronous TCP are implemented. UDP datagrams and public monotonic
+timeouts enter in later v0.39.0 phases over the same private descriptor and target-adapter
+boundaries. Name resolution, URLs, HTTP, TLS, async I/O, and public nonblocking sockets are outside
+v0.39.0.

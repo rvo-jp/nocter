@@ -2134,7 +2134,7 @@ fn standard_format_contract_crosses_native_tests() {
 }
 
 #[test]
-fn standard_network_address_contract_crosses_native_tests() {
+fn standard_network_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -2165,9 +2165,9 @@ fn standard_network_address_contract_crosses_native_tests() {
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("standard network address tests failed native compilation")
+        panic!("standard network tests failed native compilation")
     };
-    assert_eq!(cases.len(), 5);
+    assert_eq!(cases.len(), 9);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());

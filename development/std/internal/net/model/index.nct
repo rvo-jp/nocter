@@ -1,0 +1,20 @@
+//! Target-independent values shared by socket policy and target adapters.
+
+see ./address.nct
+
+pub(/) enum NetworkFamily {
+    ipv4
+    ipv6
+}
+
+/// One logical numeric socket address at the target boundary.
+pub(/) copy struct NetworkAddress {
+    pub family: NetworkFamily
+    pub bytes: [u8; 16]
+    pub port: u16
+}
+
+construct NetworkAddress {
+    pub(/) noalloc func ipv4(bytes: [u8; 4], port: u16): Self
+    pub(/) noalloc func ipv6(bytes: [u8; 16], port: u16): Self
+}

@@ -1,0 +1,163 @@
+//! Public TCP ownership and stream adapters over the shared socket substrate.
+
+see ./index.nct
+see ./tcp_errors.nct
+see ./values.nct
+
+use /internal/net
+use /internal/net.{
+    AcceptAttempt,
+    AddressAttempt,
+    DescriptorAttempt,
+    NetworkShutdown,
+    SocketDescriptor,
+    TransferAttempt,
+    UnitAttempt,
+}
+use /internal/net/model.{NetworkAddress, NetworkFamily}
+
+struct TcpStream {
+    descriptor: SocketDescriptor
+}
+
+struct TcpListener {
+    descriptor: SocketDescriptor
+}
+
+noalloc func substrate_address(address: &SocketAddress): NetworkAddress {
+    let ip = address.ip_address
+    match ip.address_family {
+        IpFamily.ipv4 {
+            return NetworkAddress.ipv4(
+                [ip.bytes[0], ip.bytes[1], ip.bytes[2], ip.bytes[3]],
+                address.port_value,
+            )
+        }
+        IpFamily.ipv6 {
+            return NetworkAddress.ipv6(ip.bytes, address.port_value)
+        }
+    }
+}
+
+noalloc func public_address(address: NetworkAddress): SocketAddress {
+    let ip = match address.family {
+        NetworkFamily.ipv4 {
+            IpAddress.from_ipv4(Ipv4Address.from_octets(
+                address.bytes[0],
+                address.bytes[1],
+                address.bytes[2],
+                address.bytes[3],
+            ))
+        }
+        NetworkFamily.ipv6 {
+            IpAddress.from_ipv6(ipv6_from_bytes(address.bytes))
+        }
+    }
+    return SocketAddress.new(ip, address.port)
+}
+
+noalloc func stream_from_descriptor(descriptor: SocketDescriptor): TcpStream {
+    return TcpStream { descriptor: move descriptor }
+}
+
+construct TcpStream {
+    noalloc func connect(address: SocketAddress): Self! {
+        match net.connect_tcp(substrate_address(&address)) {
+            DescriptorAttempt.ready(descriptor) {
+                return stream_from_descriptor(move descriptor)
+            }
+            DescriptorAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+}
+
+instance TcpStream {
+    noalloc method &+self.read(buffer: &+[u8]): usize! {
+        match self.descriptor.read_stream(buffer) {
+            TransferAttempt.ready(count) { return count }
+            TransferAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &+self.write(bytes: &[u8]): void! {
+        match self.descriptor.write_stream(bytes) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &self.local_address(): SocketAddress! {
+        match self.descriptor.local_address() {
+            AddressAttempt.ready(address) { return public_address(address) }
+            AddressAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &self.peer_address(): SocketAddress! {
+        match self.descriptor.peer_address() {
+            AddressAttempt.ready(address) { return public_address(address) }
+            AddressAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &self.shutdown(direction: TcpShutdown): void! {
+        let selected = match direction {
+            TcpShutdown.read { NetworkShutdown.read }
+            TcpShutdown.write { NetworkShutdown.write }
+            TcpShutdown.both { NetworkShutdown.both }
+        }
+        match self.descriptor.shutdown(selected) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &+self.close(): void {
+        self.descriptor.close()
+        return
+    }
+}
+
+noalloc drop TcpStream(&+self) {
+    self.descriptor.close()
+    return
+}
+
+construct TcpListener {
+    noalloc func bind(address: SocketAddress): Self! {
+        match net.listen_tcp(substrate_address(&address)) {
+            DescriptorAttempt.ready(descriptor) {
+                return TcpListener { descriptor: move descriptor }
+            }
+            DescriptorAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+}
+
+instance TcpListener {
+    noalloc method &self.local_address(): SocketAddress! {
+        match self.descriptor.local_address() {
+            AddressAttempt.ready(address) { return public_address(address) }
+            AddressAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &self.accept(): (TcpStream, SocketAddress)! {
+        match self.descriptor.accept_tcp() {
+            AcceptAttempt.ready(descriptor, peer) {
+                return (stream_from_descriptor(move descriptor), public_address(peer))
+            }
+            AcceptAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &+self.close(): void {
+        self.descriptor.close()
+        return
+    }
+}
+
+noalloc drop TcpListener(&+self) {
+    self.descriptor.close()
+    return
+}

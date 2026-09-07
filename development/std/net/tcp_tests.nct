@@ -1,0 +1,114 @@
+//! Native loopback qualification for TCP ownership and byte-stream behavior.
+
+see ./index.nct
+
+use /vec.Vec
+
+func loopback_listener(): TcpListener! {
+    return TcpListener.bind(SocketAddress.new(
+        IpAddress.from_ipv4(Ipv4Address.loopback()),
+        0,
+    ))?
+}
+
+test tcp_loopback_reports_effective_addresses_and_transfers_both_directions {
+    var listener = loopback_listener()?
+    let listening_address = listener.local_address()?
+    if listening_address.port() == 0 {
+        return error.new("std.net.test", "port-zero bind did not report an effective port")
+    }
+
+    var client = TcpStream.connect(listening_address)?
+    let accepted = listener.accept()?
+    let accepted_peer = accepted.1
+    var server = move accepted.0
+    if accepted_peer != client.local_address()? {
+        return error.new("std.net.test", "accepted peer address changed")
+    }
+    if client.peer_address()? != listening_address {
+        return error.new("std.net.test", "connected peer address changed")
+    }
+
+    client.write("ping".bytes())?
+    var request: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let request_len = server.read(&+request)?
+    if request_len != 4 || request[0] != 112 || request[1] != 105
+        || request[2] != 110 || request[3] != 103 {
+        return error.new("std.net.test", "client-to-server bytes changed")
+    }
+
+    server.write("pong".bytes())?
+    var response: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let response_len = client.read(&+response)?
+    if response_len != 4 || response[0] != 112 || response[1] != 111
+        || response[2] != 110 || response[3] != 103 {
+        return error.new("std.net.test", "server-to-client bytes changed")
+    }
+    return
+}
+
+test tcp_shutdown_exposes_eof_and_close_is_terminal {
+    var listener = loopback_listener()?
+    let address = listener.local_address()?
+    var client = TcpStream.connect(address)?
+    let accepted = listener.accept()?
+    var server = move accepted.0
+
+    client.shutdown(TcpShutdown.write)?
+    var byte: Vec<u8> = Vec [u8.truncate(0)]
+    if server.read(&+byte)? != 0 {
+        return error.new("std.net.test", "write shutdown did not produce peer EOF")
+    }
+
+    client.close()
+    let _ = client.peer_address() catch failure {
+        if !failure.has_code("std.net.closed") {
+            return error.new("std.net.test", "closed stream lost its stable error")
+        }
+        client.close()
+        return
+    }
+    return error.new("std.net.test", "closed stream remained usable")
+}
+
+test tcp_bind_conflict_has_a_stable_public_error {
+    var listener = loopback_listener()?
+    let address = listener.local_address()?
+    let _ = TcpListener.bind(address) catch failure {
+        if !failure.has_code("std.net.address_in_use") {
+            return error.new("std.net.test", "bind conflict lost its stable error")
+        }
+        return
+    }
+    return error.new("std.net.test", "duplicate bind unexpectedly succeeded")
+}
+
+test tcp_ipv6_loopback_preserves_family_and_stream_bytes {
+    var listener = TcpListener.bind(SocketAddress.new(
+        IpAddress.from_ipv6(Ipv6Address.loopback()),
+        0,
+    ))?
+    let address = listener.local_address()?
+    if address.ip().family() is IpFamily.ipv4 {
+        return error.new("std.net.test", "IPv6 listener changed address family")
+    }
+    var client = TcpStream.connect(address)?
+    let accepted = listener.accept()?
+    var server = move accepted.0
+    client.write("v6".bytes())?
+    var received: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0)]
+    if server.read(&+received)? != 2 || received[0] != 118 || received[1] != 54 {
+        return error.new("std.net.test", "IPv6 stream bytes changed")
+    }
+    return
+}
