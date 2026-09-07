@@ -2,16 +2,16 @@
 
 ## Current State
 
-Nocter v0.38.0 is published and externally audited. The v0.39.0 implementation is closed and its
-release identity is frozen at `0.39.0`. Public latest-release references remain at v0.38.0 until
-publication is separately authorized.
+Nocter v0.38.0 is published and externally audited. The exact v0.39.0 release-content commit passed
+the complete release matrix, and its qualified archive is retained under `dist/`. Public
+latest-release references remain at v0.38.0 until publication is separately authorized.
 
 ## Next Work
 
-Qualify the exact clean v0.39.0 release-content commit through two independent compiler gates, the
-explicit public-HTTPS acquisition test, deterministic packaging, and complete installed-home
-validation. Record the retained archive identity and stop before tagging, pushing, uploading, or
-changing public latest-release links. Preserve the immutable v0.38.0 tag and asset.
+Await explicit publication authorization. Publication must reuse the retained qualified v0.39.0
+archive without rebuilding it, update public latest-release references in a separate commit, create
+one annotated tag, upload exactly one asset, and audit the public download byte for byte. Preserve
+the immutable v0.38.0 tag and asset.
 
 ## Blockers
 
