@@ -53,7 +53,19 @@ pub(/) enum RawAddressAttempt {
 }
 
 #target: "arm64-darwin"
+pub(/) enum RawDatagramAttempt {
+    ready(source: NetworkAddress, copied_len: usize, truncated: bool)
+    interrupted
+    would_block
+    failed(error: OSError)
+    malformed
+}
+
+#target: "arm64-darwin"
 pub(/) noalloc func create_tcp(family: NetworkFamily): RawDescriptorAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func create_udp(family: NetworkFamily): RawDescriptorAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func connect_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
@@ -75,6 +87,22 @@ pub(/) noalloc func read_once(fd: usize, buffer: &+[u8]): RawTransferAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func write_once(fd: usize, bytes: &[u8], offset: usize): RawTransferAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func send_to_once(
+    fd: usize,
+    bytes: &[u8],
+    target: &NetworkAddress,
+): RawUnitAttempt
+
+#target: "arm64-darwin"
+pub(/) noalloc func receive_from_once(
+    fd: usize,
+    buffer: &+[u8],
+): RawDatagramAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func wait_readable_once(fd: usize): RawUnitAttempt

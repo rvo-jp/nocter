@@ -59,8 +59,11 @@ noalloc func kind_from_errno(value: Errno): OSErrorKind {
     if value.code == 54 {
         return OSErrorKind.connection_reset
     }
-    if value.code == 57 {
+    if value.code == 39 || value.code == 57 {
         return OSErrorKind.not_connected
+    }
+    if value.code == 40 {
+        return OSErrorKind.message_too_large
     }
     if value.code == 48 {
         return OSErrorKind.address_in_use
@@ -68,13 +71,13 @@ noalloc func kind_from_errno(value: Errno): OSErrorKind {
     if value.code == 49 {
         return OSErrorKind.address_not_available
     }
-    if value.code == 51 || value.code == 65 {
+    if value.code == 50 || value.code == 51 || value.code == 65 {
         return OSErrorKind.network_unreachable
     }
     if value.code == 60 {
         return OSErrorKind.timed_out
     }
-    if value.code == 45 {
+    if value.code == 41 || value.code == 45 || value.code == 47 {
         return OSErrorKind.unsupported
     }
     return OSErrorKind.unknown

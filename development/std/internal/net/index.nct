@@ -38,6 +38,11 @@ pub(/) enum TransferAttempt {
     failed(failure: NetworkFailure)
 }
 
+pub(/) enum DatagramAttempt {
+    ready(source: NetworkAddress, copied_len: usize, truncated: bool)
+    failed(failure: NetworkFailure)
+}
+
 pub(/) enum UnitAttempt {
     ready
     failed(failure: NetworkFailure)
@@ -54,6 +59,9 @@ pub(/) noalloc func connect_tcp(address: NetworkAddress): DescriptorAttempt
 
 /// Creates, binds, and starts listening on one configured TCP descriptor.
 pub(/) noalloc func listen_tcp(address: NetworkAddress): DescriptorAttempt
+
+/// Creates and binds one configured UDP descriptor.
+pub(/) noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt
 
 instance SocketDescriptor {
     /// Accepts one configured TCP descriptor and its logical peer address.
@@ -73,6 +81,21 @@ instance SocketDescriptor {
 
     /// Shuts down selected connected-stream directions without releasing ownership.
     pub(/) noalloc method &self.shutdown(direction: NetworkShutdown): UnitAttempt
+
+    /// Connects this datagram socket to one peer without changing ownership.
+    pub(/) noalloc method &self.connect_udp(address: NetworkAddress): UnitAttempt
+
+    /// Sends one complete datagram to the connected peer.
+    pub(/) noalloc method &self.send_datagram(bytes: &[u8]): UnitAttempt
+
+    /// Sends one complete datagram to an explicit peer.
+    pub(/) noalloc method &self.send_datagram_to(
+        bytes: &[u8],
+        target: NetworkAddress,
+    ): UnitAttempt
+
+    /// Receives exactly one datagram and preserves source and truncation information.
+    pub(/) noalloc method &self.receive_datagram(buffer: &+[u8]): DatagramAttempt
 
     /// Makes this owner terminal and releases an open descriptor at most once.
     pub(/) noalloc method &+self.close(): void

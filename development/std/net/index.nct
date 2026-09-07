@@ -15,8 +15,10 @@ see ./formatting.nct
 see ./parsing.nct
 see ./tests.nct
 see ./tcp.nct
-see ./tcp_errors.nct
+see ./errors.nct
 see ./tcp_tests.nct
+see ./udp.nct
+see ./udp_tests.nct
 see ./values.nct
 
 /// The Internet protocol address family represented by an `IpAddress`.
@@ -42,6 +44,12 @@ pub struct TcpStream
 
 /// One uniquely owned TCP listening socket.
 pub struct TcpListener
+
+/// One uniquely owned UDP datagram socket.
+pub struct UdpSocket
+
+/// The observable result of receiving exactly one UDP datagram.
+pub copy struct DatagramRead
 
 /// Connected TCP directions selected for local shutdown.
 pub enum TcpShutdown {
@@ -227,7 +235,7 @@ instance TcpStream {
     pub noalloc method &self.peer_address(): SocketAddress!
 
     /// Shuts down selected local stream directions without closing the socket.
-    pub noalloc method &self.shutdown(direction: TcpShutdown): void!
+    pub noalloc method &+self.shutdown(direction: TcpShutdown): void!
 
     /// Makes the stream terminal and releases its descriptor at most once.
     pub noalloc method &+self.close(): void
@@ -243,8 +251,47 @@ instance TcpListener {
     pub noalloc method &self.local_address(): SocketAddress!
 
     /// Accepts one connected stream and returns its peer address.
-    pub noalloc method &self.accept(): (TcpStream, SocketAddress)!
+    pub noalloc method &+self.accept(): (TcpStream, SocketAddress)!
 
     /// Makes the listener terminal and releases its descriptor at most once.
     pub noalloc method &+self.close(): void
+}
+
+construct UdpSocket {
+    /// Binds one numeric local address for datagram communication.
+    pub noalloc func bind(address: SocketAddress): Self!
+}
+
+instance UdpSocket {
+    /// Connects this socket to one peer for subsequent `send` operations.
+    pub noalloc method &+self.connect(peer: SocketAddress): void!
+
+    /// Sends one complete datagram to the connected peer.
+    pub noalloc method &+self.send(bytes: &[u8]): void!
+
+    /// Sends one complete datagram to an explicit peer.
+    pub noalloc method &+self.send_to(bytes: &[u8], target: SocketAddress): void!
+
+    /// Receives one datagram and reports source, copied length, and truncation.
+    pub noalloc method &+self.receive(buffer: &+[u8]): DatagramRead!
+
+    /// Returns the effective local address, including a kernel-selected port.
+    pub noalloc method &self.local_address(): SocketAddress!
+
+    /// Returns the connected peer address or an error when no peer is connected.
+    pub noalloc method &self.peer_address(): SocketAddress!
+
+    /// Makes the socket terminal and releases its descriptor at most once.
+    pub noalloc method &+self.close(): void
+}
+
+instance DatagramRead {
+    /// Returns the sender of the consumed datagram.
+    pub noalloc method &self.source(): SocketAddress
+
+    /// Returns how many bytes were copied into the supplied buffer.
+    pub noalloc method &self.copied_len(): usize
+
+    /// Reports whether the consumed datagram exceeded the supplied buffer.
+    pub noalloc method &self.was_truncated(): bool
 }

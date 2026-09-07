@@ -16,6 +16,8 @@ const SYS_GETPEERNAME: usize = 0x0200001f
 #target: "arm64-darwin"
 const SYS_GETSOCKNAME: usize = 0x02000020
 #target: "arm64-darwin"
+const SYS_RECVMSG: usize = 0x0200001b
+#target: "arm64-darwin"
 const SYS_SOCKET: usize = 0x02000061
 #target: "arm64-darwin"
 const SYS_CONNECT: usize = 0x02000062
@@ -29,6 +31,8 @@ const SYS_LISTEN: usize = 0x0200006a
 const SYS_GETSOCKOPT: usize = 0x02000076
 #target: "arm64-darwin"
 const SYS_SHUTDOWN: usize = 0x02000086
+#target: "arm64-darwin"
+const SYS_SENDTO: usize = 0x02000085
 
 #target: "arm64-darwin"
 const ADDRESS_FAMILY_IPV4: usize = 2
@@ -36,6 +40,8 @@ const ADDRESS_FAMILY_IPV4: usize = 2
 const ADDRESS_FAMILY_IPV6: usize = 30
 #target: "arm64-darwin"
 const SOCKET_STREAM: usize = 1
+#target: "arm64-darwin"
+const SOCKET_DATAGRAM: usize = 2
 #target: "arm64-darwin"
 const SOCKET_LEVEL: usize = 0xffff
 #target: "arm64-darwin"
@@ -67,12 +73,33 @@ const POLL_HANGUP: u16 = 16
 const POLL_INVALID: u16 = 32
 #target: "arm64-darwin"
 const POLL_INFINITE_TIMEOUT: usize = 0xffffffffffffffff
+#target: "arm64-darwin"
+const MESSAGE_END_OF_RECORD: i32 = 8
+#target: "arm64-darwin"
+const MESSAGE_TRUNCATED: i32 = 16
 
 #target: "arm64-darwin"
 copy struct PollDescriptor {
     fd: i32
     events: u16
     returned_events: u16
+}
+
+#target: "arm64-darwin"
+copy struct NativeIoVector {
+    base: usize
+    len: usize
+}
+
+#target: "arm64-darwin"
+copy struct NativeMessageHeader {
+    name: usize
+    name_len: u32
+    vectors: usize
+    vector_count: i32
+    control: usize
+    control_len: u32
+    flags: i32
 }
 
 #target: "arm64-darwin"
@@ -244,12 +271,12 @@ noalloc func close_once(fd: usize): void {
 }
 
 #target: "arm64-darwin"
-noalloc func create_tcp(family: NetworkFamily): RawDescriptorAttempt {
+noalloc func create_socket(family: NetworkFamily, socket_type: usize): RawDescriptorAttempt {
     let native_family = match family {
         NetworkFamily.ipv4 { ADDRESS_FAMILY_IPV4 }
         NetworkFamily.ipv6 { ADDRESS_FAMILY_IPV6 }
     }
-    let result = darwin.syscall3(SYS_SOCKET, native_family, SOCKET_STREAM, 0)
+    let result = darwin.syscall3(SYS_SOCKET, native_family, socket_type, 0)
     if result.errno != 0 { return RawDescriptorAttempt.failed(os_error(result.errno)) }
     match configure_descriptor(result.value) {
         ConfigureAttempt.ready {}
@@ -273,6 +300,16 @@ noalloc func create_tcp(family: NetworkFamily): RawDescriptorAttempt {
             return RawDescriptorAttempt.malformed
         }
     }
+}
+
+#target: "arm64-darwin"
+noalloc func create_tcp(family: NetworkFamily): RawDescriptorAttempt {
+    return create_socket(family, SOCKET_STREAM)
+}
+
+#target: "arm64-darwin"
+noalloc func create_udp(family: NetworkFamily): RawDescriptorAttempt {
+    return create_socket(family, SOCKET_DATAGRAM)
 }
 
 #target: "arm64-darwin"
@@ -397,6 +434,87 @@ noalloc func write_once(fd: usize, bytes: &[u8], offset: usize): RawTransferAtte
     if result.errno != 0 { return RawTransferAttempt.failed(os_error(result.errno)) }
     if result.value == 0 || result.value > available { return RawTransferAttempt.malformed }
     return RawTransferAttempt.ready(result.value)
+}
+
+#target: "arm64-darwin"
+noalloc func classify_datagram_send(result: SyscallResult, expected: usize): RawUnitAttempt {
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawUnitAttempt.interrupted }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return RawUnitAttempt.would_block }
+    if result.errno != 0 { return RawUnitAttempt.failed(os_error(result.errno)) }
+    if result.value != expected { return RawUnitAttempt.malformed }
+    return RawUnitAttempt.ready
+}
+
+#target: "arm64-darwin"
+noalloc func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt {
+    return classify_datagram_send(darwin.syscall6(
+        SYS_SENDTO,
+        fd,
+        ptr.addr(bytes.ptr()),
+        bytes.len(),
+        0,
+        0,
+        0,
+    ), bytes.len())
+}
+
+#target: "arm64-darwin"
+noalloc func send_to_once(
+    fd: usize,
+    bytes: &[u8],
+    target: &NetworkAddress,
+): RawUnitAttempt {
+    let native = native_address(target)
+    return classify_datagram_send(darwin.syscall6(
+        SYS_SENDTO,
+        fd,
+        ptr.addr(bytes.ptr()),
+        bytes.len(),
+        0,
+        ptr.addr(ptr.from_ref(&native.bytes[0])),
+        native.len,
+    ), bytes.len())
+}
+
+#target: "arm64-darwin"
+noalloc func receive_from_once(
+    fd: usize,
+    buffer: &+[u8],
+): RawDatagramAttempt {
+    var native = empty_native_address()
+    var vector = NativeIoVector { base: ptr.addr(buffer.ptr()), len: buffer.len() }
+    var header = NativeMessageHeader {
+        name: ptr.addr(ptr.from_ref_mut(&+native.bytes[0])),
+        name_len: 28,
+        vectors: ptr.addr(ptr.from_ref_mut(&+vector)),
+        vector_count: 1,
+        control: 0,
+        control_len: 0,
+        flags: 0,
+    }
+    let result = darwin.syscall3(
+        SYS_RECVMSG,
+        fd,
+        ptr.addr(ptr.from_ref_mut(&+header)),
+        0,
+    )
+    if result.errno == darwin.ERRNO_INTERRUPTED { return RawDatagramAttempt.interrupted }
+    if result.errno == darwin.ERRNO_WOULD_BLOCK { return RawDatagramAttempt.would_block }
+    if result.errno != 0 { return RawDatagramAttempt.failed(os_error(result.errno)) }
+    if result.value > buffer.len() || header.name_len > 28 {
+        return RawDatagramAttempt.malformed
+    }
+    var known_flags: i32 = 0
+    if header.flags / MESSAGE_END_OF_RECORD % 2 == 1 {
+        known_flags += MESSAGE_END_OF_RECORD
+    }
+    let truncated = header.flags / MESSAGE_TRUNCATED % 2 == 1
+    if truncated { known_flags += MESSAGE_TRUNCATED }
+    if header.flags != known_flags { return RawDatagramAttempt.malformed }
+    let source = logical_address(&native.bytes, header.name_len as usize) otherwise {
+        return RawDatagramAttempt.malformed
+    }
+    return RawDatagramAttempt.ready(source, result.value, truncated)
 }
 
 #target: "arm64-darwin"

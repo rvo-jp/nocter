@@ -35,6 +35,9 @@ noalloc func network_error(failure: NetworkFailure): error {
             if value.kind is OSErrorKind.network_unreachable {
                 return error.new("std.net.network_unreachable", "network is unreachable")
             }
+            if value.kind is OSErrorKind.message_too_large {
+                return error.new("std.net.message_too_large", "datagram is too large")
+            }
             if value.kind is OSErrorKind.permission_denied {
                 return error.new("std.net.permission_denied", "network operation was denied")
             }

@@ -1,8 +1,8 @@
 # Synchronous Network I/O
 
 The compiler-checked [`std/net` contract](index.nct) is the sole authority for exact public
-declarations. This guide expands observable address and TCP behavior already present in that
-checked contract. UDP and finite deadlines remain planned v0.39.0 work and are not available yet.
+declarations. This guide expands observable address, TCP, and UDP behavior already present in that
+checked contract. Finite deadlines remain planned v0.39.0 work and are not available yet.
 
 ## Address Values
 
@@ -56,11 +56,25 @@ uses nonblocking descriptors internally only to centralize interruption and read
 this does not expose a public nonblocking mode. Public failures use stable `std.net.*` codes rather
 than native errno values. The stable categories include closed sockets, connection refusal,
 connection reset or abort, address conflict or unavailability, unreachable networks, permission
-denial, broken pipes, unsupported operations, and invalid target results.
+denial, broken pipes, oversized datagrams, unsupported operations, and invalid target results.
+
+## UDP Datagrams
+
+`UdpSocket` is a uniquely owned datagram endpoint and deliberately does not implement `Reader` or
+`Writer`. Binding port zero and reporting the effective local address behave like TCP listeners.
+`send_to` supplies an address for one message. `connect` selects one peer for later `send`
+operations and makes that peer available through `peer_address`; it does not turn UDP into a byte
+stream.
+
+Every `send` or `send_to` transmits one complete datagram or returns an error. Every `receive`
+consumes at most one datagram and returns one `DatagramRead` containing its source address, the
+number of bytes copied, and an explicit truncation flag. If a datagram exceeds the destination
+buffer, the unread suffix is discarded and cannot appear in the next receive. A zero-length
+datagram is a successful receive with copied length zero, not end of stream.
 
 ## Current Boundary
 
-Numeric addresses and synchronous TCP are implemented. UDP datagrams and public monotonic
-timeouts enter in later v0.39.0 phases over the same private descriptor and target-adapter
-boundaries. Name resolution, URLs, HTTP, TLS, async I/O, and public nonblocking sockets are outside
-v0.39.0.
+Numeric addresses, synchronous TCP, and boundary-preserving UDP are implemented. Public monotonic
+timeouts enter in a later v0.39.0 phase over the same private descriptor, readiness, and
+target-adapter boundaries. Name resolution, URLs, HTTP, TLS, async I/O, and public nonblocking
+sockets are outside v0.39.0.

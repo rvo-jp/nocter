@@ -1,0 +1,109 @@
+//! Native loopback qualification for UDP message boundaries and ownership.
+
+see ./index.nct
+
+use /vec.Vec
+
+func udp_loopback_v4(): UdpSocket! {
+    return UdpSocket.bind(SocketAddress.new(
+        IpAddress.from_ipv4(Ipv4Address.loopback()),
+        0,
+    ))?
+}
+
+test udp_unconnected_receive_preserves_source_and_message_bytes {
+    var sender = udp_loopback_v4()?
+    var receiver = udp_loopback_v4()?
+    let sender_address = sender.local_address()?
+    sender.send_to("one".bytes(), receiver.local_address()?)?
+
+    var buffer: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0), u8.truncate(0)]
+    let received = receiver.receive(&+buffer)?
+    if received.source() != sender_address || received.copied_len() != 3
+        || received.was_truncated() || buffer[0] != 111 || buffer[1] != 110
+        || buffer[2] != 101 {
+        return error.new("std.net.test", "UDP receive changed source or bytes")
+    }
+    return
+}
+
+test udp_receive_reports_truncation_and_consumes_one_message {
+    var sender = udp_loopback_v4()?
+    var receiver = udp_loopback_v4()?
+    let target = receiver.local_address()?
+    sender.send_to("abcdef".bytes(), target)?
+    sender.send_to("z".bytes(), target)?
+
+    var short: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0), u8.truncate(0)]
+    let truncated = receiver.receive(&+short)?
+    if truncated.copied_len() != 3 || !truncated.was_truncated()
+        || short[0] != 97 || short[1] != 98 || short[2] != 99 {
+        return error.new("std.net.test", "UDP truncation was not explicit")
+    }
+
+    var next: Vec<u8> = Vec [u8.truncate(0)]
+    let following = receiver.receive(&+next)?
+    if following.copied_len() != 1 || following.was_truncated() || next[0] != 122 {
+        return error.new("std.net.test", "UDP receive crossed a message boundary")
+    }
+    return
+}
+
+test udp_zero_length_datagram_is_not_end_of_stream {
+    var sender = udp_loopback_v4()?
+    var receiver = udp_loopback_v4()?
+    sender.send_to("".bytes(), receiver.local_address()?)?
+    var buffer: Vec<u8> = Vec [u8.truncate(0)]
+    let received = receiver.receive(&+buffer)?
+    if received.copied_len() != 0 || received.was_truncated() {
+        return error.new("std.net.test", "zero-length UDP datagram changed meaning")
+    }
+    return
+}
+
+test udp_connected_send_and_peer_address_share_one_contract {
+    var left = udp_loopback_v4()?
+    var right = udp_loopback_v4()?
+    let left_address = left.local_address()?
+    let right_address = right.local_address()?
+    left.connect(right_address)?
+    right.connect(left_address)?
+    if left.peer_address()? != right_address || right.peer_address()? != left_address {
+        return error.new("std.net.test", "connected UDP peer address changed")
+    }
+    left.send("ok".bytes())?
+    var buffer: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0)]
+    let received = right.receive(&+buffer)?
+    if received.source() != left_address || received.copied_len() != 2
+        || received.was_truncated() || buffer[0] != 111 || buffer[1] != 107 {
+        return error.new("std.net.test", "connected UDP send changed message")
+    }
+    return
+}
+
+test udp_ipv6_loopback_and_terminal_close_preserve_public_behavior {
+    var sender = UdpSocket.bind(SocketAddress.new(
+        IpAddress.from_ipv6(Ipv6Address.loopback()),
+        0,
+    ))?
+    var receiver = UdpSocket.bind(SocketAddress.new(
+        IpAddress.from_ipv6(Ipv6Address.loopback()),
+        0,
+    ))?
+    sender.send_to("6".bytes(), receiver.local_address()?)?
+    var buffer: Vec<u8> = Vec [u8.truncate(0)]
+    let received = receiver.receive(&+buffer)?
+    if received.source().ip().family() is IpFamily.ipv4 {
+        return error.new("std.net.test", "IPv6 UDP changed address family")
+    }
+    if buffer[0] != 54 { return error.new("std.net.test", "IPv6 UDP changed bytes") }
+    sender.close()
+    let _ = sender.local_address() catch failure {
+        if !failure.has_code("std.net.closed") {
+            return error.new("std.net.test", "closed UDP socket lost its stable error")
+        }
+        sender.close()
+        return
+    }
+    return error.new("std.net.test", "closed UDP socket remained usable")
+}

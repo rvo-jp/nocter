@@ -1,0 +1,109 @@
+//! Public UDP ownership and boundary-preserving receive adapters.
+
+see ./index.nct
+see ./tcp.nct
+see ./errors.nct
+
+use /internal/net
+use /internal/net.{
+    AddressAttempt,
+    DatagramAttempt,
+    DescriptorAttempt,
+    SocketDescriptor,
+    UnitAttempt,
+}
+
+struct UdpSocket {
+    descriptor: SocketDescriptor
+}
+
+copy struct DatagramRead {
+    source_address: SocketAddress
+    copied_count: usize
+    truncated: bool
+}
+
+construct UdpSocket {
+    noalloc func bind(address: SocketAddress): Self! {
+        match net.bind_udp(substrate_address(&address)) {
+            DescriptorAttempt.ready(descriptor) {
+                return UdpSocket { descriptor: move descriptor }
+            }
+            DescriptorAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+}
+
+instance UdpSocket {
+    noalloc method &+self.connect(peer: SocketAddress): void! {
+        match self.descriptor.connect_udp(substrate_address(&peer)) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &+self.send(bytes: &[u8]): void! {
+        match self.descriptor.send_datagram(bytes) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &+self.send_to(bytes: &[u8], target: SocketAddress): void! {
+        match self.descriptor.send_datagram_to(bytes, substrate_address(&target)) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &+self.receive(buffer: &+[u8]): DatagramRead! {
+        match self.descriptor.receive_datagram(buffer) {
+            DatagramAttempt.ready(source, copied_len, truncated) {
+                return DatagramRead {
+                    source_address: public_address(source),
+                    copied_count: copied_len,
+                    truncated: truncated,
+                }
+            }
+            DatagramAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &self.local_address(): SocketAddress! {
+        match self.descriptor.local_address() {
+            AddressAttempt.ready(address) { return public_address(address) }
+            AddressAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &self.peer_address(): SocketAddress! {
+        match self.descriptor.peer_address() {
+            AddressAttempt.ready(address) { return public_address(address) }
+            AddressAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    noalloc method &+self.close(): void {
+        self.descriptor.close()
+        return
+    }
+}
+
+instance DatagramRead {
+    noalloc method &self.source(): SocketAddress {
+        return self.source_address
+    }
+
+    noalloc method &self.copied_len(): usize {
+        return self.copied_count
+    }
+
+    noalloc method &self.was_truncated(): bool {
+        return self.truncated
+    }
+}
+
+noalloc drop UdpSocket(&+self) {
+    self.descriptor.close()
+    return
+}

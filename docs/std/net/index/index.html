@@ -203,8 +203,10 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>parsing<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tcp<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tcp_errors<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tcp_tests<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>udp<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>udp_tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>values<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// The Internet protocol address family represented by an `IpAddress`.</span>
@@ -230,6 +232,12 @@
 
 <span class="token-comment">/// One uniquely owned TCP listening socket.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">TcpListener</span>
+
+<span class="token-comment">/// One uniquely owned UDP datagram socket.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">UdpSocket</span>
+
+<span class="token-comment">/// The observable result of receiving exactly one UDP datagram.</span>
+<span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">DatagramRead</span>
 
 <span class="token-comment">/// Connected TCP directions selected for local shutdown.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">enum</span> <span class="token-type">TcpShutdown</span> <span class="token-operator">{</span>
@@ -415,7 +423,7 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">peer_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Shuts down selected local stream directions without closing the socket.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">shutdown</span><span class="token-operator">(</span>direction<span class="token-operator">:</span> <span class="token-type">TcpShutdown</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">shutdown</span><span class="token-operator">(</span>direction<span class="token-operator">:</span> <span class="token-type">TcpShutdown</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Makes the stream terminal and releases its descriptor at most once.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
@@ -431,10 +439,49 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Accepts one connected stream and returns its peer address.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">accept</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">TcpStream</span><span class="token-operator">,</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">accept</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-type">TcpStream</span><span class="token-operator">,</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Makes the listener terminal and releases its descriptor at most once.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">UdpSocket</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Binds one numeric local address for datagram communication.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">bind</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">UdpSocket</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Connects this socket to one peer for subsequent `send` operations.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">connect</span><span class="token-operator">(</span>peer<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Sends one complete datagram to the connected peer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">send</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Sends one complete datagram to an explicit peer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">send_to</span><span class="token-operator">(</span>bytes<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">,</span> target<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Receives one datagram and reports source, copied length, and truncation.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">receive</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">DatagramRead</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Returns the effective local address, including a kernel-selected port.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Returns the connected peer address or an error when no peer is connected.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">peer_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Makes the socket terminal and releases its descriptor at most once.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">DatagramRead</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the sender of the consumed datagram.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">source</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span>
+
+    <span class="token-comment">/// Returns how many bytes were copied into the supplied buffer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">copied_len</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span>
+
+    <span class="token-comment">/// Reports whether the consumed datagram exceeded the supplied buffer.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">was_truncated</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

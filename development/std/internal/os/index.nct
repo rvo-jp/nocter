@@ -27,6 +27,7 @@ pub(/) enum OSErrorKind {
     address_in_use
     address_not_available
     network_unreachable
+    message_too_large
     timed_out
     unsupported
     unknown

@@ -1,7 +1,7 @@
 //! Public TCP ownership and stream adapters over the shared socket substrate.
 
 see ./index.nct
-see ./tcp_errors.nct
+see ./errors.nct
 see ./values.nct
 
 use /internal/net
@@ -100,7 +100,7 @@ instance TcpStream {
         }
     }
 
-    noalloc method &self.shutdown(direction: TcpShutdown): void! {
+    noalloc method &+self.shutdown(direction: TcpShutdown): void! {
         let selected = match direction {
             TcpShutdown.read { NetworkShutdown.read }
             TcpShutdown.write { NetworkShutdown.write }
@@ -142,7 +142,7 @@ instance TcpListener {
         }
     }
 
-    noalloc method &self.accept(): (TcpStream, SocketAddress)! {
+    noalloc method &+self.accept(): (TcpStream, SocketAddress)! {
         match self.descriptor.accept_tcp() {
             AcceptAttempt.ready(descriptor, peer) {
                 return (stream_from_descriptor(move descriptor), public_address(peer))
