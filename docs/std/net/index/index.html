@@ -188,8 +188,8 @@
             <div class="markdown-body">
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Numeric Internet addresses for synchronous network I/O.</span>
 <span class="token-comment">//!</span>
-<span class="token-comment">//! v0.39.0 begins with target-independent address values. TCP, UDP, and timeout</span>
-<span class="token-comment">//! operations are added by later phases over the same address representations.</span>
+<span class="token-comment">//! Target-independent address values, TCP byte streams, UDP datagrams, and monotonic operation</span>
+<span class="token-comment">//! timeouts share one ownership and error model.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-type">Hash</span>

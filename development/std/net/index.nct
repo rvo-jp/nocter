@@ -1,7 +1,7 @@
 //! Numeric Internet addresses for synchronous network I/O.
 //!
-//! v0.39.0 begins with target-independent address values. TCP, UDP, and timeout
-//! operations are added by later phases over the same address representations.
+//! Target-independent address values, TCP byte streams, UDP datagrams, and monotonic operation
+//! timeouts share one ownership and error model.
 
 use /fmt.Format
 use /hash.Hash
