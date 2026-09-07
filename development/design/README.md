@@ -33,6 +33,7 @@ under `development/history/`, not in current design documents.
 - [Performance Measurement Boundary](performance-measurement-design.md)
 - [Floating-Point Boundary](floating-point-design.md)
 - [Network I/O Boundary](network-io-design.md)
+- [Synchronous Internet Client Boundary](internet-client-design.md)
 
 ## Maintenance Contracts
 

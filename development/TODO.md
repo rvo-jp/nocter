@@ -2,14 +2,16 @@
 
 ## Current State
 
-Nocter v0.39.0 is published and externally audited. The public download is byte-identical to the
-qualified archive, the annotated tag resolves to the publication commit, and GitHub reports it as
-the latest release.
+Nocter v0.39.0 is published and externally audited. v0.40.0 is active as one synchronous Internet
+client foundation spanning trusted target services, URLs, system name resolution, HTTP/1.1 framing,
+and an owned synchronous client lifecycle.
 
 ## Next Work
 
-Define the next release boundary before changing source. Preserve the immutable v0.39.0 tag and
-asset; any correction requires a new version and complete qualification.
+Complete Phase 0 by implementing the source-independent trusted target-service catalog and the
+minimal Darwin C-call/Mach-O import path required by system name resolution. Keep this toolchain-
+private: do not introduce public FFI or URL, resolver, or HTTP meaning into semantic IR. Preserve
+the immutable v0.39.0 tag and asset.
 
 ## Blockers
 

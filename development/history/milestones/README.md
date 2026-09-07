@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.40.0: Synchronous Internet Client Foundation](v0.40.0.md)
 - [v0.39.0: Synchronous Network I/O Foundation](v0.39.0.md)
 - [v0.39.0 Release Preparation](v0.39.0-release-preparation.md)
 - [v0.38.0: Floating-Point Foundation and Practical Numeric APIs](v0.38.0.md)
