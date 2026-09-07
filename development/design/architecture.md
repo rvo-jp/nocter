@@ -94,7 +94,7 @@ query, and orchestration code cannot implement a stage's validation rule.
   [`nocter-model`](../compiler/crates/nocter-model/README.md).
 - Public language vocabulary and closed language constants are owned by
   [`nocter-language`](../compiler/crates/nocter-language/README.md).
-- Runtime primitive and representation identities are owned by
+- Runtime primitive, trusted function-import, and representation identities are owned by
   [`nocter-runtime-contract`](../compiler/crates/nocter-runtime-contract/README.md).
 - Toolchain-selected declarations and standard roles are owned by
   [`nocter-toolchain-contract`](../compiler/crates/nocter-toolchain-contract/README.md) and projected

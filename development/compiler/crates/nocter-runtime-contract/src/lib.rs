@@ -5,11 +5,13 @@
 //! identities so no backend consumer gains access to checked or target-program storage.
 
 mod environment;
+mod import;
 mod primitive;
 mod representation;
 mod target;
 
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
+pub use import::{RuntimeFunctionImport, RuntimeFunctionImportError, RuntimeLibraryIdentity};
 pub use primitive::{
     PrimitiveBinding, PrimitiveBindingError, PrimitiveEffects, PrimitiveRegistry, PrimitiveRole,
 };

@@ -7,8 +7,9 @@ Select, allocate, and encode ARM64 instructions for one immutable machine progra
 ## Contract
 
 The crate consumes target-independent machine operations and runtime roles. It publishes an
-`Arm64Program` containing encoded code/data sections and fixup information for the image writer. It
-does not inspect MIR semantics, declaration identities, source, or package state.
+`Arm64Program` containing encoded code/data sections, function-import pointer slots, and fixup
+information for the image writer. It does not inspect MIR semantics, declaration identities,
+source, loader commands, or package state.
 
 ## Internal Responsibilities
 
@@ -16,7 +17,8 @@ does not inspect MIR semantics, declaration identities, source, or package state
 - call, aggregate, pack, primitive, error, and region lowering
 - frame layout and register allocation
 - parallel-copy resolution
-- branch, code-to-data, and data-to-data fixups and instruction encoding
+- branch, code-to-data, data-to-data, and imported-function pointer-slot fixups plus instruction
+  encoding
 
 ## Invariants
 
@@ -27,6 +29,8 @@ does not inspect MIR semantics, declaration identities, source, or package state
 - Every primitive expansion is selected by closed runtime role.
 - Data-pointer fixups identify exact eight-byte fields and section-local targets; executable image
   policy remains outside this crate.
+- Imported-function slots retain exact trusted runtime identities; ARM64 neither derives a loader
+  symbol nor encodes a dylib command.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.

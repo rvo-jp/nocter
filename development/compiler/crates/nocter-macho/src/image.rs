@@ -23,6 +23,12 @@ const REBASE_TYPE_POINTER: u8 = 1;
 const REBASE_OPCODE_SET_TYPE_IMM: u8 = 0x10;
 const REBASE_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB: u8 = 0x20;
 const REBASE_OPCODE_DO_REBASE_IMM_TIMES: u8 = 0x50;
+const BIND_TYPE_POINTER: u8 = 1;
+const BIND_OPCODE_SET_DYLIB_ORDINAL_IMM: u8 = 0x10;
+const BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM: u8 = 0x40;
+const BIND_OPCODE_SET_TYPE_IMM: u8 = 0x50;
+const BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB: u8 = 0x70;
+const BIND_OPCODE_DO_BIND: u8 = 0x90;
 const DATA_CONST_SEGMENT_INDEX: u8 = 2;
 
 const SEGMENT_COMMAND_SIZE: u32 = 72;
@@ -69,6 +75,7 @@ impl MachOImage {
             relocated.text(),
             relocated.read_only_data(),
             layout.entry_offset,
+            &layout.bind_info,
         );
         let mut bytes = Vec::with_capacity(layout.file_size()?);
         write_header(&mut bytes, &layout);
@@ -80,6 +87,10 @@ impl MachOImage {
         if !layout.rebase_info.is_empty() {
             resize_to(&mut bytes, layout.rebase_offset)?;
             bytes.extend_from_slice(&layout.rebase_info);
+        }
+        if !layout.bind_info.is_empty() {
+            resize_to(&mut bytes, layout.bind_offset)?;
+            bytes.extend_from_slice(&layout.bind_info);
         }
         resize_to(&mut bytes, layout.signature_offset)?;
         let signature = code_signature(
@@ -115,6 +126,8 @@ struct ImageLayout {
     data_alignment_power: u32,
     rebase_offset: u64,
     rebase_info: Box<[u8]>,
+    bind_offset: u64,
+    bind_info: Box<[u8]>,
     linkedit_offset: u64,
     signature_offset: u64,
     signature_size: u32,
@@ -166,10 +179,18 @@ impl ImageLayout {
             linkedit_offset,
             u64::try_from(rebase_info.len()).map_err(|_| MachOError::OffsetOverflow)?,
         )?;
-        let signature_offset = align_up(rebase_end, CODE_SIGNATURE_ALIGNMENT)?;
+        let bind_info = encode_bind_info(program);
+        let bind_offset = if bind_info.is_empty() { 0 } else { rebase_end };
+        let bind_end = checked_add(
+            rebase_end,
+            u64::try_from(bind_info.len()).map_err(|_| MachOError::OffsetOverflow)?,
+        )?;
+        let signature_offset = align_up(bind_end, CODE_SIGNATURE_ALIGNMENT)?;
         require_u32(signature_offset)?;
         require_u32(rebase_offset)?;
         require_u32(u64::try_from(rebase_info.len()).map_err(|_| MachOError::OffsetOverflow)?)?;
+        require_u32(bind_offset)?;
+        require_u32(u64::try_from(bind_info.len()).map_err(|_| MachOError::OffsetOverflow)?)?;
         let signature_size = signature_size(signature_offset)?;
         let linkedit_file_size = checked_add(signature_offset, u64::from(signature_size))?
             .checked_sub(linkedit_offset)
@@ -189,6 +210,8 @@ impl ImageLayout {
             data_alignment_power,
             rebase_offset,
             rebase_info,
+            bind_offset,
+            bind_info,
             linkedit_offset,
             signature_offset,
             signature_size,
@@ -283,7 +306,15 @@ fn write_load_commands(bytes: &mut Vec<u8>, layout: &ImageLayout, uuid: [u8; 16]
         bytes,
         u32::try_from(layout.rebase_info.len()).expect("validated 32-bit rebase size"),
     );
-    for _ in 0..8 {
+    push_u32(
+        bytes,
+        u32::try_from(layout.bind_offset).expect("validated 32-bit bind offset"),
+    );
+    push_u32(
+        bytes,
+        u32::try_from(layout.bind_info.len()).expect("validated 32-bit bind size"),
+    );
+    for _ in 0..6 {
         push_u32(bytes, 0);
     }
     push_u32(bytes, LC_CODE_SIGNATURE);
@@ -315,6 +346,29 @@ fn encode_rebase_info(program: &Arm64Program) -> Box<[u8]> {
     output.into_boxed_slice()
 }
 
+fn encode_bind_info(program: &Arm64Program) -> Box<[u8]> {
+    if program.function_imports().is_empty() {
+        return Box::new([]);
+    }
+    let mut output = vec![
+        BIND_OPCODE_SET_DYLIB_ORDINAL_IMM | 1,
+        BIND_OPCODE_SET_TYPE_IMM | BIND_TYPE_POINTER,
+    ];
+    for function in program.function_imports() {
+        match function.import().library() {
+            nocter_runtime_contract::RuntimeLibraryIdentity::DarwinSystem => {}
+        }
+        output.push(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM);
+        output.extend_from_slice(function.import().symbol().as_bytes());
+        output.push(0);
+        output.push(BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB | DATA_CONST_SEGMENT_INDEX);
+        push_uleb128(&mut output, function.pointer_offset());
+        output.push(BIND_OPCODE_DO_BIND);
+    }
+    output.push(0);
+    output.into_boxed_slice()
+}
+
 fn push_uleb128(output: &mut Vec<u8>, mut value: u64) {
     loop {
         let mut byte = (value & 0x7f) as u8;
@@ -329,11 +383,12 @@ fn push_uleb128(output: &mut Vec<u8>, mut value: u64) {
     }
 }
 
-fn image_uuid(text: &[u8], data: &[u8], entry_offset: u64) -> [u8; 16] {
-    let mut content = Vec::with_capacity(text.len() + data.len() + 8);
+fn image_uuid(text: &[u8], data: &[u8], entry_offset: u64, bind_info: &[u8]) -> [u8; 16] {
+    let mut content = Vec::with_capacity(text.len() + data.len() + bind_info.len() + 8);
     content.extend_from_slice(text);
     content.extend_from_slice(data);
     content.extend_from_slice(&entry_offset.to_le_bytes());
+    content.extend_from_slice(bind_info);
     let digest = sha256(&content);
     let mut uuid: [u8; 16] = digest[..16].try_into().expect("digest prefix has 16 bytes");
     uuid[6] = (uuid[6] & 0x0f) | 0x30;

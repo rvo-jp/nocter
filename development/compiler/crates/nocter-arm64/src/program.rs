@@ -1,6 +1,8 @@
 use std::fmt;
 use std::sync::Arc;
 
+use nocter_runtime_contract::RuntimeFunctionImport;
+
 use crate::code::Arm64CodeFixup;
 use crate::{
     Arm64Code, Arm64DataId, Arm64EncodingError, Arm64FunctionId, Arm64Instruction, Arm64Register,
@@ -92,6 +94,26 @@ struct Arm64ProgramContents {
     function_address_fixups: Box<[Arm64FunctionAddressFixup]>,
     data_fixups: Box<[Arm64DataAddressFixup]>,
     data_pointer_fixups: Box<[Arm64DataPointerFixup]>,
+    function_imports: Box<[Arm64FunctionImport]>,
+}
+
+/// One loader-bound function pointer slot in the read-only-data section.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Arm64FunctionImport {
+    import: RuntimeFunctionImport,
+    pointer_offset: u64,
+}
+
+impl Arm64FunctionImport {
+    #[must_use]
+    pub const fn import(&self) -> &RuntimeFunctionImport {
+        &self.import
+    }
+
+    #[must_use]
+    pub const fn pointer_offset(&self) -> u64 {
+        self.pointer_offset
+    }
 }
 
 /// One absolute pointer in read-only data that an executable image loader must rebase with the
@@ -171,6 +193,12 @@ impl Arm64Program {
     #[must_use]
     pub fn data_pointer_fixups(&self) -> &[Arm64DataPointerFixup] {
         &self.contents.data_pointer_fixups
+    }
+
+    /// External function-pointer slots requiring executable-loader binding.
+    #[must_use]
+    pub fn function_imports(&self) -> &[Arm64FunctionImport] {
+        &self.contents.function_imports
     }
 
     #[must_use]
@@ -269,11 +297,17 @@ struct DataPointerDefinition {
     target: Arm64DataId,
 }
 
+struct FunctionImportDefinition {
+    import: RuntimeFunctionImport,
+    slot: Arm64DataId,
+}
+
 /// Consuming builder for a single native executable image.
 #[derive(Default)]
 pub struct Arm64ProgramBuilder {
     functions: Vec<Option<Arm64Code>>,
     data: Vec<DataDefinition>,
+    function_imports: Vec<FunctionImportDefinition>,
     entry: Option<Arm64FunctionId>,
 }
 
@@ -283,6 +317,7 @@ impl Arm64ProgramBuilder {
         Self {
             functions: Vec::new(),
             data: Vec::new(),
+            function_imports: Vec::new(),
             entry: None,
         }
     }
@@ -336,6 +371,31 @@ impl Arm64ProgramBuilder {
             relocations: Vec::new(),
         });
         Ok(id)
+    }
+
+    /// Adds one deduplicated loader-bound function pointer slot.
+    ///
+    /// The returned data identity is the sole call target. Code loads the pointer from this slot;
+    /// the executable writer binds the slot to the retained import descriptor.
+    ///
+    /// # Errors
+    ///
+    /// Propagates data-domain overflow or alignment failure.
+    pub fn add_function_import(
+        &mut self,
+        import: RuntimeFunctionImport,
+    ) -> Result<Arm64DataId, Arm64ProgramError> {
+        if let Some(existing) = self
+            .function_imports
+            .iter()
+            .find(|existing| existing.import == import)
+        {
+            return Ok(existing.slot);
+        }
+        let slot = self.add_data([0_u8; 8], 8)?;
+        self.function_imports
+            .push(FunctionImportDefinition { import, slot });
+        Ok(slot)
     }
 
     /// Adds one pointer-sized reference between already declared read-only data objects.
@@ -429,6 +489,22 @@ impl Arm64ProgramBuilder {
         let data = laid_out_data.ranges;
         let data_alignment = laid_out_data.alignment;
         let data_pointer_fixups = laid_out_data.pointer_fixups;
+        let function_imports = self
+            .function_imports
+            .into_iter()
+            .map(|definition| {
+                let slot = data
+                    .get(definition.slot.0)
+                    .ok_or(Arm64ProgramError::UnknownData(definition.slot))?;
+                if slot.size != 8 || slot.alignment < 8 {
+                    return Err(Arm64ProgramError::InvalidImportSlot(definition.slot));
+                }
+                Ok(Arm64FunctionImport {
+                    import: definition.import,
+                    pointer_offset: slot.offset,
+                })
+            })
+            .collect::<Result<Vec<_>, Arm64ProgramError>>()?;
         let mut function_address_fixups = Vec::new();
         let mut data_fixups = Vec::new();
         for fixup in code_fixups {
@@ -484,6 +560,7 @@ impl Arm64ProgramBuilder {
                 function_address_fixups: function_address_fixups.into_boxed_slice(),
                 data_fixups: data_fixups.into_boxed_slice(),
                 data_pointer_fixups,
+                function_imports: function_imports.into_boxed_slice(),
             }),
             entry,
         })
@@ -693,6 +770,7 @@ pub enum Arm64ProgramError {
         first: u64,
         second: u64,
     },
+    InvalidImportSlot(Arm64DataId),
     OffsetOverflow,
     AddressOverflow,
     Encoding(Arm64EncodingError),
@@ -718,6 +796,7 @@ impl std::error::Error for Arm64ProgramError {
             | Self::InvalidFixupOffset(_)
             | Self::InvalidDataRelocation(_)
             | Self::OverlappingDataRelocation { .. }
+            | Self::InvalidImportSlot(_)
             | Self::OffsetOverflow
             | Self::AddressOverflow => None,
         }

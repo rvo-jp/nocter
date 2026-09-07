@@ -149,7 +149,14 @@ fn core_program_layers_keep_the_reviewed_dependency_direction() {
             "nocter-arm64",
             &["nocter-machine", "nocter-runtime-contract"][..],
         ),
-        ("nocter-macho", &["nocter-arm64", "nocter-hash"][..]),
+        (
+            "nocter-macho",
+            &[
+                "nocter-arm64",
+                "nocter-hash",
+                "nocter-runtime-contract",
+            ][..],
+        ),
     ];
     for (crate_name, allowed) in expected {
         let actual = production_dependencies(crate_name);

@@ -1064,9 +1064,15 @@ fn public_system_examples_run_through_the_installed_standard_library() {
             .current_dir(&example)
             .output()
             .unwrap();
-        assert_eq!(executed.status.code(), Some(run.status()));
-        assert_eq!(executed.stdout, run.stdout());
-        assert_eq!(executed.stderr, run.stderr());
+        assert_eq!(
+            executed.status.code(),
+            Some(run.status()),
+            "example {name} exited unexpectedly; stdout: {}; stderr: {}",
+            String::from_utf8_lossy(&executed.stdout),
+            String::from_utf8_lossy(&executed.stderr),
+        );
+        assert_eq!(executed.stdout, run.stdout(), "example {name} stdout");
+        assert_eq!(executed.stderr, run.stderr(), "example {name} stderr");
     }
 }
 
