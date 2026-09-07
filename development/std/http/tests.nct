@@ -227,7 +227,7 @@ test partial_head_and_close_delimited_body_have_explicit_completion {
     }
     var decoder = move parsed.decoder
     var output = byte_buffer(3)
-    let progress = decode_body(&+decoder, "abc".bytes(), &+output, true)?
+    let progress = decode_body(&+decoder, "abc".bytes(), 0, &+output, true)?
     if progress.consumed == 3 && progress.written == 3 && progress.complete
         && bytes_equal(&output, "abc".bytes()) {
         return
@@ -238,12 +238,12 @@ test partial_head_and_close_delimited_body_have_explicit_completion {
 test chunked_body_decodes_partial_data_and_validates_trailers {
     var decoder = body_decoder(BodyFraming.chunked, Limits.standard())
     var output = byte_buffer(9)
-    let partial = decode_body(&+decoder, "4\r".bytes(), &+output, false)?
+    let partial = decode_body(&+decoder, "4\r".bytes(), 0, &+output, false)?
     if partial.consumed != 0 || partial.written != 0 || partial.complete {
         return error.new("std.http.test", "partial chunk line was consumed")
     }
     let input = "4\r\nWiki\r\n5;name=value\r\npedia\r\n0\r\nX-End: yes\r\n\r\n"
-    let progress = decode_body(&+decoder, input.bytes(), &+output, false)?
+    let progress = decode_body(&+decoder, input.bytes(), 0, &+output, false)?
     if !progress.complete || progress.consumed != input.len() || progress.written != 9
         || !bytes_equal(&output, "Wikipedia".bytes()) {
         return error.new("std.http.test", "chunked framing changed")
@@ -252,6 +252,7 @@ test chunked_body_decodes_partial_data_and_validates_trailers {
     let _trailer = decode_body(
         &+forbidden,
         "0\r\nContent-Length: 1\r\n\r\n".bytes(),
+        0,
         &+output,
         false,
     ) catch failure {
@@ -262,6 +263,7 @@ test chunked_body_decodes_partial_data_and_validates_trailers {
         let _extension = decode_body(
             &+malformed,
             "1;=bad\r\nx\r\n0\r\n\r\n".bytes(),
+            0,
             &+output,
             false,
         ) catch extension_failure {
@@ -276,7 +278,7 @@ test chunked_body_decodes_partial_data_and_validates_trailers {
 test premature_eof_and_limits_fail_before_unbounded_growth {
     var fixed = body_decoder(BodyFraming.fixed(4), Limits.standard())
     var output = byte_buffer(4)
-    let _short = decode_body(&+fixed, "abc".bytes(), &+output, true) catch failure {
+    let _short = decode_body(&+fixed, "abc".bytes(), 0, &+output, true) catch failure {
         if !failure.has_code("std.http.premature_eof") {
             return error.new("std.http.test", "premature EOF failure changed")
         }
@@ -289,7 +291,7 @@ test premature_eof_and_limits_fail_before_unbounded_growth {
             "std.http.body_limit",
         )?
         var chunked = body_decoder(BodyFraming.chunked, limits)
-        let _large = decode_body(&+chunked, "4\r\ntest\r\n0\r\n\r\n".bytes(), &+output, false) catch chunk_failure {
+        let _large = decode_body(&+chunked, "4\r\ntest\r\n0\r\n\r\n".bytes(), 0, &+output, false) catch chunk_failure {
             if chunk_failure.has_code("std.http.body_limit") { return }
             return error.new("std.http.test", "chunk body limit failure changed")
         }
@@ -301,7 +303,7 @@ test premature_eof_and_limits_fail_before_unbounded_growth {
 test body_decoders_never_consume_or_write_beyond_the_selected_boundary {
     var fixed = body_decoder(BodyFraming.fixed(3), Limits.standard())
     var fixed_output = byte_buffer(8)
-    let fixed_progress = decode_body(&+fixed, "abcNEXT".bytes(), &+fixed_output, false)?
+    let fixed_progress = decode_body(&+fixed, "abcNEXT".bytes(), 0, &+fixed_output, false)?
     if fixed_progress.consumed != 3 || fixed_progress.written != 3 || !fixed_progress.complete {
         return error.new("std.http.test", "fixed decoder crossed its selected boundary")
     }
@@ -309,7 +311,7 @@ test body_decoders_never_consume_or_write_beyond_the_selected_boundary {
     let limits = Limits.new(32, 128, 4, 64, 16, 3)?
     var close = body_decoder(BodyFraming.close_delimited, limits)
     var close_output = byte_buffer(8)
-    let _overflow = decode_body(&+close, "four".bytes(), &+close_output, true) catch failure {
+    let _overflow = decode_body(&+close, "four".bytes(), 0, &+close_output, true) catch failure {
         if failure.has_code("std.http.body_limit") && close_output[0] == 0 { return }
         return error.new("std.http.test", "close body limit wrote before rejecting input")
     }

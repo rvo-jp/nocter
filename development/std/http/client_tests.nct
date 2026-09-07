@@ -1,0 +1,253 @@
+//! Native qualification for synchronous HTTP ownership and transport composition.
+
+see ./client.nct
+see ./client_storage.nct
+see ./index.nct
+
+use /io.{Reader, Writer}
+use /net.{IpAddress, Ipv4Address, SocketAddress, TcpListener, TcpShutdown, TcpStream}
+use /string.String
+use /time.Duration
+use /url.Url
+use /vec.Vec
+
+func client_test_pair(): (TcpStream, TcpStream, SocketAddress)! {
+    var listener = TcpListener.bind(SocketAddress.new(
+        IpAddress.from_ipv4(Ipv4Address.loopback()),
+        0,
+    ))?
+    let address = listener.local_address()?
+    let client = TcpStream.connect(address)?
+    let accepted = listener.accept()?
+    return (move client, move accepted.0, address)
+}
+
+func client_test_url(address: SocketAddress, suffix: &str): Url! {
+    let port = address.port().to_string()
+    let text = String.concat("http://localhost:", &port, suffix)
+    return Url.parse(&text)?
+}
+
+func read_exact(stream: &+TcpStream, expected: usize): Vec<u8>! {
+    var output: Vec<u8> = Vec.with_capacity(expected)
+    while output.len() < expected {
+        var scratch = initialized_bytes(expected - output.len())
+        let received = stream.read(&+scratch)?
+        if received == 0 {
+            return error.new("std.http.test", "request ended before its complete wire length")
+        }
+        append_prefix(&+output, &scratch, received)
+    }
+    return move output
+}
+
+noalloc func same_bytes(left: &[u8], right: &[u8]): bool {
+    if left.len() != right.len() { return false }
+    var offset: usize = 0
+    while offset < left.len() {
+        if left[offset] != right[offset] { return false }
+        offset += 1
+    }
+    return true
+}
+
+test synchronous_client_generates_policy_fields_and_streams_fixed_body {
+    let pair = client_test_pair()?
+    var client_stream = move pair.0
+    var server_stream = move pair.1
+    let address = pair.2
+    var request = Request.new(Method.post(), client_test_url(address, "/submit?q=1")?)?
+    request.append_header(Header.new(
+        HeaderName.parse("X-Test")?,
+        HeaderValue.from_text("yes")?,
+    ))
+    request.set_body(Vec.from_slice("data".bytes()))
+    let limits = Limits.standard()
+    let prepared = prepare_request(move request, limits)?
+    let request_len = prepared.encoded.len() + prepared.request.body().len()
+
+    server_stream.write(
+        "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nX-Reply: yes\r\n\r\nhello".bytes(),
+    )?
+    var response = send_over_stream(move prepared, move client_stream)?
+    let _reply = response.headers().first("x-reply") otherwise {
+        return error.new("std.http.test", "final response field was lost")
+    }
+    if response.status().code() != 200 {
+        return error.new("std.http.test", "final response head changed")
+    }
+    let body = response.read_to_end()?
+    if !same_bytes(&body, "hello".bytes()) {
+        return error.new("std.http.test", "fixed response body changed")
+    }
+
+    let request_bytes = read_exact(&+server_stream, request_len)?
+    let port = address.port().to_string()
+    let expected = String.concat(
+        "POST /submit?q=1 HTTP/1.1\r\nx-test: yes\r\nhost: localhost:",
+        &port,
+        "\r\nconnection: close\r\ncontent-length: 4\r\n\r\ndata",
+    )
+    if !same_bytes(&request_bytes, expected.bytes()) {
+        return error.new("std.http.test", "client request policy changed")
+    }
+    var eof = initialized_bytes(1)
+    if server_stream.read(&+eof)? != 0 {
+        return error.new("std.http.test", "completed response retained its connection")
+    }
+    return
+}
+
+test synchronous_client_consumes_informational_chunked_and_close_delimited_responses {
+    let first_pair = client_test_pair()?
+    var first_server = move first_pair.1
+    let first_request = Request.get(client_test_url(first_pair.2, "/chunked")?)?
+    let limits = Limits.standard()
+    let prepared = prepare_request(move first_request, limits)?
+    first_server.write(
+        "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n".bytes(),
+    )?
+    var chunked = send_over_stream(move prepared, move first_pair.0)?
+    let chunked_body = chunked.read_to_end()?
+    if !same_bytes(&chunked_body, "Wikipedia".bytes()) {
+        return error.new("std.http.test", "informational or chunked response changed")
+    }
+
+    let second_pair = client_test_pair()?
+    var second_server = move second_pair.1
+    let close_request = Request.get(client_test_url(second_pair.2, "/close")?)?
+    let close_prepared = prepare_request(move close_request, limits)?
+    second_server.write("HTTP/1.1 200 OK\r\n\r\nclosed".bytes())?
+    second_server.shutdown(TcpShutdown.write)?
+    var close_response = send_over_stream(
+        move close_prepared,
+        move second_pair.0,
+    )?
+    let close_body = close_response.read_to_end()?
+    if !same_bytes(&close_body, "closed".bytes()) {
+        return error.new("std.http.test", "close-delimited response changed")
+    }
+
+    let third_pair = client_test_pair()?
+    var third_server = move third_pair.1
+    let head_request = Request.new(Method.head(), client_test_url(third_pair.2, "/head")?)?
+    let head_prepared = prepare_request(move head_request, limits)?
+    third_server.write("HTTP/1.1 200 OK\r\nContent-Length: 99\r\n\r\n".bytes())?
+    var head_response = send_over_stream(
+        move head_prepared,
+        move third_pair.0,
+    )?
+    var one = initialized_bytes(1)
+    if head_response.read(&+one)? == 0 { return }
+    return error.new("std.http.test", "HEAD response exposed body bytes")
+}
+
+test truncated_and_unfinished_responses_have_one_terminal_cleanup_path {
+    let truncated_pair = client_test_pair()?
+    var truncated_server = move truncated_pair.1
+    let truncated_request = Request.get(client_test_url(truncated_pair.2, "/truncated")?)?
+    let limits = Limits.standard()
+    let truncated_prepared = prepare_request(move truncated_request, limits)?
+    truncated_server.write("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nabc".bytes())?
+    truncated_server.shutdown(TcpShutdown.write)?
+    var truncated = send_over_stream(
+        move truncated_prepared,
+        move truncated_pair.0,
+    )?
+    let _body = truncated.read_to_end() catch failure {
+        if !failure.has_code("std.http.premature_eof") {
+            return error.new("std.http.test", "truncated response failure changed")
+        }
+
+        let unfinished_pair = client_test_pair()?
+        var unfinished_server = move unfinished_pair.1
+        let unfinished_request = Request.get(client_test_url(unfinished_pair.2, "/unfinished")?)?
+        let unfinished_prepared = prepare_request(move unfinished_request, limits)?
+        let unfinished_request_len = unfinished_prepared.encoded.len()
+        unfinished_server.write("HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\npartial".bytes())?
+        var unfinished = send_over_stream(
+            move unfinished_prepared,
+            move unfinished_pair.0,
+        )?
+        let _request_bytes = read_exact(&+unfinished_server, unfinished_request_len)?
+        unfinished.close()
+        var eof = initialized_bytes(1)
+        if unfinished_server.read(&+eof)? == 0 { return }
+        return error.new("std.http.test", "unfinished response did not close its connection")
+    }
+    return error.new("std.http.test", "truncated fixed response completed")
+}
+
+test public_client_rejects_policy_before_network_and_applies_read_timeout {
+    let client = Client.new()
+    let secure = Request.get(Url.parse("https://localhost/")?)?
+    let _secure_response = client.send(move secure) catch failure {
+        if !failure.has_code("std.http.unsupported_scheme") {
+            return error.new("std.http.test", "HTTPS policy failure changed")
+        }
+
+        var reserved = Request.get(Url.parse("http://127.0.0.1:1/")?)?
+        reserved.append_header(Header.new(
+            HeaderName.parse("Host")?,
+            HeaderValue.from_text("wrong")?,
+        ))
+        let _reserved_response = client.send(move reserved) catch reserved_failure {
+            if !reserved_failure.has_code("std.http.reserved_header") {
+                return error.new("std.http.test", "reserved-header failure changed")
+            }
+
+            var listener = TcpListener.bind(SocketAddress.new(
+                IpAddress.from_ipv4(Ipv4Address.loopback()),
+                0,
+            ))?
+            let waiting = Request.get(client_test_url(listener.local_address()?, "/slow")?)?
+            let _waiting_response = client.send_with_timeout(
+                move waiting,
+                Duration.from_milliseconds(10),
+            ) catch timeout_failure {
+                if timeout_failure.has_code("std.net.timed_out") { return }
+                return error.new("std.http.test", "HTTP timeout lost its network cause")
+            }
+            return error.new("std.http.test", "unresponsive peer ignored the read timeout")
+        }
+        return error.new("std.http.test", "reserved client header reached the network")
+    }
+    return error.new("std.http.test", "HTTPS reached name resolution")
+}
+
+test tunnel_and_protocol_upgrade_paths_are_rejected_explicitly {
+    let client = Client.new()
+    let tunnel = Request.new(
+        Method.parse("CONNECT")?,
+        Url.parse("http://127.0.0.1:1/")?,
+    )?
+    let _tunnel_response = client.send(move tunnel) catch failure {
+        if !failure.has_code("std.http.unsupported_method") {
+            return error.new("std.http.test", "CONNECT policy failure changed")
+        }
+
+        let pair = client_test_pair()?
+        var server = move pair.1
+        let request = Request.get(client_test_url(pair.2, "/upgrade")?)?
+        let limits = Limits.standard()
+        let prepared = prepare_request(move request, limits)?
+        server.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: test\r\n\r\n".bytes())?
+        let _upgrade = send_over_stream(move prepared, move pair.0) catch upgrade_failure {
+            if upgrade_failure.has_code("std.http.unsupported_upgrade") { return }
+            return error.new("std.http.test", "protocol-upgrade failure changed")
+        }
+        return error.new("std.http.test", "101 response transferred an undefined protocol")
+    }
+    return error.new("std.http.test", "CONNECT reached the network")
+}
+
+test public_client_applies_limits_before_opening_a_connection {
+    let limits = Limits.new(8, 64, 4, 32, 16, 64)?
+    let client = Client.with_limits(limits)
+    let request = Request.get(Url.parse("http://127.0.0.1:1/")?)?
+    let _response = client.send(move request) catch failure {
+        if failure.has_code("std.http.syntax_limit") { return }
+        return error.new("std.http.test", "client request limit failure changed")
+    }
+    return error.new("std.http.test", "client ignored its request limits")
+}

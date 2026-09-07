@@ -68,6 +68,12 @@ instance Url {
     /// Generates the request target with recoverable allocation.
     pub method &self.try_request_target(allocator: &+TryAllocator): String! from allocator
 
+    /// Generates the canonical authority for an HTTP Host field.
+    pub method &self.authority(): String
+
+    /// Generates the canonical authority with recoverable allocation.
+    pub method &self.try_authority(allocator: &+TryAllocator): String! from allocator
+
     /// Resolves one RFC 3986 relative reference against this absolute base URL.
     pub method &self.resolve(reference: &str): Url!
 

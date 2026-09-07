@@ -176,7 +176,7 @@
                 <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li><li><a href="../../index.html#content">Standard Library</a></li></ol>
                 <p class="document-tree-title">std/http/</p>
                 <ul class="document-tree-list">
-                    <li><a href="../index.html#content">HTTP/1.1 Messages and Framing</a></li>
+                    <li><a href="../index.html#content">Synchronous HTTP/1.1</a></li>
                     <li><a href="./index.html#content" aria-current="page">Module Contract</a></li>
                 </ul>
             </nav>
@@ -189,10 +189,16 @@
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Validated HTTP/1.1 message values and transport-independent framing.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Hash</span><span class="token-operator">,</span> <span class="token-type">HashState</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">Reader</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-type">Duration</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>url<span class="token-operator">.</span><span class="token-type">Url</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>body<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>client<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>client_storage<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>client_tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>codec<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>request<span class="token-operator">.</span>nct
@@ -369,6 +375,72 @@
 
     <span class="token-comment">/// Borrows the ordered fields.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">headers</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Headers</span> from self
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// One owned HTTP request with a parsed URL and bounded byte body.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Request</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Request</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Creates an empty-body request for `url`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span>request_method<span class="token-operator">:</span> <span class="token-type">Method</span><span class="token-operator">,</span> url<span class="token-operator">:</span> <span class="token-type">Url</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Creates an empty-body GET request for `url`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">get</span><span class="token-operator">(</span>url<span class="token-operator">:</span> <span class="token-type">Url</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Request</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Borrows the parsed destination URL.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">url</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Url</span> from self
+
+    <span class="token-comment">/// Borrows the request method.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">request_method</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Method</span> from self
+
+    <span class="token-comment">/// Borrows the ordered user fields.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">headers</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Headers</span> from self
+
+    <span class="token-comment">/// Borrows the complete request body.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">body</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> from self
+
+    <span class="token-comment">/// Appends one validated user field.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">append_header</span><span class="token-operator">(</span>header<span class="token-operator">:</span> <span class="token-type">Header</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Replaces the complete owned request body.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_body</span><span class="token-operator">(</span>body<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// Immutable synchronous HTTP request policy.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Client</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">Client</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Uses the standard finite HTTP limits.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">new</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
+    <span class="token-comment">/// Uses one caller-selected validated limit set.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">with_limits</span><span class="token-operator">(</span>limits<span class="token-operator">:</span> <span class="token-type">Limits</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Client</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Sends one request over one new connection and returns its final response.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">send</span><span class="token-operator">(</span>request<span class="token-operator">:</span> <span class="token-type">Request</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Response</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Sends with one connection deadline and per-operation stream timeouts.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">send_with_timeout</span><span class="token-operator">(</span>request<span class="token-operator">:</span> <span class="token-type">Request</span><span class="token-operator">,</span> timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Response</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// One uniquely owned response body stream and its parsed response head.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Response</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">Response</span> <span class="token-operator">{</span>
+    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
+
+    <span class="token-comment">/// Returns the final response status.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Status</span>
+
+    <span class="token-comment">/// Borrows the final ordered response fields.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">headers</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Headers</span> from self
+
+    <span class="token-comment">/// Closes the owned connection; later reads report end of stream.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

@@ -47,3 +47,28 @@ noalloc func unsupported_transfer_coding(): error {
 noalloc func premature_eof(): error {
     return error.new("std.http.premature_eof", "HTTP message ended before its framing completed")
 }
+
+noalloc func unsupported_scheme(): error {
+    return error.new("std.http.unsupported_scheme", "synchronous HTTP does not provide TLS")
+}
+
+noalloc func reserved_header(): error {
+    return error.new(
+        "std.http.reserved_header",
+        "Host, Connection, Content-Length, and Transfer-Encoding are client-owned fields",
+    )
+}
+
+noalloc func unsupported_method(): error {
+    return error.new(
+        "std.http.unsupported_method",
+        "synchronous HTTP does not provide CONNECT tunnel ownership",
+    )
+}
+
+noalloc func unsupported_upgrade(): error {
+    return error.new(
+        "std.http.unsupported_upgrade",
+        "synchronous HTTP does not transfer upgraded protocol ownership",
+    )
+}

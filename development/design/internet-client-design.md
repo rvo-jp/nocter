@@ -157,6 +157,11 @@ parsed URL, validates user fields through the same header types, computes one re
 and writes through the existing complete-write contract. Partial request transmission remains
 observable to the peer but never yields a successful response.
 
+The timeout-bearing operation shares one deadline across connection candidates. After connection,
+the same duration bounds each individual stream read and write; it is not a deadline for the whole
+response lifetime. A future whole-operation deadline must be a distinct contract rather than an
+undocumented reinterpretation of this API.
+
 ## Error Boundary
 
 Each layer contributes stable errors in its own namespace:

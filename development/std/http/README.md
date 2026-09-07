@@ -1,8 +1,25 @@
-# HTTP/1.1 Messages and Framing
+# Synchronous HTTP/1.1
 
-`std/http` owns validated HTTP/1.1 message values and the protocol's single transport-independent
-framing authority. It does not resolve names, open sockets, own descriptors, or apply client
-connection policy.
+`std/http` owns validated HTTP/1.1 message values, the protocol's single transport-independent
+framing authority, and a synchronous one-request-per-connection client. The client composes the
+public URL, name-resolution, TCP, and I/O contracts; the codec remains independent of sockets,
+descriptors, DNS, and connection policy.
+
+`Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a
+canonical `Host`, `Connection: close`, and one computed `Content-Length`. Callers cannot supply
+those fields or `Transfer-Encoding`, so request framing has one authority. HTTPS is rejected before
+name resolution because this release has no TLS transport. CONNECT is rejected because the API
+does not transfer tunnel ownership.
+
+`Client.send` opens one connection and returns a uniquely owned `Response`. Ordinary informational
+responses are consumed before the final response is exposed; protocol-switching status 101 is
+rejected because the API does not transfer the upgraded stream. `Response` exposes the final status
+and fields and implements `Reader` for decoded body bytes. Completion, decoding or network failure,
+explicit `close`, and destruction of an unfinished response all close the connection. There is no
+pooling, redirect following, request replay, decompression, or connection reuse.
+
+`send_with_timeout` applies one duration to the host-connection deadline and then as the timeout of
+each stream read and write operation. It is not a wall-clock deadline for the complete response.
 
 `Method` preserves the exact case-sensitive token. `HeaderName` accepts the HTTP token alphabet,
 stores one lowercase canonical spelling, and hashes that canonical identity. `HeaderValue` stores exact bytes after removing wire

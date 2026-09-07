@@ -1,0 +1,297 @@
+//! Synchronous request policy and the uniquely owned response lifecycle.
+
+see ./body.nct
+see ./client_storage.nct
+see ./codec.nct
+see ./errors.nct
+see ./index.nct
+see ./request.nct
+see ./storage.nct
+see ./values.nct
+
+use /net.TcpStream
+use /time.Duration
+use /url.{Url, UrlScheme}
+use /vec.Vec
+
+struct ReceivedResponseHead {
+    head: ResponseHead
+    decoder: BodyDecoder
+    pending: Vec<u8>
+    pending_start: usize
+}
+
+func append_prefix(output: &+Vec<u8>, input: &[u8], count: usize): void {
+    var offset: usize = 0
+    while offset < count {
+        output.push(input[offset])
+        offset += 1
+    }
+    return
+}
+
+func discard_prefix(bytes: &+Vec<u8>, count: usize): void {
+    let retained = bytes.len() - count
+    var offset: usize = 0
+    while offset < retained {
+        bytes[offset] = bytes[count + offset]
+        offset += 1
+    }
+    bytes.truncate(retained)
+    return
+}
+
+noalloc func reserved_client_header(name: &str): bool {
+    return ascii_case_equal(name, "host")
+        || ascii_case_equal(name, "connection")
+        || ascii_case_equal(name, "content-length")
+        || ascii_case_equal(name, "transfer-encoding")
+}
+
+func prepare_request(request: Request, limits: Limits): PreparedRequest! {
+    var owned_request = move request
+    if owned_request.url_value.scheme() is UrlScheme.https { return unsupported_scheme() }
+    if ascii_case_equal(owned_request.head_value.request_method().text(), "CONNECT") {
+        return unsupported_method()
+    }
+    var offset: usize = 0
+    while offset < owned_request.head_value.headers().len() {
+        let header = owned_request.head_value.headers().at(offset) otherwise {
+            return invalid_syntax()
+        }
+        if reserved_client_header(header.name().text()) { return reserved_header() }
+        offset += 1
+    }
+    let authority = owned_request.url_value.authority()
+    owned_request.head_value.append_header(Header.new(
+        HeaderName.parse("host")?,
+        HeaderValue.from_text(&authority)?,
+    ))
+    owned_request.head_value.append_header(Header.new(
+        HeaderName.parse("connection")?,
+        HeaderValue.from_text("close")?,
+    ))
+    let encoded = encode_request_head(
+        &owned_request.head_value,
+        owned_request.body_value.len(),
+        limits,
+    )?
+    return prepared_request_from_parts(move owned_request, move encoded, limits)
+}
+
+func read_response_head(
+    stream: &+TcpStream,
+    request_method: &Method,
+    limits: Limits,
+): ReceivedResponseHead! {
+    var input: Vec<u8> = Vec.empty()
+    var scratch = initialized_bytes(CLIENT_BUFFER_BYTES)
+    loop {
+        let attempt = parse_response_head(&input, request_method, limits)
+        match move attempt {
+            ResponseHeadAttempt.ready(parsed) {
+                if parsed.head.status().code() == 101 {
+                    return unsupported_upgrade()
+                } else if parsed.head.status().is_informational() {
+                    discard_prefix(&+input, parsed.consumed)
+                } else {
+                    return ReceivedResponseHead {
+                        head: move parsed.head,
+                        decoder: move parsed.decoder,
+                        pending: move input,
+                        pending_start: parsed.consumed,
+                    }
+                }
+            }
+            ResponseHeadAttempt.failed(failure) {
+                return move failure
+            }
+            ResponseHeadAttempt.incomplete {
+                let received = stream.read(&+scratch) catch failure {
+                    return failure.context("while reading the HTTP response head")
+                }
+                if received == 0 { return premature_eof() }
+                append_prefix(&+input, &scratch, received)
+            }
+        }
+    }
+}
+
+func send_over_stream(
+    prepared: PreparedRequest,
+    stream: TcpStream,
+): Response! {
+    var owned = move prepared
+    var connection = move stream
+    connection.write(&owned.encoded) catch failure {
+        return failure.context("while writing the HTTP request head")
+    }
+    if owned.request.body_value.len() != 0 {
+        let body: &[u8] = &owned.request.body_value
+        connection.write(body) catch failure {
+            return failure.context("while writing the HTTP request body")
+        }
+    }
+    let parsed = read_response_head(
+        &+connection,
+        owned.request.head_value.request_method(),
+        owned.limits,
+    )?
+    return response_from_parts(
+        move connection,
+        move parsed.head,
+        move parsed.decoder,
+        move parsed.pending,
+        parsed.pending_start,
+    )
+}
+
+construct Request {
+    func new(request_method: Method, url: Url): Self! {
+        let target = url.request_target()
+        let head = RequestHead.new(move request_method, &target)?
+        return request_from_parts(move url, move head)
+    }
+
+    func get(url: Url): Self! {
+        return Request.new(Method.get(), move url)?
+    }
+}
+
+instance Request {
+    noalloc method &self.url(): &Url from self {
+        return &self.url_value
+    }
+
+    noalloc method &self.request_method(): &Method from self {
+        return self.head_value.request_method()
+    }
+
+    noalloc method &self.headers(): &Headers from self {
+        return self.head_value.headers()
+    }
+
+    noalloc method &self.body(): &[u8] from self {
+        let body: &[u8] = &self.body_value
+        return body
+    }
+
+    method &+self.append_header(header: Header): void {
+        self.head_value.append_header(move header)
+        return
+    }
+
+    method &+self.set_body(body: Vec<u8>): void {
+        self.body_value = move body
+        return
+    }
+}
+
+construct Client {
+    noalloc func new(): Self {
+        return client_from_limits(Limits.standard())
+    }
+
+    noalloc func with_limits(limits: Limits): Self {
+        return client_from_limits(limits)
+    }
+}
+
+instance Client {
+    method &self.send(request: Request): Response! {
+        let prepared = prepare_request(move request, self.limits_value)?
+        let stream = TcpStream.connect_host(
+            prepared.request.url_value.host(),
+            prepared.request.url_value.port(),
+        ) catch failure {
+            return failure.context("while connecting the HTTP request")
+        }
+        return send_over_stream(move prepared, move stream)?
+    }
+
+    method &self.send_with_timeout(request: Request, timeout: Duration): Response! {
+        let prepared = prepare_request(move request, self.limits_value)?
+        var stream = TcpStream.connect_host_with_timeout(
+            prepared.request.url_value.host(),
+            prepared.request.url_value.port(),
+            timeout,
+        ) catch failure {
+            return failure.context("while connecting the HTTP request")
+        }
+        stream.set_read_timeout(timeout)
+        stream.set_write_timeout(timeout)
+        return send_over_stream(move prepared, move stream)?
+    }
+}
+
+instance Response {
+    noalloc method &self.status(): Status {
+        return self.head.status()
+    }
+
+    noalloc method &self.headers(): &Headers from self {
+        return self.head.headers()
+    }
+
+    method &+self.read(output: &+[u8]): usize! {
+        if self.complete || output.len() == 0 { return 0 }
+        loop {
+            let progress = decode_body(
+                &+self.decoder,
+                &self.pending,
+                self.pending_start,
+                output,
+                false,
+            ) catch failure {
+                self.stream.close()
+                self.complete = true
+                return failure.context("while decoding the HTTP response body")
+            }
+            self.pending_start += progress.consumed
+            if progress.complete {
+                self.stream.close()
+                self.complete = true
+                return progress.written
+            }
+            if progress.written != 0 { return progress.written }
+            if self.pending_start == self.pending.len() {
+                self.pending.clear()
+                self.pending_start = 0
+            }
+            let received = self.stream.read(&+self.scratch) catch failure {
+                self.stream.close()
+                self.complete = true
+                return failure.context("while reading the HTTP response body")
+            }
+            if received == 0 {
+                let final_progress = decode_body(
+                    &+self.decoder,
+                    &self.pending,
+                    self.pending_start,
+                    output,
+                    true,
+                ) catch failure {
+                    self.stream.close()
+                    self.complete = true
+                    return failure.context("at the end of the HTTP response body")
+                }
+                self.stream.close()
+                self.complete = true
+                return final_progress.written
+            }
+            append_prefix(&+self.pending, &self.scratch, received)
+        }
+    }
+
+    noalloc method &+self.close(): void {
+        self.stream.close()
+        self.complete = true
+        return
+    }
+}
+
+noalloc drop Response(&+self) {
+    self.stream.close()
+    self.complete = true
+    return
+}

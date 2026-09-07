@@ -47,6 +47,10 @@ test absolute_urls_normalize_ports_and_percent_escapes {
         "https://example.com:8443/a%2Fb?q=%AF#Frag",
         "/a%2Fb?q=%AF",
     )?
+    let value = Url.parse("https://Example.COM:8443/a")?
+    if value.authority() != "example.com:8443" {
+        return error.new("std.url.test", "canonical authority changed")
+    }
     return
 }
 
@@ -57,6 +61,10 @@ test absolute_urls_canonicalize_ipv4_hosts {
 
 test absolute_urls_canonicalize_bracketed_ipv6_hosts {
     expect_url("http://[2001:0DB8::1]:80/a", "http://[2001:db8::1]/a", "/a")?
+    let value = Url.parse("http://[2001:0DB8::1]:8080/a")?
+    if value.authority() != "[2001:db8::1]:8080" {
+        return error.new("std.url.test", "IPv6 authority lost brackets or port")
+    }
     return
 }
 

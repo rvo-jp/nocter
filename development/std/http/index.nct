@@ -1,10 +1,16 @@
 //! Validated HTTP/1.1 message values and transport-independent framing.
 
 use /hash.{Hash, HashState}
+use /io.Reader
 use /string.String
+use /time.Duration
+use /url.Url
 use /vec.Vec
 
 see ./body.nct
+see ./client.nct
+see ./client_storage.nct
+see ./client_tests.nct
 see ./codec.nct
 see ./errors.nct
 see ./request.nct
@@ -181,4 +187,70 @@ instance ResponseHead {
 
     /// Borrows the ordered fields.
     pub noalloc method &self.headers(): &Headers from self
+}
+
+/// One owned HTTP request with a parsed URL and bounded byte body.
+pub struct Request
+
+construct Request {
+    /// Creates an empty-body request for `url`.
+    pub func new(request_method: Method, url: Url): Self!
+
+    /// Creates an empty-body GET request for `url`.
+    pub func get(url: Url): Self!
+}
+
+instance Request {
+    /// Borrows the parsed destination URL.
+    pub noalloc method &self.url(): &Url from self
+
+    /// Borrows the request method.
+    pub noalloc method &self.request_method(): &Method from self
+
+    /// Borrows the ordered user fields.
+    pub noalloc method &self.headers(): &Headers from self
+
+    /// Borrows the complete request body.
+    pub noalloc method &self.body(): &[u8] from self
+
+    /// Appends one validated user field.
+    pub method &+self.append_header(header: Header): void
+
+    /// Replaces the complete owned request body.
+    pub method &+self.set_body(body: Vec<u8>): void
+}
+
+/// Immutable synchronous HTTP request policy.
+pub struct Client
+
+construct Client {
+    /// Uses the standard finite HTTP limits.
+    pub noalloc func new(): Self
+
+    /// Uses one caller-selected validated limit set.
+    pub noalloc func with_limits(limits: Limits): Self
+}
+
+instance Client {
+    /// Sends one request over one new connection and returns its final response.
+    pub method &self.send(request: Request): Response!
+
+    /// Sends with one connection deadline and per-operation stream timeouts.
+    pub method &self.send_with_timeout(request: Request, timeout: Duration): Response!
+}
+
+/// One uniquely owned response body stream and its parsed response head.
+pub struct Response
+
+instance Response {
+    impl Reader
+
+    /// Returns the final response status.
+    pub noalloc method &self.status(): Status
+
+    /// Borrows the final ordered response fields.
+    pub noalloc method &self.headers(): &Headers from self
+
+    /// Closes the owned connection; later reads report end of stream.
+    pub noalloc method &+self.close(): void
 }

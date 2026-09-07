@@ -1,0 +1,85 @@
+//! Sole ownership layout for synchronous HTTP requests, clients, and responses.
+
+see ./body.nct
+see ./index.nct
+see ./storage.nct
+
+use /net.TcpStream
+use /url.Url
+use /vec.Vec
+
+const CLIENT_BUFFER_BYTES: usize = 8192
+
+struct Request {
+    url_value: Url
+    head_value: RequestHead
+    body_value: Vec<u8>
+}
+
+struct Client {
+    limits_value: Limits
+}
+
+struct PreparedRequest {
+    request: Request
+    encoded: Vec<u8>
+    limits: Limits
+}
+
+struct Response {
+    stream: TcpStream
+    head: ResponseHead
+    decoder: BodyDecoder
+    pending: Vec<u8>
+    pending_start: usize
+    scratch: Vec<u8>
+    complete: bool
+}
+
+func initialized_bytes(size: usize): Vec<u8> {
+    var bytes: Vec<u8> = Vec.with_capacity(size)
+    while bytes.len() < size { bytes.push(0) }
+    return move bytes
+}
+
+noalloc func client_from_limits(limits: Limits): Client {
+    return Client { limits_value: limits }
+}
+
+func request_from_parts(url: Url, head: RequestHead): Request {
+    return Request {
+        url_value: move url,
+        head_value: move head,
+        body_value: Vec.empty(),
+    }
+}
+
+func prepared_request_from_parts(
+    request: Request,
+    encoded: Vec<u8>,
+    limits: Limits,
+): PreparedRequest {
+    return PreparedRequest {
+        request: move request,
+        encoded: move encoded,
+        limits: limits,
+    }
+}
+
+func response_from_parts(
+    stream: TcpStream,
+    head: ResponseHead,
+    decoder: BodyDecoder,
+    pending: Vec<u8>,
+    pending_start: usize,
+): Response {
+    return Response {
+        stream: move stream,
+        head: move head,
+        decoder: move decoder,
+        pending: move pending,
+        pending_start: pending_start,
+        scratch: initialized_bytes(CLIENT_BUFFER_BYTES),
+        complete: false,
+    }
+}

@@ -77,6 +77,18 @@ instance Url {
         return move output
     }
 
+    method &self.authority(): String {
+        var output = String.empty()
+        try_write_authority(&+output, self) catch _ { return mem.allocation_abort() }
+        return move output
+    }
+
+    method &self.try_authority(allocator: &+TryAllocator): String! from allocator {
+        var output = String.try_with_capacity(allocator, 0)?
+        try_write_authority(&+output, self)?
+        return move output
+    }
+
     noalloc operator (&self == other: &Self): bool {
         if self.https_scheme != other.https_scheme { return false }
         return (&self.host_text as &str) == (&other.host_text as &str)

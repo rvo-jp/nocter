@@ -150,9 +150,11 @@ noalloc func parse_hex_size(bytes: &[u8], start: usize, end: usize): usize? {
 noalloc func decode_body(
     decoder: &+BodyDecoder,
     input: &[u8],
+    input_start: usize,
     output: &+[u8],
     eof: bool,
 ): BodyProgress! {
+    if input_start > input.len() { return invalid_syntax() }
     var consumed: usize = 0
     var written: usize = 0
     loop {
@@ -163,9 +165,9 @@ noalloc func decode_body(
             }
             BodyState.fixed(remaining) {
                 if remaining == 0 { BodyState.complete } else {
-                    var available = input.len() - consumed
+                    var available = input.len() - input_start - consumed
                     if available > remaining { available = remaining }
-                    let copied = copy_body_bytes(input, consumed, available, output, written)
+                    let copied = copy_body_bytes(input, input_start + consumed, available, output, written)
                     consumed += copied
                     written += copied
                     decoder.decoded_bytes += copied
@@ -180,19 +182,20 @@ noalloc func decode_body(
                 }
             }
             BodyState.close_delimited {
-                let available = input.len() - consumed
+                let available = input.len() - input_start - consumed
                 let remaining_limit = decoder.limits.body_bytes - decoder.decoded_bytes
                 if available > remaining_limit { return body_limit() }
-                let copied = copy_body_bytes(input, consumed, available, output, written)
+                let copied = copy_body_bytes(input, input_start + consumed, available, output, written)
                 consumed += copied
                 written += copied
                 decoder.decoded_bytes += copied
-                if eof && consumed == input.len() { BodyState.complete } else {
+                if eof && consumed == input.len() - input_start { BodyState.complete } else {
                     return BodyProgress { consumed: consumed, written: written, complete: false }
                 }
             }
             BodyState.chunk_size {
-                let end = match scan_line(input, consumed, decoder.limits.chunk_line_bytes) {
+                let line_start = input_start + consumed
+                let end = match scan_line(input, line_start, decoder.limits.chunk_line_bytes) {
                     LineScan.incomplete {
                         if eof { return premature_eof() }
                         return BodyProgress { consumed: consumed, written: written, complete: false }
@@ -201,8 +204,8 @@ noalloc func decode_body(
                     LineScan.malformed { return invalid_syntax() }
                     LineScan.too_long { return syntax_limit() }
                 }
-                let size = parse_hex_size(input, consumed, end) otherwise { return invalid_syntax() }
-                consumed = end + 2
+                let size = parse_hex_size(input, line_start, end) otherwise { return invalid_syntax() }
+                consumed = end + 2 - input_start
                 if size == 0 { BodyState.trailers(0, 0) } else {
                     if size > decoder.limits.body_bytes - decoder.decoded_bytes {
                         return body_limit()
@@ -211,9 +214,9 @@ noalloc func decode_body(
                 }
             }
             BodyState.chunk_data(remaining) {
-                var available = input.len() - consumed
+                var available = input.len() - input_start - consumed
                 if available > remaining { available = remaining }
-                let copied = copy_body_bytes(input, consumed, available, output, written)
+                let copied = copy_body_bytes(input, input_start + consumed, available, output, written)
                 consumed += copied
                 written += copied
                 decoder.decoded_bytes += copied
@@ -227,16 +230,20 @@ noalloc func decode_body(
                 }
             }
             BodyState.chunk_data_end {
-                if input.len() - consumed < 2 {
+                let delimiter_start = input_start + consumed
+                if input.len() - delimiter_start < 2 {
                     if eof { return premature_eof() }
                     return BodyProgress { consumed: consumed, written: written, complete: false }
                 }
-                if input[consumed] != 13 || input[consumed + 1] != 10 { return invalid_syntax() }
+                if input[delimiter_start] != 13 || input[delimiter_start + 1] != 10 {
+                    return invalid_syntax()
+                }
                 consumed += 2
                 BodyState.chunk_size
             }
             BodyState.trailers(bytes, count) {
-                let end = match scan_line(input, consumed, decoder.limits.field_bytes) {
+                let line_start = input_start + consumed
+                let end = match scan_line(input, line_start, decoder.limits.field_bytes) {
                     LineScan.incomplete {
                         if eof { return premature_eof() }
                         return BodyProgress { consumed: consumed, written: written, complete: false }
@@ -245,26 +252,26 @@ noalloc func decode_body(
                     LineScan.malformed { return invalid_syntax() }
                     LineScan.too_long { return syntax_limit() }
                 }
-                let line_bytes = end + 2 - consumed
+                let line_bytes = end + 2 - line_start
                 if line_bytes > decoder.limits.header_bytes
                     || bytes > decoder.limits.header_bytes - line_bytes {
                     return syntax_limit()
                 }
-                if end == consumed {
+                if end == line_start {
                     consumed += 2
                     BodyState.complete
                 } else {
                     if count == decoder.limits.header_count { return syntax_limit() }
-                    var colon = consumed
+                    var colon = line_start
                     while colon < end && input[colon] != 58 { colon += 1 }
-                    if colon == end || colon == consumed { return invalid_syntax() }
-                    var name_offset = consumed
+                    if colon == end || colon == line_start { return invalid_syntax() }
+                    var name_offset = line_start
                     while name_offset < colon {
                         if !is_token_byte(input[name_offset]) { return invalid_syntax() }
                         name_offset += 1
                     }
-                    if range_ascii_equal(input, consumed, colon, "content-length")
-                        || range_ascii_equal(input, consumed, colon, "transfer-encoding") {
+                    if range_ascii_equal(input, line_start, colon, "content-length")
+                        || range_ascii_equal(input, line_start, colon, "transfer-encoding") {
                         return ambiguous_framing()
                     }
                     var value_offset = colon + 1
@@ -272,7 +279,7 @@ noalloc func decode_body(
                         if !valid_header_value_byte(input[value_offset]) { return invalid_syntax() }
                         value_offset += 1
                     }
-                    consumed = end + 2
+                    consumed = end + 2 - input_start
                     BodyState.trailers(bytes + line_bytes, count + 1)
                 }
             }

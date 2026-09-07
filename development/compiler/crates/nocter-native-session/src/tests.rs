@@ -2257,11 +2257,84 @@ fn standard_http_framing_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard HTTP framing tests failed native compilation")
     };
-    assert_eq!(cases.len(), 11);
+    assert_eq!(cases.len(), 17);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
     }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = fixture.local_addr().unwrap().port();
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/http.{{Client, Request}}\n\
+             use std/io.Reader\n\
+             use std/url.Url\n\
+             \n\
+             func main(): i32 {{\n\
+                 let url = Url.parse(\"http://localhost:{port}/from-fixture?q=1\") catch _ {{ return 1 }}\n\
+                 let request = Request.get(move url) catch _ {{ return 2 }}\n\
+                 let client = Client.new()\n\
+                 var response = client.send(move request) catch _ {{ return 3 }}\n\
+                 if response.status().code() != 200 {{ return 4 }}\n\
+                 let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 5 }}\n\
+                 let body = response.read_to_string() catch _ {{ return 6 }}\n\
+                 if body != \"fixture\" {{ return 7 }}\n\
+                 return 0\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+
+    let server = thread::spawn(move || {
+        let (mut stream, _) = fixture.accept().unwrap();
+        let mut request = Vec::new();
+        let mut scratch = [0_u8; 256];
+        while !request.ends_with(b"\r\n\r\n") {
+            let received = stream.read(&mut scratch).unwrap();
+            assert_ne!(received, 0, "HTTP client closed before completing its head");
+            request.extend_from_slice(&scratch[..received]);
+        }
+        assert_eq!(
+            request,
+            format!(
+                "GET /from-fixture?q=1 HTTP/1.1\r\nhost: localhost:{port}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n"
+            )
+            .into_bytes()
+        );
+        stream
+            .write_all(
+                b"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 7\r\nX-Fixture: yes\r\n\r\nfi",
+            )
+            .unwrap();
+        thread::sleep(Duration::from_millis(10));
+        stream.write_all(b"xture").unwrap();
+    });
+
+    execute_native_status(image.image(), &package_root.0, "http-client", 0);
+    server.join().unwrap();
 }
 
 #[test]
@@ -2537,6 +2610,15 @@ const RECOVERABLE_URL_TEST_SOURCE: &str = concat!(
     "    }\n",
     "    return error.new(\"std.url.allocator\", \"invalid allocator made a request target\")\n",
     "}\n",
+    "test recoverable_url_authority_propagates_allocator_failure {\n",
+    "    let value = Url.parse(\"https://example.com:8443/a\")?\n",
+    "    var allocator = mem.failing_try_allocator_for_test()\n",
+    "    let _text = value.try_authority(&+allocator) catch failure {\n",
+    "        if failure.has_code(\"std.mem.invalid_argument\") { return }\n",
+    "        return error.new(\"std.url.allocator\", \"wrong authority allocator failure\")\n",
+    "    }\n",
+    "    return error.new(\"std.url.allocator\", \"invalid allocator made an authority\")\n",
+    "}\n",
 );
 
 const RECOVERABLE_NET_TEST_SOURCE: &str = concat!(
@@ -2647,7 +2729,7 @@ fn standard_recoverable_allocation_contracts_preserve_failure_atomicity() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 29);
+    assert_eq!(case_count, 30);
 }
 
 #[test]
