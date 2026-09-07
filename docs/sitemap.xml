@@ -296,6 +296,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/design/network-io-design/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/design/performance-measurement-design/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

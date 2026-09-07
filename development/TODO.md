@@ -2,14 +2,16 @@
 
 ## Current State
 
-Nocter v0.38.0 is published and externally audited. The public tag resolves to publication commit
-`507958b5a7ae648400a64f117910624c3831408f`, and the public archive matches the qualified local
-candidate byte for byte.
+Nocter v0.38.0 is published and externally audited. v0.39.0 is active as the synchronous network
+I/O foundation. Phase 0 is complete: the public, descriptor, deadline, target-adapter, and error
+authorities are fixed in `development/design/network-io-design.md` without introducing network
+concepts into the compiler pipeline.
 
 ## Next Work
 
-No milestone is active. Preserve the immutable v0.38.0 tag and asset. Define a new version before
-changing released behavior or distribution content.
+Implement v0.39.0 Phase 1 numeric IPv4, IPv6, IP, and socket-address values. Establish the checked
+`std/net` contract before implementation, keep parsing and canonical generation single-sourced,
+and keep native socket records out of public values. Preserve the immutable v0.38.0 tag and asset.
 
 ## Blockers
 

@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.39.0: Synchronous Network I/O Foundation](v0.39.0.md)
 - [v0.38.0: Floating-Point Foundation and Practical Numeric APIs](v0.38.0.md)
 - [v0.38.0 Release Preparation](v0.38.0-release-preparation.md)
 - [v0.37.0: Compiler and Editor Performance](v0.37.0.md)

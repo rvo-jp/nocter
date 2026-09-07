@@ -32,6 +32,7 @@ under `development/history/`, not in current design documents.
 - [Static Unicode Data Boundary](unicode-text-data-design.md)
 - [Performance Measurement Boundary](performance-measurement-design.md)
 - [Floating-Point Boundary](floating-point-design.md)
+- [Network I/O Boundary](network-io-design.md)
 
 ## Maintenance Contracts
 
