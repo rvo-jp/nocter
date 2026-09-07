@@ -1,0 +1,111 @@
+//! Bounded HTTP/1.1 request-head serialization.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /vec.Vec
+
+func append_text(output: &+Vec<u8>, text: &str): void {
+    let bytes = text.bytes()
+    var offset: usize = 0
+    while offset < bytes.len() {
+        output.push(bytes[offset])
+        offset += 1
+    }
+    return
+}
+
+func append_bytes(output: &+Vec<u8>, bytes: &[u8]): void {
+    var offset: usize = 0
+    while offset < bytes.len() {
+        output.push(bytes[offset])
+        offset += 1
+    }
+    return
+}
+
+func append_decimal(output: &+Vec<u8>, value: usize): void {
+    let start = output.len()
+    var remaining = value
+    if remaining == 0 { output.push(48) }
+    while remaining != 0 {
+        output.push(u8.truncate((remaining % 10) as u64) + 48)
+        remaining = remaining / 10
+    }
+    var left = start
+    var right = output.len() - 1
+    while left < right {
+        let digit = output[left]
+        output[left] = output[right]
+        output[right] = digit
+        left += 1
+        right -= 1
+    }
+    return
+}
+
+noalloc func decimal_digits(value: usize): usize {
+    var digits: usize = 1
+    var remaining = value
+    while remaining >= 10 {
+        remaining = remaining / 10
+        digits += 1
+    }
+    return digits
+}
+
+func encode_request_head(head: &RequestHead, body_length: usize, limits: Limits): Vec<u8>! {
+    if body_length > limits.body_bytes { return body_limit() }
+    let method_bytes = head.request_method().text().len()
+    let target_bytes = head.target().len()
+    if method_bytes > limits.start_line_bytes
+        || limits.start_line_bytes - method_bytes < 10
+        || target_bytes > limits.start_line_bytes - method_bytes - 10 {
+        return syntax_limit()
+    }
+    let start_line_bytes = method_bytes + 1 + target_bytes + 9
+    if head.headers().len() >= limits.header_count { return syntax_limit() }
+    let content_length_bytes: usize = 16 + decimal_digits(body_length)
+    if content_length_bytes > limits.field_bytes { return syntax_limit() }
+    var estimate = start_line_bytes + 2
+    var index: usize = 0
+    while index < head.headers().len() {
+        let header = head.headers().at(index) otherwise { return invalid_syntax() }
+        let name = header.name().text()
+        if name == "content-length" || name == "transfer-encoding" {
+            return ambiguous_framing()
+        }
+        let field_bytes = name.len() + 2 + header.value().bytes().len()
+        if field_bytes > limits.field_bytes { return syntax_limit() }
+        if field_bytes + 2 > limits.header_bytes
+            || estimate > limits.header_bytes - field_bytes - 2 {
+            return syntax_limit()
+        }
+        estimate += field_bytes + 2
+        index += 1
+    }
+    if content_length_bytes + 4 > limits.header_bytes
+        || estimate > limits.header_bytes - content_length_bytes - 4 {
+        return syntax_limit()
+    }
+    estimate += content_length_bytes + 4
+    var output: Vec<u8> = Vec.with_capacity(estimate)
+    append_text(&+output, head.request_method().text())
+    output.push(32)
+    append_text(&+output, head.target())
+    append_text(&+output, " HTTP/1.1\r\n")
+    index = 0
+    while index < head.headers().len() {
+        let header = head.headers().at(index) otherwise { return invalid_syntax() }
+        append_text(&+output, header.name().text())
+        append_text(&+output, ": ")
+        append_bytes(&+output, header.value().bytes())
+        append_text(&+output, "\r\n")
+        index += 1
+    }
+    append_text(&+output, "content-length: ")
+    append_decimal(&+output, body_length)
+    append_text(&+output, "\r\n\r\n")
+    return move output
+}

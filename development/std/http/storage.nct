@@ -1,0 +1,58 @@
+//! Sole owned representations for public HTTP message values.
+
+see ./index.nct
+
+use /string.String
+use /vec.Vec
+
+struct Method {
+    text_value: String
+}
+
+copy struct Status {
+    code_value: u16
+}
+
+struct HeaderName {
+    text_value: String
+}
+
+struct HeaderValue {
+    bytes_value: Vec<u8>
+}
+
+struct Header {
+    name_value: HeaderName
+    value_value: HeaderValue
+}
+
+struct Headers {
+    values: Vec<Header>
+}
+
+copy struct Limits {
+    start_line_bytes: usize
+    header_bytes: usize
+    header_count: usize
+    field_bytes: usize
+    chunk_line_bytes: usize
+    body_bytes: usize
+}
+
+struct RequestHead {
+    method_value: Method
+    target_value: String
+    header_values: Headers
+}
+
+struct ResponseHead {
+    status_value: Status
+    header_values: Headers
+}
+
+noalloc func response_head_from_parts(status: Status, headers: Headers): ResponseHead {
+    return ResponseHead {
+        status_value: status,
+        header_values: move headers,
+    }
+}

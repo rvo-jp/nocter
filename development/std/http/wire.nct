@@ -1,0 +1,46 @@
+//! Shared, allocation-free HTTP/1.1 wire syntax.
+
+see ./values.nct
+
+enum LineScan {
+    incomplete
+    ready(end: usize)
+    malformed
+    too_long
+}
+
+noalloc func scan_line(input: &[u8], start: usize, limit: usize): LineScan {
+    var offset = start
+    while offset < input.len() {
+        if offset - start > limit { return LineScan.too_long }
+        let value = input[offset]
+        if value == 10 { return LineScan.malformed }
+        if value == 13 {
+            if offset + 1 == input.len() { return LineScan.incomplete }
+            if input[offset + 1] != 10 { return LineScan.malformed }
+            if offset - start > limit { return LineScan.too_long }
+            return LineScan.ready(offset)
+        }
+        offset += 1
+    }
+    if input.len() - start > limit { return LineScan.too_long }
+    return LineScan.incomplete
+}
+
+noalloc func range_ascii_equal(
+    bytes: &[u8],
+    start: usize,
+    end: usize,
+    expected: &str,
+): bool {
+    if end - start != expected.len() { return false }
+    let expected_bytes = expected.bytes()
+    var offset: usize = 0
+    while offset < expected_bytes.len() {
+        if ascii_lower(bytes[start + offset]) != ascii_lower(expected_bytes[offset]) {
+            return false
+        }
+        offset += 1
+    }
+    return true
+}

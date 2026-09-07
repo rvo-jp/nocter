@@ -1,0 +1,358 @@
+//! Validation and public projections for HTTP message values.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+
+use /hash.HashState
+use /string.String
+use /vec.Vec
+
+noalloc func is_token_byte(value: u8): bool {
+    if value >= 48 && value <= 57 { return true }
+    if value >= 65 && value <= 90 { return true }
+    if value >= 97 && value <= 122 { return true }
+    return value == 33
+        || value == 35
+        || value == 36
+        || value == 37
+        || value == 38
+        || value == 39
+        || value == 42
+        || value == 43
+        || value == 45
+        || value == 46
+        || value == 94
+        || value == 95
+        || value == 96
+        || value == 124
+        || value == 126
+}
+
+noalloc func valid_token(text: &str): bool {
+    if text.len() == 0 { return false }
+    let bytes = text.bytes()
+    var offset: usize = 0
+    while offset < bytes.len() {
+        if !is_token_byte(bytes[offset]) { return false }
+        offset += 1
+    }
+    return true
+}
+
+noalloc func ascii_lower(value: u8): u8 {
+    if value >= 65 && value <= 90 { return value + 32 }
+    return value
+}
+
+noalloc func ascii_char(value: u8): char {
+    return char.from_u32(value as u32) otherwise { return '\u{0}' }
+}
+
+noalloc func ascii_case_equal(left: &str, right: &str): bool {
+    if left.len() != right.len() { return false }
+    let left_bytes = left.bytes()
+    let right_bytes = right.bytes()
+    var offset: usize = 0
+    while offset < left_bytes.len() {
+        if ascii_lower(left_bytes[offset]) != ascii_lower(right_bytes[offset]) { return false }
+        offset += 1
+    }
+    return true
+}
+
+construct Method {
+    func parse(text: &str): Self! {
+        if !valid_token(text) { return invalid_method() }
+        return Method { text_value: String.copy(text) }
+    }
+
+    func get(): Self {
+        return Method { text_value: String "GET" }
+    }
+
+    func head(): Self {
+        return Method { text_value: String "HEAD" }
+    }
+
+    func post(): Self {
+        return Method { text_value: String "POST" }
+    }
+}
+
+instance Method {
+    noalloc method &self.text(): &str from self {
+        let text: &str = &self.text_value
+        return text
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        return self.text() == other.text()
+    }
+}
+
+construct Status {
+    noalloc func new(code: u16): Self! {
+        if code < 100 || code > 999 { return invalid_status() }
+        return Status { code_value: code }
+    }
+}
+
+instance Status {
+    noalloc method &self.code(): u16 {
+        return self.code_value
+    }
+
+    noalloc method &self.is_informational(): bool {
+        return self.code_value >= 100 && self.code_value < 200
+    }
+
+    noalloc method &self.is_success(): bool {
+        return self.code_value >= 200 && self.code_value < 300
+    }
+}
+
+construct HeaderName {
+    func parse(text: &str): Self! {
+        return header_name_from_range(text.bytes(), 0, text.len())?
+    }
+}
+
+func header_name_from_range(bytes: &[u8], start: usize, end: usize): HeaderName! {
+    if start == end { return invalid_header_name() }
+    var text = String.with_capacity(end - start)
+    var offset = start
+    while offset < end {
+        if !is_token_byte(bytes[offset]) { return invalid_header_name() }
+        text.push(ascii_char(ascii_lower(bytes[offset])))
+        offset += 1
+    }
+    return HeaderName { text_value: move text }
+}
+
+instance HeaderName {
+    noalloc method &self.text(): &str from self {
+        let text: &str = &self.text_value
+        return text
+    }
+
+    noalloc operator (&self == other: &Self): bool {
+        return self.text() == other.text()
+    }
+
+    noalloc method &self.hash_into(state: &+HashState): void {
+        self.text().hash_into(state)
+        return
+    }
+}
+
+noalloc func valid_header_value_byte(value: u8): bool {
+    if value == 9 { return true }
+    if value >= 32 && value != 127 { return true }
+    return false
+}
+
+func header_value_from_range(bytes: &[u8], start: usize, end: usize): HeaderValue! {
+    var first = start
+    var last = end
+    while first < last && (bytes[first] == 32 || bytes[first] == 9) { first += 1 }
+    while last > first && (bytes[last - 1] == 32 || bytes[last - 1] == 9) { last -= 1 }
+    var result: Vec<u8> = Vec.with_capacity(last - first)
+    var offset = first
+    while offset < last {
+        let value = bytes[offset]
+        if !valid_header_value_byte(value) { return invalid_header_value() }
+        result.push(value)
+        offset += 1
+    }
+    return HeaderValue { bytes_value: move result }
+}
+
+construct HeaderValue {
+    func parse(bytes: &[u8]): Self! {
+        return header_value_from_range(bytes, 0, bytes.len())?
+    }
+
+    func from_text(text: &str): Self! {
+        return header_value_from_range(text.bytes(), 0, text.len())?
+    }
+}
+
+instance HeaderValue {
+    noalloc method &self.bytes(): &[u8] from self {
+        let bytes: &[u8] = &self.bytes_value
+        return bytes
+    }
+}
+
+construct Header {
+    noalloc func new(name: HeaderName, value: HeaderValue): Self {
+        return Header {
+            name_value: move name,
+            value_value: move value,
+        }
+    }
+}
+
+instance Header {
+    noalloc method &self.name(): &HeaderName from self {
+        return &self.name_value
+    }
+
+    noalloc method &self.value(): &HeaderValue from self {
+        return &self.value_value
+    }
+}
+
+construct Headers {
+    noalloc func empty(): Self {
+        return Headers { values: Vec.empty() }
+    }
+}
+
+instance Headers {
+    method &+self.append(header: Header): void {
+        self.values.push(move header)
+        return
+    }
+
+    noalloc method &self.len(): usize {
+        return self.values.len()
+    }
+
+    noalloc method &self.at(index: usize): &Header? from self {
+        if index >= self.values.len() { return none }
+        return &self.values[index]
+    }
+
+    noalloc method &self.first(name: &str): &HeaderValue? from self {
+        var offset: usize = 0
+        while offset < self.values.len() {
+            let header = &self.values[offset]
+            if ascii_case_equal(header.name().text(), name) { return header.value() }
+            offset += 1
+        }
+        return none
+    }
+}
+
+construct Limits {
+    noalloc func standard(): Self {
+        return Limits {
+            start_line_bytes: 8192,
+            header_bytes: 65536,
+            header_count: 128,
+            field_bytes: 8192,
+            chunk_line_bytes: 1024,
+            body_bytes: 67108864,
+        }
+    }
+
+    noalloc func new(
+        max_start_line_bytes: usize,
+        max_header_bytes: usize,
+        max_header_count: usize,
+        max_field_bytes: usize,
+        max_chunk_line_bytes: usize,
+        max_body_bytes: usize,
+    ): Self! {
+        if max_start_line_bytes == 0
+            || max_header_bytes == 0
+            || max_header_count == 0
+            || max_field_bytes == 0
+            || max_chunk_line_bytes == 0
+            || max_body_bytes == 0 {
+            return invalid_limits()
+        }
+        return Limits {
+            start_line_bytes: max_start_line_bytes,
+            header_bytes: max_header_bytes,
+            header_count: max_header_count,
+            field_bytes: max_field_bytes,
+            chunk_line_bytes: max_chunk_line_bytes,
+            body_bytes: max_body_bytes,
+        }
+    }
+}
+
+noalloc func valid_request_target(target: &str): bool {
+    if target.len() == 0 || target[0] != 47 { return false }
+    let bytes = target.bytes()
+    var offset: usize = 0
+    while offset < bytes.len() {
+        let value = bytes[offset]
+        if value == 37 {
+            if offset + 2 >= bytes.len() { return false }
+            let high = bytes[offset + 1]
+            let low = bytes[offset + 2]
+            let high_hex = (high >= 48 && high <= 57)
+                || (high >= 65 && high <= 70)
+                || (high >= 97 && high <= 102)
+            let low_hex = (low >= 48 && low <= 57)
+                || (low >= 65 && low <= 70)
+                || (low >= 97 && low <= 102)
+            if !high_hex || !low_hex { return false }
+            offset += 3
+        } else {
+            let alpha = (value >= 65 && value <= 90) || (value >= 97 && value <= 122)
+            let digit = value >= 48 && value <= 57
+            let unreserved = alpha || digit || value == 45 || value == 46 || value == 95 || value == 126
+            let sub_delimiter = value == 33
+                || value == 36
+                || value == 38
+                || value == 39
+                || value == 40
+                || value == 41
+                || value == 42
+                || value == 43
+                || value == 44
+                || value == 59
+                || value == 61
+            let path_or_query = value == 47 || value == 58 || value == 64 || value == 63
+            if !unreserved && !sub_delimiter && !path_or_query { return false }
+            offset += 1
+        }
+    }
+    return true
+}
+
+construct RequestHead {
+    func new(request_method: Method, target: &str): Self! {
+        if !valid_request_target(target) { return invalid_target() }
+        return RequestHead {
+            method_value: move request_method,
+            target_value: String.copy(target),
+            header_values: Headers.empty(),
+        }
+    }
+}
+
+instance RequestHead {
+    noalloc method &self.request_method(): &Method from self {
+        return &self.method_value
+    }
+
+    noalloc method &self.target(): &str from self {
+        let text: &str = &self.target_value
+        return text
+    }
+
+    method &+self.append_header(header: Header): void {
+        self.header_values.append(move header)
+        return
+    }
+
+    noalloc method &self.headers(): &Headers from self {
+        return &self.header_values
+    }
+}
+
+instance ResponseHead {
+    noalloc method &self.status(): Status {
+        return self.status_value
+    }
+
+    noalloc method &self.headers(): &Headers from self {
+        return &self.header_values
+    }
+}

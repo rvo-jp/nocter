@@ -1,0 +1,184 @@
+//! Validated HTTP/1.1 message values and transport-independent framing.
+
+use /hash.{Hash, HashState}
+use /string.String
+use /vec.Vec
+
+see ./body.nct
+see ./codec.nct
+see ./errors.nct
+see ./request.nct
+see ./storage.nct
+see ./tests.nct
+see ./values.nct
+see ./wire.nct
+
+/// One validated, case-sensitive HTTP method token.
+pub struct Method
+
+construct Method {
+    /// Validates and copies one HTTP method token.
+    pub func parse(text: &str): Self!
+
+    /// Returns the standard GET method.
+    pub func get(): Self
+
+    /// Returns the standard HEAD method.
+    pub func head(): Self
+
+    /// Returns the standard POST method.
+    pub func post(): Self
+}
+
+instance Method {
+    /// Returns the exact method token.
+    pub noalloc method &self.text(): &str from self
+
+    /// Compares the case-sensitive method token.
+    pub noalloc operator (&self == other: &Self): bool
+}
+
+/// One validated three-digit HTTP status code.
+pub copy struct Status
+
+construct Status {
+    /// Accepts codes from 100 through 999.
+    pub noalloc func new(code: u16): Self!
+}
+
+instance Status {
+    /// Returns the numeric status code.
+    pub noalloc method &self.code(): u16
+
+    /// Returns whether this is an informational response.
+    pub noalloc method &self.is_informational(): bool
+
+    /// Returns whether this is a successful response.
+    pub noalloc method &self.is_success(): bool
+}
+
+/// One validated HTTP field name with canonical lowercase storage.
+pub struct HeaderName
+
+construct HeaderName {
+    /// Validates one non-empty ASCII token and stores its lowercase spelling.
+    pub func parse(text: &str): Self!
+}
+
+instance HeaderName {
+    impl Hash
+
+    /// Returns the canonical lowercase field name.
+    pub noalloc method &self.text(): &str from self
+
+    /// Compares canonical field names.
+    pub noalloc operator (&self == other: &Self): bool
+
+    /// Adds the canonical field-name identity to `state`.
+    pub noalloc method &self.hash_into(state: &+HashState): void
+}
+
+/// One validated HTTP field value stored as exact bytes without surrounding wire whitespace.
+pub struct HeaderValue
+
+construct HeaderValue {
+    /// Validates and copies bytes that contain no forbidden field controls.
+    pub func parse(bytes: &[u8]): Self!
+
+    /// Validates and copies a UTF-8 field value.
+    pub func from_text(text: &str): Self!
+}
+
+instance HeaderValue {
+    /// Returns the exact validated field bytes.
+    pub noalloc method &self.bytes(): &[u8] from self
+}
+
+/// One ordered HTTP field.
+pub struct Header
+
+construct Header {
+    /// Combines an already validated name and value.
+    pub noalloc func new(name: HeaderName, value: HeaderValue): Self
+}
+
+instance Header {
+    /// Borrows the field name.
+    pub noalloc method &self.name(): &HeaderName from self
+
+    /// Borrows the field value.
+    pub noalloc method &self.value(): &HeaderValue from self
+}
+
+/// An ordered sequence of HTTP fields that preserves duplicates.
+pub struct Headers
+
+construct Headers {
+    /// Constructs an empty field sequence.
+    pub noalloc func empty(): Self
+}
+
+instance Headers {
+    /// Appends one validated field without combining it with earlier fields.
+    pub method &+self.append(header: Header): void
+
+    /// Returns the number of retained fields.
+    pub noalloc method &self.len(): usize
+
+    /// Borrows the field at `index`.
+    pub noalloc method &self.at(index: usize): &Header? from self
+
+    /// Borrows the first value whose canonical name equals `name`.
+    pub noalloc method &self.first(name: &str): &HeaderValue? from self
+}
+
+/// Finite limits applied before HTTP syntax can cause unbounded storage growth.
+pub copy struct Limits
+
+construct Limits {
+    /// Returns conservative defaults for ordinary client messages.
+    pub noalloc func standard(): Self
+
+    /// Constructs one nonzero, internally consistent limit set.
+    pub noalloc func new(
+        max_start_line_bytes: usize,
+        max_header_bytes: usize,
+        max_header_count: usize,
+        max_field_bytes: usize,
+        max_chunk_line_bytes: usize,
+        max_body_bytes: usize,
+    ): Self!
+}
+
+/// A validated outbound HTTP/1.1 request head.
+pub struct RequestHead
+
+construct RequestHead {
+    /// Constructs a request head from a method and origin-form request target.
+    pub func new(request_method: Method, target: &str): Self!
+}
+
+instance RequestHead {
+    /// Borrows the method.
+    pub noalloc method &self.request_method(): &Method from self
+
+    /// Borrows the exact origin-form request target.
+    pub noalloc method &self.target(): &str from self
+
+    /// Appends one ordered field.
+    pub method &+self.append_header(header: Header): void
+
+    /// Borrows the ordered fields.
+    pub noalloc method &self.headers(): &Headers from self
+}
+
+/// One parsed final or informational HTTP/1.1 response head.
+pub struct ResponseHead
+
+instance ResponseHead {
+    /// Returns the parsed status.
+    pub noalloc method &self.status(): Status
+
+    /// Borrows the ordered fields.
+    pub noalloc method &self.headers(): &Headers from self
+}

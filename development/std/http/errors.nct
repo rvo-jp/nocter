@@ -1,0 +1,49 @@
+//! Stable HTTP value, syntax, limit, and framing failures.
+
+noalloc func invalid_method(): error {
+    return error.new("std.http.invalid_method", "HTTP method must be a non-empty token")
+}
+
+noalloc func invalid_status(): error {
+    return error.new("std.http.invalid_status", "HTTP status must contain three decimal digits")
+}
+
+noalloc func invalid_header_name(): error {
+    return error.new("std.http.invalid_header_name", "HTTP field name must be a non-empty token")
+}
+
+noalloc func invalid_header_value(): error {
+    return error.new("std.http.invalid_header_value", "HTTP field value contains a forbidden control byte")
+}
+
+noalloc func invalid_target(): error {
+    return error.new("std.http.invalid_target", "HTTP request target must use non-empty origin form")
+}
+
+noalloc func invalid_limits(): error {
+    return error.new("std.http.invalid_limits", "HTTP limits must be nonzero and internally consistent")
+}
+
+noalloc func invalid_syntax(): error {
+    return error.new("std.http.invalid_syntax", "HTTP/1.1 message syntax is invalid")
+}
+
+noalloc func syntax_limit(): error {
+    return error.new("std.http.syntax_limit", "HTTP syntax exceeds the configured limit")
+}
+
+noalloc func body_limit(): error {
+    return error.new("std.http.body_limit", "HTTP body exceeds the configured limit")
+}
+
+noalloc func ambiguous_framing(): error {
+    return error.new("std.http.ambiguous_framing", "HTTP message has ambiguous body framing")
+}
+
+noalloc func unsupported_transfer_coding(): error {
+    return error.new("std.http.unsupported_transfer_coding", "HTTP transfer coding is unsupported")
+}
+
+noalloc func premature_eof(): error {
+    return error.new("std.http.premature_eof", "HTTP message ended before its framing completed")
+}

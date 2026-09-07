@@ -1,0 +1,282 @@
+//! Bounded HTTP/1.1 response-body decoding state.
+
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+see ./values.nct
+see ./wire.nct
+
+enum BodyFraming {
+    bodyless
+    fixed(length: usize)
+    chunked
+    close_delimited
+}
+
+enum BodyState {
+    bodyless
+    fixed(remaining: usize)
+    close_delimited
+    chunk_size
+    chunk_data(remaining: usize)
+    chunk_data_end
+    trailers(bytes: usize, count: usize)
+    complete
+}
+
+struct BodyDecoder {
+    state: BodyState
+    decoded_bytes: usize
+    limits: Limits
+}
+
+copy struct BodyProgress {
+    consumed: usize
+    written: usize
+    complete: bool
+}
+
+noalloc func body_decoder(framing: BodyFraming, limits: Limits): BodyDecoder {
+    let state = match move framing {
+        BodyFraming.bodyless { BodyState.bodyless }
+        BodyFraming.fixed(length) { BodyState.fixed(length) }
+        BodyFraming.chunked { BodyState.chunk_size }
+        BodyFraming.close_delimited { BodyState.close_delimited }
+    }
+    return BodyDecoder {
+        state: move state,
+        decoded_bytes: 0,
+        limits: limits,
+    }
+}
+
+noalloc func copy_body_bytes(
+    input: &[u8],
+    input_start: usize,
+    available: usize,
+    output: &+[u8],
+    output_start: usize,
+): usize {
+    var count = available
+    if count > output.len() - output_start { count = output.len() - output_start }
+    var offset: usize = 0
+    while offset < count {
+        output[output_start + offset] = input[input_start + offset]
+        offset += 1
+    }
+    return count
+}
+
+noalloc func valid_chunk_extensions(bytes: &[u8], start: usize, end: usize): bool {
+    var offset = start
+    while offset < end {
+        while offset < end && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        if offset == end || bytes[offset] != 59 { return false }
+        offset += 1
+        while offset < end && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        let name_start = offset
+        while offset < end && is_token_byte(bytes[offset]) { offset += 1 }
+        if offset == name_start { return false }
+        while offset < end && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        if offset < end && bytes[offset] == 61 {
+            offset += 1
+            while offset < end && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+            if offset == end { return false }
+            if bytes[offset] == 34 {
+                offset += 1
+                var closed = false
+                while offset < end {
+                    let value = bytes[offset]
+                    if value == 34 {
+                        closed = true
+                        offset += 1
+                        break
+                    }
+                    if value == 92 {
+                        offset += 1
+                        if offset == end { return false }
+                        let quoted = bytes[offset]
+                        if quoted == 10 || quoted == 13 || quoted == 127 { return false }
+                    } else if value == 10 || value == 13 || value == 127 || (value < 32 && value != 9) {
+                        return false
+                    }
+                    offset += 1
+                }
+                if !closed { return false }
+            } else {
+                let value_start = offset
+                while offset < end && is_token_byte(bytes[offset]) { offset += 1 }
+                if offset == value_start { return false }
+            }
+            while offset < end && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        }
+    }
+    return true
+}
+
+noalloc func parse_hex_size(bytes: &[u8], start: usize, end: usize): usize? {
+    var significant_end = start
+    while significant_end < end && bytes[significant_end] != 59 {
+        significant_end += 1
+    }
+    var trimmed_end = significant_end
+    while trimmed_end > start && (bytes[trimmed_end - 1] == 32 || bytes[trimmed_end - 1] == 9) {
+        trimmed_end -= 1
+    }
+    if trimmed_end == start { return none }
+    var value: usize = 0
+    var offset = start
+    while offset < trimmed_end {
+        let byte = bytes[offset]
+        var digit: usize = 0
+        if byte >= 48 && byte <= 57 {
+            digit = (byte - 48) as usize
+        } else if byte >= 65 && byte <= 70 {
+            digit = (byte - 65 + 10) as usize
+        } else if byte >= 97 && byte <= 102 {
+            digit = (byte - 97 + 10) as usize
+        } else {
+            return none
+        }
+        if value > (18446744073709551615 - digit) / 16 { return none }
+        value = value * 16 + digit
+        offset += 1
+    }
+    if significant_end == end && trimmed_end != end { return none }
+    if significant_end < end && !valid_chunk_extensions(bytes, significant_end, end) { return none }
+    return value
+}
+
+noalloc func decode_body(
+    decoder: &+BodyDecoder,
+    input: &[u8],
+    output: &+[u8],
+    eof: bool,
+): BodyProgress! {
+    var consumed: usize = 0
+    var written: usize = 0
+    loop {
+        let next = match decoder.state {
+            BodyState.bodyless { BodyState.complete }
+            BodyState.complete {
+                return BodyProgress { consumed: consumed, written: written, complete: true }
+            }
+            BodyState.fixed(remaining) {
+                if remaining == 0 { BodyState.complete } else {
+                    var available = input.len() - consumed
+                    if available > remaining { available = remaining }
+                    let copied = copy_body_bytes(input, consumed, available, output, written)
+                    consumed += copied
+                    written += copied
+                    decoder.decoded_bytes += copied
+                    let retained = remaining - copied
+                    if retained == 0 { BodyState.complete } else {
+                        if copied == 0 {
+                            if eof { return premature_eof() }
+                            return BodyProgress { consumed: consumed, written: written, complete: false }
+                        }
+                        BodyState.fixed(retained)
+                    }
+                }
+            }
+            BodyState.close_delimited {
+                let available = input.len() - consumed
+                let remaining_limit = decoder.limits.body_bytes - decoder.decoded_bytes
+                if available > remaining_limit { return body_limit() }
+                let copied = copy_body_bytes(input, consumed, available, output, written)
+                consumed += copied
+                written += copied
+                decoder.decoded_bytes += copied
+                if eof && consumed == input.len() { BodyState.complete } else {
+                    return BodyProgress { consumed: consumed, written: written, complete: false }
+                }
+            }
+            BodyState.chunk_size {
+                let end = match scan_line(input, consumed, decoder.limits.chunk_line_bytes) {
+                    LineScan.incomplete {
+                        if eof { return premature_eof() }
+                        return BodyProgress { consumed: consumed, written: written, complete: false }
+                    }
+                    LineScan.ready(value) { value }
+                    LineScan.malformed { return invalid_syntax() }
+                    LineScan.too_long { return syntax_limit() }
+                }
+                let size = parse_hex_size(input, consumed, end) otherwise { return invalid_syntax() }
+                consumed = end + 2
+                if size == 0 { BodyState.trailers(0, 0) } else {
+                    if size > decoder.limits.body_bytes - decoder.decoded_bytes {
+                        return body_limit()
+                    }
+                    BodyState.chunk_data(size)
+                }
+            }
+            BodyState.chunk_data(remaining) {
+                var available = input.len() - consumed
+                if available > remaining { available = remaining }
+                let copied = copy_body_bytes(input, consumed, available, output, written)
+                consumed += copied
+                written += copied
+                decoder.decoded_bytes += copied
+                let retained = remaining - copied
+                if retained == 0 { BodyState.chunk_data_end } else {
+                    if copied == 0 {
+                        if eof { return premature_eof() }
+                        return BodyProgress { consumed: consumed, written: written, complete: false }
+                    }
+                    BodyState.chunk_data(retained)
+                }
+            }
+            BodyState.chunk_data_end {
+                if input.len() - consumed < 2 {
+                    if eof { return premature_eof() }
+                    return BodyProgress { consumed: consumed, written: written, complete: false }
+                }
+                if input[consumed] != 13 || input[consumed + 1] != 10 { return invalid_syntax() }
+                consumed += 2
+                BodyState.chunk_size
+            }
+            BodyState.trailers(bytes, count) {
+                let end = match scan_line(input, consumed, decoder.limits.field_bytes) {
+                    LineScan.incomplete {
+                        if eof { return premature_eof() }
+                        return BodyProgress { consumed: consumed, written: written, complete: false }
+                    }
+                    LineScan.ready(value) { value }
+                    LineScan.malformed { return invalid_syntax() }
+                    LineScan.too_long { return syntax_limit() }
+                }
+                let line_bytes = end + 2 - consumed
+                if line_bytes > decoder.limits.header_bytes
+                    || bytes > decoder.limits.header_bytes - line_bytes {
+                    return syntax_limit()
+                }
+                if end == consumed {
+                    consumed += 2
+                    BodyState.complete
+                } else {
+                    if count == decoder.limits.header_count { return syntax_limit() }
+                    var colon = consumed
+                    while colon < end && input[colon] != 58 { colon += 1 }
+                    if colon == end || colon == consumed { return invalid_syntax() }
+                    var name_offset = consumed
+                    while name_offset < colon {
+                        if !is_token_byte(input[name_offset]) { return invalid_syntax() }
+                        name_offset += 1
+                    }
+                    if range_ascii_equal(input, consumed, colon, "content-length")
+                        || range_ascii_equal(input, consumed, colon, "transfer-encoding") {
+                        return ambiguous_framing()
+                    }
+                    var value_offset = colon + 1
+                    while value_offset < end {
+                        if !valid_header_value_byte(input[value_offset]) { return invalid_syntax() }
+                        value_offset += 1
+                    }
+                    consumed = end + 2
+                    BodyState.trailers(bytes + line_bytes, count + 1)
+                }
+            }
+        }
+        decoder.state = move next
+    }
+}

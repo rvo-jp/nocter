@@ -1,0 +1,214 @@
+//! Transport-independent HTTP/1.1 response-head and framing authority.
+
+see ./body.nct
+see ./errors.nct
+see ./index.nct
+see ./storage.nct
+see ./values.nct
+see ./wire.nct
+
+enum DecimalList {
+    valid(value: usize)
+    invalid
+}
+
+enum ResponseHeadAttempt {
+    incomplete
+    ready(parsed: ParsedResponseHead)
+    failed(failure: error)
+}
+
+struct ParsedResponseHead {
+    head: ResponseHead
+    decoder: BodyDecoder
+    consumed: usize
+}
+
+noalloc func parse_decimal_list(bytes: &[u8]): DecimalList {
+    var offset: usize = 0
+    var selected: usize = 0
+    var has_selected = false
+    loop {
+        while offset < bytes.len() && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        if offset == bytes.len() { return DecimalList.invalid }
+        var value: usize = 0
+        var digits: usize = 0
+        while offset < bytes.len() && bytes[offset] >= 48 && bytes[offset] <= 57 {
+            let digit = (bytes[offset] - 48) as usize
+            if value > (18446744073709551615 - digit) / 10 { return DecimalList.invalid }
+            value = value * 10 + digit
+            digits += 1
+            offset += 1
+        }
+        if digits == 0 { return DecimalList.invalid }
+        while offset < bytes.len() && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        if has_selected && selected != value { return DecimalList.invalid }
+        selected = value
+        has_selected = true
+        if offset == bytes.len() { return DecimalList.valid(selected) }
+        if bytes[offset] != 44 { return DecimalList.invalid }
+        offset += 1
+    }
+}
+
+noalloc func transfer_coding_kind(bytes: &[u8]): u8 {
+    var offset: usize = 0
+    var count: usize = 0
+    loop {
+        while offset < bytes.len() && (bytes[offset] == 32 || bytes[offset] == 9) { offset += 1 }
+        if offset == bytes.len() { return 2 }
+        let start = offset
+        while offset < bytes.len() && bytes[offset] != 44 {
+            if bytes[offset] == 59 { return 1 }
+            offset += 1
+        }
+        var end = offset
+        while end > start && (bytes[end - 1] == 32 || bytes[end - 1] == 9) { end -= 1 }
+        if !range_ascii_equal(bytes, start, end, "chunked") { return 1 }
+        count += 1
+        if count != 1 { return 2 }
+        if offset == bytes.len() { return 0 }
+        offset += 1
+    }
+}
+
+noalloc func bodyless_response(request_method: &Method, status: Status): bool {
+    let code = status.code()
+    return ascii_case_equal(request_method.text(), "HEAD")
+        || (code >= 100 && code < 200)
+        || code == 204
+        || code == 304
+}
+
+func parse_response_head(
+    input: &[u8],
+    request_method: &Method,
+    limits: Limits,
+): ResponseHeadAttempt {
+    let status_end = match scan_line(input, 0, limits.start_line_bytes) {
+        LineScan.incomplete { return ResponseHeadAttempt.incomplete }
+        LineScan.ready(end) { end }
+        LineScan.malformed { return ResponseHeadAttempt.failed(invalid_syntax()) }
+        LineScan.too_long { return ResponseHeadAttempt.failed(syntax_limit()) }
+    }
+    if status_end < 13
+        || input[0] != 72
+        || input[1] != 84
+        || input[2] != 84
+        || input[3] != 80
+        || input[4] != 47
+        || input[5] != 49
+        || input[6] != 46
+        || input[7] != 49
+        || input[8] != 32
+        || input[9] < 48
+        || input[9] > 57
+        || input[10] < 48
+        || input[10] > 57
+        || input[11] < 48
+        || input[11] > 57
+        || input[12] != 32 {
+        return ResponseHeadAttempt.failed(invalid_syntax())
+    }
+    var reason_offset: usize = 13
+    while reason_offset < status_end {
+        if !valid_header_value_byte(input[reason_offset]) {
+            return ResponseHeadAttempt.failed(invalid_syntax())
+        }
+        reason_offset += 1
+    }
+    let status_code = ((input[9] - 48) as u16) * 100
+        + ((input[10] - 48) as u16) * 10
+        + ((input[11] - 48) as u16)
+    let status = Status.new(status_code) catch failure {
+        return ResponseHeadAttempt.failed(move failure)
+    }
+
+    var headers = Headers.empty()
+    var cursor = status_end + 2
+    var content_length: usize = 0
+    var has_content_length = false
+    var has_transfer_encoding = false
+    var transfer_kind: u8 = 0
+    while true {
+        let line_end = match scan_line(input, cursor, limits.field_bytes) {
+            LineScan.incomplete {
+                if input.len() > limits.header_bytes {
+                    return ResponseHeadAttempt.failed(syntax_limit())
+                }
+                return ResponseHeadAttempt.incomplete
+            }
+            LineScan.ready(end) { end }
+            LineScan.malformed { return ResponseHeadAttempt.failed(invalid_syntax()) }
+            LineScan.too_long { return ResponseHeadAttempt.failed(syntax_limit()) }
+        }
+        if line_end + 2 > limits.header_bytes {
+            return ResponseHeadAttempt.failed(syntax_limit())
+        }
+        if line_end == cursor {
+            cursor += 2
+            break
+        }
+        if headers.len() == limits.header_count {
+            return ResponseHeadAttempt.failed(syntax_limit())
+        }
+        var colon = cursor
+        while colon < line_end && input[colon] != 58 { colon += 1 }
+        if colon == line_end { return ResponseHeadAttempt.failed(invalid_syntax()) }
+        let name = header_name_from_range(input, cursor, colon) catch failure {
+            return ResponseHeadAttempt.failed(move failure)
+        }
+        let value = header_value_from_range(input, colon + 1, line_end) catch failure {
+            return ResponseHeadAttempt.failed(move failure)
+        }
+        if name.text() == "content-length" {
+            let parsed = parse_decimal_list(value.bytes())
+            let length = match parsed {
+                DecimalList.valid(number) { number }
+                DecimalList.invalid {
+                    return ResponseHeadAttempt.failed(ambiguous_framing())
+                }
+            }
+            if has_content_length && content_length != length {
+                return ResponseHeadAttempt.failed(ambiguous_framing())
+            }
+            content_length = length
+            has_content_length = true
+        }
+        if name.text() == "transfer-encoding" {
+            if has_transfer_encoding {
+                return ResponseHeadAttempt.failed(ambiguous_framing())
+            }
+            transfer_kind = transfer_coding_kind(value.bytes())
+            has_transfer_encoding = true
+        }
+        headers.append(Header.new(move name, move value))
+        cursor = line_end + 2
+    }
+
+    if has_transfer_encoding && has_content_length {
+        return ResponseHeadAttempt.failed(ambiguous_framing())
+    }
+    if has_transfer_encoding && transfer_kind == 1 {
+        return ResponseHeadAttempt.failed(unsupported_transfer_coding())
+    }
+    if has_transfer_encoding && transfer_kind != 0 {
+        return ResponseHeadAttempt.failed(ambiguous_framing())
+    }
+    var framing = BodyFraming.close_delimited
+    if bodyless_response(request_method, status) {
+        framing = BodyFraming.bodyless
+    } else if has_transfer_encoding {
+        framing = BodyFraming.chunked
+    } else if has_content_length {
+        if content_length > limits.body_bytes {
+            return ResponseHeadAttempt.failed(body_limit())
+        }
+        framing = BodyFraming.fixed(content_length)
+    }
+    return ResponseHeadAttempt.ready(ParsedResponseHead {
+        head: response_head_from_parts(status, move headers),
+        decoder: body_decoder(move framing, limits),
+        consumed: cursor,
+    })
+}
