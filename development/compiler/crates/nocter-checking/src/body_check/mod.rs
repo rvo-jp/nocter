@@ -20,6 +20,8 @@ mod arithmetic_tests;
 #[cfg(test)]
 mod assignment_tests;
 #[cfg(test)]
+mod asynchronous_tests;
+#[cfg(test)]
 mod binding_tests;
 #[cfg(test)]
 mod call_tests;

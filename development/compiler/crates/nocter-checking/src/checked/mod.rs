@@ -1,4 +1,5 @@
 mod argument_pack;
+mod asynchronous;
 mod body;
 mod builder;
 mod cleanup;
@@ -13,6 +14,7 @@ mod rebind;
 mod selection;
 
 pub use argument_pack::{ArgumentPackSegment, CheckedArgumentPack, SpreadMode};
+pub use asynchronous::{CheckedAwait, CheckedCallExecution};
 pub(crate) use body::CheckedBodyRecipe;
 pub use body::{CheckedBody, CheckedCapture, CheckedLocal};
 pub use builder::BuildCheckedBodyError;

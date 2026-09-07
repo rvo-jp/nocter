@@ -35,6 +35,26 @@ pub enum CallableOwner {
     Interface(InterfaceId),
 }
 
+/// Execution mode fixed once from a callable's normalized declaration result.
+///
+/// A deferred body produces `output`; invocation itself produces the declaration's outer
+/// `async output` value. Concrete generic substitution never changes this fact.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum CallableExecution {
+    Immediate,
+    Deferred { output: TypeId },
+}
+
+impl CallableExecution {
+    #[must_use]
+    pub const fn body_result(self, declared_result: TypeId) -> TypeId {
+        match self {
+            Self::Immediate => declared_result,
+            Self::Deferred { output } => output,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ProvenanceOrigin {
     Receiver,
@@ -161,6 +181,7 @@ pub struct CallableDeclaration {
     generic_parameters: Box<[GenericParameterId]>,
     parameters: Box<[ParameterId]>,
     result: TypeId,
+    execution: CallableExecution,
     guarantees: nocter_model::CallableGuarantees,
     provenance: CallableProvenanceContract,
     provenance_annotation: ProvenanceAnnotation,
@@ -181,6 +202,7 @@ impl CallableDeclaration {
         generic_parameters: impl Into<Box<[GenericParameterId]>>,
         parameters: impl Into<Box<[ParameterId]>>,
         result: TypeId,
+        execution: CallableExecution,
         guarantees: nocter_model::CallableGuarantees,
         provenance: CallableProvenanceContract,
         provenance_annotation: ProvenanceAnnotation,
@@ -197,6 +219,7 @@ impl CallableDeclaration {
             generic_parameters: generic_parameters.into(),
             parameters: parameters.into(),
             result,
+            execution,
             guarantees,
             provenance,
             provenance_annotation,
@@ -244,6 +267,11 @@ impl CallableDeclaration {
     #[must_use]
     pub const fn result(&self) -> TypeId {
         self.result
+    }
+
+    #[must_use]
+    pub const fn execution(&self) -> CallableExecution {
+        self.execution
     }
 
     #[must_use]

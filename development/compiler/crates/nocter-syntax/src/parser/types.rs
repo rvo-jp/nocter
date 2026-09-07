@@ -281,6 +281,7 @@ fn callable_parameter(parser: &mut Parser<'_>) {
 
 fn type_atom(parser: &mut Parser<'_>) {
     match parser.current_kind() {
+        TokenKind::Keyword(Keyword::Async) => async_type(parser),
         TokenKind::Identifier | TokenKind::Keyword(Keyword::Void | Keyword::Never) => {
             named_type(parser);
         }
@@ -288,6 +289,19 @@ fn type_atom(parser: &mut Parser<'_>) {
         TokenKind::Punctuation(Punctuation::LeftParen) => grouped_type(parser),
         _ => parser.error_token(ExpectedSyntax::Type),
     }
+}
+
+fn async_type(parser: &mut Parser<'_>) {
+    let marker = parser.start();
+    parser.bump();
+    if !parser.enter_nesting() {
+        parser.error_token(ExpectedSyntax::Type);
+        parser.complete(marker, NodeKind::AsyncType);
+        return;
+    }
+    type_(parser);
+    parser.leave_nesting();
+    parser.complete(marker, NodeKind::AsyncType);
 }
 
 fn named_type(parser: &mut Parser<'_>) -> CompletedMarker {

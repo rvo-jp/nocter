@@ -12,6 +12,7 @@ pub(crate) fn visit_type_children(kind: &TypeKind, mut visit: impl FnMut(TypeId)
         TypeKind::AssociatedProjection { base, .. }
         | TypeKind::Pointer(base)
         | TypeKind::Borrow { referent: base, .. }
+        | TypeKind::Async(base)
         | TypeKind::Slice(base)
         | TypeKind::FixedArray { element: base, .. }
         | TypeKind::Optional(base)
@@ -87,6 +88,7 @@ where
             capability,
             referent: map(referent)?,
         },
+        TypeKind::Async(output) => TypeKind::Async(map(output)?),
         TypeKind::Slice(element) => TypeKind::Slice(map(element)?),
         TypeKind::FixedArray { element, length } => TypeKind::FixedArray {
             element: map(element)?,

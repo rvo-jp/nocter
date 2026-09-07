@@ -1,5 +1,7 @@
-use nocter_declarations::{CallableDeclaration, CallableKind, CallableOwner, LiteralShape};
-use nocter_model::CallableId;
+use nocter_declarations::{
+    CallableDeclaration, CallableExecution, CallableKind, CallableOwner, LiteralShape,
+};
+use nocter_model::{CallableId, TypeKind};
 use nocter_syntax::{NodeKind, Punctuation, StringDelimiter, TokenKind};
 
 use crate::{PreparedTypes, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
@@ -31,13 +33,28 @@ pub(super) fn define(
         .copied()
         .flatten()
         .ok_or(HeaderDefinitionError::MissingCallableResult(declaration))?;
+    let execution = match types
+        .namespaces
+        .imports
+        .generics
+        .headers
+        .reserved
+        .program
+        .types()
+        .get(result)
+    {
+        Some(TypeKind::Async(output)) => CallableExecution::Deferred { output: *output },
+        Some(_) => CallableExecution::Immediate,
+        None => return Err(HeaderDefinitionError::MissingCallableResult(declaration)),
+    };
+    let body_result = execution.body_result(result);
     let (contract, provenance_annotation) = provenance::contract(
         types,
         declaration,
         kind,
         allocated.receivers[declaration.index()],
         &allocated.parameters[declaration.index()],
-        result,
+        body_result,
         allocated.bodies[declaration.index()],
     )?;
     let definition = CallableDeclaration::new(
@@ -49,6 +66,7 @@ pub(super) fn define(
         own_generics(types, declaration),
         allocated.parameters[declaration.index()].clone(),
         result,
+        execution,
         callable_guarantees(types, declaration)?,
         contract,
         provenance_annotation,

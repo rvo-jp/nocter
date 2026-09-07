@@ -302,6 +302,7 @@ impl<'program> DependencyCollector<'program> {
                     self.record_selection(selection);
                 }
             }
+            CheckedOperation::Await(await_) => self.visit_node(await_.computation())?,
             CheckedOperation::CallableGuaranteeErasure(value) => self.visit_node(*value)?,
             CheckedOperation::OpaqueWitness(witness) => {
                 self.visit_node(witness.value())?;

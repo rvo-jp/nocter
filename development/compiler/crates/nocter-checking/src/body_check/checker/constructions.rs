@@ -414,6 +414,7 @@ impl BodyChecker<'_, '_> {
             DeclaredCallGenerics::with_fixed(&inference_parameters, &fixed_arguments),
             result_context,
         )?;
+        let execution = self.declared_call_execution(&callable, plan.result)?;
         if !self.construction_target_requirements_hold(
             construction_declaration.target(),
             &plan.generic_arguments,
@@ -429,6 +430,7 @@ impl BodyChecker<'_, '_> {
                     StaticDispatch::Direct(callable_id),
                     plan.generic_arguments,
                 )),
+                execution,
                 None,
                 plan.arguments,
                 plan.pack,

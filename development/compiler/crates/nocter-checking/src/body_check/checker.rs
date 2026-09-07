@@ -14,7 +14,9 @@ use nocter_syntax::{
     decode_byte_literal, decode_character_literal,
 };
 
-use super::context::{BodyProgramFacts, body_generic_domain, body_result_type, body_source_access};
+use super::context::{
+    BodyExecution, BodyProgramFacts, body_contract, body_generic_domain, body_source_access,
+};
 use super::diagnostic::BodyRule;
 use super::error::{BodyCheckError, BodyCheckInternalError, BodyConstructionFailure};
 use super::literal::{fits_integer, integer_type, parse_integer};
@@ -36,6 +38,7 @@ mod allocation;
 mod argument_pack;
 mod arithmetic;
 mod assignment;
+mod asynchronous;
 mod call_planning;
 mod callable_values;
 mod calls;
@@ -150,6 +153,7 @@ pub(super) struct BodyChecker<'input, 'syntax> {
     local_declarations: HashMap<SyntaxOrigin, LocalBindingId>,
     capture_declarations: HashMap<SyntaxOrigin, CaptureId>,
     result_type: TypeId,
+    execution: BodyExecution,
     projections: Vec<NodeProjection>,
     node_origins: HashMap<BodyNodeId, SourceOrigin>,
     loops: Vec<LoopConstruction>,
@@ -259,7 +263,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 return Err(BodyCheckInternalError::DuplicateCaptureDeclaration(origin).into());
             }
         }
-        let result_type = body_result_type(graph, types, source)?;
+        let contract = body_contract(graph, types, source)?;
+        let result_type = contract.result;
         let closure_type_arguments = body_generic_domain(graph, source)?
             .iter()
             .map(|parameter| {
@@ -297,6 +302,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             local_declarations,
             capture_declarations,
             result_type,
+            execution: contract.execution,
             projections: Vec::new(),
             node_origins: HashMap::new(),
             loops: Vec::new(),
@@ -783,6 +789,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                     return self.check_reference(current, expected);
                 }
                 NodeKind::MoveExpression => self.check_move(current)?,
+                NodeKind::AwaitExpression => return self.check_await(current, expected),
                 NodeKind::ConversionExpression => {
                     return self.check_conversion(current, expected);
                 }
@@ -1110,16 +1117,31 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         if self.is_region_place(place.id)? {
             return Err(self.rule(BodyRule::InvalidMoveSource, node)?);
         }
+        self.consume_owned_place(
+            node,
+            place,
+            BodyRule::MoveCopyValue,
+            BodyRule::InvalidMoveSource,
+        )
+    }
+
+    fn consume_owned_place(
+        &mut self,
+        node: NodeId,
+        place: ResolvedPlace,
+        copy_source: BodyRule,
+        invalid_source: BodyRule,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         match self.classify_copyability(place.ty)? {
             Copyability::Copy => {
-                return Err(self.rule(BodyRule::MoveCopyValue, node)?);
+                return Err(self.rule(copy_source, node)?);
             }
             Copyability::MoveOnly => {}
         }
         if place.access != PlaceAccess::Owned
             || matches!(self.types.get(place.ty), Some(TypeKind::Borrow { .. }))
         {
-            return Err(self.rule(BodyRule::InvalidMoveSource, node)?);
+            return Err(self.rule(invalid_source, node)?);
         }
         for parent in place.partial_parents.iter().rev() {
             if let Some(drop) = self.drops.get(*parent) {

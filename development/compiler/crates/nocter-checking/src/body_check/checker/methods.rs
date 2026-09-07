@@ -155,6 +155,7 @@ impl BodyChecker<'_, '_> {
             ),
             result_context,
         )?;
+        let execution = self.declared_call_execution(&callable, plan.result)?;
         self.project_method_member(member_token, selected.surface())?;
         let call = self.add_node(
             node,
@@ -164,6 +165,7 @@ impl BodyChecker<'_, '_> {
                     selected.dispatch(),
                     plan.generic_arguments,
                 )),
+                execution,
                 Some(receiver),
                 plan.arguments,
                 plan.pack,

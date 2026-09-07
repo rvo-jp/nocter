@@ -16,7 +16,7 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "use dep\ntype Projection<T> = &dep.Buffer<T>.Item?!\n",
+        "use dep\ntype Projection<T> = async &dep.Buffer<T>.Item?!\n",
     );
     let dep_id = add_source(&mut sources, "/dep/index.nct", "pub struct Buffer<T> {}\n");
     let std_root_id = add_source(
@@ -58,7 +58,10 @@ fn binds_qualified_generic_and_associated_type_shapes_before_normalization() {
     )
     .unwrap();
     let root = bound.type_for(first_node(&app, NodeKind::Type)).unwrap();
-    let BoundTypeKind::Fallible(optional) = bound.kind(root).unwrap() else {
+    let BoundTypeKind::Async(fallible) = bound.kind(root).unwrap() else {
+        panic!("expected outer async type");
+    };
+    let BoundTypeKind::Fallible(optional) = bound.kind(*fallible).unwrap() else {
         panic!("expected outer fallible type");
     };
     let BoundTypeKind::Optional(borrowed) = bound.kind(*optional).unwrap() else {

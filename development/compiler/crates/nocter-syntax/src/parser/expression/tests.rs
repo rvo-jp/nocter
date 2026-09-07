@@ -81,6 +81,17 @@ fn parses_precedence_conversion_and_outcome_layers() {
 }
 
 #[test]
+fn parses_await_before_outer_outcome_propagation() {
+    let tree = parse_module(
+        "func resolve(first: async i32!, nested: async async i32): async i32! {\n    let value = await first?\n    await await nested\n}\n",
+    );
+    assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
+    assert_eq!(count_nodes(&tree, NodeKind::AwaitExpression), 3);
+    assert_eq!(count_nodes(&tree, NodeKind::OutcomeExpression), 1);
+    assert_token_projection(&tree);
+}
+
+#[test]
 fn parses_structural_tuple_types_values_projections_and_local_patterns() {
     let tree = parse_module(
         "func pair(input: String): (String, usize) {\n    let pair: (String, usize) = (input, 1)\n    var (name, count) = move pair\n    let nested = (name, (count, true),)\n    nested.1.0\n}\n",

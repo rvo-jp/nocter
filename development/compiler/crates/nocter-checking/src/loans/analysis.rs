@@ -166,10 +166,68 @@ impl<'program> Analyzer<'program> {
                 definition.body()
             });
         self.evaluate(root, &mut state, &BTreeSet::new())?;
+        self.validate_suspensions()?;
         Ok(RootLoanAnalysis {
             loans: self.loans,
             live_before: self.live_before,
         })
+    }
+
+    fn validate_suspensions(&self) -> Result<(), BodyRelationError> {
+        let mut suspensions = self
+            .live_before
+            .iter()
+            .filter(|(node, _)| {
+                matches!(
+                    self.input
+                        .body()
+                        .nodes()
+                        .get(**node)
+                        .map(crate::CheckedNode::operation),
+                    Some(CheckedOperation::Await(_))
+                )
+            })
+            .collect::<Vec<_>>();
+        suspensions.sort_unstable_by_key(|(node, _)| **node);
+        for (node, live) in suspensions {
+            if live.iter().copied().any(|loan| {
+                self.loan_reaches_frame_storage(loan, &mut BTreeSet::new())
+                    .unwrap_or(true)
+            }) {
+                return Err(self
+                    .input
+                    .reject(crate::BodyRule::BorrowAcrossSuspension, *node));
+            }
+        }
+        Ok(())
+    }
+
+    fn loan_reaches_frame_storage(
+        &self,
+        loan: LoanId,
+        visiting: &mut BTreeSet<LoanId>,
+    ) -> Option<bool> {
+        if !visiting.insert(loan) {
+            return Some(false);
+        }
+        let definition = self.loans.get(&loan)?;
+        let direct = definition.places().iter().any(|place| {
+            matches!(
+                place.root(),
+                LoanRoot::Place(
+                    PlaceRoot::Parameter(_)
+                        | PlaceRoot::Local(_)
+                        | PlaceRoot::Capture(_)
+                        | PlaceRoot::Value(_)
+                )
+            )
+        });
+        let inherited = definition.parents().iter().copied().any(|parent| {
+            self.loan_reaches_frame_storage(parent, visiting)
+                .unwrap_or(true)
+        });
+        visiting.remove(&loan);
+        Some(direct || inherited)
     }
 
     fn initial_state(&mut self) -> Result<LoanState, BodyCheckInternalError> {
@@ -340,6 +398,14 @@ impl<'program> Analyzer<'program> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.evaluate(conversion.value(), state, extra_active)?
             }
+            CheckedOperation::Await(await_) => {
+                let (computation, reaches) =
+                    self.evaluate(await_.computation(), state, extra_active)?;
+                (
+                    computation.projected(crate::ProvenanceProjection::AsyncOutput),
+                    reaches,
+                )
+            }
             CheckedOperation::CallableGuaranteeErasure(value) => {
                 self.evaluate(value, state, extra_active)?
             }
@@ -433,7 +499,7 @@ impl<'program> Analyzer<'program> {
             crate::IterationAcquisition::Direct => source.into_carried(),
             crate::IterationAcquisition::Expansion(selection) => match selection.dispatch() {
                 crate::StaticDispatch::Direct(callable) => {
-                    self.map_callable_result(callable, Some(&source), &[])?
+                    self.map_callable_result(callable, Some(&source), &[], None)?
                 }
                 crate::StaticDispatch::StructuralRequirement { evidence } => {
                     if !matches!(

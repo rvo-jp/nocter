@@ -250,7 +250,17 @@ fn move_expression(parser: &mut Parser<'_>, mode: ExpressionMode) -> CompletedMa
 }
 
 fn outcome(parser: &mut Parser<'_>, mode: ExpressionMode) -> CompletedMarker {
-    let inner = postfix(parser, mode);
+    let mut await_markers = Vec::new();
+    while parser.at_keyword(Keyword::Await) {
+        let marker = parser.start();
+        parser.bump();
+        newline::after_incomplete(parser, mode.newline_boundary());
+        await_markers.push(marker);
+    }
+    let mut inner = postfix(parser, mode);
+    for marker in await_markers.into_iter().rev() {
+        inner = parser.complete(marker, NodeKind::AwaitExpression);
+    }
     if parser.at_punctuation(Punctuation::Question) || parser.at_punctuation(Punctuation::Bang) {
         let marker = parser.precede(inner);
         parser.bump();

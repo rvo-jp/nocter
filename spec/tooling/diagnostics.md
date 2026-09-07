@@ -279,6 +279,10 @@ Source-backed normalized type-position diagnostics:
   declaration's owner interface.
 - `E0368`: a concrete associated projection admits more than one application of the associated
   declaration's owner interface.
+- `E0369`: a declaration other than a function or method attempts to define an asynchronous
+  computation body.
+- `E0374`: an asynchronous producer promises `noalloc` even though creating its owning computation
+  requires storage.
 
 These rules apply after alias expansion and concrete generic substitution. A type alias may directly
 name `void`, `never`, `str`, or `[T]`; the position where that alias is used determines whether the
@@ -354,6 +358,9 @@ Source-backed checked-body diagnostics:
   selected position is outside the tuple's arity.
 - `E0414`: a finite floating-point literal rounds to infinity, or a nonzero literal rounds to zero,
   in its selected `f32` or `f64` type.
+- `E0415`: `await` appears outside a deferred function or method body.
+- `E0416`: `await` does not consume an owned `async T` value.
+- `E0417`: a loan into async-frame-owned storage remains live across `await`.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

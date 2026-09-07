@@ -361,6 +361,7 @@ fn method_provenance_can_name_the_receiver_without_forging_a_parameter_position(
                 [],
                 [],
                 result,
+                crate::CallableExecution::Immediate,
                 nocter_model::CallableGuarantees::default(),
                 CallableProvenanceContract::declared(
                     CallableProvenance::from_origins([ProvenanceOrigin::Receiver]).unwrap(),
@@ -576,6 +577,7 @@ fn define_nonempty_generic_construction(
                 [],
                 [],
                 target,
+                crate::CallableExecution::Immediate,
                 nocter_model::CallableGuarantees::default(),
                 CallableProvenanceContract::inferred(),
                 crate::ProvenanceAnnotation::Elided,

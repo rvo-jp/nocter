@@ -11,6 +11,8 @@ pub enum TypeValidityRule {
     UnsizedData,
     UnavailableAssociatedProjection,
     AmbiguousAssociatedProjection,
+    InvalidAsyncCallableKind,
+    NoAllocationAsyncCallable,
 }
 
 impl TypeValidityRule {
@@ -23,6 +25,8 @@ impl TypeValidityRule {
         Self::UnsizedData,
         Self::UnavailableAssociatedProjection,
         Self::AmbiguousAssociatedProjection,
+        Self::InvalidAsyncCallableKind,
+        Self::NoAllocationAsyncCallable,
     ];
 
     #[must_use]
@@ -36,6 +40,8 @@ impl TypeValidityRule {
             Self::UnsizedData => DiagnosticCode::E0365,
             Self::UnavailableAssociatedProjection => DiagnosticCode::E0367,
             Self::AmbiguousAssociatedProjection => DiagnosticCode::E0368,
+            Self::InvalidAsyncCallableKind => DiagnosticCode::E0369,
+            Self::NoAllocationAsyncCallable => DiagnosticCode::E0374,
         }
     }
 
@@ -72,6 +78,14 @@ impl TypeValidityRule {
             Self::AmbiguousAssociatedProjection => (
                 "associated type selection has more than one applicable interface implementation",
                 "make the interface application unique or avoid selecting the associated type through this concrete base",
+            ),
+            Self::InvalidAsyncCallableKind => (
+                "this declaration kind cannot define an asynchronous computation",
+                "return `async T` only from a function or method declaration",
+            ),
+            Self::NoAllocationAsyncCallable => (
+                "an asynchronous producer cannot promise `noalloc`",
+                "remove `noalloc`; creating the owning computation requires storage",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, [], Some(help))

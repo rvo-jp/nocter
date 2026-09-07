@@ -357,6 +357,9 @@ impl ConcreteDispatchResolver<'_> {
             | TypeKind::Slice(_)
             | TypeKind::PackEntry { .. }
             | TypeKind::Callable(_) => None,
+            TypeKind::Async(_) => {
+                return Err(ConcreteDestructionError::SymbolicType(ty));
+            }
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => {

@@ -4,7 +4,7 @@ use crate::{
     BodySource, ConstructionSurfaceTable, DropTable, InstanceOperationTable,
     InterfaceImplementationTable, StandardSemanticTable,
 };
-use nocter_declarations::{BodyOwner, DeclarationGraph};
+use nocter_declarations::{BodyOwner, CallableExecution, DeclarationGraph};
 use nocter_frontend_bindings::{SourceAccessTable, SourceNamespaceTable};
 use nocter_model::{BuiltinType, GenericParameterId, TypeId, TypeKind};
 use nocter_source_index::DiagnosticOrigins;
@@ -25,21 +25,49 @@ pub(super) struct BodyProgramFacts<'program> {
     diagnostic_origins: DiagnosticOrigins<'program>,
 }
 
-pub(super) fn body_result_type(
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum BodyExecution {
+    Immediate,
+    Deferred,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct BodyContract {
+    pub(super) result: TypeId,
+    pub(super) execution: BodyExecution,
+}
+
+pub(super) fn body_contract(
     graph: &DeclarationGraph,
     types: &mut nocter_model::TypeTransaction,
     source: BodySource<'_>,
-) -> Result<TypeId, BodyCheckInternalError> {
+) -> Result<BodyContract, BodyCheckInternalError> {
     match source.owner() {
         BodyOwner::Callable(callable) => graph
             .declarations()
             .callables()
             .get(callable)
-            .map(nocter_declarations::CallableDeclaration::result)
+            .map(|declaration| {
+                let execution = match declaration.execution() {
+                    CallableExecution::Immediate => BodyExecution::Immediate,
+                    CallableExecution::Deferred { .. } => BodyExecution::Deferred,
+                };
+                BodyContract {
+                    result: declaration.execution().body_result(declaration.result()),
+                    execution,
+                }
+            })
             .ok_or(BodyCheckInternalError::BodyIdentityMismatch(source.body())),
-        BodyOwner::Drop(_) => Ok(types.builtin(BuiltinType::Void)),
+        BodyOwner::Drop(_) => Ok(BodyContract {
+            result: types.builtin(BuiltinType::Void),
+            execution: BodyExecution::Immediate,
+        }),
         BodyOwner::Test(_) => types
             .intern(TypeKind::Fallible(types.builtin(BuiltinType::Void)))
+            .map(|result| BodyContract {
+                result,
+                execution: BodyExecution::Immediate,
+            })
             .map_err(|_| BodyCheckInternalError::UnknownType(types.builtin(BuiltinType::Void))),
     }
 }

@@ -124,6 +124,9 @@ fn project_type(
             capability,
             referent: project_type(source, target, projected, referent)?,
         },
+        TypeKind::Async(output) => {
+            TypeKind::Async(project_type(source, target, projected, output)?)
+        }
         TypeKind::Slice(element) => {
             TypeKind::Slice(project_type(source, target, projected, element)?)
         }

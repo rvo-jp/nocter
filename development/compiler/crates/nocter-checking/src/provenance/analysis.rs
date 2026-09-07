@@ -677,6 +677,13 @@ impl<'program> Analyzer<'program> {
             CheckedOperation::BorrowConversion(conversion) => {
                 self.evaluate(conversion.value(), state)?
             }
+            CheckedOperation::Await(await_) => {
+                let (computation, reaches) = self.evaluate(await_.computation(), state)?;
+                (
+                    computation.projected(ProvenanceProjection::AsyncOutput),
+                    reaches,
+                )
+            }
             CheckedOperation::CallableGuaranteeErasure(value) => self.evaluate(value, state)?,
             CheckedOperation::OpaqueWitness(witness) => self.evaluate(witness.value(), state)?,
             CheckedOperation::Comparison(comparison) => {

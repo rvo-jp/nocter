@@ -13,6 +13,7 @@ pub enum TypePosition {
     TypeOperand,
     BorrowPointee,
     PointerPointee,
+    AsyncOutput,
 }
 
 /// One source-language type-position violation, independent of source projection.
@@ -112,6 +113,9 @@ pub fn validate_type(
             }
             TypeKind::Borrow { referent, .. } => {
                 pending.push((*referent, TypePosition::BorrowPointee));
+            }
+            TypeKind::Async(output) => {
+                pending.push((*output, TypePosition::AsyncOutput));
             }
             TypeKind::Slice(element) => {
                 if !permits_unsized(position) {
@@ -232,14 +236,17 @@ fn outcome_payload(types: &TypeStore, root: TypeId) -> Result<Outcome, TypeValid
 const fn permits_void(position: TypePosition) -> bool {
     matches!(
         position,
-        TypePosition::CallableResult | TypePosition::TypeOperand | TypePosition::PointerPointee
+        TypePosition::CallableResult
+            | TypePosition::TypeOperand
+            | TypePosition::PointerPointee
+            | TypePosition::AsyncOutput
     )
 }
 
 const fn permits_never(position: TypePosition) -> bool {
     matches!(
         position,
-        TypePosition::CallableResult | TypePosition::TypeOperand
+        TypePosition::CallableResult | TypePosition::TypeOperand | TypePosition::AsyncOutput
     )
 }
 

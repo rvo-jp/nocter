@@ -48,6 +48,10 @@ pub enum ProvenanceProjection {
     Element,
     OutcomeValue,
     OutcomeFailure,
+    /// Storage retained only while a deferred computation remains pending.
+    AsyncCapture,
+    /// Storage carried by the value produced when a deferred computation completes.
+    AsyncOutput,
     ClosureCaptureValue(CaptureId),
     ClosureCaptureStorage(CaptureId),
 }

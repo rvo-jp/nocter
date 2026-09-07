@@ -151,7 +151,8 @@ impl<'program> DestructionEffectResolver<'program> {
         match kind {
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
-            | TypeKind::AssociatedProjection { .. } => *unknown = true,
+            | TypeKind::AssociatedProjection { .. }
+            | TypeKind::Async(_) => *unknown = true,
             TypeKind::Opaque {
                 definition,
                 arguments,

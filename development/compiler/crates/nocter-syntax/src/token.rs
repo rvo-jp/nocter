@@ -122,6 +122,8 @@ macro_rules! keywords {
 
 keywords! {
     As => "as",
+    Async => "async",
+    Await => "await",
     Break => "break",
     Catch => "catch",
     Continue => "continue",

@@ -375,6 +375,19 @@ fn recursive_delimiters_stop_at_the_declared_nesting_limit() {
 }
 
 #[test]
+fn recursive_async_types_stop_at_the_declared_nesting_limit() {
+    let source = format!("type TooDeep = {}i32\n", "async ".repeat(300));
+    let tree = parse_text(&source, ParseGoal::SourceFile);
+
+    assert!(
+        tree.diagnostics()
+            .iter()
+            .any(|diagnostic| { diagnostic.kind() == ParseDiagnosticKind::NestingLimit })
+    );
+    assert_complete_token_projection(&tree);
+}
+
+#[test]
 fn nested_type_arguments_are_parsed_once_per_level() {
     let source = format!("type Deep = {}T{}\n", "Outer<".repeat(128), ">".repeat(128));
 
@@ -384,7 +397,7 @@ fn nested_type_arguments_are_parsed_once_per_level() {
 #[test]
 fn parses_the_complete_type_atom_and_prefix_surface() {
     let tree = assert_syntax_ok(
-        "type Scalar = bool\ntype Signed = i64\ntype Text = str\ntype Failure = error\ntype Unit = void\ntype Bottom = never\ntype Projection<T> = &parser.Buffer<T>.Item?\ntype Slice<T> = [T]\ntype Array<T> = [T; 16]\ntype Group<T> = (*(&+T))\ntype Callback<T> = &+func(input: &T): &T from input\n",
+        "type Scalar = bool\ntype Signed = i64\ntype Text = str\ntype Failure = error\ntype Unit = void\ntype Bottom = never\ntype Projection<T> = &parser.Buffer<T>.Item?\ntype Slice<T> = [T]\ntype Array<T> = [T; 16]\ntype Group<T> = (*(&+T))\ntype Pending<T> = async T!\ntype BorrowedPending<T> = &async T\ntype Callback<T> = &+func(input: &T): &T from input\n",
         ParseGoal::SourceFile,
     );
 
@@ -392,6 +405,7 @@ fn parses_the_complete_type_atom_and_prefix_surface() {
         NodeKind::NamedType,
         NodeKind::BorrowType,
         NodeKind::PointerType,
+        NodeKind::AsyncType,
         NodeKind::SliceType,
         NodeKind::FixedArrayType,
         NodeKind::GroupedType,

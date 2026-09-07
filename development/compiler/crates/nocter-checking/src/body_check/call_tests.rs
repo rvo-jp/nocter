@@ -1,12 +1,13 @@
 use nocter_declaration_lowering::lower_compile_unit_declarations;
+use nocter_declarations::CallableExecution;
 use nocter_model::TypeKind;
 use nocter_source_index::{SemanticEntity, SourceRole};
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
 use crate::{
-    ArgumentPackSegment, CallTarget, CheckedOperation, CheckedOutcome, StaticDispatch,
-    prepare_program_checking,
+    ArgumentPackSegment, CallTarget, CheckedCallExecution, CheckedOperation, CheckedOutcome,
+    StaticDispatch, prepare_program_checking,
 };
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
@@ -21,6 +22,110 @@ fn check_fixture(fixture: &Fixture) -> Result<crate::CheckedProgramOutput, crate
     let prepared =
         prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
     check_prepared_program(&input, prepared)
+}
+
+#[test]
+fn deferred_callable_body_is_checked_against_the_async_output() {
+    let output = check(
+        "func produce(): async i32 { return 1 }\n\
+         func hold(): void { let pending = produce()\n    drop pending\n    return\n}\n",
+    )
+    .unwrap();
+    let callable = output
+        .program()
+        .graph()
+        .declarations()
+        .callables()
+        .iter()
+        .map(|(_, callable)| callable)
+        .find(|callable| matches!(callable.execution(), CallableExecution::Deferred { .. }))
+        .expect("deferred callable declaration");
+
+    let CallableExecution::Deferred {
+        output: body_result,
+    } = callable.execution()
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        output.program().types().get(callable.result()),
+        Some(&TypeKind::Async(body_result))
+    );
+    assert_eq!(
+        output.program().types().get(body_result),
+        Some(&TypeKind::Builtin(nocter_model::BuiltinType::I32))
+    );
+    let call_type = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .find_map(|(_, node)| {
+            matches!(node.operation(), CheckedOperation::Call(_)).then_some(node.ty())
+        })
+        .expect("call result type");
+    assert_eq!(call_type, callable.result());
+}
+
+#[test]
+fn declaration_execution_is_fixed_after_aliases_but_before_generic_substitution() {
+    let output = check(
+        "type Pending = async i32\n\
+         func by_alias(): Pending { return 1 }\n\
+         func identity<T>(value: T): T { return move value }\n\
+         func hold(): void {\n\
+             let first = by_alias()\n\
+             let second = identity(move first)\n\
+             drop second\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let executions = output
+        .program()
+        .graph()
+        .declarations()
+        .callables()
+        .iter()
+        .map(|(_, callable)| callable.execution())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        executions
+            .iter()
+            .filter(|execution| matches!(execution, CallableExecution::Deferred { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        executions
+            .iter()
+            .filter(|execution| matches!(execution, CallableExecution::Immediate))
+            .count(),
+        2
+    );
+    let call_executions = output
+        .program()
+        .bodies()
+        .iter()
+        .flat_map(|(_, body)| body.nodes().iter())
+        .filter_map(|(_, node)| match node.operation() {
+            CheckedOperation::Call(call) => Some(call.execution()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        call_executions,
+        [
+            CheckedCallExecution::Deferred {
+                output: output
+                    .program()
+                    .types()
+                    .builtin(nocter_model::BuiltinType::I32),
+            },
+            CheckedCallExecution::Immediate,
+        ]
+    );
 }
 
 #[test]

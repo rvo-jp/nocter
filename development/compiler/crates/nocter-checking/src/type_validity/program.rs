@@ -1,10 +1,14 @@
 use std::fmt;
 
-use nocter_declarations::{DeclarationGraph, InterfaceApplication, ParameterRole, RequirementKind};
+use nocter_declarations::{
+    CallableExecution, CallableKind, DeclarationGraph, InterfaceApplication, ParameterRole,
+    RequirementKind,
+};
 use nocter_diagnostics::SourceDiagnostic;
 use nocter_model::{TypeId, TypeStore};
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceOrigin};
 
+use super::TypeValidityRule;
 use super::shape::{TypePosition, TypeValidityFailure, validate_type};
 
 #[derive(Clone, Debug)]
@@ -237,6 +241,25 @@ fn validate_value_positions(
         }
     }
     for (id, callable) in declarations.callables().iter() {
+        if matches!(callable.execution(), CallableExecution::Deferred { .. }) {
+            let entity = SemanticEntity::Callable(id);
+            let origin = source_origin(source_index, entity)
+                .ok_or(TypeValidityInternalError::MissingSource(entity))?;
+            if !matches!(
+                callable.kind(),
+                CallableKind::Function | CallableKind::Method
+            ) {
+                return Err(DeclarationTypeValidityError::Rule(
+                    TypeValidityRule::InvalidAsyncCallableKind.diagnostic(origin),
+                ));
+            }
+            if callable.guarantees().allocation() == nocter_model::AllocationGuarantee::NoAllocation
+            {
+                return Err(DeclarationTypeValidityError::Rule(
+                    TypeValidityRule::NoAllocationAsyncCallable.diagnostic(origin),
+                ));
+            }
+        }
         validate_position(
             types,
             source_index,

@@ -46,6 +46,9 @@ pub enum BodyRule {
     InvalidArgumentPackUse,
     NoAllocationContractViolation,
     UnknownTupleElement,
+    AwaitOutsideDeferredBody,
+    InvalidAwaitOperand,
+    BorrowAcrossSuspension,
 }
 
 impl BodyRule {
@@ -93,6 +96,9 @@ impl BodyRule {
         Self::InvalidArgumentPackUse,
         Self::NoAllocationContractViolation,
         Self::UnknownTupleElement,
+        Self::AwaitOutsideDeferredBody,
+        Self::InvalidAwaitOperand,
+        Self::BorrowAcrossSuspension,
     ];
 
     #[must_use]
@@ -141,6 +147,9 @@ impl BodyRule {
             Self::InvalidArgumentPackUse => DiagnosticCode::E0409,
             Self::NoAllocationContractViolation => DiagnosticCode::E0411,
             Self::UnknownTupleElement => DiagnosticCode::E0413,
+            Self::AwaitOutsideDeferredBody => DiagnosticCode::E0415,
+            Self::InvalidAwaitOperand => DiagnosticCode::E0416,
+            Self::BorrowAcrossSuspension => DiagnosticCode::E0417,
         }
     }
 
@@ -185,6 +194,18 @@ impl BodyRule {
             Self::NoAllocationContractViolation => (
                 "operation may allocate inside a `noalloc` contract",
                 "remove the allocation path or remove `noalloc` from the callable contract",
+            ),
+            Self::AwaitOutsideDeferredBody => (
+                "`await` is outside a deferred callable body",
+                "use `await` only inside a function or method whose outer result type is `async T`",
+            ),
+            Self::InvalidAwaitOperand => (
+                "`await` operand is not an owned asynchronous computation",
+                "await an `async T` value that this expression owns",
+            ),
+            Self::BorrowAcrossSuspension => (
+                "a borrow of asynchronous frame storage crosses this suspension",
+                "finish using the local borrow before `await`, or borrow storage owned outside the asynchronous call",
             ),
             _ => self.operation_message(),
         }

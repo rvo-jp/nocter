@@ -12,10 +12,10 @@ use crate::body_relations::BodyRelationCatalog;
 use crate::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckInternalError,
     BodyRelationError, BodyRule, BorrowConversionImplementation, CallTarget, CheckedArgumentPack,
-    CheckedBody, CheckedControl, CheckedOperation, CheckedOutcome, CheckedReadonlyOperand,
-    CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable, InterpolationPart,
-    IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot, PrimitiveOperation, StaticDispatch,
-    StaticSelection, TypedIteration,
+    CheckedBody, CheckedCallExecution, CheckedControl, CheckedOperation, CheckedOutcome,
+    CheckedReadonlyOperand, CheckedReceiver, CleanupAction, CleanupTarget, ClosureTable,
+    InterpolationPart, IterationAcquisition, LoopKind, PlaceProjection, PlaceRoot,
+    PrimitiveOperation, StaticDispatch, StaticSelection, TypedIteration,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -387,20 +387,32 @@ impl<'program> Collector<'program> {
             | CheckedOperation::Move(place)
             | CheckedOperation::Borrow { place, .. } => self.visit_place(*place)?,
             CheckedOperation::Call(call) => {
+                let deferred = matches!(call.execution(), CheckedCallExecution::Deferred { .. });
                 match call.target() {
-                    CallTarget::Static(selection) => self.record_selection(node, selection)?,
+                    CallTarget::Static(selection) => {
+                        if !deferred {
+                            self.record_selection(node, selection)?;
+                        }
+                    }
                     CallTarget::ClosureValue { value, closure, .. } => {
                         self.visit_node(*value)?;
-                        self.facts
-                            .calls
-                            .push((node, EffectTarget::Closure(*closure)));
+                        if !deferred {
+                            self.facts
+                                .calls
+                                .push((node, EffectTarget::Closure(*closure)));
+                        }
                     }
                     CallTarget::CallableValue {
                         value, dispatch, ..
                     } => {
                         self.visit_node(*value)?;
-                        self.record_selection(node, dispatch)?;
+                        if !deferred {
+                            self.record_selection(node, dispatch)?;
+                        }
                     }
+                }
+                if deferred {
+                    self.record_direct_allocation(node);
                 }
                 if let Some(receiver) = call.receiver() {
                     self.visit_receiver(node, receiver)?;
@@ -420,6 +432,7 @@ impl<'program> Collector<'program> {
                     self.record_selection(node, selection)?;
                 }
             }
+            CheckedOperation::Await(await_) => self.visit_node(await_.computation())?,
             CheckedOperation::CallableGuaranteeErasure(value) => self.visit_node(*value)?,
             CheckedOperation::Comparison(comparison) => {
                 self.visit_readonly_operand(node, comparison.left())?;

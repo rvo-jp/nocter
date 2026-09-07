@@ -18,6 +18,7 @@ pub(super) fn validate_types(program: &DeclarationProgram) -> Result<(), Program
             TypeKind::Builtin(_)
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
+            | TypeKind::Async(_)
             | TypeKind::Slice(_)
             | TypeKind::FixedArray { .. }
             | TypeKind::Tuple(_)

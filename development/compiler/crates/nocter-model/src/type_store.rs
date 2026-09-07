@@ -293,6 +293,8 @@ pub enum TypeKind {
         capability: BorrowCapability,
         referent: TypeId,
     },
+    /// One lazy, single-use owning computation whose consumption produces the referenced type.
+    Async(TypeId),
     Slice(TypeId),
     FixedArray {
         element: TypeId,
@@ -330,6 +332,7 @@ impl TypeKind {
             Self::AssociatedProjection { base, .. }
             | Self::Pointer(base)
             | Self::Borrow { referent: base, .. }
+            | Self::Async(base)
             | Self::Slice(base)
             | Self::FixedArray { element: base, .. }
             | Self::Optional(base)
@@ -558,6 +561,7 @@ impl TypeProperties {
             TypeKind::Tuple(elements) => children_concrete(elements.as_slice()),
             TypeKind::Pointer(base)
             | TypeKind::Borrow { referent: base, .. }
+            | TypeKind::Async(base)
             | TypeKind::Slice(base)
             | TypeKind::FixedArray { element: base, .. }
             | TypeKind::Optional(base)
@@ -581,6 +585,7 @@ impl TypeProperties {
             | TypeKind::Opaque { .. }
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
+            | TypeKind::Async(_)
             | TypeKind::Slice(_)
             | TypeKind::Closure { .. }
             | TypeKind::Callable(_) => true,
@@ -694,6 +699,22 @@ mod tests {
 
         assert_eq!(first, second);
         assert_eq!(types.type_count(), BuiltinType::ALL.len() + 1);
+    }
+
+    #[test]
+    fn async_identity_is_structural_and_always_carries_storage() {
+        let base = TypeAuthority::new();
+        let mut types = base.transaction();
+        let value = types.builtin(BuiltinType::I32);
+        let first = types.intern(TypeKind::Async(value)).unwrap();
+        let repeated = types.intern(TypeKind::Async(value)).unwrap();
+        let optional = types.intern(TypeKind::Optional(value)).unwrap();
+        let distinct = types.intern(TypeKind::Async(optional)).unwrap();
+
+        assert_eq!(first, repeated);
+        assert_ne!(first, distinct);
+        assert!(types.may_carry_storage(first));
+        assert_eq!(types.is_concrete(first), Some(true));
     }
 
     #[test]

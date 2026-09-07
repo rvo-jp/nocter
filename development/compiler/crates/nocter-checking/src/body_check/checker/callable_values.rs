@@ -4,6 +4,7 @@ use nocter_syntax::NodeId;
 use super::{BodyChecker, ResolvedPlace};
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
+use crate::checked::CheckedCallExecution;
 use crate::syntax::child_nodes;
 use crate::{
     CallTarget, CheckedCall, CheckedOperation, CheckedPredicate, GenericArguments, PlaceAccess,
@@ -84,7 +85,13 @@ impl BodyChecker<'_, '_> {
         let call = self.add_node(
             node,
             result,
-            CheckedOperation::Call(CheckedCall::new(target, None, arguments, None)),
+            CheckedOperation::Call(CheckedCall::new(
+                target,
+                CheckedCallExecution::Immediate,
+                None,
+                arguments,
+                None,
+            )),
         )?;
         expected.map_or(Ok(call), |expected| {
             self.apply_expected(node, call, expected)

@@ -78,7 +78,8 @@ pub(super) fn close_type_representations(
             | TypeKind::Fallible(_) => None,
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
-            | TypeKind::AssociatedProjection { .. } => {
+            | TypeKind::AssociatedProjection { .. }
+            | TypeKind::Async(_) => {
                 return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
             }
         };
@@ -215,6 +216,7 @@ fn enqueue_structural_children(kind: &TypeKind, pending: &mut BTreeSet<TypeId>) 
         TypeKind::AssociatedProjection { base, .. }
         | TypeKind::Pointer(base)
         | TypeKind::Borrow { referent: base, .. }
+        | TypeKind::Async(base)
         | TypeKind::Slice(base)
         | TypeKind::FixedArray { element: base, .. }
         | TypeKind::Optional(base)

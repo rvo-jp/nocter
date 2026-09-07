@@ -118,6 +118,7 @@ impl BodyChecker<'_, '_> {
             DeclaredCallGenerics::inferred(callable.generic_parameters()),
             result_context,
         )?;
+        let execution = self.declared_call_execution(&callable, plan.result)?;
         let call = self.add_node(
             node,
             plan.result,
@@ -126,6 +127,7 @@ impl BodyChecker<'_, '_> {
                     StaticDispatch::Direct(callable_id),
                     plan.generic_arguments,
                 )),
+                execution,
                 None,
                 plan.arguments,
                 plan.pack,

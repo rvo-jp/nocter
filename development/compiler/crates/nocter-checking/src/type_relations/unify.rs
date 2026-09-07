@@ -218,6 +218,7 @@ fn decompose_pair(left: &TypeKind, right: &TypeKind, pending: &mut Vec<(TypeId, 
             true
         }
         (TypeKind::Pointer(left), TypeKind::Pointer(right))
+        | (TypeKind::Async(left), TypeKind::Async(right))
         | (TypeKind::Slice(left), TypeKind::Slice(right))
         | (TypeKind::Optional(left), TypeKind::Optional(right))
         | (TypeKind::Fallible(left), TypeKind::Fallible(right)) => {
@@ -393,6 +394,7 @@ fn append_references(kind: &TypeKind, output: &mut Vec<TypeId>) {
         TypeKind::AssociatedProjection { base, .. }
         | TypeKind::Pointer(base)
         | TypeKind::Borrow { referent: base, .. }
+        | TypeKind::Async(base)
         | TypeKind::Slice(base)
         | TypeKind::FixedArray { element: base, .. }
         | TypeKind::Optional(base)

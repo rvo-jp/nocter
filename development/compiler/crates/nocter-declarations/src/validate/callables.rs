@@ -1,8 +1,8 @@
 use nocter_model::CallableId;
 
 use crate::{
-    BodyOwner, CallableKind, CallableOwner, DeclarationProgram, ParameterOwner, ParameterRole,
-    ProvenanceAnnotation, ProvenanceOrigin,
+    BodyOwner, CallableExecution, CallableKind, CallableOwner, DeclarationProgram, ParameterOwner,
+    ParameterRole, ProvenanceAnnotation, ProvenanceOrigin,
 };
 
 use super::{
@@ -19,7 +19,7 @@ pub(super) fn validate(program: &DeclarationProgram) -> Result<(), ProgramIntegr
         unique(callable.generic_parameters(), DeclarationDomain::Callable)?;
         unique(callable.parameters(), DeclarationDomain::Callable)?;
         unique(callable.requirements(), DeclarationDomain::Callable)?;
-        validate_shape(callable)?;
+        validate_shape(program, callable)?;
         if matches!(
             callable.provenance_annotation(),
             ProvenanceAnnotation::Explicit { .. }
@@ -135,7 +135,10 @@ fn validate_argument_pack_shape(
         .ok_or(ProgramIntegrityError::InvalidCallableShape)
 }
 
-fn validate_shape(callable: &crate::CallableDeclaration) -> Result<(), ProgramIntegrityError> {
+fn validate_shape(
+    program: &DeclarationProgram,
+    callable: &crate::CallableDeclaration,
+) -> Result<(), ProgramIntegrityError> {
     let named = matches!(
         callable.kind(),
         CallableKind::Function
@@ -181,11 +184,21 @@ fn validate_shape(callable: &crate::CallableDeclaration) -> Result<(), ProgramIn
                 CallableKind::Function | CallableKind::Primitive
             );
     let primitive_body = callable.kind() != CallableKind::Primitive || callable.body().is_none();
+    let execution_matches_result = match callable.execution() {
+        CallableExecution::Immediate => !matches!(
+            program.types().get(callable.result()),
+            Some(nocter_model::TypeKind::Async(_))
+        ),
+        CallableExecution::Deferred { output } => {
+            matches!(program.types().get(callable.result()), Some(nocter_model::TypeKind::Async(expected)) if *expected == output)
+        }
+    };
     if named != callable.name().is_some()
         || receiver != callable.receiver().is_some()
         || !kind_matches_owner
         || !target_gate_allowed
         || !primitive_body
+        || !execution_matches_result
     {
         return Err(ProgramIntegrityError::InvalidCallableShape);
     }

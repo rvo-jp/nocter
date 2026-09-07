@@ -530,9 +530,11 @@ const fn is_prefix_parent(parent: Option<NodeKind>) -> bool {
         parent,
         Some(
             NodeKind::UnaryExpression
+                | NodeKind::AwaitExpression
                 | NodeKind::ReferenceExpression
                 | NodeKind::PointerType
                 | NodeKind::BorrowType
+                | NodeKind::AsyncType
                 | NodeKind::Receiver
                 | NodeKind::CoercionPredicate
                 | NodeKind::OperatorPredicate
@@ -592,6 +594,18 @@ mod tests {
         assert_eq!(
             formatted,
             "pub noalloc func apply(callback: noalloc &func(i32): i32): i32 { return callback(1) }\n\nnoalloc drop Value(&+self) {}\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn formats_async_type_precedence_without_changing_structure() {
+        let formatted = format(
+            "type Deferred=async String!\ntype ImmediateFailure=(async String)!\ntype Borrowed=&async String\n",
+        );
+        assert_eq!(
+            formatted,
+            "type Deferred = async String!\n\ntype ImmediateFailure = (async String)!\n\ntype Borrowed = &async String\n"
         );
         assert_eq!(format(&formatted), formatted);
     }

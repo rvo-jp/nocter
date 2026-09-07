@@ -95,6 +95,7 @@ pub(super) fn infer(
             | CheckedOperation::Comparison(_)
             | CheckedOperation::Primitive(_)
             | CheckedOperation::Aggregate(_)
+            | CheckedOperation::Await(_)
             | CheckedOperation::Outcome(_)
             | CheckedOperation::Closure(_)
             | CheckedOperation::ArgumentPackLength(_)
@@ -176,6 +177,7 @@ fn append_operands(
         | CheckedOperation::ArgumentPackLength(_)
         | CheckedOperation::Outcome(CheckedOutcome::Absent) => {}
         CheckedOperation::BorrowConversion(conversion) => pending.push(conversion.value()),
+        CheckedOperation::Await(await_) => pending.push(await_.computation()),
         CheckedOperation::CallableGuaranteeErasure(value) => pending.push(*value),
         CheckedOperation::OpaqueWitness(witness) => pending.push(witness.value()),
         CheckedOperation::Primitive(

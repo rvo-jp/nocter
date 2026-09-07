@@ -2,6 +2,7 @@ use nocter_declarations::ProvenanceOrigin;
 use nocter_model::{BodyNodeId, CallableId, TypeId};
 
 use super::Analyzer;
+use crate::checked::CheckedCallExecution;
 use crate::provenance::invocation_place_can_reach_result;
 use crate::provenance::state::ProvenanceState;
 use crate::{
@@ -34,6 +35,10 @@ impl ReceiverProvenance {
             carried: value,
             place: None,
         }
+    }
+
+    fn retained(&self) -> &ValueProvenance {
+        self.place.as_ref().unwrap_or(&self.carried)
     }
 }
 
@@ -82,6 +87,7 @@ impl Analyzer<'_> {
                     Some(&source),
                     &[],
                     state.current_allocation(),
+                    None,
                 )?,
                 StaticDispatch::StructuralRequirement { evidence } => {
                     if !matches!(
@@ -153,6 +159,7 @@ impl Analyzer<'_> {
                 Some(&ReceiverProvenance::carried(iterator.clone())),
                 &[],
                 current_allocation,
+                None,
             )?
             .projected(ProvenanceProjection::OutcomeValue))
     }
@@ -297,11 +304,43 @@ impl Analyzer<'_> {
         let Some(evaluated) = self.evaluate_call_inputs(call, state)? else {
             return Ok((ValueProvenance::independent(), false));
         };
-        let mut result = self.map_call_result(call, &evaluated, state, result_type)?;
+        let mapped_type = match call.execution() {
+            CheckedCallExecution::Immediate => result_type,
+            CheckedCallExecution::Deferred { output } => output,
+        };
+        let mut result = self.map_call_result(call, &evaluated, state, mapped_type)?;
+        if matches!(call.execution(), CheckedCallExecution::Deferred { .. }) {
+            let captures = self.map_deferred_captures(&evaluated, state);
+            let mut computation = ValueProvenance::independent();
+            computation.insert_projection(ProvenanceProjection::AsyncCapture, captures);
+            computation.insert_projection(ProvenanceProjection::AsyncOutput, result);
+            result = computation;
+        }
         if !self.types.may_carry_storage(result_type) {
             result = ValueProvenance::independent();
         }
         Ok((result, true))
+    }
+
+    fn map_deferred_captures(
+        &self,
+        evaluated: &EvaluatedCall,
+        state: &ProvenanceState,
+    ) -> ValueProvenance {
+        let mut captures = state.current_allocation().flattened();
+        if let Some(callable) = &evaluated.callable {
+            captures.union_with(&callable.value.flattened());
+            if let Some(storage) = &callable.storage {
+                captures.union_with(&storage.flattened());
+            }
+        }
+        if let Some(receiver) = &evaluated.receiver {
+            captures.union_with(&receiver.retained().flattened());
+        }
+        for argument in &evaluated.arguments {
+            captures.union_with(&argument.retained(true).flattened());
+        }
+        captures
     }
 
     fn evaluate_call_inputs(
@@ -456,6 +495,7 @@ impl Analyzer<'_> {
                     evaluated.receiver.as_ref(),
                     &evaluated.arguments,
                     state.current_allocation(),
+                    Some(result_type),
                 )?
             }
             CallTarget::CallableValue { dispatch, .. } => {
@@ -581,6 +621,7 @@ impl Analyzer<'_> {
         receiver: Option<&ReceiverProvenance>,
         arguments: &[ArgumentProvenance],
         current_allocation: &ValueProvenance,
+        specialized_result: Option<TypeId>,
     ) -> Result<ValueProvenance, BodyCheckInternalError> {
         let declaration = self
             .graph
@@ -592,20 +633,18 @@ impl Analyzer<'_> {
             .summaries
             .get(&callable)
             .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
+        let result_type = specialized_result.unwrap_or(declaration.result());
         let mut result = ValueProvenance::independent();
         for origin in &summary.origins {
             match origin {
                 ProvenanceOrigin::Receiver => {
                     let receiver = receiver.ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    let receiver = if invocation_place_can_reach_result(
-                        self.graph,
-                        self.types,
-                        declaration.result(),
-                    ) {
-                        receiver.place.as_ref().unwrap_or(&receiver.carried)
-                    } else {
-                        &receiver.carried
-                    };
+                    let receiver =
+                        if invocation_place_can_reach_result(self.graph, self.types, result_type) {
+                            receiver.place.as_ref().unwrap_or(&receiver.carried)
+                        } else {
+                            &receiver.carried
+                        };
                     result.union_with(&receiver.flattened());
                 }
                 ProvenanceOrigin::Parameter(parameter) => {
@@ -617,11 +656,8 @@ impl Analyzer<'_> {
                     let argument = arguments
                         .get(position)
                         .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-                    let retain_place = invocation_place_can_reach_result(
-                        self.graph,
-                        self.types,
-                        declaration.result(),
-                    );
+                    let retain_place =
+                        invocation_place_can_reach_result(self.graph, self.types, result_type);
                     result.union_with(&argument.retained(retain_place).flattened());
                 }
             }

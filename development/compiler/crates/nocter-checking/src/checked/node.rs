@@ -68,6 +68,7 @@ impl CheckedOperation {
             | Self::Copy(_)
             | Self::Move(_)
             | Self::Borrow { .. }
+            | Self::Await(_)
             | Self::Primitive(_)
             | Self::Aggregate(_)
             | Self::Outcome(_)
@@ -89,6 +90,7 @@ pub enum CheckedOperation {
         capability: BorrowCapability,
         place: PlaceId,
     },
+    Await(super::CheckedAwait),
     Call(CheckedCall),
     BorrowConversion(CheckedBorrowConversion),
     /// A checked, one-way view that forgets source-level callable guarantees.
@@ -299,6 +301,7 @@ impl CheckedReceiver {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CheckedCall {
     target: CallTarget,
+    execution: super::CheckedCallExecution,
     receiver: Option<CheckedReceiver>,
     arguments: Box<[BodyNodeId]>,
     pack: Option<CheckedArgumentPack>,
@@ -316,6 +319,7 @@ impl CheckedCall {
             }
             CallTarget::CallableValue { dispatch, .. } => dispatch.rebind(semantics)?,
         }
+        self.execution.rebind(semantics)?;
         if let Some(receiver) = &mut self.receiver {
             receiver.rebind(semantics)?;
         }
@@ -326,12 +330,14 @@ impl CheckedCall {
     }
     pub(crate) fn new(
         target: CallTarget,
+        execution: super::CheckedCallExecution,
         receiver: Option<CheckedReceiver>,
         arguments: impl Into<Box<[BodyNodeId]>>,
         pack: Option<CheckedArgumentPack>,
     ) -> Self {
         Self {
             target,
+            execution,
             receiver,
             arguments: arguments.into(),
             pack,
@@ -341,6 +347,11 @@ impl CheckedCall {
     #[must_use]
     pub const fn target(&self) -> &CallTarget {
         &self.target
+    }
+
+    #[must_use]
+    pub const fn execution(&self) -> super::CheckedCallExecution {
+        self.execution
     }
 
     #[must_use]

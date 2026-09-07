@@ -35,6 +35,17 @@ fn direct_allocation_violates_noalloc() {
 }
 
 #[test]
+fn creating_a_deferred_computation_is_an_allocation_effect() {
+    let error = check(
+        "func produce(): async i32 { 1 }\n\
+         noalloc func invalid(): (async i32)? { produce() }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::NoAllocationContractViolation));
+}
+
+#[test]
 fn allocation_effects_propagate_through_source_backed_calls() {
     let error = check(&format!(
         "{TEXT_DECLARATIONS}\nfunc allocate(): Text {{ return Text \"value\" }}\nnoalloc func invalid(): Text {{ return allocate() }}\n"

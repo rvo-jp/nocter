@@ -4,13 +4,14 @@ use nocter_declarations::ProvenanceOrigin;
 use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
+use crate::checked::CheckedCallExecution;
 use crate::loans::liveness::{LivePlace, LiveSlot};
 use crate::loans::state::LoanState;
 use crate::loans::value::LoanValue;
 use crate::provenance::{invocation_place_can_reach_result, type_can_carry_loan};
 use crate::{
     BodyCheckInternalError, BodyRelationError, CallTarget, CheckedCall, CheckedOperation, LoanId,
-    PlaceRoot, ReceiverPreparation, StaticDispatch,
+    PlaceRoot, ProvenanceProjection, ReceiverPreparation, StaticDispatch,
 };
 
 pub(super) struct InvocationLoan {
@@ -175,14 +176,37 @@ impl Analyzer<'_> {
             .get(node)
             .ok_or(BodyCheckInternalError::MissingNode(node))?
             .ty();
+        let mapped_type = match call.execution() {
+            CheckedCallExecution::Immediate => result_type,
+            CheckedCallExecution::Deferred { output } => output,
+        };
         let mut result = self.map_call_target(
             call,
             callable_value.as_ref(),
             callable_environment.as_ref(),
             receiver.as_ref(),
             &arguments,
-            result_type,
+            mapped_type,
         )?;
+        if matches!(call.execution(), CheckedCallExecution::Deferred { .. }) {
+            let mut captures = LoanValue::independent();
+            if let Some(value) = &callable_value {
+                captures.union_with(&value.flattened());
+            }
+            if let Some(environment) = &callable_environment {
+                captures.union_with(&environment.flattened());
+            }
+            if let Some(receiver) = &receiver {
+                captures.union_with(&receiver.retained(true).flattened());
+            }
+            for argument in &arguments {
+                captures.union_with(&argument.retained(true).flattened());
+            }
+            let mut computation = LoanValue::independent();
+            computation.insert_projection(ProvenanceProjection::AsyncCapture, captures);
+            computation.insert_projection(ProvenanceProjection::AsyncOutput, result);
+            result = computation;
+        }
         if !type_can_carry_loan(self.graph, self.types, result_type) {
             result = LoanValue::independent();
         }
@@ -366,7 +390,7 @@ impl Analyzer<'_> {
                         return Err(BodyCheckInternalError::LoanAnalysis.into());
                     }
                 };
-                self.map_callable_result(callable, receiver, arguments)?
+                self.map_callable_result(callable, receiver, arguments, Some(result_type))?
             }
             CallTarget::CallableValue { dispatch, .. } => {
                 let StaticDispatch::StructuralRequirement { evidence } = dispatch.dispatch() else {
@@ -437,6 +461,7 @@ impl Analyzer<'_> {
         callable: CallableId,
         receiver: Option<&InvocationLoan>,
         arguments: &[InvocationLoan],
+        specialized_result: Option<nocter_model::TypeId>,
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let declaration = self
             .graph
@@ -449,6 +474,7 @@ impl Analyzer<'_> {
             .callables()
             .get(callable)
             .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+        let result_type = specialized_result.unwrap_or(declaration.result());
         let mut result = LoanValue::independent();
         for origin in summary.origins() {
             match origin {
@@ -459,7 +485,7 @@ impl Analyzer<'_> {
                             .retained(invocation_place_can_reach_result(
                                 self.graph,
                                 self.types,
-                                declaration.result(),
+                                result_type,
                             ))
                             .flattened(),
                     );
@@ -478,7 +504,7 @@ impl Analyzer<'_> {
                             .retained(invocation_place_can_reach_result(
                                 self.graph,
                                 self.types,
-                                declaration.result(),
+                                result_type,
                             ))
                             .flattened(),
                     );

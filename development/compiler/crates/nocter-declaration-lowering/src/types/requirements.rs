@@ -504,6 +504,7 @@ fn contains_generic(
             BoundTypeKind::AssociatedSelection { base, .. }
             | BoundTypeKind::Pointer(base)
             | BoundTypeKind::Borrow { referent: base, .. }
+            | BoundTypeKind::Async(base)
             | BoundTypeKind::Slice(base)
             | BoundTypeKind::FixedArray { element: base, .. }
             | BoundTypeKind::Optional(base)

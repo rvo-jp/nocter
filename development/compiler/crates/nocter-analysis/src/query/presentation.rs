@@ -1192,6 +1192,10 @@ impl<'a> Renderer<'a> {
                 });
                 self.prefix_type(*referent)?;
             }
+            TypeKind::Async(output) => {
+                self.output.push_str("async ");
+                self.ty(*output)?;
+            }
             TypeKind::Slice(element) => {
                 self.output.push('[');
                 self.ty(*element)?;
@@ -1210,11 +1214,11 @@ impl<'a> Renderer<'a> {
             // Pack entries are compiler-owned ABI elements and cannot be named in source.
             TypeKind::PackEntry { .. } => return None,
             TypeKind::Optional(payload) => {
-                self.ty(*payload)?;
+                self.outcome_base_type(*payload)?;
                 self.output.push('?');
             }
             TypeKind::Fallible(payload) => {
-                self.ty(*payload)?;
+                self.outcome_base_type(*payload)?;
                 self.output.push('!');
             }
         }
@@ -1298,7 +1302,22 @@ impl<'a> Renderer<'a> {
     fn prefix_type(&mut self, id: TypeId) -> Option<()> {
         let grouped = matches!(
             self.types.get(id)?,
-            TypeKind::Optional(_) | TypeKind::Fallible(_)
+            TypeKind::Callable(_) | TypeKind::Optional(_) | TypeKind::Fallible(_)
+        );
+        if grouped {
+            self.output.push('(');
+        }
+        self.ty(id)?;
+        if grouped {
+            self.output.push(')');
+        }
+        Some(())
+    }
+
+    fn outcome_base_type(&mut self, id: TypeId) -> Option<()> {
+        let grouped = matches!(
+            self.types.get(id)?,
+            TypeKind::Async(_) | TypeKind::Callable(_)
         );
         if grouped {
             self.output.push('(');

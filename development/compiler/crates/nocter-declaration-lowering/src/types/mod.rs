@@ -134,6 +134,7 @@ pub enum BoundTypeKind {
         capability: BorrowCapability,
         referent: BoundTypeId,
     },
+    Async(BoundTypeId),
     Slice(BoundTypeId),
     FixedArray {
         element: BoundTypeId,

@@ -88,6 +88,8 @@ Reserved keyword tokens:
 
 ```text
 as
+async
+await
 break
 catch
 const

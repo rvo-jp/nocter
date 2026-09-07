@@ -99,6 +99,10 @@ fn bind_node(
                 referent: child_value(tree, node, values)?,
             },
         ),
+        NodeKind::AsyncType => push(
+            kinds,
+            BoundTypeKind::Async(child_value(tree, node, values)?),
+        ),
         NodeKind::SliceType => push(
             kinds,
             BoundTypeKind::Slice(child_value(tree, node, values)?),

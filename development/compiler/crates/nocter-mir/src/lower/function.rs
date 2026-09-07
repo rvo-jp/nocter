@@ -180,6 +180,7 @@ impl<'a> FunctionLowerer<'a> {
                 )
                 .map(Some)
             }
+            CheckedOperation::Await(_) => Err(MirLoweringError::UnsupportedOperation(node)),
             CheckedOperation::BorrowConversion(conversion) => {
                 self.lower_borrow_conversion(node, conversion).map(Some)
             }
