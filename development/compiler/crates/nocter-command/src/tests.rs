@@ -1022,6 +1022,9 @@ fn expected_example_output(name: &str) -> &'static [u8] {
         "ordering.nct" => b"strict ordering selected source declarations\n",
         "tuples.nct" => b"Nocter structural tuples: v0.33.0\n",
         "unicode-text.nct" => "ος\nSTRASSE\nA\n".as_bytes(),
+        "url-inspect.nct" => {
+            b"http://example.com/status?q=ready#fragment\nexample.com\n/status?q=ready\n"
+        }
         _ => panic!("public example has no output contract: {name}"),
     }
 }

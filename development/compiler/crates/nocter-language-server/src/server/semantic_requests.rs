@@ -2137,6 +2137,169 @@ mod tests {
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 
+    fn http_client_source() -> &'static str {
+        concat!(
+            "use std/http.{Client, Request}\n",
+            "use std/io.Reader\n",
+            "use std/url.Url\n",
+            "func main(): void! {\n",
+            "    let url = Url.parse(\"http://localhost/\")?\n",
+            "    let request = Request.get(move url)?\n",
+            "    let client = Client.new()\n",
+            "    var response = client.send(move request)?\n",
+            "    let code = response.status().code()\n",
+            "    let body = response.read_to_end()?\n",
+            "    return\n",
+            "}\n",
+        )
+    }
+
+    #[test]
+    fn http_client_contract_drives_navigation_signatures_and_references() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = http_client_source();
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":7,\"character\":27}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("pub method &Client.send(request: Request): Response!"),
+            "{response}"
+        );
+        assert!(!response.contains("limits_value"), "{response}");
+        assert!(!response.contains("PreparedRequest"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":7,\"character\":27}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/http/index.nct"), "{response}");
+        assert!(!response.contains("client.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":7,\"character\":42}}}}}}"
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains("method &Client.send(request: Request): Response!"),
+            "{response}"
+        );
+        assert!(response.contains("\"activeParameter\":0"), "{response}");
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let references = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":5,\"character\":27}},\"context\":{{\"includeDeclaration\":true}}}}}}"
+        ));
+        let response = references.response().unwrap();
+        assert!(response.contains("/std/http/index.nct"), "{response}");
+        assert!(response.contains("/std/http/client.nct"), "{response}");
+        assert!(response.contains("/main.nct"), "{response}");
+        assert!(references.issue().is_none(), "{:?}", references.issue());
+    }
+
+    #[test]
+    fn http_client_source_drives_rename_tokens_hints_and_completion() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = http_client_source();
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let rename = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":7,\"character\":10}},\"newName\":\"reply\"}}}}"
+        ));
+        let response = rename.response().unwrap();
+        assert!(response.contains("\"newText\":\"reply\""), "{response}");
+        assert!(rename.issue().is_none(), "{:?}", rename.issue());
+
+        let tokens = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}}}}}}"
+        ));
+        assert!(
+            tokens.response().is_some_and(
+                |response| response.contains("\"data\":[") && !response.contains("\"data\":[]")
+            ),
+            "{:?}",
+            tokens.response()
+        );
+        assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":8,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":12,\"character\":0}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        for label in [
+            ": Url",
+            ": Request",
+            ": Client",
+            ": Response",
+            ": u16",
+            ": Vec<u8>",
+        ] {
+            assert!(
+                response.contains(&format!("\"label\":\"{label}\"")),
+                "{response}"
+            );
+        }
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+
+        let incomplete = text.replace("client.send(move request)", "client.");
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 9, 7, 26);
+        let response = completion.response().unwrap();
+        for method in ["send", "send_with_timeout"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("limits_value"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
     #[test]
     fn host_resolution_contract_drives_hover_navigation_signature_and_completion() {
         let temporary = TemporaryDirectory::new();

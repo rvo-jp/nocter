@@ -1076,6 +1076,63 @@ fn public_system_examples_run_through_the_installed_standard_library() {
     }
 }
 
+#[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+#[test]
+fn public_http_example_runs_through_the_installed_standard_library() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+
+    let tree = TempTree::new("installed-http-example");
+    let home = tree.installation("arm64-darwin", true);
+    let example = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/http-get");
+    let output = tree.0.join("http-get");
+    let outcome = execute_invocation(invocation(
+        [
+            OsString::from("build"),
+            OsString::from("-o"),
+            output.as_os_str().to_owned(),
+        ],
+        &example,
+        &home,
+        "arm64-darwin",
+    ))
+    .unwrap();
+    assert!(matches!(&outcome, InvocationOutcome::Build(_)));
+
+    let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = fixture.local_addr().unwrap().port();
+    let server = thread::spawn(move || {
+        let (mut stream, _) = fixture.accept().unwrap();
+        let mut request = Vec::new();
+        let mut scratch = [0_u8; 256];
+        while !request.ends_with(b"\r\n\r\n") {
+            let received = stream.read(&mut scratch).unwrap();
+            assert_ne!(received, 0);
+            request.extend_from_slice(&scratch[..received]);
+        }
+        assert_eq!(
+            request,
+            format!(
+                "GET /installed?q=1 HTTP/1.1\r\nhost: localhost:{port}\r\nconnection: close\r\ncontent-length: 0\r\n\r\n"
+            )
+            .into_bytes()
+        );
+        stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\ninstalled\n")
+            .unwrap();
+    });
+
+    let executed = std::process::Command::new(&output)
+        .arg(format!("http://localhost:{port}/installed?q=1"))
+        .output()
+        .unwrap();
+    server.join().unwrap();
+    assert_eq!(executed.status.code(), Some(0));
+    assert_eq!(executed.stdout, b"HTTP 200\ninstalled\n");
+    assert!(executed.stderr.is_empty());
+}
+
 fn copy_directory(source: &Path, destination: &Path) {
     fs::create_dir(destination).unwrap();
     for entry in fs::read_dir(source).unwrap() {

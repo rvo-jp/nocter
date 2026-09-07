@@ -111,7 +111,29 @@ nocter check examples/network-address.nct
 nocter run examples/network-address.nct
 ```
 
+[url-inspect.nct](url-inspect.nct) parses one absolute HTTP URL and prints its canonical URL,
+authority, and request-target projections. It demonstrates that consumers use one retained URL
+value rather than reparsing source text, and performs no network I/O.
+
+```sh
+nocter check examples/url-inspect.nct
+nocter run examples/url-inspect.nct
+```
+
 ## Package Examples
+
+[http-get/index.nct](http-get/index.nct) is a synchronous one-request HTTP client. It parses one
+command-line URL, resolves its host through the operating system, applies a finite connection and
+per-operation stream timeout, reads the bounded decoded response body, and writes exact body bytes
+after the response status. It supports `http://`; HTTPS deliberately fails until Nocter has a TLS
+transport.
+
+```sh
+cd examples/http-get
+nocter check
+nocter build
+./http-get http://localhost:8000/example
+```
 
 [network-loopback/index.nct](network-loopback/index.nct) performs deterministic TCP and UDP
 round trips over IPv4 loopback, then observes a finite monotonic receive timeout through the stable

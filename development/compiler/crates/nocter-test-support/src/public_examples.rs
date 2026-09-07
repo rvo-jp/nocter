@@ -124,6 +124,20 @@ pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
         }],
     },
     PublicPackageExample {
+        directory: "http-get",
+        package_identity: "workspace:http-get",
+        executable: "http-get",
+        fixtures: &[],
+        runs: &[PublicExampleRun {
+            name: "usage",
+            arguments: &[],
+            stdin: b"",
+            status: 2,
+            stdout: b"",
+            stderr: b"usage: http-get URL\n",
+        }],
+    },
+    PublicPackageExample {
         directory: "subprocess-configured",
         package_identity: "workspace:subprocess-configured",
         executable: "subprocess-configured",

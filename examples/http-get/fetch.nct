@@ -1,0 +1,52 @@
+use std/http.{Client, Request}
+use std/io.{Reader, Writer}
+use std/io
+use std/process
+use std/time.Duration
+use std/url.Url
+
+func run(): i32 {
+    let source = process.arg(1) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    } otherwise {
+        report_usage() catch _ { return 2 }
+        return 2
+    }
+    fetch(source) catch failure {
+        report_failure(&failure) catch _ { return 2 }
+        return 2
+    }
+    return 0
+}
+
+func fetch(source: &str): void! {
+    let url = Url.parse(source)?
+    let request = Request.get(move url)?
+    let client = Client.new()
+    var response = client.send_with_timeout(move request, Duration.from_seconds(5))?
+    let status = response.status().code().to_string()
+    let body = response.read_to_end()?
+    var output = io.stdout()
+    output.write_text("HTTP ")?
+    output.write_text(&status)?
+    output.write_text("\n")?
+    output.write(&body)?
+    return
+}
+
+func report_usage(): void! {
+    var output = io.stderr()
+    output.write_text("usage: http-get URL\n")?
+    return
+}
+
+func report_failure(failure: &error): void! {
+    var output = io.stderr()
+    output.write_text("http-get: ")?
+    output.write_text(failure.code())?
+    output.write_text(": ")?
+    output.write_text(failure.message())?
+    output.write_text("\n")?
+    return
+}

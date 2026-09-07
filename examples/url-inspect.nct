@@ -1,0 +1,13 @@
+use std/io
+use std/url.Url
+
+func main(): i32! {
+    let url = Url.parse("HTTP://Example.COM:80/a/../status?q=ready#fragment")?
+    let canonical = url.to_string()
+    let authority = url.authority()
+    let target = url.request_target()
+    io.println(&canonical)?
+    io.println(&authority)?
+    io.println(&target)?
+    return 0
+}

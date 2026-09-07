@@ -2,18 +2,18 @@
 
 ## Current State
 
-Nocter v0.39.0 is published and externally audited. v0.40.0 Phases 0-2 are complete. The active
-release remains one synchronous Internet client foundation spanning trusted target services, URLs,
-system name resolution, HTTP/1.1 framing, and an owned synchronous client lifecycle.
+Nocter v0.39.0 is published and externally audited. The v0.40.0 synchronous Internet client
+implementation is complete and reviewed. Trusted target services, canonical URLs, system name
+resolution, bounded HTTP/1.1 framing, the owned synchronous client lifecycle, examples, installed-
+home execution, editor tooling, and source-tree qualification are closed.
 
 ## Next Work
 
-Begin Phase 3 with validated HTTP/1.1 message values and one transport-independent framing codec.
-Keep method, status, header, body-framing, syntax-limit, and buffer-limit decisions independent of
-DNS and socket ownership. Select message framing exactly once, reject ambiguous or unbounded input
-before allocation, and cover partial input, informational responses, trailers, premature EOF,
-overflow, conflicting lengths, unsupported transfer codings, and smuggling-prone combinations.
-Preserve the immutable v0.39.0 tag and asset.
+Begin v0.40.0 release preparation only when requested. Set the exact release identity, write public
+release notes, rerun the complete disposable-target verification and documentation gates, build two
+independent optimized packages, compare archives and installed homes, qualify a fresh installation,
+and retain but do not publish the candidate without explicit authorization. Preserve the immutable
+v0.39.0 tag and asset.
 
 ## Blockers
 

@@ -189,7 +189,9 @@
                     <li><a href="./recovery/index.html#content">recovery.nct</a></li>
                     <li><a href="./tuples/index.html#content">tuples.nct</a></li>
                     <li><a href="./unicode-text/index.html#content">unicode-text.nct</a></li>
+                    <li><a href="./url-inspect/index.html#content">url-inspect.nct</a></li>
                     <li><a href="./file-summary/index/index.html#content">file-summary</a></li>
+                    <li><a href="./http-get/index/index.html#content">http-get</a></li>
                     <li><a href="./json-normalize/index/index.html#content">json-normalize</a></li>
                     <li><a href="./line-frequency/index/index.html#content">line-frequency</a></li>
                     <li><a href="./network-loopback/index/index.html#content">network-loopback</a></li>
@@ -233,7 +235,13 @@
 <span class="token-function">nocter</span> run examples/unicode-text.nct
 </code></pre><p><a href="./network-address/index.html#content">network-address.nct</a> parses and canonically formats one numeric IPv6 socket address in explicit single-file mode. It performs no DNS lookup or network I/O.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/network-address.nct
 <span class="token-function">nocter</span> run examples/network-address.nct
-</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./network-loopback/index/index.html#content">network-loopback/index.nct</a> performs deterministic TCP and UDP round trips over IPv4 loopback, then observes a finite monotonic receive timeout through the stable <code>std.net.timed_out</code> error. It uses no external host, DNS lookup, or predicted free port.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/network-loopback
+</code></pre><p><a href="./url-inspect/index.html#content">url-inspect.nct</a> parses one absolute HTTP URL and prints its canonical URL, authority, and request-target projections. It demonstrates that consumers use one retained URL value rather than reparsing source text, and performs no network I/O.</p><pre><code class="language-sh"><span class="token-function">nocter</span> check examples/url-inspect.nct
+<span class="token-function">nocter</span> run examples/url-inspect.nct
+</code></pre><h2 id="package-examples">Package Examples</h2><p><a href="./http-get/index/index.html#content">http-get/index.nct</a> is a synchronous one-request HTTP client. It parses one command-line URL, resolves its host through the operating system, applies a finite connection and per-operation stream timeout, reads the bounded decoded response body, and writes exact body bytes after the response status. It supports <code>http://</code>; HTTPS deliberately fails until Nocter has a TLS transport.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/http-get
+<span class="token-function">nocter</span> check
+<span class="token-function">nocter</span> build
+./http-get http://localhost:<span class="token-number">8000</span>/example
+</code></pre><p><a href="./network-loopback/index/index.html#content">network-loopback/index.nct</a> performs deterministic TCP and UDP round trips over IPv4 loopback, then observes a finite monotonic receive timeout through the stable <code>std.net.timed_out</code> error. It uses no external host, DNS lookup, or predicted free port.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/network-loopback
 <span class="token-function">nocter</span> check
 <span class="token-function">nocter</span> run
 </code></pre><p><a href="./wall-clock/index/index.html#content">wall-clock/index.nct</a> observes the system wall clock and reports a file's last-content-modification instant. Both values use the same <code>SystemTime</code> domain and canonical UTC RFC 3339 generator; target timestamp layouts remain behind <code>std/fs</code> and <code>std/time</code>.</p><pre><code class="language-sh"><span class="token-function">cd</span> examples/wall-clock
