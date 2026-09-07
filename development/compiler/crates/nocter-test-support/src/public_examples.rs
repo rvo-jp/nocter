@@ -110,6 +110,20 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "network-loopback",
+        package_identity: "workspace:network-loopback",
+        executable: "network-loopback",
+        fixtures: &[],
+        runs: &[PublicExampleRun {
+            name: "tcp-udp-timeout",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: b"tcp: ping\nudp: pong\ntimeout: std.net.timed_out\n",
+            stderr: b"",
+        }],
+    },
+    PublicPackageExample {
         directory: "subprocess-configured",
         package_identity: "workspace:subprocess-configured",
         executable: "subprocess-configured",

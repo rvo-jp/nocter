@@ -1029,13 +1029,14 @@ fn public_invocation_builds_through_the_installed_standard_library() {
 
 #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
 #[test]
-fn public_subprocess_examples_run_through_the_installed_standard_library() {
-    let tree = TempTree::new("subprocess-examples");
+fn public_system_examples_run_through_the_installed_standard_library() {
+    let tree = TempTree::new("system-examples");
     let home = tree.installation("arm64-darwin", true);
     for name in [
         "subprocess-status",
         "subprocess-output",
         "subprocess-configured",
+        "network-loopback",
     ] {
         let contract = nocter_test_support::PUBLIC_PACKAGE_EXAMPLES
             .iter()

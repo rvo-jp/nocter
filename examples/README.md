@@ -103,7 +103,25 @@ nocter check examples/unicode-text.nct
 nocter run examples/unicode-text.nct
 ```
 
+[network-address.nct](network-address.nct) parses and canonically formats one numeric IPv6 socket
+address in explicit single-file mode. It performs no DNS lookup or network I/O.
+
+```sh
+nocter check examples/network-address.nct
+nocter run examples/network-address.nct
+```
+
 ## Package Examples
+
+[network-loopback/index.nct](network-loopback/index.nct) performs deterministic TCP and UDP
+round trips over IPv4 loopback, then observes a finite monotonic receive timeout through the stable
+`std.net.timed_out` error. It uses no external host, DNS lookup, or predicted free port.
+
+```sh
+cd examples/network-loopback
+nocter check
+nocter run
+```
 
 [wall-clock/index.nct](wall-clock/index.nct) observes the system wall clock and reports a file's
 last-content-modification instant. Both values use the same `SystemTime` domain and canonical UTC

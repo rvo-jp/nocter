@@ -4,6 +4,138 @@ use std::path::Path;
 use super::tests::semantic_server;
 
 #[test]
+fn network_loopback_public_contract_drives_navigation_and_calls() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/network-loopback");
+    let source = root.join("exchange.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (bind_line, bind_source) = source_line(&text, "TcpListener.bind");
+    let bind_character = bind_source.find("bind").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        bind_line,
+        bind_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response
+            .contains("pub noalloc func TcpListener.bind(address: SocketAddress): TcpListener!"),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        bind_line,
+        bind_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/net/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        bind_line,
+        bind_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/net/tcp.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let (timeout_line, timeout_source) = source_line(&text, "set_read_timeout");
+    let timeout_argument = timeout_source.find("short_timeout").unwrap() + 2;
+    let signature = server.receive(&position_request(
+        5,
+        "textDocument/signatureHelp",
+        &source,
+        timeout_line,
+        timeout_argument,
+    ));
+    let response = signature.response().unwrap();
+    assert!(
+        response.contains("method &+UdpSocket.set_read_timeout(timeout: Duration?): void"),
+        "{response}"
+    );
+    assert!(response.contains("\"activeParameter\":0"), "{response}");
+    assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+    let (completion_line, completion_source) =
+        source_line(&text, "let received = receiver.receive");
+    let completion_character = completion_source.find("receiver.").unwrap() + "receiver.".len();
+    let completion = server.receive(&position_request(
+        6,
+        "textDocument/completion",
+        &source,
+        completion_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in ["local_address", "receive", "set_read_timeout"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+}
+
+#[test]
+fn network_loopback_source_drives_local_editor_features() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/network-loopback");
+    let source = root.join("exchange.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let tokens = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+        source.display()
+    ));
+    let response = tokens.response().unwrap();
+    assert!(response.contains("\"data\":["), "{response}");
+    assert!(!response.contains("\"data\":[]"), "{response}");
+    assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+    let (receiver_line, receiver_source) = source_line(&text, "var receiver");
+    let receiver_character = receiver_source.find("receiver").unwrap();
+    let references = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/references\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{receiver_line},\"character\":{receiver_character}}},\"context\":{{\"includeDeclaration\":true}}}}}}",
+        source.display()
+    ));
+    let response = references.response().unwrap();
+    assert!(response.matches("exchange.nct").count() >= 4, "{response}");
+    assert!(references.issue().is_none(), "{:?}", references.issue());
+
+    let rename = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"position\":{{\"line\":{receiver_line},\"character\":{receiver_character}}},\"newName\":\"destination\"}}}}",
+        source.display()
+    ));
+    let response = rename.response().unwrap();
+    assert!(response.matches("destination").count() >= 4, "{response}");
+    assert!(rename.issue().is_none(), "{:?}", rename.issue());
+
+    let end_line = text.lines().count();
+    let hints = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{end_line},\"character\":0}}}}}}}}",
+        source.display()
+    ));
+    let response = hints.response().unwrap();
+    assert!(
+        response.contains("\"label\":\": SocketAddress\""),
+        "{response}"
+    );
+    assert!(hints.issue().is_none(), "{:?}", hints.issue());
+}
+
+#[test]
 fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/text-search");
     let source = root.join("search.nct");

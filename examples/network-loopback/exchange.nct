@@ -1,0 +1,61 @@
+use std/io.{Reader, Writer}
+use std/io
+use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener, TcpStream, UdpSocket}
+use std/string.String
+use std/time.Duration
+use std/vec.Vec
+
+func loopback(): SocketAddress {
+    return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
+}
+
+func run(): i32! {
+    var listener = TcpListener.bind(loopback())?
+    let listening_address = listener.local_address()?
+    var client = TcpStream.connect_with_timeout(
+        listening_address,
+        Duration.from_seconds(1),
+    )?
+    let accepted = listener.accept()?
+    var server = move accepted.0
+    client.write("ping".bytes())?
+    var tcp_bytes: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let tcp_len = server.read(&+tcp_bytes)?
+    if tcp_len != 4 {
+        return error.new("network-loopback.tcp", "TCP changed the message length")
+    }
+    let tcp_text = String.from_utf8(&tcp_bytes)?
+    io.print("tcp: ")?
+    io.println(&tcp_text)?
+
+    var sender = UdpSocket.bind(loopback())?
+    var receiver = UdpSocket.bind(loopback())?
+    sender.send_to("pong".bytes(), receiver.local_address()?)?
+    var udp_bytes: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let received = receiver.receive(&+udp_bytes)?
+    if received.copied_len() != 4 || received.was_truncated() {
+        return error.new("network-loopback.udp", "UDP changed the datagram boundary")
+    }
+    let udp_text = String.from_utf8(&udp_bytes)?
+    io.print("udp: ")?
+    io.println(&udp_text)?
+
+    let short_timeout = Duration.from_milliseconds(2)
+    receiver.set_read_timeout(short_timeout)
+    let _ = receiver.receive(&+udp_bytes) catch failure {
+        io.print("timeout: ")?
+        io.println(failure.code())?
+        return 0
+    }
+    return error.new("network-loopback.timeout", "empty UDP receive did not time out")
+}

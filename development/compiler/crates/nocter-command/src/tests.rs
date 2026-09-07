@@ -1018,6 +1018,7 @@ fn expected_example_output(name: &str) -> &'static [u8] {
         "hello.nct" => b"Hello from Nocter\n",
         "indexing.nct" | "recovery.nct" => b"",
         "mutable-iteration.nct" => b"mutable iteration updated every element\n",
+        "network-address.nct" => b"[::1]:443\n",
         "ordering.nct" => b"strict ordering selected source declarations\n",
         "tuples.nct" => b"Nocter structural tuples: v0.33.0\n",
         "unicode-text.nct" => "ος\nSTRASSE\nA\n".as_bytes(),
