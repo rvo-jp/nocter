@@ -9,10 +9,12 @@ been changed.
 
 ## Next Work
 
-Confirm the three async surface choices in the
-[v0.41.0 milestone](history/milestones/v0.41.0.md#phase-0-feasibility-and-surface-contract), then
-write the normative Phase 0 language contract before changing compiler syntax. Keep the qualified
-v0.40.0 archive unchanged.
+Implement the v0.41.0 Phase 1 checked async product from the
+[Asynchronous Computation Boundary](design/asynchronous-computation-design.md): introduce the
+lossless `async T` type first, then the single checked callable-execution fact, consuming `await`,
+capture provenance, and closed diagnostics. Do not add executable state machines or public async
+standard-library APIs until that checked product is complete. Keep the qualified v0.40.0 archive
+unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

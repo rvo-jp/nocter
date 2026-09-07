@@ -34,6 +34,7 @@ under `development/history/`, not in current design documents.
 - [Floating-Point Boundary](floating-point-design.md)
 - [Network I/O Boundary](network-io-design.md)
 - [Synchronous Internet Client Boundary](internet-client-design.md)
+- [Asynchronous Computation Boundary](asynchronous-computation-design.md)
 
 ## Maintenance Contracts
 
