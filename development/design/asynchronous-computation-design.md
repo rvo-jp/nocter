@@ -171,9 +171,10 @@ each retained identity one stable byte range for the complete computation lifeti
 suspension states select subsets of those identities; they cannot request a second layout or
 overlay storage according to backend-recomputed liveness.
 
-The allocation-backed frame header stores the resume entry, cancellation entry, lifecycle state
-tag, incoming allocation context, any required process context, and any transferred pack pointer.
-The completed output has one separate stable field when its representation occupies bytes.
+The allocation-backed frame header stores the resume entry, cancellation entry, completed-output
+consume entry, lifecycle state tag, incoming allocation context, any required process context, and
+any transferred pack pointer. The completed output has one separate stable field when its
+representation occupies bytes.
 Initial, suspension, and completed tags are assigned deterministically from the closed Machine
 state list. A running state is not externally cancellable in the single-threaded executor, so it
 does not require a second concurrently observable tag.
@@ -184,9 +185,19 @@ owns outgoing-call storage, saved registers, and an ABI frame record, while an a
 must survive a return to the executor.
 
 The runtime ABI schema is the numeric authority for the owning handle and the fixed header prefix:
-handle size/alignment, resume and cancellation entry offsets, state-tag offset, allocation-context
-offset, header extent/alignment, and the initial suspension-tag domain. ARM64 placement begins
-after that prefix. It cannot redeclare these values from its own word-size assumptions.
+handle size/alignment, resume/cancellation/consume entry offsets, state-tag offset,
+allocation-context offset, header extent/alignment, and the initial suspension-tag domain. It also
+owns the uniform poll status and wait-interest record ABI. ARM64 placement begins after that prefix.
+It cannot redeclare these values from its own word-size assumptions.
+
+Resume receives only the opaque frame pointer. A pending result returns a pointer and count for
+frame-owned wait-interest records; a completed result returns no interests. A descriptor interest
+contains its descriptor and readable/writable direction, while a timer interest contains its fixed
+monotonic deadline. Nested `await` forwards the child's pending records unchanged. On completion,
+the parent calls the child's consume entry with typed destination storage. That entry moves the
+output and retires the child frame. Cancellation similarly calls only the child's cancellation
+entry. Neither parent, executor, nor scheduler can inspect a child's output offset or cancellation
+state.
 
 ## Structured Execution
 

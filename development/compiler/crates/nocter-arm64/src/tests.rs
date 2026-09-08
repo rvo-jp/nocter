@@ -1082,8 +1082,9 @@ fn async_frame_layout_places_the_machine_field_union_once() {
 
     assert_eq!(layout.resume_function().offset(), 0);
     assert_eq!(layout.cancel_function().offset(), 8);
-    assert_eq!(layout.state_tag().offset(), 16);
-    assert_eq!(layout.allocation_context().offset(), 24);
+    assert_eq!(layout.consume_function().offset(), 16);
+    assert_eq!(layout.state_tag().offset(), 24);
+    assert_eq!(layout.allocation_context().offset(), 32);
     assert!(layout.process_context().is_none());
     assert!(layout.pack_input().is_none());
     assert!(layout.output().is_some());

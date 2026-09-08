@@ -77,6 +77,7 @@ pub struct Arm64AsyncFrameLayout {
     alignment: u64,
     resume_function: Arm64AsyncFrameField,
     cancel_function: Arm64AsyncFrameField,
+    consume_function: Arm64AsyncFrameField,
     state_tag: Arm64AsyncFrameField,
     allocation_context: Arm64AsyncFrameField,
     process_context: Option<Arm64AsyncFrameField>,
@@ -146,6 +147,7 @@ impl Arm64AsyncFrameLayout {
             alignment,
             resume_function: header.resume_function,
             cancel_function: header.cancel_function,
+            consume_function: header.consume_function,
             state_tag: header.state_tag,
             allocation_context: header.allocation_context,
             process_context: header.process_context,
@@ -178,6 +180,11 @@ impl Arm64AsyncFrameLayout {
     #[must_use]
     pub const fn cancel_function(&self) -> Arm64AsyncFrameField {
         self.cancel_function
+    }
+
+    #[must_use]
+    pub const fn consume_function(&self) -> Arm64AsyncFrameField {
+        self.consume_function
     }
 
     #[must_use]
@@ -239,6 +246,7 @@ impl Arm64AsyncFrameLayout {
 struct RuntimeHeader {
     resume_function: Arm64AsyncFrameField,
     cancel_function: Arm64AsyncFrameField,
+    consume_function: Arm64AsyncFrameField,
     state_tag: Arm64AsyncFrameField,
     allocation_context: Arm64AsyncFrameField,
     process_context: Option<Arm64AsyncFrameField>,
@@ -269,6 +277,7 @@ fn place_header(
     let asynchronous = Arm64NocterAbi::asynchronous();
     let resume_function = fixed_header_field(asynchronous.resume_function_offset());
     let cancel_function = fixed_header_field(asynchronous.cancel_function_offset());
+    let consume_function = fixed_header_field(asynchronous.consume_function_offset());
     let state_tag = fixed_header_field(asynchronous.state_tag_offset());
     let allocation_context = fixed_header_field(asynchronous.allocation_context_offset());
     let process_context = match program.contexts().process().get(owner) {
@@ -282,6 +291,7 @@ fn place_header(
     Ok(RuntimeHeader {
         resume_function,
         cancel_function,
+        consume_function,
         state_tag,
         allocation_context,
         process_context,

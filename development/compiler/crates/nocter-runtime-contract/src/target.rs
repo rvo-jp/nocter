@@ -45,12 +45,28 @@ pub struct RuntimeAsyncAbiSchema {
     handle_alignment: u64,
     resume_function_offset: u64,
     cancel_function_offset: u64,
+    consume_function_offset: u64,
     state_tag_offset: u64,
     allocation_context_offset: u64,
     fixed_header_size: u64,
     fixed_header_alignment: u64,
     initial_state_tag: u64,
     first_suspension_tag: u64,
+    pending_status: u64,
+    completed_status: u64,
+    frame_argument_register: u8,
+    output_argument_register: u8,
+    status_result_register: u8,
+    interests_pointer_result_register: u8,
+    interest_count_result_register: u8,
+    interest_kind_offset: u64,
+    interest_subject_offset: u64,
+    interest_detail_offset: u64,
+    interest_record_size: u64,
+    descriptor_interest_kind: u64,
+    timer_interest_kind: u64,
+    readable_interest_detail: u64,
+    writable_interest_detail: u64,
 }
 
 /// Complete numeric ABI authority shared by machine planning and instruction lowering.
@@ -110,12 +126,28 @@ impl RuntimeAbiIdentity {
                     handle_alignment: 8,
                     resume_function_offset: 0,
                     cancel_function_offset: 8,
-                    state_tag_offset: 16,
-                    allocation_context_offset: 24,
-                    fixed_header_size: 32,
+                    consume_function_offset: 16,
+                    state_tag_offset: 24,
+                    allocation_context_offset: 32,
+                    fixed_header_size: 40,
                     fixed_header_alignment: 8,
                     initial_state_tag: 0,
                     first_suspension_tag: 1,
+                    pending_status: 0,
+                    completed_status: 1,
+                    frame_argument_register: 0,
+                    output_argument_register: 1,
+                    status_result_register: 0,
+                    interests_pointer_result_register: 1,
+                    interest_count_result_register: 2,
+                    interest_kind_offset: 0,
+                    interest_subject_offset: 8,
+                    interest_detail_offset: 16,
+                    interest_record_size: 24,
+                    descriptor_interest_kind: 0,
+                    timer_interest_kind: 1,
+                    readable_interest_detail: 0,
+                    writable_interest_detail: 1,
                 },
             },
         }
@@ -240,6 +272,11 @@ impl RuntimeAsyncAbiSchema {
     }
 
     #[must_use]
+    pub const fn consume_function_offset(self) -> u64 {
+        self.consume_function_offset
+    }
+
+    #[must_use]
     pub const fn state_tag_offset(self) -> u64 {
         self.state_tag_offset
     }
@@ -267,6 +304,81 @@ impl RuntimeAsyncAbiSchema {
     #[must_use]
     pub const fn first_suspension_tag(self) -> u64 {
         self.first_suspension_tag
+    }
+
+    #[must_use]
+    pub const fn pending_status(self) -> u64 {
+        self.pending_status
+    }
+
+    #[must_use]
+    pub const fn completed_status(self) -> u64 {
+        self.completed_status
+    }
+
+    #[must_use]
+    pub const fn frame_argument_register(self) -> u8 {
+        self.frame_argument_register
+    }
+
+    #[must_use]
+    pub const fn output_argument_register(self) -> u8 {
+        self.output_argument_register
+    }
+
+    #[must_use]
+    pub const fn status_result_register(self) -> u8 {
+        self.status_result_register
+    }
+
+    #[must_use]
+    pub const fn interests_pointer_result_register(self) -> u8 {
+        self.interests_pointer_result_register
+    }
+
+    #[must_use]
+    pub const fn interest_count_result_register(self) -> u8 {
+        self.interest_count_result_register
+    }
+
+    #[must_use]
+    pub const fn interest_kind_offset(self) -> u64 {
+        self.interest_kind_offset
+    }
+
+    #[must_use]
+    pub const fn interest_subject_offset(self) -> u64 {
+        self.interest_subject_offset
+    }
+
+    #[must_use]
+    pub const fn interest_detail_offset(self) -> u64 {
+        self.interest_detail_offset
+    }
+
+    #[must_use]
+    pub const fn interest_record_size(self) -> u64 {
+        self.interest_record_size
+    }
+
+    #[must_use]
+    pub const fn descriptor_interest_kind(self) -> u64 {
+        self.descriptor_interest_kind
+    }
+
+    #[must_use]
+    pub const fn timer_interest_kind(self) -> u64 {
+        self.timer_interest_kind
+    }
+
+    #[must_use]
+    pub const fn readable_interest_detail(self) -> u64 {
+        self.readable_interest_detail
+    }
+
+    #[must_use]
+    pub const fn writable_interest_detail(self) -> u64 {
+        self.writable_interest_detail
     }
 }
 
@@ -381,11 +493,27 @@ mod tests {
         assert_eq!(asynchronous.handle_alignment(), 8);
         assert_eq!(asynchronous.resume_function_offset(), 0);
         assert_eq!(asynchronous.cancel_function_offset(), 8);
-        assert_eq!(asynchronous.state_tag_offset(), 16);
-        assert_eq!(asynchronous.allocation_context_offset(), 24);
-        assert_eq!(asynchronous.fixed_header_size(), 32);
+        assert_eq!(asynchronous.consume_function_offset(), 16);
+        assert_eq!(asynchronous.state_tag_offset(), 24);
+        assert_eq!(asynchronous.allocation_context_offset(), 32);
+        assert_eq!(asynchronous.fixed_header_size(), 40);
         assert_eq!(asynchronous.fixed_header_alignment(), 8);
         assert_eq!(asynchronous.initial_state_tag(), 0);
         assert_eq!(asynchronous.first_suspension_tag(), 1);
+        assert_eq!(asynchronous.pending_status(), 0);
+        assert_eq!(asynchronous.completed_status(), 1);
+        assert_eq!(asynchronous.frame_argument_register(), 0);
+        assert_eq!(asynchronous.output_argument_register(), 1);
+        assert_eq!(asynchronous.status_result_register(), 0);
+        assert_eq!(asynchronous.interests_pointer_result_register(), 1);
+        assert_eq!(asynchronous.interest_count_result_register(), 2);
+        assert_eq!(asynchronous.interest_kind_offset(), 0);
+        assert_eq!(asynchronous.interest_subject_offset(), 8);
+        assert_eq!(asynchronous.interest_detail_offset(), 16);
+        assert_eq!(asynchronous.interest_record_size(), 24);
+        assert_eq!(asynchronous.descriptor_interest_kind(), 0);
+        assert_eq!(asynchronous.timer_interest_kind(), 1);
+        assert_eq!(asynchronous.readable_interest_detail(), 0);
+        assert_eq!(asynchronous.writable_interest_detail(), 1);
     }
 }
