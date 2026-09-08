@@ -191,6 +191,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>net
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>net<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">IpAddress</span><span class="token-operator">,</span> <span class="token-type">Ipv4Address</span><span class="token-operator">,</span> <span class="token-type">SocketAddress</span><span class="token-operator">,</span> <span class="token-type">TcpListener</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>task
@@ -228,7 +229,7 @@
     <span class="token-keyword">let</span> transferred <span class="token-operator">=</span> <span class="token-keyword">await</span> transfer
     <span class="token-keyword">let</span> write_result <span class="token-operator">=</span> <span class="token-keyword">move</span> transferred<span class="token-operator">.</span><span class="token-number">0</span>
     <span class="token-keyword">let</span> read_result <span class="token-operator">=</span> <span class="token-keyword">move</span> transferred<span class="token-operator">.</span><span class="token-number">1</span>
-    write_result<span class="token-operator">?</span>
+    <span class="token-keyword">move</span> write_result<span class="token-operator">?</span>
     <span class="token-keyword">let</span> count <span class="token-operator">=</span> <span class="token-keyword">move</span> read_result<span class="token-operator">?</span>
     <span class="token-keyword">if</span> count <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">4</span> <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"async-loopback.length"</span><span class="token-operator">,</span> <span class="token-string">"TCP changed the message length"</span><span class="token-operator">)</span>

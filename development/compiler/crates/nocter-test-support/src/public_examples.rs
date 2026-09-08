@@ -110,6 +110,20 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "async-loopback",
+        package_identity: "workspace:async-loopback",
+        executable: "async-loopback",
+        fixtures: &[],
+        runs: &[PublicExampleRun {
+            name: "structured-tcp-join",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: b"async tcp: ping\n",
+            stderr: b"",
+        }],
+    },
+    PublicPackageExample {
         directory: "network-loopback",
         package_identity: "workspace:network-loopback",
         executable: "network-loopback",

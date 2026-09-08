@@ -3,6 +3,7 @@
 see ./index.nct
 
 use std/io
+use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener}
 use std/string.String
 use std/task
@@ -40,7 +41,7 @@ func run(): async i32! {
     let transferred = await transfer
     let write_result = move transferred.0
     let read_result = move transferred.1
-    write_result?
+    move write_result?
     let count = move read_result?
     if count != 4 {
         return error.new("async-loopback.length", "TCP changed the message length")
