@@ -22,9 +22,11 @@ opaque ABI directly, publishes a frame-owned interest, and completes after resum
 conformance holds a generated process on an unreadable pipe before releasing it from the parent, so
 the complete pending-to-host-wait-to-resume path is exercised without busy polling.
 
-Next, reuse this qualified computation boundary for a monotonic-deadline producer and then add
-concurrent Darwin loopback coverage before exposing public asynchronous time or networking APIs.
-Keep the qualified v0.40.0 archive unchanged.
+The monotonic-deadline producer now shares one resume/cancel/consume lifecycle with descriptor
+readiness while retaining its own constructor. Native conformance proves that a generated process
+cannot complete before the requested absolute deadline. Next, expose the qualified timer through a
+small public asynchronous time contract, then add concurrent Darwin loopback coverage before
+exposing asynchronous networking. Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

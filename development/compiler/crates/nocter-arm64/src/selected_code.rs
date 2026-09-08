@@ -374,7 +374,12 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::ConstructDescriptorReadiness => context
             .async_primitives
             .descriptor_readiness()
-            .map(|targets| code.call(targets.constructor()))
+            .map(|target| code.call(target))
+            .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
+        Arm64SelectedInstruction::ConstructMonotonicDeadline => context
+            .async_primitives
+            .monotonic_deadline()
+            .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
         Arm64SelectedInstruction::ExitProcess { status } => {
             crate::system_primitive_code::emit_exit(function, Some(status), code)

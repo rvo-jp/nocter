@@ -156,6 +156,12 @@ pub(crate) fn select(
             selected.push(Arm64SelectedInstruction::ConstructDescriptorReadiness);
             Ok(())
         }
+        PrimitiveRole::MonotonicDeadline => {
+            validate_register_abi(operation, target, &[1], 1)?;
+            validate_type_arguments(operation, target, 0)?;
+            selected.push(Arm64SelectedInstruction::ConstructMonotonicDeadline);
+            Ok(())
+        }
     }
 }
 

@@ -303,6 +303,7 @@ noalloc primitive func monotonic_frequency_raw(): u64
 #target: \"arm64-darwin\"
 noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64
 pub noalloc func monotonic_counter_for_test(): u64 { return monotonic_counter_raw() }
+pub noalloc func monotonic_frequency_for_test(): u64 { return monotonic_frequency_raw() }
 ";
 const INTERNAL_TASK_SOURCE: &str = "\
 #target: \"arm64-darwin\"
@@ -315,6 +316,12 @@ pub func descriptor_readiness_for_test(
     writable: bool,
 ): async void {
     await descriptor_readiness_raw(descriptor, writable)
+    return
+}
+#target: \"arm64-darwin\"
+primitive func monotonic_deadline_raw(deadline: u64): async void
+pub func monotonic_deadline_for_test(deadline: u64): async void {
+    await monotonic_deadline_raw(deadline)
     return
 }
 ";

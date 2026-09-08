@@ -50,9 +50,9 @@ source, loader commands, or package state.
 - Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
   constructors and lifecycle entries are declared only from frozen Machine primitive roles; code
   emission cannot infer their presence from source names or synthesize targets on demand.
-- Descriptor readiness is one allocation-backed opaque computation. Its frame owns the exact ABI
-  interest record, while resume, cancellation, and consumption validate and advance only the
-  shared lifecycle state.
+- Descriptor readiness and monotonic deadlines are allocation-backed opaque computations. Each
+  frame owns one exact ABI interest record; their constructors differ, while resume, cancellation,
+  and consumption share one lifecycle implementation and validate only its state.
 - Resume restores only the Machine-selected state projection, uses ordinary selected-operation
   emission for body instructions, and persists exactly that projection when a child remains
   pending.

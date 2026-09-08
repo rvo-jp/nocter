@@ -1088,27 +1088,30 @@ fn function_targets_declare_one_callable_and_closed_async_lifecycle_entries() {
 fn async_primitive_targets_follow_machine_dependencies() {
     let absent = crate::test_support::lower_machine("func main(): i32 { return 0 }\n");
     let mut absent_builder = crate::Arm64ProgramBuilder::new();
-    assert_eq!(
-        crate::Arm64AsyncPrimitiveTargets::declare(&absent, &mut absent_builder)
-            .descriptor_readiness(),
-        None,
-    );
+    let absent = crate::Arm64AsyncPrimitiveTargets::declare(&absent, &mut absent_builder);
+    assert_eq!(absent.descriptor_readiness(), None);
+    assert_eq!(absent.monotonic_deadline(), None);
+    assert_eq!(absent.interest_lifecycle(), None);
 
     let present = crate::test_support::lower_machine_with_standard_uses(
         "use std/internal/task\n\
+         use std/time\n\
          func main(): i32 {\n\
              let pending = task.descriptor_readiness_for_test(0, false)\n\
+             let deadline = time.monotonic_counter_for_test()\n\
+             let timer = task.monotonic_deadline_for_test(deadline)\n\
              drop pending\n\
+             drop timer\n\
              return 0\n\
          }\n",
-        &[&["internal", "task"]],
+        &[&["internal", "task"], &["time"]],
     );
     let mut present_builder = crate::Arm64ProgramBuilder::new();
-    assert!(
-        crate::Arm64AsyncPrimitiveTargets::declare(&present, &mut present_builder)
-            .descriptor_readiness()
-            .is_some()
-    );
+    let present = crate::Arm64AsyncPrimitiveTargets::declare(&present, &mut present_builder);
+    assert!(present.descriptor_readiness().is_some());
+    assert!(present.monotonic_deadline().is_some());
+    assert!(present.interest_lifecycle().is_some());
+    assert_ne!(present.descriptor_readiness(), present.monotonic_deadline());
 }
 
 #[test]

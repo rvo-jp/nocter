@@ -310,27 +310,36 @@ fn define_async_primitives(
     targets: crate::Arm64AsyncPrimitiveTargets,
     builder: &mut Arm64ProgramBuilder,
 ) -> Result<(), Arm64LoweringError> {
-    let Some(targets) = targets.descriptor_readiness() else {
+    let Some(lifecycle) = targets.interest_lifecycle() else {
         return Ok(());
     };
+    if let Some(constructor) = targets.descriptor_readiness() {
+        builder.define_function(
+            constructor,
+            crate::async_interest_code::materialize_descriptor_constructor(lifecycle)
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+    }
+    if let Some(constructor) = targets.monotonic_deadline() {
+        builder.define_function(
+            constructor,
+            crate::async_interest_code::materialize_deadline_constructor(lifecycle)
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+    }
     builder.define_function(
-        targets.constructor(),
-        crate::async_descriptor_readiness_code::materialize_constructor(targets)
+        lifecycle.resume(),
+        crate::async_interest_code::materialize_resume()
             .map_err(Arm64MaterializationError::Code)?,
     )?;
     builder.define_function(
-        targets.resume(),
-        crate::async_descriptor_readiness_code::materialize_resume()
+        lifecycle.cancel(),
+        crate::async_interest_code::materialize_cancel()
             .map_err(Arm64MaterializationError::Code)?,
     )?;
     builder.define_function(
-        targets.cancel(),
-        crate::async_descriptor_readiness_code::materialize_cancel()
-            .map_err(Arm64MaterializationError::Code)?,
-    )?;
-    builder.define_function(
-        targets.consume(),
-        crate::async_descriptor_readiness_code::materialize_consume()
+        lifecycle.consume(),
+        crate::async_interest_code::materialize_consume()
             .map_err(Arm64MaterializationError::Code)?,
     )?;
     Ok(())

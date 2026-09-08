@@ -66,6 +66,26 @@ fn deferred_process_waits_for_descriptor_readiness_without_spinning() {
 }
 
 #[test]
+fn deferred_process_waits_until_a_monotonic_deadline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/task\n\
+         use std/time\n\
+         func main(): async i32 {\n\
+             let now = time.monotonic_counter_for_test()\n\
+             let frequency = time.monotonic_frequency_for_test()\n\
+             await task.monotonic_deadline_for_test(now + frequency / 20)\n\
+             return 43\n\
+         }\n",
+        &[&["internal", "task"], &["time"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_after_delay(&image, 43, std::time::Duration::from_millis(20));
+}
+
+#[test]
 fn dropped_deferred_computation_crosses_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func ready(value: i64): async i64 { return value }\n\
@@ -1565,6 +1585,34 @@ fn execute_and_release_stdin(image: &nocter_macho::MachOImage, expected: i32) {
     assert_eq!(status.code(), Some(expected));
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_after_delay(
+    image: &nocter_macho::MachOImage,
+    expected: i32,
+    minimum: std::time::Duration,
+) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
+    let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "nocter-async-deadline-{}-{artifact}",
+        std::process::id()
+    ));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let started = std::time::Instant::now();
+    let status = std::process::Command::new(&path).status().unwrap();
+    let elapsed = started.elapsed();
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(status.code(), Some(expected));
+    assert!(
+        elapsed >= minimum,
+        "deadline computation completed too early after {elapsed:?}"
+    );
+}
+
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_status(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
@@ -1579,6 +1627,14 @@ fn execute_and_assert_file_read(_image: &nocter_macho::MachOImage, _expected: i3
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_release_stdin(_image: &nocter_macho::MachOImage, _expected: i32) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_after_delay(
+    _image: &nocter_macho::MachOImage,
+    _expected: i32,
+    _minimum: std::time::Duration,
+) {
+}
 
 fn lower_machine(source: &str) -> MachineProgram {
     let fixture = CompilerFixture::with_app(source);

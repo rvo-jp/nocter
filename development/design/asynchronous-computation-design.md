@@ -221,12 +221,13 @@ the temporary mapping is released before the computation resumes. Invalid record
 pending set, native wait failure, and release failure terminate through distinct compiler-owned
 trap reasons. The adapter never guesses readiness from a computation frame.
 
-The initial compiler-owned descriptor-readiness computation uses the same opaque header and
-interest-record schema as a generated deferred function. Its constructor captures the descriptor
-and direction, its first resume publishes one frame-owned interest, and its next resume completes.
-Cancellation and completed-output consumption retire the frame through separate lifecycle entries.
-This target helper is declared only when the frozen Machine program contains the corresponding
-primitive role; later lowering does not rediscover the dependency from source spelling.
+The initial compiler-owned descriptor-readiness and monotonic-deadline computations use the same
+opaque header and interest-record schema as a generated deferred function. Each constructor writes
+its distinct record payload, while both use one resume/cancel/consume lifecycle. The first resume
+publishes the frame-owned interest and the next resume completes. Cancellation and completed-output
+consumption retire the frame through separate lifecycle entries. A constructor is declared only
+when the frozen Machine program contains its primitive role; later lowering does not rediscover the
+dependency from source spelling.
 
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
 normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
@@ -291,10 +292,11 @@ representation-independent allocation contract exists; it must not be hidden beh
 The language and compiler first establish one lossless async type, execution-kind fact, consuming
 `await`, capture provenance, and explicit diagnostics. State-machine lowering follows only after
 the checked product is closed. Executor and reactor implementation follows only after the
-executable state contract is closed. The generated Darwin process adapter and the first
-descriptor-readiness producer now consume the same wait-interest ABI, and native pipe conformance
-qualifies the pending path end to end. A timer producer and concurrent network loopback coverage
-precede public asynchronous time and networking APIs.
+executable state contract is closed. The generated Darwin process adapter, descriptor-readiness
+producer, and monotonic-deadline producer now consume the same wait-interest ABI. Native pipe and
+elapsed-deadline conformance qualify both pending paths end to end. A public asynchronous time
+contract may now use the timer; concurrent network loopback coverage still precedes public
+asynchronous networking APIs.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.

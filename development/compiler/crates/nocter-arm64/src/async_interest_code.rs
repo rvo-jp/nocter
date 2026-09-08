@@ -1,25 +1,46 @@
 use crate::{
-    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64Code, Arm64CodeBuilder, Arm64DataSize, Arm64DescriptorReadinessTargets, Arm64Instruction,
-    Arm64LoadStoreSize, Arm64NocterAbi,
+    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AsyncInterestLifecycleTargets,
+    Arm64BaseRegister, Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64DataSize,
+    Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
 };
 
 const CAPTURE_STACK_SIZE: u64 = 32;
-const DESCRIPTOR_STACK_OFFSET: u64 = 0;
-const DIRECTION_STACK_OFFSET: u64 = 8;
+const SUBJECT_STACK_OFFSET: u64 = 0;
+const DETAIL_STACK_OFFSET: u64 = 8;
 const ALLOCATION_CONTEXT_STACK_OFFSET: u64 = 16;
 const INITIAL_STATE: u64 = 0;
 const SUSPENDED_STATE: u64 = 1;
 const COMPLETED_STATE: u64 = 2;
 
-pub(crate) fn materialize_constructor(
-    targets: Arm64DescriptorReadinessTargets,
+#[derive(Clone, Copy)]
+enum InterestConstructor {
+    DescriptorReadiness,
+    MonotonicDeadline,
+}
+
+pub(crate) fn materialize_descriptor_constructor(
+    lifecycle: Arm64AsyncInterestLifecycleTargets,
+) -> Result<Arm64Code, crate::Arm64CodeError> {
+    materialize_constructor(InterestConstructor::DescriptorReadiness, lifecycle)
+}
+
+pub(crate) fn materialize_deadline_constructor(
+    lifecycle: Arm64AsyncInterestLifecycleTargets,
+) -> Result<Arm64Code, crate::Arm64CodeError> {
+    materialize_constructor(InterestConstructor::MonotonicDeadline, lifecycle)
+}
+
+fn materialize_constructor(
+    kind: InterestConstructor,
+    lifecycle: Arm64AsyncInterestLifecycleTargets,
 ) -> Result<Arm64Code, crate::Arm64CodeError> {
     let schema = Arm64NocterAbi::asynchronous();
     let mut code = Arm64CodeBuilder::new();
     crate::frame_access::adjust_stack(&mut code, CAPTURE_STACK_SIZE, Arm64AddSubtract::Subtract);
-    store_stack(DESCRIPTOR_STACK_OFFSET, argument(0), &mut code);
-    store_stack(DIRECTION_STACK_OFFSET, argument(1), &mut code);
+    store_stack(SUBJECT_STACK_OFFSET, argument(0), &mut code);
+    if matches!(kind, InterestConstructor::DescriptorReadiness) {
+        store_stack(DETAIL_STACK_OFFSET, argument(1), &mut code);
+    }
     store_stack(
         ALLOCATION_CONTEXT_STACK_OFFSET,
         Arm64NocterAbi::allocation_context_register(),
@@ -36,19 +57,19 @@ pub(crate) fn materialize_constructor(
     initialize_entry(
         argument(3),
         schema.resume_function_offset(),
-        targets.resume(),
+        lifecycle.resume(),
         &mut code,
     );
     initialize_entry(
         argument(3),
         schema.cancel_function_offset(),
-        targets.cancel(),
+        lifecycle.cancel(),
         &mut code,
     );
     initialize_entry(
         argument(3),
         schema.consume_function_offset(),
-        targets.consume(),
+        lifecycle.consume(),
         &mut code,
     );
     store_immediate(
@@ -67,35 +88,45 @@ pub(crate) fn materialize_constructor(
     store_immediate(
         argument(3),
         schema.fixed_header_size() + schema.interest_kind_offset(),
-        schema.descriptor_interest_kind(),
+        match kind {
+            InterestConstructor::DescriptorReadiness => schema.descriptor_interest_kind(),
+            InterestConstructor::MonotonicDeadline => schema.timer_interest_kind(),
+        },
         &mut code,
     );
-    load_stack(DESCRIPTOR_STACK_OFFSET, argument(4), &mut code);
+    load_stack(SUBJECT_STACK_OFFSET, argument(4), &mut code);
     store(
         argument(3),
         schema.fixed_header_size() + schema.interest_subject_offset(),
         argument(4),
         &mut code,
     );
-    load_stack(DIRECTION_STACK_OFFSET, argument(4), &mut code);
-    let readable = code.create_label();
-    let direction_ready = code.create_label();
-    compare_state(argument(4), 0, readable, &mut code);
-    crate::frame_access::load_immediate(
-        &mut code,
-        argument(4),
-        schema.writable_interest_detail(),
-        Arm64DataSize::Bits64,
-    );
-    code.branch(direction_ready, false);
-    code.bind(readable)?;
-    crate::frame_access::load_immediate(
-        &mut code,
-        argument(4),
-        schema.readable_interest_detail(),
-        Arm64DataSize::Bits64,
-    );
-    code.bind(direction_ready)?;
+    match kind {
+        InterestConstructor::DescriptorReadiness => {
+            load_stack(DETAIL_STACK_OFFSET, argument(4), &mut code);
+            let readable = code.create_label();
+            let direction_ready = code.create_label();
+            compare_state(argument(4), 0, readable, &mut code);
+            crate::frame_access::load_immediate(
+                &mut code,
+                argument(4),
+                schema.writable_interest_detail(),
+                Arm64DataSize::Bits64,
+            );
+            code.branch(direction_ready, false);
+            code.bind(readable)?;
+            crate::frame_access::load_immediate(
+                &mut code,
+                argument(4),
+                schema.readable_interest_detail(),
+                Arm64DataSize::Bits64,
+            );
+            code.bind(direction_ready)?;
+        }
+        InterestConstructor::MonotonicDeadline => {
+            crate::frame_access::load_immediate(&mut code, argument(4), 0, Arm64DataSize::Bits64)
+        }
+    }
     store(
         argument(3),
         schema.fixed_header_size() + schema.interest_detail_offset(),
@@ -261,7 +292,7 @@ fn compare_state(
         set_flags: true,
         destination: Arm64AddSubtractDestination::Zero,
         source: Arm64BaseRegister::General(actual),
-        immediate: u16::try_from(expected).expect("descriptor readiness states fit immediate"),
+        immediate: u16::try_from(expected).expect("single-interest states fit immediate"),
         shift_12: false,
     });
     code.branch_conditional(target, Arm64BranchCondition::Equal);
@@ -274,7 +305,7 @@ fn add_immediate(value: crate::Arm64Register, immediate: u64, code: &mut Arm64Co
         set_flags: false,
         destination: Arm64AddSubtractDestination::General(value),
         source: Arm64BaseRegister::General(value),
-        immediate: u16::try_from(immediate).expect("descriptor interest offset fits immediate"),
+        immediate: u16::try_from(immediate).expect("single-interest offset fits immediate"),
         shift_12: false,
     });
 }
@@ -294,6 +325,6 @@ fn return_to_caller(code: &mut Arm64CodeBuilder) {
 const fn argument(index: u8) -> crate::Arm64Register {
     match Arm64NocterAbi::argument_register(index) {
         Some(register) => register,
-        None => panic!("descriptor readiness uses only ABI argument registers"),
+        None => panic!("single-interest computation uses only ABI argument registers"),
     }
 }

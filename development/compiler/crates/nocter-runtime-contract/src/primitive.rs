@@ -120,6 +120,8 @@ closed_role_enum! {
         MonotonicCounterDelta,
         /// Creates one lazy computation that becomes completable after descriptor readiness.
         DescriptorReadiness,
+        /// Creates one lazy computation that becomes completable at a monotonic deadline.
+        MonotonicDeadline,
         Syscall0,
         /// Preserves both successful result words of one zero-argument target syscall.
         SyscallPair0,
@@ -212,6 +214,7 @@ impl PrimitiveRole {
             Self::MonotonicCounterFrequency => "monotonic_counter_frequency",
             Self::MonotonicCounterDelta => "monotonic_counter_delta",
             Self::DescriptorReadiness => "descriptor_readiness",
+            Self::MonotonicDeadline => "monotonic_deadline",
             Self::Syscall0 => "syscall_0",
             Self::SyscallPair0 => "syscall_pair_0",
             Self::Syscall1 => "syscall_1",
@@ -233,7 +236,10 @@ impl PrimitiveRole {
         // request storage. Keeping this decision on the closed role—not on source spelling—makes
         // future effectful primitives opt into the fact explicitly.
         PrimitiveEffects {
-            may_allocate: matches!(self, Self::DropValueAtPointer | Self::DescriptorReadiness),
+            may_allocate: matches!(
+                self,
+                Self::DropValueAtPointer | Self::DescriptorReadiness | Self::MonotonicDeadline
+            ),
         }
     }
 
@@ -410,6 +416,7 @@ mod tests {
             vec![
                 PrimitiveRole::DropValueAtPointer,
                 PrimitiveRole::DescriptorReadiness,
+                PrimitiveRole::MonotonicDeadline,
             ]
         );
     }
