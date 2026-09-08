@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use nocter_mir::{
-    MirBody, MirCallTarget, MirOperationKind, MirPackSegment, MirPrimitiveDependency, MirProgram,
+    MirBody, MirCallTarget, MirCancellationAction, MirOperationKind, MirPackSegment,
+    MirPrimitiveDependency, MirProgram,
 };
-use nocter_model::MirOperationId;
+use nocter_model::{MirBlockId, MirOperationId};
 use nocter_runtime_contract::{PrimitiveRole, RuntimePrimitive, RuntimeType};
 
 use crate::identity::{MachineId, MachineTable};
@@ -40,6 +41,7 @@ pub(crate) struct MachineDestructionPlanTable {
     calls: BTreeMap<(MachineLinkageId, MirOperationId), MachineDestructionId>,
     pack_segments:
         BTreeMap<(MachineLinkageId, MirOperationId, usize, PackComponent), MachineDestructionId>,
+    async_sites: BTreeMap<(MachineLinkageId, AsyncDestructionSite), MachineDestructionId>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -47,6 +49,17 @@ pub(crate) enum PackComponent {
     Value,
     Key,
     MappedValue,
+}
+
+/// Stable source occurrence of a cleanup owned by one deferred body.
+///
+/// The table closes these occurrences before Machine identities exist, so async-frame lowering can
+/// refer to an ordinary generated function without lowering the same destruction recipe again.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub(crate) enum AsyncDestructionSite {
+    Initial(usize),
+    Suspension { block: MirBlockId, action: usize },
+    Completed,
 }
 
 impl MachineDestructionPlanTable {
@@ -59,6 +72,7 @@ impl MachineDestructionPlanTable {
         let mut plans = BTreeSet::new();
         let mut calls = BTreeMap::new();
         let mut pack_segments = BTreeMap::new();
+        let mut async_sites = BTreeMap::new();
         for (item, function) in program.functions().iter() {
             let owner = require_linkage(linkage, MachineLinkageKey::Item(item))?;
             collect_body(
@@ -70,6 +84,16 @@ impl MachineDestructionPlanTable {
                 &mut calls,
                 &mut pack_segments,
             )?;
+            if let Some(frame) = function.async_frame() {
+                collect_async_frame(
+                    owner,
+                    frame,
+                    layouts,
+                    functions,
+                    &mut plans,
+                    &mut async_sites,
+                )?;
+            }
         }
         match program.root() {
             nocter_mir::MirRoot::Process(root) => collect_body(
@@ -124,10 +148,14 @@ impl MachineDestructionPlanTable {
                 segment,
             }
         })?;
+        let async_sites = close_edges(async_sites, &ids, |(owner, _)| {
+            MachineProgramError::MissingAsyncDestruction(owner)
+        })?;
         Ok(Self {
             entries: MachineTable::from_values(entries),
             calls,
             pack_segments,
+            async_sites,
         })
     }
 
@@ -159,11 +187,109 @@ impl MachineDestructionPlanTable {
     }
 
     #[must_use]
+    pub(crate) fn async_site(
+        &self,
+        owner: MachineLinkageId,
+        site: AsyncDestructionSite,
+    ) -> Option<MachineDestructionId> {
+        self.async_sites.get(&(owner, site)).copied()
+    }
+
+    #[must_use]
     pub fn iter(
         &self,
     ) -> impl ExactSizeIterator<Item = (MachineDestructionId, &MachineDestruction)> {
         self.entries.iter()
     }
+}
+
+fn collect_async_frame(
+    owner: MachineLinkageId,
+    frame: &nocter_mir::MirAsyncFrame,
+    layouts: &MachineLayoutPlan,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
+    plans: &mut BTreeSet<MachineDestructionPlan>,
+    sites: &mut BTreeMap<(MachineLinkageId, AsyncDestructionSite), MachineDestructionPlan>,
+) -> Result<(), MachineProgramError> {
+    collect_async_actions(
+        owner,
+        frame.initial().cancellation(),
+        |action| AsyncDestructionSite::Initial(action),
+        layouts,
+        functions,
+        plans,
+        sites,
+    )?;
+    for state in frame.states() {
+        collect_async_actions(
+            owner,
+            state.cancellation(),
+            |action| AsyncDestructionSite::Suspension {
+                block: state.suspend(),
+                action,
+            },
+            layouts,
+            functions,
+            plans,
+            sites,
+        )?;
+    }
+    if let Some(source) = frame.completed_destruction() {
+        insert_async_plan(
+            owner,
+            AsyncDestructionSite::Completed,
+            source,
+            layouts,
+            functions,
+            plans,
+            sites,
+        )?;
+    }
+    Ok(())
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the collection context is explicit and immutable"
+)]
+fn collect_async_actions(
+    owner: MachineLinkageId,
+    actions: &[MirCancellationAction],
+    site: impl Fn(usize) -> AsyncDestructionSite,
+    layouts: &MachineLayoutPlan,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
+    plans: &mut BTreeSet<MachineDestructionPlan>,
+    sites: &mut BTreeMap<(MachineLinkageId, AsyncDestructionSite), MachineDestructionPlan>,
+) -> Result<(), MachineProgramError> {
+    for (index, action) in actions.iter().enumerate() {
+        let MirCancellationAction::Destroy { plan, .. } = action else {
+            continue;
+        };
+        insert_async_plan(owner, site(index), plan, layouts, functions, plans, sites)?;
+    }
+    Ok(())
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the collection context is explicit and immutable"
+)]
+fn insert_async_plan(
+    owner: MachineLinkageId,
+    site: AsyncDestructionSite,
+    source: &nocter_mir::MirDestructionPlan,
+    layouts: &MachineLayoutPlan,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
+    plans: &mut BTreeSet<MachineDestructionPlan>,
+    sites: &mut BTreeMap<(MachineLinkageId, AsyncDestructionSite), MachineDestructionPlan>,
+) -> Result<(), MachineProgramError> {
+    let plan =
+        crate::lower::destruction::lower_async_destruction(source, owner, layouts, functions)?;
+    if sites.insert((owner, site), plan.clone()).is_some() {
+        return Err(MachineProgramError::DuplicateAsyncDestruction(owner));
+    }
+    plans.insert(plan);
+    Ok(())
 }
 
 fn collect_body(

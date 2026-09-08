@@ -3,7 +3,7 @@ use nocter_mir::{MirCancellationAction, MirFrameField};
 use super::MachineProgramError;
 use super::body::BodyIdentities;
 use super::context::ProgramLoweringContext;
-use super::destruction::lower_async_destruction;
+use crate::destruction_table::AsyncDestructionSite;
 use crate::{
     MachineAsyncFrame, MachineCancellationAction, MachineFrameField, MachineInitialAsyncState,
     MachineSuspensionState,
@@ -17,7 +17,12 @@ pub(super) fn lower_async_frame(
 ) -> Result<MachineAsyncFrame, MachineProgramError> {
     let initial = MachineInitialAsyncState::new(
         lower_fields(frame.initial().fields(), ids)?,
-        lower_actions(frame.initial().cancellation(), context, ids)?,
+        lower_actions(
+            frame.initial().cancellation(),
+            |action| AsyncDestructionSite::Initial(action),
+            context,
+            ids,
+        )?,
     );
     let states = frame
         .states()
@@ -28,13 +33,21 @@ pub(super) fn lower_async_frame(
                 ids.block(state.resume())?,
                 ids.value(state.awaited())?,
                 lower_fields(state.fields(), ids)?,
-                lower_actions(state.cancellation(), context, ids)?,
+                lower_actions(
+                    state.cancellation(),
+                    |action| AsyncDestructionSite::Suspension {
+                        block: state.suspend(),
+                        action,
+                    },
+                    context,
+                    ids,
+                )?,
             ))
         })
         .collect::<Result<Vec<_>, MachineProgramError>>()?;
     let completed_destruction = frame
         .completed_destruction()
-        .map(|plan| lower_async_destruction(plan, ids.owner(), context.layouts, context.functions))
+        .map(|_| async_destruction(AsyncDestructionSite::Completed, context, ids))
         .transpose()?;
     Ok(MachineAsyncFrame::new(
         super::body::value_representation(output, context.types, context.layouts)?,
@@ -61,28 +74,25 @@ fn lower_fields(
 
 fn lower_actions(
     actions: &[MirCancellationAction],
+    site: impl Fn(usize) -> AsyncDestructionSite,
     context: ProgramLoweringContext<'_>,
     ids: &BodyIdentities,
 ) -> Result<Vec<MachineCancellationAction>, MachineProgramError> {
     actions
         .iter()
-        .map(|action| match action {
+        .enumerate()
+        .map(|(index, action)| match action {
             MirCancellationAction::ReleaseAwaited(value) => ids
                 .value(*value)
                 .map(MachineCancellationAction::ReleaseAwaited),
             MirCancellationAction::Destroy {
                 place,
                 initialized,
-                plan,
+                plan: _,
             } => Ok(MachineCancellationAction::Destroy {
                 address: ids.address(*place)?,
                 initialized: initialized.map(|flag| ids.drop_flag(flag)).transpose()?,
-                plan: lower_async_destruction(
-                    plan,
-                    ids.owner(),
-                    context.layouts,
-                    context.functions,
-                )?,
+                destruction: async_destruction(site(index), context, ids)?,
             }),
             MirCancellationAction::ReleaseRegion(local) => ids
                 .stack(*local)
@@ -90,4 +100,19 @@ fn lower_actions(
             MirCancellationAction::DestroyPack => Ok(MachineCancellationAction::DestroyPack),
         })
         .collect()
+}
+
+fn async_destruction(
+    site: AsyncDestructionSite,
+    context: ProgramLoweringContext<'_>,
+    ids: &BodyIdentities,
+) -> Result<crate::MachineFunctionId, MachineProgramError> {
+    let destruction = context
+        .destructions
+        .async_site(ids.owner(), site)
+        .ok_or(MachineProgramError::MissingAsyncDestruction(ids.owner()))?;
+    context
+        .functions
+        .for_destruction(destruction)
+        .ok_or(MachineProgramError::MissingDestruction(destruction))
 }

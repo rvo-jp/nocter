@@ -1,7 +1,4 @@
-use crate::{
-    MachineAddressId, MachineBlockId, MachineDestructionPlan, MachineDropFlagId, MachineStackId,
-    MachineValueId,
-};
+use crate::{MachineAddressId, MachineBlockId, MachineDropFlagId, MachineStackId, MachineValueId};
 
 /// One body resource stored in a deferred computation frame.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -19,7 +16,7 @@ pub enum MachineCancellationAction {
     Destroy {
         address: MachineAddressId,
         initialized: Option<MachineDropFlagId>,
-        plan: MachineDestructionPlan,
+        destruction: crate::MachineFunctionId,
     },
     ReleaseRegion(MachineStackId),
     DestroyPack,
@@ -113,7 +110,7 @@ pub struct MachineAsyncFrame {
     output_representation: crate::MachineValueRepresentation,
     initial: MachineInitialAsyncState,
     states: Box<[MachineSuspensionState]>,
-    completed_destruction: Option<MachineDestructionPlan>,
+    completed_destruction: Option<crate::MachineFunctionId>,
 }
 
 impl MachineAsyncFrame {
@@ -121,7 +118,7 @@ impl MachineAsyncFrame {
         output_representation: crate::MachineValueRepresentation,
         initial: MachineInitialAsyncState,
         states: impl Into<Box<[MachineSuspensionState]>>,
-        completed_destruction: Option<MachineDestructionPlan>,
+        completed_destruction: Option<crate::MachineFunctionId>,
     ) -> Self {
         Self {
             output_representation,
@@ -148,7 +145,7 @@ impl MachineAsyncFrame {
     }
 
     #[must_use]
-    pub const fn completed_destruction(&self) -> Option<&MachineDestructionPlan> {
-        self.completed_destruction.as_ref()
+    pub const fn completed_destruction(&self) -> Option<crate::MachineFunctionId> {
+        self.completed_destruction
     }
 }

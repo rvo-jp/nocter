@@ -191,6 +191,10 @@ fn propagate_function_bodies(
     requirements: &mut [MachineContextRequirement],
 ) -> Result<(), MachineContextError> {
     for (function_id, function) in functions.iter() {
+        if async_frame_requires_context(kind, function, previous)? {
+            mark_requirement(functions, requirements, function_id, kind)?;
+            continue;
+        }
         for (_, operation) in function.body().operations() {
             if operation_requires_context(kind, operation.kind(), previous)? {
                 mark_requirement(functions, requirements, function_id, kind)?;
@@ -199,6 +203,34 @@ fn propagate_function_bodies(
         }
     }
     Ok(())
+}
+
+fn async_frame_requires_context(
+    kind: MachineContextKind,
+    function: &MachineFunction,
+    requirements: &[MachineContextRequirement],
+) -> Result<bool, MachineContextError> {
+    let crate::MachineFunctionExecution::Deferred(frame) = function.execution() else {
+        return Ok(false);
+    };
+    let targets = frame
+        .initial()
+        .cancellation()
+        .iter()
+        .chain(frame.states().iter().flat_map(|state| state.cancellation()))
+        .filter_map(|action| match action {
+            crate::MachineCancellationAction::Destroy { destruction, .. } => Some(*destruction),
+            crate::MachineCancellationAction::ReleaseAwaited(_)
+            | crate::MachineCancellationAction::ReleaseRegion(_)
+            | crate::MachineCancellationAction::DestroyPack => None,
+        })
+        .chain(frame.completed_destruction());
+    for target in targets {
+        if function_requires_context(kind, requirements, target)? {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn operation_requires_context(

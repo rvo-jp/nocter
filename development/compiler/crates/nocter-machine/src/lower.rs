@@ -257,6 +257,8 @@ pub enum MachineProgramError {
     InvalidDestructionAbi(MachineLinkageId),
     InvalidGeneratedDestruction(MachineLinkageId, crate::MachineBlockId),
     MissingGeneratedDestruction(MachineLinkageId, MirOperationId),
+    MissingAsyncDestruction(MachineLinkageId),
+    DuplicateAsyncDestruction(MachineLinkageId),
     MissingStoredLayout(TypeId),
     MissingStaticText(Box<str>),
     InvalidStaticData(nocter_model::ExecutableStaticId),
@@ -339,6 +341,8 @@ impl std::error::Error for MachineProgramError {
             | Self::InvalidDestructionAbi(_)
             | Self::InvalidGeneratedDestruction(_, _)
             | Self::MissingGeneratedDestruction(_, _)
+            | Self::MissingAsyncDestruction(_)
+            | Self::DuplicateAsyncDestruction(_)
             | Self::MissingStoredLayout(_)
             | Self::MissingStaticText(_)
             | Self::InvalidStaticData(_)

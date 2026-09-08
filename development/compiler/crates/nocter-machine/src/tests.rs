@@ -72,10 +72,10 @@ fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() 
     assert!(state.cancellation().iter().any(|action| matches!(
         action,
         crate::MachineCancellationAction::Destroy {
-            plan,
+            destruction,
             initialized: None,
             ..
-        } if matches!(plan.kind(), crate::MachineDestructionKind::Struct { drop: Some(_), .. })
+        } if program.function(*destruction).is_some()
     )));
     assert!(
         frame
@@ -84,12 +84,12 @@ fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() 
             .iter()
             .any(|action| matches!(action, crate::MachineCancellationAction::Destroy { .. }))
     );
-    assert!(matches!(
+    assert!(
         frame
             .completed_destruction()
-            .map(crate::MachineDestructionPlan::kind),
-        Some(crate::MachineDestructionKind::Struct { drop: Some(_), .. })
-    ));
+            .and_then(|destruction| program.function(destruction))
+            .is_some()
+    );
     assert!(program.functions().any(|(_, function)| {
         function.body().operations().any(|(_, operation)| {
             matches!(
