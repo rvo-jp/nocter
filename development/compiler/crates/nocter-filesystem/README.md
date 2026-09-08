@@ -9,12 +9,16 @@ first disk observations.
 
 Package resolution, discovery, and analysis consume clones of the same source view for one
 generation. `observe_file` resolves and reads a regular file as one value, then retains that first
-result—including absence or failure—for the view's lifetime. The crate publishes no package-state,
+result—including absence or failure—for the view's lifetime. Each view owns an opaque identity
+shared only by its clones. Equal override bytes do not make independently created views the same
+authority because their first disk observations may differ. The crate publishes no package-state,
 download, write, or artifact-publication operation.
 
 ## Invariants
 
 - One generation cannot observe different bytes for the same canonical path.
 - Cloning a source view shares disk observations instead of reopening the filesystem.
+- Source authority is compared by opaque view identity, never by reassembling bytes, versions, or
+  paths in a downstream crate.
 - Editor overlays are read-only and cannot enter persistent package transactions.
 - Filesystem content never selects a semantic identity after discovery has closed its input.

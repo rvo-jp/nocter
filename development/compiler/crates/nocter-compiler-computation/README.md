@@ -7,8 +7,9 @@ workspace analysis.
 
 ## Contract
 
-The crate accepts atomic source revisions and returns an owner-bound revision token. That token is
-required both to lend the computed syntax provider and to analyze a discovered unit. The crate
+The crate accepts atomic source revisions and returns a token bound to both the computation owner
+and the exact source-overlay generation. That token is required both to lend the computed syntax
+provider and to analyze a discovered unit. The crate
 derives and publishes semantic inputs from that exact unit, then demands the sole
 complete-or-incomplete semantic branch. It then seals that reusable branch with the exact current
 discovery unit outside the query cache. The publication types, semantic query entries, and sealing
@@ -31,19 +32,24 @@ interpret editor requests.
 ## Invariants
 
 - Command and workspace callers differ only in owner lifetime, not query providers or stage order.
-- Discovery supplies one already-ingested normalized source value to the parse query. The query key
-  owns that exact text; compiler computation never reopens a source path.
+- The computed syntax provider accepts only a normalized source value matching the canonical path
+  and bytes observed through its admitted overlay. Validation reuses the overlay's frozen first
+  observation; the parse query key then owns the exact normalized text and never opens a path.
 - Declaration-surface queries consume the same content-addressed parse product. Module-surface
   queries consume declaration surfaces rather than raw source identity, so body-only edits do not
   invalidate module contracts.
-- A source token from another owner or an earlier source revision is rejected before any query is
-  supplied or semantic input is published.
+- A source token from another owner or an earlier overlay generation is rejected before any query
+  is supplied or semantic input is published. Discovery additionally rejects a package graph built
+  from an independently created overlay, even when its explicit overrides are byte-identical.
 - Semantic input publication may advance the internal database without invalidating the current
   source token; source authority and internal query revisions are separate identities.
 - One discovered unit supplies both semantic and exact-current fingerprints atomically.
 - Query reuse owns semantic equivalence only. The returned unit-analysis envelope always retains
   the current discovery unit, so editor document versions, open-document state, and other overlay
   metadata cannot be inherited from an equivalent earlier source revision.
+- Semantic fingerprints may declare two source publications reusable; opaque overlay identity
+  separately decides whether a token can authorize physical source access. Neither concept is
+  reconstructed from the other.
 - Callers cannot access the raw computation database or demand an intermediate semantic query.
 - Authored rejection and compiler-domain integrity failure are separate outcomes. A rejected stage
   prevents its downstream query from being demanded; projection or checking failure retains its

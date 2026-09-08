@@ -191,11 +191,47 @@ pub(crate) fn source_view_fingerprint(
 
 pub(crate) struct ComputedSourceSyntax<'database> {
     database: &'database Database,
+    source_overlay: SourceOverlay,
 }
 
 impl<'database> ComputedSourceSyntax<'database> {
-    pub(crate) const fn new(database: &'database Database) -> Self {
-        Self { database }
+    pub(crate) fn new(database: &'database Database, source_overlay: &SourceOverlay) -> Self {
+        Self {
+            database,
+            source_overlay: source_overlay.clone(),
+        }
+    }
+
+    fn validate_source(&self, source: &SourceFile) -> Result<(), SourceSyntaxError> {
+        let requested_path = Path::new(source.name().as_str());
+        let observed = self
+            .source_overlay
+            .observe_file(requested_path)
+            .map_err(|error| {
+                SourceSyntaxError::new(SourceAdmissionError::Observation {
+                    path: requested_path.to_path_buf(),
+                    error,
+                })
+            })?
+            .ok_or_else(|| {
+                SourceSyntaxError::new(SourceAdmissionError::Missing(requested_path.to_path_buf()))
+            })?;
+        let observed_name = observed.canonical_path().to_string_lossy();
+        if observed_name != source.name().as_str() {
+            return Err(SourceSyntaxError::new(SourceAdmissionError::Identity {
+                expected: observed.canonical_path().to_path_buf(),
+                received: requested_path.to_path_buf(),
+            }));
+        }
+        if !source
+            .matches_input(observed_name.as_ref(), observed.bytes())
+            .map_err(SourceSyntaxError::new)?
+        {
+            return Err(SourceSyntaxError::new(SourceAdmissionError::Contents(
+                requested_path.to_path_buf(),
+            )));
+        }
+        Ok(())
     }
 }
 
@@ -205,6 +241,7 @@ impl SourceSyntaxProvider for ComputedSourceSyntax<'_> {
         source: &SourceFile,
         goal: ParseGoal,
     ) -> Result<Arc<ParsedSyntax>, SourceSyntaxError> {
+        self.validate_source(source)?;
         let product = self
             .database
             .query::<SourceSyntaxQuery>(SourceSyntaxKey::new(source, goal))
@@ -215,6 +252,61 @@ impl SourceSyntaxProvider for ComputedSourceSyntax<'_> {
             .map_err(|message| SourceSyntaxError::new(SourceProductError(Arc::clone(message))))?;
         debug_assert!(syntax.matches(source));
         Ok(Arc::clone(syntax))
+    }
+}
+
+#[derive(Debug)]
+enum SourceAdmissionError {
+    Observation {
+        path: std::path::PathBuf,
+        error: std::io::Error,
+    },
+    Missing(std::path::PathBuf),
+    Identity {
+        expected: std::path::PathBuf,
+        received: std::path::PathBuf,
+    },
+    Contents(std::path::PathBuf),
+}
+
+impl fmt::Display for SourceAdmissionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Observation { path, error } => {
+                write!(
+                    formatter,
+                    "failed to observe admitted source {}: {error}",
+                    path.display()
+                )
+            }
+            Self::Missing(path) => {
+                write!(
+                    formatter,
+                    "source is absent from the admitted overlay: {}",
+                    path.display()
+                )
+            }
+            Self::Identity { expected, received } => write!(
+                formatter,
+                "source identity {} does not match admitted canonical path {}",
+                received.display(),
+                expected.display(),
+            ),
+            Self::Contents(path) => write!(
+                formatter,
+                "source contents do not match the admitted overlay: {}",
+                path.display(),
+            ),
+        }
+    }
+}
+
+impl Error for SourceAdmissionError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Observation { error, .. } => Some(error),
+            Self::Missing(_) | Self::Identity { .. } | Self::Contents(_) => None,
+        }
     }
 }
 
@@ -239,4 +331,60 @@ pub(crate) fn reuse_count(database: &Database) -> u64 {
 
 pub(crate) fn declaration_surface_execution_count(database: &Database) -> u64 {
     database.execution_count::<SourceDeclarationSurfaceQuery>()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use nocter_filesystem::SourceOverride;
+
+    use super::*;
+
+    #[test]
+    fn computed_syntax_accepts_only_the_admitted_source_value() {
+        let path = PathBuf::from("/virtual/source.nct");
+        let mut overlay = SourceOverlay::builder();
+        overlay
+            .insert_source(
+                path.clone(),
+                SourceOverride::new(&b"func admitted(): void {}\n"[..]),
+            )
+            .unwrap();
+        let overlay = overlay.finish();
+        let database = Database::new();
+        let mut provider = ComputedSourceSyntax::new(&database, &overlay);
+
+        let mut admitted_sources = SourceMap::new();
+        let admitted_id = admitted_sources
+            .add_bytes(
+                SourceName::new(path.to_string_lossy()),
+                b"func admitted(): void {}\n",
+            )
+            .unwrap();
+        assert!(
+            provider
+                .parsed_syntax(
+                    admitted_sources.get(admitted_id).unwrap(),
+                    ParseGoal::SourceFile,
+                )
+                .is_ok()
+        );
+
+        let mut foreign_sources = SourceMap::new();
+        let foreign_id = foreign_sources
+            .add_bytes(
+                SourceName::new(path.to_string_lossy()),
+                b"func foreign(): void {}\n",
+            )
+            .unwrap();
+        assert!(
+            provider
+                .parsed_syntax(
+                    foreign_sources.get(foreign_id).unwrap(),
+                    ParseGoal::SourceFile,
+                )
+                .is_err()
+        );
+    }
 }

@@ -109,10 +109,43 @@ impl OverlayEntry {
 /// An entry may additionally retain a real accepted editor version. Clones share the complete
 /// override map and the disk observations made through it. Reads of paths absent from the map
 /// observe disk once; writes, fetches, and lock generation deliberately have no API here.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct SourceOverlay {
+    identity: SourceOverlayIdentity,
     entries: Arc<BTreeMap<PathBuf, OverlayEntry>>,
     observations: Arc<Mutex<BTreeMap<PathBuf, FileObservation>>>,
+}
+
+/// Opaque identity of one exact source-overlay generation.
+///
+/// Two overlays have the same identity only when they were cloned from the same immutable view.
+/// Equal override bytes are deliberately insufficient: independently created views own separate
+/// first disk observations and therefore are separate source authorities.
+#[derive(Clone, Debug)]
+pub struct SourceOverlayIdentity(Arc<()>);
+
+impl SourceOverlayIdentity {
+    fn new() -> Self {
+        Self(Arc::new(()))
+    }
+}
+
+impl PartialEq for SourceOverlayIdentity {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for SourceOverlayIdentity {}
+
+impl Default for SourceOverlay {
+    fn default() -> Self {
+        Self {
+            identity: SourceOverlayIdentity::new(),
+            entries: Arc::default(),
+            observations: Arc::default(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -172,6 +205,12 @@ impl SourceOverlay {
     #[must_use]
     pub fn builder() -> SourceOverlayBuilder {
         SourceOverlayBuilder::new()
+    }
+
+    /// Returns the opaque identity shared by every clone of this exact source view.
+    #[must_use]
+    pub const fn identity(&self) -> &SourceOverlayIdentity {
+        &self.identity
     }
 
     #[must_use]
@@ -353,6 +392,7 @@ impl SourceOverlayBuilder {
     #[must_use]
     pub fn finish(self) -> SourceOverlay {
         SourceOverlay {
+            identity: SourceOverlayIdentity::new(),
             entries: Arc::new(self.entries),
             observations: Arc::default(),
         }
@@ -511,6 +551,16 @@ mod tests {
                 .bytes(),
             b"second"
         );
+    }
+
+    #[test]
+    fn identity_distinguishes_independent_views_with_equal_overrides() {
+        let first = SourceOverlay::empty();
+        let clone = first.clone();
+        let independent = SourceOverlay::empty();
+
+        assert_eq!(first.identity(), clone.identity());
+        assert_ne!(first.identity(), independent.identity());
     }
 
     #[test]

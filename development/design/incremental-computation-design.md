@@ -57,9 +57,19 @@ cannot choose a fallback compiler phase.
 
 ## Revision and Identity
 
-One `CompilerComputation` admits an atomic source view and returns an owner-bound revision token.
-The token is required for syntax access and discovery. A token from another owner or an older
-source view is rejected before semantic inputs can be published.
+One `CompilerComputation` admits an atomic source view and returns a revision token bound to both
+the computation owner and that exact overlay generation. The token is required for syntax access
+and discovery. A token from another owner or an older overlay generation is rejected before
+semantic inputs can be published. A discovery request must retain a clone of the same overlay;
+byte-equivalent independently created overlays are not interchangeable because they own separate
+first disk observations.
+
+Overlay authority and semantic equivalence are separate. Opaque overlay identity answers which
+physical source view may be read. Content fingerprints answer whether computed semantic work may
+be reused. Publishing equivalent bytes may therefore retain reusable query products while still
+invalidating a token from an independently observed overlay. The computed syntax provider checks
+each supplied canonical source against the frozen observation owned by its overlay before entering
+the parse query.
 
 Physical paths are canonicalized before they become query keys. A semantic scope key identifies
 the selected target and canonical root package identities. A body key identifies one canonical
@@ -92,7 +102,7 @@ open-document state, and other non-semantic overlay metadata therefore stay curr
 invalidating semantic work. An unchanged result fingerprint stops invalidation propagation even
 when an upstream query had to be re-evaluated.
 
-A fingerprint is cache validation, not semantic authority. Its owning product still carries the
+A fingerprint is cache validation, not source or semantic authority. Its owning product still carries the
 identities and decisions consumed downstream. Warm incremental results are compared with a fresh
 computation of the same final source in conformance tests.
 

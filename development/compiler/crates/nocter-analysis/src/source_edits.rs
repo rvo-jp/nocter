@@ -116,7 +116,7 @@ impl<'source> SemanticMutationCandidate<'source> {
         self,
         candidate: Box<AnalysisSnapshot>,
     ) -> Result<Option<ValidatedSemanticMutation<'source>>, EvidenceIntegrityError> {
-        if !same_overlay(&self.overlay, candidate.source_overlay()) {
+        if self.overlay.identity() != candidate.source_overlay().identity() {
             return Ok(None);
         }
         if !candidate.seals_semantic_mutation()? {
@@ -134,19 +134,6 @@ impl<'source> SemanticMutationCandidate<'source> {
             _candidate: candidate,
         }))
     }
-}
-
-fn same_overlay(expected: &SourceOverlay, actual: &SourceOverlay) -> bool {
-    if expected.len() != actual.len() {
-        return false;
-    }
-    expected.sources().all(|(path, source)| {
-        actual
-            .source(path)
-            .is_some_and(|actual| actual.bytes() == source.bytes())
-            && actual.document(path).map(OpenDocument::version)
-                == expected.document(path).map(OpenDocument::version)
-    })
 }
 
 /// A source generation, exact edit set, and compiler-accepted candidate retained as one value.

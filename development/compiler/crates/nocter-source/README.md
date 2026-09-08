@@ -8,7 +8,9 @@ UTF-8/UTF-16 coordinate conversion.
 ## Contract
 
 Consumers receive immutable `SourceFile` and `SourceMap` values and validated coordinate
-conversions. The crate does not lex, parse, resolve names, or assign semantic meaning to a range.
+conversions. `SourceFile` also owns the exact comparison between normalized source and a named raw
+byte input, so authority boundaries do not reproduce ingestion rules. The crate does not lex,
+parse, resolve names, or assign semantic meaning to a range.
 
 ## Internal Responsibilities
 

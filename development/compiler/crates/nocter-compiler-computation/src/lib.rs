@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use nocter_computation::{ComputationError, ComputationRevision, Database, Fingerprint};
 use nocter_discovery::{DiscoveredUnit, DiscoveryFailure, DiscoveryRequest};
-use nocter_filesystem::SourceOverlay;
+use nocter_filesystem::{SourceOverlay, SourceOverlayIdentity};
 
 pub use semantic::{
     FinalizedProgram, IncompleteSemanticAnalysis, IncompleteSemanticError,
@@ -27,8 +27,18 @@ pub struct CompilerComputation {
     database: Database,
     revision_owner: Arc<()>,
     source_revision: u64,
-    source_view: Option<Fingerprint>,
+    source_state: CompilerSourceState,
     source_checkpoints: VecDeque<ComputationRevision>,
+}
+
+#[derive(Debug, Default)]
+enum CompilerSourceState {
+    #[default]
+    Empty,
+    Admitted {
+        fingerprint: Fingerprint,
+        overlay: SourceOverlay,
+    },
 }
 
 impl Default for CompilerComputation {
@@ -37,7 +47,7 @@ impl Default for CompilerComputation {
             database: Database::new(),
             revision_owner: Arc::new(()),
             source_revision: 0,
-            source_view: None,
+            source_state: CompilerSourceState::Empty,
             source_checkpoints: VecDeque::new(),
         }
     }
@@ -60,7 +70,10 @@ impl CompilerComputation {
         filesystem_epoch: u64,
     ) -> Result<CompilerSourceRevision, CompilerComputationError> {
         let source_view = source_syntax::source_view_fingerprint(overlay, filesystem_epoch);
-        let changed = self.source_view != Some(source_view);
+        let changed = match &self.source_state {
+            CompilerSourceState::Empty => true,
+            CompilerSourceState::Admitted { fingerprint, .. } => *fingerprint != source_view,
+        };
         let source_revision = if changed {
             self.source_revision
                 .checked_add(1)
@@ -73,10 +86,14 @@ impl CompilerComputation {
             self.retain_source_checkpoint(checkpoint);
         }
         self.source_revision = source_revision;
-        self.source_view = Some(source_view);
+        self.source_state = CompilerSourceState::Admitted {
+            fingerprint: source_view,
+            overlay: overlay.clone(),
+        };
         Ok(CompilerSourceRevision {
             owner: Arc::clone(&self.revision_owner),
             revision: source_revision,
+            source_overlay: overlay.identity().clone(),
         })
     }
 
@@ -102,8 +119,11 @@ impl CompilerComputation {
         &self,
         revision: &CompilerSourceRevision,
     ) -> Result<impl nocter_syntax::SourceSyntaxProvider + '_, CompilerComputationError> {
-        self.validate_revision(revision)?;
-        Ok(source_syntax::ComputedSourceSyntax::new(&self.database))
+        let overlay = self.current_source_overlay(revision)?;
+        Ok(source_syntax::ComputedSourceSyntax::new(
+            &self.database,
+            overlay,
+        ))
     }
 
     /// Discovers one physical source unit through this revision's sole syntax provider.
@@ -117,9 +137,10 @@ impl CompilerComputation {
         revision: &CompilerSourceRevision,
         request: DiscoveryRequest,
     ) -> Result<CompilerDiscoveredUnit, CompilerDiscoveryError> {
-        self.validate_revision(revision)
+        let overlay = self
+            .source_overlay_for_request(revision, request.source_overlay())
             .map_err(CompilerDiscoveryError::Computation)?;
-        let mut source_syntax = source_syntax::ComputedSourceSyntax::new(&self.database);
+        let mut source_syntax = source_syntax::ComputedSourceSyntax::new(&self.database, overlay);
         let unit = nocter_discovery::discover_with_source_syntax(request, &mut source_syntax)
             .map_err(CompilerDiscoveryError::Discovery)?;
         Ok(CompilerDiscoveredUnit {
@@ -163,7 +184,42 @@ impl CompilerComputation {
                 },
             ));
         }
+        let current_overlay = self.admitted_source_overlay();
+        if current_overlay.identity() != &revision.source_overlay {
+            return Err(CompilerComputationError::SourceRevision(
+                CompilerSourceRevisionError::StaleSourceOverlay,
+            ));
+        }
         Ok(())
+    }
+
+    fn current_source_overlay(
+        &self,
+        revision: &CompilerSourceRevision,
+    ) -> Result<&SourceOverlay, CompilerComputationError> {
+        self.validate_revision(revision)?;
+        Ok(self.admitted_source_overlay())
+    }
+
+    fn admitted_source_overlay(&self) -> &SourceOverlay {
+        let CompilerSourceState::Admitted { overlay, .. } = &self.source_state else {
+            unreachable!("a compiler source token exists only after source admission");
+        };
+        overlay
+    }
+
+    fn source_overlay_for_request(
+        &self,
+        revision: &CompilerSourceRevision,
+        overlay: &SourceOverlay,
+    ) -> Result<&SourceOverlay, CompilerComputationError> {
+        let admitted = self.current_source_overlay(revision)?;
+        if overlay.identity() != &revision.source_overlay {
+            return Err(CompilerComputationError::SourceRevision(
+                CompilerSourceRevisionError::MismatchedSourceOverlay,
+            ));
+        }
+        Ok(admitted)
     }
 
     #[must_use]
@@ -207,6 +263,7 @@ impl CompilerComputation {
 pub struct CompilerSourceRevision {
     owner: Arc<()>,
     revision: u64,
+    source_overlay: SourceOverlayIdentity,
 }
 
 /// One discovered unit inseparably admitted by an exact compiler source revision.
@@ -259,6 +316,8 @@ impl std::error::Error for CompilerDiscoveryError {
 pub enum CompilerSourceRevisionError {
     ForeignOwner,
     Stale { current: u64, received: u64 },
+    StaleSourceOverlay,
+    MismatchedSourceOverlay,
 }
 
 impl std::fmt::Display for CompilerSourceRevisionError {
@@ -271,6 +330,10 @@ impl std::fmt::Display for CompilerSourceRevisionError {
                 formatter,
                 "source revision {received} is stale; current revision is {current}",
             ),
+            Self::StaleSourceOverlay => formatter
+                .write_str("source revision belongs to an earlier source-overlay generation"),
+            Self::MismatchedSourceOverlay => formatter
+                .write_str("discovery request belongs to a different source-overlay generation"),
         }
     }
 }
@@ -383,14 +446,56 @@ mod tests {
     #[test]
     fn equivalent_source_publication_retains_the_admitted_revision() {
         let mut computation = CompilerComputation::new();
+        let overlay = SourceOverlay::empty();
+        let admitted = computation.advance_sources(&overlay, 0).unwrap();
+        let _equivalent = computation.advance_sources(&overlay.clone(), 0).unwrap();
+
+        assert!(computation.source_syntax(&admitted).is_ok());
+    }
+
+    #[test]
+    fn equivalent_but_independent_overlay_invalidates_source_authority() {
+        let mut computation = CompilerComputation::new();
         let admitted = computation
             .advance_sources(&SourceOverlay::empty(), 0)
             .unwrap();
-        let _equivalent = computation
+        let _independent = computation
             .advance_sources(&SourceOverlay::empty(), 0)
             .unwrap();
 
-        assert!(computation.source_syntax(&admitted).is_ok());
+        let Err(error) = computation.source_syntax(&admitted) else {
+            panic!("an independently observed source overlay was accepted");
+        };
+
+        assert!(matches!(
+            error,
+            CompilerComputationError::SourceRevision(
+                CompilerSourceRevisionError::StaleSourceOverlay
+            )
+        ));
+    }
+
+    #[test]
+    fn source_revision_rejects_a_request_from_an_independent_overlay() {
+        let mut computation = CompilerComputation::new();
+        let admitted_overlay = SourceOverlay::empty();
+        let revision = computation.advance_sources(&admitted_overlay, 0).unwrap();
+
+        let error = computation
+            .source_overlay_for_request(&revision, &SourceOverlay::empty())
+            .unwrap_err();
+
+        assert!(matches!(
+            error,
+            CompilerComputationError::SourceRevision(
+                CompilerSourceRevisionError::MismatchedSourceOverlay
+            )
+        ));
+        assert!(
+            computation
+                .source_overlay_for_request(&revision, &admitted_overlay.clone())
+                .is_ok()
+        );
     }
 
     #[test]
