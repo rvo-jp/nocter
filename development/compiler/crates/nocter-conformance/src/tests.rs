@@ -49,6 +49,23 @@ fn deferred_process_failure_uses_the_existing_error_exit_policy() {
 }
 
 #[test]
+fn deferred_process_waits_for_descriptor_readiness_without_spinning() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/task\n\
+         func main(): async i32 {\n\
+             await task.descriptor_readiness_for_test(0, false)\n\
+             return 42\n\
+         }\n",
+        &[&["internal", "task"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_release_stdin(&image, 42);
+}
+
+#[test]
 fn dropped_deferred_computation_crosses_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func ready(value: i64): async i64 { return value }\n\
@@ -1521,6 +1538,33 @@ fn execute_and_assert_file_read(image: &nocter_macho::MachOImage, expected: i32)
     assert_eq!(status.code(), Some(expected));
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_and_release_stdin(image: &nocter_macho::MachOImage, expected: i32) {
+    use std::io::Write;
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
+
+    static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
+    let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "nocter-async-readiness-{}-{artifact}",
+        std::process::id()
+    ));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut child = std::process::Command::new(&path)
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(40));
+    child.stdin.take().unwrap().write_all(b"ready").unwrap();
+    let status = child.wait().unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(status.code(), Some(expected));
+}
+
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_status(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
@@ -1532,6 +1576,9 @@ fn execute_and_assert_process_state(_image: &nocter_macho::MachOImage, _expected
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_file_read(_image: &nocter_macho::MachOImage, _expected: i32) {}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_and_release_stdin(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
 fn lower_machine(source: &str) -> MachineProgram {
     let fixture = CompilerFixture::with_app(source);

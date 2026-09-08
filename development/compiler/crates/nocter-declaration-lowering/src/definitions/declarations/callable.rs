@@ -33,7 +33,7 @@ pub(super) fn define(
         .copied()
         .flatten()
         .ok_or(HeaderDefinitionError::MissingCallableResult(declaration))?;
-    let execution = match types
+    let result_kind = types
         .namespaces
         .imports
         .generics
@@ -41,11 +41,13 @@ pub(super) fn define(
         .reserved
         .program
         .types()
-        .get(result)
-    {
-        Some(TypeKind::Async(output)) => CallableExecution::Deferred { output: *output },
-        Some(_) => CallableExecution::Immediate,
-        None => return Err(HeaderDefinitionError::MissingCallableResult(declaration)),
+        .get(result);
+    let execution = match (kind, result_kind) {
+        (CallableKind::Function | CallableKind::Method, Some(TypeKind::Async(output))) => {
+            CallableExecution::Deferred { output: *output }
+        }
+        (_, Some(_)) => CallableExecution::Immediate,
+        (_, None) => return Err(HeaderDefinitionError::MissingCallableResult(declaration)),
     };
     let body_result = execution.body_result(result);
     let (contract, provenance_annotation) = provenance::contract(

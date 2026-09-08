@@ -304,6 +304,20 @@ noalloc primitive func monotonic_frequency_raw(): u64
 noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64
 pub noalloc func monotonic_counter_for_test(): u64 { return monotonic_counter_raw() }
 ";
+const INTERNAL_TASK_SOURCE: &str = "\
+#target: \"arm64-darwin\"
+primitive func descriptor_readiness_raw(
+    descriptor: usize,
+    writable: bool,
+): async void
+pub func descriptor_readiness_for_test(
+    descriptor: usize,
+    writable: bool,
+): async void {
+    await descriptor_readiness_raw(descriptor, writable)
+    return
+}
+";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
 pub(/) copy struct SyscallResult {
@@ -591,6 +605,7 @@ impl CompilerFixture {
             (&["process"][..], PROCESS_SOURCE),
             (&["io"][..], IO_SOURCE),
             (&["time"][..], TIME_SOURCE),
+            (&["internal", "task"][..], INTERNAL_TASK_SOURCE),
             (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),
         ]
         .into_iter()

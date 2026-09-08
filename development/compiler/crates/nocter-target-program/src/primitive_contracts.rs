@@ -25,6 +25,7 @@ enum TypeContract {
         referent: Box<Self>,
     },
     Slice(Box<Self>),
+    Async(Box<Self>),
 }
 
 impl TypeContract {
@@ -49,6 +50,10 @@ impl TypeContract {
 
     fn slice(element: Self) -> Self {
         Self::Slice(Box::new(element))
+    }
+
+    fn asynchronous(output: Self) -> Self {
+        Self::Async(Box::new(output))
     }
 }
 
@@ -347,7 +352,8 @@ fn type_matches(
                 )
         }
         (Some(TypeKind::Pointer(actual)), TypeContract::Pointer(expected))
-        | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected)) => {
+        | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected))
+        | (Some(TypeKind::Async(actual)), TypeContract::Async(expected)) => {
             type_matches(graph, types, callable, *actual, expected, standard_package)
         }
         (
@@ -424,6 +430,7 @@ fn validate_supporting_struct(
 fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let builtin = TypeContract::Builtin;
     let void = || builtin(BuiltinType::Void);
+    let boolean = || builtin(BuiltinType::Bool);
     let never = || builtin(BuiltinType::Never);
     let usize = || builtin(BuiltinType::Usize);
     let i8 = || builtin(BuiltinType::I8);
@@ -703,6 +710,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::MonotonicCounterDelta => {
             make(0, vec![u64(), u64()], u64(), private, arm64_darwin, vec![])
         }
+        PrimitiveRole::DescriptorReadiness => make(
+            0,
+            vec![usize(), boolean()],
+            TypeContract::asynchronous(void()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1
         | PrimitiveRole::Syscall2

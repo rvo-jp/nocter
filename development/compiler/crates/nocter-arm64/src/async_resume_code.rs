@@ -12,6 +12,7 @@ use crate::{
 #[derive(Clone, Copy)]
 struct ResumeResources<'a> {
     functions: &'a Arm64FunctionTargets,
+    async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
     data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
     imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
     pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
@@ -22,6 +23,7 @@ pub(crate) fn materialize(
     plan: &Arm64AsyncFunctionPlan,
     target: Arm64FunctionTarget,
     functions: &Arm64FunctionTargets,
+    async_primitives: &crate::Arm64AsyncPrimitiveTargets,
     data: &[(nocter_machine::MachineDataId, crate::Arm64DataId)],
     imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
     pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
@@ -31,6 +33,7 @@ pub(crate) fn materialize(
     let selected = plan.selected();
     let resources = ResumeResources {
         functions,
+        async_primitives,
         data,
         imports,
         pack_callbacks,
@@ -114,6 +117,7 @@ fn selected_context<'a>(
     crate::selected_code::InstructionMaterialization {
         function: plan.selected(),
         functions: resources.functions,
+        async_primitives: resources.async_primitives,
         data: resources.data,
         imports: resources.imports,
         pack_callbacks: resources.pack_callbacks,

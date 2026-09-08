@@ -279,8 +279,6 @@ Source-backed normalized type-position diagnostics:
   declaration's owner interface.
 - `E0368`: a concrete associated projection admits more than one application of the associated
   declaration's owner interface.
-- `E0369`: a declaration other than a function or method attempts to define an asynchronous
-  computation body.
 - `E0374`: an asynchronous producer promises `noalloc` even though creating its owning computation
   requires storage.
 

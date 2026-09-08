@@ -218,6 +218,7 @@ pub const fn bundled_primitive_source_location(
         Role::MonotonicCounterRead => (&["time"], "monotonic_counter_raw"),
         Role::MonotonicCounterFrequency => (&["time"], "monotonic_frequency_raw"),
         Role::MonotonicCounterDelta => (&["time"], "monotonic_delta_raw"),
+        Role::DescriptorReadiness => (&["internal", "task"], "descriptor_readiness_raw"),
         Role::Syscall0 => (&["internal", "os", "darwin"], "syscall0"),
         Role::SyscallPair0 => (&["internal", "os", "darwin"], "syscall_pair0"),
         Role::Syscall1 => (&["internal", "os", "darwin"], "syscall1"),

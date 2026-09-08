@@ -19,6 +19,7 @@ enum SelectedMachineFunction {
 #[derive(Clone, Copy)]
 struct LoweringResources<'a> {
     functions: &'a Arm64FunctionTargets,
+    async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
     data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
     imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
     pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
@@ -138,6 +139,7 @@ fn lower_machine_entry(
     let selected = select_machine_functions(machine)?;
     let mut builder = Arm64ProgramBuilder::new();
     let functions = Arm64FunctionTargets::declare(machine, &mut builder)?;
+    let async_primitives = crate::Arm64AsyncPrimitiveTargets::declare(machine, &mut builder);
     let mut pack_callbacks = Vec::new();
     for function in &selected {
         let body = machine
@@ -195,12 +197,14 @@ fn lower_machine_entry(
     }
     let resources = LoweringResources {
         functions: &functions,
+        async_primitives: &async_primitives,
         data: &data,
         imports: &imports,
         pack_callbacks: &pack_callbacks,
         allocation_failure_error,
     };
     define_machine_functions(&selected, resources, &mut builder)?;
+    define_async_primitives(async_primitives, &mut builder)?;
     for (key, target) in &pack_callbacks {
         let function = selected
             .get(key.owner().index())
@@ -257,6 +261,7 @@ fn define_machine_functions(
                 target.callable(),
                 function.materialize(
                     resources.functions,
+                    resources.async_primitives,
                     resources.data,
                     resources.imports,
                     resources.pack_callbacks,
@@ -286,6 +291,7 @@ fn define_deferred_function(
         function.materialize_resume(
             target,
             resources.functions,
+            resources.async_primitives,
             resources.data,
             resources.imports,
             resources.pack_callbacks,
@@ -297,6 +303,36 @@ fn define_deferred_function(
         function.materialize_cancel(target, resources.functions)?,
     )?;
     builder.define_function(lifecycle.consume(), function.materialize_consume(target)?)?;
+    Ok(())
+}
+
+fn define_async_primitives(
+    targets: crate::Arm64AsyncPrimitiveTargets,
+    builder: &mut Arm64ProgramBuilder,
+) -> Result<(), Arm64LoweringError> {
+    let Some(targets) = targets.descriptor_readiness() else {
+        return Ok(());
+    };
+    builder.define_function(
+        targets.constructor(),
+        crate::async_descriptor_readiness_code::materialize_constructor(targets)
+            .map_err(Arm64MaterializationError::Code)?,
+    )?;
+    builder.define_function(
+        targets.resume(),
+        crate::async_descriptor_readiness_code::materialize_resume()
+            .map_err(Arm64MaterializationError::Code)?,
+    )?;
+    builder.define_function(
+        targets.cancel(),
+        crate::async_descriptor_readiness_code::materialize_cancel()
+            .map_err(Arm64MaterializationError::Code)?,
+    )?;
+    builder.define_function(
+        targets.consume(),
+        crate::async_descriptor_readiness_code::materialize_consume()
+            .map_err(Arm64MaterializationError::Code)?,
+    )?;
     Ok(())
 }
 

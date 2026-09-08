@@ -184,13 +184,21 @@ fn validate_shape(
                 CallableKind::Function | CallableKind::Primitive
             );
     let primitive_body = callable.kind() != CallableKind::Primitive || callable.body().is_none();
+    let deferred_kind = matches!(
+        callable.kind(),
+        CallableKind::Function | CallableKind::Method
+    );
     let execution_matches_result = match callable.execution() {
-        CallableExecution::Immediate => !matches!(
-            program.types().get(callable.result()),
-            Some(nocter_model::TypeKind::Async(_))
-        ),
+        CallableExecution::Immediate => {
+            !deferred_kind
+                || !matches!(
+                    program.types().get(callable.result()),
+                    Some(nocter_model::TypeKind::Async(_))
+                )
+        }
         CallableExecution::Deferred { output } => {
-            matches!(program.types().get(callable.result()), Some(nocter_model::TypeKind::Async(expected)) if *expected == output)
+            deferred_kind
+                && matches!(program.types().get(callable.result()), Some(nocter_model::TypeKind::Async(expected)) if *expected == output)
         }
     };
     if named != callable.name().is_some()

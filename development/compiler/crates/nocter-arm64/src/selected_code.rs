@@ -22,6 +22,7 @@ impl Arm64SelectedFunction {
     pub fn materialize(
         &self,
         functions: &crate::Arm64FunctionTargets,
+        async_primitives: &crate::Arm64AsyncPrimitiveTargets,
         data: &[(MachineDataId, crate::Arm64DataId)],
         imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
         pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
@@ -36,6 +37,7 @@ impl Arm64SelectedFunction {
         let context = InstructionMaterialization {
             function: self,
             functions,
+            async_primitives,
             data,
             imports,
             pack_callbacks,
@@ -60,6 +62,7 @@ impl Arm64SelectedFunction {
 pub(crate) struct InstructionMaterialization<'selected> {
     pub(crate) function: &'selected Arm64SelectedFunction,
     pub(crate) functions: &'selected crate::Arm64FunctionTargets,
+    pub(crate) async_primitives: &'selected crate::Arm64AsyncPrimitiveTargets,
     pub(crate) data: &'selected [(MachineDataId, crate::Arm64DataId)],
     pub(crate) imports: &'selected [(nocter_machine::MachineImportId, crate::Arm64DataId)],
     pub(crate) pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
@@ -368,6 +371,11 @@ pub(crate) fn emit_instruction(
             });
             Ok(())
         }
+        Arm64SelectedInstruction::ConstructDescriptorReadiness => context
+            .async_primitives
+            .descriptor_readiness()
+            .map(|targets| code.call(targets.constructor()))
+            .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
         Arm64SelectedInstruction::ExitProcess { status } => {
             crate::system_primitive_code::emit_exit(function, Some(status), code)
         }
@@ -1155,6 +1163,7 @@ pub enum Arm64MaterializationError {
     InvalidSwitchWidth(usize),
     AsyncTerminator,
     MissingAsyncWaitFrame,
+    MissingAsyncPrimitiveTarget,
     PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),
 }

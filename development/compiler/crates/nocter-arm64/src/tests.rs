@@ -1085,6 +1085,33 @@ fn function_targets_declare_one_callable_and_closed_async_lifecycle_entries() {
 }
 
 #[test]
+fn async_primitive_targets_follow_machine_dependencies() {
+    let absent = crate::test_support::lower_machine("func main(): i32 { return 0 }\n");
+    let mut absent_builder = crate::Arm64ProgramBuilder::new();
+    assert_eq!(
+        crate::Arm64AsyncPrimitiveTargets::declare(&absent, &mut absent_builder)
+            .descriptor_readiness(),
+        None,
+    );
+
+    let present = crate::test_support::lower_machine_with_standard_uses(
+        "use std/internal/task\n\
+         func main(): i32 {\n\
+             let pending = task.descriptor_readiness_for_test(0, false)\n\
+             drop pending\n\
+             return 0\n\
+         }\n",
+        &[&["internal", "task"]],
+    );
+    let mut present_builder = crate::Arm64ProgramBuilder::new();
+    assert!(
+        crate::Arm64AsyncPrimitiveTargets::declare(&present, &mut present_builder)
+            .descriptor_readiness()
+            .is_some()
+    );
+}
+
+#[test]
 fn async_frame_layout_places_the_machine_field_union_once() {
     let program = crate::test_support::lower_machine(
         "struct Resource { value: i64 }\n\
@@ -1207,6 +1234,7 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
     let allocation_failure = builder.add_data([0], 8).unwrap();
+    let async_primitives = crate::Arm64AsyncPrimitiveTargets::default();
     let code = plan
         .materialize_constructor(targets.get(owner).unwrap())
         .unwrap();
@@ -1229,6 +1257,7 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
         .materialize_resume(
             targets.get(owner).unwrap(),
             &targets,
+            &async_primitives,
             &[],
             &[],
             &[],
@@ -1271,6 +1300,7 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
     let allocation_failure = builder.add_data([0], 8).unwrap();
+    let async_primitives = crate::Arm64AsyncPrimitiveTargets::default();
     let cancel = plan
         .materialize_cancel(targets.get(owner).unwrap(), &targets)
         .unwrap();
@@ -1286,6 +1316,7 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
         .materialize_resume(
             targets.get(owner).unwrap(),
             &targets,
+            &async_primitives,
             &[],
             &[],
             &[],

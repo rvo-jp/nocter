@@ -47,6 +47,12 @@ source, loader commands, or package state.
 - A pending process root converts the ABI interest slice into one temporary Darwin `pollfd` array
   and the earliest timer deadline into a rounded-up relative timeout. It retries interrupted waits,
   releases native storage before resumption, and never polls a pending computation in a busy loop.
+- Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
+  constructors and lifecycle entries are declared only from frozen Machine primitive roles; code
+  emission cannot infer their presence from source names or synthesize targets on demand.
+- Descriptor readiness is one allocation-backed opaque computation. Its frame owns the exact ABI
+  interest record, while resume, cancellation, and consumption validate and advance only the
+  shared lifecycle state.
 - Resume restores only the Machine-selected state projection, uses ordinary selected-operation
   emission for body instructions, and persists exactly that projection when a child remains
   pending.

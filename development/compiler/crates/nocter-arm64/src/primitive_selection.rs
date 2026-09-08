@@ -150,6 +150,12 @@ pub(crate) fn select(
         | PrimitiveRole::Unreachable => {
             super::system_primitive_selection::select(program, operation, target, selected)
         }
+        PrimitiveRole::DescriptorReadiness => {
+            validate_register_abi(operation, target, &[1, 1], 1)?;
+            validate_type_arguments(operation, target, 0)?;
+            selected.push(Arm64SelectedInstruction::ConstructDescriptorReadiness);
+            Ok(())
+        }
     }
 }
 

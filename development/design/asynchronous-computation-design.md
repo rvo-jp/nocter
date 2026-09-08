@@ -62,6 +62,11 @@ Constructors, literals, coercions, operators, and destruction declarations do no
 asynchronous execution accidentally from a nested type. Each declaration category must explicitly
 admit the checked execution kind before it can produce a deferred body.
 
+A compiler-authorized primitive may return an `async T` value immediately. Such a primitive
+constructs an opaque computation through its target lowering and has no deferred Nocter body.
+Callable execution therefore belongs to the declaration contract; it is not equivalent to the
+outer shape of every callable result.
+
 ## Ownership and Lifecycle
 
 An `async T` value has one lifecycle authority. Its abstract states are created, scheduled,
@@ -216,6 +221,13 @@ the temporary mapping is released before the computation resumes. Invalid record
 pending set, native wait failure, and release failure terminate through distinct compiler-owned
 trap reasons. The adapter never guesses readiness from a computation frame.
 
+The initial compiler-owned descriptor-readiness computation uses the same opaque header and
+interest-record schema as a generated deferred function. Its constructor captures the descriptor
+and direction, its first resume publishes one frame-owned interest, and its next resume completes.
+Cancellation and completed-output consumption retire the frame through separate lifecycle entries.
+This target helper is declared only when the frozen Machine program contains the corresponding
+primitive role; later lowering does not rediscover the dependency from source spelling.
+
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
 normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
 detached observation token. Detached execution is excluded until the language has an explicit
@@ -248,6 +260,7 @@ representation-independent allocation contract exists; it must not be hidden beh
 | `async T` syntax and precedence | syntax tree | declaration lowering, formatter, source projection |
 | Structural async type identity | type store | checking, presentation, executable closure |
 | Immediate or deferred callable execution | checked declaration | body checking, call checking, lowering, tooling |
+| Compiler-owned computation construction | selected primitive role and target lowering | native lifecycle helper |
 | Immediate or deferred process entry | executable entry selection | process-root MIR, native process adapter |
 | Captured argument origins | checked invocation contract | region checking, frame lowering |
 | Suspension legality and consumed result | checked body | executable lowering, diagnostics, tooling |
@@ -278,9 +291,10 @@ representation-independent allocation contract exists; it must not be hidden beh
 The language and compiler first establish one lossless async type, execution-kind fact, consuming
 `await`, capture provenance, and explicit diagnostics. State-machine lowering follows only after
 the checked product is closed. Executor and reactor implementation follows only after the
-executable state contract is closed. The generated Darwin process adapter now consumes the same
-wait-interest ABI. Public asynchronous time and networking APIs follow only after a native
-readiness producer and concurrent loopback tests qualify that path end to end.
+executable state contract is closed. The generated Darwin process adapter and the first
+descriptor-readiness producer now consume the same wait-interest ABI, and native pipe conformance
+qualifies the pending path end to end. A timer producer and concurrent network loopback coverage
+precede public asynchronous time and networking APIs.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.

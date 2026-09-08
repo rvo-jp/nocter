@@ -1,0 +1,7 @@
+//! Compiler-owned asynchronous task primitives.
+
+#target: "arm64-darwin"
+primitive func descriptor_readiness_raw(
+    descriptor: usize,
+    writable: bool,
+): async void

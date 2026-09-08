@@ -118,6 +118,8 @@ closed_role_enum! {
         MonotonicCounterFrequency,
         /// Computes `later - earlier` in the counter's wrapping 64-bit domain.
         MonotonicCounterDelta,
+        /// Creates one lazy computation that becomes completable after descriptor readiness.
+        DescriptorReadiness,
         Syscall0,
         /// Preserves both successful result words of one zero-argument target syscall.
         SyscallPair0,
@@ -209,6 +211,7 @@ impl PrimitiveRole {
             Self::MonotonicCounterRead => "monotonic_counter_read",
             Self::MonotonicCounterFrequency => "monotonic_counter_frequency",
             Self::MonotonicCounterDelta => "monotonic_counter_delta",
+            Self::DescriptorReadiness => "descriptor_readiness",
             Self::Syscall0 => "syscall_0",
             Self::SyscallPair0 => "syscall_pair_0",
             Self::Syscall1 => "syscall_1",
@@ -230,7 +233,7 @@ impl PrimitiveRole {
         // request storage. Keeping this decision on the closed role—not on source spelling—makes
         // future effectful primitives opt into the fact explicitly.
         PrimitiveEffects {
-            may_allocate: matches!(self, Self::DropValueAtPointer),
+            may_allocate: matches!(self, Self::DropValueAtPointer | Self::DescriptorReadiness),
         }
     }
 
@@ -396,12 +399,18 @@ mod tests {
     }
 
     #[test]
-    fn generic_destruction_is_the_only_conservative_allocation_effect() {
+    fn allocation_effects_are_owned_by_the_closed_primitive_roles() {
         let effectful = PrimitiveRole::ALL
             .iter()
             .copied()
             .filter(|role| role.effects().may_allocate())
             .collect::<Vec<_>>();
-        assert_eq!(effectful, vec![PrimitiveRole::DropValueAtPointer]);
+        assert_eq!(
+            effectful,
+            vec![
+                PrimitiveRole::DropValueAtPointer,
+                PrimitiveRole::DescriptorReadiness,
+            ]
+        );
     }
 }

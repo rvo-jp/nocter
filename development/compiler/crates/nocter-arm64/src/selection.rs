@@ -257,6 +257,8 @@ pub enum Arm64SelectedInstruction {
     DarwinSystemCallPair,
     ReadMonotonicCounter,
     ReadMonotonicCounterFrequency,
+    /// Calls the compiler-owned descriptor-readiness computation constructor.
+    ConstructDescriptorReadiness,
     ExitProcess {
         status: Arm64SelectedRegister,
     },

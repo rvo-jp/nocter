@@ -57,6 +57,10 @@ not acquire deferred execution from an `async` result. A structural callable res
 `func(Input): async Output` describes an immediate invocation that returns a computation value; it
 does not independently reclassify an unknown callable body.
 
+A primitive may therefore declare an outer `async` result when its compiler implementation creates
+an opaque computation directly. The primitive remains immediate: invoking it constructs the value,
+and only `await` or a structured executor starts the represented work.
+
 ## Type Layering
 
 `async` consumes a complete type operand:

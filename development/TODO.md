@@ -17,12 +17,14 @@ complete lifecycle, and native conformance covers lazy construction followed by 
 
 The compiler-generated process adapter now accepts the six process-result contracts beneath one
 `async` layer, owns the lazy root computation, and drives it through one readiness-backed Darwin
-wait boundary. ABI records are converted to a temporary `pollfd` array, absolute timer deadlines
-are rounded upward into relative timeouts, interrupted waits preserve their interests, and native
-storage is released before resumption. Next, add the first compiler-owned readiness producer and
-concurrent Darwin loopback coverage so this pending path is executed rather than only materialized.
-Do not add public async time or network APIs until that path is qualified. Keep the qualified
-v0.40.0 archive unchanged.
+wait boundary. The first compiler-owned descriptor-readiness computation now constructs the shared
+opaque ABI directly, publishes a frame-owned interest, and completes after resumption. Native
+conformance holds a generated process on an unreadable pipe before releasing it from the parent, so
+the complete pending-to-host-wait-to-resume path is exercised without busy polling.
+
+Next, reuse this qualified computation boundary for a monotonic-deadline producer and then add
+concurrent Darwin loopback coverage before exposing public asynchronous time or networking APIs.
+Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create
