@@ -310,6 +310,18 @@ fn apply_liveness(
             registers,
         )?;
         use_values(values, flow.live_out(), point.terminator, registers)?;
+        if block.terminator().has_call_boundary() {
+            for value in flow
+                .terminator_inputs()
+                .iter()
+                .chain(flow.live_out())
+                .copied()
+            {
+                for register in direct_registers(values, value)? {
+                    registers.mark_call_crossing(*register)?;
+                }
+            }
+        }
     }
     Ok(())
 }

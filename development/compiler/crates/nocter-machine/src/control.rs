@@ -92,6 +92,17 @@ pub enum MachineTerminator {
     Unreachable,
 }
 
+impl MachineTerminator {
+    /// Whether target lowering crosses a callable boundary while executing this terminator.
+    ///
+    /// This fact belongs to Machine control flow. A target register allocator must not infer it
+    /// from the spelling or implementation of a particular terminator.
+    #[must_use]
+    pub const fn has_call_boundary(&self) -> bool {
+        matches!(self, Self::Suspend { .. })
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineBlock {
     parameters: Box<[MachineValueId]>,

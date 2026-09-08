@@ -3,14 +3,11 @@ use std::fmt;
 use nocter_machine::{MachineFunctionId, MachineProgramRoot, MachineTestId};
 
 use crate::{
-    Arm64MaterializationError, Arm64Program, Arm64ProgramBuilder, Arm64ProgramError,
-    Arm64SelectedFunction, Arm64SelectionError,
+    Arm64FunctionTargets, Arm64FunctionTargetsError, Arm64MaterializationError, Arm64Program,
+    Arm64ProgramBuilder, Arm64ProgramError, Arm64SelectedFunction, Arm64SelectionError,
 };
 
-type LoweredProgram = (
-    Arm64Program,
-    Box<[(MachineFunctionId, crate::Arm64FunctionId)]>,
-);
+type LoweredProgram = (Arm64Program, Arm64FunctionTargets);
 
 impl Arm64Program {
     /// Selects and materializes a complete process machine program.
@@ -111,13 +108,7 @@ fn lower_machine_entry(
         .map(|(id, _)| Arm64SelectedFunction::build(machine, id))
         .collect::<Result<Vec<_>, _>>()?;
     let mut builder = Arm64ProgramBuilder::new();
-    let mut functions = Vec::with_capacity(selected.len());
-    for function in &selected {
-        if function.owner().index() != functions.len() {
-            return Err(Arm64LoweringError::NonDenseFunction(function.owner()));
-        }
-        functions.push((function.owner(), builder.declare_function()));
-    }
+    let functions = Arm64FunctionTargets::declare(machine, &mut builder)?;
     let mut pack_callbacks = Vec::new();
     for function in &selected {
         let body = machine
@@ -175,8 +166,8 @@ fn lower_machine_entry(
     }
     for function in &selected {
         let target = functions
-            .get(function.owner().index())
-            .and_then(|(owner, target)| (*owner == function.owner()).then_some(*target))
+            .get(function.owner())
+            .map(crate::Arm64FunctionTarget::callable)
             .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
         builder.define_function(
             target,
@@ -200,21 +191,21 @@ fn lower_machine_entry(
         )?;
     }
     let entry = functions
-        .get(root.index())
-        .and_then(|(owner, target)| (*owner == root).then_some(*target))
+        .get(root)
+        .map(crate::Arm64FunctionTarget::callable)
         .ok_or(Arm64LoweringError::UnknownFunction(root))?;
     builder.set_entry(entry)?;
     let program = builder.finish().map_err(Arm64LoweringError::Program)?;
-    Ok((program, functions.into_boxed_slice()))
+    Ok((program, functions))
 }
 
 fn function_target(
-    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &Arm64FunctionTargets,
     source: MachineFunctionId,
 ) -> Result<crate::Arm64FunctionId, Arm64LoweringError> {
     functions
-        .get(source.index())
-        .and_then(|(actual, target)| (*actual == source).then_some(*target))
+        .get(source)
+        .map(crate::Arm64FunctionTarget::callable)
         .ok_or(Arm64LoweringError::UnknownFunction(source))
 }
 
@@ -222,10 +213,10 @@ fn function_target(
 pub enum Arm64LoweringError {
     ExpectedProcessProgram,
     ExpectedTestProgram,
-    NonDenseFunction(MachineFunctionId),
     NonDenseData(nocter_machine::MachineDataId),
     UnknownFunction(MachineFunctionId),
     Selection(Arm64SelectionError),
+    FunctionTargets(Arm64FunctionTargetsError),
     Materialization(Arm64MaterializationError),
     Program(Arm64ProgramError),
 }
@@ -240,14 +231,20 @@ impl std::error::Error for Arm64LoweringError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Selection(error) => Some(error),
+            Self::FunctionTargets(error) => Some(error),
             Self::Materialization(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::ExpectedProcessProgram
             | Self::ExpectedTestProgram
-            | Self::NonDenseFunction(_)
             | Self::NonDenseData(_)
             | Self::UnknownFunction(_) => None,
         }
+    }
+}
+
+impl From<Arm64FunctionTargetsError> for Arm64LoweringError {
+    fn from(error: Arm64FunctionTargetsError) -> Self {
+        Self::FunctionTargets(error)
     }
 }
 

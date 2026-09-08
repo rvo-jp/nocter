@@ -21,7 +21,7 @@ impl Arm64SelectedFunction {
     /// malformed object offsets, and concrete code-encoding failures.
     pub fn materialize(
         &self,
-        functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+        functions: &crate::Arm64FunctionTargets,
         data: &[(MachineDataId, crate::Arm64DataId)],
         imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
         pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
@@ -59,7 +59,7 @@ impl Arm64SelectedFunction {
 #[derive(Clone, Copy)]
 struct InstructionMaterialization<'selected> {
     function: &'selected Arm64SelectedFunction,
-    functions: &'selected [(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &'selected crate::Arm64FunctionTargets,
     data: &'selected [(MachineDataId, crate::Arm64DataId)],
     imports: &'selected [(nocter_machine::MachineImportId, crate::Arm64DataId)],
     pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
@@ -1075,12 +1075,12 @@ pub(crate) fn block_label(
 }
 
 fn function_target(
-    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &crate::Arm64FunctionTargets,
     target: MachineFunctionId,
 ) -> Result<crate::Arm64FunctionId, Arm64MaterializationError> {
     functions
-        .get(target.index())
-        .and_then(|(actual, selected)| (*actual == target).then_some(*selected))
+        .get(target)
+        .map(crate::Arm64FunctionTarget::callable)
         .ok_or(Arm64MaterializationError::UnknownFunction(target))
 }
 

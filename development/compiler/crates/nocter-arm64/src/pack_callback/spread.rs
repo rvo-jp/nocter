@@ -1,6 +1,6 @@
 use nocter_machine::{
-    MachineCallableAbi, MachineFunctionId, MachineLayout, MachineLayoutKind, MachineOutcomeKind,
-    MachinePack, MachinePackContribution, MachinePackSegment, MachinePackSpread, MachineResultAbi,
+    MachineCallableAbi, MachineLayout, MachineLayoutKind, MachineOutcomeKind, MachinePack,
+    MachinePackContribution, MachinePackSegment, MachinePackSpread, MachineResultAbi,
     MachineResultLocation, MachineValueClass,
 };
 
@@ -24,7 +24,7 @@ pub(super) fn materialize_next(
     pack: &MachinePack,
     state: &Arm64PackStateLayout,
     key: Arm64PackCallbackKey,
-    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &crate::Arm64FunctionTargets,
 ) -> Result<Arm64Code, Arm64MaterializationError> {
     let FixedNextShape {
         layout: next_layout,
@@ -78,7 +78,7 @@ struct NextEmitter<'program> {
     pack: &'program MachinePack,
     state: &'program Arm64PackStateLayout,
     key: Arm64PackCallbackKey,
-    functions: &'program [(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &'program crate::Arm64FunctionTargets,
     frame: Arm64FrameLayout,
     destination: ClosedNextDestination,
     next_layout: &'program MachineLayout,

@@ -57,7 +57,7 @@ pub(crate) fn materialize(
     machine: &nocter_machine::MachineProgram,
     selected: &Arm64SelectedFunction,
     key: Arm64PackCallbackKey,
-    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &crate::Arm64FunctionTargets,
 ) -> Result<Arm64Code, Arm64MaterializationError> {
     if selected.owner() != key.owner() {
         return Err(Arm64MaterializationError::InvalidPackCallback(key));
@@ -313,7 +313,7 @@ fn materialize_destroy(
     pack: &nocter_machine::MachinePack,
     state: &crate::Arm64PackStateLayout,
     key: Arm64PackCallbackKey,
-    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &crate::Arm64FunctionTargets,
 ) -> Result<Arm64Code, Arm64MaterializationError> {
     let mut frame_builder = Arm64FrameLayoutBuilder::new();
     for register in [state_register(), cursor_register(), context_register()] {
@@ -753,12 +753,12 @@ fn load_store_size(bytes: u8) -> Result<Arm64LoadStoreSize, Arm64Materialization
 }
 
 fn function_target(
-    functions: &[(MachineFunctionId, crate::Arm64FunctionId)],
+    functions: &crate::Arm64FunctionTargets,
     target: MachineFunctionId,
 ) -> Result<crate::Arm64FunctionId, Arm64MaterializationError> {
     functions
-        .get(target.index())
-        .and_then(|(actual, selected)| (*actual == target).then_some(*selected))
+        .get(target)
+        .map(crate::Arm64FunctionTarget::callable)
         .ok_or(Arm64MaterializationError::UnknownFunction(target))
 }
 

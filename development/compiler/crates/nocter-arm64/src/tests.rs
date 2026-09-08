@@ -1050,6 +1050,41 @@ fn instruction_selection_rejects_deferred_functions_at_the_execution_boundary() 
 }
 
 #[test]
+fn function_targets_declare_one_callable_and_closed_async_lifecycle_entries() {
+    let program = crate::test_support::lower_machine(
+        "func ready(): async i32 { return 7 }\n\
+         func immediate(): i32 { return 3 }\n\
+         func main(): void {\n\
+             let pending = ready()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+
+    assert_eq!(targets.iter().count(), program.functions().len());
+    for (owner, function) in program.functions() {
+        let target = targets.get(owner).expect("dense function target");
+        assert_eq!(target.owner(), owner);
+        match function.execution() {
+            nocter_machine::MachineFunctionExecution::Immediate => {
+                assert!(target.asynchronous().is_none());
+            }
+            nocter_machine::MachineFunctionExecution::Deferred(_) => {
+                let asynchronous = target.asynchronous().expect("async lifecycle entries");
+                assert_ne!(target.callable(), asynchronous.resume());
+                assert_ne!(target.callable(), asynchronous.cancel());
+                assert_ne!(target.callable(), asynchronous.consume());
+                assert_ne!(asynchronous.resume(), asynchronous.cancel());
+                assert_ne!(asynchronous.resume(), asynchronous.consume());
+                assert_ne!(asynchronous.cancel(), asynchronous.consume());
+            }
+        }
+    }
+}
+
+#[test]
 fn async_frame_layout_places_the_machine_field_union_once() {
     let program = crate::test_support::lower_machine(
         "struct Resource { value: i64 }\n\
@@ -1160,6 +1195,52 @@ fn async_frame_layout_retains_a_transferred_pack_pointer() {
     let layout = crate::Arm64AsyncFrameLayout::build(&program, owner).unwrap();
 
     assert_eq!(layout.pack_input().unwrap().size(), 8);
+}
+
+#[test]
+fn machine_value_plan_treats_suspend_as_a_call_boundary() {
+    let program = crate::test_support::lower_machine(
+        "func ready(value: i64): async i64 { return value }\n\
+         func forward(): async i64 {\n\
+             return await ready(19)\n\
+         }\n\
+         func main(): void {\n\
+             let pending = forward()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let function = program
+        .functions()
+        .find_map(|(_, function)| {
+            function
+                .body()
+                .blocks()
+                .any(|(_, block)| {
+                    matches!(
+                        block.terminator(),
+                        nocter_machine::MachineTerminator::Suspend { .. }
+                    )
+                })
+                .then_some(function)
+        })
+        .expect("one suspending function");
+    let awaited = function
+        .body()
+        .blocks()
+        .find_map(|(_, block)| match block.terminator() {
+            nocter_machine::MachineTerminator::Suspend { computation, .. } => Some(*computation),
+            _ => None,
+        })
+        .expect("one awaited computation");
+    let plan = crate::Arm64ValuePlan::build(function).unwrap();
+    let register = plan.value(awaited).unwrap().direct_registers().unwrap()[0];
+
+    assert!(matches!(
+        plan.registers().location(register),
+        Some(crate::Arm64AllocatedLocation::GeneralRegister(register))
+            if crate::Arm64NocterAbi::is_callee_saved(register)
+    ));
 }
 
 #[test]

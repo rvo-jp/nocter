@@ -23,6 +23,7 @@ mod frame;
 mod frame_access;
 mod frame_code;
 mod function_frame;
+mod function_targets;
 mod identity;
 mod instruction;
 mod lower;
@@ -77,6 +78,9 @@ pub use frame_code::Arm64FrameCode;
 pub use function_frame::{
     Arm64AllocationContextFrame, Arm64FunctionFrame, Arm64FunctionFrameError, Arm64PackFrame,
     Arm64ProcessContextFrame,
+};
+pub use function_targets::{
+    Arm64AsyncFunctionTargets, Arm64FunctionTarget, Arm64FunctionTargets, Arm64FunctionTargetsError,
 };
 pub use identity::{Arm64DataId, Arm64FunctionId};
 pub use instruction::{
