@@ -125,6 +125,8 @@ closed_role_enum! {
         DescriptorReadinessOrDeadline,
         /// Creates one lazy computation that becomes completable at a monotonic deadline.
         MonotonicDeadline,
+        /// Takes ownership of two lazy computations and produces both outputs concurrently.
+        TaskJoin,
         Syscall0,
         /// Preserves both successful result words of one zero-argument target syscall.
         SyscallPair0,
@@ -219,6 +221,7 @@ impl PrimitiveRole {
             Self::DescriptorReadiness => "descriptor_readiness",
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
+            Self::TaskJoin => "task_join",
             Self::Syscall0 => "syscall_0",
             Self::SyscallPair0 => "syscall_pair_0",
             Self::Syscall1 => "syscall_1",
@@ -246,6 +249,7 @@ impl PrimitiveRole {
                     | Self::DescriptorReadiness
                     | Self::DescriptorReadinessOrDeadline
                     | Self::MonotonicDeadline
+                    | Self::TaskJoin
             ),
         }
     }
@@ -425,6 +429,7 @@ mod tests {
                 PrimitiveRole::DescriptorReadiness,
                 PrimitiveRole::DescriptorReadinessOrDeadline,
                 PrimitiveRole::MonotonicDeadline,
+                PrimitiveRole::TaskJoin,
             ]
         );
     }

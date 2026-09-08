@@ -296,6 +296,12 @@ pub func env_value_for_test(index: usize): &str { return env_value_raw(index) }
 ";
 const IO_SOURCE: &str = "pub func answer_for_test(): i32 { return 42 }\n";
 const TIME_SOURCE: &str = "";
+const TASK_SOURCE: &str = "\
+pub primitive func join<A, B>(
+    first: async A,
+    second: async B,
+): async (A, B) from first | second
+";
 const INTERNAL_TIME_SOURCE: &str = "\
 #target: \"arm64-darwin\"
 noalloc primitive func monotonic_counter_raw(): u64
@@ -627,6 +633,7 @@ impl CompilerFixture {
             (&["process"][..], PROCESS_SOURCE),
             (&["io"][..], IO_SOURCE),
             (&["time"][..], TIME_SOURCE),
+            (&["task"][..], TASK_SOURCE),
             (&["internal", "time"][..], INTERNAL_TIME_SOURCE),
             (&["internal", "task"][..], INTERNAL_TASK_SOURCE),
             (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),

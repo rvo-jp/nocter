@@ -36,8 +36,9 @@ comments.
 | hashing and unordered collections | [Associative Collections](map/README.md) | `std/hash`, `std/map`, `std/set` |
 | JSON values, parsing, and generation | [JSON Values and Text](json/README.md) | `std/json` |
 | durations, monotonic time, wall-clock time, and UTC calendar values | [Time](time/README.md) | `std/time` |
+| structured asynchronous computation composition | [Structured Asynchronous Tasks](task/README.md) | `std/task` |
 | synchronous processes and process context | [Synchronous Processes](process/README.md) | `std/process` |
-| numeric network addresses and synchronous sockets | [Synchronous Network I/O](net/README.md) | `std/net` |
+| numeric network addresses and socket I/O | [Network I/O](net/README.md) | `std/net` |
 | absolute HTTP-family URLs and request targets | [URL](url/README.md) | `std/url` |
 | synchronous HTTP/1.1 client, message values, and framing | [HTTP/1.1](http/README.md) | `std/http` |
 | Unicode scalars and text transforms | [Unicode Text and Scalars](char/README.md) | `std/char`, Unicode operations on `std/str` and `std/string` |

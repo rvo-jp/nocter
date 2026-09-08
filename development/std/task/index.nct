@@ -1,0 +1,10 @@
+//! Structured asynchronous computation composition.
+
+/// Starts two owned computations, waits for both, and returns their outputs in argument order.
+///
+/// Destroying the returned computation before consumption cancels both children. Outcome layers
+/// remain ordinary output values and are not propagated by `join`.
+pub primitive func join<A, B>(
+    first: async A,
+    second: async B,
+): async (A, B) from first | second

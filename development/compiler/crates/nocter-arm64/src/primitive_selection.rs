@@ -151,7 +151,8 @@ pub(crate) fn select(
         }
         PrimitiveRole::DescriptorReadiness
         | PrimitiveRole::DescriptorReadinessOrDeadline
-        | PrimitiveRole::MonotonicDeadline => select_async_primitive(operation, target, selected),
+        | PrimitiveRole::MonotonicDeadline
+        | PrimitiveRole::TaskJoin => select_async_primitive(operation, target, selected),
     }
 }
 

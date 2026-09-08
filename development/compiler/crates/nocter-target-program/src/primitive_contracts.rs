@@ -25,6 +25,7 @@ enum TypeContract {
         referent: Box<Self>,
     },
     Slice(Box<Self>),
+    Tuple(Vec<Self>),
     Async(Box<Self>),
 }
 
@@ -54,6 +55,10 @@ impl TypeContract {
 
     fn asynchronous(output: Self) -> Self {
         Self::Async(Box::new(output))
+    }
+
+    fn tuple(elements: impl Into<Vec<Self>>) -> Self {
+        Self::Tuple(elements.into())
     }
 }
 
@@ -355,6 +360,16 @@ fn type_matches(
         | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected))
         | (Some(TypeKind::Async(actual)), TypeContract::Async(expected)) => {
             type_matches(graph, types, callable, *actual, expected, standard_package)
+        }
+        (Some(TypeKind::Tuple(actual)), TypeContract::Tuple(expected)) => {
+            actual.as_slice().len() == expected.len()
+                && actual
+                    .as_slice()
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| {
+                        type_matches(graph, types, callable, *actual, expected, standard_package)
+                    })
         }
         (
             Some(TypeKind::Borrow {
@@ -733,6 +748,20 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             private,
             arm64_darwin,
             vec![],
+        ),
+        PrimitiveRole::TaskJoin => make(
+            2,
+            vec![
+                TypeContract::asynchronous(TypeContract::Generic(0)),
+                TypeContract::asynchronous(TypeContract::Generic(1)),
+            ],
+            TypeContract::asynchronous(TypeContract::tuple(vec![
+                TypeContract::Generic(0),
+                TypeContract::Generic(1),
+            ])),
+            public,
+            None,
+            vec![0, 1],
         ),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1

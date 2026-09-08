@@ -224,6 +224,7 @@ pub const fn bundled_primitive_source_location(
             "descriptor_readiness_or_deadline_raw",
         ),
         Role::MonotonicDeadline => (&["internal", "time"], "monotonic_deadline_raw"),
+        Role::TaskJoin => (&["task"], "join"),
         Role::Syscall0 => (&["internal", "os", "darwin"], "syscall0"),
         Role::SyscallPair0 => (&["internal", "os", "darwin"], "syscall_pair0"),
         Role::Syscall1 => (&["internal", "os", "darwin"], "syscall1"),
