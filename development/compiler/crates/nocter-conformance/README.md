@@ -17,3 +17,5 @@ serve as an implementation dependency.
   production compiler-computation entry.
 - Test helpers cannot become a compatibility layer or semantic oracle.
 - Architecture tests validate resolved dependencies and types rather than source-text spellings.
+- Asynchronous native tests hold pipe and TCP loopback descriptors unreadable until another host
+  actor releases them, so readiness materialization cannot pass by completing or polling early.

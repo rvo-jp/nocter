@@ -29,9 +29,13 @@ native timeouts and compares deadlines in the wrapping half-domain instead of co
 `std/time.delay(Duration)` now exposes the qualified timer without leaking counter values or native
 timeout limits. It copies its duration into the child computation, rounds sub-tick durations upward,
 and segments large values within the wrapping half-domain. Native-session coverage compiles the
-authored standard library and proves the public call cannot complete early. Next, add concurrent
-Darwin loopback coverage before exposing asynchronous networking. Keep the qualified v0.40.0
-archive unchanged.
+authored standard library and proves the public call cannot complete early. The generated process
+now also waits on an actual TCP loopback socket whose peer becomes readable later, completing the
+native readiness qualification. Next, settle the ownership contract for public asynchronous socket
+operations:
+ordinary borrowed receivers would otherwise point from a child computation into its suspended
+parent frame, which the current non-self-referential frame model intentionally rejects. Keep the
+qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

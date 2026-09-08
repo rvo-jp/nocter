@@ -66,6 +66,23 @@ fn deferred_process_waits_for_descriptor_readiness_without_spinning() {
 }
 
 #[test]
+fn deferred_process_waits_for_tcp_loopback_readiness() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/task\n\
+         func main(): async i32 {\n\
+             await task.descriptor_readiness_for_test(0, false)\n\
+             return 44\n\
+         }\n",
+        &[&["internal", "task"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_release_loopback(&image, 44);
+}
+
+#[test]
 fn deferred_process_waits_until_a_monotonic_deadline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\
@@ -1613,6 +1630,39 @@ fn execute_after_delay(
     );
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_and_release_loopback(image: &nocter_macho::MachOImage, expected: i32) {
+    use std::io::Write;
+    use std::net::{Ipv4Addr, TcpListener, TcpStream};
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
+
+    static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
+    let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "nocter-async-loopback-{}-{artifact}",
+        std::process::id()
+    ));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+    let (mut server, _) = listener.accept().unwrap();
+    let client: std::os::fd::OwnedFd = client.into();
+    let mut child = std::process::Command::new(&path)
+        .stdin(Stdio::from(client))
+        .spawn()
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(40));
+    server.write_all(b"ready").unwrap();
+    let status = child.wait().unwrap();
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(status.code(), Some(expected));
+}
+
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_and_assert_status(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
@@ -1635,6 +1685,9 @@ fn execute_after_delay(
     _minimum: std::time::Duration,
 ) {
 }
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_and_release_loopback(_image: &nocter_macho::MachOImage, _expected: i32) {}
 
 fn lower_machine(source: &str) -> MachineProgram {
     let fixture = CompilerFixture::with_app(source);

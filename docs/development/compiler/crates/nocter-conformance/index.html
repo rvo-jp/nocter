@@ -234,7 +234,8 @@
             </div>
             <div class="markdown-body">
                 <h1 id="nocter-conformance">nocter-conformance</h1><h2 id="responsibility">Responsibility</h2><p>Verify that production crate contracts compose into deterministic compiler, editor, and native behavior across the complete pipeline.</p><h2 id="contract">Contract</h2><p>This is the only test crate allowed to depend on the full production chain. It may construct end-to-end fixtures and assert architecture manifests, but it cannot export production behavior or serve as an implementation dependency.</p><h2 id="invariants">Invariants</h2><ul><li>Native end-to-end tests compose public stage contracts; command and workspace tests exercise the
-  production compiler-computation entry.</li><li>Test helpers cannot become a compatibility layer or semantic oracle.</li><li>Architecture tests validate resolved dependencies and types rather than source-text spellings.</li></ul>
+  production compiler-computation entry.</li><li>Test helpers cannot become a compatibility layer or semantic oracle.</li><li>Architecture tests validate resolved dependencies and types rather than source-text spellings.</li><li>Asynchronous native tests hold pipe and TCP loopback descriptors unreadable until another host
+  actor releases them, so readiness materialization cannot pass by completing or polling early.</li></ul>
             </div>
         </main>
     </div>

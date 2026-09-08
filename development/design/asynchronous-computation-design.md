@@ -299,7 +299,9 @@ executable state contract is closed. The generated Darwin process adapter, descr
 producer, and monotonic-deadline producer now consume the same wait-interest ABI. Native pipe and
 elapsed-deadline conformance qualify both pending paths end to end. A public asynchronous time
 contract uses the timer through bounded duration segments and a copied input value. Concurrent
-network loopback coverage still precedes public asynchronous networking APIs.
+TCP loopback conformance now qualifies descriptor readiness on a real socket. Public asynchronous
+networking still requires an explicit ownership model for receiver and buffer storage; it must not
+silently weaken the prohibition on pointers from a child computation into its parent frame.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.
