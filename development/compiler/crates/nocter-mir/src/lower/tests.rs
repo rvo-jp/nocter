@@ -91,6 +91,50 @@ fn lowers_deferred_functions_and_awaits_without_reclassifying_calls() {
 }
 
 #[test]
+fn suspension_storage_is_lowered_from_checked_loans_into_stable_frame_locals() {
+    let program = lower_fixture(
+        "struct Counter { value: i32 }\n\
+         func consume(counter: &Counter): async i32 { return counter.value }\n\
+         func parent(): async i32 {\n\
+             let counter = Counter { value: 1 }\n\
+             return await consume(&counter)\n\
+         }\n\
+         func main(): void {\n\
+             let pending = parent()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let function = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function
+                .async_frame()
+                .and_then(|frame| (!frame.states().is_empty()).then_some(function))
+        })
+        .expect("suspended parent");
+    let state = &function.async_frame().unwrap().states()[0];
+
+    assert_eq!(state.stable_storage().len(), 1);
+    let stable = state.stable_storage()[0];
+    assert!(matches!(
+        function.locals().get(stable).map(|local| local.kind()),
+        Some(crate::MirLocalKind::User)
+    ));
+    assert!(
+        state
+            .fields()
+            .contains(&crate::MirFrameField::Local(stable))
+    );
+    assert!(matches!(
+        state.cancellation(),
+        [crate::MirCancellationAction::ReleaseAwaited(value)] if *value == state.awaited()
+    ));
+}
+
+#[test]
 fn freezes_checked_cancellation_cleanup_into_each_suspension_state() {
     let program = lower_fixture(
         "struct Resource {}\n\

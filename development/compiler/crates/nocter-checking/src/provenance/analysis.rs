@@ -499,7 +499,7 @@ impl<'program> Analyzer<'program> {
                 .get(callable)
                 .map_or_else(
                     || facts.types.builtin(BuiltinType::Void),
-                    nocter_declarations::CallableDeclaration::result,
+                    |declaration| declaration.execution().body_result(declaration.result()),
                 ),
             BodyOwner::Drop(_) | BodyOwner::Test(_) => facts.types.builtin(BuiltinType::Void),
         };

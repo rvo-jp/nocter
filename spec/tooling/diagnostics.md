@@ -358,7 +358,6 @@ Source-backed checked-body diagnostics:
   in its selected `f32` or `f64` type.
 - `E0415`: `await` appears outside a deferred function or method body.
 - `E0416`: `await` does not consume an owned `async T` value.
-- `E0417`: a loan into async-frame-owned storage remains live across `await`.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

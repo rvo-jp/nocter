@@ -587,12 +587,13 @@ impl Arm64SelectedFunction {
         ) {
             return Err(Arm64SelectionError::UnsupportedDeferredFunction(owner));
         }
-        Self::build_execution(program, owner, false)
+        Self::build_execution(program, owner, None)
     }
 
     pub(crate) fn build_deferred(
         program: &nocter_machine::MachineProgram,
         owner: MachineFunctionId,
+        persistent: &crate::Arm64AsyncFrameLayout,
     ) -> Result<Self, Arm64SelectionError> {
         let function = program
             .function(owner)
@@ -603,20 +604,22 @@ impl Arm64SelectedFunction {
         ) {
             return Err(Arm64SelectionError::UnsupportedDeferredFunction(owner));
         }
-        Self::build_execution(program, owner, true)
+        Self::build_execution(program, owner, Some(persistent))
     }
 
     fn build_execution(
         program: &nocter_machine::MachineProgram,
         owner: MachineFunctionId,
-        deferred: bool,
+        persistent: Option<&crate::Arm64AsyncFrameLayout>,
     ) -> Result<Self, Arm64SelectionError> {
+        let deferred = persistent.is_some();
         let function = program
             .function(owner)
             .ok_or(Arm64SelectionError::UnknownFunction(owner))?;
         let values = Arm64ValuePlan::build(function)?;
         let frame = Arm64FunctionFrame::build(program, owner, &values)?;
-        let addresses = crate::Arm64SelectedAddressPlan::build(function, &values, &frame)?;
+        let addresses =
+            crate::Arm64SelectedAddressPlan::build(function, &values, &frame, persistent)?;
         let context = Arm64SelectionContext::new(program, owner, &values, &frame, &addresses);
         let mut entry_instructions = if deferred {
             Vec::new()

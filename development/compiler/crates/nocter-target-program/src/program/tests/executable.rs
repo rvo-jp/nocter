@@ -731,7 +731,11 @@ fn executable_cleanup_keeps_enum_residual_distinct_from_complete_destruction() {
             | CleanupTarget::Region { .. } => None,
         })
         .unwrap();
-    let plan = item.body().cleanup_destruction(residual).unwrap();
+    let crate::ExecutableCleanupDestruction::Plan(plan) =
+        item.body().cleanup_destruction(residual).unwrap()
+    else {
+        panic!("residual cleanup must require executable destruction")
+    };
     let ConcreteDestructionKind::Enum { drop, variants } = plan.kind() else {
         panic!("residual cleanup must preserve enum variant selection")
     };

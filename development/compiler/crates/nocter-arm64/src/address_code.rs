@@ -20,6 +20,28 @@ pub(crate) fn emit_resolve(
             let offset = crate::selected_code::stack_offset(function, root, 0)?;
             crate::frame_access::form_stack_address(code, address, offset);
         }
+        Arm64SelectedAddressRoot::AsyncFrame(field) => {
+            let pointer = function
+                .frame()
+                .async_frame_pointer()
+                .ok_or(Arm64MaterializationError::MissingAsyncFramePointer)?;
+            let source = crate::Arm64SelectedStackAddress::FrameObject {
+                object: pointer,
+                offset: 0,
+            };
+            let offset = crate::selected_code::stack_offset(
+                function,
+                source,
+                crate::Arm64NocterAbi::word_size(),
+            )?;
+            crate::frame_access::load_at_stack_offset(
+                code,
+                Arm64LoadStoreSize::Double,
+                address,
+                offset,
+            );
+            add_offset(code, address, field.offset());
+        }
         Arm64SelectedAddressRoot::Data(source) => {
             let target = data
                 .get(source.index())

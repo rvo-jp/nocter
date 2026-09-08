@@ -197,7 +197,7 @@ impl Arm64AsyncFunctionPlan {
         let constructor_frame = build_constructor_frame(&frame, &parameters)?;
         let cancellation =
             crate::async_cancellation::Arm64AsyncCancellationPlan::build(owner, function, &frame)?;
-        let selected = crate::Arm64SelectedFunction::build_deferred(program, owner)?;
+        let selected = crate::Arm64SelectedFunction::build_deferred(program, owner, &frame)?;
         let activation = crate::async_activation::Arm64AsyncActivationPlan::build(
             owner, function, &frame, &selected,
         )?;

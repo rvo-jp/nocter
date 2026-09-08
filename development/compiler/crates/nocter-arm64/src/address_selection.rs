@@ -12,6 +12,8 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64SelectedAddressRoot {
     Stack(Arm64SelectedStackAddress),
+    /// A byte range in the allocation-backed frame of a deferred function.
+    AsyncFrame(crate::Arm64AsyncFrameField),
     Data(MachineDataId),
     Pointer(Arm64SelectedRegister),
     View {
@@ -91,13 +93,14 @@ impl Arm64SelectedAddressPlan {
         function: &MachineFunction,
         values: &Arm64ValuePlan,
         frame: &Arm64FunctionFrame,
+        persistent: Option<&crate::Arm64AsyncFrameLayout>,
     ) -> Result<Self, Arm64SelectionError> {
         let mut addresses = Vec::with_capacity(function.body().addresses().len());
         for (address_id, address) in function.body().addresses() {
             if address_id.index() != addresses.len() {
                 return Err(Arm64SelectionError::NonDenseAddress(address_id));
             }
-            addresses.push(select_address(address, values, frame)?);
+            addresses.push(select_address(address, values, frame, persistent)?);
         }
         Ok(Self {
             addresses: addresses.into_boxed_slice(),
@@ -164,11 +167,12 @@ fn select_address(
     address: &nocter_machine::MachineAddress,
     values: &Arm64ValuePlan,
     frame: &Arm64FunctionFrame,
+    persistent: Option<&crate::Arm64AsyncFrameLayout>,
 ) -> Result<Arm64SelectedAddress, Arm64SelectionError> {
-    if let Some(address) = select_static_stack(address, frame)? {
+    if let Some(address) = select_static_stack(address, frame, persistent)? {
         return Ok(Arm64SelectedAddress::Stack(address));
     }
-    let (root, mut current_view) = select_root(address.root(), values, frame)?;
+    let (root, mut current_view) = select_root(address.root(), values, frame, persistent)?;
     let mut steps = Vec::with_capacity(address.steps().len());
     for step in address.steps() {
         let selected = match *step {
@@ -235,10 +239,14 @@ fn select_address(
 fn select_static_stack(
     address: &nocter_machine::MachineAddress,
     frame: &Arm64FunctionFrame,
+    persistent: Option<&crate::Arm64AsyncFrameLayout>,
 ) -> Result<Option<Arm64SelectedStackAddress>, Arm64SelectionError> {
     let MachineAddressRoot::Stack(stack) = address.root() else {
         return Ok(None);
     };
+    if persistent.is_some_and(|persistent| persistent.stack_object(stack).is_some()) {
+        return Ok(None);
+    }
     let mut offset = 0_u64;
     for step in address.steps() {
         let MachineAddressStep::Offset(additional) = step else {
@@ -257,12 +265,20 @@ fn select_root(
     root: MachineAddressRoot,
     values: &Arm64ValuePlan,
     frame: &Arm64FunctionFrame,
+    persistent: Option<&crate::Arm64AsyncFrameLayout>,
 ) -> Result<(Arm64SelectedAddressRoot, bool), Arm64SelectionError> {
     match root {
-        MachineAddressRoot::Stack(stack) => Ok((
-            Arm64SelectedAddressRoot::Stack(crate::memory_selection::frame_stack(frame, stack, 0)?),
-            false,
-        )),
+        MachineAddressRoot::Stack(stack) => {
+            match persistent.and_then(|persistent| persistent.stack_object(stack)) {
+                Some(field) => Ok((Arm64SelectedAddressRoot::AsyncFrame(field), false)),
+                None => Ok((
+                    Arm64SelectedAddressRoot::Stack(crate::memory_selection::frame_stack(
+                        frame, stack, 0,
+                    )?),
+                    false,
+                )),
+            }
+        }
         MachineAddressRoot::Data(data) => Ok((Arm64SelectedAddressRoot::Data(data), false)),
         MachineAddressRoot::Pointer { value } => Ok((
             Arm64SelectedAddressRoot::Pointer(one_word(values, value)?),

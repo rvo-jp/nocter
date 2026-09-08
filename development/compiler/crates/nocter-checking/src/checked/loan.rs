@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, FieldId, ParameterId,
-    ParameterOrigin,
+    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, FieldId, LocalBindingId,
+    ParameterId, ParameterOrigin,
 };
 
 use super::PlaceRoot;
@@ -36,6 +36,19 @@ pub enum LoanId {
         node: BodyNodeId,
         position: u16,
     },
+}
+
+/// Source storage whose address must remain stable while one deferred body is suspended.
+///
+/// Loan analysis owns this classification. Later lowering stages translate these semantic
+/// identities into their own storage identities without rediscovering which loans cross an
+/// `await`.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum SuspensionStorage {
+    Parameter(ParameterId),
+    Local(LocalBindingId),
+    Capture(CaptureId),
+    Value(BodyNodeId),
 }
 
 /// Canonical place projection used for borrow overlap.
@@ -154,14 +167,20 @@ impl CheckedLoan {
 pub struct CheckedBodyLoans {
     loans: BTreeMap<LoanId, CheckedLoan>,
     live_before: Arena<BodyNodeId, Box<[LoanId]>>,
+    suspension_storage: BTreeMap<BodyNodeId, Box<[SuspensionStorage]>>,
 }
 
 impl CheckedBodyLoans {
     pub(crate) const fn new(
         loans: BTreeMap<LoanId, CheckedLoan>,
         live_before: Arena<BodyNodeId, Box<[LoanId]>>,
+        suspension_storage: BTreeMap<BodyNodeId, Box<[SuspensionStorage]>>,
     ) -> Self {
-        Self { loans, live_before }
+        Self {
+            loans,
+            live_before,
+            suspension_storage,
+        }
     }
 
     #[must_use]
@@ -172,6 +191,17 @@ impl CheckedBodyLoans {
     #[must_use]
     pub const fn live_before(&self) -> &Arena<BodyNodeId, Box<[LoanId]>> {
         &self.live_before
+    }
+
+    /// Stable source storage required by one checked suspension.
+    #[must_use]
+    pub fn suspension_storage(&self, await_node: BodyNodeId) -> Option<&[SuspensionStorage]> {
+        self.suspension_storage.get(&await_node).map(Box::as_ref)
+    }
+
+    #[must_use]
+    pub const fn suspensions(&self) -> &BTreeMap<BodyNodeId, Box<[SuspensionStorage]>> {
+        &self.suspension_storage
     }
 }
 

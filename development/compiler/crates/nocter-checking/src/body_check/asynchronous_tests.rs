@@ -109,18 +109,35 @@ fn a_pending_computation_cannot_escape_borrowed_local_storage() {
 }
 
 #[test]
-fn suspension_rejects_frame_internal_loans_but_preserves_external_input_loans() {
-    let error = check(
+fn suspension_retains_frame_internal_loans_and_preserves_external_input_loans() {
+    let output = check(
         "func consume(value: &i32): async void { return }\n\
-         func bad(): async void {\n\
+         func valid(): async void {\n\
              let local = 1\n\
              let pending = consume(&local)\n\
              await pending\n\
              return\n\
          }\n",
     )
-    .unwrap_err();
-    assert_eq!(error.source_diagnostic().unwrap().code(), "E0417");
+    .unwrap();
+    let program = output.program();
+    let (body, await_node) = program
+        .bodies()
+        .iter()
+        .find_map(|(body, checked)| {
+            checked.nodes().iter().find_map(|(node, checked)| {
+                matches!(checked.operation(), CheckedOperation::Await(_)).then_some((body, node))
+            })
+        })
+        .expect("awaiting body");
+    assert!(matches!(
+        program
+            .loans()
+            .body(body)
+            .unwrap()
+            .suspension_storage(await_node),
+        Some([crate::SuspensionStorage::Local(_)])
+    ));
 
     check(
         "func ready(): async void { return }\n\
@@ -132,6 +149,38 @@ fn suspension_rejects_frame_internal_loans_but_preserves_external_input_loans() 
          }\n",
     )
     .unwrap();
+}
+
+#[test]
+fn direct_await_retains_loans_created_while_evaluating_its_computation() {
+    let output = check(
+        "func consume(value: &i32): async void { return }\n\
+         func valid(): async void {\n\
+             let local = 1\n\
+             await consume(&local)\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let program = output.program();
+    let (body, await_node) = program
+        .bodies()
+        .iter()
+        .find_map(|(body, checked)| {
+            checked.nodes().iter().find_map(|(node, checked)| {
+                matches!(checked.operation(), CheckedOperation::Await(_)).then_some((body, node))
+            })
+        })
+        .expect("direct await");
+
+    assert!(matches!(
+        program
+            .loans()
+            .body(body)
+            .unwrap()
+            .suspension_storage(await_node),
+        Some([crate::SuspensionStorage::Local(_)])
+    ));
 }
 
 #[test]

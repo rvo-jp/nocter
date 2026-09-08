@@ -87,6 +87,8 @@ pub enum MirLoweringError {
     InvalidDispatch(BodyNodeId),
     InvalidPlaceDispatch(PlaceId),
     InvalidCleanup(BodyNodeId),
+    MissingSuspensionStorage(BodyNodeId),
+    InvalidSuspensionStorage(BodyNodeId),
     InvalidPattern(BodyNodeId),
     InvalidRegion(BodyNodeId),
     InvalidClosure(BodyNodeId),

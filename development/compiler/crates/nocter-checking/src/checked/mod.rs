@@ -32,6 +32,7 @@ pub use closure::{
 };
 pub use loan::{
     CheckedBodyLoans, CheckedLoan, LoanId, LoanPlace, LoanProjection, LoanRoot, LoanTable,
+    SuspensionStorage,
 };
 pub use node::{
     AggregateConstruction, AllocationSelection, BorrowConversionImplementation,

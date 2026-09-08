@@ -334,8 +334,7 @@ fn restore_fields(
 ) -> Result<(), Arm64AsyncResumeError> {
     for field in fields {
         match field.transient() {
-            Arm64AsyncActivationTarget::Stack(target)
-            | Arm64AsyncActivationTarget::DropFlag(target)
+            Arm64AsyncActivationTarget::DropFlag(target)
             | Arm64AsyncActivationTarget::Pack(target) => {
                 copy_heap_to_object(plan, field.persistent(), target, code)?;
             }
@@ -354,8 +353,7 @@ fn save_fields(
 ) -> Result<(), Arm64AsyncResumeError> {
     for field in fields {
         match field.transient() {
-            Arm64AsyncActivationTarget::Stack(source)
-            | Arm64AsyncActivationTarget::DropFlag(source)
+            Arm64AsyncActivationTarget::DropFlag(source)
             | Arm64AsyncActivationTarget::Pack(source) => {
                 copy_object_to_heap(plan, source, field.persistent(), code)?;
             }

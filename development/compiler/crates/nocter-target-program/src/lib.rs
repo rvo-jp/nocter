@@ -31,14 +31,14 @@ pub use entry::{
 };
 pub use executable::{
     ExecutableArgumentPackPlan, ExecutableBody, ExecutableBorrowEdge, ExecutableCallableInvocation,
-    ExecutableClosureCapture, ExecutableClosureEdge, ExecutableClosureLayout,
-    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge, ExecutableExecution,
-    ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
+    ExecutableCleanupDestruction, ExecutableClosureCapture, ExecutableClosureEdge,
+    ExecutableClosureLayout, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
+    ExecutableExecution, ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
     ExecutableOpaqueReceiver, ExecutablePackInput, ExecutablePackLiteralPlan,
     ExecutablePackSegment, ExecutablePackSpread, ExecutablePrimitiveCall,
     ExecutablePrimitiveDependency, ExecutableProgram, ExecutableProgramError, ExecutableRoot,
-    ExecutableSignature, ExecutableStatic, ExecutableTargetServiceCall, ExecutableTestCase,
-    ExecutableTypeEdge,
+    ExecutableSignature, ExecutableStatic, ExecutableStorageIdentity, ExecutableSuspensionStorage,
+    ExecutableTargetServiceCall, ExecutableTestCase, ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 use nocter_runtime_contract::{

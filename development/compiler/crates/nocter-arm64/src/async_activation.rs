@@ -8,7 +8,6 @@ use crate::{
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Arm64AsyncActivationTarget {
-    Stack(Arm64FrameObjectId),
     Value(nocter_machine::MachineValueId),
     DropFlag(Arm64FrameObjectId),
     Pack(Arm64FrameObjectId),
@@ -129,57 +128,53 @@ fn select_fields(
     persistent: &Arm64AsyncFrameLayout,
     selected: &Arm64SelectedFunction,
 ) -> Result<Vec<Arm64AsyncActivationField>, Arm64AsyncActivationPlanError> {
-    fields
-        .iter()
-        .copied()
-        .map(|field| {
-            let (persistent, transient) = match field {
-                MachineFrameField::Stack(id) => (
-                    persistent
-                        .stack_object(id)
-                        .ok_or(Arm64AsyncActivationPlanError::MissingPersistentStack(id))?,
-                    Arm64AsyncActivationTarget::Stack(
-                        selected
-                            .frame()
-                            .stack_object(id)
-                            .ok_or(Arm64AsyncActivationPlanError::MissingTransientStack(id))?,
-                    ),
-                ),
-                MachineFrameField::Value(id) => (
-                    persistent
-                        .value(id)
-                        .ok_or(Arm64AsyncActivationPlanError::MissingPersistentValue(id))?,
-                    Arm64AsyncActivationTarget::Value(id),
-                ),
-                MachineFrameField::DropFlag(id) => (
-                    persistent
+    let mut selected_fields = Vec::new();
+    for field in fields.iter().copied() {
+        let (persistent, transient) = match field {
+            // Stack identities present in the async frame are addressed there directly by
+            // selected deferred code. Copying them through an activation slot would create a
+            // second address and invalidate loans held by a suspended child.
+            MachineFrameField::Stack(id) => {
+                persistent
+                    .stack_object(id)
+                    .ok_or(Arm64AsyncActivationPlanError::MissingPersistentStack(id))?;
+                continue;
+            }
+            MachineFrameField::Value(id) => (
+                persistent
+                    .value(id)
+                    .ok_or(Arm64AsyncActivationPlanError::MissingPersistentValue(id))?,
+                Arm64AsyncActivationTarget::Value(id),
+            ),
+            MachineFrameField::DropFlag(id) => (
+                persistent
+                    .drop_flag(id)
+                    .ok_or(Arm64AsyncActivationPlanError::MissingPersistentFlag(id))?,
+                Arm64AsyncActivationTarget::DropFlag(
+                    selected
+                        .frame()
                         .drop_flag(id)
-                        .ok_or(Arm64AsyncActivationPlanError::MissingPersistentFlag(id))?,
-                    Arm64AsyncActivationTarget::DropFlag(
-                        selected
-                            .frame()
-                            .drop_flag(id)
-                            .ok_or(Arm64AsyncActivationPlanError::MissingTransientFlag(id))?,
-                    ),
+                        .ok_or(Arm64AsyncActivationPlanError::MissingTransientFlag(id))?,
                 ),
-                MachineFrameField::Pack => (
-                    persistent
-                        .pack_input()
-                        .ok_or(Arm64AsyncActivationPlanError::MissingPersistentPack)?,
-                    Arm64AsyncActivationTarget::Pack(
-                        selected
-                            .frame()
-                            .pack_input_pointer()
-                            .ok_or(Arm64AsyncActivationPlanError::MissingTransientPack)?,
-                    ),
+            ),
+            MachineFrameField::Pack => (
+                persistent
+                    .pack_input()
+                    .ok_or(Arm64AsyncActivationPlanError::MissingPersistentPack)?,
+                Arm64AsyncActivationTarget::Pack(
+                    selected
+                        .frame()
+                        .pack_input_pointer()
+                        .ok_or(Arm64AsyncActivationPlanError::MissingTransientPack)?,
                 ),
-            };
-            Ok(Arm64AsyncActivationField {
-                persistent,
-                transient,
-            })
-        })
-        .collect()
+            ),
+        };
+        selected_fields.push(Arm64AsyncActivationField {
+            persistent,
+            transient,
+        });
+    }
+    Ok(selected_fields)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -187,7 +182,6 @@ pub enum Arm64AsyncActivationPlanError {
     ImmediateFunction(MachineFunctionId),
     MissingStateTag(nocter_machine::MachineBlockId),
     MissingPersistentStack(nocter_machine::MachineStackId),
-    MissingTransientStack(nocter_machine::MachineStackId),
     MissingPersistentValue(nocter_machine::MachineValueId),
     MissingPersistentFlag(nocter_machine::MachineDropFlagId),
     MissingTransientFlag(nocter_machine::MachineDropFlagId),

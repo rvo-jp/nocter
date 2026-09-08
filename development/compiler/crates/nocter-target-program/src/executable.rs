@@ -7,8 +7,9 @@ use nocter_checking::{
     ResolvedPrimitiveDispatch, StaticSelection, is_concrete_type,
 };
 use nocter_model::{
-    Arena, BodyId, BodyNodeId, BorrowCapability, ClosureId, ExecutableItemId, ExecutableStaticId,
-    PackageTargetId, StaticId, TestId, TypeId, TypeStore,
+    Arena, BodyId, BodyNodeId, BorrowCapability, CaptureId, ClosureId, ExecutableItemId,
+    ExecutableStaticId, LocalBindingId, PackageTargetId, ParameterId, StaticId, TestId, TypeId,
+    TypeStore,
 };
 use nocter_runtime_contract::{
     RuntimeEnvironment, RuntimeEnvironmentError, RuntimeTypeTableBuildError,
@@ -211,7 +212,17 @@ struct ExecutableDispatchEdge {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ExecutableDestructionEdge {
     source: CheckedDestruction,
-    plan: ConcreteDestructionPlan,
+    plan: Option<ConcreteDestructionPlan>,
+}
+
+/// Closed executable answer for one checked cleanup target.
+///
+/// A present contract distinguishes a semantically trivial cleanup from a missing executable
+/// dependency. MIR lowering may omit only [`Self::Trivial`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExecutableCleanupDestruction<'a> {
+    Trivial,
+    Plan(&'a ConcreteDestructionPlan),
 }
 
 /// One nested closure edge resolved to its executable item.
@@ -267,6 +278,37 @@ pub struct ExecutableBorrowEdge {
     concrete: TypeId,
 }
 
+/// Stable source storage required by one reachable suspension after executable closure.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExecutableSuspensionStorage {
+    await_node: BodyNodeId,
+    storage: Box<[ExecutableStorageIdentity]>,
+}
+
+/// Executable source-storage identity whose address must survive a suspension.
+///
+/// This target-program identity closes over checking output. MIR lowering consumes this contract
+/// without depending on the checker representation that produced it.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ExecutableStorageIdentity {
+    Parameter(ParameterId),
+    Local(LocalBindingId),
+    Capture(CaptureId),
+    Value(BodyNodeId),
+}
+
+impl ExecutableSuspensionStorage {
+    #[must_use]
+    pub const fn await_node(&self) -> BodyNodeId {
+        self.await_node
+    }
+
+    #[must_use]
+    pub const fn storage(&self) -> &[ExecutableStorageIdentity] {
+        &self.storage
+    }
+}
+
 impl ExecutableBorrowEdge {
     #[must_use]
     pub const fn source(self) -> TypeId {
@@ -307,6 +349,7 @@ pub struct ExecutableBody {
     drops: Box<[ExecutableDropEdge]>,
     types: Box<[ExecutableTypeEdge]>,
     prepared_borrows: Box<[ExecutableBorrowEdge]>,
+    suspension_storage: Box<[ExecutableSuspensionStorage]>,
     destructions: Box<[ExecutableDestructionEdge]>,
     statics: Box<[StaticId]>,
     pack_literals: Box<[ExecutablePackLiteralPlan]>,
@@ -327,6 +370,17 @@ impl ExecutableBody {
     #[must_use]
     pub const fn nodes(&self) -> &[BodyNodeId] {
         &self.nodes
+    }
+
+    #[must_use]
+    pub fn suspension_storage(
+        &self,
+        await_node: BodyNodeId,
+    ) -> Option<&[ExecutableStorageIdentity]> {
+        self.suspension_storage
+            .binary_search_by_key(&await_node, ExecutableSuspensionStorage::await_node)
+            .ok()
+            .map(|index| self.suspension_storage[index].storage())
     }
 
     #[must_use]
@@ -395,19 +449,22 @@ impl ExecutableBody {
         self.destructions
             .binary_search_by(|edge| edge.source.cmp(&CheckedDestruction::Complete(source)))
             .ok()
-            .map(|index| &self.destructions[index].plan)
+            .and_then(|index| self.destructions[index].plan.as_ref())
     }
 
     #[must_use]
     pub fn cleanup_destruction(
         &self,
         target: &nocter_checking::CleanupTarget,
-    ) -> Option<&ConcreteDestructionPlan> {
+    ) -> Option<ExecutableCleanupDestruction<'_>> {
         let source = CheckedDestruction::for_cleanup(target)?;
         self.destructions
             .binary_search_by(|edge| edge.source.cmp(&source))
             .ok()
-            .map(|index| &self.destructions[index].plan)
+            .map(|index| match self.destructions[index].plan.as_ref() {
+                Some(plan) => ExecutableCleanupDestruction::Plan(plan),
+                None => ExecutableCleanupDestruction::Trivial,
+            })
     }
 
     #[must_use]

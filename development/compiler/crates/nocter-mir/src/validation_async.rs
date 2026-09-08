@@ -84,10 +84,21 @@ pub(crate) fn validate_async_function(
                 Some(TypeKind::Async(_))
             )
             || state.fields().windows(2).any(|pair| pair[0] >= pair[1])
+            || state
+                .stable_storage()
+                .windows(2)
+                .any(|pair| pair[0] >= pair[1])
         {
             return Err(invalid());
         }
         validate_fields(function.item(), function, state.fields())?;
+        for local in state.stable_storage() {
+            if function.locals().get(*local).is_none()
+                || !state.fields().contains(&MirFrameField::Local(*local))
+            {
+                return Err(invalid());
+            }
+        }
         validate_cancellation(
             function.item(),
             function,

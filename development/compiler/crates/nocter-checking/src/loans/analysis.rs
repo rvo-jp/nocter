@@ -17,7 +17,7 @@ use super::value::LoanValue;
 use crate::{
     BodyCheckInternalError, BodyRelationError, CheckedBodyLoans, CheckedLoan, CheckedOperation,
     ClosureDefinition, ClosureTable, DropTable, LoanId, LoanPlace, LoanRoot, LoanTable, PlaceRoot,
-    ProvenanceTable,
+    ProvenanceTable, SuspensionStorage,
     body_relations::{BodyRelationCatalog, BodyRelationInput},
 };
 
@@ -78,7 +78,18 @@ pub(super) fn analyze_program(
         if !checked.live_before.is_empty() {
             return Err(BodyCheckInternalError::LoanAnalysis.into());
         }
-        let checked = CheckedBodyLoans::new(checked.loans, live_before.finish());
+        let suspension_storage = checked
+            .suspension_storage
+            .into_iter()
+            .map(|(node, storage)| {
+                (
+                    node,
+                    storage.into_iter().collect::<Vec<_>>().into_boxed_slice(),
+                )
+            })
+            .collect();
+        let checked =
+            CheckedBodyLoans::new(checked.loans, live_before.finish(), suspension_storage);
         let actual = bodies.insert(checked);
         if actual != body {
             return Err(BodyCheckInternalError::LoanAnalysis.into());
@@ -90,6 +101,7 @@ pub(super) fn analyze_program(
 struct RootLoanAnalysis {
     loans: BTreeMap<LoanId, CheckedLoan>,
     live_before: HashMap<BodyNodeId, BTreeSet<LoanId>>,
+    suspension_storage: BTreeMap<BodyNodeId, BTreeSet<SuspensionStorage>>,
 }
 
 impl RootLoanAnalysis {
@@ -101,6 +113,12 @@ impl RootLoanAnalysis {
         }
         for (node, loans) in another.live_before {
             self.live_before.entry(node).or_default().extend(loans);
+        }
+        for (node, storage) in another.suspension_storage {
+            self.suspension_storage
+                .entry(node)
+                .or_default()
+                .extend(storage);
         }
         Ok(())
     }
@@ -130,6 +148,7 @@ struct Analyzer<'program> {
     liveness: &'program Liveness,
     loans: BTreeMap<LoanId, CheckedLoan>,
     live_before: HashMap<BodyNodeId, BTreeSet<LoanId>>,
+    suspension_loans: BTreeMap<BodyNodeId, BTreeSet<LoanId>>,
     loops: Vec<LoopFlow>,
     scopes: Vec<nocter_model::BodyScopeId>,
     closure: Option<(ClosureId, &'program ClosureDefinition)>,
@@ -152,6 +171,7 @@ impl<'program> Analyzer<'program> {
             liveness,
             loans: BTreeMap::new(),
             live_before: HashMap::new(),
+            suspension_loans: BTreeMap::new(),
             loops: Vec::new(),
             scopes: Vec::new(),
             closure,
@@ -166,68 +186,59 @@ impl<'program> Analyzer<'program> {
                 definition.body()
             });
         self.evaluate(root, &mut state, &BTreeSet::new())?;
-        self.validate_suspensions()?;
+        let suspension_storage = self.collect_suspension_storage()?;
         Ok(RootLoanAnalysis {
             loans: self.loans,
             live_before: self.live_before,
+            suspension_storage,
         })
     }
 
-    fn validate_suspensions(&self) -> Result<(), BodyRelationError> {
-        let mut suspensions = self
-            .live_before
-            .iter()
-            .filter(|(node, _)| {
-                matches!(
-                    self.input
-                        .body()
-                        .nodes()
-                        .get(**node)
-                        .map(crate::CheckedNode::operation),
-                    Some(CheckedOperation::Await(_))
-                )
-            })
-            .collect::<Vec<_>>();
-        suspensions.sort_unstable_by_key(|(node, _)| **node);
-        for (node, live) in suspensions {
-            if live.iter().copied().any(|loan| {
-                self.loan_reaches_frame_storage(loan, &mut BTreeSet::new())
-                    .unwrap_or(true)
-            }) {
-                return Err(self
-                    .input
-                    .reject(crate::BodyRule::BorrowAcrossSuspension, *node));
+    fn collect_suspension_storage(
+        &self,
+    ) -> Result<BTreeMap<BodyNodeId, BTreeSet<SuspensionStorage>>, BodyRelationError> {
+        let mut result = BTreeMap::new();
+        for (node, live) in &self.suspension_loans {
+            let mut storage = BTreeSet::new();
+            for loan in live.iter().copied() {
+                self.collect_loan_suspension_storage(loan, &mut BTreeSet::new(), &mut storage)?;
             }
+            result.insert(*node, storage);
         }
-        Ok(())
+        Ok(result)
     }
 
-    fn loan_reaches_frame_storage(
+    fn collect_loan_suspension_storage(
         &self,
         loan: LoanId,
         visiting: &mut BTreeSet<LoanId>,
-    ) -> Option<bool> {
+        storage: &mut BTreeSet<SuspensionStorage>,
+    ) -> Result<(), BodyRelationError> {
         if !visiting.insert(loan) {
-            return Some(false);
+            return Ok(());
         }
-        let definition = self.loans.get(&loan)?;
-        let direct = definition.places().iter().any(|place| {
-            matches!(
-                place.root(),
-                LoanRoot::Place(
-                    PlaceRoot::Parameter(_)
-                        | PlaceRoot::Local(_)
-                        | PlaceRoot::Capture(_)
-                        | PlaceRoot::Value(_)
-                )
-            )
-        });
-        let inherited = definition.parents().iter().copied().any(|parent| {
-            self.loan_reaches_frame_storage(parent, visiting)
-                .unwrap_or(true)
-        });
+        let definition = self
+            .loans
+            .get(&loan)
+            .ok_or(BodyCheckInternalError::LoanAnalysis)?;
+        for place in definition.places() {
+            let LoanRoot::Place(root) = place.root() else {
+                continue;
+            };
+            let stable = match root {
+                PlaceRoot::Parameter(parameter) => SuspensionStorage::Parameter(parameter),
+                PlaceRoot::Local(local) => SuspensionStorage::Local(local),
+                PlaceRoot::Capture(capture) => SuspensionStorage::Capture(capture),
+                PlaceRoot::Value(value) => SuspensionStorage::Value(value),
+                PlaceRoot::Static(_) => continue,
+            };
+            storage.insert(stable);
+        }
+        for parent in definition.parents().iter().copied() {
+            self.collect_loan_suspension_storage(parent, visiting, storage)?;
+        }
         visiting.remove(&loan);
-        Some(direct || inherited)
+        Ok(())
     }
 
     fn initial_state(&mut self) -> Result<LoanState, BodyCheckInternalError> {
@@ -401,6 +412,12 @@ impl<'program> Analyzer<'program> {
             CheckedOperation::Await(await_) => {
                 let (computation, reaches) =
                     self.evaluate(await_.computation(), state, extra_active)?;
+                let mut suspended = self.live_before.get(&node).cloned().unwrap_or_default();
+                suspended.extend(computation.all_loans());
+                self.suspension_loans
+                    .entry(node)
+                    .or_default()
+                    .extend(suspended);
                 (
                     computation.projected(crate::ProvenanceProjection::AsyncOutput),
                     reaches,

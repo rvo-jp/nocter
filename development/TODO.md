@@ -31,10 +31,11 @@ timeout limits. It copies its duration into the child computation, rounds sub-ti
 and segments large values within the wrapping half-domain. Native-session coverage compiles the
 authored standard library and proves the public call cannot complete early. The generated process
 now also waits on an actual TCP loopback socket whose peer becomes readable later, completing the
-native readiness qualification. Next, settle the ownership contract for public asynchronous socket
-operations:
-ordinary borrowed receivers would otherwise point from a child computation into its suspended
-parent frame, which the current non-self-referential frame model intentionally rejects. Keep the
+native readiness qualification. Checked loan analysis now freezes each suspension's stable source
+storage, MIR and Machine preserve that contract, and deferred ARM64 code addresses every retained
+stack identity directly in its allocation-backed frame. Direct `await child(&+local)` therefore
+keeps one stable address, while ordinary provenance still rejects an escaping child. Next, expose
+public asynchronous socket operations on top of this structured-borrowing boundary. Keep the
 qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the

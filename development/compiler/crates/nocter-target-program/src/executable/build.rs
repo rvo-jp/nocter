@@ -14,8 +14,9 @@ use super::{
     ExecutableBody, ExecutableBorrowEdge, ExecutableClosureEdge, ExecutableDestructionEdge,
     ExecutableDispatchEdge, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
     ExecutableExecution, ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall,
-    ExecutableProgram, ExecutableProgramError, ExecutableRoot, ExecutableTargetServiceCall,
-    ExecutableTestCase, ExecutableTypeEdge,
+    ExecutableProgram, ExecutableProgramError, ExecutableRoot, ExecutableStorageIdentity,
+    ExecutableSuspensionStorage, ExecutableTargetServiceCall, ExecutableTestCase,
+    ExecutableTypeEdge,
 };
 
 mod pack_literal;
@@ -264,6 +265,8 @@ impl<'program> ExecutableClosureBuilder<'program> {
         let execution = specialize_execution(self.target, &mut self.resolver, key, &substitution)?;
         let accepts_allocation_override = accepts_allocation_override(self.target, key);
         let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
+        let suspension_storage =
+            self.freeze_suspension_storage(context.body, dependencies.nodes())?;
         let mut drops = BTreeMap::new();
         let completion_destruction = match execution {
             ExecutableExecution::Immediate => None,
@@ -350,6 +353,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
             drops: drops.into_iter().collect(),
             types,
             prepared_borrows,
+            suspension_storage,
             destructions,
             statics: dependencies.statics().to_vec(),
             pack_literals,
@@ -357,12 +361,40 @@ impl<'program> ExecutableClosureBuilder<'program> {
         })
     }
 
+    fn freeze_suspension_storage(
+        &self,
+        body: BodyId,
+        reachable_nodes: &[BodyNodeId],
+    ) -> Result<Vec<ExecutableSuspensionStorage>, ExecutableProgramError> {
+        let reachable_nodes = reachable_nodes.iter().copied().collect::<BTreeSet<_>>();
+        let loans = self
+            .target
+            .checked()
+            .loans()
+            .body(body)
+            .ok_or(ExecutableProgramError::UnknownBody(body))?;
+        Ok(loans
+            .suspensions()
+            .iter()
+            .filter(|(node, _)| reachable_nodes.contains(node))
+            .map(|(await_node, storage)| ExecutableSuspensionStorage {
+                await_node: *await_node,
+                storage: storage
+                    .iter()
+                    .copied()
+                    .map(freeze_storage_identity)
+                    .collect(),
+            })
+            .collect())
+    }
+
     fn specialize_destructions(
         &mut self,
         dependencies: &crate::CheckedBodyDependencies,
         substitution: &TypeSubstitution,
         drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
-    ) -> Result<Vec<(CheckedDestruction, ConcreteDestructionPlan)>, ExecutableProgramError> {
+    ) -> Result<Vec<(CheckedDestruction, Option<ConcreteDestructionPlan>)>, ExecutableProgramError>
+    {
         let mut destructions = Vec::new();
         for source in dependencies.destructions() {
             let plan = match source {
@@ -377,14 +409,14 @@ impl<'program> ExecutableClosureBuilder<'program> {
                     .resolver
                     .resolve_enum_residual(*ty, *variant, payload, substitution)?,
             };
-            if let Some(plan) = plan {
+            if let Some(plan) = &plan {
                 let mut selections = BTreeSet::new();
-                collect_drops(&plan, &mut selections);
+                collect_drops(plan, &mut selections);
                 for selection in selections {
                     self.record_drop(selection, drops)?;
                 }
-                destructions.push((source.clone(), plan));
             }
+            destructions.push((source.clone(), plan));
         }
         Ok(destructions)
     }
@@ -713,6 +745,21 @@ impl<'program> ExecutableClosureBuilder<'program> {
     }
 }
 
+const fn freeze_storage_identity(
+    storage: nocter_checking::SuspensionStorage,
+) -> ExecutableStorageIdentity {
+    match storage {
+        nocter_checking::SuspensionStorage::Parameter(parameter) => {
+            ExecutableStorageIdentity::Parameter(parameter)
+        }
+        nocter_checking::SuspensionStorage::Local(local) => ExecutableStorageIdentity::Local(local),
+        nocter_checking::SuspensionStorage::Capture(capture) => {
+            ExecutableStorageIdentity::Capture(capture)
+        }
+        nocter_checking::SuspensionStorage::Value(value) => ExecutableStorageIdentity::Value(value),
+    }
+}
+
 fn accepts_allocation_override(target: &TargetProgram, key: &ExecutableItemKey) -> bool {
     let ExecutableItemKey::Callable(key) = key else {
         return false;
@@ -874,7 +921,8 @@ struct DraftItem {
     drops: Vec<(DropSelection, ExecutableItemKey)>,
     types: Vec<ExecutableTypeEdge>,
     prepared_borrows: Vec<ExecutableBorrowEdge>,
-    destructions: Vec<(CheckedDestruction, ConcreteDestructionPlan)>,
+    suspension_storage: Vec<ExecutableSuspensionStorage>,
+    destructions: Vec<(CheckedDestruction, Option<ConcreteDestructionPlan>)>,
     statics: Vec<nocter_model::StaticId>,
     pack_literals: Vec<pack_literal::DraftPackLiteralPlan>,
     argument_packs: Vec<super::ExecutableArgumentPackPlan>,
@@ -1058,6 +1106,7 @@ fn freeze_body(
             drops: drops.into_boxed_slice(),
             types: types.into_boxed_slice(),
             prepared_borrows: prepared_borrows.into_boxed_slice(),
+            suspension_storage: draft.suspension_storage.into_boxed_slice(),
             destructions: destructions.into_boxed_slice(),
             statics: draft.statics.into_boxed_slice(),
             pack_literals: pack_literals.into_boxed_slice(),

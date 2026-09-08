@@ -3,6 +3,7 @@ use nocter_checking::{
     ConcreteDestructionPlan, PlaceRoot,
 };
 use nocter_model::{BodyNodeId, MirBlockId, MirPlaceId, TypeId};
+use nocter_target_program::ExecutableCleanupDestruction;
 
 use super::MirLoweringError;
 use super::function::FunctionLowerer;
@@ -69,11 +70,18 @@ impl FunctionLowerer<'_> {
                 }
                 CleanupTarget::Region { .. } => unreachable!(),
             };
-            let plan = self
+            // Checked cleanup schedules also carry ownership-only transitions for values with no
+            // runtime destruction. Cancellation retains their storage through the async-frame
+            // contract, but emits no action for a semantically trivial destruction.
+            let contract = self
                 .item
                 .body()
                 .cleanup_destruction(action.target())
                 .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+            let plan = match contract {
+                ExecutableCleanupDestruction::Trivial => continue,
+                ExecutableCleanupDestruction::Plan(plan) => plan,
+            };
             let plan = self.lower_deferred_destruction(owner, plan)?;
             let initialized = (action.condition()
                 == nocter_checking::CleanupCondition::IfInitialized)
@@ -166,9 +174,13 @@ impl FunctionLowerer<'_> {
             }
             CleanupTarget::Region { .. } => unreachable!("region cleanup returned above"),
         };
-        let plan = self.item.body().cleanup_destruction(target).cloned();
-        if let Some(plan) = plan {
-            self.lower_destruction(owner, place, &plan)?;
+        let contract = self
+            .item
+            .body()
+            .cleanup_destruction(target)
+            .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+        if let ExecutableCleanupDestruction::Plan(plan) = contract {
+            self.lower_destruction(owner, place, plan)?;
         }
         self.mark_cleanup_complete(target)?;
         Ok(())

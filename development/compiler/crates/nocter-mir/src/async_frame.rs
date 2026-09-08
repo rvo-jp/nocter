@@ -56,6 +56,7 @@ pub struct MirSuspensionState {
     resume: MirBlockId,
     awaited: MirValueId,
     fields: Box<[MirFrameField]>,
+    stable_storage: Box<[MirLocalId]>,
     cancellation: Box<[MirCancellationAction]>,
 }
 
@@ -78,6 +79,12 @@ impl MirSuspensionState {
     #[must_use]
     pub const fn fields(&self) -> &[MirFrameField] {
         &self.fields
+    }
+
+    /// Address-stable local storage required by source loans crossing this suspension.
+    #[must_use]
+    pub const fn stable_storage(&self) -> &[MirLocalId] {
+        &self.stable_storage
     }
 
     #[must_use]
@@ -114,6 +121,7 @@ impl MirAsyncFrame {
         body: &MirBody,
         initial_cancellation: Box<[MirCancellationAction]>,
         mut cancellation: BTreeMap<MirBlockId, Box<[MirCancellationAction]>>,
+        mut stable_storage: BTreeMap<MirBlockId, Box<[MirLocalId]>>,
         completed_destruction: Option<crate::MirDestructionPlan>,
     ) -> Result<Self, crate::MirBodyBuildError> {
         let liveness = Liveness::analyze(body);
@@ -128,6 +136,10 @@ impl MirAsyncFrame {
             };
             let mut fields = liveness.before[&resume.block()].clone();
             fields.insert(MirFrameField::Value(*computation));
+            let stable = stable_storage
+                .remove(&suspend)
+                .ok_or(crate::MirBodyBuildError::MissingSuspensionStorage(suspend))?;
+            fields.extend(stable.iter().copied().map(MirFrameField::Local));
             let actions = cancellation.remove(&suspend).ok_or(
                 crate::MirBodyBuildError::MissingSuspensionCancellation(suspend),
             )?;
@@ -162,11 +174,17 @@ impl MirAsyncFrame {
                 resume: resume.block(),
                 awaited: *computation,
                 fields: fields.into_iter().collect(),
+                stable_storage: stable,
                 cancellation: actions,
             });
         }
         if let Some(unexpected) = cancellation.keys().next().copied() {
             return Err(crate::MirBodyBuildError::UnexpectedSuspensionCancellation(
+                unexpected,
+            ));
+        }
+        if let Some(unexpected) = stable_storage.keys().next().copied() {
+            return Err(crate::MirBodyBuildError::UnexpectedSuspensionStorage(
                 unexpected,
             ));
         }

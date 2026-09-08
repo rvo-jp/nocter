@@ -2525,6 +2525,42 @@ fn standard_async_delay_crosses_the_complete_native_session() {
     execute_native_status(image.image(), &package_root.0, "async-delay", 0);
 }
 
+#[test]
+fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/time\n\
+         \n\
+         struct Counter { value: i32 }\n\
+         \n\
+         func read_after_delay(counter: &Counter): async i32 {\n\
+             await time.delay(time.Duration.from_milliseconds(20))\n\
+             return counter.value\n\
+         }\n\
+         \n\
+         func main(): async i32 {\n\
+             let counter = Counter { value: 42 }\n\
+             let result = await read_after_delay(&counter)\n\
+             if result == 42 { return 0 }\n\
+             return 1\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "borrowed-parent-frame", 0);
+}
+
 fn recoverable_allocation_test_source() -> &'static str {
     concat!(
         "see ./index.nct\n",

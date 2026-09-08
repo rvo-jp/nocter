@@ -17,7 +17,7 @@ use super::cleanup_flags::CleanupIdentity;
 use super::loop_control::LoopTargets;
 use crate::{
     MirAggregate, MirBinaryOperation, MirConstant, MirFunction, MirFunctionBuilder, MirLocalKind,
-    MirOperationKind, MirTerminator, MirUnaryOperation,
+    MirOperationKind, MirPlaceRoot, MirTerminator, MirUnaryOperation,
 };
 
 pub(super) fn lower_function(
@@ -68,6 +68,7 @@ pub(super) fn lower_function(
         }
     }
     let cancellation = std::mem::take(&mut lowerer.cancellation);
+    let stable_storage = std::mem::take(&mut lowerer.stable_storage);
     match item.execution() {
         ExecutableExecution::Immediate => lowerer.builder.finish(lowerer.entry),
         ExecutableExecution::Deferred { .. } => lowerer.builder.finish_deferred(
@@ -75,6 +76,7 @@ pub(super) fn lower_function(
             item.signature().result(),
             initial_cancellation,
             cancellation,
+            stable_storage,
             completed_destruction,
         ),
     }
@@ -97,6 +99,7 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) materialized_value_storage: BTreeSet<BodyNodeId>,
     pub(super) cleanup_flags: BTreeMap<CleanupIdentity, MirDropFlagId>,
     pub(super) cancellation: BTreeMap<MirBlockId, Box<[crate::MirCancellationAction]>>,
+    pub(super) stable_storage: BTreeMap<MirBlockId, Box<[MirLocalId]>>,
     pub(super) loops: BTreeMap<LoopId, LoopTargets>,
     /// Innermost last. These compiler-owned resources select calls without mutating ambient state.
     pub(super) regions: Vec<MirLocalId>,
@@ -151,6 +154,7 @@ impl<'a> FunctionLowerer<'a> {
             materialized_value_storage: BTreeSet::new(),
             cleanup_flags: BTreeMap::new(),
             cancellation: BTreeMap::new(),
+            stable_storage: BTreeMap::new(),
             loops: BTreeMap::new(),
             regions: Vec::new(),
         })
@@ -211,7 +215,7 @@ impl<'a> FunctionLowerer<'a> {
                 )
                 .map(Some)
             }
-            CheckedOperation::Await(await_) => self.lower_await(node, ty, await_).map(Some),
+            CheckedOperation::Await(await_) => self.lower_await(node, ty, *await_).map(Some),
             CheckedOperation::Place(_) => Err(MirLoweringError::UnsupportedOperation(node)),
             CheckedOperation::BorrowConversion(conversion) => {
                 self.lower_borrow_conversion(node, conversion).map(Some)
@@ -413,7 +417,7 @@ impl FunctionLowerer<'_> {
         &mut self,
         node: BodyNodeId,
         output: TypeId,
-        await_: &nocter_checking::CheckedAwait,
+        await_: nocter_checking::CheckedAwait,
     ) -> Result<MirValueId, MirLoweringError> {
         let computation = self.require_value(await_.computation())?;
         let block = self.current.ok_or(MirLoweringError::MissingCurrentBlock)?;
@@ -422,6 +426,14 @@ impl FunctionLowerer<'_> {
         let cancellation = self.lower_cancellation_actions(node, await_.computation())?;
         if self.cancellation.insert(block, cancellation).is_some() {
             return Err(MirLoweringError::InvalidCleanup(node));
+        }
+        let stable = self.lower_suspension_storage(node)?;
+        if self
+            .stable_storage
+            .insert(block, stable.into_boxed_slice())
+            .is_some()
+        {
+            return Err(MirLoweringError::InvalidSuspensionStorage(node));
         }
         self.builder.terminate(
             block,
@@ -432,6 +444,52 @@ impl FunctionLowerer<'_> {
         )?;
         self.current = Some(resume);
         Ok(result)
+    }
+
+    fn lower_suspension_storage(
+        &mut self,
+        await_node: BodyNodeId,
+    ) -> Result<Vec<MirLocalId>, MirLoweringError> {
+        let storage = self
+            .item
+            .body()
+            .suspension_storage(await_node)
+            .ok_or(MirLoweringError::MissingSuspensionStorage(await_node))?
+            .to_vec();
+        let mut locals = BTreeSet::new();
+        for storage in storage {
+            let local = match storage {
+                nocter_target_program::ExecutableStorageIdentity::Parameter(parameter) => *self
+                    .parameters
+                    .get(&parameter)
+                    .ok_or(MirLoweringError::MissingInput(parameter))?,
+                nocter_target_program::ExecutableStorageIdentity::Local(local) => {
+                    self.ensure_local(local)?
+                }
+                nocter_target_program::ExecutableStorageIdentity::Capture(capture) => {
+                    let path = self.lower_capture_path(capture)?;
+                    let MirPlaceRoot::Local(local) = path.root else {
+                        return Err(MirLoweringError::InvalidSuspensionStorage(await_node));
+                    };
+                    local
+                }
+                nocter_target_program::ExecutableStorageIdentity::Value(value) => {
+                    let place = self
+                        .value_storage
+                        .get(&value)
+                        .copied()
+                        .ok_or(MirLoweringError::InvalidSuspensionStorage(await_node))?;
+                    let Some(MirPlaceRoot::Local(local)) =
+                        self.builder.place(place).map(crate::MirPlace::root)
+                    else {
+                        return Err(MirLoweringError::InvalidSuspensionStorage(await_node));
+                    };
+                    local
+                }
+            };
+            locals.insert(local);
+        }
+        Ok(locals.into_iter().collect())
     }
 }
 

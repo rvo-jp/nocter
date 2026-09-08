@@ -115,9 +115,9 @@ not wait. Awaiting it completes only after at least the requested monotonic dura
 destroying the unfinished computation cancels its pending deadline. A zero duration completes on
 its first execution without publishing a wait interest.
 
-The value parameter is intentional. `Duration` is copyable, and copying it into the child
-computation avoids retaining a borrow into the caller's asynchronous frame across suspension.
-Constructing the computation may allocate, so `delay` does not promise `noalloc`.
+The value parameter is intentional. `Duration` is a small copyable value, so the child computation
+does not need to retain a caller loan merely to remember a delay interval. Constructing the
+computation may allocate, so `delay` does not promise `noalloc`.
 
 The implementation converts each positive duration segment to target counter ticks with upward
 rounding. It waits in bounded one-day segments, preserving arbitrarily large `Duration` values

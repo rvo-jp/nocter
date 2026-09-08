@@ -139,10 +139,27 @@ Both pending computations retain `source` until completion. Only the output of `
 depend on `source` after the computation has been consumed. Frame allocation, scheduler storage,
 and capture retention never add an implicit source-visible `from` clause.
 
-Borrowed storage owned outside the deferred call may remain live across suspension. A borrow into
-the deferred call's own local, owned parameter, captured owned value, or expression temporary may
-not cross `await`, because doing so would make the movable computation frame self-referential.
-Such a program is rejected before executable lowering.
+Borrowed storage owned outside the deferred call may remain live across suspension. Storage owned
+by the deferred call may also be borrowed by the exact computation it awaits:
+
+```nct
+func fill(buffer: &+Buffer): async void
+
+func receive(): async Buffer {
+    var buffer = Buffer.with_capacity(4096)
+    await fill(&+buffer)
+    return move buffer
+}
+```
+
+Loan analysis records every local, owned parameter, owned capture, or expression temporary whose
+address must remain stable at each suspension. That storage resides directly in the
+allocation-backed parent computation frame; it is not copied through a temporary activation
+address. Cancellation releases the awaited child before destroying the borrowed parent storage.
+
+This is structured borrowing, not a general escape. A child computation that retains a borrow of
+parent-owned storage cannot be returned, stored outside that owner, or otherwise outlive the
+parent. Such an escape is rejected by the ordinary result-provenance and loan rules.
 
 ## Structured Ownership
 

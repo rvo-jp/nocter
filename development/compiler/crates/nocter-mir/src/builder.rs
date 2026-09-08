@@ -269,6 +269,8 @@ pub enum MirBodyBuildError {
     DuplicatePackInput,
     MissingSuspensionCancellation(MirBlockId),
     UnexpectedSuspensionCancellation(MirBlockId),
+    MissingSuspensionStorage(MirBlockId),
+    UnexpectedSuspensionStorage(MirBlockId),
 }
 
 impl fmt::Display for MirBodyBuildError {
@@ -287,7 +289,9 @@ impl std::error::Error for MirBodyBuildError {
             | Self::ValueKindUsedAsEffect
             | Self::DuplicatePackInput
             | Self::MissingSuspensionCancellation(_)
-            | Self::UnexpectedSuspensionCancellation(_) => None,
+            | Self::UnexpectedSuspensionCancellation(_)
+            | Self::MissingSuspensionStorage(_)
+            | Self::UnexpectedSuspensionStorage(_) => None,
         }
     }
 }
@@ -336,17 +340,24 @@ impl MirFunctionBuilder {
         invocation_result: TypeId,
         initial_cancellation: Box<[crate::MirCancellationAction]>,
         cancellation: BTreeMap<MirBlockId, Box<[crate::MirCancellationAction]>>,
+        stable_storage: BTreeMap<MirBlockId, Box<[MirLocalId]>>,
         completed_destruction: Option<crate::MirDestructionPlan>,
     ) -> Result<MirFunction, MirBodyBuildError> {
-        MirFunction::new_deferred(
+        let body = self.body.finish(entry)?;
+        let async_frame = crate::MirAsyncFrame::derive(
+            &body,
+            initial_cancellation,
+            cancellation,
+            stable_storage,
+            completed_destruction,
+        )?;
+        Ok(MirFunction::new_deferred(
             self.item,
             invocation_result,
             self.result,
-            self.body.finish(entry)?,
-            initial_cancellation,
-            cancellation,
-            completed_destruction,
-        )
+            body,
+            async_frame,
+        ))
     }
 }
 

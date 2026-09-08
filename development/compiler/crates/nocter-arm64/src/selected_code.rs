@@ -1168,6 +1168,7 @@ pub enum Arm64MaterializationError {
     InvalidSwitchWidth(usize),
     AsyncTerminator,
     MissingAsyncWaitFrame,
+    MissingAsyncFramePointer,
     MissingAsyncPrimitiveTarget,
     PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),

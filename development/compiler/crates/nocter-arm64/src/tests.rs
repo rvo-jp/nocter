@@ -1271,6 +1271,57 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
 }
 
 #[test]
+fn deferred_code_addresses_retained_stack_storage_in_the_persistent_frame() {
+    let program = crate::test_support::lower_machine(
+        "struct Counter { value: i32 }\n\
+         func read(counter: &Counter): async i32 { return counter.value }\n\
+         func parent(): async i32 {\n\
+             let counter = Counter { value: 42 }\n\
+             return await read(&counter)\n\
+         }\n\
+         func main(): void {\n\
+             let pending = parent()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let (owner, stable) = program
+        .functions()
+        .find_map(|(owner, function)| {
+            let nocter_machine::MachineFunctionExecution::Deferred(frame) = function.execution()
+            else {
+                return None;
+            };
+            let state = frame.states().first()?;
+            let stack = state.fields().iter().find_map(|field| match field {
+                nocter_machine::MachineFrameField::Stack(stack) => Some(*stack),
+                _ => None,
+            })?;
+            Some((owner, stack))
+        })
+        .expect("one retained parent local");
+    let function = program.function(owner).unwrap();
+    let plan = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
+    let matching = function
+        .body()
+        .addresses()
+        .filter(|(_, address)| {
+            matches!(address.root(), nocter_machine::MachineAddressRoot::Stack(stack) if stack == stable)
+        })
+        .map(|(address, _)| address)
+        .collect::<Vec<_>>();
+
+    assert!(!matching.is_empty());
+    assert!(matching.iter().all(|address| matches!(
+        plan.selected()
+            .addresses()
+            .calculation(*address)
+            .map(crate::Arm64SelectedAddressCalculation::root),
+        Some(crate::Arm64SelectedAddressRoot::AsyncFrame(_))
+    )));
+}
+
+#[test]
 fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
     let program = crate::test_support::lower_machine(
         "struct Resource { value: i64 }\n\

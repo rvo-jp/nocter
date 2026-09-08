@@ -300,8 +300,10 @@ producer, and monotonic-deadline producer now consume the same wait-interest ABI
 elapsed-deadline conformance qualify both pending paths end to end. A public asynchronous time
 contract uses the timer through bounded duration segments and a copied input value. Concurrent
 TCP loopback conformance now qualifies descriptor readiness on a real socket. Public asynchronous
-networking still requires an explicit ownership model for receiver and buffer storage; it must not
-silently weaken the prohibition on pointers from a child computation into its parent frame.
+networking can now borrow receiver and buffer storage from a directly awaiting parent: loan
+analysis freezes the stable source roots, target-independent frames preserve those roots, and
+deferred ARM64 code accesses retained local storage at its persistent heap address. Escaping child
+computations remain rejected by the ordinary provenance contract.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.
