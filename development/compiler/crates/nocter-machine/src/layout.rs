@@ -397,7 +397,7 @@ impl LayoutBuilder<'_> {
     ) -> Result<MachineLayout, MachineLayoutError> {
         match kind {
             RuntimeType::Primitive(primitive) => self.primitive(ty, *primitive),
-            RuntimeType::Pointer(_) => Ok(self.pointer()),
+            RuntimeType::Pointer(_) | RuntimeType::Async(_) => Ok(self.pointer()),
             RuntimeType::Borrow { referent, .. } => {
                 let referent = self
                     .program

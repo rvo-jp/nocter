@@ -296,6 +296,10 @@ pub enum MirOperationKind {
     ReleaseError {
         place: MirPlaceId,
     },
+    /// Cancels and releases one owning deferred-computation handle.
+    ReleaseComputation {
+        place: MirPlaceId,
+    },
     CreateRegion {
         parent: MirValueId,
         region: MirLocalId,

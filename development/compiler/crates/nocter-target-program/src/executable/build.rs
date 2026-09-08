@@ -13,9 +13,9 @@ use super::signature::{build_signature, callable_signature};
 use super::{
     ExecutableBody, ExecutableBorrowEdge, ExecutableClosureEdge, ExecutableDestructionEdge,
     ExecutableDispatchEdge, ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge,
-    ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall, ExecutableProgram,
-    ExecutableProgramError, ExecutableRoot, ExecutableTargetServiceCall, ExecutableTestCase,
-    ExecutableTypeEdge,
+    ExecutableExecution, ExecutableItem, ExecutableItemKey, ExecutablePrimitiveCall,
+    ExecutableProgram, ExecutableProgramError, ExecutableRoot, ExecutableTargetServiceCall,
+    ExecutableTestCase, ExecutableTypeEdge,
 };
 
 mod pack_literal;
@@ -248,9 +248,10 @@ impl<'program> ExecutableClosureBuilder<'program> {
     fn build_item(&mut self, key: &ExecutableItemKey) -> Result<DraftItem, ExecutableProgramError> {
         let context = item_context(self.target, key)?;
         let signature = build_signature(self.target, &mut self.resolver, key)?;
+        let substitution = item_substitution(key);
+        let execution = specialize_execution(self.target, &mut self.resolver, key, &substitution)?;
         let accepts_allocation_override = accepts_allocation_override(self.target, key);
         let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
-        let substitution = item_substitution(key);
         let mut drops = BTreeMap::new();
         let mut dispatches = Vec::new();
         for selection in dependencies.selections() {
@@ -333,6 +334,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
 
         Ok(DraftItem {
             signature,
+            execution,
             accepts_allocation_override,
             closure,
             body: context.body,
@@ -811,7 +813,7 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
             }
             collect_drops(failure, drops);
         }
-        ConcreteDestructionKind::Error => {}
+        ConcreteDestructionKind::Async | ConcreteDestructionKind::Error => {}
         ConcreteDestructionKind::Closure(captures) => {
             for capture in captures {
                 collect_drops(capture.plan(), drops);
@@ -823,6 +825,7 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
 
 struct DraftItem {
     signature: super::ExecutableSignature,
+    execution: ExecutableExecution,
     accepts_allocation_override: bool,
     closure: Option<super::ExecutableClosureLayout>,
     body: BodyId,
@@ -892,10 +895,12 @@ fn freeze_items(
             .remove(&key)
             .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
         let accepts_allocation_override = draft.accepts_allocation_override;
+        let execution = draft.execution;
         let (signature, closure, body) = freeze_body(draft, &item_ids)?;
         Ok::<_, ExecutableProgramError>(ExecutableItem {
             key,
             signature,
+            execution,
             accepts_allocation_override,
             closure,
             body,
@@ -907,6 +912,34 @@ fn freeze_items(
         item_ids,
         type_representations,
     })
+}
+
+fn specialize_execution(
+    target: &TargetProgram,
+    resolver: &mut ConcreteDispatchResolver<'_>,
+    key: &ExecutableItemKey,
+    substitution: &TypeSubstitution,
+) -> Result<ExecutableExecution, ExecutableProgramError> {
+    let ExecutableItemKey::Callable(key) = key else {
+        return Ok(ExecutableExecution::Immediate);
+    };
+    let declaration = target
+        .checked()
+        .graph()
+        .declarations()
+        .callables()
+        .get(key.callable())
+        .ok_or_else(|| {
+            ExecutableProgramError::UnknownItem(ExecutableItemKey::Callable(key.clone()))
+        })?;
+    match declaration.execution() {
+        nocter_declarations::CallableExecution::Immediate => Ok(ExecutableExecution::Immediate),
+        nocter_declarations::CallableExecution::Deferred { output } => {
+            Ok(ExecutableExecution::Deferred {
+                output: resolver.specialize_type(output, substitution)?,
+            })
+        }
+    }
 }
 
 fn freeze_body(

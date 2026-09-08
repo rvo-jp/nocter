@@ -275,6 +275,9 @@ impl FunctionLowerer<'_> {
                     failure,
                 )?;
             }
+            ConcreteDestructionKind::Async => {
+                self.append_effect(MirOperationKind::ReleaseComputation { place })?;
+            }
             ConcreteDestructionKind::Error => {
                 self.append_effect(MirOperationKind::ReleaseError { place })?;
             }

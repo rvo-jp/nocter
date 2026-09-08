@@ -273,7 +273,7 @@ fn validate_deferred_drop_calls(
                 .chain(std::iter::once(failure.as_ref()))
                 .collect(),
         ),
-        MirDestructionKind::Error => (None, Vec::new()),
+        MirDestructionKind::Async | MirDestructionKind::Error => (None, Vec::new()),
         MirDestructionKind::Closure(captures) => (
             None,
             captures

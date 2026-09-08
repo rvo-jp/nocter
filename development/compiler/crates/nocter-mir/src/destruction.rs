@@ -49,6 +49,7 @@ pub enum MirDestructionKind {
         success: Option<Box<MirDestructionPlan>>,
         failure: Box<MirDestructionPlan>,
     },
+    Async,
     Error,
     Closure(Box<[MirCaptureDestruction]>),
     Opaque {

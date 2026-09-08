@@ -206,6 +206,24 @@ fn error_and_every_fallible_type_retain_owned_failure_destruction() {
 }
 
 #[test]
+fn async_values_use_the_computation_lifecycle_destruction() {
+    let output = check("func hold(value: async i32): void { return }\n");
+    let program = output.program();
+    let async_i32 = program
+        .types()
+        .iter()
+        .find_map(|(ty, kind)| matches!(kind, TypeKind::Async(_)).then_some(ty))
+        .expect("fixture must intern its async parameter type");
+    let mut resolver = ConcreteDispatchResolver::new(program);
+
+    let plan = resolver
+        .resolve_destruction(async_i32, &TypeSubstitution::default())
+        .unwrap()
+        .expect("an async value always owns its lifecycle");
+    assert!(matches!(plan.kind(), ConcreteDestructionKind::Async));
+}
+
+#[test]
 fn enum_residual_excludes_the_already_run_owner_drop_and_moved_payload() {
     let output = check(
         "struct Owned { value: i32 }\n\

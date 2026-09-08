@@ -75,6 +75,17 @@ pub enum ExecutableItemKey {
     Test(TestId),
 }
 
+/// One callable execution contract after concrete specialization.
+///
+/// This is copied from the checked declaration authority while the executable closure still owns
+/// the generic substitution. MIR consumes this fact directly; it must not rediscover deferred
+/// execution from a result type.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExecutableExecution {
+    Immediate,
+    Deferred { output: TypeId },
+}
+
 /// One concrete standard primitive invocation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutablePrimitiveCall {
@@ -431,6 +442,7 @@ impl ExecutableBody {
 pub struct ExecutableItem {
     key: ExecutableItemKey,
     signature: ExecutableSignature,
+    execution: ExecutableExecution,
     accepts_allocation_override: bool,
     closure: Option<ExecutableClosureLayout>,
     body: ExecutableBody,
@@ -445,6 +457,11 @@ impl ExecutableItem {
     #[must_use]
     pub const fn signature(&self) -> &ExecutableSignature {
         &self.signature
+    }
+
+    #[must_use]
+    pub const fn execution(&self) -> ExecutableExecution {
+        self.execution
     }
 
     #[must_use]
@@ -681,9 +698,9 @@ fn runtime_type_table(
             TypeKind::Callable(_) => RuntimeType::Callable,
             TypeKind::Optional(payload) => RuntimeType::Optional(*payload),
             TypeKind::Fallible(payload) => RuntimeType::Fallible(*payload),
+            TypeKind::Async(output) => RuntimeType::Async(*output),
             TypeKind::Opaque { .. } => RuntimeType::Opaque,
-            TypeKind::Async(_)
-            | TypeKind::GenericParameter(_)
+            TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => {
                 return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));

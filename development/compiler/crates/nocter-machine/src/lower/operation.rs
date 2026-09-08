@@ -103,6 +103,9 @@ fn lower_operation(
         MirOperationKind::ReleaseError { place } => MachineOperationKind::ReleaseError {
             place: ids.address(*place)?,
         },
+        MirOperationKind::ReleaseComputation { .. } => {
+            return Err(MachineProgramError::UnsupportedAsyncOperation(operation));
+        }
         MirOperationKind::CreateRegion { parent, region } => MachineOperationKind::CreateRegion {
             parent: ids.value(*parent)?,
             region: ids.stack(*region)?,

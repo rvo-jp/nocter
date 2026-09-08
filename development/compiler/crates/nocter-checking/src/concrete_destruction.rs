@@ -52,6 +52,8 @@ pub enum ConcreteDestructionKind {
         success: Option<Box<ConcreteDestructionPlan>>,
         failure: Box<ConcreteDestructionPlan>,
     },
+    /// Cancels an unfinished computation or destroys its unconsumed completed output.
+    Async,
     Error,
     Closure(Box<[ConcreteCaptureDestruction]>),
     Opaque {
@@ -340,6 +342,10 @@ impl ConcreteDispatchResolver<'_> {
                     },
                 ))
             }
+            TypeKind::Async(_) => Some(ConcreteDestructionPlan::new(
+                ty,
+                ConcreteDestructionKind::Async,
+            )),
             TypeKind::Closure {
                 definition,
                 arguments,
@@ -357,8 +363,7 @@ impl ConcreteDispatchResolver<'_> {
             | TypeKind::Slice(_)
             | TypeKind::PackEntry { .. }
             | TypeKind::Callable(_) => None,
-            TypeKind::Async(_)
-            | TypeKind::GenericParameter(_)
+            TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => {
                 return Err(ConcreteDestructionError::SymbolicType(ty));

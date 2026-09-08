@@ -43,6 +43,8 @@ pub enum RuntimeType {
     Callable,
     Optional(TypeId),
     Fallible(TypeId),
+    /// One owning, type-erased deferred computation whose eventual output has this type.
+    Async(TypeId),
     Opaque,
 }
 
@@ -118,7 +120,8 @@ impl RuntimeTypeTableBuilder {
                 RuntimeType::Pointer(ty)
                 | RuntimeType::Slice(ty)
                 | RuntimeType::Optional(ty)
-                | RuntimeType::Fallible(ty) => Some(*ty),
+                | RuntimeType::Fallible(ty)
+                | RuntimeType::Async(ty) => Some(*ty),
                 RuntimeType::Borrow { referent, .. } => Some(*referent),
                 RuntimeType::FixedArray { element, .. } => Some(*element),
                 RuntimeType::Tuple(elements) => {

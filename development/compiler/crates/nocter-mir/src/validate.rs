@@ -711,6 +711,16 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     return Err(mismatch());
                 }
             }
+            MirOperationKind::ReleaseComputation { place } => {
+                if result.is_some()
+                    || !matches!(
+                        self.types.get(self.require_place(*place)?.ty()),
+                        Some(TypeKind::Async(_))
+                    )
+                {
+                    return Err(mismatch());
+                }
+            }
             MirOperationKind::CreateRegion { parent, region } => validate_region_creation(
                 self.environment,
                 self.function,
@@ -1005,7 +1015,8 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             | MirOperationKind::Borrow { place, .. }
             | MirOperationKind::InvokeDrop { place, .. }
             | MirOperationKind::ReportError { place }
-            | MirOperationKind::ReleaseError { place } => {
+            | MirOperationKind::ReleaseError { place }
+            | MirOperationKind::ReleaseComputation { place } => {
                 values.extend(place_values(self.require_place(*place)?));
             }
             MirOperationKind::Store { destination, value }

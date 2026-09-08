@@ -75,11 +75,11 @@ pub(super) fn close_type_representations(
             | TypeKind::Closure { .. }
             | TypeKind::Callable(_)
             | TypeKind::Optional(_)
-            | TypeKind::Fallible(_) => None,
+            | TypeKind::Fallible(_)
+            | TypeKind::Async(_) => None,
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
-            | TypeKind::AssociatedProjection { .. }
-            | TypeKind::Async(_) => {
+            | TypeKind::AssociatedProjection { .. } => {
                 return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
             }
         };

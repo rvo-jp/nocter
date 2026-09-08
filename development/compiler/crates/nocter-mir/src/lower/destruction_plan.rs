@@ -88,6 +88,7 @@ impl FunctionLowerer<'_> {
                     failure: Box::new(self.lower_deferred_destruction(owner, failure)?),
                 }
             }
+            ConcreteDestructionKind::Async => MirDestructionKind::Async,
             ConcreteDestructionKind::Error => MirDestructionKind::Error,
             ConcreteDestructionKind::Closure(captures) => MirDestructionKind::Closure(
                 captures

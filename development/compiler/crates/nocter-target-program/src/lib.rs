@@ -32,12 +32,13 @@ pub use entry::{
 pub use executable::{
     ExecutableArgumentPackPlan, ExecutableBody, ExecutableBorrowEdge, ExecutableCallableInvocation,
     ExecutableClosureCapture, ExecutableClosureEdge, ExecutableClosureLayout,
-    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge, ExecutableInput,
-    ExecutableInputSource, ExecutableItem, ExecutableItemKey, ExecutableOpaqueReceiver,
-    ExecutablePackInput, ExecutablePackLiteralPlan, ExecutablePackSegment, ExecutablePackSpread,
-    ExecutablePrimitiveCall, ExecutablePrimitiveDependency, ExecutableProgram,
-    ExecutableProgramError, ExecutableRoot, ExecutableSignature, ExecutableStatic,
-    ExecutableTargetServiceCall, ExecutableTestCase, ExecutableTypeEdge,
+    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableDropEdge, ExecutableExecution,
+    ExecutableInput, ExecutableInputSource, ExecutableItem, ExecutableItemKey,
+    ExecutableOpaqueReceiver, ExecutablePackInput, ExecutablePackLiteralPlan,
+    ExecutablePackSegment, ExecutablePackSpread, ExecutablePrimitiveCall,
+    ExecutablePrimitiveDependency, ExecutableProgram, ExecutableProgramError, ExecutableRoot,
+    ExecutableSignature, ExecutableStatic, ExecutableTargetServiceCall, ExecutableTestCase,
+    ExecutableTypeEdge,
 };
 pub use instance_key::{CallableInstanceKey, CallableInstanceKeyError};
 use nocter_runtime_contract::{

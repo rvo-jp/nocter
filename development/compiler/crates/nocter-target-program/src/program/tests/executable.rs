@@ -7,10 +7,66 @@ use nocter_runtime_contract::{PrimitiveRole, RuntimeTypeRepresentation};
 
 use super::{Fixture, build_target_program, callable_dependencies, named_callable};
 use crate::{
-    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableInputSource, ExecutableItemKey,
-    ExecutablePackSegment, ExecutablePrimitiveDependency, ExecutableProgram, ExecutableRoot,
-    ExecutableTestCase,
+    ExecutableDispatchPlan, ExecutableDispatchStep, ExecutableExecution, ExecutableInputSource,
+    ExecutableItemKey, ExecutablePackSegment, ExecutablePrimitiveDependency, ExecutableProgram,
+    ExecutableRoot, ExecutableTestCase,
 };
+
+#[test]
+fn executable_items_retain_the_specialized_checked_execution_contract() {
+    let target = build_target_program(&Fixture::with_app(
+        "func defer<T>(value: T): async T { move value }\n\
+         func transfer<T>(value: T): T { move value }\n\
+         func main(): void {\n\
+             let pending = defer(transfer(7))\n\
+             return\n\
+         }\n",
+    ));
+    let target = Arc::new(target);
+    let selected = target
+        .checked()
+        .graph()
+        .package_targets()
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+    let executable = ExecutableProgram::for_executable(Arc::clone(&target), selected).unwrap();
+    let i32_ = executable.types().builtin(BuiltinType::I32);
+    let execution = |name: &str| {
+        executable
+            .items()
+            .iter()
+            .find_map(|(_, item)| match item.key() {
+                ExecutableItemKey::Callable(key)
+                    if target
+                        .checked()
+                        .graph()
+                        .declarations()
+                        .callables()
+                        .get(key.callable())
+                        .and_then(nocter_declarations::CallableDeclaration::name)
+                        .and_then(|symbol| target.checked().graph().symbols().spelling(symbol))
+                        == Some(name) =>
+                {
+                    Some(item.execution())
+                }
+                _ => None,
+            })
+            .unwrap()
+    };
+
+    assert_eq!(
+        execution("defer"),
+        ExecutableExecution::Deferred { output: i32_ }
+    );
+    assert_eq!(execution("transfer"), ExecutableExecution::Immediate);
+    assert_eq!(execution("main"), ExecutableExecution::Immediate);
+    assert!(executable.types().iter().any(|(ty, kind)| {
+        matches!(kind, nocter_model::TypeKind::Async(output) if *output == i32_)
+            && matches!(executable.type_representations().get(ty), None)
+    }));
+}
 
 #[test]
 fn executable_closure_contains_only_reachable_bodies_and_recursive_drop_work() {
