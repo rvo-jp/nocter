@@ -108,6 +108,12 @@ reporting rules as the corresponding immediate result. This is a process-boundar
 alternate calling convention visible to source code. Calling the same function normally still
 returns an unstarted `async R` value.
 
+When the root computation suspends, it supplies one or more descriptor-readiness or absolute
+monotonic-deadline interests. The process adapter waits for any interest to become eligible and
+then resumes the computation; it does not repeatedly poll a pending computation. Readiness is only
+permission to retry the suspended operation. The operation remains responsible for reporting
+success, closure, timeout, or failure.
+
 ## Captures and Result Provenance
 
 A pending computation retains every receiver and argument needed to begin its producer body. A

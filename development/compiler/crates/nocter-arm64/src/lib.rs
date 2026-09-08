@@ -23,6 +23,9 @@ mod async_release_code;
 mod async_release_selection;
 mod async_resume_code;
 mod async_resume_error;
+mod async_wait_code;
+mod async_wait_frame;
+mod async_wait_timeout_code;
 mod call_selection;
 mod code;
 mod darwin_memory_code;
@@ -93,6 +96,7 @@ pub use async_function::{
     Arm64AsyncParameterCapture,
 };
 pub use async_resume_error::Arm64AsyncResumeError;
+pub use async_wait_frame::Arm64AsyncWaitFrame;
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
 pub use encode::Arm64EncodingError;
 pub use frame::{

@@ -35,3 +35,5 @@ public source-level imports.
 - Machine consumers cannot reach declaration or checking storage through this contract.
 - Primitive effect facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.
+- Semantic descriptor/timer interests and their numeric ABI records have one mapping here. Reactors
+  and target backends consume that mapping instead of assigning independent meanings to tags.

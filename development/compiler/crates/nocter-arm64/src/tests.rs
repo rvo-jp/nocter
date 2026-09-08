@@ -1894,6 +1894,55 @@ fn lowers_deferred_functions_with_complete_native_lifecycle_entries() {
 }
 
 #[test]
+fn deferred_process_root_owns_one_native_wait_frame() {
+    let machine = crate::test_support::lower_machine("func main(): async i32 { return 7 }\n");
+    let root = machine
+        .functions()
+        .find_map(|(id, function)| {
+            matches!(
+                function.kind(),
+                nocter_machine::MachineFunctionKind::ProcessRoot
+            )
+            .then_some(id)
+        })
+        .expect("one process root");
+    let selected = crate::Arm64SelectedFunction::build(&machine, root).unwrap();
+    let wait = selected
+        .frame()
+        .async_wait()
+        .expect("deferred process root wait storage");
+    let object = selected.frame().layout().object(wait.object()).unwrap();
+
+    assert_eq!(object.size(), 40);
+    assert_eq!(object.alignment(), 8);
+    assert!(
+        selected
+            .blocks()
+            .any(
+                |(_, block)| block.instructions().iter().any(|instruction| matches!(
+                    instruction,
+                    crate::Arm64SelectedInstruction::DriveComputation { .. }
+                ))
+            )
+    );
+
+    let program = crate::Arm64Program::lower_machine(&machine).unwrap();
+    let words = program
+        .text()
+        .chunks_exact(4)
+        .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+        .collect::<Vec<_>>();
+    assert!(words.contains(&word(Arm64Instruction::ReadSystemRegister {
+        destination: x(4),
+        register: Arm64SystemRegister::CounterVirtual,
+    })));
+    assert!(words.contains(&word(Arm64Instruction::ReadSystemRegister {
+        destination: x(5),
+        register: Arm64SystemRegister::CounterFrequency,
+    })));
+}
+
+#[test]
 fn lowers_floating_constants_arithmetic_comparison_and_calls_through_the_float_bank() {
     let machine = crate::test_support::lower_machine(
         "func adjust(value: f64): f64 { -(value + 0.5) / 2.0 }\n\

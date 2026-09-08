@@ -48,12 +48,8 @@ pub(crate) fn emit(
     });
 
     code.bind(pending)?;
-    // Readiness-producing source primitives are not admitted yet. Reject an unexpected pending
-    // state explicitly instead of silently converting it into a CPU-spinning wait policy. The
-    // native reactor will replace this trap before such primitives become public.
-    code.append(Arm64Instruction::Break {
-        immediate: crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitUnavailable.immediate(),
-    });
+    crate::async_wait_code::emit(function, code)?;
+    code.branch(poll, false);
 
     code.bind(completed)?;
     let place = argument(2)?;

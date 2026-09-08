@@ -34,5 +34,5 @@ pub use types::{
 mod types;
 pub use target::{
     RuntimeAbiIdentity, RuntimeAbiSchema, RuntimeAsyncAbiSchema, RuntimeEndianness,
-    RuntimeErrorAbiSchema,
+    RuntimeErrorAbiSchema, RuntimeWaitInterestRecord,
 };

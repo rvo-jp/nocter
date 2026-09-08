@@ -1,3 +1,5 @@
+use crate::{ReactorInterest, ReadinessDirection};
+
 /// One compiler-granted runtime ABI. Consumers select one schema from this identity and cannot
 /// infer target capability from source or package spellings.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -67,6 +69,17 @@ pub struct RuntimeAsyncAbiSchema {
     timer_interest_kind: u64,
     readable_interest_detail: u64,
     writable_interest_detail: u64,
+}
+
+/// One wait interest after conversion to the target-neutral runtime ABI record.
+///
+/// The runtime contract owns this conversion so schedulers, reactors, and instruction backends
+/// cannot assign different meanings to the numeric record fields.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RuntimeWaitInterestRecord {
+    kind: u64,
+    subject: u64,
+    detail: u64,
 }
 
 /// Complete numeric ABI authority shared by machine planning and instruction lowering.
@@ -251,6 +264,56 @@ impl RuntimeAbiSchema {
 }
 
 impl RuntimeAsyncAbiSchema {
+    /// Encodes one semantic wait interest into the uniform runtime record.
+    #[must_use]
+    pub const fn encode_interest(self, interest: ReactorInterest) -> RuntimeWaitInterestRecord {
+        match interest {
+            ReactorInterest::Descriptor {
+                descriptor,
+                direction,
+            } => RuntimeWaitInterestRecord {
+                kind: self.descriptor_interest_kind,
+                subject: descriptor,
+                detail: match direction {
+                    ReadinessDirection::Readable => self.readable_interest_detail,
+                    ReadinessDirection::Writable => self.writable_interest_detail,
+                },
+            },
+            ReactorInterest::Timer { deadline } => RuntimeWaitInterestRecord {
+                kind: self.timer_interest_kind,
+                subject: deadline,
+                detail: 0,
+            },
+        }
+    }
+
+    /// Decodes one uniform runtime record. Unknown tags and malformed timer details are rejected.
+    #[must_use]
+    pub const fn decode_interest(
+        self,
+        record: RuntimeWaitInterestRecord,
+    ) -> Option<ReactorInterest> {
+        if record.kind == self.descriptor_interest_kind {
+            let direction = if record.detail == self.readable_interest_detail {
+                ReadinessDirection::Readable
+            } else if record.detail == self.writable_interest_detail {
+                ReadinessDirection::Writable
+            } else {
+                return None;
+            };
+            return Some(ReactorInterest::Descriptor {
+                descriptor: record.subject,
+                direction,
+            });
+        }
+        if record.kind == self.timer_interest_kind && record.detail == 0 {
+            return Some(ReactorInterest::Timer {
+                deadline: record.subject,
+            });
+        }
+        None
+    }
+
     #[must_use]
     pub const fn handle_size(self) -> u64 {
         self.handle_size
@@ -382,6 +445,32 @@ impl RuntimeAsyncAbiSchema {
     }
 }
 
+impl RuntimeWaitInterestRecord {
+    #[must_use]
+    pub const fn new(kind: u64, subject: u64, detail: u64) -> Self {
+        Self {
+            kind,
+            subject,
+            detail,
+        }
+    }
+
+    #[must_use]
+    pub const fn kind(self) -> u64 {
+        self.kind
+    }
+
+    #[must_use]
+    pub const fn subject(self) -> u64 {
+        self.subject
+    }
+
+    #[must_use]
+    pub const fn detail(self) -> u64 {
+        self.detail
+    }
+}
+
 fn write_word(bytes: &mut [u8], offset: u64, value: u64, endianness: RuntimeEndianness) {
     let offset = usize::try_from(offset).expect("runtime schema offsets fit host memory");
     let encoded = match endianness {
@@ -460,7 +549,8 @@ impl RuntimeErrorAbiSchema {
 
 #[cfg(test)]
 mod tests {
-    use super::RuntimeAbiIdentity;
+    use super::{RuntimeAbiIdentity, RuntimeWaitInterestRecord};
+    use crate::{ReactorInterest, ReadinessDirection};
 
     #[test]
     fn one_runtime_schema_owns_the_complete_error_payload_contract() {
@@ -515,5 +605,41 @@ mod tests {
         assert_eq!(asynchronous.timer_interest_kind(), 1);
         assert_eq!(asynchronous.readable_interest_detail(), 0);
         assert_eq!(asynchronous.writable_interest_detail(), 1);
+    }
+
+    #[test]
+    fn async_schema_is_the_only_interest_record_mapping_authority() {
+        let asynchronous = RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous();
+        let cases = [
+            ReactorInterest::Descriptor {
+                descriptor: 17,
+                direction: ReadinessDirection::Readable,
+            },
+            ReactorInterest::Descriptor {
+                descriptor: 23,
+                direction: ReadinessDirection::Writable,
+            },
+            ReactorInterest::Timer { deadline: 91 },
+        ];
+        for interest in cases {
+            let record = asynchronous.encode_interest(interest);
+            assert_eq!(asynchronous.decode_interest(record), Some(interest));
+        }
+        assert_eq!(
+            asynchronous.decode_interest(RuntimeWaitInterestRecord::new(
+                asynchronous.descriptor_interest_kind(),
+                4,
+                99,
+            )),
+            None,
+        );
+        assert_eq!(
+            asynchronous.decode_interest(RuntimeWaitInterestRecord::new(
+                asynchronous.timer_interest_kind(),
+                4,
+                1,
+            )),
+            None,
+        );
     }
 }

@@ -44,6 +44,9 @@ source, loader commands, or package state.
   body is materialized.
 - A deferred process entry is driven only by the compiler-owned process root. The root consumes
   the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.
+- A pending process root converts the ABI interest slice into one temporary Darwin `pollfd` array
+  and the earliest timer deadline into a rounded-up relative timeout. It retries interrupted waits,
+  releases native storage before resumption, and never polls a pending computation in a busy loop.
 - Resume restores only the Machine-selected state projection, uses ordinary selected-operation
   emission for body instructions, and persists exactly that projection when a child remains
   pending.

@@ -1154,6 +1154,7 @@ pub enum Arm64MaterializationError {
     InvalidSystemCallArity(u8),
     InvalidSwitchWidth(usize),
     AsyncTerminator,
+    MissingAsyncWaitFrame,
     PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),
 }

@@ -208,6 +208,14 @@ selection freezes immediate versus deferred execution once; MIR and Machine rece
 cannot recover it from the result type. This special process boundary does not make ordinary
 synchronous calls start an executor.
 
+On ARM64 Darwin, the process adapter converts each pending ABI slice into one temporary `pollfd`
+array and one relative timeout derived from the earliest fixed monotonic deadline. A single
+`poll(2)` wait therefore preserves the wait set's OR semantics for descriptors and timers. An
+interrupted call retries against the same immutable interests and recalculates the relative timeout;
+the temporary mapping is released before the computation resumes. Invalid record tags, an empty
+pending set, native wait failure, and release failure terminate through distinct compiler-owned
+trap reasons. The adapter never guesses readiness from a computation frame.
+
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
 normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
 detached observation token. Detached execution is excluded until the language has an explicit
@@ -270,8 +278,9 @@ representation-independent allocation contract exists; it must not be hidden beh
 The language and compiler first establish one lossless async type, execution-kind fact, consuming
 `await`, capture provenance, and explicit diagnostics. State-machine lowering follows only after
 the checked product is closed. Executor and reactor implementation follows only after the
-executable state contract is closed. Public asynchronous time and networking APIs follow only
-after deterministic cancellation and stale-event tests pass.
+executable state contract is closed. The generated Darwin process adapter now consumes the same
+wait-interest ABI. Public asynchronous time and networking APIs follow only after a native
+readiness producer and concurrent loopback tests qualify that path end to end.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.

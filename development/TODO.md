@@ -16,11 +16,13 @@ and constructor/resume/cancel/consume entries are complete. Whole-program loweri
 complete lifecycle, and native conformance covers lazy construction followed by cancellation.
 
 The compiler-generated process adapter now accepts the six process-result contracts beneath one
-`async` layer, owns the lazy root computation, drives nested computation completion, consumes the
-result, and preserves the existing status/error policy. Next, materialize readiness-backed waiting
-at that single native process boundary against the existing wait-interest ABI, then add concurrent
-Darwin loopback coverage. Do not add public async time or network APIs until that runtime path is
-qualified. Keep the qualified v0.40.0 archive unchanged.
+`async` layer, owns the lazy root computation, and drives it through one readiness-backed Darwin
+wait boundary. ABI records are converted to a temporary `pollfd` array, absolute timer deadlines
+are rounded upward into relative timeouts, interrupted waits preserve their interests, and native
+storage is released before resumption. Next, add the first compiler-owned readiness producer and
+concurrent Darwin loopback coverage so this pending path is executed rather than only materialized.
+Do not add public async time or network APIs until that path is qualified. Keep the qualified
+v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

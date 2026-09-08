@@ -78,6 +78,7 @@ pub struct Arm64FunctionFrame {
     async_output_staging: Option<Arm64FrameObjectId>,
     async_interest_pointer: Option<Arm64FrameObjectId>,
     async_interest_count: Option<Arm64FrameObjectId>,
+    async_wait: Option<crate::Arm64AsyncWaitFrame>,
 }
 
 impl Arm64FunctionFrame {
@@ -129,6 +130,7 @@ impl Arm64FunctionFrame {
             async_output_staging: placed.async_output_staging,
             async_interest_pointer: hidden.async_interest_pointer,
             async_interest_count: hidden.async_interest_count,
+            async_wait: hidden.async_wait,
         })
     }
 
@@ -223,6 +225,12 @@ impl Arm64FunctionFrame {
     pub const fn async_interest_count(&self) -> Option<Arm64FrameObjectId> {
         self.async_interest_count
     }
+
+    /// Process-root storage for one readiness wait in progress.
+    #[must_use]
+    pub const fn async_wait(&self) -> Option<crate::Arm64AsyncWaitFrame> {
+        self.async_wait
+    }
 }
 
 struct PlacedBodyObjects {
@@ -246,6 +254,7 @@ struct HiddenObjects {
     async_frame_pointer: Option<Arm64FrameObjectId>,
     async_interest_pointer: Option<Arm64FrameObjectId>,
     async_interest_count: Option<Arm64FrameObjectId>,
+    async_wait: Option<crate::Arm64AsyncWaitFrame>,
 }
 
 struct AsyncHiddenObjects {
@@ -564,6 +573,7 @@ fn place_hidden_objects(
         .then(|| builder.add_object(5 * Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size()))
         .transpose()?;
     let asynchronous = place_async_hidden(program, function_id, builder)?;
+    let async_wait = place_async_wait(program, function_id, builder)?;
     Ok(HiddenObjects {
         indirect_result_pointer,
         pack_input_pointer,
@@ -574,7 +584,28 @@ fn place_hidden_objects(
         async_frame_pointer: asynchronous.frame_pointer,
         async_interest_pointer: asynchronous.interest_pointer,
         async_interest_count: asynchronous.interest_count,
+        async_wait,
     })
+}
+
+fn place_async_wait(
+    program: &nocter_machine::MachineProgram,
+    function: MachineFunctionId,
+    builder: &mut Arm64FrameLayoutBuilder,
+) -> Result<Option<crate::Arm64AsyncWaitFrame>, Arm64FunctionFrameError> {
+    program
+        .function(function)
+        .is_some_and(|function| {
+            function.body().operations().any(|(_, operation)| {
+                matches!(
+                    operation.kind(),
+                    MachineOperationKind::DriveComputation { .. }
+                )
+            })
+        })
+        .then(|| crate::Arm64AsyncWaitFrame::place(builder))
+        .transpose()
+        .map_err(Arm64FunctionFrameError::from)
 }
 
 fn place_async_hidden(
