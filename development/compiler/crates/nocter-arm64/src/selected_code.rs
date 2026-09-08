@@ -57,20 +57,20 @@ impl Arm64SelectedFunction {
 }
 
 #[derive(Clone, Copy)]
-struct InstructionMaterialization<'selected> {
-    function: &'selected Arm64SelectedFunction,
-    functions: &'selected crate::Arm64FunctionTargets,
-    data: &'selected [(MachineDataId, crate::Arm64DataId)],
-    imports: &'selected [(nocter_machine::MachineImportId, crate::Arm64DataId)],
-    pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
-    allocation_failure_error: crate::Arm64DataId,
+pub(crate) struct InstructionMaterialization<'selected> {
+    pub(crate) function: &'selected Arm64SelectedFunction,
+    pub(crate) functions: &'selected crate::Arm64FunctionTargets,
+    pub(crate) data: &'selected [(MachineDataId, crate::Arm64DataId)],
+    pub(crate) imports: &'selected [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+    pub(crate) pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+    pub(crate) allocation_failure_error: crate::Arm64DataId,
 }
 
 #[expect(
     clippy::too_many_lines,
     reason = "the closed selected-instruction domain is routed exhaustively in one place"
 )]
-fn emit_instruction(
+pub(crate) fn emit_instruction(
     context: InstructionMaterialization<'_>,
     instruction: &Arm64SelectedInstruction,
     code: &mut Arm64CodeBuilder,
@@ -383,6 +383,9 @@ fn emit_instruction(
         }
         Arm64SelectedInstruction::ReleaseError { place } => {
             crate::error_code::emit_release(function, place, code)
+        }
+        Arm64SelectedInstruction::ReleaseComputation { place } => {
+            crate::async_release_code::emit(function, place, code)
         }
         Arm64SelectedInstruction::ReportError { place, buffer } => {
             crate::error_code::emit_report(function, place, buffer, code)
@@ -805,7 +808,7 @@ fn load_from_address(
     });
 }
 
-fn emit_terminator(
+pub(crate) fn emit_terminator(
     function: &Arm64SelectedFunction,
     terminator: &Arm64SelectedTerminator,
     labels: &[(MachineBlockId, crate::Arm64LabelId)],
@@ -850,6 +853,9 @@ fn emit_terminator(
         } => crate::switch_code::emit(function, subject, cases, fallback, labels, code)?,
         Arm64SelectedTerminator::Return => {
             Arm64FrameCode::emit_epilogue(function.frame().layout(), code);
+        }
+        Arm64SelectedTerminator::Suspend { .. } | Arm64SelectedTerminator::DeferredReturn(_) => {
+            return Err(Arm64MaterializationError::AsyncTerminator);
         }
         Arm64SelectedTerminator::Exit(status) => {
             crate::system_primitive_code::emit_exit(function, *status, code)?;
@@ -1120,6 +1126,7 @@ pub enum Arm64MaterializationError {
     InvalidPackCallback(crate::Arm64PackCallbackKey),
     UnknownData(MachineDataId),
     UnknownImport(nocter_machine::MachineImportId),
+    MissingArgumentRegister(u8),
     MissingScratchRegister,
     UnknownBlock(MachineBlockId),
     UnknownSelectedAddress(nocter_machine::MachineAddressId),
@@ -1139,6 +1146,7 @@ pub enum Arm64MaterializationError {
     MissingMemoryEdgeStaging,
     InvalidSystemCallArity(u8),
     InvalidSwitchWidth(usize),
+    AsyncTerminator,
     PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),
 }

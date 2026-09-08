@@ -440,7 +440,7 @@ fn form_address_with_offset(
     address
 }
 
-fn emit_fragmented_load(
+pub(crate) fn emit_fragmented_load(
     code: &mut Arm64CodeBuilder,
     bytes: u8,
     destination: Arm64Register,
@@ -477,7 +477,7 @@ fn emit_fragmented_load(
     }
 }
 
-fn emit_fragmented_store(
+pub(crate) fn emit_fragmented_store(
     code: &mut Arm64CodeBuilder,
     bytes: u8,
     source: Arm64Register,

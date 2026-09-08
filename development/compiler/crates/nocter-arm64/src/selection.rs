@@ -276,6 +276,10 @@ pub enum Arm64SelectedInstruction {
     ReleaseError {
         place: Arm64SelectedMemoryAddress,
     },
+    /// Cancels and releases one owning deferred-computation handle.
+    ReleaseComputation {
+        place: Arm64SelectedMemoryAddress,
+    },
     ConstructErrorLeaf {
         buffer: crate::Arm64FrameObjectId,
     },
@@ -508,6 +512,12 @@ pub enum Arm64SelectedTerminator {
         fallback: Arm64SelectedEdge,
     },
     Return,
+    Suspend {
+        computation: Arm64SelectedRegister,
+        resume: MachineBlockId,
+        result: MachineValueId,
+    },
+    DeferredReturn(Option<MachineValueId>),
     Exit(Option<Arm64SelectedRegister>),
     Trap,
     Unreachable,
@@ -565,12 +575,42 @@ impl Arm64SelectedFunction {
         ) {
             return Err(Arm64SelectionError::UnsupportedDeferredFunction(owner));
         }
+        Self::build_execution(program, owner, false)
+    }
+
+    pub(crate) fn build_deferred(
+        program: &nocter_machine::MachineProgram,
+        owner: MachineFunctionId,
+    ) -> Result<Self, Arm64SelectionError> {
+        let function = program
+            .function(owner)
+            .ok_or(Arm64SelectionError::UnknownFunction(owner))?;
+        if !matches!(
+            function.execution(),
+            nocter_machine::MachineFunctionExecution::Deferred(_)
+        ) {
+            return Err(Arm64SelectionError::UnsupportedDeferredFunction(owner));
+        }
+        Self::build_execution(program, owner, true)
+    }
+
+    fn build_execution(
+        program: &nocter_machine::MachineProgram,
+        owner: MachineFunctionId,
+        deferred: bool,
+    ) -> Result<Self, Arm64SelectionError> {
+        let function = program
+            .function(owner)
+            .ok_or(Arm64SelectionError::UnknownFunction(owner))?;
         let values = Arm64ValuePlan::build(function)?;
         let frame = Arm64FunctionFrame::build(program, owner, &values)?;
         let addresses = crate::Arm64SelectedAddressPlan::build(function, &values, &frame)?;
         let context = Arm64SelectionContext::new(program, owner, &values, &frame, &addresses);
-        let mut entry_instructions =
-            crate::call_selection::select_parameters(program, owner, function, &frame)?.into_vec();
+        let mut entry_instructions = if deferred {
+            Vec::new()
+        } else {
+            crate::call_selection::select_parameters(program, owner, function, &frame)?.into_vec()
+        };
         crate::destruction_selection::select_entry(function, &frame, &mut entry_instructions)?;
         let mut blocks = Vec::with_capacity(function.body().blocks().len());
         for (block_id, block) in function.body().blocks() {
@@ -588,12 +628,10 @@ impl Arm64SelectedFunction {
                 select_operation(context, *operation_id, operation, &mut instructions)?;
             }
             let terminator = select_terminator(
-                function,
+                context,
                 block_id,
                 block.terminator(),
-                &values,
-                &frame,
-                &addresses,
+                deferred,
                 &mut instructions,
             )?;
             blocks.push((
@@ -819,11 +857,14 @@ fn select_operation(
             context,
             selected,
         ),
-        MachineOperationKind::ReleaseComputation { .. } => {
-            Err(Arm64SelectionError::UnsupportedOperation {
-                operation: operation_id,
-                kind: "release deferred computation",
-            })
+        MachineOperationKind::ReleaseComputation { place } => {
+            crate::async_release_selection::select(
+                operation_id,
+                *place,
+                operation.result(),
+                context,
+                selected,
+            )
         }
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             context,
@@ -1213,14 +1254,19 @@ fn select_comparison(
 }
 
 fn select_terminator(
-    function: &nocter_machine::MachineFunction,
+    context: Arm64SelectionContext<'_>,
     block: MachineBlockId,
     terminator: &MachineTerminator,
-    values: &Arm64ValuePlan,
-    frame: &Arm64FunctionFrame,
-    addresses: &crate::Arm64SelectedAddressPlan,
+    deferred: bool,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<Arm64SelectedTerminator, Arm64SelectionError> {
+    let function = context
+        .program()
+        .function(context.owner())
+        .ok_or(Arm64SelectionError::UnknownFunction(context.owner()))?;
+    let values = context.values();
+    let frame = context.frame();
+    let addresses = context.addresses();
     let switch_context =
         crate::switch_selection::SwitchSelectionContext::new(function, values, frame);
     match terminator {
@@ -1267,8 +1313,32 @@ fn select_terminator(
             addresses,
             selected,
         ),
+        MachineTerminator::Suspend {
+            computation,
+            resume,
+        } if deferred => {
+            let [] = resume.arguments() else {
+                return Err(Arm64SelectionError::EdgeArity(resume.block()));
+            };
+            let [result] = function
+                .body()
+                .block(resume.block())
+                .map(nocter_machine::MachineBlock::parameters)
+                .ok_or(Arm64SelectionError::UnknownBlock(resume.block()))?
+            else {
+                return Err(Arm64SelectionError::EdgeArity(resume.block()));
+            };
+            Ok(Arm64SelectedTerminator::Suspend {
+                computation: one_word(values, *computation)?,
+                resume: resume.block(),
+                result: *result,
+            })
+        }
         MachineTerminator::Suspend { .. } => {
             Err(Arm64SelectionError::UnsupportedAsyncControl(block))
+        }
+        MachineTerminator::Return(value) if deferred => {
+            Ok(Arm64SelectedTerminator::DeferredReturn(*value))
         }
         MachineTerminator::Return(value) => {
             crate::call_selection::select_return(function, block, *value, values, frame, selected)?;

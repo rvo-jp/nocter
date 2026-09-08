@@ -9,12 +9,17 @@ mod address_code;
 mod address_selection;
 mod aggregate_selection;
 mod allocation_selection;
+mod async_activation;
 mod async_cancel_code;
 mod async_cancellation;
 mod async_constructor_code;
 mod async_consume_code;
 mod async_frame;
 mod async_function;
+mod async_release_code;
+mod async_release_selection;
+mod async_resume_code;
+mod async_resume_error;
 mod call_selection;
 mod code;
 mod darwin_memory_code;
@@ -70,6 +75,7 @@ pub use address_selection::{
     Arm64SelectedAddressCalculation, Arm64SelectedAddressPlan, Arm64SelectedAddressRoot,
     Arm64SelectedAddressStep, Arm64SelectedIndex, Arm64SelectedIndexBound,
 };
+pub use async_activation::Arm64AsyncActivationPlanError;
 pub use async_cancel_code::Arm64AsyncCancelError;
 pub use async_cancellation::Arm64AsyncCancellationPlanError;
 pub use async_constructor_code::Arm64AsyncConstructorError;
@@ -82,6 +88,7 @@ pub use async_function::{
     Arm64AsyncFunctionPlan, Arm64AsyncFunctionPlanError, Arm64AsyncPackCapture,
     Arm64AsyncParameterCapture,
 };
+pub use async_resume_error::Arm64AsyncResumeError;
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
 pub use encode::Arm64EncodingError;
 pub use frame::{

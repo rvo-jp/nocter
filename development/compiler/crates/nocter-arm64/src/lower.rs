@@ -3,11 +3,43 @@ use std::fmt;
 use nocter_machine::{MachineFunctionId, MachineProgramRoot, MachineTestId};
 
 use crate::{
+    Arm64AsyncCancelError, Arm64AsyncConstructorError, Arm64AsyncConsumeError,
+    Arm64AsyncFunctionPlan, Arm64AsyncFunctionPlanError, Arm64AsyncResumeError,
     Arm64FunctionTargets, Arm64FunctionTargetsError, Arm64MaterializationError, Arm64Program,
     Arm64ProgramBuilder, Arm64ProgramError, Arm64SelectedFunction, Arm64SelectionError,
 };
 
 type LoweredProgram = (Arm64Program, Arm64FunctionTargets);
+
+enum SelectedMachineFunction {
+    Immediate(Box<Arm64SelectedFunction>),
+    Deferred(Box<Arm64AsyncFunctionPlan>),
+}
+
+#[derive(Clone, Copy)]
+struct LoweringResources<'a> {
+    functions: &'a Arm64FunctionTargets,
+    data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
+    imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+    pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+    allocation_failure_error: crate::Arm64DataId,
+}
+
+impl SelectedMachineFunction {
+    const fn owner(&self) -> MachineFunctionId {
+        match self {
+            Self::Immediate(function) => function.owner(),
+            Self::Deferred(function) => function.owner(),
+        }
+    }
+
+    const fn body(&self) -> &Arm64SelectedFunction {
+        match self {
+            Self::Immediate(function) => function,
+            Self::Deferred(function) => function.selected(),
+        }
+    }
+}
 
 impl Arm64Program {
     /// Selects and materializes a complete process machine program.
@@ -103,10 +135,7 @@ fn lower_machine_entry(
     machine: &nocter_machine::MachineProgram,
     root: MachineFunctionId,
 ) -> Result<LoweredProgram, Arm64LoweringError> {
-    let selected = machine
-        .functions()
-        .map(|(id, _)| Arm64SelectedFunction::build(machine, id))
-        .collect::<Result<Vec<_>, _>>()?;
+    let selected = select_machine_functions(machine)?;
     let mut builder = Arm64ProgramBuilder::new();
     let functions = Arm64FunctionTargets::declare(machine, &mut builder)?;
     let mut pack_callbacks = Vec::new();
@@ -164,22 +193,14 @@ fn lower_machine_entry(
             builder.add_data_relocation(source_target, relocation.offset(), target)?;
         }
     }
-    for function in &selected {
-        let target = functions
-            .get(function.owner())
-            .map(crate::Arm64FunctionTarget::callable)
-            .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
-        builder.define_function(
-            target,
-            function.materialize(
-                &functions,
-                &data,
-                &imports,
-                &pack_callbacks,
-                allocation_failure_error,
-            )?,
-        )?;
-    }
+    let resources = LoweringResources {
+        functions: &functions,
+        data: &data,
+        imports: &imports,
+        pack_callbacks: &pack_callbacks,
+        allocation_failure_error,
+    };
+    define_machine_functions(&selected, resources, &mut builder)?;
     for (key, target) in &pack_callbacks {
         let function = selected
             .get(key.owner().index())
@@ -187,7 +208,7 @@ fn lower_machine_entry(
             .ok_or(Arm64LoweringError::UnknownFunction(key.owner()))?;
         builder.define_function(
             *target,
-            crate::pack_callback::materialize(machine, function, *key, &functions)?,
+            crate::pack_callback::materialize(machine, function.body(), *key, &functions)?,
         )?;
     }
     let entry = functions
@@ -197,6 +218,86 @@ fn lower_machine_entry(
     builder.set_entry(entry)?;
     let program = builder.finish().map_err(Arm64LoweringError::Program)?;
     Ok((program, functions))
+}
+
+fn select_machine_functions(
+    machine: &nocter_machine::MachineProgram,
+) -> Result<Vec<SelectedMachineFunction>, Arm64LoweringError> {
+    machine
+        .functions()
+        .map(|(id, function)| match function.execution() {
+            nocter_machine::MachineFunctionExecution::Immediate => {
+                Arm64SelectedFunction::build(machine, id)
+                    .map(Box::new)
+                    .map(SelectedMachineFunction::Immediate)
+                    .map_err(Arm64LoweringError::from)
+            }
+            nocter_machine::MachineFunctionExecution::Deferred(_) => {
+                Arm64AsyncFunctionPlan::build(machine, id)
+                    .map(Box::new)
+                    .map(SelectedMachineFunction::Deferred)
+                    .map_err(Arm64LoweringError::from)
+            }
+        })
+        .collect()
+}
+
+fn define_machine_functions(
+    selected: &[SelectedMachineFunction],
+    resources: LoweringResources<'_>,
+    builder: &mut Arm64ProgramBuilder,
+) -> Result<(), Arm64LoweringError> {
+    for function in selected {
+        let target = resources
+            .functions
+            .get(function.owner())
+            .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
+        match function {
+            SelectedMachineFunction::Immediate(function) => builder.define_function(
+                target.callable(),
+                function.materialize(
+                    resources.functions,
+                    resources.data,
+                    resources.imports,
+                    resources.pack_callbacks,
+                    resources.allocation_failure_error,
+                )?,
+            )?,
+            SelectedMachineFunction::Deferred(function) => {
+                define_deferred_function(function, target, resources, builder)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn define_deferred_function(
+    function: &Arm64AsyncFunctionPlan,
+    target: crate::Arm64FunctionTarget,
+    resources: LoweringResources<'_>,
+    builder: &mut Arm64ProgramBuilder,
+) -> Result<(), Arm64LoweringError> {
+    let lifecycle = target
+        .asynchronous()
+        .ok_or(Arm64LoweringError::UnknownFunction(function.owner()))?;
+    builder.define_function(target.callable(), function.materialize_constructor(target)?)?;
+    builder.define_function(
+        lifecycle.resume(),
+        function.materialize_resume(
+            target,
+            resources.functions,
+            resources.data,
+            resources.imports,
+            resources.pack_callbacks,
+            resources.allocation_failure_error,
+        )?,
+    )?;
+    builder.define_function(
+        lifecycle.cancel(),
+        function.materialize_cancel(target, resources.functions)?,
+    )?;
+    builder.define_function(lifecycle.consume(), function.materialize_consume(target)?)?;
+    Ok(())
 }
 
 fn function_target(
@@ -216,6 +317,11 @@ pub enum Arm64LoweringError {
     NonDenseData(nocter_machine::MachineDataId),
     UnknownFunction(MachineFunctionId),
     Selection(Arm64SelectionError),
+    AsyncPlan(Arm64AsyncFunctionPlanError),
+    AsyncConstructor(Arm64AsyncConstructorError),
+    AsyncResume(Arm64AsyncResumeError),
+    AsyncCancel(Arm64AsyncCancelError),
+    AsyncConsume(Arm64AsyncConsumeError),
     FunctionTargets(Arm64FunctionTargetsError),
     Materialization(Arm64MaterializationError),
     Program(Arm64ProgramError),
@@ -231,6 +337,11 @@ impl std::error::Error for Arm64LoweringError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Selection(error) => Some(error),
+            Self::AsyncPlan(error) => Some(error),
+            Self::AsyncConstructor(error) => Some(error),
+            Self::AsyncResume(error) => Some(error),
+            Self::AsyncCancel(error) => Some(error),
+            Self::AsyncConsume(error) => Some(error),
             Self::FunctionTargets(error) => Some(error),
             Self::Materialization(error) => Some(error),
             Self::Program(error) => Some(error),
@@ -251,6 +362,36 @@ impl From<Arm64FunctionTargetsError> for Arm64LoweringError {
 impl From<Arm64SelectionError> for Arm64LoweringError {
     fn from(error: Arm64SelectionError) -> Self {
         Self::Selection(error)
+    }
+}
+
+impl From<Arm64AsyncFunctionPlanError> for Arm64LoweringError {
+    fn from(error: Arm64AsyncFunctionPlanError) -> Self {
+        Self::AsyncPlan(error)
+    }
+}
+
+impl From<Arm64AsyncConstructorError> for Arm64LoweringError {
+    fn from(error: Arm64AsyncConstructorError) -> Self {
+        Self::AsyncConstructor(error)
+    }
+}
+
+impl From<Arm64AsyncResumeError> for Arm64LoweringError {
+    fn from(error: Arm64AsyncResumeError) -> Self {
+        Self::AsyncResume(error)
+    }
+}
+
+impl From<Arm64AsyncCancelError> for Arm64LoweringError {
+    fn from(error: Arm64AsyncCancelError) -> Self {
+        Self::AsyncCancel(error)
+    }
+}
+
+impl From<Arm64AsyncConsumeError> for Arm64LoweringError {
+    fn from(error: Arm64AsyncConsumeError) -> Self {
+        Self::AsyncConsume(error)
     }
 }
 

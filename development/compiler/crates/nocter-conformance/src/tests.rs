@@ -24,6 +24,26 @@ fn constant_process_crosses_the_complete_native_pipeline() {
 }
 
 #[test]
+fn dropped_deferred_computation_crosses_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "func ready(value: i64): async i64 { return value }\n\
+         func forward(value: i64): async i64 {\n\
+             let completed = await ready(value)\n\
+             return completed + 1\n\
+         }\n\
+         func main(): i32 {\n\
+             let pending = forward(41)\n\
+             drop pending\n\
+             return 42\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
 fn module_namespace_function_call_uses_the_selected_callable_identity() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/io\nfunc main(): i32 { return io.answer_for_test() }\n",

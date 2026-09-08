@@ -1206,6 +1206,7 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
 
     let mut builder = crate::Arm64ProgramBuilder::new();
     let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    let allocation_failure = builder.add_data([0], 8).unwrap();
     let code = plan
         .materialize_constructor(targets.get(owner).unwrap())
         .unwrap();
@@ -1224,6 +1225,17 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
         .materialize_cancel(targets.get(owner).unwrap(), &targets)
         .unwrap();
     assert!(cancel.instruction_count() > 15);
+    let resume = plan
+        .materialize_resume(
+            targets.get(owner).unwrap(),
+            &targets,
+            &[],
+            &[],
+            &[],
+            allocation_failure,
+        )
+        .unwrap();
+    assert!(resume.instruction_count() > 20);
 }
 
 #[test]
@@ -1258,6 +1270,7 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
     let plan = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
     let mut builder = crate::Arm64ProgramBuilder::new();
     let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    let allocation_failure = builder.add_data([0], 8).unwrap();
     let cancel = plan
         .materialize_cancel(targets.get(owner).unwrap(), &targets)
         .unwrap();
@@ -1269,6 +1282,17 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
             crate::code::Arm64CodeFixup::FunctionBranch { link: true, .. }
         )
     }));
+    let resume = plan
+        .materialize_resume(
+            targets.get(owner).unwrap(),
+            &targets,
+            &[],
+            &[],
+            &[],
+            allocation_failure,
+        )
+        .unwrap();
+    assert!(resume.instruction_count() > 40);
 }
 
 #[test]
@@ -1799,6 +1823,30 @@ fn lowers_a_constant_process_through_selection_and_spill_materialization() {
         let word = u32::from_le_bytes(bytes.try_into().unwrap());
         word & 0xff80_0000 == 0xd280_0000 && (word >> 5) & 0xffff == 42
     }));
+}
+
+#[test]
+fn lowers_deferred_functions_with_complete_native_lifecycle_entries() {
+    let machine = crate::test_support::lower_machine(
+        "func ready(value: i64): async i64 { return value }\n\
+         func forward(value: i64): async i64 {\n\
+             let completed = await ready(value)\n\
+             return completed + 1\n\
+         }\n\
+         func main(): void {\n\
+             let pending = forward(41)\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+
+    let program = crate::Arm64Program::lower_machine(&machine).unwrap();
+
+    assert!(!program.text().is_empty());
+    assert!(machine.functions().any(|(_, function)| matches!(
+        function.execution(),
+        nocter_machine::MachineFunctionExecution::Deferred(_)
+    )));
 }
 
 #[test]

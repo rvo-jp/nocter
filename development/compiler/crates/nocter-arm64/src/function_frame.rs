@@ -74,6 +74,10 @@ pub struct Arm64FunctionFrame {
     process_context: Arm64ProcessContextFrame,
     error_report_buffer: Option<Arm64FrameObjectId>,
     error_construction_buffer: Option<Arm64FrameObjectId>,
+    async_frame_pointer: Option<Arm64FrameObjectId>,
+    async_output_staging: Option<Arm64FrameObjectId>,
+    async_interest_pointer: Option<Arm64FrameObjectId>,
+    async_interest_count: Option<Arm64FrameObjectId>,
 }
 
 impl Arm64FunctionFrame {
@@ -121,6 +125,10 @@ impl Arm64FunctionFrame {
             process_context: hidden.process_context,
             error_report_buffer: hidden.error_report_buffer,
             error_construction_buffer: hidden.error_construction_buffer,
+            async_frame_pointer: hidden.async_frame_pointer,
+            async_output_staging: placed.async_output_staging,
+            async_interest_pointer: hidden.async_interest_pointer,
+            async_interest_count: hidden.async_interest_count,
         })
     }
 
@@ -195,6 +203,26 @@ impl Arm64FunctionFrame {
     pub const fn error_construction_buffer(&self) -> Option<Arm64FrameObjectId> {
         self.error_construction_buffer
     }
+
+    #[must_use]
+    pub const fn async_frame_pointer(&self) -> Option<Arm64FrameObjectId> {
+        self.async_frame_pointer
+    }
+
+    #[must_use]
+    pub const fn async_output_staging(&self) -> Option<Arm64FrameObjectId> {
+        self.async_output_staging
+    }
+
+    #[must_use]
+    pub const fn async_interest_pointer(&self) -> Option<Arm64FrameObjectId> {
+        self.async_interest_pointer
+    }
+
+    #[must_use]
+    pub const fn async_interest_count(&self) -> Option<Arm64FrameObjectId> {
+        self.async_interest_count
+    }
 }
 
 struct PlacedBodyObjects {
@@ -205,6 +233,7 @@ struct PlacedBodyObjects {
     memory_edge_staging: Option<Arm64FrameObjectId>,
     packs: Box<[Arm64PackFrame]>,
     spills: Box<[Arm64FrameObjectId]>,
+    async_output_staging: Option<Arm64FrameObjectId>,
 }
 
 struct HiddenObjects {
@@ -214,6 +243,15 @@ struct HiddenObjects {
     process_context: Arm64ProcessContextFrame,
     error_report_buffer: Option<Arm64FrameObjectId>,
     error_construction_buffer: Option<Arm64FrameObjectId>,
+    async_frame_pointer: Option<Arm64FrameObjectId>,
+    async_interest_pointer: Option<Arm64FrameObjectId>,
+    async_interest_count: Option<Arm64FrameObjectId>,
+}
+
+struct AsyncHiddenObjects {
+    frame_pointer: Option<Arm64FrameObjectId>,
+    interest_pointer: Option<Arm64FrameObjectId>,
+    interest_count: Option<Arm64FrameObjectId>,
 }
 
 fn reserve_outgoing_area(
@@ -262,6 +300,7 @@ fn place_body_objects(
     let direct_aggregate_staging = place_direct_aggregate_staging(body, values, builder)?;
     let memory_edge_staging = place_memory_edge_staging(body, values, builder)?;
     let packs = place_packs(body, builder)?;
+    let async_output_staging = place_async_output_staging(body, builder)?;
     let mut spills = Vec::with_capacity(values.registers().spill_count());
     for _ in 0..values.registers().spill_count() {
         spills.push(builder.add_object(Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size())?);
@@ -274,7 +313,43 @@ fn place_body_objects(
         memory_edge_staging,
         packs,
         spills: spills.into_boxed_slice(),
+        async_output_staging,
     })
+}
+
+fn place_async_output_staging(
+    body: &nocter_machine::MachineBody,
+    builder: &mut Arm64FrameLayoutBuilder,
+) -> Result<Option<Arm64FrameObjectId>, Arm64FunctionFrameError> {
+    let mut requirement: Option<(u64, u64)> = None;
+    for (_, block) in body.blocks() {
+        let nocter_machine::MachineTerminator::Suspend { resume, .. } = block.terminator() else {
+            continue;
+        };
+        let [result] = body
+            .block(resume.block())
+            .map(nocter_machine::MachineBlock::parameters)
+            .ok_or(Arm64FunctionFrameError::MissingAsyncResume(resume.block()))?
+        else {
+            return Err(Arm64FunctionFrameError::MissingAsyncResume(resume.block()));
+        };
+        let representation = body
+            .value(*result)
+            .map(nocter_machine::MachineValue::representation)
+            .ok_or(Arm64FunctionFrameError::MissingValue(*result))?;
+        let nocter_machine::MachineValueRepresentation::Stored {
+            size, alignment, ..
+        } = representation
+        else {
+            continue;
+        };
+        let (current_size, current_alignment) = requirement.unwrap_or((0, 1));
+        requirement = Some((current_size.max(size), current_alignment.max(alignment)));
+    }
+    requirement
+        .map(|(size, alignment)| builder.add_object(size, alignment))
+        .transpose()
+        .map_err(Arm64FunctionFrameError::from)
 }
 
 fn place_memory_edge_staging(
@@ -488,6 +563,7 @@ fn place_hidden_objects(
         })
         .then(|| builder.add_object(5 * Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size()))
         .transpose()?;
+    let asynchronous = place_async_hidden(program, function_id, builder)?;
     Ok(HiddenObjects {
         indirect_result_pointer,
         pack_input_pointer,
@@ -495,6 +571,36 @@ fn place_hidden_objects(
         process_context,
         error_report_buffer,
         error_construction_buffer,
+        async_frame_pointer: asynchronous.frame_pointer,
+        async_interest_pointer: asynchronous.interest_pointer,
+        async_interest_count: asynchronous.interest_count,
+    })
+}
+
+fn place_async_hidden(
+    program: &nocter_machine::MachineProgram,
+    function: MachineFunctionId,
+    builder: &mut Arm64FrameLayoutBuilder,
+) -> Result<AsyncHiddenObjects, Arm64FunctionFrameError> {
+    if !program.function(function).is_some_and(|function| {
+        matches!(
+            function.execution(),
+            nocter_machine::MachineFunctionExecution::Deferred(_)
+        )
+    }) {
+        return Ok(AsyncHiddenObjects {
+            frame_pointer: None,
+            interest_pointer: None,
+            interest_count: None,
+        });
+    }
+    let add_word = |builder: &mut Arm64FrameLayoutBuilder| {
+        builder.add_object(Arm64NocterAbi::word_size(), Arm64NocterAbi::word_size())
+    };
+    Ok(AsyncHiddenObjects {
+        frame_pointer: Some(add_word(builder)?),
+        interest_pointer: Some(add_word(builder)?),
+        interest_count: Some(add_word(builder)?),
     })
 }
 
@@ -547,6 +653,7 @@ pub enum Arm64FunctionFrameError {
     NonDenseValue(MachineValueId),
     MissingValue(MachineValueId),
     MissingOperationResult(nocter_machine::MachineOperationId),
+    MissingAsyncResume(nocter_machine::MachineBlockId),
     NonDensePack(MachinePackId),
     PackLayout {
         pack: MachinePackId,
@@ -578,6 +685,7 @@ impl std::error::Error for Arm64FunctionFrameError {
             | Self::NonDenseValue(_)
             | Self::MissingValue(_)
             | Self::MissingOperationResult(_)
+            | Self::MissingAsyncResume(_)
             | Self::NonDensePack(_) => None,
         }
     }

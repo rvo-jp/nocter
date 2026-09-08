@@ -7,11 +7,12 @@ use nocter_machine::{
 
 use crate::{Arm64FunctionFrameError, Arm64ValuePlanError};
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Arm64SelectionError {
     UnknownFunction(MachineFunctionId),
     NonCallableTarget(MachineFunctionId),
     UnsupportedDeferredFunction(MachineFunctionId),
+    AsyncRelease(MachineOperationId),
     UnknownOperation {
         function: MachineFunctionId,
         operation: MachineOperationId,

@@ -73,6 +73,8 @@ pub struct Arm64AsyncFunctionPlan {
     result_register: u8,
     constructor_frame: Arm64AsyncConstructorFrame,
     cancellation: crate::async_cancellation::Arm64AsyncCancellationPlan,
+    selected: crate::Arm64SelectedFunction,
+    activation: crate::async_activation::Arm64AsyncActivationPlan,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -185,6 +187,10 @@ impl Arm64AsyncFunctionPlan {
         let constructor_frame = build_constructor_frame(&frame, &parameters)?;
         let cancellation =
             crate::async_cancellation::Arm64AsyncCancellationPlan::build(owner, function, &frame)?;
+        let selected = crate::Arm64SelectedFunction::build_deferred(program, owner)?;
+        let activation = crate::async_activation::Arm64AsyncActivationPlan::build(
+            owner, function, &frame, &selected,
+        )?;
         Ok(Self {
             owner,
             frame,
@@ -193,6 +199,8 @@ impl Arm64AsyncFunctionPlan {
             result_register,
             constructor_frame,
             cancellation,
+            selected,
+            activation,
         })
     }
 
@@ -262,6 +270,32 @@ impl Arm64AsyncFunctionPlan {
         crate::async_cancel_code::materialize(self, target, functions)
     }
 
+    /// Materializes state restoration, child polling, suspension, and completed-output storage.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a foreign lifecycle target, malformed persistent-to-activation projections,
+    /// unsupported transferred packs, invalid native resources, and code emission failures.
+    pub fn materialize_resume(
+        &self,
+        target: crate::Arm64FunctionTarget,
+        functions: &crate::Arm64FunctionTargets,
+        data: &[(nocter_machine::MachineDataId, crate::Arm64DataId)],
+        imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
+        pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+        allocation_failure_error: crate::Arm64DataId,
+    ) -> Result<crate::Arm64Code, crate::Arm64AsyncResumeError> {
+        crate::async_resume_code::materialize(
+            self,
+            target,
+            functions,
+            data,
+            imports,
+            pack_callbacks,
+            allocation_failure_error,
+        )
+    }
+
     pub(crate) const fn constructor_frame(&self) -> &Arm64AsyncConstructorFrame {
         &self.constructor_frame
     }
@@ -270,6 +304,14 @@ impl Arm64AsyncFunctionPlan {
         &self,
     ) -> &crate::async_cancellation::Arm64AsyncCancellationPlan {
         &self.cancellation
+    }
+
+    pub(crate) const fn selected(&self) -> &crate::Arm64SelectedFunction {
+        &self.selected
+    }
+
+    pub(crate) const fn activation(&self) -> &crate::async_activation::Arm64AsyncActivationPlan {
+        &self.activation
     }
 }
 
@@ -380,6 +422,8 @@ pub enum Arm64AsyncFunctionPlanError {
     Frame(Arm64AsyncFrameLayoutError),
     ConstructorFrame(Arm64FrameLayoutError),
     Cancellation(crate::Arm64AsyncCancellationPlanError),
+    Selection(crate::Arm64SelectionError),
+    Activation(crate::Arm64AsyncActivationPlanError),
 }
 
 impl fmt::Display for Arm64AsyncFunctionPlanError {
@@ -394,6 +438,8 @@ impl std::error::Error for Arm64AsyncFunctionPlanError {
             Self::Frame(error) => Some(error),
             Self::ConstructorFrame(error) => Some(error),
             Self::Cancellation(error) => Some(error),
+            Self::Selection(error) => Some(error),
+            Self::Activation(error) => Some(error),
             Self::UnknownFunction(_)
             | Self::ImmediateFunction(_)
             | Self::NonCallable(_)
@@ -423,5 +469,17 @@ impl From<Arm64FrameLayoutError> for Arm64AsyncFunctionPlanError {
 impl From<crate::Arm64AsyncCancellationPlanError> for Arm64AsyncFunctionPlanError {
     fn from(error: crate::Arm64AsyncCancellationPlanError) -> Self {
         Self::Cancellation(error)
+    }
+}
+
+impl From<crate::Arm64SelectionError> for Arm64AsyncFunctionPlanError {
+    fn from(error: crate::Arm64SelectionError) -> Self {
+        Self::Selection(error)
+    }
+}
+
+impl From<crate::Arm64AsyncActivationPlanError> for Arm64AsyncFunctionPlanError {
+    fn from(error: crate::Arm64AsyncActivationPlanError) -> Self {
+        Self::Activation(error)
     }
 }
