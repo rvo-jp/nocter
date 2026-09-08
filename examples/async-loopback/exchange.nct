@@ -1,5 +1,3 @@
-//! Concurrent loopback connection and byte transfer.
-
 see ./index.nct
 
 use std/io

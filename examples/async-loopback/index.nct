@@ -1,5 +1,3 @@
-//! Bounded structured asynchronous TCP example.
-
 #package: {
     name: "async-loopback",
     version: "0.1.0",
