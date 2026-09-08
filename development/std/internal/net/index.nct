@@ -9,6 +9,7 @@ use /internal/net/model.{NetworkAddress, NetworkFamily, ResolverFailure, Resolve
 use /time.Duration
 
 see ./descriptor.nct
+see ./async_descriptor.nct
 see ./deadline.nct
 see ./resolver.nct
 
@@ -77,6 +78,9 @@ pub(/) noalloc func connect_tcp(
     timeout: Duration?,
 ): DescriptorAttempt
 
+/// Creates and asynchronously connects one configured TCP descriptor.
+pub(/) func connect_tcp_async(address: NetworkAddress): async DescriptorAttempt
+
 /// Creates one deadline before a multi-candidate connection operation begins.
 pub(/) noalloc func connection_deadline(timeout: Duration?): ConnectionDeadline
 
@@ -101,6 +105,9 @@ instance SocketDescriptor {
     /// Accepts one configured TCP descriptor and its logical peer address.
     pub(/) noalloc method &self.accept_tcp(): AcceptAttempt
 
+    /// Accepts without blocking the executor thread.
+    pub(/) method &self.accept_tcp_async(): async AcceptAttempt
+
     /// Replaces the finite read-side operation timeout; absence permits an unlimited wait.
     pub(/) noalloc method &+self.set_read_timeout(timeout: Duration?): void
 
@@ -116,8 +123,14 @@ instance SocketDescriptor {
     /// Reads once after transparently handling interruption and readiness waits.
     pub(/) noalloc method &self.read_stream(buffer: &+[u8]): TransferAttempt
 
+    /// Reads once without blocking the executor thread.
+    pub(/) method &self.read_stream_async(buffer: &+[u8]): async TransferAttempt
+
     /// Writes the complete byte view after transparently handling partial progress.
     pub(/) noalloc method &self.write_stream(bytes: &[u8]): UnitAttempt
+
+    /// Writes the complete byte view without blocking the executor thread.
+    pub(/) method &self.write_stream_async(bytes: &[u8]): async UnitAttempt
 
     /// Reports the effective logical local address.
     pub(/) noalloc method &self.local_address(): AddressAttempt

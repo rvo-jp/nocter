@@ -1,0 +1,44 @@
+//! Public asynchronous TCP adapters over the shared descriptor state.
+
+see ./index.nct
+see ./errors.nct
+see ./tcp.nct
+
+use /internal/net
+use /internal/net.{AcceptAttempt, DescriptorAttempt, TransferAttempt, UnitAttempt}
+
+func connect_tcp_async(address: SocketAddress): async TcpStream! {
+    match await net.connect_tcp_async(substrate_address(&address)) {
+        DescriptorAttempt.ready(descriptor) {
+            return stream_from_descriptor(move descriptor)
+        }
+        DescriptorAttempt.failed(failure) { return network_error(move failure) }
+    }
+}
+
+instance TcpStream {
+    method &+self.read_async(buffer: &+[u8]): async usize! {
+        match await self.descriptor.read_stream_async(buffer) {
+            TransferAttempt.ready(count) { return count }
+            TransferAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+
+    method &+self.write_async(bytes: &[u8]): async void! {
+        match await self.descriptor.write_stream_async(bytes) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+}
+
+instance TcpListener {
+    method &+self.accept_async(): async (TcpStream, SocketAddress)! {
+        match await self.descriptor.accept_tcp_async() {
+            AcceptAttempt.ready(descriptor, peer) {
+                return (stream_from_descriptor(move descriptor), public_address(peer))
+            }
+            AcceptAttempt.failed(failure) { return network_error(move failure) }
+        }
+    }
+}

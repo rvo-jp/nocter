@@ -19,6 +19,7 @@ see ./resolution.nct
 see ./resolution_tests.nct
 see ./tests.nct
 see ./tcp.nct
+see ./async_tcp.nct
 see ./errors.nct
 see ./tcp_tests.nct
 see ./udp.nct
@@ -241,6 +242,9 @@ construct TcpStream {
 /// Resolves one ASCII host into numeric socket addresses in system order.
 pub func resolve(host: &str, port: u16): Vec<SocketAddress>!
 
+/// Connects to one numeric address without blocking the executor thread.
+pub func connect_tcp_async(address: SocketAddress): async TcpStream!
+
 /// Resolves using recoverable result storage from `allocator`.
 pub func try_resolve(
     allocator: &+TryAllocator,
@@ -275,6 +279,12 @@ instance TcpStream {
 
     /// Makes the stream terminal and releases its descriptor at most once.
     pub noalloc method &+self.close(): void
+
+    /// Reads once without blocking the executor thread.
+    pub method &+self.read_async(buffer: &+[u8]): async usize!
+
+    /// Writes the complete byte view without blocking the executor thread.
+    pub method &+self.write_async(bytes: &[u8]): async void!
 }
 
 construct TcpListener {
@@ -288,6 +298,9 @@ instance TcpListener {
 
     /// Accepts one connected stream and returns its peer address.
     pub noalloc method &+self.accept(): (TcpStream, SocketAddress)!
+
+    /// Accepts one connection without blocking the executor thread.
+    pub method &+self.accept_async(): async (TcpStream, SocketAddress)!
 
     /// Replaces the accept timeout; absence permits an unlimited wait.
     pub noalloc method &+self.set_accept_timeout(timeout: Duration?): void

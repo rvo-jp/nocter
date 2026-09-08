@@ -522,6 +522,15 @@ impl ExecutableItem {
         self.execution
     }
 
+    /// Concrete result produced by this item's body rather than observed by its caller.
+    #[must_use]
+    pub const fn body_result(&self) -> TypeId {
+        match self.execution {
+            ExecutableExecution::Immediate => self.signature.result(),
+            ExecutableExecution::Deferred { output } => output,
+        }
+    }
+
     /// Destruction required when a deferred result completes but is released before consumption.
     #[must_use]
     pub const fn completion_destruction(&self) -> Option<&ConcreteDestructionPlan> {

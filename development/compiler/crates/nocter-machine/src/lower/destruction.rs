@@ -161,11 +161,9 @@ fn lower_kind(
                 primary,
                 ..
             },
-        ) if match (success.as_deref(), primary) {
-            (Some(payload), Some(primary)) => payload.ty() == *primary,
-            (None, None) => true,
-            _ => false,
-        } =>
+        ) if success
+            .as_deref()
+            .is_none_or(|payload| *primary == Some(payload.ty())) =>
         {
             Ok(MachineDestructionKind::Fallible {
                 tag_offset: *tag_offset,

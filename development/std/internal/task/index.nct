@@ -1,7 +1,6 @@
-//! Compiler-owned asynchronous task primitives.
+//! Compiler-owned asynchronous task services.
 
-#target: "arm64-darwin"
-primitive func descriptor_readiness_raw(
-    descriptor: usize,
-    writable: bool,
-): async void
+see ./readiness.nct
+
+/// Suspends until one descriptor may make progress in the requested direction.
+pub(/) func wait_descriptor_ready(descriptor: usize, writable: bool): async void

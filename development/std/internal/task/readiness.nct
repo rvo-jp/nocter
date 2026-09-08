@@ -1,0 +1,14 @@
+//! Semantic descriptor-readiness adapter over the compiler-owned primitive.
+
+see ./index.nct
+
+#target: "arm64-darwin"
+primitive func descriptor_readiness_raw(
+    descriptor: usize,
+    writable: bool,
+): async void
+
+func wait_descriptor_ready(descriptor: usize, writable: bool): async void {
+    await descriptor_readiness_raw(descriptor, writable)
+    return
+}

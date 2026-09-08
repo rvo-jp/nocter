@@ -41,10 +41,7 @@ pub(super) fn lower_function(
     let result = lowerer.lower_node(item.body().root())?;
     if let Some(block) = lowerer.current {
         lowerer.destroy_pack()?;
-        let body_result = match item.execution() {
-            ExecutableExecution::Immediate => item.signature().result(),
-            ExecutableExecution::Deferred { output } => output,
-        };
+        let body_result = item.body_result();
         match executable.types().get(body_result) {
             Some(TypeKind::Builtin(BuiltinType::Void)) => {
                 lowerer
@@ -112,11 +109,7 @@ impl<'a> FunctionLowerer<'a> {
         item: &'a ExecutableItem,
         body: &'a CheckedBody,
     ) -> Result<Self, MirLoweringError> {
-        let body_result = match item.execution() {
-            ExecutableExecution::Immediate => item.signature().result(),
-            ExecutableExecution::Deferred { output } => output,
-        };
-        let mut builder = MirFunctionBuilder::new(item_id, body_result);
+        let mut builder = MirFunctionBuilder::new(item_id, item.body_result());
         if let Some(pack) = item.signature().pack() {
             builder.set_pack_input(crate::MirPackInput::new(pack.element(), pack.next()))?;
         }

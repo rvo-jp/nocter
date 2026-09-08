@@ -1246,6 +1246,32 @@ fn lowers_fallible_injection_and_propagation_through_typed_storage() {
 }
 
 #[test]
+fn deferred_outcome_propagation_uses_the_inner_body_result() {
+    let program = lower_fixture(
+        "func fail(): i32! { return error.new(\"app.failure\", \"failed\") }\n\
+         func deferred(): async i32! { return fail()? }\n\
+         func main(): void {\n\
+             let pending = deferred()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+
+    assert!(program.functions().iter().any(|(_, function)| {
+        matches!(
+            function.execution(),
+            crate::MirFunctionExecution::Deferred { .. }
+        ) && function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::Aggregate(crate::MirAggregate::FallibleFailure(_))
+            )
+        })
+    }));
+}
+
+#[test]
 fn lowers_void_fallible_success_without_fictional_payload_storage() {
     let program = lower_fixture(
         "func succeeds(): void! { return }\n\

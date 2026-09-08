@@ -266,7 +266,7 @@ impl FunctionLowerer<'_> {
         layer: OutcomeLayer,
         outer: &[OutcomeLayer],
     ) -> Result<MirValueId, MirLoweringError> {
-        let result = self.item.signature().result();
+        let result = self.item.body_result();
         let (base, wrappers) = self.propagation_types(node, result, outer)?;
         let mut value = match layer {
             OutcomeLayer::Optional => self.append_value(

@@ -101,6 +101,28 @@ fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() 
 }
 
 #[test]
+fn accepts_trivial_success_storage_in_fallible_async_destruction() {
+    let mir = lower_fixture(
+        "func fail(): i32! { return error.new(\"app.failure\", \"failed\") }\n\
+         func deferred(): async i32! { return fail()? }\n\
+         func main(): void {\n\
+             let pending = deferred()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+
+    assert!(program.functions().any(|(_, function)| {
+        matches!(
+            function.execution(),
+            crate::MachineFunctionExecution::Deferred(frame)
+                if frame.completed_destruction().is_some()
+        )
+    }));
+}
+
+#[test]
 fn computes_the_complete_arm64_stored_layout_closure() {
     let program = stored_layout_fixture();
     let layouts = MachineLayoutStore::build(&program).unwrap();

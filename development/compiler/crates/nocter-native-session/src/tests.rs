@@ -2561,6 +2561,52 @@ fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
     execute_native_status(image.image(), &package_root.0, "borrowed-parent-frame", 0);
 }
 
+#[test]
+fn public_async_tcp_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/net\n\
+         use std/vec.Vec\n\
+         \n\
+         func main(): async i32! {\n\
+             let address = net.SocketAddress.new(\n\
+                 net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
+                 0,\n\
+             )\n\
+             var listener = net.TcpListener.bind(address)?\n\
+             let listening = listener.local_address()?\n\
+             var client = await net.connect_tcp_async(listening)?\n\
+             let accepted = await listener.accept_async()?\n\
+             var server = move accepted.0\n\
+             await client.write_async(\"ping\".bytes())?\n\
+             var buffer: Vec<u8> = Vec [\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+             ]\n\
+             let count = await server.read_async(&+buffer)?\n\
+             if count != 4 || buffer[0] != 112 || buffer[1] != 105\n\
+                 || buffer[2] != 110 || buffer[3] != 103 { return 1 }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-tcp", 0);
+}
+
 fn recoverable_allocation_test_source() -> &'static str {
     concat!(
         "see ./index.nct\n",

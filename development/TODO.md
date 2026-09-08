@@ -34,9 +34,12 @@ now also waits on an actual TCP loopback socket whose peer becomes readable late
 native readiness qualification. Checked loan analysis now freezes each suspension's stable source
 storage, MIR and Machine preserve that contract, and deferred ARM64 code addresses every retained
 stack identity directly in its allocation-backed frame. Direct `await child(&+local)` therefore
-keeps one stable address, while ordinary provenance still rejects an escaping child. Next, expose
-public asynchronous socket operations on top of this structured-borrowing boundary. Keep the
-qualified v0.40.0 archive unchanged.
+keeps one stable address, while ordinary provenance still rejects an escaping child. Public
+numeric async TCP connection, acceptance, full writes, and single reads now use this boundary over
+the existing nonblocking descriptor substrate. Next, add one combined descriptor-readiness and
+monotonic-deadline wait contract before exposing async timeout or host-candidate APIs, then qualify
+backpressure, peer closure, cancellation, fallback, and bounded concurrency. Keep the qualified
+v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create
