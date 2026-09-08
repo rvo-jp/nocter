@@ -2,8 +2,7 @@
 
 see ./index.nct
 see ./async_delay.nct
-see ./primitives.nct
-
+use /internal/time
 use /testing
 use /mem
 
@@ -251,9 +250,9 @@ test rfc3339_recoverable_generation_uses_the_supplied_allocator {
 }
 
 test target_counter_contract_has_a_bounded_frequency_and_wrapping_delta {
-    let frequency = monotonic_frequency_raw()
+    let frequency = time.monotonic_frequency()
     testing.assert(frequency > 0 && frequency <= 4294967295)?
-    testing.assert(monotonic_delta_raw(18446744073709551615, 0) == 1)?
+    testing.assert(time.monotonic_delta(18446744073709551615, 0) == 1)?
     return
 }
 

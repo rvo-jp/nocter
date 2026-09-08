@@ -8,7 +8,23 @@ primitive func descriptor_readiness_raw(
     writable: bool,
 ): async void
 
+#target: "arm64-darwin"
+primitive func descriptor_readiness_or_deadline_raw(
+    descriptor: usize,
+    writable: bool,
+    deadline: u64,
+): async void
+
 func wait_descriptor_ready(descriptor: usize, writable: bool): async void {
     await descriptor_readiness_raw(descriptor, writable)
+    return
+}
+
+func wait_descriptor_ready_or_deadline(
+    descriptor: usize,
+    writable: bool,
+    deadline: u64,
+): async void {
+    await descriptor_readiness_or_deadline_raw(descriptor, writable, deadline)
     return
 }

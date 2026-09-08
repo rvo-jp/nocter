@@ -1,6 +1,7 @@
 //! Package-internal target boundaries for time observation and waiting.
 
 see ./darwin.nct
+see ./monotonic.nct
 see ./wall_clock_darwin.nct
 
 pub(/) copy struct WallClockValue {
@@ -18,6 +19,18 @@ pub(/) enum WaitStatus {
     interrupted
     failed
 }
+
+/// Observes the current value in the process monotonic-counter domain.
+pub(/) noalloc func monotonic_counter(): u64
+
+/// Returns the fixed non-zero number of monotonic-counter ticks per second.
+pub(/) noalloc func monotonic_frequency(): u64
+
+/// Computes the wrapping monotonic-counter distance from earlier to later.
+pub(/) noalloc func monotonic_delta(earlier: u64, later: u64): u64
+
+/// Suspends until one absolute monotonic-counter deadline is observed.
+pub(/) func wait_until(deadline: u64): async void
 
 /// Performs one blocking timeout wait without deciding retry or remaining-time policy.
 pub(/) noalloc func wait_once(seconds: u64, microseconds: u64): WaitStatus

@@ -310,36 +310,54 @@ fn define_async_primitives(
     targets: crate::Arm64AsyncPrimitiveTargets,
     builder: &mut Arm64ProgramBuilder,
 ) -> Result<(), Arm64LoweringError> {
-    let Some(lifecycle) = targets.interest_lifecycle() else {
-        return Ok(());
-    };
-    if let Some(constructor) = targets.descriptor_readiness() {
+    if let Some(lifecycle) = targets.single_interest_lifecycle() {
+        if let Some(constructor) = targets.descriptor_readiness() {
+            builder.define_function(
+                constructor,
+                crate::async_interest_code::materialize_descriptor_constructor(lifecycle)
+                    .map_err(Arm64MaterializationError::Code)?,
+            )?;
+        }
+        if let Some(constructor) = targets.monotonic_deadline() {
+            builder.define_function(
+                constructor,
+                crate::async_interest_code::materialize_deadline_constructor(lifecycle)
+                    .map_err(Arm64MaterializationError::Code)?,
+            )?;
+        }
+        define_async_interest_lifecycle(lifecycle, builder)?;
+    }
+    if let (Some(constructor), Some(lifecycle)) = (
+        targets.descriptor_readiness_or_deadline(),
+        targets.dual_interest_lifecycle(),
+    ) {
         builder.define_function(
             constructor,
-            crate::async_interest_code::materialize_descriptor_constructor(lifecycle)
+            crate::async_interest_code::materialize_descriptor_or_deadline_constructor(lifecycle)
                 .map_err(Arm64MaterializationError::Code)?,
         )?;
+        define_async_interest_lifecycle(lifecycle, builder)?;
     }
-    if let Some(constructor) = targets.monotonic_deadline() {
-        builder.define_function(
-            constructor,
-            crate::async_interest_code::materialize_deadline_constructor(lifecycle)
-                .map_err(Arm64MaterializationError::Code)?,
-        )?;
-    }
+    Ok(())
+}
+
+fn define_async_interest_lifecycle(
+    lifecycle: crate::Arm64AsyncInterestLifecycleTargets,
+    builder: &mut Arm64ProgramBuilder,
+) -> Result<(), Arm64LoweringError> {
     builder.define_function(
         lifecycle.resume(),
-        crate::async_interest_code::materialize_resume()
+        crate::async_interest_code::materialize_resume(lifecycle.interest_count())
             .map_err(Arm64MaterializationError::Code)?,
     )?;
     builder.define_function(
         lifecycle.cancel(),
-        crate::async_interest_code::materialize_cancel()
+        crate::async_interest_code::materialize_cancel(lifecycle.interest_count())
             .map_err(Arm64MaterializationError::Code)?,
     )?;
     builder.define_function(
         lifecycle.consume(),
-        crate::async_interest_code::materialize_consume()
+        crate::async_interest_code::materialize_consume(lifecycle.interest_count())
             .map_err(Arm64MaterializationError::Code)?,
     )?;
     Ok(())

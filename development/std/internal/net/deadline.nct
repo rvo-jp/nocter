@@ -3,10 +3,13 @@
 see ./index.nct
 
 use /time.{Duration, Instant}
+use /internal/time
 
 const MAX_POLL_MILLISECONDS: u64 = 2147483647
 const MILLISECONDS_PER_SECOND: u64 = 1000
 const NANOSECONDS_PER_MILLISECOND: u64 = 1000000
+const NANOSECONDS_PER_SECOND: u64 = 1000000000
+const MAX_ASYNC_WAIT_SECONDS: u64 = 86400
 
 enum OperationDeadline {
     unlimited
@@ -43,6 +46,34 @@ noalloc func deadline_expired(deadline: &OperationDeadline): bool {
             let elapsed = start.elapsed()
             let remaining = duration.checked_sub(&elapsed) otherwise { return true }
             return remaining.is_zero()
+        }
+    }
+}
+
+noalloc func async_wait_counter(deadline: &OperationDeadline): u64? {
+    match deadline {
+        OperationDeadline.unlimited { return none }
+        OperationDeadline.finite(start, duration) {
+            let elapsed = start.elapsed()
+            let remaining = duration.checked_sub(&elapsed) otherwise {
+                return time.monotonic_counter()
+            }
+            let seconds = if remaining.whole_seconds() > MAX_ASYNC_WAIT_SECONDS {
+                MAX_ASYNC_WAIT_SECONDS
+            } else {
+                remaining.whole_seconds()
+            }
+            let frequency = time.monotonic_frequency()
+            let whole = seconds * frequency
+            var fractional: u64 = 0
+            if seconds == remaining.whole_seconds() {
+                let product = remaining.subsecond_nanoseconds() * frequency
+                fractional = product / NANOSECONDS_PER_SECOND
+                if product % NANOSECONDS_PER_SECOND != 0 {
+                    fractional += 1
+                }
+            }
+            return time.monotonic_counter().wrapping_add(whole + fractional)
         }
     }
 }

@@ -718,6 +718,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::DescriptorReadinessOrDeadline => make(
+            0,
+            vec![usize(), boolean(), u64()],
+            TypeContract::asynchronous(void()),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::MonotonicDeadline => make(
             0,
             vec![u64()],

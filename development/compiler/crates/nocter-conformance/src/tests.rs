@@ -86,20 +86,68 @@ fn deferred_process_waits_for_tcp_loopback_readiness() {
 fn deferred_process_waits_until_a_monotonic_deadline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\
-         use std/time\n\
+         use std/internal/time\n\
          func main(): async i32 {\n\
              let now = time.monotonic_counter_for_test()\n\
              let frequency = time.monotonic_frequency_for_test()\n\
              await time.monotonic_deadline_for_test(now + frequency / 20)\n\
              return 43\n\
          }\n",
-        &[&["internal", "task"], &["time"]],
+        &[&["internal", "task"], &["internal", "time"]],
     );
     let machine = lower_machine_fixture(&fixture);
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
     let image = nocter_macho::MachOImage::build(&program).unwrap();
 
     execute_after_delay(&image, 43, std::time::Duration::from_millis(20));
+}
+
+#[test]
+fn deferred_process_wakes_when_descriptor_precedes_deadline() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/task\n\
+         use std/internal/time\n\
+         func main(): async i32 {\n\
+             let now = time.monotonic_counter_for_test()\n\
+             let frequency = time.monotonic_frequency_for_test()\n\
+             await task.descriptor_readiness_or_deadline_for_test(\n\
+                 0,\n\
+                 false,\n\
+                 now + frequency,\n\
+             )\n\
+             return 45\n\
+         }\n",
+        &[&["internal", "task"], &["internal", "time"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_release_stdin(&image, 45);
+}
+
+#[test]
+fn deferred_process_wakes_when_deadline_precedes_descriptor() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/internal/task\n\
+         use std/internal/time\n\
+         func main(): async i32 {\n\
+             let now = time.monotonic_counter_for_test()\n\
+             let frequency = time.monotonic_frequency_for_test()\n\
+             await task.descriptor_readiness_or_deadline_for_test(\n\
+                 0,\n\
+                 false,\n\
+                 now + frequency / 20,\n\
+             )\n\
+             return 46\n\
+         }\n",
+        &[&["internal", "task"], &["internal", "time"]],
+    );
+    let machine = lower_machine_fixture(&fixture);
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_after_delay_with_pending_stdin(&image, 46, std::time::Duration::from_millis(20));
 }
 
 #[test]
@@ -1631,6 +1679,40 @@ fn execute_after_delay(
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn execute_after_delay_with_pending_stdin(
+    image: &nocter_macho::MachOImage,
+    expected: i32,
+    minimum: std::time::Duration,
+) {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Stdio;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_ARTIFACT: AtomicU64 = AtomicU64::new(0);
+    let artifact = NEXT_ARTIFACT.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "nocter-async-interest-race-{}-{artifact}",
+        std::process::id()
+    ));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let started = std::time::Instant::now();
+    let mut child = std::process::Command::new(&path)
+        .stdin(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let _pending_stdin = child.stdin.take().unwrap();
+    let status = child.wait().unwrap();
+    let elapsed = started.elapsed();
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(status.code(), Some(expected));
+    assert!(
+        elapsed >= minimum,
+        "combined descriptor/deadline computation completed too early after {elapsed:?}"
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn execute_and_release_loopback(image: &nocter_macho::MachOImage, expected: i32) {
     use std::io::Write;
     use std::net::{Ipv4Addr, TcpListener, TcpStream};
@@ -1680,6 +1762,14 @@ fn execute_and_release_stdin(_image: &nocter_macho::MachOImage, _expected: i32) 
 
 #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
 fn execute_after_delay(
+    _image: &nocter_macho::MachOImage,
+    _expected: i32,
+    _minimum: std::time::Duration,
+) {
+}
+
+#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+fn execute_after_delay_with_pending_stdin(
     _image: &nocter_macho::MachOImage,
     _expected: i32,
     _minimum: std::time::Duration,

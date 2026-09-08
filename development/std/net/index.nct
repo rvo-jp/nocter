@@ -245,6 +245,12 @@ pub func resolve(host: &str, port: u16): Vec<SocketAddress>!
 /// Connects to one numeric address without blocking the executor thread.
 pub func connect_tcp_async(address: SocketAddress): async TcpStream!
 
+/// Connects asynchronously until the fixed relative timeout expires.
+pub func connect_tcp_async_with_timeout(
+    address: SocketAddress,
+    timeout: Duration,
+): async TcpStream!
+
 /// Resolves using recoverable result storage from `allocator`.
 pub func try_resolve(
     allocator: &+TryAllocator,
@@ -283,8 +289,20 @@ instance TcpStream {
     /// Reads once without blocking the executor thread.
     pub method &+self.read_async(buffer: &+[u8]): async usize!
 
+    /// Reads once asynchronously until the fixed relative timeout expires.
+    pub method &+self.read_async_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): async usize!
+
     /// Writes the complete byte view without blocking the executor thread.
     pub method &+self.write_async(bytes: &[u8]): async void!
+
+    /// Writes asynchronously until the complete view is sent or the fixed timeout expires.
+    pub method &+self.write_async_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): async void!
 }
 
 construct TcpListener {
@@ -301,6 +319,11 @@ instance TcpListener {
 
     /// Accepts one connection without blocking the executor thread.
     pub method &+self.accept_async(): async (TcpStream, SocketAddress)!
+
+    /// Accepts asynchronously until the fixed relative timeout expires.
+    pub method &+self.accept_async_with_timeout(
+        timeout: Duration,
+    ): async (TcpStream, SocketAddress)!
 
     /// Replaces the accept timeout; absence permits an unlimited wait.
     pub noalloc method &+self.set_accept_timeout(timeout: Duration?): void

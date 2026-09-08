@@ -2,7 +2,7 @@
 
 see ./index.nct
 see ./duration.nct
-see ./primitives.nct
+use /internal/time
 
 copy struct Instant {
     counter: u64
@@ -10,14 +10,14 @@ copy struct Instant {
 
 construct Instant {
     noalloc func now(): Self {
-        return Instant { counter: monotonic_counter_raw() }
+        return Instant { counter: time.monotonic_counter() }
     }
 }
 
 instance Instant {
     noalloc method &self.elapsed(): Duration {
-        let current = monotonic_counter_raw()
-        let delta = monotonic_delta_raw(self.counter, current)
-        return duration_from_counter_delta(delta, monotonic_frequency_raw())
+        let current = time.monotonic_counter()
+        let delta = time.monotonic_delta(self.counter, current)
+        return duration_from_counter_delta(delta, time.monotonic_frequency())
     }
 }

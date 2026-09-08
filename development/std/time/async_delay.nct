@@ -2,7 +2,7 @@
 
 see ./index.nct
 see ./duration.nct
-see ./primitives.nct
+use /internal/time
 
 const ASYNC_DELAY_MAX_STEP_SECONDS: u64 = 86400
 const ASYNC_DELAY_NANOSECONDS_PER_SECOND: u64 = 1000000000
@@ -34,10 +34,10 @@ func delay(duration: Duration): async void {
     )
     while !remaining.is_zero() {
         let step = async_delay_step(&remaining)
-        let frequency = monotonic_frequency_raw()
+        let frequency = time.monotonic_frequency()
         let ticks = async_delay_ticks(&step, frequency)
-        let deadline = monotonic_counter_raw().wrapping_add(ticks)
-        await monotonic_deadline_raw(deadline)
+        let deadline = time.monotonic_counter().wrapping_add(ticks)
+        await time.wait_until(deadline)
         remaining = remaining.checked_sub(&step) otherwise { return }
     }
     return

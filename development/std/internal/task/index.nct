@@ -4,3 +4,10 @@ see ./readiness.nct
 
 /// Suspends until one descriptor may make progress in the requested direction.
 pub(/) func wait_descriptor_ready(descriptor: usize, writable: bool): async void
+
+/// Suspends until descriptor progress or the fixed monotonic deadline is observed.
+pub(/) func wait_descriptor_ready_or_deadline(
+    descriptor: usize,
+    writable: bool,
+    deadline: u64,
+): async void

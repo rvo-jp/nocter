@@ -36,10 +36,11 @@ storage, MIR and Machine preserve that contract, and deferred ARM64 code address
 stack identity directly in its allocation-backed frame. Direct `await child(&+local)` therefore
 keeps one stable address, while ordinary provenance still rejects an escaping child. Public
 numeric async TCP connection, acceptance, full writes, and single reads now use this boundary over
-the existing nonblocking descriptor substrate. Next, add one combined descriptor-readiness and
-monotonic-deadline wait contract before exposing async timeout or host-candidate APIs, then qualify
-backpressure, peer closure, cancellation, fallback, and bounded concurrency. Keep the qualified
-v0.40.0 archive unchanged.
+the existing nonblocking descriptor substrate. Their explicit timeout variants publish descriptor
+readiness and a monotonic deadline as one fixed-cardinality wait set; native conformance covers
+both race outcomes. Raw clock primitives now live behind the single `std/internal/time` adapter.
+Next, add ordered async host-candidate connection and qualify backpressure, peer closure,
+cancellation, fallback, and bounded concurrency. Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

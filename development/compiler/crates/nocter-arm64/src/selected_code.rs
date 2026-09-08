@@ -376,6 +376,11 @@ pub(crate) fn emit_instruction(
             .descriptor_readiness()
             .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
+        Arm64SelectedInstruction::ConstructDescriptorReadinessOrDeadline => context
+            .async_primitives
+            .descriptor_readiness_or_deadline()
+            .map(|target| code.call(target))
+            .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
         Arm64SelectedInstruction::ConstructMonotonicDeadline => context
             .async_primitives
             .monotonic_deadline()

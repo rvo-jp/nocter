@@ -69,11 +69,12 @@ returns the connected peer address. IPv6 sockets are explicitly IPv6-only, so co
 families owns one listener for each family.
 
 `TcpStream.read_async`, `TcpStream.write_async`, and `TcpListener.accept_async` use the same
-nonblocking descriptor, ownership, and error substrate as the synchronous operations. They retry
-interruption immediately and suspend only when the descriptor cannot make progress. A direct
-`await` retains each receiver and buffer borrow in stable parent-computation storage. The checked
-ownership model rejects moving the pending child computation beyond the lifetime of that parent
-storage.
+nonblocking descriptor, ownership, and error substrate as the synchronous operations. Their
+`_with_timeout` variants and `net.connect_tcp_async_with_timeout` bound one complete operation with
+an explicit `Duration`. They retry interruption immediately and suspend only when the descriptor
+cannot make progress. A direct `await` retains each receiver and buffer borrow in stable parent-
+computation storage. The checked ownership model rejects moving the pending child computation
+beyond the lifetime of that parent storage.
 
 Socket descriptors are never exposed. A successful constructor or asynchronous connection
 transfers one descriptor into one move-only public value. Explicit `close` is terminal and
@@ -88,10 +89,12 @@ TCP operations are synchronous. `connect_with_timeout` bounds connection establi
 `set_accept_timeout` bounds listener acceptance. Passing absence to a setter restores unlimited
 waiting. The corresponding observation methods return the exact configured `Duration?`.
 
-These configured timeouts currently apply only to the synchronous operations. The asynchronous
-operations have no hidden timeout and never call a blocking adapter. A future async timeout surface
-must race descriptor readiness and a monotonic deadline in one runtime wait set; treating a
-synchronous timeout as an async timeout would block the executor and is therefore not permitted.
+These configured timeouts apply only to the synchronous operations. Asynchronous operations never
+inherit mutable timeout configuration: their ordinary forms wait without a deadline, and their
+`_with_timeout` forms accept one explicit relative timeout. A timed async wait publishes descriptor
+readiness and its monotonic deadline in one runtime wait set. Waking either interest removes the
+other registration before the operation retries, so no stale timer remains attached to the task.
+The implementation never calls a blocking adapter on the executor thread.
 
 The implementation uses nonblocking descriptors internally only to centralize interruption,
 readiness, and deadline handling; this does not expose a public nonblocking mode. Public failures
@@ -135,5 +138,5 @@ cannot affect these deadlines.
 Numeric addresses, system host resolution, ordered host connection, synchronous TCP, basic
 asynchronous numeric TCP connection and transfer, boundary-preserving UDP, and monotonic
 synchronous operation timeouts are implemented. Asynchronous host resolution, candidate fallback,
-and readiness/deadline timeout races remain open. URLs are provided by `std/url`. HTTP, TLS,
-asynchronous UDP, and public nonblocking sockets remain outside this module.
+and asynchronous UDP remain open; numeric TCP readiness/deadline races are implemented. URLs are
+provided by `std/url`. HTTP, TLS, and public nonblocking sockets remain outside this module.

@@ -100,6 +100,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("internal/net", "internal/net/model"),
     ("internal/net", "internal/os"),
     ("internal/net", "internal/task"),
+    ("internal/net", "internal/time"),
     ("internal/net", "time"),
     ("internal/net/darwin", "internal/net/model"),
     ("internal/net/darwin", "internal/os"),

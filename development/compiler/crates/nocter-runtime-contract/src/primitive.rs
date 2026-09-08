@@ -120,6 +120,9 @@ closed_role_enum! {
         MonotonicCounterDelta,
         /// Creates one lazy computation that becomes completable after descriptor readiness.
         DescriptorReadiness,
+        /// Creates one lazy computation that becomes completable after descriptor readiness or a
+        /// monotonic deadline, whichever the reactor observes first.
+        DescriptorReadinessOrDeadline,
         /// Creates one lazy computation that becomes completable at a monotonic deadline.
         MonotonicDeadline,
         Syscall0,
@@ -214,6 +217,7 @@ impl PrimitiveRole {
             Self::MonotonicCounterFrequency => "monotonic_counter_frequency",
             Self::MonotonicCounterDelta => "monotonic_counter_delta",
             Self::DescriptorReadiness => "descriptor_readiness",
+            Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
             Self::Syscall0 => "syscall_0",
             Self::SyscallPair0 => "syscall_pair_0",
@@ -238,7 +242,10 @@ impl PrimitiveRole {
         PrimitiveEffects {
             may_allocate: matches!(
                 self,
-                Self::DropValueAtPointer | Self::DescriptorReadiness | Self::MonotonicDeadline
+                Self::DropValueAtPointer
+                    | Self::DescriptorReadiness
+                    | Self::DescriptorReadinessOrDeadline
+                    | Self::MonotonicDeadline
             ),
         }
     }
@@ -416,6 +423,7 @@ mod tests {
             vec![
                 PrimitiveRole::DropValueAtPointer,
                 PrimitiveRole::DescriptorReadiness,
+                PrimitiveRole::DescriptorReadinessOrDeadline,
                 PrimitiveRole::MonotonicDeadline,
             ]
         );

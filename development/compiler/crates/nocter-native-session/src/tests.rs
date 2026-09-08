@@ -2607,6 +2607,56 @@ fn public_async_tcp_crosses_the_complete_native_session() {
     execute_native_status(image.image(), &package_root.0, "async-tcp", 0);
 }
 
+#[test]
+fn public_async_tcp_timeout_races_readiness_in_the_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/net\n\
+         use std/time.Duration\n\
+         use std/vec.Vec\n\
+         \n\
+         func main(): async i32! {\n\
+             let address = net.SocketAddress.new(\n\
+                 net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
+                 0,\n\
+             )\n\
+             let generous = Duration.from_seconds(1)\n\
+             var listener = net.TcpListener.bind(address)?\n\
+             let listening = listener.local_address()?\n\
+             var client = await net.connect_tcp_async_with_timeout(listening, generous)?\n\
+             let accepted = await listener.accept_async_with_timeout(generous)?\n\
+             var server = move accepted.0\n\
+             await client.write_async_with_timeout(\"ok\".bytes(), generous)?\n\
+             var buffer: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0)]\n\
+             let count = await server.read_async_with_timeout(&+buffer, generous)?\n\
+             if count != 2 || buffer[0] != 111 || buffer[1] != 107 { return 1 }\n\
+             var waiting: Vec<u8> = Vec [u8.truncate(0)]\n\
+             let _count = await server.read_async_with_timeout(\n\
+                 &+waiting,\n\
+                 Duration.from_milliseconds(2),\n\
+             ) catch failure {\n\
+                 if failure.has_code(\"std.net.timed_out\") { return 0 }\n\
+                 return 2\n\
+             }\n\
+             return 3\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-tcp-timeout", 0);
+}
+
 fn recoverable_allocation_test_source() -> &'static str {
     concat!(
         "see ./index.nct\n",

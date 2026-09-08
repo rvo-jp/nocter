@@ -259,6 +259,8 @@ pub enum Arm64SelectedInstruction {
     ReadMonotonicCounterFrequency,
     /// Calls the compiler-owned descriptor-readiness computation constructor.
     ConstructDescriptorReadiness,
+    /// Calls the compiler-owned descriptor-or-deadline computation constructor.
+    ConstructDescriptorReadinessOrDeadline,
     ConstructMonotonicDeadline,
     ExitProcess {
         status: Arm64SelectedRegister,

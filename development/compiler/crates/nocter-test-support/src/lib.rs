@@ -295,7 +295,8 @@ pub func env_name_for_test(index: usize): &str { return env_name_raw(index) }
 pub func env_value_for_test(index: usize): &str { return env_value_raw(index) }
 ";
 const IO_SOURCE: &str = "pub func answer_for_test(): i32 { return 42 }\n";
-const TIME_SOURCE: &str = "\
+const TIME_SOURCE: &str = "";
+const INTERNAL_TIME_SOURCE: &str = "\
 #target: \"arm64-darwin\"
 noalloc primitive func monotonic_counter_raw(): u64
 #target: \"arm64-darwin\"
@@ -317,11 +318,25 @@ primitive func descriptor_readiness_raw(
     descriptor: usize,
     writable: bool,
 ): async void
+#target: \"arm64-darwin\"
+primitive func descriptor_readiness_or_deadline_raw(
+    descriptor: usize,
+    writable: bool,
+    deadline: u64,
+): async void
 pub func descriptor_readiness_for_test(
     descriptor: usize,
     writable: bool,
 ): async void {
     await descriptor_readiness_raw(descriptor, writable)
+    return
+}
+pub func descriptor_readiness_or_deadline_for_test(
+    descriptor: usize,
+    writable: bool,
+    deadline: u64,
+): async void {
+    await descriptor_readiness_or_deadline_raw(descriptor, writable, deadline)
     return
 }
 ";
@@ -612,6 +627,7 @@ impl CompilerFixture {
             (&["process"][..], PROCESS_SOURCE),
             (&["io"][..], IO_SOURCE),
             (&["time"][..], TIME_SOURCE),
+            (&["internal", "time"][..], INTERNAL_TIME_SOURCE),
             (&["internal", "task"][..], INTERNAL_TASK_SOURCE),
             (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),
         ]

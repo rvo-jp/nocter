@@ -1,0 +1,32 @@
+//! Semantic monotonic-clock services over compiler-owned target primitives.
+
+see ./index.nct
+
+#target: "arm64-darwin"
+noalloc primitive func monotonic_counter_raw(): u64
+
+#target: "arm64-darwin"
+noalloc primitive func monotonic_frequency_raw(): u64
+
+#target: "arm64-darwin"
+noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64
+
+#target: "arm64-darwin"
+primitive func monotonic_deadline_raw(deadline: u64): async void
+
+noalloc func monotonic_counter(): u64 {
+    return monotonic_counter_raw()
+}
+
+noalloc func monotonic_frequency(): u64 {
+    return monotonic_frequency_raw()
+}
+
+noalloc func monotonic_delta(earlier: u64, later: u64): u64 {
+    return monotonic_delta_raw(earlier, later)
+}
+
+func wait_until(deadline: u64): async void {
+    await monotonic_deadline_raw(deadline)
+    return
+}

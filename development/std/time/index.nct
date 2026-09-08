@@ -6,7 +6,6 @@ use /string.String
 see ./duration.nct
 see ./async_delay.nct
 see ./instant.nct
-see ./primitives.nct
 see ./sleep.nct
 see ./system_time.nct
 see ./tests.nct

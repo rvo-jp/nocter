@@ -89,8 +89,7 @@ pub(crate) fn select(
         | PrimitiveRole::ByteSliceFromRawParts
         | PrimitiveRole::MutableByteSliceFromRawParts => select_raw_view(operation, target),
         PrimitiveRole::ValueSliceFromRawParts | PrimitiveRole::MutableValueSliceFromRawParts => {
-            validate_register_abi(operation, target, &[1, 1], 2)?;
-            validate_type_arguments(operation, target, 1)
+            select_typed_view(operation, target)
         }
         PrimitiveRole::BytesFromString => select_bytes_from_string(operation, target),
         PrimitiveRole::StringSubviewUnchecked => select_string_subview(operation, target, selected),
@@ -150,19 +149,43 @@ pub(crate) fn select(
         | PrimitiveRole::Unreachable => {
             super::system_primitive_selection::select(program, operation, target, selected)
         }
-        PrimitiveRole::DescriptorReadiness => {
-            validate_register_abi(operation, target, &[1, 1], 1)?;
-            validate_type_arguments(operation, target, 0)?;
-            selected.push(Arm64SelectedInstruction::ConstructDescriptorReadiness);
-            Ok(())
-        }
-        PrimitiveRole::MonotonicDeadline => {
-            validate_register_abi(operation, target, &[1], 1)?;
-            validate_type_arguments(operation, target, 0)?;
-            selected.push(Arm64SelectedInstruction::ConstructMonotonicDeadline);
-            Ok(())
-        }
+        PrimitiveRole::DescriptorReadiness
+        | PrimitiveRole::DescriptorReadinessOrDeadline
+        | PrimitiveRole::MonotonicDeadline => select_async_primitive(operation, target, selected),
     }
+}
+
+fn select_typed_view(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+) -> Result<(), Arm64SelectionError> {
+    validate_register_abi(operation, target, &[1, 1], 2)?;
+    validate_type_arguments(operation, target, 1)
+}
+
+fn select_async_primitive(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let (arguments, instruction): (&[u8], _) = match target.role() {
+        PrimitiveRole::DescriptorReadiness => (
+            &[1, 1],
+            Arm64SelectedInstruction::ConstructDescriptorReadiness,
+        ),
+        PrimitiveRole::DescriptorReadinessOrDeadline => (
+            &[1, 1, 1],
+            Arm64SelectedInstruction::ConstructDescriptorReadinessOrDeadline,
+        ),
+        PrimitiveRole::MonotonicDeadline => {
+            (&[1], Arm64SelectedInstruction::ConstructMonotonicDeadline)
+        }
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    validate_register_abi(operation, target, arguments, 1)?;
+    validate_type_arguments(operation, target, 0)?;
+    selected.push(instruction);
+    Ok(())
 }
 
 fn select_pointer_identity(

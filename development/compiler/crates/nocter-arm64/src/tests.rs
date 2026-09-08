@@ -253,12 +253,12 @@ fn encodes_closed_monotonic_counter_register_reads() {
 #[test]
 fn monotonic_counter_observation_materializes_an_ordering_barrier() {
     let machine = crate::test_support::lower_machine_with_standard_uses(
-        "use std/time\n\n\
+        "use std/internal/time\n\n\
          func main(): i32 {\n\
              let _ = time.monotonic_counter_for_test()\n\
              return 0\n\
          }\n",
-        &[&["time"]],
+        &[&["internal", "time"]],
     );
     let program = crate::Arm64Program::lower_machine(&machine).unwrap();
     let words = program
@@ -1090,12 +1090,14 @@ fn async_primitive_targets_follow_machine_dependencies() {
     let mut absent_builder = crate::Arm64ProgramBuilder::new();
     let absent = crate::Arm64AsyncPrimitiveTargets::declare(&absent, &mut absent_builder);
     assert_eq!(absent.descriptor_readiness(), None);
+    assert_eq!(absent.descriptor_readiness_or_deadline(), None);
     assert_eq!(absent.monotonic_deadline(), None);
-    assert_eq!(absent.interest_lifecycle(), None);
+    assert_eq!(absent.single_interest_lifecycle(), None);
+    assert_eq!(absent.dual_interest_lifecycle(), None);
 
     let present = crate::test_support::lower_machine_with_standard_uses(
         "use std/internal/task\n\
-         use std/time\n\
+         use std/internal/time\n\
          func main(): i32 {\n\
              let pending = task.descriptor_readiness_for_test(0, false)\n\
              let deadline = time.monotonic_counter_for_test()\n\
@@ -1104,14 +1106,47 @@ fn async_primitive_targets_follow_machine_dependencies() {
              drop timer\n\
              return 0\n\
          }\n",
-        &[&["internal", "task"], &["time"]],
+        &[&["internal", "task"], &["internal", "time"]],
     );
     let mut present_builder = crate::Arm64ProgramBuilder::new();
     let present = crate::Arm64AsyncPrimitiveTargets::declare(&present, &mut present_builder);
     assert!(present.descriptor_readiness().is_some());
     assert!(present.monotonic_deadline().is_some());
-    assert!(present.interest_lifecycle().is_some());
+    assert_eq!(
+        present
+            .single_interest_lifecycle()
+            .map(crate::Arm64AsyncInterestLifecycleTargets::interest_count),
+        Some(1)
+    );
+    assert_eq!(present.descriptor_readiness_or_deadline(), None);
+    assert_eq!(present.dual_interest_lifecycle(), None);
     assert_ne!(present.descriptor_readiness(), present.monotonic_deadline());
+}
+
+#[test]
+fn dual_interest_primitive_owns_a_distinct_fixed_cardinality_lifecycle() {
+    let program = crate::test_support::lower_machine_with_standard_uses(
+        "use std/internal/task\n\
+         func main(): i32 {\n\
+             let pending = task.descriptor_readiness_or_deadline_for_test(0, false, 1)\n\
+             drop pending\n\
+             return 0\n\
+         }\n",
+        &[&["internal", "task"]],
+    );
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64AsyncPrimitiveTargets::declare(&program, &mut builder);
+
+    assert!(targets.descriptor_readiness_or_deadline().is_some());
+    assert_eq!(
+        targets
+            .dual_interest_lifecycle()
+            .map(crate::Arm64AsyncInterestLifecycleTargets::interest_count),
+        Some(2)
+    );
+    assert_eq!(targets.descriptor_readiness(), None);
+    assert_eq!(targets.monotonic_deadline(), None);
+    assert_eq!(targets.single_interest_lifecycle(), None);
 }
 
 #[test]

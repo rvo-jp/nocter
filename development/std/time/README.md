@@ -128,8 +128,10 @@ may split a segment into additional waits but cannot complete it early. Overslee
 
 The compiler target contract provides only the closed facts needed to read a monotonic counter,
 read its fixed frequency, compute a wrap-aware counter delta, construct one opaque deadline
-computation, and perform generic target syscalls. It does not construct `Duration`, `SystemTime`,
-or `UtcDateTime`; implement duration segmentation, sleep policy, or calendar arithmetic; classify
+computation, and perform generic target syscalls. Package-internal time services are the sole
+semantic adapter over those primitives; public time and network implementations cannot bind the
+raw roles independently. The target contract does not construct `Duration`, `SystemTime`, or
+`UtcDateTime`; implement duration segmentation, sleep policy, or calendar arithmetic; classify
 public errors; or expose target time structures to user code.
 
 Target-specific standard-library adapters own raw wall-clock and wait ABI layouts plus one target
