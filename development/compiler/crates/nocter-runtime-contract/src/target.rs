@@ -38,6 +38,21 @@ pub struct RuntimeErrorAbiSchema {
     report_buffer_alignment: u64,
 }
 
+/// Fixed owning-handle and heap-frame header shared by async runtime consumers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RuntimeAsyncAbiSchema {
+    handle_size: u64,
+    handle_alignment: u64,
+    resume_function_offset: u64,
+    cancel_function_offset: u64,
+    state_tag_offset: u64,
+    allocation_context_offset: u64,
+    fixed_header_size: u64,
+    fixed_header_alignment: u64,
+    initial_state_tag: u64,
+    first_suspension_tag: u64,
+}
+
 /// Complete numeric ABI authority shared by machine planning and instruction lowering.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RuntimeAbiSchema {
@@ -53,6 +68,7 @@ pub struct RuntimeAbiSchema {
     pack_pointer_register: u8,
     endianness: RuntimeEndianness,
     error: RuntimeErrorAbiSchema,
+    asynchronous: RuntimeAsyncAbiSchema,
 }
 
 impl RuntimeAbiIdentity {
@@ -88,6 +104,18 @@ impl RuntimeAbiIdentity {
                     report_root_handle_offset: 16,
                     report_buffer_size: 24,
                     report_buffer_alignment: 8,
+                },
+                asynchronous: RuntimeAsyncAbiSchema {
+                    handle_size: 8,
+                    handle_alignment: 8,
+                    resume_function_offset: 0,
+                    cancel_function_offset: 8,
+                    state_tag_offset: 16,
+                    allocation_context_offset: 24,
+                    fixed_header_size: 32,
+                    fixed_header_alignment: 8,
+                    initial_state_tag: 0,
+                    first_suspension_tag: 1,
                 },
             },
         }
@@ -143,6 +171,10 @@ impl RuntimeAbiSchema {
     pub const fn error(self) -> RuntimeErrorAbiSchema {
         self.error
     }
+    #[must_use]
+    pub const fn asynchronous(self) -> RuntimeAsyncAbiSchema {
+        self.asynchronous
+    }
 
     /// Encodes the immutable allocation-failure leaf admitted by this runtime ABI.
     ///
@@ -183,6 +215,58 @@ impl RuntimeAbiSchema {
         bytes[payload..message].copy_from_slice(ALLOCATION_FAILURE_ERROR_CODE.as_bytes());
         bytes[message..].copy_from_slice(ALLOCATION_FAILURE_ERROR_MESSAGE.as_bytes());
         bytes.into_boxed_slice()
+    }
+}
+
+impl RuntimeAsyncAbiSchema {
+    #[must_use]
+    pub const fn handle_size(self) -> u64 {
+        self.handle_size
+    }
+
+    #[must_use]
+    pub const fn handle_alignment(self) -> u64 {
+        self.handle_alignment
+    }
+
+    #[must_use]
+    pub const fn resume_function_offset(self) -> u64 {
+        self.resume_function_offset
+    }
+
+    #[must_use]
+    pub const fn cancel_function_offset(self) -> u64 {
+        self.cancel_function_offset
+    }
+
+    #[must_use]
+    pub const fn state_tag_offset(self) -> u64 {
+        self.state_tag_offset
+    }
+
+    #[must_use]
+    pub const fn allocation_context_offset(self) -> u64 {
+        self.allocation_context_offset
+    }
+
+    #[must_use]
+    pub const fn fixed_header_size(self) -> u64 {
+        self.fixed_header_size
+    }
+
+    #[must_use]
+    pub const fn fixed_header_alignment(self) -> u64 {
+        self.fixed_header_alignment
+    }
+
+    #[must_use]
+    pub const fn initial_state_tag(self) -> u64 {
+        self.initial_state_tag
+    }
+
+    #[must_use]
+    pub const fn first_suspension_tag(self) -> u64 {
+        self.first_suspension_tag
     }
 }
 
@@ -288,5 +372,20 @@ mod tests {
         assert_eq!(error.report_buffer_alignment(), 8);
         let static_error = target.allocation_failure_error_node();
         assert!(static_error.ends_with(b"std.mem.out_of_memoryallocation failed"));
+    }
+
+    #[test]
+    fn one_runtime_schema_owns_the_async_handle_and_fixed_header() {
+        let asynchronous = RuntimeAbiIdentity::Arm64DarwinV1.schema().asynchronous();
+        assert_eq!(asynchronous.handle_size(), 8);
+        assert_eq!(asynchronous.handle_alignment(), 8);
+        assert_eq!(asynchronous.resume_function_offset(), 0);
+        assert_eq!(asynchronous.cancel_function_offset(), 8);
+        assert_eq!(asynchronous.state_tag_offset(), 16);
+        assert_eq!(asynchronous.allocation_context_offset(), 24);
+        assert_eq!(asynchronous.fixed_header_size(), 32);
+        assert_eq!(asynchronous.fixed_header_alignment(), 8);
+        assert_eq!(asynchronous.initial_state_tag(), 0);
+        assert_eq!(asynchronous.first_suspension_tag(), 1);
     }
 }

@@ -20,6 +20,7 @@ public source-level imports.
 - trusted operating-system library and loader-symbol identities
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
 - canonical representation classes
+- fixed async owning-handle and heap-frame-header ABI
 - target runtime capability requirements
 - closed runtime environment schemas
 

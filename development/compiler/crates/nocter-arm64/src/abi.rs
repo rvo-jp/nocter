@@ -43,6 +43,11 @@ impl Arm64NocterAbi {
     }
 
     #[must_use]
+    pub const fn asynchronous() -> nocter_runtime_contract::RuntimeAsyncAbiSchema {
+        Self::SCHEMA.asynchronous()
+    }
+
+    #[must_use]
     pub const fn argument_register(index: u8) -> Option<Arm64Register> {
         if index < Self::SCHEMA.argument_register_count() {
             Arm64Register::new(index)

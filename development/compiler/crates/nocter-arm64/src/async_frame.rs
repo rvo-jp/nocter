@@ -86,6 +86,7 @@ pub struct Arm64AsyncFrameLayout {
     drop_flags: Box<[Option<Arm64AsyncFrameField>]>,
     values: Box<[Option<Arm64AsyncFrameField>]>,
     suspension_tags: Box<[Arm64AsyncSuspensionTag]>,
+    initial_tag: u64,
     completed_tag: u64,
 }
 
@@ -112,7 +113,12 @@ impl Arm64AsyncFrameLayout {
 
         let body = function.body();
         let fields = collect_frame_fields(frame);
-        let mut sequence = Arm64ObjectSequence::new(0, WORD_SIZE, MAXIMUM_ALIGNMENT);
+        let asynchronous = Arm64NocterAbi::asynchronous();
+        let mut sequence = Arm64ObjectSequence::new(
+            asynchronous.fixed_header_size(),
+            asynchronous.fixed_header_alignment(),
+            MAXIMUM_ALIGNMENT,
+        );
         let header = place_header(
             program,
             owner,
@@ -129,10 +135,10 @@ impl Arm64AsyncFrameLayout {
             output_layout.alignment(),
         )?;
         let placed = place_body_fields(body, fields, &mut sequence)?;
-        let suspension_tags = build_suspension_tags(owner, frame)?;
+        let suspension_tags = build_suspension_tags(owner, frame, asynchronous)?;
         let completed_tag = u64::try_from(suspension_tags.len())
             .ok()
-            .and_then(|count| count.checked_add(1))
+            .and_then(|count| asynchronous.first_suspension_tag().checked_add(count))
             .ok_or(Arm64AsyncFrameLayoutError::StateTagExhausted(owner))?;
         let (size, alignment) = sequence.finish(WORD_SIZE)?;
         Ok(Self {
@@ -149,6 +155,7 @@ impl Arm64AsyncFrameLayout {
             drop_flags: placed.drop_flags,
             values: placed.values,
             suspension_tags: suspension_tags.into_boxed_slice(),
+            initial_tag: asynchronous.initial_state_tag(),
             completed_tag,
         })
     }
@@ -220,7 +227,7 @@ impl Arm64AsyncFrameLayout {
 
     #[must_use]
     pub const fn initial_tag(&self) -> u64 {
-        0
+        self.initial_tag
     }
 
     #[must_use]
@@ -259,10 +266,11 @@ fn place_header(
     retains_pack: bool,
     sequence: &mut Arm64ObjectSequence,
 ) -> Result<RuntimeHeader, Arm64AsyncFrameLayoutError> {
-    let resume_function = add_word(sequence)?;
-    let cancel_function = add_word(sequence)?;
-    let state_tag = add_word(sequence)?;
-    let allocation_context = add_word(sequence)?;
+    let asynchronous = Arm64NocterAbi::asynchronous();
+    let resume_function = fixed_header_field(asynchronous.resume_function_offset());
+    let cancel_function = fixed_header_field(asynchronous.cancel_function_offset());
+    let state_tag = fixed_header_field(asynchronous.state_tag_offset());
+    let allocation_context = fixed_header_field(asynchronous.allocation_context_offset());
     let process_context = match program.contexts().process().get(owner) {
         Some(MachineContextRequirement::None) => None,
         Some(MachineContextRequirement::Incoming) => Some(add_word(sequence)?),
@@ -340,6 +348,7 @@ const fn stack_layout(object: nocter_machine::MachineStackObject) -> (u64, u64) 
 fn build_suspension_tags(
     owner: MachineFunctionId,
     frame: &nocter_machine::MachineAsyncFrame,
+    asynchronous: nocter_runtime_contract::RuntimeAsyncAbiSchema,
 ) -> Result<Vec<Arm64AsyncSuspensionTag>, Arm64AsyncFrameLayoutError> {
     frame
         .states()
@@ -348,7 +357,7 @@ fn build_suspension_tags(
         .map(|(index, state)| {
             u64::try_from(index)
                 .ok()
-                .and_then(|index| index.checked_add(1))
+                .and_then(|index| asynchronous.first_suspension_tag().checked_add(index))
                 .map(|tag| Arm64AsyncSuspensionTag {
                     suspend: state.suspend(),
                     tag,
@@ -356,6 +365,14 @@ fn build_suspension_tags(
                 .ok_or(Arm64AsyncFrameLayoutError::StateTagExhausted(owner))
         })
         .collect()
+}
+
+const fn fixed_header_field(offset: u64) -> Arm64AsyncFrameField {
+    Arm64AsyncFrameField {
+        offset,
+        size: WORD_SIZE,
+        alignment: WORD_SIZE,
+    }
 }
 
 fn add_word(

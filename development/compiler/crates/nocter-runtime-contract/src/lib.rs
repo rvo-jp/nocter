@@ -30,4 +30,7 @@ pub use types::{
     RuntimeTypeTableBuilder,
 };
 mod types;
-pub use target::{RuntimeAbiIdentity, RuntimeAbiSchema, RuntimeEndianness, RuntimeErrorAbiSchema};
+pub use target::{
+    RuntimeAbiIdentity, RuntimeAbiSchema, RuntimeAsyncAbiSchema, RuntimeEndianness,
+    RuntimeErrorAbiSchema,
+};

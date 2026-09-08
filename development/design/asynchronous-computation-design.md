@@ -183,6 +183,11 @@ for alignment and overflow. The two layouts remain distinct products because a s
 owns outgoing-call storage, saved registers, and an ABI frame record, while an asynchronous frame
 must survive a return to the executor.
 
+The runtime ABI schema is the numeric authority for the owning handle and the fixed header prefix:
+handle size/alignment, resume and cancellation entry offsets, state-tag offset, allocation-context
+offset, header extent/alignment, and the initial suspension-tag domain. ARM64 placement begins
+after that prefix. It cannot redeclare these values from its own word-size assumptions.
+
 ## Structured Execution
 
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
