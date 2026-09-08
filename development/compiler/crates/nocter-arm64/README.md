@@ -46,7 +46,8 @@ source, loader commands, or package state.
   the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.
 - A pending process root converts the ABI interest slice into one temporary Darwin `pollfd` array
   and the earliest timer deadline into a rounded-up relative timeout. It retries interrupted waits,
-  releases native storage before resumption, and never polls a pending computation in a busy loop.
+  re-waits after a capped timeout until the wrapping absolute deadline is eligible, releases native
+  storage before resumption, and never polls a pending computation in a busy loop.
 - Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
   constructors and lifecycle entries are declared only from frozen Machine primitive roles; code
   emission cannot infer their presence from source names or synthesize targets on demand.

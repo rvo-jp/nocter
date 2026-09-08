@@ -238,7 +238,8 @@
   instruction sequences.</li><li>A primitive role may immediately construct an opaque asynchronous value. This does not classify
   the primitive as a deferred Nocter body; the role, result contract, and target helper jointly
   define the construction boundary.</li><li>Semantic descriptor/timer interests and their numeric ABI records have one mapping here. Reactors
-  and target backends consume that mapping instead of assigning independent meanings to tags.</li></ul>
+  and target backends consume that mapping instead of assigning independent meanings to tags.</li><li>Timer ordering is a half-domain wrapping-counter contract. A target wait-width cap may divide one
+  deadline into multiple native waits, but cannot make the logical interest eligible early.</li></ul>
             </div>
         </main>
     </div>

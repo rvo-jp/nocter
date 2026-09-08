@@ -118,6 +118,10 @@ then resumes the computation; it does not repeatedly poll a pending computation.
 permission to retry the suspended operation. The operation remains responsible for reporting
 success, closure, timeout, or failure.
 
+Monotonic deadlines use a wrapping counter and may name a future point at most half a counter
+domain away. A narrower native timeout may split that wait internally but cannot make the deadline
+eligible early.
+
 ## Captures and Result Provenance
 
 A pending computation retains every receiver and argument needed to begin its producer body. A

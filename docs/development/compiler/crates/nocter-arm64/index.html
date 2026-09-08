@@ -245,7 +245,8 @@
   body is materialized.</li><li>A deferred process entry is driven only by the compiler-owned process root. The root consumes
   the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.</li><li>A pending process root converts the ABI interest slice into one temporary Darwin <code>pollfd</code> array
   and the earliest timer deadline into a rounded-up relative timeout. It retries interrupted waits,
-  releases native storage before resumption, and never polls a pending computation in a busy loop.</li><li>Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
+  re-waits after a capped timeout until the wrapping absolute deadline is eligible, releases native
+  storage before resumption, and never polls a pending computation in a busy loop.</li><li>Compiler-owned asynchronous primitives use an explicit dependency-indexed target table. Their
   constructors and lifecycle entries are declared only from frozen Machine primitive roles; code
   emission cannot infer their presence from source names or synthesize targets on demand.</li><li>Descriptor readiness and monotonic deadlines are allocation-backed opaque computations. Each
   frame owns one exact ABI interest record; their constructors differ, while resume, cancellation,

@@ -26,14 +26,20 @@ pub(crate) fn emit(
         destination: argument(4),
         register: Arm64SystemRegister::CounterVirtual,
     });
-    compare(argument(4), deadline, code);
-    code.branch_conditional(expired, Arm64BranchCondition::CarrySet);
+    // Deadlines are compared in the wrapping counter domain. A forward distance of at most half
+    // the u64 domain is future; zero or a distance in the upper half is already eligible. This
+    // keeps a valid near-future deadline correct across one hardware-counter wrap.
+    subtract(argument(4), deadline, argument(4), code);
+    compare_immediate(argument(4), 0, code);
+    code.branch_conditional(expired, Arm64BranchCondition::Equal);
+    compare_immediate(argument(4), i64::MAX as u64, code);
+    code.branch_conditional(expired, Arm64BranchCondition::UnsignedHigher);
     code.append(Arm64Instruction::ReadSystemRegister {
         destination: argument(5),
         register: Arm64SystemRegister::CounterFrequency,
     });
     require_valid_frequency(code)?;
-    emit_finite(deadline, output, cap, round, complete, code);
+    emit_finite(output, cap, round, complete, code);
 
     code.bind(round)?;
     add_immediate(output, 1, code);
@@ -70,7 +76,6 @@ fn require_valid_frequency(code: &mut Arm64CodeBuilder) -> Result<(), crate::Arm
 }
 
 fn emit_finite(
-    deadline: crate::Arm64Register,
     output: crate::Arm64Register,
     cap: crate::Arm64LabelId,
     round: crate::Arm64LabelId,
@@ -78,7 +83,6 @@ fn emit_finite(
     code: &mut Arm64CodeBuilder,
 ) {
     // x4 = remaining ticks; x6 = whole seconds; x7 = sub-second ticks.
-    subtract(argument(4), deadline, argument(4), code);
     code.append(Arm64Instruction::Divide {
         size: Arm64DataSize::Bits64,
         destination: argument(6),

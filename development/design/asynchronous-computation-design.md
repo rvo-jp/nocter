@@ -217,7 +217,10 @@ On ARM64 Darwin, the process adapter converts each pending ABI slice into one te
 array and one relative timeout derived from the earliest fixed monotonic deadline. A single
 `poll(2)` wait therefore preserves the wait set's OR semantics for descriptors and timers. An
 interrupted call retries against the same immutable interests and recalculates the relative timeout;
-the temporary mapping is released before the computation resumes. Invalid record tags, an empty
+the temporary mapping is released before the computation resumes. A target timeout narrower than
+the monotonic domain is only one wait segment: a zero-event return rechecks the absolute deadline
+and repeats the wait while it remains in the future. Deadlines use half-domain wrapping comparison,
+so a near-future deadline remains ordered across one counter wrap. Invalid record tags, an empty
 pending set, native wait failure, and release failure terminate through distinct compiler-owned
 trap reasons. The adapter never guesses readiness from a computation frame.
 

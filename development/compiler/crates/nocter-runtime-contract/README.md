@@ -40,3 +40,5 @@ public source-level imports.
   define the construction boundary.
 - Semantic descriptor/timer interests and their numeric ABI records have one mapping here. Reactors
   and target backends consume that mapping instead of assigning independent meanings to tags.
+- Timer ordering is a half-domain wrapping-counter contract. A target wait-width cap may divide one
+  deadline into multiple native waits, but cannot make the logical interest eligible early.

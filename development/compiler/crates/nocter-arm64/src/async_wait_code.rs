@@ -293,7 +293,8 @@ fn wait_until_ready(
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), crate::Arm64CodeError> {
     let invoke = code.create_label();
-    let success = code.create_label();
+    let returned = code.create_label();
+    let complete = code.create_label();
     code.bind(invoke)?;
     load_word(offsets.earliest_deadline, argument(3), code);
     crate::async_wait_timeout_code::emit(argument(3), argument(2), code)?;
@@ -303,14 +304,14 @@ fn wait_until_ready(
     code.append(Arm64Instruction::SupervisorCall {
         immediate: DARWIN_SUPERVISOR_CALL,
     });
-    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    code.branch_conditional(returned, Arm64BranchCondition::CarryClear);
     compare_immediate(argument(0), ERRNO_INTERRUPTED, code);
     code.branch_conditional(invoke, Arm64BranchCondition::Equal);
     trap(
         crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitFailure,
         code,
     );
-    code.bind(success)?;
+    code.bind(returned)?;
     load_word(offsets.interest_count, argument(1), code);
     compare_register(argument(0), argument(1), code);
     let count_valid = code.create_label();
@@ -319,7 +320,19 @@ fn wait_until_ready(
         crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitFailure,
         code,
     );
-    code.bind(count_valid)
+    code.bind(count_valid)?;
+    compare_immediate(argument(0), 0, code);
+    code.branch_conditional(complete, Arm64BranchCondition::NotEqual);
+
+    // Darwin's timeout is an i32 millisecond count. A distant absolute deadline is therefore
+    // represented by multiple capped polls. A zero-event return resumes the computation only
+    // after a fresh monotonic observation proves that the actual deadline has arrived.
+    load_word(offsets.earliest_deadline, argument(3), code);
+    crate::async_wait_timeout_code::emit(argument(3), argument(2), code)?;
+    compare_immediate(argument(2), 0, code);
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    code.branch(invoke, false);
+    code.bind(complete)
 }
 
 fn release_poll_descriptors(
