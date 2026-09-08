@@ -311,7 +311,7 @@ fn validate_fragmented_width(bytes: u8) -> Result<(), Arm64MaterializationError>
     }
 }
 
-fn exact_memory_chunks(bytes: u64) -> impl Iterator<Item = (u64, u8)> {
+pub(crate) fn exact_memory_chunks(bytes: u64) -> impl Iterator<Item = (u64, u8)> {
     let mut remaining = bytes;
     let mut offset = 0_u64;
     std::iter::from_fn(move || {

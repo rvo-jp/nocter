@@ -6,9 +6,6 @@ use crate::{
 
 use crate::region_layout::Arm64RegionLayout;
 
-const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
-const DARWIN_MUNMAP: u64 = 0x0200_0049;
-
 pub(crate) fn emit_create(
     function: &Arm64SelectedFunction,
     region: crate::Arm64FrameObjectId,
@@ -101,14 +98,11 @@ fn emit_release_at(
     load_word(code, temporary, mapping, 0);
     crate::frame_access::store_at_stack_offset(code, Arm64LoadStoreSize::Double, temporary, head);
     load_word(code, size, mapping, Arm64NocterAbi::word_size());
-    crate::frame_access::load_immediate(code, temporary, DARWIN_MUNMAP, Arm64DataSize::Bits64);
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
-    code.branch_conditional(loop_, Arm64BranchCondition::CarryClear);
-    code.append(Arm64Instruction::Break {
-        immediate: crate::runtime_trap::Arm64RuntimeTrap::RegionReleaseFailure.immediate(),
-    });
+    crate::darwin_memory_code::emit_unmap(
+        code,
+        crate::runtime_trap::Arm64RuntimeTrap::RegionReleaseFailure,
+    )?;
+    code.branch(loop_, false);
     code.bind(complete)?;
     Ok(())
 }

@@ -9,10 +9,12 @@ mod address_code;
 mod address_selection;
 mod aggregate_selection;
 mod allocation_selection;
+mod async_constructor_code;
 mod async_frame;
 mod async_function;
 mod call_selection;
 mod code;
+mod darwin_memory_code;
 mod destruction_selection;
 mod encode;
 mod error_code;
@@ -65,6 +67,7 @@ pub use address_selection::{
     Arm64SelectedAddressCalculation, Arm64SelectedAddressPlan, Arm64SelectedAddressRoot,
     Arm64SelectedAddressStep, Arm64SelectedIndex, Arm64SelectedIndexBound,
 };
+pub use async_constructor_code::Arm64AsyncConstructorError;
 pub use async_frame::{
     Arm64AsyncFrameField, Arm64AsyncFrameLayout, Arm64AsyncFrameLayoutError,
     Arm64AsyncSuspensionTag,

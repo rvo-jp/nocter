@@ -6,8 +6,6 @@ use crate::{
 
 const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
 const DARWIN_WRITE: u64 = 0x0200_0004;
-const DARWIN_MUNMAP: u64 = 0x0200_0049;
-const DARWIN_MMAP: u64 = 0x0200_00c5;
 const STDERR: u64 = 2;
 const SEPARATOR_AND_NEWLINE: u64 = u64::from_le_bytes([b':', b' ', b'\n', 0, 0, 0, 0, 0]);
 
@@ -35,7 +33,7 @@ pub(crate) fn emit_construct_leaf(
     load_stack(code, scratch(0), checked_add(buffer, 24)?);
     add_register(code, argument(1), argument(1), scratch(0));
     add_immediate(code, argument(1), argument(1), schema.node_payload_offset());
-    emit_mmap(code);
+    crate::darwin_memory_code::emit_map(code)?;
     store_stack(code, argument(0), checked_add(buffer, 32)?);
     store_immediate_node_word(
         code,
@@ -94,7 +92,7 @@ pub(crate) fn emit_construct_context(
     let buffer = construction_buffer_offset(function, buffer)?;
     load_stack(code, argument(1), checked_add(buffer, 16)?);
     add_immediate(code, argument(1), argument(1), schema.node_payload_offset());
-    emit_mmap(code);
+    crate::darwin_memory_code::emit_map(code)?;
     store_stack(code, argument(0), checked_add(buffer, 32)?);
     store_immediate_node_word(
         code,
@@ -127,25 +125,6 @@ pub(crate) fn emit_construct_context(
     emit_copy_loop(code)?;
     load_stack(code, argument(0), checked_add(buffer, 32)?);
     Ok(())
-}
-
-fn emit_mmap(code: &mut Arm64CodeBuilder) {
-    crate::frame_access::load_immediate(code, argument(0), 0, Arm64DataSize::Bits64);
-    crate::frame_access::load_immediate(code, argument(2), 3, Arm64DataSize::Bits64);
-    crate::frame_access::load_immediate(code, argument(3), 0x1002, Arm64DataSize::Bits64);
-    crate::frame_access::load_immediate(code, argument(4), u64::MAX, Arm64DataSize::Bits64);
-    crate::frame_access::load_immediate(code, argument(5), 0, Arm64DataSize::Bits64);
-    crate::frame_access::load_immediate(code, scratch(0), DARWIN_MMAP, Arm64DataSize::Bits64);
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
-    let success = code.create_label();
-    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
-    code.append(Arm64Instruction::Break {
-        immediate: crate::runtime_trap::Arm64RuntimeTrap::AllocationFailure.immediate(),
-    });
-    code.bind(success)
-        .expect("the immediately created error allocation label is valid");
 }
 
 fn emit_copy_loop(code: &mut Arm64CodeBuilder) -> Result<(), Arm64MaterializationError> {
@@ -339,14 +318,10 @@ pub(crate) fn emit_release(
 
     code.bind(release_owned)?;
     load_node_word(code, size, node, schema.node_allocation_size_offset());
-    crate::frame_access::load_immediate(code, kind, DARWIN_MUNMAP, Arm64DataSize::Bits64);
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
-    code.branch_conditional(advance, Arm64BranchCondition::CarryClear);
-    code.append(Arm64Instruction::Break {
-        immediate: crate::runtime_trap::Arm64RuntimeTrap::ErrorReleaseFailure.immediate(),
-    });
+    crate::darwin_memory_code::emit_unmap(
+        code,
+        crate::runtime_trap::Arm64RuntimeTrap::ErrorReleaseFailure,
+    )?;
     code.bind(advance)?;
     code.branch(loop_, false);
     code.bind(complete)?;

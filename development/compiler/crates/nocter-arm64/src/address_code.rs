@@ -335,7 +335,7 @@ fn add_offset(code: &mut Arm64CodeBuilder, address: Arm64Register, offset: u64) 
     });
 }
 
-fn load_native(
+pub(crate) fn load_native(
     code: &mut Arm64CodeBuilder,
     size: Arm64LoadStoreSize,
     signed_destination: Option<Arm64DataSize>,
@@ -362,7 +362,7 @@ fn load_native(
     }
 }
 
-fn store_native(
+pub(crate) fn store_native(
     code: &mut Arm64CodeBuilder,
     size: Arm64LoadStoreSize,
     source: Arm64Register,

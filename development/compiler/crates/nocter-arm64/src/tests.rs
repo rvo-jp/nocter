@@ -1203,6 +1203,70 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
             capture.destination().size()
         );
     }
+
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    let code = plan
+        .materialize_constructor(targets.get(owner).unwrap())
+        .unwrap();
+    assert!(code.instruction_count() > 20);
+    let (_, fixups) = code.into_parts();
+    let lifecycle_addresses = fixups
+        .iter()
+        .filter(|fixup| matches!(fixup, crate::code::Arm64CodeFixup::FunctionAddress { .. }))
+        .count();
+    assert_eq!(lifecycle_addresses, 3);
+}
+
+#[test]
+fn async_constructor_materializes_stack_and_indirect_parameter_capture() {
+    let program = crate::test_support::lower_machine(
+        "copy struct Payload {\n\
+             first: i64\n\
+             second: i64\n\
+             third: i64\n\
+         }\n\
+         func hold(\n\
+             a: i64, b: i64, c: i64, d: i64, e: i64,\n\
+             f: i64, g: i64, h: i64, i: i64, payload: Payload,\n\
+         ): async i64 {\n\
+             if payload.first == 0 { return i }\n\
+             return a\n\
+         }\n\
+         func main(): void {\n\
+             let pending = hold(\n\
+                 1, 2, 3, 4, 5, 6, 7, 8, 9,\n\
+                 Payload { first: 10, second: 11, third: 12 },\n\
+             )\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let owner = program
+        .functions()
+        .find_map(|(owner, function)| {
+            matches!(
+                function.execution(),
+                nocter_machine::MachineFunctionExecution::Deferred(_)
+            )
+            .then_some(owner)
+        })
+        .expect("one deferred function");
+    let plan = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
+    assert!(plan.parameters().iter().any(|capture| matches!(
+        capture.transport().location(),
+        Some(nocter_machine::MachineArgumentLocation::Stack(_))
+    )));
+    assert!(plan.parameters().iter().any(|capture| {
+        capture.transport().class() == nocter_machine::MachineValueClass::Indirect
+    }));
+
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    let code = plan
+        .materialize_constructor(targets.get(owner).unwrap())
+        .unwrap();
+    assert!(code.instruction_count() > 50);
 }
 
 #[test]
@@ -1242,6 +1306,13 @@ fn async_frame_layout_retains_a_transferred_pack_pointer() {
         function.pack().unwrap().destination(),
         layout.pack_input().unwrap()
     );
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    assert!(matches!(
+        function.materialize_constructor(targets.get(owner).unwrap()),
+        Err(crate::Arm64AsyncConstructorError::PackTransferUnsupported(actual))
+            if actual == owner
+    ));
 }
 
 #[test]

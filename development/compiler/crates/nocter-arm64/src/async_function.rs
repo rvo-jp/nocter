@@ -7,7 +7,10 @@ use nocter_machine::{
     MachineValueClass,
 };
 
-use crate::{Arm64AsyncFrameField, Arm64AsyncFrameLayout, Arm64AsyncFrameLayoutError};
+use crate::{
+    Arm64AsyncFrameField, Arm64AsyncFrameLayout, Arm64AsyncFrameLayoutError, Arm64FrameLayout,
+    Arm64FrameLayoutBuilder, Arm64FrameLayoutError, Arm64FrameObjectId,
+};
 
 /// One constructor input and its target frame destination.
 ///
@@ -68,6 +71,38 @@ pub struct Arm64AsyncFunctionPlan {
     parameters: Box<[Arm64AsyncParameterCapture]>,
     pack: Option<Arm64AsyncPackCapture>,
     result_register: u8,
+    constructor_frame: Arm64AsyncConstructorFrame,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Arm64AsyncConstructorFrame {
+    layout: Arm64FrameLayout,
+    parameters: Box<[Arm64FrameObjectId]>,
+    allocation_context: Arm64FrameObjectId,
+    process_context: Option<Arm64FrameObjectId>,
+    mapping: Arm64FrameObjectId,
+}
+
+impl Arm64AsyncConstructorFrame {
+    pub(crate) const fn layout(&self) -> &Arm64FrameLayout {
+        &self.layout
+    }
+
+    pub(crate) fn parameter(&self, index: usize) -> Option<Arm64FrameObjectId> {
+        self.parameters.get(index).copied()
+    }
+
+    pub(crate) const fn allocation_context(&self) -> Arm64FrameObjectId {
+        self.allocation_context
+    }
+
+    pub(crate) const fn process_context(&self) -> Option<Arm64FrameObjectId> {
+        self.process_context
+    }
+
+    pub(crate) const fn mapping(&self) -> Arm64FrameObjectId {
+        self.mapping
+    }
 }
 
 impl Arm64AsyncFunctionPlan {
@@ -146,12 +181,14 @@ impl Arm64AsyncFunctionPlan {
             }
         };
         let result_register = validate_result(owner, abi.result())?;
+        let constructor_frame = build_constructor_frame(&frame, &parameters)?;
         Ok(Self {
             owner,
             frame,
             parameters,
             pack,
             result_register,
+            constructor_frame,
         })
     }
 
@@ -179,6 +216,52 @@ impl Arm64AsyncFunctionPlan {
     pub const fn result_register(&self) -> u8 {
         self.result_register
     }
+
+    /// Materializes the allocation and capture entry for this deferred function.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a foreign or immediate native target, pack transfer until its ownership-preserving
+    /// representation is implemented, malformed constructor storage, or code emission failure.
+    pub fn materialize_constructor(
+        &self,
+        target: crate::Arm64FunctionTarget,
+    ) -> Result<crate::Arm64Code, crate::Arm64AsyncConstructorError> {
+        crate::async_constructor_code::materialize(self, target)
+    }
+
+    pub(crate) const fn constructor_frame(&self) -> &Arm64AsyncConstructorFrame {
+        &self.constructor_frame
+    }
+}
+
+fn build_constructor_frame(
+    frame: &Arm64AsyncFrameLayout,
+    parameters: &[Arm64AsyncParameterCapture],
+) -> Result<Arm64AsyncConstructorFrame, Arm64AsyncFunctionPlanError> {
+    let mut builder = Arm64FrameLayoutBuilder::new();
+    let parameters = parameters
+        .iter()
+        .map(|capture| {
+            builder.add_object(
+                capture.destination().size(),
+                capture.destination().alignment(),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let allocation_context = builder.add_object(8, 8)?;
+    let process_context = frame
+        .process_context()
+        .map(|_| builder.add_object(8, 8))
+        .transpose()?;
+    let mapping = builder.add_object(8, 8)?;
+    Ok(Arm64AsyncConstructorFrame {
+        layout: builder.finish()?,
+        parameters: parameters.into_boxed_slice(),
+        allocation_context,
+        process_context,
+        mapping,
+    })
 }
 
 fn validate_parameter(
@@ -257,6 +340,7 @@ pub enum Arm64AsyncFunctionPlanError {
     Pack(MachineFunctionId),
     Result(MachineFunctionId),
     Frame(Arm64AsyncFrameLayoutError),
+    ConstructorFrame(Arm64FrameLayoutError),
 }
 
 impl fmt::Display for Arm64AsyncFunctionPlanError {
@@ -269,6 +353,7 @@ impl std::error::Error for Arm64AsyncFunctionPlanError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Frame(error) => Some(error),
+            Self::ConstructorFrame(error) => Some(error),
             Self::UnknownFunction(_)
             | Self::ImmediateFunction(_)
             | Self::NonCallable(_)
@@ -286,5 +371,11 @@ impl std::error::Error for Arm64AsyncFunctionPlanError {
 impl From<Arm64AsyncFrameLayoutError> for Arm64AsyncFunctionPlanError {
     fn from(error: Arm64AsyncFrameLayoutError) -> Self {
         Self::Frame(error)
+    }
+}
+
+impl From<Arm64FrameLayoutError> for Arm64AsyncFunctionPlanError {
+    fn from(error: Arm64FrameLayoutError) -> Self {
+        Self::ConstructorFrame(error)
     }
 }
