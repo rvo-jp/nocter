@@ -43,6 +43,7 @@ members = [
     "crates/nocter-syntax",
     "crates/nocter-target-program",
     "crates/nocter-target-selection",
+    "crates/nocter-darwin-reactor",
     "crates/nocter-task-runtime",
     "crates/nocter-test-support",
     "crates/nocter-toolchain-contract",

@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nocter-macho - Nocter</title>
-    <meta name="description" content="Write one deterministic ARM64 Mach-O executable image from an already encoded Arm64Program.">
+    <title>nocter-darwin-reactor - Nocter</title>
+    <meta name="description" content="Implement and exercise the Darwin readiness boundary accepted by nocter-task-runtime without owning task lifecycle or computation frames.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-macho/">
+    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-darwin-reactor/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="nocter-macho - Nocter">
-    <meta property="og:description" content="Write one deterministic ARM64 Mach-O executable image from an already encoded Arm64Program.">
-    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-macho/">
+    <meta property="og:title" content="nocter-darwin-reactor - Nocter">
+    <meta property="og:description" content="Implement and exercise the Darwin readiness boundary accepted by nocter-task-runtime without owning task lifecycle or computation frames.">
+    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-darwin-reactor/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="nocter-macho - Nocter">
-    <meta name="twitter:description" content="Write one deterministic ARM64 Mach-O executable image from an already encoded Arm64Program.">
+    <meta name="twitter:title" content="nocter-darwin-reactor - Nocter">
+    <meta name="twitter:description" content="Implement and exercise the Darwin readiness boundary accepted by nocter-task-runtime without owning task lifecycle or computation frames.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-macho - Nocter","description":"Write one deterministic ARM64 Mach-O executable image from an already encoded Arm64Program.","url":"https://nocter.dev/development/compiler/crates/nocter-macho/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-macho/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Macho","item":"https://nocter.dev/development/compiler/crates/nocter-macho/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-darwin-reactor - Nocter","description":"Implement and exercise the Darwin readiness boundary accepted by nocter-task-runtime without owning task lifecycle or computation frames.","url":"https://nocter.dev/development/compiler/crates/nocter-darwin-reactor/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-darwin-reactor/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Darwin Reactor","item":"https://nocter.dev/development/compiler/crates/nocter-darwin-reactor/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -187,7 +187,7 @@
                     <li><a href="../nocter-conformance/index.html#content">nocter-conformance</a></li>
                     <li><a href="../nocter-constant-evaluation/index.html#content">nocter-constant-evaluation</a></li>
                     <li><a href="../nocter-content-integrity/index.html#content">nocter-content-integrity</a></li>
-                    <li><a href="../nocter-darwin-reactor/index.html#content">nocter-darwin-reactor</a></li>
+                    <li><a href="./index.html#content" aria-current="page">nocter-darwin-reactor</a></li>
                     <li><a href="../nocter-declaration-lowering/index.html#content">nocter-declaration-lowering</a></li>
                     <li><a href="../nocter-declarations/index.html#content">nocter-declarations</a></li>
                     <li><a href="../nocter-diagnostics/index.html#content">nocter-diagnostics</a></li>
@@ -201,7 +201,7 @@
                     <li><a href="../nocter-language-server/index.html#content">nocter-language-server</a></li>
                     <li><a href="../nocter-lsp/index.html#content">nocter-lsp</a></li>
                     <li><a href="../nocter-machine/index.html#content">nocter-machine</a></li>
-                    <li><a href="./index.html#content" aria-current="page">nocter-macho</a></li>
+                    <li><a href="../nocter-macho/index.html#content">nocter-macho</a></li>
                     <li><a href="../nocter-mir/index.html#content">nocter-mir</a></li>
                     <li><a href="../nocter-model/index.html#content">nocter-model</a></li>
                     <li><a href="../nocter-native-session/index.html#content">nocter-native-session</a></li>
@@ -230,11 +230,13 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/compiler/crates/nocter-macho/README.md</span>
+                <span class="markdown-path-text">/development/compiler/crates/nocter-darwin-reactor/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-macho">nocter-macho</h1><h2 id="responsibility">Responsibility</h2><p>Write one deterministic ARM64 Mach-O executable image from an already encoded <code>Arm64Program</code>.</p><h2 id="contract">Contract</h2><p>The crate owns Mach-O headers, segments, load commands, offsets, alignment, entry metadata, loader binding streams, and final bytes. It consumes explicit ARM64 data-pointer fixups and trusted function-import slots, then emits the rebase and bind metadata needed for position-independent readonly data. It does not perform instruction selection, select an imported service, inspect a source declaration, validate package semantics, or publish artifacts.</p><h2 id="invariants">Invariants</h2><ul><li>File offsets and virtual addresses derive only from the closed encoded program.</li><li>Image writing cannot introduce or select executable symbols; it can only encode imports retained
-  by the completed ARM64 program.</li><li>Readonly data is writable only during loader fixups and is protected after rebasing.</li><li>Imported symbols contribute to the deterministic image UUID and code signature.</li><li>Equal input produces byte-identical output.</li></ul>
+                <h1 id="nocter-darwin-reactor">nocter-darwin-reactor</h1><h2 id="responsibility">Responsibility</h2><p>Implement and exercise the Darwin readiness boundary accepted by <code>nocter-task-runtime</code> without owning task lifecycle or computation frames.</p><h2 id="contract">Contract</h2><p>The adapter projects generation-qualified logical registrations onto kqueue-backed descriptor events and one monotonic timer domain. More than one logical registration may observe one native descriptor. Native tokens are never reused, so a queued event cannot acquire the meaning of a replacement descriptor.</p><p>This host implementation closes and tests native event semantics. Generated Nocter executables do not link this Rust crate; ARM64 runtime generation must implement the same <code>Reactor</code> contract and is qualified independently before v0.41.0 closes.</p><h2 id="invariants">Invariants</h2><ul><li>Registering a logical interest either completes fully or retains no registration.</li><li>Removing a registration invalidates its logical and native-token mapping before returning.</li><li>Native deregistration failure can leave only harmless surplus observation; current logical
+  registrations still filter every delivered event.</li><li>Read closure and descriptor errors wake readable waiters; write closure and descriptor errors
+  wake writable waiters so operation code can observe the actual result.</li><li>Timer deadlines are fixed observations in the adapter clock domain and never restart after an
+  interrupted or spurious poll.</li></ul>
             </div>
         </main>
     </div>

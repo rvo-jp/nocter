@@ -152,6 +152,17 @@ the target adapter normalizes interruption and already-removed native registrati
 Orderly shutdown uses the same cancellation transition for every retained task rather than
 implementing a second cleanup path.
 
+The Darwin host adapter maps these logical registrations to kqueue-backed events. One native
+descriptor has one never-reused native token and may retain multiple logical readable or writable
+registrations. Removing one logical waiter updates the native interest without hiding another.
+Native closure and error observations wake the relevant logical direction so the resumed operation
+can obtain the authoritative I/O result. A separate monotonic clock contract projects the earliest
+fixed deadline to each blocking poll; spurious wakeups cannot restart it.
+
+This Rust adapter is executable conformance evidence for the reactor boundary, not a library linked
+into generated Nocter programs. The generated ARM64 runtime must satisfy the same observable tests;
+host conformance cannot substitute for that release requirement.
+
 ## Native Frame Placement
 
 Machine decides the exact union of stack objects, SSA values, initialization flags, and incoming
