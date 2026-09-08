@@ -1,5 +1,8 @@
-use nocter_mir::{MirCall, MirCallAllocation, MirCallTarget, MirPrimitiveDependency};
+use nocter_mir::{
+    MirCall, MirCallAllocation, MirCallSignature, MirCallTarget, MirPrimitiveDependency,
+};
 use nocter_model::MirOperationId;
+use nocter_runtime_contract::{PrimitiveRole, RuntimeType};
 
 use super::MachineProgramError;
 use super::body::BodyIdentities;
@@ -89,6 +92,11 @@ pub(super) fn lower_call_target(
                 .runtime_call_signature_id(signature)
                 .ok_or(MachineProgramError::MissingPrimitiveAbi(operation))?;
             let dependency = match dependency {
+                MirPrimitiveDependency::None if *role == PrimitiveRole::TaskJoin => {
+                    MachinePrimitiveDependency::AsyncJoin(async_join_plan(
+                        operation, signature, context,
+                    )?)
+                }
                 MirPrimitiveDependency::None => MachinePrimitiveDependency::None,
                 MirPrimitiveDependency::Destruction { subject, plan } => {
                     if plan.is_some() {
@@ -128,4 +136,36 @@ pub(super) fn lower_call_target(
             operation,
         }),
     }
+}
+
+fn async_join_plan(
+    operation: MirOperationId,
+    signature: &MirCallSignature,
+    context: ProgramLoweringContext<'_>,
+) -> Result<crate::MachineAsyncJoinPlan, MachineProgramError> {
+    let Some(RuntimeType::Async(output)) = context.types.get(signature.result()) else {
+        return Err(MachineProgramError::InvalidAsyncJoin(operation));
+    };
+    let Some(RuntimeType::Tuple(elements)) = context.types.get(*output) else {
+        return Err(MachineProgramError::InvalidAsyncJoin(operation));
+    };
+    let [first, second] = elements.as_ref() else {
+        return Err(MachineProgramError::InvalidAsyncJoin(operation));
+    };
+    let Some(layout) = context.layouts.get(*output) else {
+        return Err(MachineProgramError::MissingStoredLayout(*output));
+    };
+    let crate::MachineLayoutKind::Tuple { elements: placed } = layout.kind() else {
+        return Err(MachineProgramError::InvalidAsyncJoin(operation));
+    };
+    let [first_placed, second_placed] = placed.as_ref() else {
+        return Err(MachineProgramError::InvalidAsyncJoin(operation));
+    };
+    if first_placed.ty() != *first || second_placed.ty() != *second {
+        return Err(MachineProgramError::InvalidAsyncJoin(operation));
+    }
+    Ok(crate::MachineAsyncJoinPlan::new(
+        first_placed.offset(),
+        second_placed.offset(),
+    ))
 }

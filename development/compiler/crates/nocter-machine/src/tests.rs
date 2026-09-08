@@ -21,6 +21,45 @@ use crate::{
 mod destruction;
 
 #[test]
+fn structured_join_carries_machine_owned_tuple_placement() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/task\n\
+         func left(): async i32 { return 1 }\n\
+         func right(): async u64 { return 2 }\n\
+         func main(): async i32 {\n\
+             let joined = task.join(left(), right())\n\
+             let outputs = await joined\n\
+             return outputs.0\n\
+         }\n",
+        &[&["task"]],
+    );
+    let mir = lower_selected_fixture(&fixture, false);
+    let program = MachineProgram::lower(&mir).unwrap();
+    let plan = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .find_map(|(_, operation)| {
+            let MachineOperationKind::Call(call) = operation.kind() else {
+                return None;
+            };
+            let crate::MachineCallTarget::Primitive(target) = call.target() else {
+                return None;
+            };
+            if target.role() != PrimitiveRole::TaskJoin {
+                return None;
+            }
+            let crate::MachinePrimitiveDependency::AsyncJoin(plan) = target.dependency() else {
+                panic!("task.join must carry its physical output placement")
+            };
+            Some(*plan)
+        })
+        .expect("one task.join primitive call");
+
+    assert_eq!(plan.first_output_offset(), 0);
+    assert_eq!(plan.second_output_offset(), 8);
+}
+
+#[test]
 fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() {
     let mir = lower_fixture(
         "struct Resource {}\n\
