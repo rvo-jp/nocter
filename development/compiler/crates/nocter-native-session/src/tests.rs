@@ -2760,6 +2760,81 @@ fn public_async_host_connection_preserves_its_two_stage_contract() {
     execute_native_status(image.image(), &package_root.0, "async-host", 0);
 }
 
+#[test]
+fn async_host_candidate_policy_falls_back_in_deterministic_order() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str("\n#executable: { name: \"async-fallback\", module: \"./net\" }\n");
+    let net_index_path = standard_root.join("net/index.nct");
+    let mut net_index_source = fs::read_to_string(&net_index_path).unwrap();
+    net_index_source.push_str(
+        "\nfunc main(): async i32! {\n\
+             var listener = loopback_listener()?\n\
+             let address = listener.local_address()?\n\
+             var client = await deterministic_async_fallback(address.port())?\n\
+             let accepted = await listener.accept_async_with_timeout(\n\
+                 Duration.from_seconds(1),\n\
+             )?\n\
+             var server = move accepted.0\n\
+             await client.write_async(\"fallback\".bytes())?\n\
+             var received: Vec<u8> = Vec [\n\
+                 u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),\n\
+                 u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),\n\
+             ]\n\
+             let count = await server.read_async(&+received)?\n\
+             if count != 8 || received[0] != 102 || received[7] != 107 { return 1 }\n\
+             return 0\n\
+         }\n",
+    );
+    let resolution_path = standard_root.join("net/resolution_tests.nct");
+    let mut resolution_source = fs::read_to_string(&resolution_path).unwrap();
+    resolution_source.push_str(
+        "\nfunc deterministic_async_fallback(port: u16): async TcpStream! {\n\
+             let candidates = ordered_loopback_candidates(port)\n\
+             let deadline = substrate.connection_deadline(Duration.from_seconds(1))\n\
+             return await connect_resolved_async(move candidates, move deadline)\n\
+         }\n",
+    );
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    overlay
+        .insert_source(
+            net_index_path,
+            SourceOverride::new(net_index_source.into_bytes()),
+        )
+        .unwrap();
+    overlay
+        .insert_source(
+            resolution_path,
+            SourceOverride::new(resolution_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["net"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    let output = TempPackage::new();
+    execute_native_status(image.image(), &output.0, "async-host-fallback", 0);
+}
+
 fn recoverable_allocation_test_source() -> &'static str {
     concat!(
         "see ./index.nct\n",
