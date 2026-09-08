@@ -17,6 +17,7 @@ or assign a machine ABI.
 - CFG and dense local identity construction
 - concrete place and projection lowering
 - explicit cleanup, destruction, region, outcome, and switch edges
+- deferred execution, suspension edges, continuation liveness, and checked cancellation plans
 - operation and pack schemas
 - whole-program MIR validation
 
@@ -27,3 +28,8 @@ or assign a machine ABI.
 - Calls target concrete executable item identities, closed primitive roles, or already validated
   target-service descriptors.
 - Validation checks representation integrity, not source-language acceptance.
+- Suspension-frame liveness is derived once from the closed MIR CFG. Cancellation order and
+  conditional initialization are consumed from checked ownership rather than inferred from MIR
+  operation shapes.
+- A fallible deferred output completes as one ordinary fallible value; MIR does not invent a
+  second task-failure channel.

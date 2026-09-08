@@ -18,6 +18,7 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - call/result ABI classification and transport shared by primitive and imported calls
 - one canonical imported-service identity domain retained independently of MIR
 - stack objects, machine control flow, and dataflow
+- deferred function execution, suspension frames, and frozen cancellation/output destruction
 - structural copy/destruction expansion
 - deterministic linkage and primitive dependency closure
 
@@ -31,6 +32,10 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
   once in the program and cannot be rebuilt from source spelling.
 - Each reachable static retains its declaration identity as one addressable data object; text
   payloads may be shared, but equal static values cannot be merged.
+- Machine projects MIR suspension fields and cleanup plans to dense identities without repeating
+  liveness or ownership analysis.
+- Deferred invocation and its state-machine body remain distinct from the ordinary callable ABI.
+  The initial allocation-backed representation always requests an incoming allocation context.
 
 The cross-stage boundary is documented in
 [Machine Program and Native Target Design](../../../design/machine-program-design.md).

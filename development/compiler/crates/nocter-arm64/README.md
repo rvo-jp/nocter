@@ -36,3 +36,6 @@ source, loader commands, or package state.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.
+- Until the v0.41.0 executor entry points exist, selection rejects deferred functions and
+  computation-release operations explicitly. It never encodes a state-machine body as though it
+  implemented the immediate callable ABI.

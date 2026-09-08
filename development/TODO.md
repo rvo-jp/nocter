@@ -9,14 +9,14 @@ been changed.
 
 ## Next Work
 
-Implement v0.41.0 Phase 2 from the
-[Asynchronous Computation Boundary](design/asynchronous-computation-design.md). Lower the completed
-checked async product into explicit target-independent state machines with closed resume,
-suspension, completion, failure, cancellation, and destruction transitions. Frame layout must
-consume checked liveness and ownership facts; it must not repeat semantic selection or inspect
-source syntax. Do not add an executor, reactor, or public async standard-library API until MIR
-validation can prove the state and cleanup invariants. Keep the qualified v0.40.0 archive
-unchanged.
+Implement v0.41.0 Phase 3 from the
+[Asynchronous Computation Boundary](design/asynchronous-computation-design.md). Add the owned
+single-threaded executor, target-independent scheduler/reactor contracts, and Darwin readiness
+reactor against the completed Machine async state product. Stable registration identities and
+generations must make stale events harmless. Cancellation must remove readiness registrations
+before executing the frozen frame cleanup plan. Do not add public async time or network APIs until
+deterministic lifecycle tests and native concurrent loopback tests close the runtime contract.
+Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

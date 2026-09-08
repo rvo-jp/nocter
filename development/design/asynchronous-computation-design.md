@@ -115,9 +115,17 @@ lowering.
 
 Executable lowering receives explicit suspension points and produces a state machine. It may not
 re-run name resolution, overload selection, interface solving, provenance inference, or liveness
-from source. A frame stores only values live across a suspension point, together with explicit
-initialization facts and a continuation identity. Resume, completion, failure, cancellation, and
-destruction are closed transitions.
+from source. MIR derives representation-level liveness once from its own closed CFG; this is not a
+second semantic liveness decision. A frame stores only values needed by a continuation or its
+cancellation actions, together with checked conditional-initialization flags. Machine lowering
+maps that exact product to machine identities and layouts without recomputing it.
+
+The initial state owns captured inputs before the first resume. Each suspension publishes one
+runtime-provided output edge and one ordered cancellation plan. Normal return completes with the
+body result, and destruction of a completed but unconsumed computation uses its frozen output
+plan. For `async T!`, both success and recoverable failure are completed values of type `T!`;
+there is no parallel hidden scheduler-error channel. Runtime cancellation remains distinct from a
+completed language-level failure.
 
 Scheduler and reactor identities are stable values with generations. The scheduler owns task
 lifecycle and runnable order; the reactor owns readiness registration. Neither may inspect the
@@ -159,7 +167,9 @@ representation-independent allocation contract exists; it must not be hidden beh
 | Immediate or deferred callable execution | checked declaration | body checking, call checking, lowering, tooling |
 | Captured argument origins | checked invocation contract | region checking, frame lowering |
 | Suspension legality and consumed result | checked body | executable lowering, diagnostics, tooling |
-| Frame states, fields, and cleanup transitions | executable async lowering | MIR validation, target lowering |
+| Frame fields and continuation liveness | MIR async-frame derivation | MIR validation, Machine projection |
+| Cancellation order and initialization conditions | checked ownership cleanup | MIR async-frame derivation, Machine projection |
+| Machine state and destruction identities | Machine projection | target backend, executor runtime |
 | Task lifecycle and runnable order | executor | reactor adapter, runtime entry |
 | Readiness and timer registration | reactor | executor wakeups |
 | Native readiness mechanism | selected target adapter | reactor contract |
