@@ -54,6 +54,13 @@ connection work cannot receive a fresh duration afterward. As with other zero-du
 operations, one immediate connection attempt is permitted and later candidates require remaining
 time.
 
+`net.connect_host_async` and `net.connect_host_async_with_timeout` expose that synchronous resolver
+boundary in their type. Calling either validates and resolves the host and may return an outer
+failure immediately. Success produces one lazy `async TcpStream!` that owns the resolved candidates
+and tries them in system order without blocking on socket readiness. The timeout form starts its
+single deadline before resolution and does not restart it for each candidate. A typical call
+therefore uses `?` once when creating the computation and once after `await`.
+
 ## TCP Streams and Listeners
 
 `TcpStream` is a uniquely owned byte stream implementing `Reader` and `Writer`. Connecting accepts
@@ -137,6 +144,7 @@ cannot affect these deadlines.
 
 Numeric addresses, system host resolution, ordered host connection, synchronous TCP, basic
 asynchronous numeric TCP connection and transfer, boundary-preserving UDP, and monotonic
-synchronous operation timeouts are implemented. Asynchronous host resolution, candidate fallback,
-and asynchronous UDP remain open; numeric TCP readiness/deadline races are implemented. URLs are
-provided by `std/url`. HTTP, TLS, and public nonblocking sockets remain outside this module.
+synchronous operation timeouts are implemented. Asynchronous TCP candidate fallback and numeric
+TCP readiness/deadline races are implemented; host resolution remains explicitly synchronous.
+Asynchronous UDP remains open. URLs are provided by `std/url`. HTTP, TLS, and public nonblocking
+sockets remain outside this module.

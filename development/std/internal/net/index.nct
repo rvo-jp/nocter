@@ -87,6 +87,12 @@ pub(/) func connect_tcp_async_with_timeout(
     timeout: Duration,
 ): async DescriptorAttempt
 
+/// Creates and connects asynchronously without restarting one shared candidate deadline.
+pub(/) func connect_tcp_async_before(
+    address: NetworkAddress,
+    deadline: &+ConnectionDeadline,
+): async DescriptorAttempt
+
 /// Creates one deadline before a multi-candidate connection operation begins.
 pub(/) noalloc func connection_deadline(timeout: Duration?): ConnectionDeadline
 

@@ -2657,6 +2657,60 @@ fn public_async_tcp_timeout_races_readiness_in_the_native_session() {
     execute_native_status(image.image(), &package_root.0, "async-tcp-timeout", 0);
 }
 
+#[test]
+fn public_async_host_connection_preserves_its_two_stage_contract() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/net\n\
+         use std/time.Duration\n\
+         use std/vec.Vec\n\
+         \n\
+         func main(): async i32! {\n\
+             let address = net.SocketAddress.new(\n\
+                 net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
+                 0,\n\
+             )\n\
+             var listener = net.TcpListener.bind(address)?\n\
+             let listening = listener.local_address()?\n\
+             let pending = net.connect_host_async_with_timeout(\n\
+                 \"localhost\",\n\
+                 listening.port(),\n\
+                 Duration.from_seconds(1),\n\
+             )?\n\
+             var client = await pending?\n\
+             let accepted = await listener.accept_async_with_timeout(\n\
+                 Duration.from_seconds(1),\n\
+             )?\n\
+             var server = move accepted.0\n\
+             await client.write_async(\"host\".bytes())?\n\
+             var buffer: Vec<u8> = Vec [\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+             ]\n\
+             let count = await server.read_async(&+buffer)?\n\
+             if count != 4 || buffer[0] != 104 || buffer[1] != 111\n\
+                 || buffer[2] != 115 || buffer[3] != 116 { return 1 }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-host", 0);
+}
+
 fn recoverable_allocation_test_source() -> &'static str {
     concat!(
         "see ./index.nct\n",

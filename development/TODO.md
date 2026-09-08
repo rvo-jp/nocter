@@ -39,8 +39,10 @@ numeric async TCP connection, acceptance, full writes, and single reads now use 
 the existing nonblocking descriptor substrate. Their explicit timeout variants publish descriptor
 readiness and a monotonic deadline as one fixed-cardinality wait set; native conformance covers
 both race outcomes. Raw clock primitives now live behind the single `std/internal/time` adapter.
-Next, add ordered async host-candidate connection and qualify backpressure, peer closure,
-cancellation, fallback, and bounded concurrency. Keep the qualified v0.40.0 archive unchanged.
+Host connection resolves synchronously into an outer `!` and returns a lazy computation that owns
+the ordered candidates and one shared timeout. Next, qualify backpressure, peer closure,
+cancellation, deterministic fallback, and bounded concurrency before closing Phase 4. Keep the
+qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

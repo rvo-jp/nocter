@@ -251,6 +251,16 @@ pub func connect_tcp_async_with_timeout(
     timeout: Duration,
 ): async TcpStream!
 
+/// Resolves synchronously, then returns an asynchronous ordered candidate connection.
+pub func connect_host_async(host: &str, port: u16): (async TcpStream!)!
+
+/// Resolves synchronously, then connects candidates before one fixed timeout.
+pub func connect_host_async_with_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+): (async TcpStream!)!
+
 /// Resolves using recoverable result storage from `allocator`.
 pub func try_resolve(
     allocator: &+TryAllocator,

@@ -439,6 +439,16 @@
     timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">TcpStream</span><span class="token-operator">!</span>
 
+<span class="token-comment">/// Resolves synchronously, then returns an asynchronous ordered candidate connection.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_host_async</span><span class="token-operator">(</span>host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">TcpStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Resolves synchronously, then connects candidates before one fixed timeout.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_host_async_with_timeout</span><span class="token-operator">(</span>
+    host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+    port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
+    timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">TcpStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
+
 <span class="token-comment">/// Resolves using recoverable result storage from `allocator`.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_resolve</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
