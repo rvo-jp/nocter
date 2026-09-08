@@ -396,13 +396,10 @@ fn add_stored(
     size: u64,
     alignment: u64,
 ) -> Result<Option<Arm64AsyncFrameField>, Arm64AsyncFrameLayoutError> {
-    (size != 0)
-        .then(|| {
-            sequence
-                .add(size, alignment)
-                .map(Arm64AsyncFrameField::from)
-        })
-        .transpose()
+    sequence
+        .add(size, alignment)
+        .map(Arm64AsyncFrameField::from)
+        .map(Some)
         .map_err(Arm64AsyncFrameLayoutError::from)
 }
 

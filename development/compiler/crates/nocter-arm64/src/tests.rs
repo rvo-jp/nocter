@@ -1220,6 +1220,89 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
         .materialize_consume(targets.get(owner).unwrap())
         .unwrap();
     assert!(consume.instruction_count() > 8);
+    let cancel = plan
+        .materialize_cancel(targets.get(owner).unwrap(), &targets)
+        .unwrap();
+    assert!(cancel.instruction_count() > 15);
+}
+
+#[test]
+fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
+    let program = crate::test_support::lower_machine(
+        "struct Resource { value: i64 }\n\
+         drop Resource(&+self) { return }\n\
+         func ready(): async i64 { return 1 }\n\
+         func hold(resource: Resource): async Resource {\n\
+             let value = await ready()\n\
+             if value == 0 { return move resource }\n\
+             return move resource\n\
+         }\n\
+         func main(): void {\n\
+             let pending = hold(Resource { value: 7 })\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let owner = program
+        .functions()
+        .find_map(|(owner, function)| match function.execution() {
+            nocter_machine::MachineFunctionExecution::Deferred(frame)
+                if !frame.states().is_empty() =>
+            {
+                Some(owner)
+            }
+            nocter_machine::MachineFunctionExecution::Immediate
+            | nocter_machine::MachineFunctionExecution::Deferred(_) => None,
+        })
+        .expect("one suspended deferred function");
+    let plan = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    let cancel = plan
+        .materialize_cancel(targets.get(owner).unwrap(), &targets)
+        .unwrap();
+    let (_, fixups) = cancel.into_parts();
+
+    assert!(fixups.iter().any(|fixup| {
+        matches!(
+            fixup,
+            crate::code::Arm64CodeFixup::FunctionBranch { link: true, .. }
+        )
+    }));
+}
+
+#[test]
+fn async_frame_retains_zero_sized_owned_output_for_completed_cleanup() {
+    let program = crate::test_support::lower_machine(
+        "struct Marker {}\n\
+         drop Marker(&+self) { return }\n\
+         func ready(): async Marker { return Marker {} }\n\
+         func main(): void {\n\
+             let pending = ready()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let owner = program
+        .functions()
+        .find_map(|(owner, function)| {
+            matches!(
+                function.execution(),
+                nocter_machine::MachineFunctionExecution::Deferred(_)
+            )
+            .then_some(owner)
+        })
+        .unwrap();
+    let plan = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
+    let output = plan
+        .frame()
+        .output()
+        .expect("owned zero-sized output address");
+    assert_eq!(output.size(), 0);
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    plan.materialize_cancel(targets.get(owner).unwrap(), &targets)
+        .unwrap();
 }
 
 #[test]

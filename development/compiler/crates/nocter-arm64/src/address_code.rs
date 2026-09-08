@@ -256,7 +256,7 @@ fn emit_index(
     Ok(())
 }
 
-fn emit_bounds_check(
+pub(crate) fn emit_bounds_check(
     index: Arm64Register,
     bound: Arm64Register,
     code: &mut Arm64CodeBuilder,
@@ -307,7 +307,7 @@ pub(crate) fn move_register(
     }
 }
 
-fn add_offset(code: &mut Arm64CodeBuilder, address: Arm64Register, offset: u64) {
+pub(crate) fn add_offset(code: &mut Arm64CodeBuilder, address: Arm64Register, offset: u64) {
     if offset == 0 {
         return;
     }

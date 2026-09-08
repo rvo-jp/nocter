@@ -72,6 +72,7 @@ pub struct Arm64AsyncFunctionPlan {
     pack: Option<Arm64AsyncPackCapture>,
     result_register: u8,
     constructor_frame: Arm64AsyncConstructorFrame,
+    cancellation: crate::async_cancellation::Arm64AsyncCancellationPlan,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -182,6 +183,8 @@ impl Arm64AsyncFunctionPlan {
         };
         let result_register = validate_result(owner, abi.result())?;
         let constructor_frame = build_constructor_frame(&frame, &parameters)?;
+        let cancellation =
+            crate::async_cancellation::Arm64AsyncCancellationPlan::build(owner, function, &frame)?;
         Ok(Self {
             owner,
             frame,
@@ -189,6 +192,7 @@ impl Arm64AsyncFunctionPlan {
             pack,
             result_register,
             constructor_frame,
+            cancellation,
         })
     }
 
@@ -243,8 +247,29 @@ impl Arm64AsyncFunctionPlan {
         crate::async_consume_code::materialize(self, target)
     }
 
+    /// Materializes state-dispatched cancellation and exact owned-resource cleanup.
+    ///
+    /// # Errors
+    ///
+    /// Rejects foreign lifecycle or destruction targets, malformed async-frame projections,
+    /// transferred argument packs until their owning heap representation is implemented, and
+    /// native code emission failures.
+    pub fn materialize_cancel(
+        &self,
+        target: crate::Arm64FunctionTarget,
+        functions: &crate::Arm64FunctionTargets,
+    ) -> Result<crate::Arm64Code, crate::Arm64AsyncCancelError> {
+        crate::async_cancel_code::materialize(self, target, functions)
+    }
+
     pub(crate) const fn constructor_frame(&self) -> &Arm64AsyncConstructorFrame {
         &self.constructor_frame
+    }
+
+    pub(crate) const fn cancellation(
+        &self,
+    ) -> &crate::async_cancellation::Arm64AsyncCancellationPlan {
+        &self.cancellation
     }
 }
 
@@ -354,6 +379,7 @@ pub enum Arm64AsyncFunctionPlanError {
     Result(MachineFunctionId),
     Frame(Arm64AsyncFrameLayoutError),
     ConstructorFrame(Arm64FrameLayoutError),
+    Cancellation(crate::Arm64AsyncCancellationPlanError),
 }
 
 impl fmt::Display for Arm64AsyncFunctionPlanError {
@@ -367,6 +393,7 @@ impl std::error::Error for Arm64AsyncFunctionPlanError {
         match self {
             Self::Frame(error) => Some(error),
             Self::ConstructorFrame(error) => Some(error),
+            Self::Cancellation(error) => Some(error),
             Self::UnknownFunction(_)
             | Self::ImmediateFunction(_)
             | Self::NonCallable(_)
@@ -390,5 +417,11 @@ impl From<Arm64AsyncFrameLayoutError> for Arm64AsyncFunctionPlanError {
 impl From<Arm64FrameLayoutError> for Arm64AsyncFunctionPlanError {
     fn from(error: Arm64FrameLayoutError) -> Self {
         Self::ConstructorFrame(error)
+    }
+}
+
+impl From<crate::Arm64AsyncCancellationPlanError> for Arm64AsyncFunctionPlanError {
+    fn from(error: crate::Arm64AsyncCancellationPlanError) -> Self {
+        Self::Cancellation(error)
     }
 }
