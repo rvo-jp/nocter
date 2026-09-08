@@ -198,11 +198,14 @@ It cannot redeclare these values from its own word-size assumptions.
 Resume receives only the opaque frame pointer. A pending result returns a pointer and count for
 frame-owned wait-interest records; a completed result returns no interests. A descriptor interest
 contains its descriptor and readable/writable direction, while a timer interest contains its fixed
-monotonic deadline. Nested `await` forwards the child's pending records unchanged. On completion,
-the parent calls the child's consume entry with typed destination storage. That entry moves the
-output and retires the child frame. Cancellation similarly calls only the child's cancellation
-entry. Neither parent, executor, nor scheduler can inspect a child's output offset or cancellation
-state.
+monotonic deadline. Every record also retains a pointer to a computation-owned readiness cell.
+The reactor signals only records that actually became ready; copying or forwarding a record keeps
+the same cell identity. A computation may therefore be resumed after an unrelated member of a
+composed wait set wakes without completing early. Nested `await` forwards the child's pending
+records unchanged. On completion, the parent calls the child's consume entry with typed
+destination storage. That entry moves the output and retires the child frame. Cancellation
+similarly calls only the child's cancellation entry. Neither parent, executor, nor scheduler can
+inspect a child's output offset or cancellation state.
 
 ## Structured Execution
 
@@ -216,21 +219,35 @@ synchronous calls start an executor.
 On ARM64 Darwin, the process adapter converts each pending ABI slice into one temporary `pollfd`
 array and one relative timeout derived from the earliest fixed monotonic deadline. A single
 `poll(2)` wait therefore preserves the wait set's OR semantics for descriptors and timers. An
-interrupted call retries against the same immutable interests and recalculates the relative timeout;
-the temporary mapping is released before the computation resumes. A target timeout narrower than
-the monotonic domain is only one wait segment: a zero-event return rechecks the absolute deadline
-and repeats the wait while it remains in the future. Deadlines use half-domain wrapping comparison,
-so a near-future deadline remains ordered across one counter wrap. Invalid record tags, an empty
-pending set, native wait failure, and release failure terminate through distinct compiler-owned
-trap reasons. The adapter never guesses readiness from a computation frame.
+interrupted call retries against the same interests and recalculates the relative timeout. After a
+successful wait, the adapter writes only through the readiness pointers belonging to returned
+descriptor events or elapsed timers; the temporary mapping is released before the computation
+resumes. A target timeout narrower than the monotonic domain is only one wait segment: a zero-event
+return rechecks the absolute deadline and repeats the wait while it remains in the future.
+Deadlines use half-domain wrapping comparison, so a near-future deadline remains ordered across one
+counter wrap. Invalid record tags, an empty pending set, native wait failure, and release failure
+terminate through distinct compiler-owned trap reasons. The adapter never interprets computation
+frame layout.
 
 The initial compiler-owned descriptor-readiness and monotonic-deadline computations use the same
 opaque header and interest-record schema as a generated deferred function. Each constructor writes
 its distinct record payload, while both use one resume/cancel/consume lifecycle. The first resume
-publishes the frame-owned interest and the next resume completes. Cancellation and completed-output
-consumption retire the frame through separate lifecycle entries. A constructor is declared only
-when the frozen Machine program contains its primitive role; later lowering does not rediscover the
-dependency from source spelling.
+publishes the frame-owned interest; later resumes complete only after the reactor has signaled its
+shared readiness cell. Cancellation and completed-output consumption retire the frame through
+separate lifecycle entries. Cancellation is the destruction entry for every unconsumed owning
+handle, including a completed handle. A constructor is declared only when the frozen Machine
+program contains its primitive role; later lowering does not rediscover the dependency from source
+spelling.
+
+`std/task.join` is one compiler-owned composite computation rather than a second executor. It owns
+two child handles, polls them left to right, and keeps completed child outputs inside their own
+frames until the joined output is consumed. Pending records from both children are copied into one
+dynamically sized contiguous set; their readiness pointers still name the original child cells, so
+nested joins preserve exact wake identity. Machine lowering freezes only the two tuple-element
+offsets. ARM64 lowering consumes those offsets without reopening semantic types or recomputing tuple
+layout. Join cancellation calls both child cancellation entries exactly once, while join
+consumption directs each child consume entry into its frozen tuple element and then retires the join
+frame.
 
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
 normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
@@ -304,6 +321,12 @@ networking can now borrow receiver and buffer storage from a directly awaiting p
 analysis freezes the stable source roots, target-independent frames preserve those roots, and
 deferred ARM64 code accesses retained local storage at its persistent heap address. Escaping child
 computations remain rejected by the ordinary provenance contract.
+
+The first structured composition operation joins two heterogeneous computations without a
+detached task or global executor. Reactor-signaled readiness cells prevent one child from
+completing merely because the other child's descriptor or deadline woke the shared process wait.
+Native coverage exercises immediate completion, different concurrent deadlines, cancellation
+before polling, and concurrent public TCP connection and acceptance.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.

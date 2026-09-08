@@ -2526,6 +2526,60 @@ fn standard_async_delay_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn structured_async_join_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/task\n\
+         use std/time\n\
+         \n\
+         func number(value: i32): async i32 { return value }\n\
+         func delayed_number(value: i32, milliseconds: u64): async i32 {\n\
+             await time.delay(time.Duration.from_milliseconds(milliseconds))\n\
+             return value\n\
+         }\n\
+         \n\
+         func main(): async i32 {\n\
+             let immediate = await task.join(number(20), number(22))\n\
+             if immediate.0 + immediate.1 != 42 { return 1 }\n\
+             let duration = time.Duration.from_milliseconds(35)\n\
+             let start = time.Instant.now()\n\
+             let delayed = task.join(\n\
+                 delayed_number(20, 20),\n\
+                 delayed_number(22, 35),\n\
+             )\n\
+             let delayed_values = await delayed\n\
+             if delayed_values.0 + delayed_values.1 != 42 { return 2 }\n\
+             if start.elapsed() < duration { return 3 }\n\
+             let nested_duration = time.Duration.from_milliseconds(25)\n\
+             let nested_start = time.Instant.now()\n\
+             let nested = task.join(\n\
+                 task.join(delayed_number(1, 5), delayed_number(2, 15)),\n\
+                 delayed_number(3, 25),\n\
+             )\n\
+             let _ = await nested\n\
+             if nested_start.elapsed() < nested_duration { return 4 }\n\
+             let canceled = task.join(delayed_number(1, 35), delayed_number(2, 35))\n\
+             drop canceled\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "structured-async-join", 0);
+}
+
+#[test]
 fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
@@ -2569,6 +2623,7 @@ fn public_async_tcp_crosses_the_complete_native_session() {
     package_root.source(
         "main.nct",
         "use std/net\n\
+         use std/task\n\
          use std/vec.Vec\n\
          \n\
          func main(): async i32! {\n\
@@ -2578,8 +2633,14 @@ fn public_async_tcp_crosses_the_complete_native_session() {
              )\n\
              var listener = net.TcpListener.bind(address)?\n\
              let listening = listener.local_address()?\n\
-             var client = await net.connect_tcp_async(listening)?\n\
-             let accepted = await listener.accept_async()?\n\
+             let connection = await task.join(\n\
+                 net.connect_tcp_async(listening),\n\
+                 listener.accept_async(),\n\
+             )\n\
+             let client_result = move connection.0\n\
+             let accepted_result = move connection.1\n\
+             var client = move client_result?\n\
+             let accepted = move accepted_result?\n\
              var server = move accepted.0\n\
              await client.write_async(\"ping\".bytes())?\n\
              var buffer: Vec<u8> = Vec [\n\

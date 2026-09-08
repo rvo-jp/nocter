@@ -386,6 +386,30 @@ pub(crate) fn emit_instruction(
             .monotonic_deadline()
             .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
+        Arm64SelectedInstruction::ConstructTaskJoin {
+            first_output_offset,
+            second_output_offset,
+        } => {
+            crate::frame_access::load_immediate(
+                code,
+                Arm64NocterAbi::argument_register(2)
+                    .ok_or(Arm64MaterializationError::MissingArgumentRegister(2))?,
+                first_output_offset,
+                Arm64DataSize::Bits64,
+            );
+            crate::frame_access::load_immediate(
+                code,
+                Arm64NocterAbi::argument_register(3)
+                    .ok_or(Arm64MaterializationError::MissingArgumentRegister(3))?,
+                second_output_offset,
+                Arm64DataSize::Bits64,
+            );
+            context
+                .async_primitives
+                .task_join()
+                .map(|targets| code.call(targets.constructor()))
+                .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget)
+        }
         Arm64SelectedInstruction::ExitProcess { status } => {
             crate::system_primitive_code::emit_exit(function, Some(status), code)
         }

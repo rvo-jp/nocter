@@ -1094,6 +1094,7 @@ fn async_primitive_targets_follow_machine_dependencies() {
     assert_eq!(absent.monotonic_deadline(), None);
     assert_eq!(absent.single_interest_lifecycle(), None);
     assert_eq!(absent.dual_interest_lifecycle(), None);
+    assert_eq!(absent.task_join(), None);
 
     let present = crate::test_support::lower_machine_with_standard_uses(
         "use std/internal/task\n\
@@ -1121,6 +1122,29 @@ fn async_primitive_targets_follow_machine_dependencies() {
     assert_eq!(present.descriptor_readiness_or_deadline(), None);
     assert_eq!(present.dual_interest_lifecycle(), None);
     assert_ne!(present.descriptor_readiness(), present.monotonic_deadline());
+}
+
+#[test]
+fn lowers_structured_join_with_one_closed_native_lifecycle() {
+    let machine = crate::test_support::lower_machine_with_standard_uses(
+        "use std/task\n\
+         func left(): async i32 { return 1 }\n\
+         func right(): async u64 { return 2 }\n\
+         func main(): async i32 {\n\
+             let joined = task.join(left(), right())\n\
+             let outputs = await joined\n\
+             return outputs.0\n\
+         }\n",
+        &[&["task"]],
+    );
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64AsyncPrimitiveTargets::declare(&machine, &mut builder);
+    let join = targets.task_join().expect("one structured join lifecycle");
+
+    assert_ne!(join.constructor(), join.resume());
+    assert_ne!(join.resume(), join.cancel());
+    assert_ne!(join.cancel(), join.consume());
+    assert!(crate::Arm64Program::lower_machine(&machine).is_ok());
 }
 
 #[test]

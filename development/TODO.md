@@ -9,7 +9,7 @@ been changed.
 
 ## Next Work
 
-Continue v0.41.0 Phase 4 from the
+Begin v0.41.0 Phase 5 from the
 [Asynchronous Computation Boundary](design/asynchronous-computation-design.md). The scheduler,
 Darwin reactor adapter, opaque single-threaded executor contract, ARM64 async heap-frame placement,
 and constructor/resume/cancel/consume entries are complete. Whole-program lowering now emits the
@@ -42,9 +42,14 @@ both race outcomes. Raw clock primitives now live behind the single `std/interna
 Host connection resolves synchronously into an outer `!` and returns a lazy computation that owns
 the ordered candidates and one shared timeout. Public native coverage now also proves peer EOF,
 idle-read timeout, and full-write timeout after loopback backpressure. Deterministic asynchronous
-candidate fallback is qualified separately from system resolver order. Next, design the public
-scope-owned concurrency operation, then qualify explicit pending-child cancellation, bounded
-concurrency, and cleanup before closing Phase 4. Keep the qualified v0.40.0 archive unchanged.
+candidate fallback is qualified separately from system resolver order. `std/task.join` now owns and
+polls two heterogeneous child computations as one bounded structured computation. Machine freezes
+tuple output placement, ARM64 composes dynamically sized child interest sets, and reactor-signaled
+readiness cells preserve exact wake identity through nested copies. Native coverage proves
+different concurrent deadlines, nested joins, unstarted cancellation, and concurrent public TCP
+connection and acceptance. Phase 4 is complete. Next, qualify the full tooling surface for
+`std/task.join`, add a complete user example, run the repository and packaging matrices, and review
+the entire async area before release preparation. Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

@@ -169,6 +169,19 @@ fn select_async_primitive(
     target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
+    if target.role() == PrimitiveRole::TaskJoin {
+        validate_register_abi(operation, target, &[1, 1], 1)?;
+        validate_type_arguments(operation, target, 2)?;
+        let nocter_machine::MachinePrimitiveDependency::AsyncJoin(plan) = target.dependency()
+        else {
+            return Err(Arm64SelectionError::PrimitiveCall(operation));
+        };
+        selected.push(Arm64SelectedInstruction::ConstructTaskJoin {
+            first_output_offset: plan.first_output_offset(),
+            second_output_offset: plan.second_output_offset(),
+        });
+        return Ok(());
+    }
     let (arguments, instruction): (&[u8], _) = match target.role() {
         PrimitiveRole::DescriptorReadiness => (
             &[1, 1],

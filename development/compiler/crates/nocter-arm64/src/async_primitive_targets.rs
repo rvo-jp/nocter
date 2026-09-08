@@ -12,6 +12,37 @@ pub struct Arm64AsyncInterestLifecycleTargets {
     interest_count: u8,
 }
 
+/// Shared native lifecycle entries for one two-child structured join computation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Arm64AsyncJoinTargets {
+    constructor: Arm64FunctionId,
+    resume: Arm64FunctionId,
+    cancel: Arm64FunctionId,
+    consume: Arm64FunctionId,
+}
+
+impl Arm64AsyncJoinTargets {
+    #[must_use]
+    pub const fn constructor(self) -> Arm64FunctionId {
+        self.constructor
+    }
+
+    #[must_use]
+    pub const fn resume(self) -> Arm64FunctionId {
+        self.resume
+    }
+
+    #[must_use]
+    pub const fn cancel(self) -> Arm64FunctionId {
+        self.cancel
+    }
+
+    #[must_use]
+    pub const fn consume(self) -> Arm64FunctionId {
+        self.consume
+    }
+}
+
 impl Arm64AsyncInterestLifecycleTargets {
     #[must_use]
     pub const fn resume(self) -> Arm64FunctionId {
@@ -42,6 +73,7 @@ pub struct Arm64AsyncPrimitiveTargets {
     monotonic_deadline: Option<Arm64FunctionId>,
     single_interest_lifecycle: Option<Arm64AsyncInterestLifecycleTargets>,
     dual_interest_lifecycle: Option<Arm64AsyncInterestLifecycleTargets>,
+    task_join: Option<Arm64AsyncJoinTargets>,
 }
 
 impl Arm64AsyncPrimitiveTargets {
@@ -52,6 +84,7 @@ impl Arm64AsyncPrimitiveTargets {
         let mut descriptor_readiness = false;
         let mut descriptor_readiness_or_deadline = false;
         let mut monotonic_deadline = false;
+        let mut task_join = false;
         for role in machine.functions().flat_map(|(_, function)| {
             function.body().operations().filter_map(|(_, operation)| {
                 let MachineOperationKind::Call(call) = operation.kind() else {
@@ -67,6 +100,7 @@ impl Arm64AsyncPrimitiveTargets {
             descriptor_readiness_or_deadline |=
                 role == PrimitiveRole::DescriptorReadinessOrDeadline;
             monotonic_deadline |= role == PrimitiveRole::MonotonicDeadline;
+            task_join |= role == PrimitiveRole::TaskJoin;
         }
         let single_interest_lifecycle =
             (descriptor_readiness || monotonic_deadline).then(|| declare_lifecycle(builder, 1));
@@ -79,6 +113,12 @@ impl Arm64AsyncPrimitiveTargets {
             monotonic_deadline: monotonic_deadline.then(|| builder.declare_function()),
             single_interest_lifecycle,
             dual_interest_lifecycle,
+            task_join: task_join.then(|| Arm64AsyncJoinTargets {
+                constructor: builder.declare_function(),
+                resume: builder.declare_function(),
+                cancel: builder.declare_function(),
+                consume: builder.declare_function(),
+            }),
         }
     }
 
@@ -105,6 +145,11 @@ impl Arm64AsyncPrimitiveTargets {
     #[must_use]
     pub const fn dual_interest_lifecycle(self) -> Option<Arm64AsyncInterestLifecycleTargets> {
         self.dual_interest_lifecycle
+    }
+
+    #[must_use]
+    pub const fn task_join(self) -> Option<Arm64AsyncJoinTargets> {
+        self.task_join
     }
 }
 

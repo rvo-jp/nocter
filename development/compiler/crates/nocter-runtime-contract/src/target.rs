@@ -64,6 +64,7 @@ pub struct RuntimeAsyncAbiSchema {
     interest_kind_offset: u64,
     interest_subject_offset: u64,
     interest_detail_offset: u64,
+    interest_readiness_pointer_offset: u64,
     interest_record_size: u64,
     descriptor_interest_kind: u64,
     timer_interest_kind: u64,
@@ -80,6 +81,7 @@ pub struct RuntimeWaitInterestRecord {
     kind: u64,
     subject: u64,
     detail: u64,
+    readiness_pointer: u64,
 }
 
 /// Complete numeric ABI authority shared by machine planning and instruction lowering.
@@ -156,7 +158,8 @@ impl RuntimeAbiIdentity {
                     interest_kind_offset: 0,
                     interest_subject_offset: 8,
                     interest_detail_offset: 16,
-                    interest_record_size: 24,
+                    interest_readiness_pointer_offset: 24,
+                    interest_record_size: 32,
                     descriptor_interest_kind: 0,
                     timer_interest_kind: 1,
                     readable_interest_detail: 0,
@@ -266,7 +269,11 @@ impl RuntimeAbiSchema {
 impl RuntimeAsyncAbiSchema {
     /// Encodes one semantic wait interest into the uniform runtime record.
     #[must_use]
-    pub const fn encode_interest(self, interest: ReactorInterest) -> RuntimeWaitInterestRecord {
+    pub const fn encode_interest(
+        self,
+        interest: ReactorInterest,
+        readiness_pointer: u64,
+    ) -> RuntimeWaitInterestRecord {
         match interest {
             ReactorInterest::Descriptor {
                 descriptor,
@@ -278,11 +285,13 @@ impl RuntimeAsyncAbiSchema {
                     ReadinessDirection::Readable => self.readable_interest_detail,
                     ReadinessDirection::Writable => self.writable_interest_detail,
                 },
+                readiness_pointer,
             },
             ReactorInterest::Timer { deadline } => RuntimeWaitInterestRecord {
                 kind: self.timer_interest_kind,
                 subject: deadline,
                 detail: 0,
+                readiness_pointer,
             },
         }
     }
@@ -293,6 +302,9 @@ impl RuntimeAsyncAbiSchema {
         self,
         record: RuntimeWaitInterestRecord,
     ) -> Option<ReactorInterest> {
+        if record.readiness_pointer == 0 {
+            return None;
+        }
         if record.kind == self.descriptor_interest_kind {
             let direction = if record.detail == self.readable_interest_detail {
                 ReadinessDirection::Readable
@@ -419,6 +431,15 @@ impl RuntimeAsyncAbiSchema {
         self.interest_detail_offset
     }
 
+    /// Offset of the pointer to the computation-owned readiness cell.
+    ///
+    /// Interest copies retain this pointer, allowing a reactor to signal the originating
+    /// computation even when structured computations compose and copy wait sets.
+    #[must_use]
+    pub const fn interest_readiness_pointer_offset(self) -> u64 {
+        self.interest_readiness_pointer_offset
+    }
+
     #[must_use]
     pub const fn interest_record_size(self) -> u64 {
         self.interest_record_size
@@ -447,11 +468,12 @@ impl RuntimeAsyncAbiSchema {
 
 impl RuntimeWaitInterestRecord {
     #[must_use]
-    pub const fn new(kind: u64, subject: u64, detail: u64) -> Self {
+    pub const fn new(kind: u64, subject: u64, detail: u64, readiness_pointer: u64) -> Self {
         Self {
             kind,
             subject,
             detail,
+            readiness_pointer,
         }
     }
 
@@ -468,6 +490,11 @@ impl RuntimeWaitInterestRecord {
     #[must_use]
     pub const fn detail(self) -> u64 {
         self.detail
+    }
+
+    #[must_use]
+    pub const fn readiness_pointer(self) -> u64 {
+        self.readiness_pointer
     }
 }
 
@@ -600,7 +627,8 @@ mod tests {
         assert_eq!(asynchronous.interest_kind_offset(), 0);
         assert_eq!(asynchronous.interest_subject_offset(), 8);
         assert_eq!(asynchronous.interest_detail_offset(), 16);
-        assert_eq!(asynchronous.interest_record_size(), 24);
+        assert_eq!(asynchronous.interest_readiness_pointer_offset(), 24);
+        assert_eq!(asynchronous.interest_record_size(), 32);
         assert_eq!(asynchronous.descriptor_interest_kind(), 0);
         assert_eq!(asynchronous.timer_interest_kind(), 1);
         assert_eq!(asynchronous.readable_interest_detail(), 0);
@@ -622,14 +650,16 @@ mod tests {
             ReactorInterest::Timer { deadline: 91 },
         ];
         for interest in cases {
-            let record = asynchronous.encode_interest(interest);
+            let record = asynchronous.encode_interest(interest, 0x1000);
             assert_eq!(asynchronous.decode_interest(record), Some(interest));
+            assert_eq!(record.readiness_pointer(), 0x1000);
         }
         assert_eq!(
             asynchronous.decode_interest(RuntimeWaitInterestRecord::new(
                 asynchronous.descriptor_interest_kind(),
                 4,
                 99,
+                0x1000,
             )),
             None,
         );
@@ -638,6 +668,16 @@ mod tests {
                 asynchronous.timer_interest_kind(),
                 4,
                 1,
+                0x1000,
+            )),
+            None,
+        );
+        assert_eq!(
+            asynchronous.decode_interest(RuntimeWaitInterestRecord::new(
+                asynchronous.timer_interest_kind(),
+                4,
+                0,
+                0,
             )),
             None,
         );

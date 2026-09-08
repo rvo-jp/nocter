@@ -112,22 +112,49 @@ fn materialize_constructor(
         argument(4),
         &mut code,
     );
+    store_immediate(
+        argument(3),
+        readiness_offset(kind.interest_count()),
+        0,
+        &mut code,
+    );
     match kind {
         InterestConstructor::DescriptorReadiness => {
             write_descriptor_interest(argument(3), 0, &mut code)?;
+            write_readiness_target(argument(3), 0, kind.interest_count(), &mut code);
         }
         InterestConstructor::DescriptorReadinessOrDeadline => {
             write_descriptor_interest(argument(3), 0, &mut code)?;
             write_timer_interest(argument(3), 1, DEADLINE_STACK_OFFSET, &mut code);
+            write_readiness_target(argument(3), 0, kind.interest_count(), &mut code);
+            write_readiness_target(argument(3), 1, kind.interest_count(), &mut code);
         }
         InterestConstructor::MonotonicDeadline => {
             write_timer_interest(argument(3), 0, SUBJECT_STACK_OFFSET, &mut code);
+            write_readiness_target(argument(3), 0, kind.interest_count(), &mut code);
         }
     }
     crate::address_code::move_register(&mut code, argument(3), argument(0));
     crate::frame_access::adjust_stack(&mut code, CAPTURE_STACK_SIZE, Arm64AddSubtract::Add);
     return_to_caller(&mut code);
     code.finish()
+}
+
+fn write_readiness_target(
+    frame: crate::Arm64Register,
+    index: u64,
+    interest_count: u64,
+    code: &mut Arm64CodeBuilder,
+) {
+    let schema = Arm64NocterAbi::asynchronous();
+    crate::address_code::move_register(code, frame, argument(4));
+    add_immediate(argument(4), readiness_offset(interest_count), code);
+    store(
+        frame,
+        interest_offset(index) + schema.interest_readiness_pointer_offset(),
+        argument(4),
+        code,
+    );
 }
 
 fn write_descriptor_interest(
@@ -227,23 +254,19 @@ pub(crate) fn materialize_resume(interest_count: u64) -> Result<Arm64Code, crate
         SUSPENDED_STATE,
         &mut code,
     );
-    crate::frame_access::load_immediate(
-        &mut code,
-        argument(0),
-        schema.pending_status(),
-        Arm64DataSize::Bits64,
-    );
-    crate::address_code::move_register(&mut code, argument(3), argument(1));
-    add_immediate(argument(1), schema.fixed_header_size(), &mut code);
-    crate::frame_access::load_immediate(
-        &mut code,
-        argument(2),
-        interest_count,
-        Arm64DataSize::Bits64,
-    );
-    return_to_caller(&mut code);
+    emit_pending(argument(3), interest_count, &mut code);
 
     code.bind(suspended)?;
+    crate::address_code::load_native(
+        &mut code,
+        Arm64LoadStoreSize::Double,
+        None,
+        argument(4),
+        argument(3),
+        readiness_offset(interest_count),
+    );
+    let not_ready = code.create_label();
+    compare_state(argument(4), 0, not_ready, &mut code);
     store_immediate(
         argument(3),
         schema.state_tag_offset(),
@@ -259,11 +282,32 @@ pub(crate) fn materialize_resume(interest_count: u64) -> Result<Arm64Code, crate
     crate::frame_access::load_immediate(&mut code, argument(1), 0, Arm64DataSize::Bits64);
     crate::frame_access::load_immediate(&mut code, argument(2), 0, Arm64DataSize::Bits64);
     return_to_caller(&mut code);
+    code.bind(not_ready)?;
+    emit_pending(argument(3), interest_count, &mut code);
     code.finish()
 }
 
+fn emit_pending(frame: crate::Arm64Register, interest_count: u64, code: &mut Arm64CodeBuilder) {
+    let schema = Arm64NocterAbi::asynchronous();
+    crate::frame_access::load_immediate(
+        code,
+        argument(0),
+        schema.pending_status(),
+        Arm64DataSize::Bits64,
+    );
+    crate::address_code::move_register(code, frame, argument(1));
+    add_immediate(argument(1), schema.fixed_header_size(), code);
+    crate::frame_access::load_immediate(code, argument(2), interest_count, Arm64DataSize::Bits64);
+    return_to_caller(code);
+}
+
 pub(crate) fn materialize_cancel(interest_count: u64) -> Result<Arm64Code, crate::Arm64CodeError> {
-    materialize_release(&[INITIAL_STATE, SUSPENDED_STATE], interest_count)
+    // Cancellation is the destruction entry for every still-owned computation handle. A caller
+    // may release the handle after completion but before consuming its output.
+    materialize_release(
+        &[INITIAL_STATE, SUSPENDED_STATE, COMPLETED_STATE],
+        interest_count,
+    )
 }
 
 pub(crate) fn materialize_consume(interest_count: u64) -> Result<Arm64Code, crate::Arm64CodeError> {
@@ -305,13 +349,17 @@ fn materialize_release(
 }
 
 const fn frame_size(interest_count: u64) -> u64 {
-    let schema = Arm64NocterAbi::asynchronous();
-    schema.fixed_header_size() + schema.interest_record_size() * interest_count
+    readiness_offset(interest_count) + Arm64NocterAbi::word_size()
 }
 
 const fn interest_offset(index: u64) -> u64 {
     let schema = Arm64NocterAbi::asynchronous();
     schema.fixed_header_size() + schema.interest_record_size() * index
+}
+
+const fn readiness_offset(interest_count: u64) -> u64 {
+    let schema = Arm64NocterAbi::asynchronous();
+    schema.fixed_header_size() + schema.interest_record_size() * interest_count
 }
 
 fn initialize_entry(

@@ -338,6 +338,28 @@ fn define_async_primitives(
         )?;
         define_async_interest_lifecycle(lifecycle, builder)?;
     }
+    if let Some(join) = targets.task_join() {
+        builder.define_function(
+            join.constructor(),
+            crate::async_join_code::materialize_constructor(join)
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            join.resume(),
+            crate::async_join_code::materialize_resume()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            join.cancel(),
+            crate::async_join_code::materialize_cancel()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            join.consume(),
+            crate::async_join_code::materialize_consume()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+    }
     Ok(())
 }
 

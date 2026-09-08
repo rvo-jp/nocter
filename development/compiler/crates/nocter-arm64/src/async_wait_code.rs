@@ -17,9 +17,8 @@ const MAX_POLL_COUNT: u64 = u32::MAX as u64;
 
 /// Converts one suspended computation's ABI interest slice into a Darwin `poll` wait.
 ///
-/// The process root owns the temporary native descriptor array. The suspended computation keeps
-/// owning the immutable interest records, which remain valid until this function returns and the
-/// computation is resumed.
+/// The process root owns the temporary native descriptor array. The suspended computation owns
+/// the interest records and their readiness cells; copied records retain pointers to those cells.
 pub(crate) fn emit(
     function: &Arm64SelectedFunction,
     code: &mut Arm64CodeBuilder,
@@ -30,8 +29,134 @@ pub(crate) fn emit(
     allocate_poll_descriptors(offsets, code)?;
     translate_interests(offsets, code)?;
     wait_until_ready(offsets, code)?;
+    signal_ready_interests(offsets, code)?;
     release_poll_descriptors(offsets, code)?;
     Ok(())
+}
+
+fn signal_ready_interests(
+    offsets: WaitOffsets,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    let schema = Arm64NocterAbi::asynchronous();
+    load_word(offsets.interest_pointer, argument(0), code);
+    load_word(offsets.mapping_pointer, argument(1), code);
+    load_word(offsets.interest_count, argument(2), code);
+    code.append(Arm64Instruction::InstructionSynchronizationBarrier);
+    code.append(Arm64Instruction::ReadSystemRegister {
+        destination: argument(7),
+        register: crate::Arm64SystemRegister::CounterVirtual,
+    });
+
+    let scan = code.create_label();
+    let descriptor = code.create_label();
+    let timer = code.create_label();
+    let signal = code.create_label();
+    let advance = code.create_label();
+    let complete = code.create_label();
+    code.bind(scan)?;
+    compare_immediate(argument(2), 0, code);
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        argument(5),
+        argument(0),
+        schema.interest_readiness_pointer_offset(),
+    );
+    compare_immediate(argument(5), 0, code);
+    let readiness_valid = code.create_label();
+    code.branch_conditional(readiness_valid, Arm64BranchCondition::NotEqual);
+    trap(
+        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
+        code,
+    );
+    code.bind(readiness_valid)?;
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        argument(3),
+        argument(0),
+        schema.interest_kind_offset(),
+    );
+    compare_immediate(argument(3), schema.descriptor_interest_kind(), code);
+    code.branch_conditional(descriptor, Arm64BranchCondition::Equal);
+    compare_immediate(argument(3), schema.timer_interest_kind(), code);
+    code.branch_conditional(timer, Arm64BranchCondition::Equal);
+    trap(
+        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
+        code,
+    );
+
+    code.bind(descriptor)?;
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Half,
+        None,
+        argument(4),
+        argument(1),
+        u64::from(POLL_RETURNED_EVENTS_OFFSET),
+    );
+    compare_immediate(argument(4), 0, code);
+    code.branch_conditional(advance, Arm64BranchCondition::Equal);
+    code.branch(signal, false);
+
+    code.bind(timer)?;
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        argument(4),
+        argument(0),
+        schema.interest_subject_offset(),
+    );
+    code.append(Arm64Instruction::AddSubtractRegister {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Subtract,
+        set_flags: false,
+        destination: Arm64DataRegister::General(argument(5)),
+        left: Arm64DataRegister::General(argument(4)),
+        right: Arm64DataRegister::General(argument(7)),
+    });
+    compare_immediate(argument(5), 0, code);
+    code.branch_conditional(signal, Arm64BranchCondition::Equal);
+    compare_register_with_immediate(argument(5), i64::MAX as u64, code);
+    code.branch_conditional(advance, Arm64BranchCondition::UnsignedLowerOrSame);
+
+    code.bind(signal)?;
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        argument(4),
+        argument(0),
+        schema.interest_readiness_pointer_offset(),
+    );
+    compare_immediate(argument(4), 0, code);
+    let pointer_valid = code.create_label();
+    code.branch_conditional(pointer_valid, Arm64BranchCondition::NotEqual);
+    trap(
+        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
+        code,
+    );
+    code.bind(pointer_valid)?;
+    crate::frame_access::load_immediate(code, argument(5), 1, Arm64DataSize::Bits64);
+    crate::address_code::store_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        argument(5),
+        argument(4),
+        0,
+    );
+
+    code.bind(advance)?;
+    add_immediate(argument(0), schema.interest_record_size(), code);
+    add_immediate(argument(1), POLL_DESCRIPTOR_SIZE, code);
+    subtract_immediate(argument(2), 1, code);
+    code.branch(scan, false);
+    code.bind(complete)
 }
 
 #[derive(Clone, Copy)]
@@ -137,6 +262,22 @@ fn translate_interests(
     code.bind(scan)?;
     compare_immediate(argument(2), 0, code);
     code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        argument(5),
+        argument(0),
+        schema.interest_readiness_pointer_offset(),
+    );
+    compare_immediate(argument(5), 0, code);
+    let readiness_valid = code.create_label();
+    code.branch_conditional(readiness_valid, Arm64BranchCondition::NotEqual);
+    trap(
+        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
+        code,
+    );
+    code.bind(readiness_valid)?;
     crate::address_code::load_native(
         code,
         Arm64LoadStoreSize::Double,
