@@ -3,28 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>nocter-package-acquisition - Nocter</title>
-    <meta name="description" content="Fetch and validate exact Git or archive package content under the public acquisition policy.">
+    <title>nocter-task-runtime - Nocter</title>
+    <meta name="description" content="Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-package-acquisition/">
+    <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-task-runtime/">
     <link rel="icon" href="../../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="nocter-package-acquisition - Nocter">
-    <meta property="og:description" content="Fetch and validate exact Git or archive package content under the public acquisition policy.">
-    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-package-acquisition/">
+    <meta property="og:title" content="nocter-task-runtime - Nocter">
+    <meta property="og:description" content="Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.">
+    <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-task-runtime/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="nocter-package-acquisition - Nocter">
-    <meta name="twitter:description" content="Fetch and validate exact Git or archive package content under the public acquisition policy.">
+    <meta name="twitter:title" content="nocter-task-runtime - Nocter">
+    <meta name="twitter:description" content="Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-package-acquisition - Nocter","description":"Fetch and validate exact Git or archive package content under the public acquisition policy.","url":"https://nocter.dev/development/compiler/crates/nocter-package-acquisition/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-package-acquisition/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Package Acquisition","item":"https://nocter.dev/development/compiler/crates/nocter-package-acquisition/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-task-runtime - Nocter","description":"Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.","url":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Task Runtime","item":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -205,7 +205,7 @@
                     <li><a href="../nocter-model/index.html#content">nocter-model</a></li>
                     <li><a href="../nocter-native-session/index.html#content">nocter-native-session</a></li>
                     <li><a href="../nocter-package/index.html#content">nocter-package</a></li>
-                    <li><a href="./index.html#content" aria-current="page">nocter-package-acquisition</a></li>
+                    <li><a href="../nocter-package-acquisition/index.html#content">nocter-package-acquisition</a></li>
                     <li><a href="../nocter-package-cache/index.html#content">nocter-package-cache</a></li>
                     <li><a href="../nocter-package-state/index.html#content">nocter-package-state</a></li>
                     <li><a href="../nocter-persistent/index.html#content">nocter-persistent</a></li>
@@ -219,7 +219,7 @@
                     <li><a href="../nocter-syntax/index.html#content">nocter-syntax</a></li>
                     <li><a href="../nocter-target-program/index.html#content">nocter-target-program</a></li>
                     <li><a href="../nocter-target-selection/index.html#content">nocter-target-selection</a></li>
-                    <li><a href="../nocter-task-runtime/index.html#content">nocter-task-runtime</a></li>
+                    <li><a href="./index.html#content" aria-current="page">nocter-task-runtime</a></li>
                     <li><a href="../nocter-test-support/index.html#content">nocter-test-support</a></li>
                     <li><a href="../nocter-toolchain-contract/index.html#content">nocter-toolchain-contract</a></li>
                     <li><a href="../nocter-workspace-analysis/index.html#content">nocter-workspace-analysis</a></li>
@@ -229,10 +229,13 @@
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/development/compiler/crates/nocter-package-acquisition/README.md</span>
+                <span class="markdown-path-text">/development/compiler/crates/nocter-task-runtime/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-package-acquisition">nocter-package-acquisition</h1><h2 id="responsibility">Responsibility</h2><p>Fetch and validate exact Git or archive package content under the public acquisition policy.</p><h2 id="contract">Contract</h2><p>The crate consumes a resolved acquisition request and produces staged exact content for a <code>nocter-package-state</code> transaction. It owns HTTPS, Git object traversal, archive decoding, digest verification, redirect/resource limits, and unsafe-entry rejection. It does not choose dependency versions or publish package state directly.</p><h2 id="invariants">Invariants</h2><ul><li>Every transport remains authenticated HTTPS under the declared policy.</li><li>Locked Git commits and archive digests are verified before publication.</li><li>Symlinks, traversal, devices, duplicate destinations, and resource-limit violations are rejected.</li><li>A rejected download cannot leave an installable partial package.</li></ul>
+                <h1 id="nocter-task-runtime">nocter-task-runtime</h1><h2 id="responsibility">Responsibility</h2><p>Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.</p><h2 id="contract">Contract</h2><p>The crate accepts opaque descriptor/timer interests through a <code>Reactor</code> boundary and publishes only task transitions and cleanup obligations. It does not inspect compiler IR, computation-frame layout, descriptor implementation, operating-system event records, or source semantics.</p><h2 id="invariants">Invariants</h2><ul><li>A task has one generation-qualified identity and one lifecycle state.</li><li>The scheduler removes every wait registration before publishing cancellation cleanup.</li><li>One readiness event consumes the complete wait set. Simultaneous or stale events cannot enqueue
+  the same task twice.</li><li>Reusing a task, registration slot, or operating-system descriptor cannot validate an event from
+  an earlier generation.</li><li>Canonical registration order decides wake order. Multiple events for one wait set still produce
+  one runnable transition; operation code decides readiness-versus-deadline results when resumed.</li><li>The reactor owns waiting and native registration mechanics. It cannot mutate task lifecycle.</li></ul>
             </div>
         </main>
     </div>

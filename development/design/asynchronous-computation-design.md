@@ -131,6 +131,27 @@ Scheduler and reactor identities are stable values with generations. The schedul
 lifecycle and runnable order; the reactor owns readiness registration. Neither may inspect the
 other's private representation, and neither owns a pointer into movable task storage.
 
+## Executor and Reactor Boundary
+
+The target-independent scheduler owns generation-qualified task and registration identities. A
+task is exactly one of runnable, running, waiting, completed, or cancelling. The scheduler is the
+only component that changes these states or appends to the FIFO runnable queue. Computation frame
+bytes and resume/cancel functions remain executor-owned payload; the scheduler never inspects
+their layout.
+
+The reactor accepts opaque descriptor-readiness and monotonic-deadline interests paired with a
+registration identity. It may return stale native events, but an event can wake a task only while
+the exact registration generation remains active. Waking one member consumes and deregisters the
+complete wait set before enqueueing the task. Multiple events for the same wait set therefore
+produce one resume. Operation code reattempts its nonblocking action after resume and decides the
+observable readiness-versus-deadline outcome; the scheduler does not duplicate that policy.
+
+Cancellation first invalidates and deregisters every wait identity, then publishes either pending-
+frame cleanup or completed-output cleanup. Reactor deregistration is infallible at this boundary:
+the target adapter normalizes interruption and already-removed native registrations internally.
+Orderly shutdown uses the same cancellation transition for every retained task rather than
+implementing a second cleanup path.
+
 ## Structured Execution
 
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;

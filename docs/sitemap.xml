@@ -221,6 +221,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/development/compiler/crates/nocter-task-runtime/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/development/compiler/crates/nocter-test-support/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
