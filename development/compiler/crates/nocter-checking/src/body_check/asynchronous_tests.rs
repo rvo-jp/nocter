@@ -143,3 +143,65 @@ fn nested_await_and_outer_failure_propagation_keep_their_type_layers() {
     )
     .unwrap();
 }
+
+#[test]
+fn an_immediate_nested_closure_cannot_inherit_its_owners_suspension_authority() {
+    let error = check(
+        "func outer(): async i32 {\n\
+             let callback = (pending: async i32): i32 { await pending }\n\
+             1\n\
+         }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0415");
+}
+
+#[test]
+fn awaited_results_provide_context_for_generic_call_inference() {
+    check(
+        "func produce<T>(): async T { loop {} }\n\
+         func value(): async i32 { await produce() }\n\
+         func nested<T>(): async async T { produce() }\n\
+         func flattened(): async i32 { await await nested() }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn awaited_outcomes_provide_payload_context_for_generic_call_inference() {
+    check(
+        "func produce<T>(): async T! { loop {} }\n\
+         func value(): async i32! { await produce()? }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn awaiting_an_immediate_generic_transfer_does_not_reclassify_the_callable() {
+    check(
+        "func ready(): async i32 { 1 }\n\
+         func transfer<T>(item: T): T { move item }\n\
+         func consume_ready(): async i32 {\n\
+             let pending = ready()\n\
+             await transfer(move pending)\n\
+         }\n",
+    )
+    .unwrap();
+
+    check(
+        "func ready(): async i32! { 1 }\n\
+         func transfer<T>(item: T): T { move item }\n\
+         func consume_ready(): async i32! {\n\
+             let pending = ready()\n\
+             await transfer(move pending)?\n\
+         }\n",
+    )
+    .unwrap();
+
+    check(
+        "func unreachable_value<T>(): T { loop {} }\n\
+         func inferred_computation(): async i32 { await unreachable_value() }\n",
+    )
+    .unwrap();
+}

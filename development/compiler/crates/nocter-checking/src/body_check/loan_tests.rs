@@ -239,6 +239,24 @@ fn generic_owned_result_without_a_borrow_slot_does_not_retain_an_invocation_loan
 }
 
 #[test]
+fn specialized_generic_result_carries_borrows_without_retaining_the_invocation_reborrow() {
+    check(
+        "struct Borrowed { value: &i32 }\n\
+         struct Holder<T> { state: usize }\n\
+         instance Holder<T> {\n\
+             method &+self.take(): T from self { loop {} }\n\
+         }\n\
+         func valid(holder: &+Holder<Borrowed>): &i32 {\n\
+             let first = holder.take()\n\
+             let second = holder.take()\n\
+             let _ = move second\n\
+             return first.value\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn condition_only_loan_ends_before_the_selected_body() {
     check(
         "func positive(value: &i32): bool { true }\n\

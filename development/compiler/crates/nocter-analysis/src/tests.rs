@@ -226,6 +226,52 @@ fn tuple_types_share_canonical_hover_and_recursive_binding_inlays() {
 }
 
 #[test]
+fn async_declarations_and_values_share_canonical_semantic_presentation() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "func produce(): async i32! { 1 }\n",
+        "func relay(): async i32! {\n",
+        "    let pending = produce()\n",
+        "    await pending?\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(65));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "async fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let declaration = source_text.find("produce").unwrap();
+    let declaration = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(declaration).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        declaration.presentation().code(),
+        "func produce(): async i32!"
+    );
+
+    let pending = source_text.find("pending").unwrap();
+    let pending = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(pending).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(pending.presentation().code(), "let pending: async i32!");
+}
+
+#[test]
 fn tuple_projection_is_one_checked_editor_occurrence_without_a_definition() {
     let tree = TempTree::new();
     let source_text = concat!(

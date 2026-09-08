@@ -682,10 +682,8 @@ fn runtime_type_table(
             TypeKind::Optional(payload) => RuntimeType::Optional(*payload),
             TypeKind::Fallible(payload) => RuntimeType::Fallible(*payload),
             TypeKind::Opaque { .. } => RuntimeType::Opaque,
-            TypeKind::Async(_) => {
-                return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
-            }
-            TypeKind::GenericParameter(_)
+            TypeKind::Async(_)
+            | TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => {
                 return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));

@@ -30,6 +30,14 @@ impl BodyChecker<'_, '_> {
         self.check_call_with_context(node, Some(result_context))
     }
 
+    pub(super) fn check_await_operand_call(
+        &mut self,
+        node: NodeId,
+        result_context: CallResultContext,
+    ) -> Result<BodyNodeId, BodyCheckError> {
+        self.check_call_with_context(node, Some(result_context.through_await()))
+    }
+
     fn check_call_with_context(
         &mut self,
         node: NodeId,

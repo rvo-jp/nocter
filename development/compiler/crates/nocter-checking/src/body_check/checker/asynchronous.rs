@@ -2,6 +2,7 @@ use nocter_model::{BodyNodeId, BorrowCapability, TypeId, TypeKind};
 use nocter_syntax::{NodeId, NodeKind};
 
 use super::BodyChecker;
+use super::value_planning::CallResultContext;
 use crate::CheckedOperation;
 use crate::body_check::context::BodyExecution;
 use crate::body_check::diagnostic::BodyRule;
@@ -33,6 +34,14 @@ impl BodyChecker<'_, '_> {
         node: NodeId,
         expected: Option<TypeId>,
     ) -> Result<BodyNodeId, BodyCheckError> {
+        self.check_await_with_context(node, CallResultContext::complete(expected))
+    }
+
+    pub(super) fn check_await_with_context(
+        &mut self,
+        node: NodeId,
+        result_context: Option<CallResultContext>,
+    ) -> Result<BodyNodeId, BodyCheckError> {
         if self.execution != BodyExecution::Deferred {
             return Err(self.rule(BodyRule::AwaitOutsideDeferredBody, node)?);
         }
@@ -40,7 +49,7 @@ impl BodyChecker<'_, '_> {
         let [operand] = children.as_slice() else {
             return Err(BodyCheckInternalError::InvalidSyntax(node).into());
         };
-        let computation = self.consume_await_operand(*operand, node)?;
+        let computation = self.consume_await_operand(*operand, node, result_context)?;
         let computation_type = self.node_type(computation)?;
         let Some(TypeKind::Async(output)) = self.types.get(computation_type) else {
             return Err(self.rule(BodyRule::InvalidAwaitOperand, node)?);
@@ -51,15 +60,18 @@ impl BodyChecker<'_, '_> {
             output,
             CheckedOperation::Await(CheckedAwait::new(computation)),
         )?;
-        expected.map_or(Ok(checked), |expected| {
-            self.apply_expected(node, checked, expected)
-        })
+        result_context
+            .and_then(CallResultContext::complete_type)
+            .map_or(Ok(checked), |expected| {
+                self.apply_expected(node, checked, expected)
+            })
     }
 
     fn consume_await_operand(
         &mut self,
         operand: NodeId,
         await_node: NodeId,
+        result_context: Option<CallResultContext>,
     ) -> Result<BodyNodeId, BodyCheckError> {
         let mut syntax = operand;
         while self.kind(syntax).is_ok_and(is_transparent_expression) {
@@ -83,6 +95,18 @@ impl BodyChecker<'_, '_> {
             _ => None,
         };
         let Some(place) = place else {
+            if self.kind(syntax)? == NodeKind::AwaitExpression {
+                return self.check_await_with_context(
+                    syntax,
+                    result_context.map(CallResultContext::through_await),
+                );
+            }
+            if self.kind(syntax)? == NodeKind::PostfixExpression
+                && direct_node(self.tree(), syntax, NodeKind::CallSuffix).is_some()
+                && let Some(result_context) = result_context
+            {
+                return self.check_await_operand_call(syntax, result_context);
+            }
             return self.check_expression(syntax, None);
         };
         if self.is_region_place(place.id)? {
@@ -90,7 +114,7 @@ impl BodyChecker<'_, '_> {
         }
         self.consume_owned_place(
             await_node,
-            place,
+            &place,
             BodyRule::InvalidAwaitOperand,
             BodyRule::InvalidAwaitOperand,
         )

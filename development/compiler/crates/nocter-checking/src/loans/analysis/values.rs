@@ -56,7 +56,6 @@ impl Analyzer<'_> {
                 callable,
                 Some(&InvocationLoan::carried(iterator.clone())),
                 &[],
-                None,
             )?
             .projected(ProvenanceProjection::OutcomeValue))
     }

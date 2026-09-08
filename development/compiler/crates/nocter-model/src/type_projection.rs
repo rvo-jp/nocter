@@ -88,12 +88,25 @@ fn project_type(
         .get(source_id)
         .ok_or_else(|| UnknownTypeId::new(source_id))?
         .clone();
-    let target_kind = match source_kind {
-        TypeKind::Builtin(builtin) => {
-            let target_id = target.builtin(builtin);
-            projected.insert(source_id, target_id);
-            return Ok(target_id);
-        }
+    if let TypeKind::Builtin(builtin) = &source_kind {
+        let target_id = target.builtin(*builtin);
+        projected.insert(source_id, target_id);
+        return Ok(target_id);
+    }
+    let target_kind = project_kind(source, target, projected, source_kind)?;
+    let target_id = target.intern(target_kind)?;
+    projected.insert(source_id, target_id);
+    Ok(target_id)
+}
+
+fn project_kind(
+    source: &TypeStore,
+    target: &mut TypeTransaction,
+    projected: &mut HashMap<TypeId, TypeId>,
+    source_kind: TypeKind,
+) -> Result<TypeKind, TypeProjectionError> {
+    Ok(match source_kind {
+        TypeKind::Builtin(_) => unreachable!("builtins are projected before structural types"),
         TypeKind::GenericParameter(parameter) => TypeKind::GenericParameter(parameter),
         TypeKind::InterfaceSelf(interface) => TypeKind::InterfaceSelf(interface),
         TypeKind::Nominal {
@@ -178,10 +191,7 @@ fn project_type(
         TypeKind::Fallible(payload) => {
             TypeKind::Fallible(project_type(source, target, projected, payload)?)
         }
-    };
-    let target_id = target.intern(target_kind)?;
-    projected.insert(source_id, target_id);
-    Ok(target_id)
+    })
 }
 
 fn project_types(

@@ -499,7 +499,7 @@ impl<'program> Analyzer<'program> {
             crate::IterationAcquisition::Direct => source.into_carried(),
             crate::IterationAcquisition::Expansion(selection) => match selection.dispatch() {
                 crate::StaticDispatch::Direct(callable) => {
-                    self.map_callable_result(callable, Some(&source), &[], None)?
+                    self.map_callable_result(callable, Some(&source), &[])?
                 }
                 crate::StaticDispatch::StructuralRequirement { evidence } => {
                     if !matches!(

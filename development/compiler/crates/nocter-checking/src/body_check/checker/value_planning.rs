@@ -6,6 +6,7 @@ use nocter_syntax::{Keyword, NodeId, NodeKind, TokenKind};
 use super::BodyChecker;
 use crate::body_check::diagnostic::BodyRule;
 use crate::body_check::error::{BodyCheckError, BodyCheckInternalError};
+use crate::inference::AwaitedResultConstraint;
 use crate::syntax::{child_nodes, direct_node, first_direct_token, is_transparent_expression};
 use crate::type_relations::{TypeSubstitution, collect_generic_parameters};
 use crate::{
@@ -35,7 +36,13 @@ pub(super) enum ValueDraft {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum CallResultContext {
+pub(super) struct CallResultContext {
+    constraint: CallResultConstraint,
+    await_depth: usize,
+}
+
+#[derive(Clone, Copy)]
+enum CallResultConstraint {
     Complete(TypeId),
     OutcomePayload(TypeId),
     Propagation(TypeId),
@@ -44,16 +51,43 @@ pub(super) enum CallResultContext {
 impl CallResultContext {
     pub(super) const fn complete(expected: Option<TypeId>) -> Option<Self> {
         match expected {
-            Some(expected) => Some(Self::Complete(expected)),
+            Some(expected) => Some(Self {
+                constraint: CallResultConstraint::Complete(expected),
+                await_depth: 0,
+            }),
             None => None,
         }
     }
 
-    pub(super) const fn complete_type(self) -> Option<TypeId> {
-        match self {
-            Self::Complete(expected) => Some(expected),
-            Self::OutcomePayload(_) | Self::Propagation(_) => None,
+    pub(super) const fn outcome_payload(expected: TypeId) -> Self {
+        Self {
+            constraint: CallResultConstraint::OutcomePayload(expected),
+            await_depth: 0,
         }
+    }
+
+    pub(super) const fn propagation(expected: TypeId) -> Self {
+        Self {
+            constraint: CallResultConstraint::Propagation(expected),
+            await_depth: 0,
+        }
+    }
+
+    pub(super) const fn complete_type(self) -> Option<TypeId> {
+        match (self.constraint, self.await_depth) {
+            (CallResultConstraint::Complete(expected), 0) => Some(expected),
+            (
+                CallResultConstraint::Complete(_)
+                | CallResultConstraint::OutcomePayload(_)
+                | CallResultConstraint::Propagation(_),
+                _,
+            ) => None,
+        }
+    }
+
+    pub(super) fn through_await(mut self) -> Self {
+        self.await_depth += 1;
+        self
     }
 }
 
@@ -165,20 +199,28 @@ impl BodyChecker<'_, '_> {
         mut inference: CallableInference,
     ) -> Result<GenericArguments, BodyCheckError> {
         if let Some(result_context) = context.result_context {
-            let result = match result_context {
-                CallResultContext::Complete(expected) => {
-                    inference.constrain_result_contextual(self.types, context.result, expected)
+            let (expected, constraint) = match result_context.constraint {
+                CallResultConstraint::Complete(expected) => {
+                    (expected, AwaitedResultConstraint::Complete)
                 }
-                CallResultContext::OutcomePayload(expected) => {
-                    inference.constrain_outcome_payload(self.types, context.result, expected)
+                CallResultConstraint::OutcomePayload(expected) => {
+                    (expected, AwaitedResultConstraint::OutcomePayload)
                 }
-                CallResultContext::Propagation(expected) => {
-                    inference.constrain_propagation_result(self.types, context.result, expected)
+                CallResultConstraint::Propagation(expected) => {
+                    (expected, AwaitedResultConstraint::Propagation)
                 }
             };
-            result.map_err(|error| {
-                self.inference_error(context.owner, error, context.failure_rule)
-            })?;
+            inference
+                .constrain_awaited_result(
+                    self.types,
+                    context.result,
+                    expected,
+                    constraint,
+                    result_context.await_depth,
+                )
+                .map_err(|error| {
+                    self.inference_error(context.owner, error, context.failure_rule)
+                })?;
         }
         self.infer_closure_drafts(values, context, &mut inference)?;
         inference

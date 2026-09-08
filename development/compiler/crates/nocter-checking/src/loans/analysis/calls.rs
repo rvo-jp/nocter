@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use nocter_declarations::ProvenanceOrigin;
+use nocter_declarations::{CallableExecution, ProvenanceOrigin};
 use nocter_model::{BodyNodeId, BorrowCapability, CallableCapability, CallableId};
 
 use super::Analyzer;
@@ -188,29 +188,48 @@ impl Analyzer<'_> {
             &arguments,
             mapped_type,
         )?;
-        if matches!(call.execution(), CheckedCallExecution::Deferred { .. }) {
-            let mut captures = LoanValue::independent();
-            if let Some(value) = &callable_value {
-                captures.union_with(&value.flattened());
-            }
-            if let Some(environment) = &callable_environment {
-                captures.union_with(&environment.flattened());
-            }
-            if let Some(receiver) = &receiver {
-                captures.union_with(&receiver.retained(true).flattened());
-            }
-            for argument in &arguments {
-                captures.union_with(&argument.retained(true).flattened());
-            }
-            let mut computation = LoanValue::independent();
-            computation.insert_projection(ProvenanceProjection::AsyncCapture, captures);
-            computation.insert_projection(ProvenanceProjection::AsyncOutput, result);
-            result = computation;
-        }
+        result = Self::wrap_deferred_result(
+            call,
+            callable_value.as_ref(),
+            callable_environment.as_ref(),
+            receiver.as_ref(),
+            &arguments,
+            result,
+        );
         if !type_can_carry_loan(self.graph, self.types, result_type) {
             result = LoanValue::independent();
         }
         Ok((result, true))
+    }
+
+    fn wrap_deferred_result(
+        call: &CheckedCall,
+        callable_value: Option<&LoanValue>,
+        callable_environment: Option<&LoanValue>,
+        receiver: Option<&InvocationLoan>,
+        arguments: &[InvocationLoan],
+        result: LoanValue,
+    ) -> LoanValue {
+        if !matches!(call.execution(), CheckedCallExecution::Deferred { .. }) {
+            return result;
+        }
+        let mut captures = LoanValue::independent();
+        if let Some(value) = callable_value {
+            captures.union_with(&value.flattened());
+        }
+        if let Some(environment) = callable_environment {
+            captures.union_with(&environment.flattened());
+        }
+        if let Some(receiver) = receiver {
+            captures.union_with(&receiver.retained(true).flattened());
+        }
+        for argument in arguments {
+            captures.union_with(&argument.retained(true).flattened());
+        }
+        let mut computation = LoanValue::independent();
+        computation.insert_projection(ProvenanceProjection::AsyncCapture, captures);
+        computation.insert_projection(ProvenanceProjection::AsyncOutput, result);
+        computation
     }
 
     fn evaluate_call_receiver(
@@ -390,7 +409,7 @@ impl Analyzer<'_> {
                         return Err(BodyCheckInternalError::LoanAnalysis.into());
                     }
                 };
-                self.map_callable_result(callable, receiver, arguments, Some(result_type))?
+                self.map_callable_result(callable, receiver, arguments)?
             }
             CallTarget::CallableValue { dispatch, .. } => {
                 let StaticDispatch::StructuralRequirement { evidence } = dispatch.dispatch() else {
@@ -461,7 +480,6 @@ impl Analyzer<'_> {
         callable: CallableId,
         receiver: Option<&InvocationLoan>,
         arguments: &[InvocationLoan],
-        specialized_result: Option<nocter_model::TypeId>,
     ) -> Result<LoanValue, BodyCheckInternalError> {
         let declaration = self
             .graph
@@ -474,7 +492,10 @@ impl Analyzer<'_> {
             .callables()
             .get(callable)
             .ok_or(BodyCheckInternalError::LoanAnalysis)?;
-        let result_type = specialized_result.unwrap_or(declaration.result());
+        let result_type = match declaration.execution() {
+            CallableExecution::Immediate => declaration.result(),
+            CallableExecution::Deferred { output } => output,
+        };
         let mut result = LoanValue::independent();
         for origin in summary.origins() {
             match origin {

@@ -20,6 +20,7 @@ rule has one owning chapter and cross-topic chapters link to that authority.
 - [Errors and Optionals](errors-and-optionals.md)
 - [Ownership, Borrowing, and Drop](ownership.md)
 - [Memory, Regions, and Allocators](memory-and-regions.md)
+- [Asynchronous Computations](asynchronous-computations.md)
 
 ## Abstraction and Expression Surfaces
 

@@ -142,6 +142,9 @@ impl BodyChecker<'_, '_> {
         {
             return self.check_outcome_operand_call(syntax, result_context);
         }
+        if self.kind(syntax)? == NodeKind::AwaitExpression {
+            return self.check_await_with_context(syntax, result_context);
+        }
         self.check_expression(syntax, None)
     }
 
@@ -187,8 +190,8 @@ impl BodyChecker<'_, '_> {
             payload
         };
         match (accepts_optional, accepts_fallible) {
-            (true, false) | (false, true) => Some(CallResultContext::OutcomePayload(payload)),
-            (true, true) => Some(CallResultContext::Propagation(self.result_type)),
+            (true, false) | (false, true) => Some(CallResultContext::outcome_payload(payload)),
+            (true, true) => Some(CallResultContext::propagation(self.result_type)),
             (false, false) => None,
         }
     }
@@ -212,7 +215,7 @@ impl BodyChecker<'_, '_> {
                     if token.kind() == TokenKind::Keyword(Keyword::Catch)
             )
         });
-        let result_context = expected.map(CallResultContext::OutcomePayload);
+        let result_context = expected.map(CallResultContext::outcome_payload);
         let operand = self.check_outcome_operand_expression(*operand_syntax, result_context)?;
         let operand_type = self.node_type(operand)?;
         let Some((layer, payload)) = outcome_layer(self.types, operand_type) else {

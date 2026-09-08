@@ -204,20 +204,7 @@ impl CallableInference {
         result: TypeId,
         expected: TypeId,
     ) -> Result<(), InferenceFailure> {
-        if types.get(result).is_none() {
-            return Err(InferenceFailure::UnknownType(result));
-        }
-        if types.get(expected).is_none() {
-            return Err(InferenceFailure::UnknownType(expected));
-        }
-        if self
-            .result_context
-            .replace(ResultContext::Complete { result, expected })
-            .is_some()
-        {
-            return Err(InferenceFailure::DuplicateResultContext);
-        }
-        Ok(())
+        self.constrain_projected_result(types, result, expected, ResultConstraint::Complete, 0)
     }
 
     /// Constrains the immediate payload produced after one statically known outcome layer.
@@ -235,23 +222,13 @@ impl CallableInference {
         result: TypeId,
         expected_payload: TypeId,
     ) -> Result<(), InferenceFailure> {
-        if types.get(result).is_none() {
-            return Err(InferenceFailure::UnknownType(result));
-        }
-        if types.get(expected_payload).is_none() {
-            return Err(InferenceFailure::UnknownType(expected_payload));
-        }
-        if self
-            .result_context
-            .replace(ResultContext::OutcomePayload {
-                result,
-                expected: expected_payload,
-            })
-            .is_some()
-        {
-            return Err(InferenceFailure::DuplicateResultContext);
-        }
-        Ok(())
+        self.constrain_projected_result(
+            types,
+            result,
+            expected_payload,
+            ResultConstraint::OutcomePayload,
+            0,
+        )
     }
 
     /// Constrains a call payload against the matching propagation layer in `expected`.
@@ -265,6 +242,33 @@ impl CallableInference {
         result: TypeId,
         expected: TypeId,
     ) -> Result<(), InferenceFailure> {
+        self.constrain_projected_result(types, result, expected, ResultConstraint::Propagation, 0)
+    }
+
+    pub(crate) fn constrain_awaited_result(
+        &mut self,
+        types: &TypeStore,
+        result: TypeId,
+        expected: TypeId,
+        constraint: AwaitedResultConstraint,
+        await_depth: usize,
+    ) -> Result<(), InferenceFailure> {
+        let constraint = match constraint {
+            AwaitedResultConstraint::Complete => ResultConstraint::Complete,
+            AwaitedResultConstraint::OutcomePayload => ResultConstraint::OutcomePayload,
+            AwaitedResultConstraint::Propagation => ResultConstraint::Propagation,
+        };
+        self.constrain_projected_result(types, result, expected, constraint, await_depth)
+    }
+
+    fn constrain_projected_result(
+        &mut self,
+        types: &TypeStore,
+        result: TypeId,
+        expected: TypeId,
+        constraint: ResultConstraint,
+        await_depth: usize,
+    ) -> Result<(), InferenceFailure> {
         if types.get(result).is_none() {
             return Err(InferenceFailure::UnknownType(result));
         }
@@ -273,7 +277,12 @@ impl CallableInference {
         }
         if self
             .result_context
-            .replace(ResultContext::Propagation { result, expected })
+            .replace(ResultContext {
+                result,
+                expected,
+                constraint,
+                await_depth,
+            })
             .is_some()
         {
             return Err(InferenceFailure::DuplicateResultContext);
@@ -343,19 +352,25 @@ impl CallableInference {
         if let Some(context) = self.result_context
             && !matches!(result_candidate, ResultCandidate::None)
         {
-            let (expected, result) = match context {
-                ResultContext::Complete { result, expected } => {
-                    (expected, substitution.apply_type(types, result)?)
-                }
-                ResultContext::OutcomePayload { result, expected } => {
-                    let result = substitution.apply_type(types, result)?;
+            let result = substitution.apply_type(types, context.result)?;
+            let result = project_async_result(types, result, context.await_depth)?.ok_or(
+                InferenceFailure::ContextualMismatch {
+                    expected: context.expected,
+                    evidence: InferenceEvidence::Typed(result),
+                },
+            )?;
+            let (expected, result) = match context.constraint {
+                ResultConstraint::Complete => (context.expected, result),
+                ResultConstraint::OutcomePayload => {
                     let payload = immediate_outcome_payload(types, result)?;
-                    (expected, payload)
+                    (context.expected, payload)
                 }
-                ResultContext::Propagation { result, expected } => {
-                    let result = substitution.apply_type(types, result)?;
+                ResultConstraint::Propagation => {
                     let (layer, payload) = immediate_outcome(types, result)?;
-                    (propagation_payload(types, expected, layer)?, payload)
+                    (
+                        propagation_payload(types, context.expected, layer)?,
+                        payload,
+                    )
                 }
             };
             if !result_context_compatible(types, expected, result)? {
@@ -378,14 +393,14 @@ impl CallableInference {
             return;
         };
         if matches!(
-            types.get(context.result()),
+            types.get(context.result),
             Some(TypeKind::Builtin(BuiltinType::Never))
         ) {
             return;
         }
         match candidate {
             ResultCandidate::None => {}
-            ResultCandidate::Exact(candidate) => equations.push((context.result(), candidate)),
+            ResultCandidate::Exact(candidate) => equations.push((context.result, candidate)),
             ResultCandidate::BorrowWeakening {
                 result_referent,
                 expected_referent,
@@ -399,20 +414,25 @@ impl CallableInference {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum ResultContext {
-    Complete { result: TypeId, expected: TypeId },
-    OutcomePayload { result: TypeId, expected: TypeId },
-    Propagation { result: TypeId, expected: TypeId },
+pub(crate) enum AwaitedResultConstraint {
+    Complete,
+    OutcomePayload,
+    Propagation,
 }
 
-impl ResultContext {
-    const fn result(self) -> TypeId {
-        match self {
-            Self::Complete { result, .. }
-            | Self::OutcomePayload { result, .. }
-            | Self::Propagation { result, .. } => result,
-        }
-    }
+#[derive(Clone, Copy, Debug)]
+struct ResultContext {
+    result: TypeId,
+    expected: TypeId,
+    constraint: ResultConstraint,
+    await_depth: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ResultConstraint {
+    Complete,
+    OutcomePayload,
+    Propagation,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -430,45 +450,84 @@ enum ResultCandidate {
 }
 
 impl ResultContext {
-    fn candidates(self, types: &TypeStore) -> Result<Vec<ResultCandidate>, InferenceFailure> {
+    fn candidates(
+        self,
+        types: &mut nocter_model::TypeTransaction,
+    ) -> Result<Vec<ResultCandidate>, InferenceFailure> {
         if matches!(
-            types.get(self.result()),
+            types.get(self.result),
             Some(TypeKind::Builtin(BuiltinType::Never))
         ) {
             return Ok(vec![ResultCandidate::None]);
         }
-        if let Self::OutcomePayload { result, expected } = self {
-            return Ok(vec![ResultCandidate::OutcomePayload {
-                result_payload: immediate_outcome_payload(types, result)?,
-                expected_payload: expected,
-            }]);
-        }
-        if let Self::Propagation { result, expected } = self {
-            let (layer, result_payload) = immediate_outcome(types, result)?;
-            return Ok(vec![ResultCandidate::OutcomePayload {
-                result_payload,
-                expected_payload: propagation_payload(types, expected, layer)?,
-            }]);
-        }
-        let Self::Complete { result, expected } = self else {
-            unreachable!("outcome payload context returned above")
-        };
-        let mut candidates = Vec::new();
-        let mut current = expected;
-        loop {
-            candidates.push(result_candidate(types, result, current)?);
-            match types
-                .get(current)
-                .ok_or(InferenceFailure::UnknownType(current))?
-            {
-                TypeKind::Optional(payload) | TypeKind::Fallible(payload) => current = *payload,
-                _ => {
-                    candidates.push(ResultCandidate::None);
-                    return Ok(candidates);
+        if matches!(self.constraint, ResultConstraint::Complete) {
+            let mut candidates = Vec::new();
+            let mut current = self.expected;
+            loop {
+                let expected = wrap_async_result(types, current, self.await_depth)?;
+                candidates.push(result_candidate(types, self.result, expected)?);
+                match types
+                    .get(current)
+                    .ok_or(InferenceFailure::UnknownType(current))?
+                {
+                    TypeKind::Optional(payload) | TypeKind::Fallible(payload) => {
+                        current = *payload;
+                    }
+                    _ => {
+                        candidates.push(ResultCandidate::None);
+                        return Ok(candidates);
+                    }
                 }
             }
         }
+        let Some(result) = project_async_result(types, self.result, self.await_depth)? else {
+            return Ok(vec![ResultCandidate::None]);
+        };
+        if matches!(self.constraint, ResultConstraint::OutcomePayload) {
+            return Ok(vec![ResultCandidate::OutcomePayload {
+                result_payload: immediate_outcome_payload(types, result)?,
+                expected_payload: self.expected,
+            }]);
+        }
+        if matches!(self.constraint, ResultConstraint::Propagation) {
+            let (layer, result_payload) = immediate_outcome(types, result)?;
+            return Ok(vec![ResultCandidate::OutcomePayload {
+                result_payload,
+                expected_payload: propagation_payload(types, self.expected, layer)?,
+            }]);
+        }
+        unreachable!("all result constraints are handled above")
     }
+}
+
+fn project_async_result(
+    types: &TypeStore,
+    mut result: TypeId,
+    depth: usize,
+) -> Result<Option<TypeId>, InferenceFailure> {
+    for _ in 0..depth {
+        match types
+            .get(result)
+            .ok_or(InferenceFailure::UnknownType(result))?
+        {
+            TypeKind::Async(output) => result = *output,
+            _ => return Ok(None),
+        }
+    }
+    Ok(Some(result))
+}
+
+fn wrap_async_result(
+    types: &mut nocter_model::TypeTransaction,
+    mut output: TypeId,
+    depth: usize,
+) -> Result<TypeId, InferenceFailure> {
+    for _ in 0..depth {
+        output = types
+            .intern(TypeKind::Async(output))
+            .map_err(|_| InferenceFailure::UnknownType(output))?;
+    }
+    Ok(output)
 }
 
 fn immediate_outcome_payload(

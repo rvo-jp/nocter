@@ -42,6 +42,7 @@ Structural and contextual type syntax:
 [T]
 &[T]
 &+[T]
+async T
 T?
 T!
 T?!
@@ -50,7 +51,10 @@ T?!
 Self
 ```
 
-`T!` means a fallible value whose success payload is `T` and whose failure payload is the built-in `error` type. `T?!` means a fallible value whose success payload is optional.
+`async T` is a move-only deferred computation whose eventual output is `T`. Its execution and
+ownership rules are defined in [Asynchronous Computations](asynchronous-computations.md). `T!`
+means a fallible value whose success payload is `T` and whose failure payload is the built-in
+`error` type. `T?!` means a fallible value whose success payload is optional.
 
 Supported optional and fallible compositions are ordinary sized
 values. They may be stored in bindings and sized aggregates, moved, assigned, passed as arguments,
@@ -94,9 +98,11 @@ payload, generic argument, associated-type binding, or any other data-bearing ty
 type alias may name `void`, but does not bypass these use-site rules. Use an empty struct when a
 storable zero-sized unit or marker value is required.
 
-Prefix type operators bind more tightly than postfix outcome operators. Therefore `&T?` is an
+Pointer and borrow type operators bind more tightly than postfix outcome operators. `async`
+instead consumes a complete type operand. Therefore `&T?` is an
 optional readonly borrow, while `&(T?)` is a readonly borrow of an optional value. Parentheses in
-type syntax group a type without creating a new type.
+type syntax group a type without creating a new type. `async T!` means `async (T!)`, while
+`(async T)!` is an immediately produced fallible value whose success payload is a computation.
 
 ### Contextual Expected Types
 

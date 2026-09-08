@@ -482,7 +482,10 @@ PrefixType = CallableType | NonCallablePrefix
 NonCallablePrefix = "*" PrefixType
                   | "&" NonCallablePrefix
                   | "&+" NonCallablePrefix
+                  | AsyncType
                   | TypeAtom
+
+AsyncType = "async" Type
 
 TypeAtom = BuiltinScalarType
          | "str"
@@ -525,6 +528,10 @@ OpaqueResult = "some" InterfaceApplication
 Prefix pointer and borrow operators bind before an outcome suffix. Consequently `&T?` is an
 optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in
 `&(T?)`.
+
+`async` consumes a complete `Type` operand rather than a `NonCallablePrefix`. Consequently
+`async T!` is `async (T!)`, while `(async T)!` puts the fallible layer outside the asynchronous
+computation. This distinction is syntactic and does not depend on name or type resolution.
 
 At one ungrouped layer, `?`, `!`, and `?!` are the recognized suffixes. Reversing the outcome
 order uses a grouped inner fallible type, `(T!)?`; `T!?` is not a production. Semantic validation
@@ -783,7 +790,8 @@ UnaryExpression = ("!" | "-" | "&" | "&+") UnaryExpression
 MoveExpression = "move" MovePlace ExpressionOutcomeSuffix?
 MovePlace = NamedPlace
 
-OutcomeExpression = PostfixExpression ExpressionOutcomeSuffix?
+OutcomeExpression = AwaitOperand ExpressionOutcomeSuffix?
+AwaitOperand = "await" AwaitOperand | PostfixExpression
 ExpressionOutcomeSuffix = "?" | "!"
 
 PostfixExpression = PrimaryExpression PostfixSuffix*
@@ -809,6 +817,11 @@ associate left; conversion validity and the one-step borrow-coercion rule are se
 At a unary-prefix position, lexical `&&` supplies two readonly borrow prefixes; after a completed
 left operand it remains logical conjunction. Thus `&&value` is parsed as `&(&value)`, while
 `left && value` uses `LogicalAndExpression`. No type information selects between them.
+
+`await` binds to the complete postfix expression immediately following it, and an outcome suffix
+then applies to the awaited result. Thus `await operation()?` propagates failure from the value
+produced by awaiting `operation()`. Repeated `await` prefixes retain one syntax node per consumed
+computation. Suspension legality and operand ownership are semantic checks.
 
 One ungrouped layer accepts at most one outcome suffix. `value??`, `value!!`, `value?!`, and
 `value!?` have no production. Grouping creates another expression layer, so `(value?)?` is valid

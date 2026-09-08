@@ -423,12 +423,14 @@ impl BodyChecker<'_, '_> {
         fixed_result: Option<TypeId>,
     ) -> Result<(BodyNodeId, TypeId), BodyCheckError> {
         let saved_result = self.result_type;
+        let saved_execution = self.execution;
         let saved_loops = mem::take(&mut self.loops);
         let saved_reachable = self.flow_reachable;
         let saved_inference = self.closure_result_inference.take();
         let saved_opaque_result = self.opaque_result.take();
         self.result_type =
             fixed_result.unwrap_or_else(|| self.types.builtin(nocter_model::BuiltinType::Void));
+        self.execution = crate::body_check::context::BodyExecution::Immediate;
         self.flow_reachable = true;
         self.closure_result_inference = fixed_result
             .is_none()
@@ -445,6 +447,7 @@ impl BodyChecker<'_, '_> {
         self.closure_result_inference = saved_inference;
         self.opaque_result = saved_opaque_result;
         self.result_type = saved_result;
+        self.execution = saved_execution;
         self.flow_reachable = saved_reachable;
         if !closure_loops.is_empty() {
             return Err(BodyCheckInternalError::LoopStack.into());

@@ -1046,6 +1046,11 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/spec/language/asynchronous-computations/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/spec/language/bindings-and-initialization/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

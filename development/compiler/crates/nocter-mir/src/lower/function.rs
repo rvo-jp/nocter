@@ -180,7 +180,9 @@ impl<'a> FunctionLowerer<'a> {
                 )
                 .map(Some)
             }
-            CheckedOperation::Await(_) => Err(MirLoweringError::UnsupportedOperation(node)),
+            CheckedOperation::Await(_) | CheckedOperation::Place(_) => {
+                Err(MirLoweringError::UnsupportedOperation(node))
+            }
             CheckedOperation::BorrowConversion(conversion) => {
                 self.lower_borrow_conversion(node, conversion).map(Some)
             }
@@ -214,7 +216,6 @@ impl<'a> FunctionLowerer<'a> {
             }
             CheckedOperation::Control(control) => self.lower_control(node, control),
             CheckedOperation::PackLiteral(_) => self.lower_pack_literal(node, ty).map(Some),
-            CheckedOperation::Place(_) => Err(MirLoweringError::UnsupportedOperation(node)),
         }?;
         if let Some(value) = lowered
             && self.values.insert(node, value).is_some()

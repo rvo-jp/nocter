@@ -1,4 +1,4 @@
-use nocter_declarations::ProvenanceOrigin;
+use nocter_declarations::{CallableExecution, ProvenanceOrigin};
 use nocter_model::{BodyNodeId, CallableId, TypeId};
 
 use super::Analyzer;
@@ -87,7 +87,6 @@ impl Analyzer<'_> {
                     Some(&source),
                     &[],
                     state.current_allocation(),
-                    None,
                 )?,
                 StaticDispatch::StructuralRequirement { evidence } => {
                     if !matches!(
@@ -159,7 +158,6 @@ impl Analyzer<'_> {
                 Some(&ReceiverProvenance::carried(iterator.clone())),
                 &[],
                 current_allocation,
-                None,
             )?
             .projected(ProvenanceProjection::OutcomeValue))
     }
@@ -310,7 +308,7 @@ impl Analyzer<'_> {
         };
         let mut result = self.map_call_result(call, &evaluated, state, mapped_type)?;
         if matches!(call.execution(), CheckedCallExecution::Deferred { .. }) {
-            let captures = self.map_deferred_captures(&evaluated, state);
+            let captures = Self::map_deferred_captures(&evaluated, state);
             let mut computation = ValueProvenance::independent();
             computation.insert_projection(ProvenanceProjection::AsyncCapture, captures);
             computation.insert_projection(ProvenanceProjection::AsyncOutput, result);
@@ -323,7 +321,6 @@ impl Analyzer<'_> {
     }
 
     fn map_deferred_captures(
-        &self,
         evaluated: &EvaluatedCall,
         state: &ProvenanceState,
     ) -> ValueProvenance {
@@ -495,7 +492,6 @@ impl Analyzer<'_> {
                     evaluated.receiver.as_ref(),
                     &evaluated.arguments,
                     state.current_allocation(),
-                    Some(result_type),
                 )?
             }
             CallTarget::CallableValue { dispatch, .. } => {
@@ -621,7 +617,6 @@ impl Analyzer<'_> {
         receiver: Option<&ReceiverProvenance>,
         arguments: &[ArgumentProvenance],
         current_allocation: &ValueProvenance,
-        specialized_result: Option<TypeId>,
     ) -> Result<ValueProvenance, BodyCheckInternalError> {
         let declaration = self
             .graph
@@ -633,7 +628,10 @@ impl Analyzer<'_> {
             .summaries
             .get(&callable)
             .ok_or(BodyCheckInternalError::ProvenanceAnalysis)?;
-        let result_type = specialized_result.unwrap_or(declaration.result());
+        let result_type = match declaration.execution() {
+            CallableExecution::Immediate => declaration.result(),
+            CallableExecution::Deferred { output } => output,
+        };
         let mut result = ValueProvenance::independent();
         for origin in &summary.origins {
             match origin {

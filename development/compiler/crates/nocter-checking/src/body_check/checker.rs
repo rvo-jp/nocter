@@ -1119,7 +1119,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         }
         self.consume_owned_place(
             node,
-            place,
+            &place,
             BodyRule::MoveCopyValue,
             BodyRule::InvalidMoveSource,
         )
@@ -1128,7 +1128,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
     fn consume_owned_place(
         &mut self,
         node: NodeId,
-        place: ResolvedPlace,
+        place: &ResolvedPlace,
         copy_source: BodyRule,
         invalid_source: BodyRule,
     ) -> Result<BodyNodeId, BodyCheckError> {
