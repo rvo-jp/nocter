@@ -2183,6 +2183,9 @@ dependencies = [
 [[package]]
 name = "nocter-task-runtime"
 version = "0.0.0"
+dependencies = [
+ "nocter-runtime-contract",
+]
 
 [[package]]
 name = "nocter-test-support"

@@ -9,7 +9,8 @@ mod reactor;
 mod scheduler;
 
 pub use identity::{RegistrationId, TaskId};
-pub use reactor::{Reactor, ReactorInterest, ReadinessDirection};
+pub use nocter_runtime_contract::{ReactorInterest, ReadinessDirection};
+pub use reactor::Reactor;
 pub use scheduler::{
     CancellationKind, Scheduler, SchedulerError, SchedulerProgress, TaskCancellation, TaskState,
 };

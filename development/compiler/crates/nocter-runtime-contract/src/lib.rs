@@ -4,6 +4,7 @@
 //! discovers, validates, lowers, lays out, or executes them. It depends only on semantic model
 //! identities so no backend consumer gains access to checked or target-program storage.
 
+mod asynchronous;
 mod environment;
 mod import;
 mod primitive;
@@ -11,6 +12,7 @@ mod representation;
 mod target;
 mod target_service;
 
+pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{RuntimeFunctionImport, RuntimeFunctionImportError, RuntimeLibraryIdentity};
 pub use primitive::{

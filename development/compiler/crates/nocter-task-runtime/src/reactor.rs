@@ -1,23 +1,4 @@
-use crate::RegistrationId;
-
-/// One direction of nonblocking descriptor progress.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum ReadinessDirection {
-    Readable,
-    Writable,
-}
-
-/// One opaque wait interest. Timer deadlines use the process monotonic-counter domain.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum ReactorInterest {
-    Descriptor {
-        descriptor: u64,
-        direction: ReadinessDirection,
-    },
-    Timer {
-        deadline: u64,
-    },
-}
+use crate::{ReactorInterest, RegistrationId};
 
 /// Target adapter for readiness registration and blocking event collection.
 ///

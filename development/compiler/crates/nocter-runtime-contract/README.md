@@ -21,6 +21,7 @@ public source-level imports.
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
 - canonical representation classes
 - fixed async owning-handle and heap-frame-header ABI
+- target-independent descriptor and monotonic-timer wait interests
 - target runtime capability requirements
 - closed runtime environment schemas
 

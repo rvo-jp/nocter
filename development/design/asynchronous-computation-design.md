@@ -238,6 +238,7 @@ representation-independent allocation contract exists; it must not be hidden beh
 | Frame fields and continuation liveness | MIR async-frame derivation | MIR validation, Machine projection |
 | Cancellation order and initialization conditions | checked ownership cleanup | MIR async-frame derivation, Machine projection |
 | Machine state and destruction identities | Machine projection | target backend, executor runtime |
+| Wait-interest structure and numeric runtime ABI | runtime contract | scheduler, reactor, target backend |
 | Task lifecycle and runnable order | executor | reactor adapter, runtime entry |
 | Readiness and timer registration | reactor | executor wakeups |
 | Native readiness mechanism | selected target adapter | reactor contract |
