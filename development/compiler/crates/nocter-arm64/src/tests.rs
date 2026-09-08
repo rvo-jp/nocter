@@ -1164,6 +1164,48 @@ fn async_frame_layout_places_the_machine_field_union_once() {
 }
 
 #[test]
+fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
+    let program = crate::test_support::lower_machine(
+        "func preserve(left: i64, right: f64): async i64 {\n\
+             if right == 0.0 { return left }\n\
+             return left\n\
+         }\n\
+         func main(): void {\n\
+             let pending = preserve(11, 2.0)\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let owner = program
+        .functions()
+        .find_map(|(owner, function)| {
+            matches!(
+                function.execution(),
+                nocter_machine::MachineFunctionExecution::Deferred(_)
+            )
+            .then_some(owner)
+        })
+        .expect("one deferred function");
+    let function = program.function(owner).unwrap();
+    let plan = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
+
+    assert_eq!(plan.owner(), owner);
+    assert_eq!(plan.parameters().len(), function.body().parameters().len());
+    assert!(plan.pack().is_none());
+    assert_eq!(plan.result_register(), 0);
+    for capture in plan.parameters() {
+        assert_eq!(
+            plan.frame().stack_object(capture.source()),
+            Some(capture.destination())
+        );
+        assert_eq!(
+            function.body().stack(capture.source()).unwrap().size(),
+            capture.destination().size()
+        );
+    }
+}
+
+#[test]
 fn async_frame_layout_retains_a_transferred_pack_pointer() {
     let program = crate::test_support::lower_machine(
         "func ready(): async void { return }\n\
@@ -1193,8 +1235,13 @@ fn async_frame_layout_retains_a_transferred_pack_pointer() {
         })
         .expect("one deferred pack function");
     let layout = crate::Arm64AsyncFrameLayout::build(&program, owner).unwrap();
+    let function = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
 
     assert_eq!(layout.pack_input().unwrap().size(), 8);
+    assert_eq!(
+        function.pack().unwrap().destination(),
+        layout.pack_input().unwrap()
+    );
 }
 
 #[test]

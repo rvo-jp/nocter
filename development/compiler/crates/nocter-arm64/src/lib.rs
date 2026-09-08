@@ -10,6 +10,7 @@ mod address_selection;
 mod aggregate_selection;
 mod allocation_selection;
 mod async_frame;
+mod async_function;
 mod call_selection;
 mod code;
 mod destruction_selection;
@@ -67,6 +68,10 @@ pub use address_selection::{
 pub use async_frame::{
     Arm64AsyncFrameField, Arm64AsyncFrameLayout, Arm64AsyncFrameLayoutError,
     Arm64AsyncSuspensionTag,
+};
+pub use async_function::{
+    Arm64AsyncFunctionPlan, Arm64AsyncFunctionPlanError, Arm64AsyncPackCapture,
+    Arm64AsyncParameterCapture,
 };
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
 pub use encode::Arm64EncodingError;
