@@ -810,6 +810,7 @@ mod tests {
             "}\n",
         );
         fs::write(&root, source).unwrap();
+        let canonical_root = fs::canonicalize(&root).unwrap();
         let mut documents = DocumentWorkspace::new();
         let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
 
@@ -828,9 +829,12 @@ mod tests {
             panic!("newer document version is accepted");
         };
         let second = analyses.analyze(revision).unwrap();
+        let second_snapshot = second.primary().snapshot().unwrap();
+        assert_eq!(second_snapshot.status(), AnalysisStatus::SyntaxFailed);
         assert_eq!(
-            second.primary().snapshot().unwrap().status(),
-            AnalysisStatus::SyntaxFailed
+            second_snapshot.document_version(&canonical_root),
+            Some(nocter_filesystem::DocumentVersion::new(2)),
+            "semantic reuse must retain the current editor envelope",
         );
         let counts = analyses.incomplete_analysis_counts();
         assert_eq!(counts.0, 1);

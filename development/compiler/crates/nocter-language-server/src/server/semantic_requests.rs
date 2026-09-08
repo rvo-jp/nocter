@@ -1206,11 +1206,19 @@ mod tests {
             snapshot.diagnostics()
         );
 
+        let unchanged = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didChange\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\",\"version\":4}},\"contentChanges\":[{{\"text\":{text_json}}}]}}}}"
+        ));
+        assert_eq!(
+            unchanged.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::Complete,
+        );
+
         let renamed = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/rename\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":2,\"character\":18}},\"newName\":\"result\"}}}}"
         ));
         let response = renamed.response().unwrap();
-        assert!(response.contains("\"version\":3"));
+        assert!(response.contains("\"version\":4"));
         assert!(response.contains("\"version\":null"));
         assert!(response.contains("helper.nct"));
         assert_eq!(response.matches("\"newText\":\"result\"").count(), 2);

@@ -10,11 +10,12 @@ workspace analysis.
 The crate accepts atomic source revisions and returns an owner-bound revision token. That token is
 required both to lend the computed syntax provider and to analyze a discovered unit. The crate
 derives and publishes semantic inputs from that exact unit, then demands the sole
-complete-or-incomplete unit analysis product. The publication types and semantic query entries are
-private to this crate, so callers cannot assemble mismatched module, body, and scope authority. It
-owns the computation database, retention policy, and query instrumentation but does not select
-packages, discover modules, translate session outcomes, build targets, or interpret editor
-requests.
+complete-or-incomplete semantic branch. It then seals that reusable branch with the exact current
+discovery unit outside the query cache. The publication types, semantic query entries, and sealing
+constructor are private to this crate, so callers cannot assemble mismatched module, body, and
+scope authority. It owns the computation database, retention policy, and query instrumentation but
+does not select packages, discover modules, translate session outcomes, build targets, or
+interpret editor requests.
 
 ## Internal Responsibilities
 
@@ -40,6 +41,9 @@ requests.
 - Semantic input publication may advance the internal database without invalidating the current
   source token; source authority and internal query revisions are separate identities.
 - One discovered unit supplies both semantic and exact-current fingerprints atomically.
+- Query reuse owns semantic equivalence only. The returned unit-analysis envelope always retains
+  the current discovery unit, so editor document versions, open-document state, and other overlay
+  metadata cannot be inherited from an equivalent earlier source revision.
 - Callers cannot access the raw computation database or demand an intermediate semantic query.
 - Authored rejection and compiler-domain integrity failure are separate outcomes. A rejected stage
   prevents its downstream query from being demanded; projection or checking failure retains its

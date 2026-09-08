@@ -85,8 +85,12 @@ parallel fingerprints from paths, rendered names, or semantic storage.
 
 Accepted declaration, preparation, lexical, and typed-body products use source-neutral
 fingerprints where their contracts permit reuse. Authored rejection, source projection, incomplete
-syntax, canonical replay, and the final unit outcome remain exact-current. An unchanged result
-fingerprint stops invalidation propagation even when an upstream query had to be re-evaluated.
+syntax, canonical replay, and the final semantic branch remain exact-current with respect to
+source identity and bytes. The top-level semantic branch does not own the discovery unit: compiler
+computation seals a reused branch with the current unit after the query returns. Document versions,
+open-document state, and other non-semantic overlay metadata therefore stay current without
+invalidating semantic work. An unchanged result fingerprint stops invalidation propagation even
+when an upstream query had to be re-evaluated.
 
 A fingerprint is cache validation, not semantic authority. Its owning product still carries the
 identities and decisions consumed downstream. Warm incremental results are compared with a fresh

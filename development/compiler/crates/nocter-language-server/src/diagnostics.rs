@@ -357,6 +357,33 @@ mod tests {
     }
 
     #[test]
+    fn republishes_unchanged_diagnostics_for_the_current_document_version() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("versioned.nct");
+        let text = "func main(): void { unknown() return }\n";
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let mut publisher = DiagnosticPublisher::new();
+
+        let opened = documents.open(&open_params(&source, 1, text)).unwrap();
+        let initial = analyses.analyze(opened).unwrap();
+        let initial_publication = publisher.publish(&initial).unwrap();
+        assert_eq!(initial_publication.len(), 1);
+        assert!(initial_publication[0].contains("\"version\":1"));
+
+        let changed = documents.change(&change_params(&source, 2, text)).unwrap();
+        let DocumentWorkspaceChange::Accepted(changed) = changed else {
+            panic!("newer document version must be accepted")
+        };
+        let reused = analyses.analyze(changed).unwrap();
+        let current_publication = publisher.publish(&reused).unwrap();
+
+        assert_eq!(current_publication.len(), 1);
+        assert!(current_publication[0].contains("\"version\":2"));
+        assert!(!current_publication[0].contains("\"diagnostics\":[]"));
+    }
+
+    #[test]
     fn shared_diagnostics_survive_one_scope_leaving_and_publish_once_per_uri() {
         let temporary = TemporaryDirectory::new();
         let first_root = temporary.path().join("first");

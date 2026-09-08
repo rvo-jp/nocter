@@ -35,7 +35,10 @@ pub enum ProgramAnalysisOutcome {
     Failed(Arc<super::SemanticQueryFailure>),
 }
 
-/// One source-complete semantic outcome inseparably paired with its exact discovery snapshot.
+/// One reusable source-complete semantic outcome.
+///
+/// The public unit product pairs this branch with the exact current discovery snapshot outside the
+/// query cache, so this product must not retain editor-generation metadata.
 #[derive(Debug)]
 pub struct ProgramAnalysisProduct {
     outcome: ProgramAnalysisOutcome,

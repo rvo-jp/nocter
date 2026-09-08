@@ -39,6 +39,9 @@ source, loader commands, or package state.
 - Encoding is deterministic for one machine program.
 - Stack and async frames share one aligned-object placement authority. Async placement assigns one
   stable byte range to each Machine-selected live identity and never repeats suspension liveness.
+- Async frames and compiler-owned computations consume complete lifecycle-state tag sequences from
+  the runtime contract. Instruction emission cannot assign numeric initial, suspension, or
+  completed tags.
 - Deferred functions own four distinct native entries: constructor, resume, cancellation, and
   completed-output consumption. Whole-program lowering declares all four identities before any
   body is materialized.

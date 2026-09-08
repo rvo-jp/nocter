@@ -1,3 +1,7 @@
+// This binary consumes the package dependency through the `nocter_content_integrity` library.
+// Cargo also exposes it directly to the binary target, which the target-local lint cannot model.
+#![allow(unused_crate_dependencies)]
+
 use std::ffi::OsString;
 use std::path::Path;
 

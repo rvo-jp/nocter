@@ -1,3 +1,8 @@
+// Cargo exposes this package's library dependencies to the binary target as well. The binary
+// deliberately enters them only through `nocter_cli`, so target-local dependency-use linting
+// cannot distinguish this boundary from an unused package dependency.
+#![allow(unused_crate_dependencies)]
+
 use std::process;
 
 fn main() {

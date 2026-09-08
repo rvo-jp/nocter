@@ -1899,7 +1899,6 @@ dependencies = [
  "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-selection",
- "nocter-test-support",
  "nocter-toolchain-contract",
 ]
 
@@ -2032,7 +2031,6 @@ dependencies = [
  "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-program",
- "nocter-test-support",
 ]
 
 [[package]]
@@ -2194,7 +2192,6 @@ dependencies = [
  "nocter-compile-input",
  "nocter-model",
  "nocter-package",
- "nocter-runtime-contract",
  "nocter-source",
  "nocter-syntax",
  "nocter-toolchain-contract",

@@ -240,7 +240,9 @@
   symbol nor encodes a dylib command.</li><li>Imported calls use the same preplanned scalar transport as other runtime calls, then load and
   branch through the machine import identity's pointer slot.</li><li>A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.</li><li>Encoding is deterministic for one machine program.</li><li>Stack and async frames share one aligned-object placement authority. Async placement assigns one
-  stable byte range to each Machine-selected live identity and never repeats suspension liveness.</li><li>Deferred functions own four distinct native entries: constructor, resume, cancellation, and
+  stable byte range to each Machine-selected live identity and never repeats suspension liveness.</li><li>Async frames and compiler-owned computations consume complete lifecycle-state tag sequences from
+  the runtime contract. Instruction emission cannot assign numeric initial, suspension, or
+  completed tags.</li><li>Deferred functions own four distinct native entries: constructor, resume, cancellation, and
   completed-output consumption. Whole-program lowering declares all four identities before any
   body is materialized.</li><li>A deferred process entry is driven only by the compiler-owned process root. The root consumes
   the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.</li><li>A pending process root converts the ABI interest slice into one temporary Darwin <code>pollfd</code> array

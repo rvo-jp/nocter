@@ -8,7 +8,7 @@ use super::{CurrentSourceScopeInput, SemanticScopeKey};
 
 struct UnitAnalysisQuery;
 
-/// Sole complete-or-incomplete semantic branch for one exact source revision.
+/// Sole reusable complete-or-incomplete semantic branch for one source-content revision.
 #[derive(Debug)]
 pub enum UnitAnalysisOutcome {
     Complete(Arc<super::ProgramAnalysisProduct>),
@@ -16,27 +16,44 @@ pub enum UnitAnalysisOutcome {
     Failed(Arc<super::SemanticQueryFailure>),
 }
 
-/// One exact discovery snapshot paired inseparably with its closed semantic branch.
+/// One exact discovery snapshot paired inseparably with its reusable semantic branch.
+///
+/// This envelope is deliberately constructed outside the query cache. Editor document versions
+/// and other source-overlay metadata may advance while the source bytes and semantic result remain
+/// unchanged; reusing the semantic branch must never retain the previous revision's source
+/// envelope.
 #[derive(Debug)]
 pub struct UnitAnalysisProduct {
     unit: Arc<nocter_discovery::DiscoveredUnit>,
+    semantic: Arc<CachedUnitAnalysis>,
+}
+
+#[derive(Debug)]
+pub(super) struct CachedUnitAnalysis {
     outcome: UnitAnalysisOutcome,
     fingerprint: Fingerprint,
 }
 
 impl UnitAnalysisProduct {
+    pub(super) const fn new(
+        unit: Arc<nocter_discovery::DiscoveredUnit>,
+        semantic: Arc<CachedUnitAnalysis>,
+    ) -> Self {
+        Self { unit, semantic }
+    }
+
     #[must_use]
     pub const fn unit(&self) -> &Arc<nocter_discovery::DiscoveredUnit> {
         &self.unit
     }
 
     #[must_use]
-    pub const fn outcome(&self) -> &UnitAnalysisOutcome {
-        &self.outcome
+    pub fn outcome(&self) -> &UnitAnalysisOutcome {
+        &self.semantic.outcome
     }
 }
 
-impl QueryValue for UnitAnalysisProduct {
+impl QueryValue for CachedUnitAnalysis {
     fn fingerprint(&self) -> Fingerprint {
         self.fingerprint
     }
@@ -44,7 +61,7 @@ impl QueryValue for UnitAnalysisProduct {
 
 impl Query for UnitAnalysisQuery {
     type Key = SemanticScopeKey;
-    type Value = UnitAnalysisProduct;
+    type Value = CachedUnitAnalysis;
 
     fn execute(database: &Database, key: &Self::Key) -> Result<Self::Value, ComputationError> {
         let current = database.input::<CurrentSourceScopeInput>(key)?;
@@ -62,8 +79,7 @@ impl Query for UnitAnalysisQuery {
             let complete = super::analyzed_program(database, key.clone())?;
             UnitAnalysisOutcome::Complete(complete)
         };
-        Ok(UnitAnalysisProduct {
-            unit: Arc::clone(&current.unit),
+        Ok(CachedUnitAnalysis {
             outcome,
             fingerprint: current.fingerprint,
         })
@@ -79,7 +95,7 @@ impl Query for UnitAnalysisQuery {
 pub(super) fn analyzed_unit(
     database: &Database,
     key: SemanticScopeKey,
-) -> Result<Arc<UnitAnalysisProduct>, ComputationError> {
+) -> Result<Arc<CachedUnitAnalysis>, ComputationError> {
     database.query::<UnitAnalysisQuery>(key)
 }
 

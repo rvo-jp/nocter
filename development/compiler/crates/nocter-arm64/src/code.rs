@@ -385,6 +385,7 @@ pub enum Arm64CodeError {
     DuplicateLabel(Arm64LabelId),
     UnboundLabel(Arm64LabelId),
     OffsetOverflow,
+    AsyncStateTagExhausted,
     Encoding(Arm64EncodingError),
 }
 
@@ -401,7 +402,8 @@ impl std::error::Error for Arm64CodeError {
             Self::UnknownLabel(_)
             | Self::DuplicateLabel(_)
             | Self::UnboundLabel(_)
-            | Self::OffsetOverflow => None,
+            | Self::OffsetOverflow
+            | Self::AsyncStateTagExhausted => None,
         }
     }
 }

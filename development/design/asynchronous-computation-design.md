@@ -191,9 +191,11 @@ must survive a return to the executor.
 
 The runtime ABI schema is the numeric authority for the owning handle and the fixed header prefix:
 handle size/alignment, resume/cancellation/consume entry offsets, state-tag offset,
-allocation-context offset, header extent/alignment, and the initial suspension-tag domain. It also
-owns the uniform poll status and wait-interest record ABI. ARM64 placement begins after that prefix.
-It cannot redeclare these values from its own word-size assumptions.
+allocation-context offset, header extent/alignment, and complete lifecycle-state tag sequences. A
+computation supplies its suspension-state count; the schema assigns the initial, each suspension,
+and completed tag. It also owns the uniform poll status and wait-interest record ABI. ARM64
+placement begins after that prefix. It cannot redeclare these values or their arithmetic from its
+own assumptions.
 
 Resume receives only the opaque frame pointer. A pending result returns a pointer and count for
 frame-owned wait-interest records; a completed result returns no interests. A descriptor interest

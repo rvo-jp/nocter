@@ -72,6 +72,19 @@ pub struct RuntimeAsyncAbiSchema {
     writable_interest_detail: u64,
 }
 
+/// One closed lifecycle-state tag sequence derived from the selected async ABI.
+///
+/// A computation owns how many distinct suspension states it has. The runtime contract owns how
+/// those states, the initial state, and the terminal state are encoded, so instruction backends do
+/// not repeat tag arithmetic or assume a particular numeric base.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RuntimeAsyncStateTags {
+    initial: u64,
+    first_suspension: u64,
+    suspension_count: u64,
+    completed: u64,
+}
+
 /// One wait interest after conversion to the target-neutral runtime ABI record.
 ///
 /// The runtime contract owns this conversion so schedulers, reactors, and instruction backends
@@ -371,14 +384,20 @@ impl RuntimeAsyncAbiSchema {
         self.fixed_header_alignment
     }
 
+    /// Closes the state-tag sequence for a computation with the given suspension count.
+    ///
+    /// Returns `None` when the terminal tag cannot be represented by the selected ABI domain.
     #[must_use]
-    pub const fn initial_state_tag(self) -> u64 {
-        self.initial_state_tag
-    }
-
-    #[must_use]
-    pub const fn first_suspension_tag(self) -> u64 {
-        self.first_suspension_tag
+    pub const fn state_tags(self, suspension_count: u64) -> Option<RuntimeAsyncStateTags> {
+        let Some(completed) = self.first_suspension_tag.checked_add(suspension_count) else {
+            return None;
+        };
+        Some(RuntimeAsyncStateTags {
+            initial: self.initial_state_tag,
+            first_suspension: self.first_suspension_tag,
+            suspension_count,
+            completed,
+        })
     }
 
     #[must_use]
@@ -463,6 +482,26 @@ impl RuntimeAsyncAbiSchema {
     #[must_use]
     pub const fn writable_interest_detail(self) -> u64 {
         self.writable_interest_detail
+    }
+}
+
+impl RuntimeAsyncStateTags {
+    #[must_use]
+    pub const fn initial(self) -> u64 {
+        self.initial
+    }
+
+    #[must_use]
+    pub const fn suspension(self, index: u64) -> Option<u64> {
+        if index >= self.suspension_count {
+            return None;
+        }
+        self.first_suspension.checked_add(index)
+    }
+
+    #[must_use]
+    pub const fn completed(self) -> u64 {
+        self.completed
     }
 }
 
@@ -615,8 +654,16 @@ mod tests {
         assert_eq!(asynchronous.allocation_context_offset(), 32);
         assert_eq!(asynchronous.fixed_header_size(), 40);
         assert_eq!(asynchronous.fixed_header_alignment(), 8);
-        assert_eq!(asynchronous.initial_state_tag(), 0);
-        assert_eq!(asynchronous.first_suspension_tag(), 1);
+        let immediate = asynchronous.state_tags(0).unwrap();
+        assert_eq!(immediate.initial(), 0);
+        assert_eq!(immediate.suspension(0), None);
+        assert_eq!(immediate.completed(), 1);
+        let suspended = asynchronous.state_tags(2).unwrap();
+        assert_eq!(suspended.initial(), 0);
+        assert_eq!(suspended.suspension(0), Some(1));
+        assert_eq!(suspended.suspension(1), Some(2));
+        assert_eq!(suspended.suspension(2), None);
+        assert_eq!(suspended.completed(), 3);
         assert_eq!(asynchronous.pending_status(), 0);
         assert_eq!(asynchronous.completed_status(), 1);
         assert_eq!(asynchronous.frame_argument_register(), 0);

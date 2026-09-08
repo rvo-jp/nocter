@@ -3,9 +3,8 @@ use crate::{
     Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize,
     Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
 };
+use nocter_runtime_contract::RuntimeAsyncStateTags;
 
-const ACTIVE_STATE: u64 = 0;
-const COMPLETED_STATE: u64 = 2;
 const FIRST_CHILD_OFFSET: u64 = Arm64NocterAbi::asynchronous().fixed_header_size();
 const SECOND_CHILD_OFFSET: u64 = FIRST_CHILD_OFFSET + Arm64NocterAbi::word_size();
 const FIRST_DONE_OFFSET: u64 = SECOND_CHILD_OFFSET + Arm64NocterAbi::word_size();
@@ -82,7 +81,7 @@ pub(crate) fn materialize_constructor(
     );
     crate::darwin_memory_code::emit_map(&mut code)?;
     crate::address_code::move_register(&mut code, argument(0), argument(6));
-    initialize_join_frame(argument(6), targets, &mut code);
+    initialize_join_frame(argument(6), targets, &mut code)?;
     crate::address_code::move_register(&mut code, argument(6), argument(0));
     crate::frame_access::adjust_stack(&mut code, CONSTRUCTOR_STACK_SIZE, Arm64AddSubtract::Add);
     return_to_caller(&mut code);
@@ -93,8 +92,9 @@ fn initialize_join_frame(
     frame: crate::Arm64Register,
     targets: Arm64AsyncJoinTargets,
     code: &mut Arm64CodeBuilder,
-) {
+) -> Result<(), crate::Arm64CodeError> {
     let schema = Arm64NocterAbi::asynchronous();
+    let states = lifecycle_states()?;
     initialize_entry(
         frame,
         schema.resume_function_offset(),
@@ -113,7 +113,7 @@ fn initialize_join_frame(
         targets.consume(),
         code,
     );
-    store_immediate(frame, schema.state_tag_offset(), ACTIVE_STATE, code);
+    store_immediate(frame, schema.state_tag_offset(), states.initial(), code);
     load_stack(
         CONSTRUCTOR_ALLOCATION_CONTEXT_STACK_OFFSET,
         argument(4),
@@ -156,14 +156,16 @@ fn initialize_join_frame(
     ] {
         store_immediate(frame, offset, 0, code);
     }
+    Ok(())
 }
 
 /// Polls both owned children from left to right and returns their combined wait-interest slice.
 pub(crate) fn materialize_resume() -> Result<Arm64Code, crate::Arm64CodeError> {
     let schema = Arm64NocterAbi::asynchronous();
+    let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     emit_call_prologue(argument(0), &mut code);
-    validate_state(ACTIVE_STATE, &mut code);
+    validate_state(states.initial(), &mut code);
     release_interest_buffer(&mut code)?;
     clear_pending_interests(&mut code);
     poll_child(
@@ -192,7 +194,7 @@ pub(crate) fn materialize_resume() -> Result<Arm64Code, crate::Arm64CodeError> {
     store_immediate(
         argument(3),
         schema.state_tag_offset(),
-        COMPLETED_STATE,
+        states.completed(),
         &mut code,
     );
     crate::frame_access::load_immediate(
@@ -246,9 +248,10 @@ pub(crate) fn materialize_resume() -> Result<Arm64Code, crate::Arm64CodeError> {
 
 /// Cancels both still-owned children exactly once, then releases the join frame.
 pub(crate) fn materialize_cancel() -> Result<Arm64Code, crate::Arm64CodeError> {
+    let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     emit_call_prologue(argument(0), &mut code);
-    validate_state(ACTIVE_STATE, &mut code);
+    validate_state(states.initial(), &mut code);
     release_interest_buffer(&mut code)?;
     release_child(FIRST_CHILD_OFFSET, false, &mut code);
     release_child(SECOND_CHILD_OFFSET, false, &mut code);
@@ -259,6 +262,7 @@ pub(crate) fn materialize_cancel() -> Result<Arm64Code, crate::Arm64CodeError> {
 
 /// Consumes both completed child outputs directly into their frozen tuple placements.
 pub(crate) fn materialize_consume() -> Result<Arm64Code, crate::Arm64CodeError> {
+    let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     crate::frame_access::adjust_stack(&mut code, CONSUME_STACK_SIZE, Arm64AddSubtract::Subtract);
     store_stack(FRAME_STACK_OFFSET, argument(0), &mut code);
@@ -278,7 +282,7 @@ pub(crate) fn materialize_consume() -> Result<Arm64Code, crate::Arm64CodeError> 
         Arm64NocterAbi::process_context_register(),
         &mut code,
     );
-    validate_state(COMPLETED_STATE, &mut code);
+    validate_state(states.completed(), &mut code);
     release_child(FIRST_CHILD_OFFSET, true, &mut code);
     release_child(SECOND_CHILD_OFFSET, true, &mut code);
     release_join_frame(&mut code)?;
@@ -300,6 +304,12 @@ pub(crate) fn materialize_consume() -> Result<Arm64Code, crate::Arm64CodeError> 
     crate::frame_access::adjust_stack(&mut code, CONSUME_STACK_SIZE, Arm64AddSubtract::Add);
     return_to_caller(&mut code);
     code.finish()
+}
+
+fn lifecycle_states() -> Result<RuntimeAsyncStateTags, crate::Arm64CodeError> {
+    Arm64NocterAbi::asynchronous()
+        .state_tags(0)
+        .ok_or(crate::Arm64CodeError::AsyncStateTagExhausted)
 }
 
 fn poll_child(

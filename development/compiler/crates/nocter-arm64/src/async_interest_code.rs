@@ -3,15 +3,13 @@ use crate::{
     Arm64BaseRegister, Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64DataSize,
     Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
 };
+use nocter_runtime_contract::RuntimeAsyncStateTags;
 
 const CAPTURE_STACK_SIZE: u64 = 32;
 const SUBJECT_STACK_OFFSET: u64 = 0;
 const DETAIL_STACK_OFFSET: u64 = 8;
 const DEADLINE_STACK_OFFSET: u64 = 16;
 const ALLOCATION_CONTEXT_STACK_OFFSET: u64 = 24;
-const INITIAL_STATE: u64 = 0;
-const SUSPENDED_STATE: u64 = 1;
-const COMPLETED_STATE: u64 = 2;
 
 #[derive(Clone, Copy)]
 enum InterestConstructor {
@@ -55,6 +53,7 @@ fn materialize_constructor(
     lifecycle: Arm64AsyncInterestLifecycleTargets,
 ) -> Result<Arm64Code, crate::Arm64CodeError> {
     let schema = Arm64NocterAbi::asynchronous();
+    let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     crate::frame_access::adjust_stack(&mut code, CAPTURE_STACK_SIZE, Arm64AddSubtract::Subtract);
     store_stack(SUBJECT_STACK_OFFSET, argument(0), &mut code);
@@ -102,7 +101,7 @@ fn materialize_constructor(
     store_immediate(
         argument(3),
         schema.state_tag_offset(),
-        INITIAL_STATE,
+        states.initial(),
         &mut code,
     );
     load_stack(ALLOCATION_CONTEXT_STACK_OFFSET, argument(4), &mut code);
@@ -231,6 +230,10 @@ fn write_timer_interest(
 
 pub(crate) fn materialize_resume(interest_count: u64) -> Result<Arm64Code, crate::Arm64CodeError> {
     let schema = Arm64NocterAbi::asynchronous();
+    let states = lifecycle_states()?;
+    let suspended_tag = states
+        .suspension(0)
+        .ok_or(crate::Arm64CodeError::AsyncStateTagExhausted)?;
     let mut code = Arm64CodeBuilder::new();
     crate::address_code::move_register(&mut code, argument(0), argument(3));
     crate::address_code::load_native(
@@ -243,15 +246,15 @@ pub(crate) fn materialize_resume(interest_count: u64) -> Result<Arm64Code, crate
     );
     let initial = code.create_label();
     let suspended = code.create_label();
-    compare_state(argument(4), INITIAL_STATE, initial, &mut code);
-    compare_state(argument(4), SUSPENDED_STATE, suspended, &mut code);
+    compare_state(argument(4), states.initial(), initial, &mut code);
+    compare_state(argument(4), suspended_tag, suspended, &mut code);
     trap_state(&mut code);
 
     code.bind(initial)?;
     store_immediate(
         argument(3),
         schema.state_tag_offset(),
-        SUSPENDED_STATE,
+        suspended_tag,
         &mut code,
     );
     emit_pending(argument(3), interest_count, &mut code);
@@ -270,7 +273,7 @@ pub(crate) fn materialize_resume(interest_count: u64) -> Result<Arm64Code, crate
     store_immediate(
         argument(3),
         schema.state_tag_offset(),
-        COMPLETED_STATE,
+        states.completed(),
         &mut code,
     );
     crate::frame_access::load_immediate(
@@ -304,14 +307,24 @@ fn emit_pending(frame: crate::Arm64Register, interest_count: u64, code: &mut Arm
 pub(crate) fn materialize_cancel(interest_count: u64) -> Result<Arm64Code, crate::Arm64CodeError> {
     // Cancellation is the destruction entry for every still-owned computation handle. A caller
     // may release the handle after completion but before consuming its output.
+    let states = lifecycle_states()?;
+    let suspended = states
+        .suspension(0)
+        .ok_or(crate::Arm64CodeError::AsyncStateTagExhausted)?;
     materialize_release(
-        &[INITIAL_STATE, SUSPENDED_STATE, COMPLETED_STATE],
+        &[states.initial(), suspended, states.completed()],
         interest_count,
     )
 }
 
 pub(crate) fn materialize_consume(interest_count: u64) -> Result<Arm64Code, crate::Arm64CodeError> {
-    materialize_release(&[COMPLETED_STATE], interest_count)
+    materialize_release(&[lifecycle_states()?.completed()], interest_count)
+}
+
+fn lifecycle_states() -> Result<RuntimeAsyncStateTags, crate::Arm64CodeError> {
+    Arm64NocterAbi::asynchronous()
+        .state_tags(1)
+        .ok_or(crate::Arm64CodeError::AsyncStateTagExhausted)
 }
 
 fn materialize_release(

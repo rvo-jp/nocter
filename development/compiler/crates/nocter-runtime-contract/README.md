@@ -21,6 +21,7 @@ public source-level imports.
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
 - canonical representation classes
 - fixed async owning-handle and heap-frame-header ABI
+- closed async lifecycle-state tag sequences
 - target-independent descriptor and monotonic-timer wait interests
 - target runtime capability requirements
 - closed runtime environment schemas
@@ -40,5 +41,8 @@ public source-level imports.
   define the construction boundary.
 - Semantic descriptor/timer interests and their numeric ABI records have one mapping here. Reactors
   and target backends consume that mapping instead of assigning independent meanings to tags.
+- A computation supplies only its suspension-state count. This contract assigns its initial,
+  suspension, and completed tags; a target backend cannot repeat the arithmetic or assume zero as
+  the initial encoding.
 - Timer ordering is a half-domain wrapping-counter contract. A target wait-width cap may divide one
   deadline into multiple native waits, but cannot make the logical interest eligible early.

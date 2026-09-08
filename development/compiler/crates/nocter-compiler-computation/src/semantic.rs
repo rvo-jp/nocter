@@ -334,6 +334,7 @@ pub(super) fn analyze_unit(
     module_surface_fingerprint: Fingerprint,
     bodies: impl IntoIterator<Item = BodySourcePublication>,
 ) -> Result<Arc<UnitAnalysisProduct>, SemanticAnalysisError> {
+    let current_unit = Arc::clone(&unit);
     let (scope, publication) = ScopeInputPublication::for_unit(unit, module_surface_fingerprint)?;
     let mut revision = database.advance_revision()?;
     publication.publish(&mut revision, &scope);
@@ -341,7 +342,8 @@ pub(super) fn analyze_unit(
         body.publish(&mut revision);
     }
     let _ = revision.commit();
-    unit_analysis::analyzed_unit(database, scope).map_err(SemanticAnalysisError::from)
+    let semantic = unit_analysis::analyzed_unit(database, scope)?;
+    Ok(Arc::new(UnitAnalysisProduct::new(current_unit, semantic)))
 }
 
 #[derive(Debug)]

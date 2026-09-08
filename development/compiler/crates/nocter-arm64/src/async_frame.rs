@@ -133,11 +133,13 @@ impl Arm64AsyncFrameLayout {
             } => add_stored(&mut sequence, size, alignment)?,
         };
         let placed = place_body_fields(body, fields, &mut sequence)?;
-        let suspension_tags = build_suspension_tags(owner, frame, asynchronous)?;
-        let completed_tag = u64::try_from(suspension_tags.len())
+        let suspension_count = u64::try_from(frame.states().len())
             .ok()
-            .and_then(|count| asynchronous.first_suspension_tag().checked_add(count))
             .ok_or(Arm64AsyncFrameLayoutError::StateTagExhausted(owner))?;
+        let state_tags = asynchronous
+            .state_tags(suspension_count)
+            .ok_or(Arm64AsyncFrameLayoutError::StateTagExhausted(owner))?;
+        let suspension_tags = build_suspension_tags(owner, frame, state_tags)?;
         let (size, alignment) = sequence.finish(WORD_SIZE)?;
         Ok(Self {
             size,
@@ -154,8 +156,8 @@ impl Arm64AsyncFrameLayout {
             drop_flags: placed.drop_flags,
             values: placed.values,
             suspension_tags: suspension_tags.into_boxed_slice(),
-            initial_tag: asynchronous.initial_state_tag(),
-            completed_tag,
+            initial_tag: state_tags.initial(),
+            completed_tag: state_tags.completed(),
         })
     }
 
@@ -355,7 +357,7 @@ const fn stack_layout(object: nocter_machine::MachineStackObject) -> (u64, u64) 
 fn build_suspension_tags(
     owner: MachineFunctionId,
     frame: &nocter_machine::MachineAsyncFrame,
-    asynchronous: nocter_runtime_contract::RuntimeAsyncAbiSchema,
+    state_tags: nocter_runtime_contract::RuntimeAsyncStateTags,
 ) -> Result<Vec<Arm64AsyncSuspensionTag>, Arm64AsyncFrameLayoutError> {
     frame
         .states()
@@ -364,7 +366,7 @@ fn build_suspension_tags(
         .map(|(index, state)| {
             u64::try_from(index)
                 .ok()
-                .and_then(|index| asynchronous.first_suspension_tag().checked_add(index))
+                .and_then(|index| state_tags.suspension(index))
                 .map(|tag| Arm64AsyncSuspensionTag {
                     suspend: state.suspend(),
                     tag,

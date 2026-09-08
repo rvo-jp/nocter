@@ -31,8 +31,8 @@ pub enum AnalyzedUnitStatus {
     Complete,
 }
 
-/// One closed session failure paired with the exact source and diagnostic snapshot selected by
-/// the unit-analysis query.
+/// One closed session failure paired with the exact source envelope and query-selected diagnostic
+/// snapshot sealed by compiler computation.
 #[derive(Debug)]
 pub struct AnalyzedCompilationFailure {
     failure: CompileSessionFailure,
@@ -67,9 +67,10 @@ impl std::error::Error for AnalyzedCompilationFailure {
 
 /// One discovery snapshot paired inseparably with the exact session outcome derived from it.
 ///
-/// Consumers cannot combine semantic evidence from one source graph with another graph. The
-/// semantic query product has already selected stage order and recovery; session validates that
-/// source domain once and translates the closed branch without reopening the compiler pipeline.
+/// Consumers cannot combine semantic evidence from one source graph with another graph. Compiler
+/// computation has already selected stage order and recovery, then sealed the reusable semantic
+/// branch with the current discovery unit outside the query cache. Session validates that source
+/// domain once and translates the closed branch without reopening the compiler pipeline.
 #[derive(Debug)]
 pub struct AnalyzedUnit {
     unit: Arc<DiscoveredUnit>,
@@ -149,7 +150,7 @@ impl AnalyzedUnit {
     }
 }
 
-/// Consumes the sole query-owned complete-or-incomplete semantic outcome.
+/// Consumes the sole complete-or-incomplete semantic outcome sealed to the current source envelope.
 ///
 /// # Errors
 ///
