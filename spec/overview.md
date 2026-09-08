@@ -111,7 +111,10 @@ Rules:
 - The generated failure report includes the root classification code and the outer-to-inner
   context and leaf messages exposed by the built-in error handle.
 - If stderr reporting itself fails, the wrapper ignores that reporting failure and still exits with status code `1`.
-- The compiler-generated entry wrapper must not require allocation or call fallible standard-library APIs.
+- Process-result conversion and failure reporting in the compiler-generated entry wrapper do not
+  allocate or call fallible standard-library APIs. A deferred entry still allocates its owning
+  computation frame under the ordinary `async T` representation; allocation failure aborts under
+  the runtime allocation contract.
 - `func main(): void` exits with status code `0`.
 - `func main(): i32` and `func main(): usize` use the returned value as the process exit status.
 - `func main(): void`, `func main(): void!`, `func main(): i32`, `func main(): i32!`, `func main(): usize`, and `func main(): usize!` are accepted entry return forms. Each form may be wrapped once in `async`; the process adapter owns and drives that root computation to completion.
