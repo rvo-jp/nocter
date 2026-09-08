@@ -482,6 +482,28 @@ fn annotation_reuses_normalized_data_position_validity() {
 }
 
 #[test]
+fn inferred_bindings_reuse_normalized_data_position_validity() {
+    for source in [
+        "func finish(): void { return }\nfunc invalid(): void {\n    let completion = finish()\n    return\n}\n",
+        "func finish(): async void! { return }\nfunc invalid(): async void! {\n    let completion = await finish()?\n    return\n}\n",
+    ] {
+        let error = check(source).unwrap_err();
+        assert_eq!(
+            error.type_validity_rule(),
+            Some(TypeValidityRule::VoidData),
+            "{source}: {error:?}"
+        );
+        assert_eq!(error.source_diagnostic().unwrap().code(), "E0364");
+    }
+}
+
+#[test]
+fn discard_initializer_accepts_void_completion_without_creating_storage() {
+    check("func finish(): void { return }\nfunc valid(): void {\n    let _ = finish()\n    return\n}\n")
+        .unwrap();
+}
+
+#[test]
 fn discard_binding_rejects_mutability_and_annotations_before_value_checking() {
     for source in [
         "func invalid(): void {\n    var _ = 1\n    return\n}\n",

@@ -29,7 +29,7 @@ use crate::syntax::{
 };
 use crate::{
     AggregateConstruction, BodySource, CheckedControl, CheckedOperation, ConstantValue, DropTable,
-    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames,
+    ExpectedEvidence, NameTarget, PlaceAccess, PlaceProjection, ResolvedBodyNames, TypePosition,
     plan_expected_type,
 };
 
@@ -579,6 +579,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.resolve_data_type_use(ty)
             })
             .transpose()?;
+        let inferred_type = expected.is_none();
         let initializer = self.required_child(statement, NodeKind::Expression)?;
         let value = self.check_expression(initializer, expected)?;
         let ty = self.node_type(value)?;
@@ -588,6 +589,9 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
                 self.types.builtin(BuiltinType::Void),
                 CheckedOperation::Control(CheckedControl::Discard(value)),
             );
+        }
+        if inferred_type {
+            self.validate_type_in_position(pattern, ty, TypePosition::Data)?;
         }
         let pattern = self.check_binding_pattern(pattern, ty)?;
         self.add_node(

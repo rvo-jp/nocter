@@ -70,8 +70,22 @@ impl BodyChecker<'_, '_> {
         position: TypePosition,
     ) -> Result<TypeId, BodyCheckError> {
         let ty = self.resolve_type_use(node)?;
+        self.validate_type_in_position(node, ty, position)?;
+        Ok(ty)
+    }
+
+    /// Validates an already normalized type at the source construct that gives it meaning.
+    ///
+    /// Authored annotations and inferred storage destinations share this projection boundary so
+    /// type-shape policy remains independent of how a type was obtained.
+    pub(super) fn validate_type_in_position(
+        &self,
+        node: NodeId,
+        ty: TypeId,
+        position: TypePosition,
+    ) -> Result<(), BodyCheckError> {
         match validate_type(self.types, ty, position) {
-            Ok(()) => Ok(ty),
+            Ok(()) => Ok(()),
             Err(TypeValidityFailure::Rule(violation)) => {
                 let origin = SourceOrigin::from_node(self.tree(), node)
                     .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?;
