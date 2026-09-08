@@ -39,15 +39,15 @@ fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() 
     let program = MachineProgram::lower(&mir).unwrap();
     let deferred = program
         .functions()
-        .find_map(|(_, function)| match function.execution() {
+        .find_map(|(id, function)| match function.execution() {
             crate::MachineFunctionExecution::Deferred(frame) if !frame.states().is_empty() => {
-                Some((function, frame))
+                Some((id, function, frame))
             }
             crate::MachineFunctionExecution::Immediate
             | crate::MachineFunctionExecution::Deferred(_) => None,
         })
         .expect("one suspended deferred function");
-    let (function, frame) = deferred;
+    let (function_id, function, frame) = deferred;
     let state = &frame.states()[0];
 
     assert!(matches!(
@@ -55,6 +55,10 @@ fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() 
         MachineTerminator::Suspend { computation, resume }
             if *computation == state.awaited() && resume.block() == state.resume()
     ));
+    assert_eq!(
+        program.contexts().allocation().get(function_id),
+        Some(crate::MachineContextRequirement::Incoming)
+    );
     assert!(
         state
             .fields()

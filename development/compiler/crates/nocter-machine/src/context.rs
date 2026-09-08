@@ -37,20 +37,30 @@ impl MachineContextPlan {
     ) -> Result<Self, MachineContextError> {
         let mut requirements = functions
             .iter()
-            .map(|(_, function)| match (kind, function.kind()) {
-                (
-                    MachineContextKind::Allocation,
-                    MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot,
-                ) => MachineContextRequirement::ProgramRoot,
-                (
-                    MachineContextKind::Process | MachineContextKind::Allocation,
-                    MachineFunctionKind::Callable(_),
-                )
-                | (
-                    MachineContextKind::Process,
-                    MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot,
-                ) => MachineContextRequirement::None,
-            })
+            .map(
+                |(_, function)| match (kind, function.kind(), function.execution()) {
+                    (
+                        MachineContextKind::Allocation,
+                        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot,
+                        _,
+                    ) => MachineContextRequirement::ProgramRoot,
+                    (
+                        MachineContextKind::Allocation,
+                        MachineFunctionKind::Callable(_),
+                        crate::MachineFunctionExecution::Deferred(_),
+                    ) => MachineContextRequirement::Incoming,
+                    (
+                        MachineContextKind::Process | MachineContextKind::Allocation,
+                        MachineFunctionKind::Callable(_),
+                        _,
+                    )
+                    | (
+                        MachineContextKind::Process,
+                        MachineFunctionKind::ProcessRoot | MachineFunctionKind::TestRoot,
+                        _,
+                    ) => MachineContextRequirement::None,
+                },
+            )
             .collect::<Vec<_>>();
 
         loop {
