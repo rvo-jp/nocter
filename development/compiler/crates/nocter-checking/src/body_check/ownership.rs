@@ -285,45 +285,14 @@ impl OwnershipAnalyzer<'_> {
                 }
                 self.visit(*right, state)
             }
-            CheckedOperation::Comparison(comparison) => {
-                if !self.visit(comparison.left().value(), state)? {
-                    return Ok(false);
-                }
-                if comparison.left().preparation() == ReadonlyOperandPreparation::BorrowTemporary {
-                    self.activate_owned_temporary(comparison.left().value(), state)?;
-                }
-                if !self.visit(comparison.right().value(), state)? {
-                    return Ok(false);
-                }
-                if comparison.right().preparation() == ReadonlyOperandPreparation::BorrowTemporary {
-                    self.activate_owned_temporary(comparison.right().value(), state)?;
-                }
-                Ok(true)
-            }
+            CheckedOperation::Comparison(comparison) => self.visit_comparison(comparison, state),
             CheckedOperation::Control(control) => self.visit_control(node, control, state),
             CheckedOperation::Call(call) => {
                 let reaches = self.visit_call(call, state)?;
                 Ok(reaches && checked.ty() != self.types.builtin(BuiltinType::Never))
             }
             CheckedOperation::BorrowConversion(conversion) => self.visit(conversion.value(), state),
-            CheckedOperation::Await(await_) => {
-                if !self.visit(await_.computation(), state)? {
-                    return Ok(false);
-                }
-                let mut cancellation_state = state.clone();
-                let actions = self.transfer_cleanup(&mut cancellation_state)?;
-                match self.cancellation_actions.entry(node) {
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert(actions);
-                    }
-                    std::collections::hash_map::Entry::Occupied(entry)
-                        if entry.get() == &actions => {}
-                    std::collections::hash_map::Entry::Occupied(_) => {
-                        return Err(BodyCheckInternalError::CleanupPlanning.into());
-                    }
-                }
-                Ok(true)
-            }
+            CheckedOperation::Await(await_) => self.visit_await(node, await_.computation(), state),
             CheckedOperation::CallableGuaranteeErasure(value) => self.visit(*value, state),
             CheckedOperation::OpaqueWitness(witness) => self.visit(witness.value(), state),
             CheckedOperation::Aggregate(aggregate) => self.visit_aggregate(aggregate, state),
@@ -345,6 +314,45 @@ impl OwnershipAnalyzer<'_> {
                 self.visit_interpolation(node, interpolation, state)
             }
         }
+    }
+
+    fn visit_comparison(
+        &mut self,
+        comparison: &crate::CheckedComparison,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        for operand in [comparison.left(), comparison.right()] {
+            if !self.visit(operand.value(), state)? {
+                return Ok(false);
+            }
+            if operand.preparation() == ReadonlyOperandPreparation::BorrowTemporary {
+                self.activate_owned_temporary(operand.value(), state)?;
+            }
+        }
+        Ok(true)
+    }
+
+    fn visit_await(
+        &mut self,
+        node: BodyNodeId,
+        computation: BodyNodeId,
+        state: &mut OwnershipState,
+    ) -> Result<bool, BodyCheckError> {
+        if !self.visit(computation, state)? {
+            return Ok(false);
+        }
+        let mut cancellation_state = state.clone();
+        let actions = self.transfer_cleanup(&mut cancellation_state)?;
+        match self.cancellation_actions.entry(node) {
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(actions);
+            }
+            std::collections::hash_map::Entry::Occupied(entry) if entry.get() == &actions => {}
+            std::collections::hash_map::Entry::Occupied(_) => {
+                return Err(BodyCheckInternalError::CleanupPlanning.into());
+            }
+        }
+        Ok(true)
     }
 
     fn visit_allocation(

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_declarations::{CallableKind, CallableOwner, ExportedEntity};
+use nocter_declarations::{CallableExecution, CallableKind, CallableOwner, ExportedEntity};
 use nocter_model::PackageTargetKind;
 use nocter_model::{
     BodyId, BuiltinType, CallableId, ModuleId, PackageId, PackageTargetId, TypeId, TypeKind,
@@ -16,11 +16,22 @@ pub enum ProcessSuccessType {
     Usize,
 }
 
-/// The exact source-level result contract accepted for an executable entry.
+/// The exact process result produced immediately or by completing a deferred executable entry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct ProcessResultContract {
     success: ProcessSuccessType,
     fallible: bool,
+}
+
+/// How the selected process entry produces its process result.
+///
+/// This is copied from checked declaration authority during entry selection. Later executable
+/// and lowering stages consume it directly instead of rediscovering deferred execution from the
+/// outer result type.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ProcessEntryExecution {
+    Immediate,
+    Deferred { output: TypeId },
 }
 
 impl ProcessResultContract {
@@ -45,6 +56,7 @@ pub struct ExecutableEntry {
     body: BodyId,
     result_type: TypeId,
     process_result: ProcessResultContract,
+    execution: ProcessEntryExecution,
 }
 
 impl ExecutableEntry {
@@ -81,6 +93,11 @@ impl ExecutableEntry {
     #[must_use]
     pub const fn process_result(self) -> ProcessResultContract {
         self.process_result
+    }
+
+    #[must_use]
+    pub const fn execution(self) -> ProcessEntryExecution {
+        self.execution
     }
 }
 
@@ -210,7 +227,13 @@ pub fn select_executable_entry(
     let body = declaration
         .body()
         .ok_or_else(|| invalid_contract(selected, callable, EntryContractRule::MissingBody))?;
-    let process_result = process_result(checked.types(), declaration.result())
+    let (execution, process_output) = match declaration.execution() {
+        CallableExecution::Immediate => (ProcessEntryExecution::Immediate, declaration.result()),
+        CallableExecution::Deferred { output } => {
+            (ProcessEntryExecution::Deferred { output }, output)
+        }
+    };
+    let process_result = process_result(checked.types(), process_output)
         .ok_or_else(|| invalid_contract(selected, callable, EntryContractRule::ResultType))?;
     Ok(ExecutableEntry {
         target: selected,
@@ -220,6 +243,7 @@ pub fn select_executable_entry(
         body,
         result_type: declaration.result(),
         process_result,
+        execution,
     })
 }
 

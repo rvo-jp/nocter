@@ -47,13 +47,26 @@ pub fn validate_function(
     context.validate()
 }
 
-pub(crate) fn validate_root(
+pub(crate) fn validate_process_root(
     body: &MirBody,
     environment: &impl MirValidationEnvironment,
 ) -> Result<(), MirValidationError> {
     let context = ValidationContext {
         function: body,
-        contract: BodyContract::Root,
+        contract: BodyContract::ProcessRoot,
+        environment,
+        types: environment.types(),
+    };
+    context.validate()
+}
+
+pub(crate) fn validate_test_root(
+    body: &MirBody,
+    environment: &impl MirValidationEnvironment,
+) -> Result<(), MirValidationError> {
+    let context = ValidationContext {
+        function: body,
+        contract: BodyContract::TestRoot,
         environment,
         types: environment.types(),
     };
@@ -67,7 +80,14 @@ enum BodyContract {
         result: TypeId,
         execution: crate::MirFunctionExecution,
     },
-    Root,
+    ProcessRoot,
+    TestRoot,
+}
+
+impl BodyContract {
+    const fn is_root(self) -> bool {
+        matches!(self, Self::ProcessRoot | Self::TestRoot)
+    }
 }
 
 struct ValidationContext<'a, E: ?Sized> {
@@ -142,7 +162,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             BodyContract::Function { item, .. } => {
                 (Some(item), self.environment.item_pack_input(item))
             }
-            BodyContract::Root => (None, None),
+            BodyContract::ProcessRoot | BodyContract::TestRoot => (None, None),
         };
         let actual = self.function.pack().map(|pack| {
             self.require_type(pack.element())?;
@@ -716,7 +736,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 }
             }
             MirOperationKind::ReportError { place } => {
-                if !matches!(self.contract, BodyContract::Root)
+                if !self.contract.is_root()
                     || result.is_some()
                     || self.require_place(*place)?.ty() != self.types.builtin(BuiltinType::Error)
                 {
@@ -736,6 +756,29 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                         self.types.get(self.require_place(*place)?.ty()),
                         Some(TypeKind::Async(_))
                     )
+                {
+                    return Err(mismatch());
+                }
+            }
+            MirOperationKind::DriveComputation {
+                computation,
+                destination,
+            } => {
+                let Some(TypeKind::Async(output)) =
+                    self.types.get(self.require_place(*computation)?.ty())
+                else {
+                    return Err(mismatch());
+                };
+                let destination_matches = match destination {
+                    Some(destination) => self.require_place(*destination)?.ty() == *output,
+                    None => matches!(
+                        self.types.get(*output),
+                        Some(TypeKind::Builtin(BuiltinType::Void))
+                    ),
+                };
+                if !matches!(self.contract, BodyContract::ProcessRoot)
+                    || result.is_some()
+                    || !destination_matches
                 {
                     return Err(mismatch());
                 }
@@ -988,7 +1031,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     }
                 }
                 MirTerminator::Exit(status) => {
-                    if !matches!(self.contract, BodyContract::Root) {
+                    if !self.contract.is_root() {
                         return Err(MirValidationError::InvalidReturn(block));
                     }
                     if let Some(status) = status {
@@ -1063,6 +1106,15 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             | MirOperationKind::ReleaseError { place }
             | MirOperationKind::ReleaseComputation { place } => {
                 values.extend(place_values(self.require_place(*place)?));
+            }
+            MirOperationKind::DriveComputation {
+                computation,
+                destination,
+            } => {
+                values.extend(place_values(self.require_place(*computation)?));
+                if let Some(destination) = destination {
+                    values.extend(place_values(self.require_place(*destination)?));
+                }
             }
             MirOperationKind::Store { destination, value }
             | MirOperationKind::Initialize { destination, value } => {

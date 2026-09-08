@@ -280,6 +280,11 @@ pub enum Arm64SelectedInstruction {
     ReleaseComputation {
         place: Arm64SelectedMemoryAddress,
     },
+    /// Drives the compiler-selected process-entry computation to completion.
+    DriveComputation {
+        computation: Arm64SelectedMemoryAddress,
+        destination: Option<Arm64SelectedMemoryAddress>,
+    },
     /// Releases allocation-backed pack storage; stack-backed descriptors carry a zero size.
     ReleasePackAllocation {
         descriptor: Arm64SelectedMemoryAddress,
@@ -870,6 +875,17 @@ fn select_operation(
                 selected,
             )
         }
+        MachineOperationKind::DriveComputation {
+            computation,
+            destination,
+        } => crate::async_drive_selection::select(
+            context,
+            operation_id,
+            *computation,
+            *destination,
+            operation.result(),
+            selected,
+        ),
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             context,
             operation_id,

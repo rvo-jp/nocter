@@ -64,7 +64,7 @@ fn executable_items_retain_the_specialized_checked_execution_contract() {
     assert_eq!(execution("main"), ExecutableExecution::Immediate);
     assert!(executable.types().iter().any(|(ty, kind)| {
         matches!(kind, nocter_model::TypeKind::Async(output) if *output == i32_)
-            && matches!(executable.type_representations().get(ty), None)
+            && executable.type_representations().get(ty).is_none()
     }));
 }
 

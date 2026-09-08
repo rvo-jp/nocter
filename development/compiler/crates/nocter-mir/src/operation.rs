@@ -300,6 +300,13 @@ pub enum MirOperationKind {
     ReleaseComputation {
         place: MirPlaceId,
     },
+    /// Runs one compiler-selected process-entry computation to completion and moves its output
+    /// into `destination`. This operation exists only in a compiler-owned process root; ordinary
+    /// source calls remain lazy and cannot start an implicit executor.
+    DriveComputation {
+        computation: MirPlaceId,
+        destination: Option<MirPlaceId>,
+    },
     CreateRegion {
         parent: MirValueId,
         region: MirLocalId,

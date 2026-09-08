@@ -9,7 +9,6 @@ use nocter_runtime_contract::{
 use nocter_target_program::{ExecutableProgram, ExecutableRoot};
 
 use crate::program_validation::validate_program;
-use crate::validate::validate_root;
 use crate::{MirFunction, MirRoot, MirStatic, MirValidationError, validate_function};
 
 /// One closed executable with one function per executable item and its compiler-owned roots.
@@ -93,10 +92,12 @@ impl MirProgramBuilder {
         }
         validate_root_metadata(&root, self.executable.root())?;
         match &root {
-            MirRoot::Process(process) => validate_root(process.body(), &self.executable)?,
+            MirRoot::Process(process) => {
+                crate::validate::validate_process_root(process.body(), &self.executable)?;
+            }
             MirRoot::Tests { cases, .. } => {
                 for case in cases {
-                    validate_root(case.body(), &self.executable)?;
+                    crate::validate::validate_test_root(case.body(), &self.executable)?;
                 }
             }
         }
@@ -187,8 +188,14 @@ fn validate_root_metadata(
                 target,
                 entry,
                 result,
+                execution,
             },
-        ) => root.target() == *target && root.entry() == *entry && root.result() == *result,
+        ) => {
+            root.target() == *target
+                && root.entry() == *entry
+                && root.result() == *result
+                && root.execution() == *execution
+        }
         (
             MirRoot::Tests {
                 target: root_target,

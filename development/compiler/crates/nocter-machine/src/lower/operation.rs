@@ -108,6 +108,15 @@ fn lower_operation(
                 place: ids.address(*place)?,
             }
         }
+        MirOperationKind::DriveComputation {
+            computation,
+            destination,
+        } => MachineOperationKind::DriveComputation {
+            computation: ids.address(*computation)?,
+            destination: destination
+                .map(|destination| ids.address(destination))
+                .transpose()?,
+        },
         MirOperationKind::CreateRegion { parent, region } => MachineOperationKind::CreateRegion {
             parent: ids.value(*parent)?,
             region: ids.stack(*region)?,

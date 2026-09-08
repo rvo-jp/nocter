@@ -88,6 +88,15 @@ func main(): i32 {
 }
 ```
 
+An entry may wrap any accepted result form in `async` when it needs suspension:
+
+```nct
+func main(): async void! {
+    let response = await fetch()?
+    io.print(response)
+}
+```
+
 Rules:
 
 - A selected executable module must define exactly one top-level function named `main`.
@@ -105,7 +114,12 @@ Rules:
 - The compiler-generated entry wrapper must not require allocation or call fallible standard-library APIs.
 - `func main(): void` exits with status code `0`.
 - `func main(): i32` and `func main(): usize` use the returned value as the process exit status.
-- `func main(): void`, `func main(): void!`, `func main(): i32`, `func main(): i32!`, `func main(): usize`, and `func main(): usize!` are accepted entry return forms, but `func main(): i32!` is the preferred form for applications that need a numeric success code.
+- `func main(): void`, `func main(): void!`, `func main(): i32`, `func main(): i32!`, `func main(): usize`, and `func main(): usize!` are accepted entry return forms. Each form may be wrapped once in `async`; the process adapter owns and drives that root computation to completion.
+- Calling an asynchronous `main` as an ordinary function only creates its lazy computation. The
+  compiler-generated process adapter is the sole implicit driver, so an ordinary synchronous call
+  never starts a hidden executor.
+- `func main(): i32!` is the preferred immediate form for applications that need a numeric success
+  code. Use its `async i32!` counterpart when the entry body must await work.
 - Entry functions cannot declare type parameters or value parameters.
 - Command-line arguments and environment variables are accessed through the ordinary
   [`std/process` contract](../development/std/process/index.nct), not through special entry function

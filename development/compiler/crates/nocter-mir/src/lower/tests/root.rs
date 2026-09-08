@@ -103,6 +103,33 @@ fn materializes_all_six_process_result_contracts() {
 }
 
 #[test]
+fn deferred_process_entry_is_driven_only_by_the_compiler_root() {
+    let program = lower_executable(executable_fixture(&CompilerFixture::with_app(
+        "func main(): async i32 { return 42 }\n",
+    )))
+    .unwrap();
+    let MirRoot::Process(root) = program.root() else {
+        panic!("process fixture produced test roots")
+    };
+    assert!(matches!(
+        root.execution(),
+        nocter_target_program::ExecutableExecution::Deferred { .. }
+    ));
+    assert_eq!(direct_calls(root.body()), [root.entry()]);
+    assert_eq!(
+        root.body()
+            .operations()
+            .iter()
+            .filter(|(_, operation)| matches!(
+                operation.kind(),
+                MirOperationKind::DriveComputation { .. }
+            ))
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn materializes_one_isolated_root_per_test_in_declaration_order() {
     let fixture = CompilerFixture::with_tests(
         "test first { return }\n\

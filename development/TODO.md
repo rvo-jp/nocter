@@ -15,11 +15,12 @@ Darwin reactor adapter, opaque single-threaded executor contract, ARM64 async he
 and constructor/resume/cancel/consume entries are complete. Whole-program lowering now emits the
 complete lifecycle, and native conformance covers lazy construction followed by cancellation.
 
-Next, generate the native executor loop against the same lifecycle and wait-interest ABI, then add
-deterministic completion/cancellation coverage and concurrent Darwin loopback coverage. Deferred
-variadic packs now move their descriptor and callback state into one allocation-backed owner used
-by normal cleanup and cancellation. Do not add public async time or network APIs until the runtime
-contracts are qualified. Keep the qualified v0.40.0 archive unchanged.
+The compiler-generated process adapter now accepts the six process-result contracts beneath one
+`async` layer, owns the lazy root computation, drives nested computation completion, consumes the
+result, and preserves the existing status/error policy. Next, materialize readiness-backed waiting
+at that single native process boundary against the existing wait-interest ABI, then add concurrent
+Darwin loopback coverage. Do not add public async time or network APIs until that runtime path is
+qualified. Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

@@ -297,6 +297,15 @@ impl BlockFacts {
             | MirOperationKind::ReportError { place }
             | MirOperationKind::ReleaseError { place }
             | MirOperationKind::ReleaseComputation { place } => self.use_place(body, *place),
+            MirOperationKind::DriveComputation {
+                computation,
+                destination,
+            } => {
+                self.use_place(body, *computation);
+                if let Some(destination) = destination {
+                    self.use_place(body, *destination);
+                }
+            }
             MirOperationKind::Store { destination, value }
             | MirOperationKind::Initialize { destination, value } => {
                 self.use_place(body, *destination);

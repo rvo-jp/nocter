@@ -17,6 +17,7 @@ pub(crate) enum Arm64RuntimeTrap {
     ErrorReleaseFailure,
     AsyncFrameStateCorruption,
     AsyncFrameReleaseFailure,
+    AsyncWaitUnavailable,
 }
 
 impl Arm64RuntimeTrap {
@@ -35,6 +36,7 @@ impl Arm64RuntimeTrap {
             Self::ErrorReleaseFailure => 11,
             Self::AsyncFrameStateCorruption => 12,
             Self::AsyncFrameReleaseFailure => 13,
+            Self::AsyncWaitUnavailable => 14,
         }
     }
 }

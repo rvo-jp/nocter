@@ -518,6 +518,7 @@ pub enum ExecutableRoot {
         target: PackageTargetId,
         entry: ExecutableItemId,
         result: ProcessResultContract,
+        execution: ExecutableExecution,
     },
     Tests {
         target: PackageTargetId,
@@ -753,6 +754,7 @@ pub enum ExecutableProgramError {
     MissingRepresentationParameter(nocter_model::ParameterId),
     MissingRepresentationWitness(nocter_model::OpaqueTypeId),
     DuplicateItem(ExecutableItemKey),
+    InvalidEntryExecution(ExecutableItemId),
 }
 
 impl fmt::Display for ExecutableProgramError {
@@ -796,7 +798,8 @@ impl std::error::Error for ExecutableProgramError {
             | Self::MissingRepresentationVariant(_)
             | Self::MissingRepresentationParameter(_)
             | Self::MissingRepresentationWitness(_)
-            | Self::DuplicateItem(_) => None,
+            | Self::DuplicateItem(_)
+            | Self::InvalidEntryExecution(_) => None,
         }
     }
 }

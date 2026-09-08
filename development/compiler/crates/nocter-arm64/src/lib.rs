@@ -14,6 +14,8 @@ mod async_cancel_code;
 mod async_cancellation;
 mod async_constructor_code;
 mod async_consume_code;
+mod async_drive_code;
+mod async_drive_selection;
 mod async_frame;
 mod async_function;
 mod async_pack_capture_code;

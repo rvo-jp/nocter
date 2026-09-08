@@ -21,8 +21,9 @@ use super::{
 mod pack_literal;
 mod primitive;
 use crate::{
-    CallableInstanceKey, CheckedDestruction, ClosureInstanceKey, DropInstanceKey, TargetProgram,
-    collect_body_dependencies, select_executable_entry, select_test_target,
+    CallableInstanceKey, CheckedDestruction, ClosureInstanceKey, DropInstanceKey,
+    ProcessEntryExecution, TargetProgram, collect_body_dependencies, select_executable_entry,
+    select_test_target,
 };
 
 pub(super) fn build_executable(
@@ -33,6 +34,16 @@ pub(super) fn build_executable(
     let entry_key = ExecutableItemKey::Callable(CallableInstanceKey::for_entry(target, entry)?);
     let frozen = ExecutableClosureBuilder::new(target).close([entry_key.clone()])?;
     let entry_item = frozen.item_id(&entry_key)?;
+    let selected_execution = match entry.execution() {
+        ProcessEntryExecution::Immediate => ExecutableExecution::Immediate,
+        ProcessEntryExecution::Deferred { output } => ExecutableExecution::Deferred { output },
+    };
+    let execution = frozen
+        .items
+        .get(entry_item)
+        .map(ExecutableItem::execution)
+        .filter(|execution| *execution == selected_execution)
+        .ok_or(ExecutableProgramError::InvalidEntryExecution(entry_item))?;
     let runtime = super::build_runtime_environment(
         &frozen.types,
         frozen.type_representations,
@@ -54,6 +65,7 @@ pub(super) fn build_executable(
             target: selected,
             entry: entry_item,
             result: entry.process_result(),
+            execution,
         },
     })
 }
@@ -321,29 +333,8 @@ impl<'program> ExecutableClosureBuilder<'program> {
         )?;
         let closure = self.specialize_closure_layout(key, &substitution)?;
 
-        let mut destructions = Vec::new();
-        for source in dependencies.destructions() {
-            let plan = match source {
-                CheckedDestruction::Complete(ty) => {
-                    self.resolver.resolve_destruction(*ty, &substitution)?
-                }
-                CheckedDestruction::EnumResidual {
-                    ty,
-                    variant,
-                    payload,
-                } => self
-                    .resolver
-                    .resolve_enum_residual(*ty, *variant, payload, &substitution)?,
-            };
-            if let Some(plan) = plan {
-                let mut selections = BTreeSet::new();
-                collect_drops(&plan, &mut selections);
-                for selection in selections {
-                    self.record_drop(selection, &mut drops)?;
-                }
-                destructions.push((source.clone(), plan));
-            }
-        }
+        let destructions =
+            self.specialize_destructions(&dependencies, &substitution, &mut drops)?;
 
         Ok(DraftItem {
             signature,
@@ -364,6 +355,38 @@ impl<'program> ExecutableClosureBuilder<'program> {
             pack_literals,
             argument_packs,
         })
+    }
+
+    fn specialize_destructions(
+        &mut self,
+        dependencies: &crate::CheckedBodyDependencies,
+        substitution: &TypeSubstitution,
+        drops: &mut BTreeMap<DropSelection, ExecutableItemKey>,
+    ) -> Result<Vec<(CheckedDestruction, ConcreteDestructionPlan)>, ExecutableProgramError> {
+        let mut destructions = Vec::new();
+        for source in dependencies.destructions() {
+            let plan = match source {
+                CheckedDestruction::Complete(ty) => {
+                    self.resolver.resolve_destruction(*ty, substitution)?
+                }
+                CheckedDestruction::EnumResidual {
+                    ty,
+                    variant,
+                    payload,
+                } => self
+                    .resolver
+                    .resolve_enum_residual(*ty, *variant, payload, substitution)?,
+            };
+            if let Some(plan) = plan {
+                let mut selections = BTreeSet::new();
+                collect_drops(&plan, &mut selections);
+                for selection in selections {
+                    self.record_drop(selection, drops)?;
+                }
+                destructions.push((source.clone(), plan));
+            }
+        }
+        Ok(destructions)
     }
 
     fn specialize_closure_layout(

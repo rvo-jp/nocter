@@ -89,6 +89,25 @@ func flatten(): async i32! {
 Control flow does not weaken this rule. Branches and loops use the same ownership joins as other
 move-only values, so a computation consumed on only one path is maybe initialized afterward.
 
+## Process Entry
+
+The selected top-level `main` may return `async R` when `R` is one of the ordinary accepted process
+results: `void`, `void!`, `i32`, `i32!`, `usize`, or `usize!`.
+
+```nct
+func main(): async i32! {
+    let response = await fetch()?
+    io.print(response)
+    0
+}
+```
+
+The compiler-generated process adapter invokes the lazy producer, becomes the owner of that one
+root computation, drives it until completion, and then applies the same exit-status and error
+reporting rules as the corresponding immediate result. This is a process-boundary rule, not an
+alternate calling convention visible to source code. Calling the same function normally still
+returns an unstarted `async R` value.
+
 ## Captures and Result Provenance
 
 A pending computation retains every receiver and argument needed to begin its producer body. A

@@ -19,6 +19,7 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 - one canonical imported-service identity domain retained independently of MIR
 - stack objects, machine control flow, and dataflow
 - deferred function execution, suspension frames, and frozen cancellation/output destruction
+- explicit process-root ownership and output storage for a deferred executable entry
 - structural copy/destruction expansion
 - deterministic linkage and primitive dependency closure
 

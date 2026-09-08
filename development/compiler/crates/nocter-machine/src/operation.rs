@@ -129,6 +129,13 @@ pub enum MachineOperationKind {
     ReleaseComputation {
         place: MachineAddressId,
     },
+    /// Drives the process-entry computation through its opaque lifecycle and moves the completed
+    /// output into caller-owned storage. Only a compiler-generated process root may contain this
+    /// operation.
+    DriveComputation {
+        computation: MachineAddressId,
+        destination: Option<MachineAddressId>,
+    },
     CreateRegion {
         parent: MachineValueId,
         region: crate::MachineStackId,
@@ -161,6 +168,7 @@ impl MachineOperationKind {
                 | Self::ReportError { .. }
                 | Self::ReleaseError { .. }
                 | Self::ReleaseComputation { .. }
+                | Self::DriveComputation { .. }
                 | Self::ReleaseRegion { .. }
                 | Self::PackNext
                 | Self::DestroyPack

@@ -18,6 +18,8 @@ or assign a machine ABI.
 - concrete place and projection lowering
 - explicit cleanup, destruction, region, outcome, and switch edges
 - deferred execution, suspension edges, continuation liveness, and checked cancellation plans
+- the compiler-owned process operation that drives a selected deferred entry without changing
+  ordinary call semantics
 - operation and pack schemas
 - whole-program MIR validation
 

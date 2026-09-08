@@ -13,6 +13,7 @@ pub enum Arm64SelectionError {
     NonCallableTarget(MachineFunctionId),
     UnsupportedDeferredFunction(MachineFunctionId),
     AsyncRelease(MachineOperationId),
+    AsyncDrive(MachineOperationId),
     UnknownOperation {
         function: MachineFunctionId,
         operation: MachineOperationId,

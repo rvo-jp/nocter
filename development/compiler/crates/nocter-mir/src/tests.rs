@@ -722,7 +722,7 @@ fn functions_and_process_roots_have_disjoint_terminal_contracts() {
     root.terminate(entry, MirTerminator::Return(None)).unwrap();
     let body = root.finish(entry).unwrap();
     assert_eq!(
-        crate::validate::validate_root(&body, &environment),
+        crate::validate::validate_process_root(&body, &environment),
         Err(MirValidationError::InvalidRootTerminator(entry))
     );
 }

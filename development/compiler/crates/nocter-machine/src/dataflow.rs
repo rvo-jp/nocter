@@ -371,6 +371,15 @@ fn operation_inputs(
         | MachineOperationKind::ReleaseComputation { place } => {
             add_address_inputs(body, *place, &mut inputs)?;
         }
+        MachineOperationKind::DriveComputation {
+            computation,
+            destination,
+        } => {
+            add_address_inputs(body, *computation, &mut inputs)?;
+            if let Some(destination) = destination {
+                add_address_inputs(body, *destination, &mut inputs)?;
+            }
+        }
         MachineOperationKind::CreateRegion { parent, .. } => {
             insert_value(body, *parent, &mut inputs)?;
         }

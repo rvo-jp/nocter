@@ -201,6 +201,13 @@ state.
 
 ## Structured Execution
 
+The selected process entry is the first concrete execution owner. If `main` returns `async R`, the
+compiler-generated process adapter invokes its constructor, owns the resulting root computation,
+drives it to completion, consumes `R`, and applies the ordinary process-result policy. Entry
+selection freezes immediate versus deferred execution once; MIR and Machine receive that fact and
+cannot recover it from the result type. This special process boundary does not make ordinary
+synchronous calls start an executor.
+
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
 normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
 detached observation token. Detached execution is excluded until the language has an explicit
@@ -233,6 +240,7 @@ representation-independent allocation contract exists; it must not be hidden beh
 | `async T` syntax and precedence | syntax tree | declaration lowering, formatter, source projection |
 | Structural async type identity | type store | checking, presentation, executable closure |
 | Immediate or deferred callable execution | checked declaration | body checking, call checking, lowering, tooling |
+| Immediate or deferred process entry | executable entry selection | process-root MIR, native process adapter |
 | Captured argument origins | checked invocation contract | region checking, frame lowering |
 | Suspension legality and consumed result | checked body | executable lowering, diagnostics, tooling |
 | Frame fields and continuation liveness | MIR async-frame derivation | MIR validation, Machine projection |

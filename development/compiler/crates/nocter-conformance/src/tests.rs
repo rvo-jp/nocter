@@ -24,6 +24,31 @@ fn constant_process_crosses_the_complete_native_pipeline() {
 }
 
 #[test]
+fn deferred_process_entry_crosses_the_complete_native_pipeline() {
+    let machine = lower_machine(
+        "func ready(value: i32): async i32 { return value }\n\
+         func main(): async i32 { return await ready(42) }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_status(&image, 42);
+}
+
+#[test]
+fn deferred_process_failure_uses_the_existing_error_exit_policy() {
+    let machine = lower_machine(
+        "func main(): async void! {\n\
+             return error.new(\"app.async\", \"failed\")\n\
+         }\n",
+    );
+    let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
+    let image = nocter_macho::MachOImage::build(&program).unwrap();
+
+    execute_and_assert_output(&image, 1, b"app.async: failed\n");
+}
+
+#[test]
 fn dropped_deferred_computation_crosses_the_complete_native_pipeline() {
     let machine = lower_machine(
         "func ready(value: i64): async i64 { return value }\n\

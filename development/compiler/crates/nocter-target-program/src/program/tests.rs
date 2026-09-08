@@ -11,8 +11,9 @@ use nocter_test_support::CompilerFixture as Fixture;
 
 use super::TargetProgram;
 use crate::{
-    CallableInstanceKey, CallableInstanceKeyError, EntrySelectionError, ProcessSuccessType,
-    ToolchainSnapshot, collect_body_dependencies, select_executable_entry, select_test_target,
+    CallableInstanceKey, CallableInstanceKeyError, EntrySelectionError, ProcessEntryExecution,
+    ProcessSuccessType, ToolchainSnapshot, collect_body_dependencies, select_executable_entry,
+    select_test_target,
 };
 
 mod executable;
@@ -152,6 +153,35 @@ fn executable_entry_accepts_exactly_the_six_process_result_forms() {
 }
 
 #[test]
+fn executable_entry_accepts_the_six_process_results_from_a_deferred_main() {
+    for (result, body, expected_success, expected_fallible) in [
+        ("void", "return", ProcessSuccessType::Void, false),
+        ("void!", "return", ProcessSuccessType::Void, true),
+        ("i32", "return 0", ProcessSuccessType::I32, false),
+        ("i32!", "return 0", ProcessSuccessType::I32, true),
+        ("usize", "return 0", ProcessSuccessType::Usize, false),
+        ("usize!", "return 0", ProcessSuccessType::Usize, true),
+    ] {
+        let source = format!("func main(): async {result} {{ {body} }}\n");
+        let target = build_target_program(&Fixture::with_app(&source));
+        let (target_id, _) = target
+            .checked()
+            .graph()
+            .package_targets()
+            .iter()
+            .next()
+            .unwrap();
+        let entry = select_executable_entry(&target, target_id).unwrap();
+        assert_eq!(entry.process_result().success(), expected_success);
+        assert_eq!(entry.process_result().is_fallible(), expected_fallible);
+        assert!(matches!(
+            entry.execution(),
+            ProcessEntryExecution::Deferred { .. }
+        ));
+    }
+}
+
+#[test]
 fn executable_entry_rejects_missing_non_function_and_invalid_callable_contracts() {
     let cases = [
         ("", None),
@@ -166,6 +196,14 @@ fn executable_entry_rejects_missing_non_function_and_invalid_callable_contracts(
         ),
         (
             "func main(): u64 { return 0 }\n",
+            Some(crate::EntryContractRule::ResultType),
+        ),
+        (
+            "func main(): async u64 { return 0 }\n",
+            Some(crate::EntryContractRule::ResultType),
+        ),
+        (
+            "func main(): (async i32)! { return error.new(\"app\", \"failure\") }\n",
             Some(crate::EntryContractRule::ResultType),
         ),
     ];

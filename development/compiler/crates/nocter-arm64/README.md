@@ -42,6 +42,8 @@ source, loader commands, or package state.
 - Deferred functions own four distinct native entries: constructor, resume, cancellation, and
   completed-output consumption. Whole-program lowering declares all four identities before any
   body is materialized.
+- A deferred process entry is driven only by the compiler-owned process root. The root consumes
+  the opaque lifecycle entries and output storage selected by Machine; ordinary calls remain lazy.
 - Resume restores only the Machine-selected state projection, uses ordinary selected-operation
   emission for body instructions, and persists exactly that projection when a child remains
   pending.

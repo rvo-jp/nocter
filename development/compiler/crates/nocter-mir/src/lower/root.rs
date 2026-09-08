@@ -1,6 +1,7 @@
 use nocter_model::{BuiltinType, ExecutableItemId, MirBlockId, TypeId, TypeKind};
 use nocter_target_program::{
-    ExecutableProgram, ExecutableRoot, ProcessResultContract, ProcessSuccessType,
+    ExecutableExecution, ExecutableProgram, ExecutableRoot, ProcessResultContract,
+    ProcessSuccessType,
 };
 
 use super::MirLoweringError;
@@ -16,6 +17,7 @@ pub(super) fn lower_root(executable: &ExecutableProgram) -> Result<MirRoot, MirL
             target,
             entry,
             result,
+            execution,
         } => {
             let result_type = executable
                 .items()
@@ -23,9 +25,9 @@ pub(super) fn lower_root(executable: &ExecutableProgram) -> Result<MirRoot, MirL
                 .ok_or(MirLoweringError::InvalidRootItem(*entry))?
                 .signature()
                 .result();
-            let body = lower_process_body(executable, *entry, *result, result_type)?;
+            let body = lower_process_body(executable, *entry, *result, *execution, result_type)?;
             Ok(MirRoot::Process(MirProcessRoot::new(
-                *target, *entry, *result, body,
+                *target, *entry, *result, *execution, body,
             )))
         }
         ExecutableRoot::Tests { target, cases } => {
@@ -60,21 +62,54 @@ fn lower_process_body(
     executable: &ExecutableProgram,
     entry: ExecutableItemId,
     contract: ProcessResultContract,
+    execution: ExecutableExecution,
     result_type: TypeId,
 ) -> Result<MirBody, MirLoweringError> {
-    if contract.is_fallible() {
-        return lower_fallible_body(executable, entry, result_type);
-    }
     let expected = process_success_type(executable, contract.success());
-    if result_type != expected {
+    let process_output = match execution {
+        ExecutableExecution::Immediate => result_type,
+        ExecutableExecution::Deferred { output } => {
+            if !matches!(executable.types().get(result_type), Some(TypeKind::Async(actual)) if *actual == output)
+            {
+                return Err(MirLoweringError::InvalidRootItem(entry));
+            }
+            output
+        }
+    };
+    let result_valid = if contract.is_fallible() {
+        matches!(executable.types().get(process_output), Some(TypeKind::Fallible(payload)) if *payload == expected)
+    } else {
+        process_output == expected
+    };
+    if !result_valid {
         return Err(MirLoweringError::InvalidRootItem(entry));
     }
     let mut builder = MirBodyBuilder::new();
     let (block, _) = builder.create_block([]);
-    let result = append_entry_call(&mut builder, block, entry, result_type)?;
+    let result = append_process_entry(
+        &mut builder,
+        block,
+        entry,
+        execution,
+        result_type,
+        process_output,
+        executable.types(),
+    )?;
+    if contract.is_fallible() {
+        return finish_fallible_body(
+            executable,
+            entry,
+            builder,
+            block,
+            result.ok_or(MirLoweringError::InvalidRootItem(entry))?,
+            process_output,
+        );
+    }
     let status = match contract.success() {
         ProcessSuccessType::Void => None,
-        ProcessSuccessType::I32 | ProcessSuccessType::Usize => Some(result),
+        ProcessSuccessType::I32 | ProcessSuccessType::Usize => {
+            Some(result.ok_or(MirLoweringError::InvalidRootItem(entry))?)
+        }
     };
     builder.terminate(block, MirTerminator::Exit(status))?;
     builder.finish(block).map_err(Into::into)
@@ -102,6 +137,28 @@ fn lower_fallible_body(
     let mut builder = MirBodyBuilder::new();
     let (entry_block, _) = builder.create_block([]);
     let outcome = append_entry_call(&mut builder, entry_block, entry, result_type)?;
+    finish_fallible_body(
+        executable,
+        entry,
+        builder,
+        entry_block,
+        outcome,
+        result_type,
+    )
+}
+
+fn finish_fallible_body(
+    executable: &ExecutableProgram,
+    entry: ExecutableItemId,
+    mut builder: MirBodyBuilder,
+    entry_block: MirBlockId,
+    outcome: nocter_model::MirValueId,
+    result_type: TypeId,
+) -> Result<MirBody, MirLoweringError> {
+    let Some(TypeKind::Fallible(success_type)) = executable.types().get(result_type) else {
+        return Err(MirLoweringError::InvalidRootItem(entry));
+    };
+    let success_type = *success_type;
     let outcome_local = builder.add_local(result_type, MirLocalKind::Temporary, false);
     let outcome_place = builder.add_place(MirPlaceRoot::Local(outcome_local), [], result_type);
     builder.append_effect(
@@ -181,6 +238,60 @@ fn lower_fallible_body(
     )?;
     builder.terminate(failure, MirTerminator::Exit(Some(one)))?;
     builder.finish(entry_block).map_err(Into::into)
+}
+
+fn append_process_entry(
+    builder: &mut MirBodyBuilder,
+    block: MirBlockId,
+    entry: ExecutableItemId,
+    execution: ExecutableExecution,
+    result_type: TypeId,
+    process_output: TypeId,
+    types: &nocter_model::TypeStore,
+) -> Result<Option<nocter_model::MirValueId>, MirLoweringError> {
+    let invoked = append_entry_call(builder, block, entry, result_type)?;
+    if execution == ExecutableExecution::Immediate {
+        return Ok(Some(invoked));
+    }
+
+    let computation_local = builder.add_local(result_type, MirLocalKind::Temporary, false);
+    let computation = builder.add_place(MirPlaceRoot::Local(computation_local), [], result_type);
+    builder.append_effect(
+        block,
+        MirOperationKind::Initialize {
+            destination: computation,
+            value: invoked,
+        },
+    )?;
+    let destination = if matches!(
+        types.get(process_output),
+        Some(TypeKind::Builtin(BuiltinType::Void))
+    ) {
+        None
+    } else {
+        let output_local = builder.add_local(process_output, MirLocalKind::Temporary, false);
+        Some(builder.add_place(MirPlaceRoot::Local(output_local), [], process_output))
+    };
+    builder.append_effect(
+        block,
+        MirOperationKind::DriveComputation {
+            computation,
+            destination,
+        },
+    )?;
+    destination
+        .map(|place| {
+            builder.append_value(
+                block,
+                process_output,
+                MirOperationKind::Read {
+                    place,
+                    mode: MirReadMode::Move,
+                },
+            )
+        })
+        .transpose()
+        .map_err(Into::into)
 }
 
 fn append_entry_call(

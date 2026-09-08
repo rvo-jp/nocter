@@ -26,8 +26,8 @@ pub use capabilities::{ExecutableWriterIdentity, TargetBackendIdentity, TargetUn
 pub use closure_instance::{ClosureInstanceKey, ClosureInstanceKeyError};
 pub use drop_instance::{DropInstanceKey, DropInstanceKeyError};
 pub use entry::{
-    EntryContractRule, EntrySelectionError, ExecutableEntry, ProcessResultContract,
-    ProcessSuccessType, select_executable_entry,
+    EntryContractRule, EntrySelectionError, ExecutableEntry, ProcessEntryExecution,
+    ProcessResultContract, ProcessSuccessType, select_executable_entry,
 };
 pub use executable::{
     ExecutableArgumentPackPlan, ExecutableBody, ExecutableBorrowEdge, ExecutableCallableInvocation,

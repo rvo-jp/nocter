@@ -418,12 +418,13 @@ impl MirFunction {
     }
 }
 
-/// The allocation-free wrapper for one selected executable entry.
+/// The compiler-owned wrapper for one selected executable entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MirProcessRoot {
     target: PackageTargetId,
     entry: ExecutableItemId,
     result: ProcessResultContract,
+    execution: nocter_target_program::ExecutableExecution,
     body: MirBody,
 }
 
@@ -432,12 +433,14 @@ impl MirProcessRoot {
         target: PackageTargetId,
         entry: ExecutableItemId,
         result: ProcessResultContract,
+        execution: nocter_target_program::ExecutableExecution,
         body: MirBody,
     ) -> Self {
         Self {
             target,
             entry,
             result,
+            execution,
             body,
         }
     }
@@ -455,6 +458,11 @@ impl MirProcessRoot {
     #[must_use]
     pub const fn result(&self) -> ProcessResultContract {
         self.result
+    }
+
+    #[must_use]
+    pub const fn execution(&self) -> nocter_target_program::ExecutableExecution {
+        self.execution
     }
 
     #[must_use]
