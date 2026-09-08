@@ -26,9 +26,12 @@ The monotonic-deadline producer now shares one resume/cancel/consume lifecycle w
 readiness while retaining its own constructor. Native conformance proves that a generated process
 cannot complete before the requested absolute deadline. The process wait also rechecks capped
 native timeouts and compares deadlines in the wrapping half-domain instead of completing early.
-Next, expose the qualified timer through a small public asynchronous time contract, then add
-concurrent Darwin loopback coverage before exposing asynchronous networking. Keep the qualified
-v0.40.0 archive unchanged.
+`std/time.delay(Duration)` now exposes the qualified timer without leaking counter values or native
+timeout limits. It copies its duration into the child computation, rounds sub-tick durations upward,
+and segments large values within the wrapping half-domain. Native-session coverage compiles the
+authored standard library and proves the public call cannot complete early. Next, add concurrent
+Darwin loopback coverage before exposing asynchronous networking. Keep the qualified v0.40.0
+archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

@@ -298,8 +298,8 @@ the checked product is closed. Executor and reactor implementation follows only 
 executable state contract is closed. The generated Darwin process adapter, descriptor-readiness
 producer, and monotonic-deadline producer now consume the same wait-interest ABI. Native pipe and
 elapsed-deadline conformance qualify both pending paths end to end. A public asynchronous time
-contract may now use the timer; concurrent network loopback coverage still precedes public
-asynchronous networking APIs.
+contract uses the timer through bounded duration segments and a copied input value. Concurrent
+network loopback coverage still precedes public asynchronous networking APIs.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.

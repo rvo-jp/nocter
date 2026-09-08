@@ -1099,7 +1099,7 @@ fn async_primitive_targets_follow_machine_dependencies() {
          func main(): i32 {\n\
              let pending = task.descriptor_readiness_for_test(0, false)\n\
              let deadline = time.monotonic_counter_for_test()\n\
-             let timer = task.monotonic_deadline_for_test(deadline)\n\
+             let timer = time.monotonic_deadline_for_test(deadline)\n\
              drop pending\n\
              drop timer\n\
              return 0\n\

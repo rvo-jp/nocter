@@ -2488,11 +2488,41 @@ fn standard_time_value_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard time value tests failed native compilation")
     };
-    assert_eq!(cases.len(), 22);
+    assert_eq!(cases.len(), 23);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
     }
+}
+
+#[test]
+fn standard_async_delay_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/time\n\
+         \n\
+         func main(): async i32 {\n\
+             let duration = time.Duration.from_milliseconds(30)\n\
+             let start = time.Instant.now()\n\
+             await time.delay(duration)\n\
+             if start.elapsed() < duration { return 1 }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-delay", 0);
 }
 
 fn recoverable_allocation_test_source() -> &'static str {

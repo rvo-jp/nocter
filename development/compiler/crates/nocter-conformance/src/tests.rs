@@ -73,7 +73,7 @@ fn deferred_process_waits_until_a_monotonic_deadline() {
          func main(): async i32 {\n\
              let now = time.monotonic_counter_for_test()\n\
              let frequency = time.monotonic_frequency_for_test()\n\
-             await task.monotonic_deadline_for_test(now + frequency / 20)\n\
+             await time.monotonic_deadline_for_test(now + frequency / 20)\n\
              return 43\n\
          }\n",
         &[&["internal", "task"], &["time"]],

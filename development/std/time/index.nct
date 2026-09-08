@@ -1,9 +1,10 @@
-//! Normalized durations, monotonic elapsed time, and Unix wall-clock observations.
+//! Durations, monotonic and wall clocks, blocking sleep, and asynchronous delay.
 
 use /mem.TryAllocator
 use /string.String
 
 see ./duration.nct
+see ./async_delay.nct
 see ./instant.nct
 see ./primitives.nct
 see ./sleep.nct
@@ -145,3 +146,6 @@ instance UtcDateTime {
 
 /// Blocks the current thread until at least `duration` has elapsed.
 pub noalloc func sleep(duration: &Duration): void!
+
+/// Produces a lazy computation that completes after at least `duration` has elapsed.
+pub func delay(duration: Duration): async void

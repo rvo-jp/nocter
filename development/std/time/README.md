@@ -1,8 +1,8 @@
 # Time
 
 This chapter defines the `std/time` API for durations, monotonic elapsed-time measurement, Unix
-wall-clock observations, and blocking sleep. It does not expose a target clock identifier,
-hardware tick, syscall number, or raw target time structure.
+wall-clock observations, blocking sleep, and asynchronous delay. It does not expose a target clock
+identifier, hardware tick, syscall number, or raw target time structure.
 
 ## Duration
 
@@ -108,12 +108,29 @@ built-in error code `std.time.sleep_failed`.
 thread and may perform target operations. This API does not imply `noblock`, `notrap`, `realtime`,
 or another undeclared guarantee.
 
+## Asynchronous Delay
+
+`delay` accepts a `Duration` by value and returns a lazy `async void` computation. Calling it does
+not wait. Awaiting it completes only after at least the requested monotonic duration has elapsed;
+destroying the unfinished computation cancels its pending deadline. A zero duration completes on
+its first execution without publishing a wait interest.
+
+The value parameter is intentional. `Duration` is copyable, and copying it into the child
+computation avoids retaining a borrow into the caller's asynchronous frame across suspension.
+Constructing the computation may allocate, so `delay` does not promise `noalloc`.
+
+The implementation converts each positive duration segment to target counter ticks with upward
+rounding. It waits in bounded one-day segments, preserving arbitrarily large `Duration` values
+without exceeding the runtime's half-domain wrapping-deadline contract. A narrower native timeout
+may split a segment into additional waits but cannot complete it early. Oversleep is permitted.
+
 ## Responsibility Boundaries
 
 The compiler target contract provides only the closed facts needed to read a monotonic counter,
-read its fixed frequency, compute a wrap-aware counter delta, and perform generic target syscalls.
-It does not construct `Duration`, `SystemTime`, or `UtcDateTime`; implement sleep policy or calendar
-arithmetic; classify public errors; or expose target time structures to user code.
+read its fixed frequency, compute a wrap-aware counter delta, construct one opaque deadline
+computation, and perform generic target syscalls. It does not construct `Duration`, `SystemTime`,
+or `UtcDateTime`; implement duration segmentation, sleep policy, or calendar arithmetic; classify
+public errors; or expose target time structures to user code.
 
 Target-specific standard-library adapters own raw wall-clock and wait ABI layouts plus one target
 operation. The target-independent `std/time` implementation owns normalization,
@@ -123,5 +140,4 @@ Neither layer may rediscover the other layer's facts from source spelling or mac
 ## Non-goals
 
 This contract does not add local time zones, daylight-saving rules, locale-dependent presentation,
-async timers, scheduler integration, deadlines as a public type, periodic timers, `noblock`, or
-`realtime`.
+structured task scheduling, deadlines as a public type, periodic timers, `noblock`, or `realtime`.

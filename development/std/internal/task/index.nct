@@ -5,6 +5,3 @@ primitive func descriptor_readiness_raw(
     descriptor: usize,
     writable: bool,
 ): async void
-
-#target: "arm64-darwin"
-primitive func monotonic_deadline_raw(deadline: u64): async void

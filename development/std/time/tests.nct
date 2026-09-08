@@ -1,6 +1,7 @@
 //! Duration contract tests.
 
 see ./index.nct
+see ./async_delay.nct
 see ./primitives.nct
 
 use /testing
@@ -27,6 +28,19 @@ test duration_units_share_one_normal_form {
     testing.assert(split.subsecond_nanoseconds() == 345678901)?
     testing.assert(!split.is_zero())?
     testing.assert(Duration.from_seconds(0).is_zero())?
+    return
+}
+
+test asynchronous_delay_steps_are_bounded_and_round_ticks_up {
+    let large = Duration.from_seconds(100000)
+    let bounded = async_delay_step(&large)
+    testing.assert(bounded.whole_seconds() == 86400)?
+    testing.assert(bounded.subsecond_nanoseconds() == 0)?
+
+    let half_second = Duration.from_nanoseconds(500000000)
+    testing.assert(async_delay_ticks(&half_second, 10) == 5)?
+    let sub_tick = Duration.from_nanoseconds(1)
+    testing.assert(async_delay_ticks(&sub_tick, 1) == 1)?
     return
 }
 
