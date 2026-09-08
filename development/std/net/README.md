@@ -146,5 +146,7 @@ Numeric addresses, system host resolution, ordered host connection, synchronous 
 asynchronous numeric TCP connection and transfer, boundary-preserving UDP, and monotonic
 synchronous operation timeouts are implemented. Asynchronous TCP candidate fallback and numeric
 TCP readiness/deadline races are implemented; host resolution remains explicitly synchronous.
-Asynchronous UDP remains open. URLs are provided by `std/url`. HTTP, TLS, and public nonblocking
-sockets remain outside this module.
+Native public-surface qualification covers peer EOF, idle-read timeout, and backpressure during a
+timed complete write. Structured concurrency and explicit pending-child cancellation are not yet
+public. Asynchronous UDP remains open. URLs are provided by `std/url`. HTTP, TLS, and public
+nonblocking sockets remain outside this module.
