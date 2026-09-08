@@ -39,6 +39,13 @@ source, loader commands, or package state.
 - Encoding is deterministic for one machine program.
 - Stack and async frames share one aligned-object placement authority. Async placement assigns one
   stable byte range to each Machine-selected live identity and never repeats suspension liveness.
-- Until the v0.41.0 executor entry points exist, selection rejects deferred functions and
-  computation-release operations explicitly. It never encodes a state-machine body as though it
-  implemented the immediate callable ABI.
+- Deferred functions own four distinct native entries: constructor, resume, cancellation, and
+  completed-output consumption. Whole-program lowering declares all four identities before any
+  body is materialized.
+- Resume restores only the Machine-selected state projection, uses ordinary selected-operation
+  emission for body instructions, and persists exactly that projection when a child remains
+  pending.
+- Computation release loads the cancellation entry from the opaque runtime header. Callers never
+  inspect a deferred function's state layout or cleanup plan.
+- Deferred variadic-pack transfer remains rejected until its caller-owned callback state has an
+  explicit allocation-backed ownership representation.

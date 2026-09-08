@@ -240,9 +240,13 @@
   symbol nor encodes a dylib command.</li><li>Imported calls use the same preplanned scalar transport as other runtime calls, then load and
   branch through the machine import identity's pointer slot.</li><li>A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.</li><li>Encoding is deterministic for one machine program.</li><li>Stack and async frames share one aligned-object placement authority. Async placement assigns one
-  stable byte range to each Machine-selected live identity and never repeats suspension liveness.</li><li>Until the v0.41.0 executor entry points exist, selection rejects deferred functions and
-  computation-release operations explicitly. It never encodes a state-machine body as though it
-  implemented the immediate callable ABI.</li></ul>
+  stable byte range to each Machine-selected live identity and never repeats suspension liveness.</li><li>Deferred functions own four distinct native entries: constructor, resume, cancellation, and
+  completed-output consumption. Whole-program lowering declares all four identities before any
+  body is materialized.</li><li>Resume restores only the Machine-selected state projection, uses ordinary selected-operation
+  emission for body instructions, and persists exactly that projection when a child remains
+  pending.</li><li>Computation release loads the cancellation entry from the opaque runtime header. Callers never
+  inspect a deferred function's state layout or cleanup plan.</li><li>Deferred variadic-pack transfer remains rejected until its caller-owned callback state has an
+  explicit allocation-backed ownership representation.</li></ul>
             </div>
         </main>
     </div>

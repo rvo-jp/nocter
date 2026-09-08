@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>nocter-task-runtime - Nocter</title>
-    <meta name="description" content="Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.">
+    <meta name="description" content="Own target-independent task lifecycle, opaque computation payload orchestration, runnable ordering, and stable readiness-registration identity for the gene">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
     <link rel="canonical" href="https://nocter.dev/development/compiler/crates/nocter-task-runtime/">
@@ -13,7 +13,7 @@
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
     <meta property="og:title" content="nocter-task-runtime - Nocter">
-    <meta property="og:description" content="Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.">
+    <meta property="og:description" content="Own target-independent task lifecycle, opaque computation payload orchestration, runnable ordering, and stable readiness-registration identity for the gene">
     <meta property="og:url" content="https://nocter.dev/development/compiler/crates/nocter-task-runtime/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -21,10 +21,10 @@
 
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="nocter-task-runtime - Nocter">
-    <meta name="twitter:description" content="Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.">
+    <meta name="twitter:description" content="Own target-independent task lifecycle, opaque computation payload orchestration, runnable ordering, and stable readiness-registration identity for the gene">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-task-runtime - Nocter","description":"Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.","url":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Task Runtime","item":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"TechArticle","headline":"nocter-task-runtime - Nocter","description":"Own target-independent task lifecycle, opaque computation payload orchestration, runnable ordering, and stable readiness-registration identity for the gene","url":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/","mainEntityOfPage":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"},"publisher":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Development","item":"https://nocter.dev/development/"},{"@type":"ListItem","position":3,"name":"Compiler","item":"https://nocter.dev/development/compiler/"},{"@type":"ListItem","position":4,"name":"Crates","item":"https://nocter.dev/development/compiler/crates/"},{"@type":"ListItem","position":5,"name":"Nocter Task Runtime","item":"https://nocter.dev/development/compiler/crates/nocter-task-runtime/"}]}]</script>
 
     <link rel="stylesheet" href="../../../../style.css">
 </head>
@@ -233,10 +233,12 @@
                 <span class="markdown-path-text">/development/compiler/crates/nocter-task-runtime/README.md</span>
             </div>
             <div class="markdown-body">
-                <h1 id="nocter-task-runtime">nocter-task-runtime</h1><h2 id="responsibility">Responsibility</h2><p>Own target-independent task lifecycle, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.</p><h2 id="contract">Contract</h2><p>The crate accepts opaque descriptor/timer interests through a <code>Reactor</code> boundary and publishes only task transitions and cleanup obligations. It does not inspect compiler IR, computation-frame layout, descriptor implementation, operating-system event records, or source semantics.</p><h2 id="invariants">Invariants</h2><ul><li>A task has one generation-qualified identity and one lifecycle state.</li><li>The scheduler removes every wait registration before publishing cancellation cleanup.</li><li>One readiness event consumes the complete wait set. Simultaneous or stale events cannot enqueue
+                <h1 id="nocter-task-runtime">nocter-task-runtime</h1><h2 id="responsibility">Responsibility</h2><p>Own target-independent task lifecycle, opaque computation payload orchestration, runnable ordering, and stable readiness-registration identity for the generated asynchronous runtime.</p><h2 id="contract">Contract</h2><p>The crate accepts opaque descriptor/timer interests through a <code>Reactor</code> boundary. <code>Scheduler</code> publishes only task transitions and cleanup obligations. <code>Executor</code> pairs those identities with opaque computations and owns the resume, cancel, and completed-output consumption order. Neither layer inspects compiler IR, computation-frame layout, descriptor implementation, operating-system event records, or source semantics.</p><h2 id="invariants">Invariants</h2><ul><li>A task has one generation-qualified identity and one lifecycle state.</li><li>The scheduler removes every wait registration before publishing cancellation cleanup.</li><li>One readiness event consumes the complete wait set. Simultaneous or stale events cannot enqueue
   the same task twice.</li><li>Reusing a task, registration slot, or operating-system descriptor cannot validate an event from
   an earlier generation.</li><li>Canonical registration order decides wake order. Multiple events for one wait set still produce
-  one runnable transition; operation code decides readiness-versus-deadline results when resumed.</li><li>The reactor owns waiting and native registration mechanics. It cannot mutate task lifecycle.</li></ul>
+  one runnable transition; operation code decides readiness-versus-deadline results when resumed.</li><li>The reactor owns waiting and native registration mechanics. It cannot mutate task lifecycle.</li><li>A pending computation carries a structurally non-empty <code>WaitSet</code>; an empty wait cannot strand a
+  running task.</li><li>Failed reactor registration returns its task to the runnable queue before the executor exposes
+  the error.</li><li>Executor cancellation detaches the complete wait set before invoking computation cleanup.</li><li>An empty reactor event batch is not executor quiescence while a runnable or waiting task remains.</li></ul>
             </div>
         </main>
     </div>

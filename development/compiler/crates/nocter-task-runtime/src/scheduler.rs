@@ -152,6 +152,20 @@ impl<R: Reactor> Scheduler<R> {
             .map(TaskSlotState::public)
     }
 
+    /// Whether a future scheduler step can resume a task without an external spawn.
+    ///
+    /// Completed tasks are retained outputs, not progress sources. Runnable and waiting tasks are
+    /// the only states that can produce a later [`SchedulerProgress::Resume`].
+    #[must_use]
+    pub fn has_progress_source(&self) -> bool {
+        self.tasks.iter().any(|slot| {
+            matches!(
+                slot.state,
+                Some(TaskSlotState::Runnable | TaskSlotState::Waiting(_))
+            )
+        })
+    }
+
     /// Installs one pending computation and makes it runnable exactly once.
     ///
     /// # Errors

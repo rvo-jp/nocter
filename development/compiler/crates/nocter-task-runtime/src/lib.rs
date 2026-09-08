@@ -4,6 +4,7 @@
 //! opaque descriptor/timer interests but no compiler IR, computation-frame layout, or native event
 //! record.
 
+mod executor;
 mod identity;
 mod reactor;
 mod scheduler;
@@ -16,4 +17,9 @@ pub use scheduler::{
 };
 
 #[cfg(test)]
+mod executor_tests;
+#[cfg(test)]
 mod tests;
+pub use executor::{
+    Computation, ComputationPoll, Executor, ExecutorError, ExecutorProgress, WaitSet,
+};
