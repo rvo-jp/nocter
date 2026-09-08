@@ -156,6 +156,51 @@ fn freezes_checked_cancellation_cleanup_into_each_suspension_state() {
 }
 
 #[test]
+fn cancellation_retains_checked_conditional_initialization_across_await() {
+    let program = lower_fixture(
+        "struct Owned { value: i32 }\n\
+         drop Owned(&+self) { return }\n\
+         func ready(): async void { return }\n\
+         func hold(condition: bool, first: Owned, second: Owned): async Owned {\n\
+             var value = move first\n\
+             if condition { let _ = move value }\n\
+             await ready()\n\
+             value = move second\n\
+             move value\n\
+         }\n\
+         func main(): void {\n\
+             let pending = hold(true, Owned { value: 1 }, Owned { value: 2 })\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let state = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function
+                .async_frame()
+                .and_then(|frame| frame.states().first())
+        })
+        .expect("one suspension state");
+
+    assert!(state.cancellation().iter().any(|action| matches!(
+        action,
+        crate::MirCancellationAction::Destroy {
+            initialized: Some(_),
+            ..
+        }
+    )));
+    assert!(
+        state
+            .fields()
+            .iter()
+            .any(|field| matches!(field, crate::MirFrameField::DropFlag(_)))
+    );
+}
+
+#[test]
 fn lowers_scalar_control_flow_through_the_complete_frontend() {
     let program = lower_fixture(
         "func main(): i32 {\n\

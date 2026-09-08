@@ -559,6 +559,12 @@ impl Arm64SelectedFunction {
         let function = program
             .function(owner)
             .ok_or(Arm64SelectionError::UnknownFunction(owner))?;
+        if matches!(
+            function.execution(),
+            nocter_machine::MachineFunctionExecution::Deferred(_)
+        ) {
+            return Err(Arm64SelectionError::UnsupportedDeferredFunction(owner));
+        }
         let values = Arm64ValuePlan::build(function)?;
         let frame = Arm64FunctionFrame::build(program, owner, &values)?;
         let addresses = crate::Arm64SelectedAddressPlan::build(function, &values, &frame)?;
@@ -813,6 +819,12 @@ fn select_operation(
             context,
             selected,
         ),
+        MachineOperationKind::ReleaseComputation { .. } => {
+            Err(Arm64SelectionError::UnsupportedOperation {
+                operation: operation_id,
+                kind: "release deferred computation",
+            })
+        }
         MachineOperationKind::Call(call) => crate::call_selection::select_call(
             context,
             operation_id,
@@ -1255,6 +1267,9 @@ fn select_terminator(
             addresses,
             selected,
         ),
+        MachineTerminator::Suspend { .. } => {
+            Err(Arm64SelectionError::UnsupportedAsyncControl(block))
+        }
         MachineTerminator::Return(value) => {
             crate::call_selection::select_return(function, block, *value, values, frame, selected)?;
             Ok(Arm64SelectedTerminator::Return)

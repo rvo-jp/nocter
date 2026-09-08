@@ -1022,6 +1022,34 @@ fn machine_value_plan_uses_exact_call_crossing_facts() {
 }
 
 #[test]
+fn instruction_selection_rejects_deferred_functions_at_the_execution_boundary() {
+    let program = crate::test_support::lower_machine(
+        "func ready(): async void { return }\n\
+         func main(): void {\n\
+             let pending = ready()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let deferred = program
+        .functions()
+        .find_map(|(id, function)| {
+            matches!(
+                function.execution(),
+                nocter_machine::MachineFunctionExecution::Deferred(_)
+            )
+            .then_some(id)
+        })
+        .expect("one deferred function");
+
+    assert!(matches!(
+        crate::Arm64SelectedFunction::build(&program, deferred),
+        Err(crate::Arm64SelectionError::UnsupportedDeferredFunction(actual))
+            if actual == deferred
+    ));
+}
+
+#[test]
 fn machine_value_plan_treats_user_destruction_as_a_call_boundary() {
     let program = crate::test_support::lower_machine(
         "struct Resource {}\n\

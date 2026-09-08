@@ -12,17 +12,29 @@ use crate::{
 #[derive(Clone, Copy)]
 struct DestructionContext<'a> {
     owner: MachineLinkageId,
-    operation: MirOperationId,
+    source: DestructionSource,
     layouts: &'a MachineLayoutPlan,
     functions: crate::function_domain::MachineFunctionDomain<'a>,
 }
 
+#[derive(Clone, Copy)]
+enum DestructionSource {
+    Operation(MirOperationId),
+    AsyncFrame,
+}
+
 impl DestructionContext<'_> {
     const fn error(self, error: MachineDestructionError) -> MachineProgramError {
-        MachineProgramError::Destruction {
-            owner: self.owner,
-            operation: self.operation,
-            error,
+        match self.source {
+            DestructionSource::Operation(operation) => MachineProgramError::Destruction {
+                owner: self.owner,
+                operation,
+                error,
+            },
+            DestructionSource::AsyncFrame => MachineProgramError::AsyncDestruction {
+                owner: self.owner,
+                error,
+            },
         }
     }
 }
@@ -38,7 +50,24 @@ pub(crate) fn lower_destruction(
         plan,
         DestructionContext {
             owner,
-            operation,
+            source: DestructionSource::Operation(operation),
+            layouts,
+            functions,
+        },
+    )
+}
+
+pub(crate) fn lower_async_destruction(
+    plan: &MirDestructionPlan,
+    owner: MachineLinkageId,
+    layouts: &MachineLayoutPlan,
+    functions: crate::function_domain::MachineFunctionDomain<'_>,
+) -> Result<MachineDestructionPlan, MachineProgramError> {
+    lower_plan(
+        plan,
+        DestructionContext {
+            owner,
+            source: DestructionSource::AsyncFrame,
             layouts,
             functions,
         },
@@ -150,6 +179,9 @@ fn lower_kind(
         }
         (MirDestructionKind::Error, MachineLayoutKind::ErrorHandle) => {
             Ok(MachineDestructionKind::Error)
+        }
+        (MirDestructionKind::Async, MachineLayoutKind::Pointer) => {
+            Ok(MachineDestructionKind::Async)
         }
         (MirDestructionKind::Closure(captures), MachineLayoutKind::Closure { .. }) => {
             lower_closure(plan.ty(), captures, context)

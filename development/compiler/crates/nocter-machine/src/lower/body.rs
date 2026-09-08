@@ -7,6 +7,7 @@ use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTable};
 
 use super::MachineProgramError;
 use super::address::lower_addresses;
+use super::async_frame::lower_async_frame;
 use super::context::ProgramLoweringContext;
 use super::control::lower_blocks;
 use super::operation::lower_operations;
@@ -22,8 +23,9 @@ use crate::{
 pub(super) fn lower_body(
     owner: MachineLinkageId,
     body: &MirBody,
+    async_frame: Option<(nocter_model::TypeId, &nocter_mir::MirAsyncFrame)>,
     context: ProgramLoweringContext<'_>,
-) -> Result<crate::MachineBody, MachineProgramError> {
+) -> Result<(crate::MachineBody, crate::MachineFunctionExecution), MachineProgramError> {
     let ids = BodyIdentities::new(owner, body);
     let stack = lower_stack(body, context.layouts)?;
     let parameters = body
@@ -49,18 +51,28 @@ pub(super) fn lower_body(
     let operations = lower_operations(body, context, &ids)?;
     let blocks = lower_blocks(body, context.layouts, &ids)?;
 
-    Ok(crate::MachineBody::new(
-        parameters,
-        crate::program::MachineBodyDomains {
-            stack: MachineTable::from_values(stack),
-            drop_flags: MachineTable::from_values(drop_flags),
-            addresses: MachineTable::from_values(addresses),
-            values: MachineTable::from_values(values),
-            operations: MachineTable::from_values(operations),
-            packs: MachineTable::from_values(packs),
-            blocks: MachineTable::from_values(blocks),
-        },
-        ids.block(body.entry())?,
+    let execution = async_frame
+        .map(|(output, frame)| {
+            lower_async_frame(output, frame, context, &ids)
+                .map(crate::MachineFunctionExecution::Deferred)
+        })
+        .transpose()?
+        .unwrap_or(crate::MachineFunctionExecution::Immediate);
+    Ok((
+        crate::MachineBody::new(
+            parameters,
+            crate::program::MachineBodyDomains {
+                stack: MachineTable::from_values(stack),
+                drop_flags: MachineTable::from_values(drop_flags),
+                addresses: MachineTable::from_values(addresses),
+                values: MachineTable::from_values(values),
+                operations: MachineTable::from_values(operations),
+                packs: MachineTable::from_values(packs),
+                blocks: MachineTable::from_values(blocks),
+            },
+            ids.block(body.entry())?,
+        ),
+        execution,
     ))
 }
 

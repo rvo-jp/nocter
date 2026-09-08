@@ -80,6 +80,12 @@ pub enum MachineTerminator {
         cases: Box<[MachineSwitchCase]>,
         fallback: MachineBranchTarget,
     },
+    /// Suspends a deferred body until `computation` completes, then supplies its output to
+    /// `resume` as a runtime-provided block parameter.
+    Suspend {
+        computation: MachineValueId,
+        resume: MachineBranchTarget,
+    },
     Return(Option<MachineValueId>),
     Exit(Option<MachineValueId>),
     Trap,

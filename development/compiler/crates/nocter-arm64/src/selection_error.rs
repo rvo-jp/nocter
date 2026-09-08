@@ -11,6 +11,7 @@ use crate::{Arm64FunctionFrameError, Arm64ValuePlanError};
 pub enum Arm64SelectionError {
     UnknownFunction(MachineFunctionId),
     NonCallableTarget(MachineFunctionId),
+    UnsupportedDeferredFunction(MachineFunctionId),
     UnknownOperation {
         function: MachineFunctionId,
         operation: MachineOperationId,
@@ -51,6 +52,7 @@ pub enum Arm64SelectionError {
         operation: MachineOperationId,
         kind: &'static str,
     },
+    UnsupportedAsyncControl(MachineBlockId),
     TextRepresentation(MachineValueId),
     MemoryValue(MachineValueId),
     ExpectedOneWord(MachineValueId),

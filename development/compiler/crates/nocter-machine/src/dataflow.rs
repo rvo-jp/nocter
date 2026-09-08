@@ -367,7 +367,8 @@ fn operation_inputs(
         }
         MachineOperationKind::InvokeDrop { place, .. }
         | MachineOperationKind::ReportError { place }
-        | MachineOperationKind::ReleaseError { place } => {
+        | MachineOperationKind::ReleaseError { place }
+        | MachineOperationKind::ReleaseComputation { place } => {
             add_address_inputs(body, *place, &mut inputs)?;
         }
         MachineOperationKind::CreateRegion { parent, .. } => {
@@ -501,6 +502,19 @@ fn terminator_flow(
             }
             add_target(body, fallback, &mut inputs, &mut successors)?;
         }
+        MachineTerminator::Suspend {
+            computation,
+            resume,
+        } => {
+            insert_value(body, *computation, &mut inputs)?;
+            let block = body
+                .block(resume.block())
+                .ok_or(MachineDataflowError::UnknownBlock(resume.block()))?;
+            if !resume.arguments().is_empty() || block.parameters().len() != 1 {
+                return Err(MachineDataflowError::SuspendArity(resume.block()));
+            }
+            successors.insert(resume.block());
+        }
         MachineTerminator::Return(value) | MachineTerminator::Exit(value) => {
             if let Some(value) = value {
                 insert_value(body, *value, &mut inputs)?;
@@ -583,6 +597,7 @@ pub enum MachineDataflowError {
     UnknownBlock(MachineBlockId),
     BranchArity(MachineBlockId),
     BranchType(MachineBlockId),
+    SuspendArity(MachineBlockId),
     InconsistentLiveness(MachineBlockId),
 }
 

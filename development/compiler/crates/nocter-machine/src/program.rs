@@ -1,9 +1,9 @@
 use crate::identity::MachineTable;
 use crate::{
-    MachineAddress, MachineAddressId, MachineBlock, MachineBlockId, MachineDataTable,
-    MachineDropFlag, MachineDropFlagId, MachineFunctionId, MachineLayoutStore, MachineLinkageId,
-    MachineOperation, MachineOperationId, MachinePack, MachinePackId, MachineStackId,
-    MachineStackObject, MachineValue, MachineValueId,
+    MachineAddress, MachineAddressId, MachineAsyncFrame, MachineBlock, MachineBlockId,
+    MachineDataTable, MachineDropFlag, MachineDropFlagId, MachineFunctionId, MachineLayoutStore,
+    MachineLinkageId, MachineOperation, MachineOperationId, MachinePack, MachinePackId,
+    MachineStackId, MachineStackObject, MachineValue, MachineValueId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -11,6 +11,13 @@ pub enum MachineFunctionKind {
     Callable(crate::MachineCallableAbi),
     ProcessRoot,
     TestRoot,
+}
+
+/// Whether invoking a function runs its body immediately or creates a deferred computation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum MachineFunctionExecution {
+    Immediate,
+    Deferred(MachineAsyncFrame),
 }
 
 /// One target-independent function body with body-local dense identity domains.
@@ -147,6 +154,7 @@ impl MachineBody {
 pub struct MachineFunction {
     linkage: MachineLinkageId,
     kind: MachineFunctionKind,
+    execution: MachineFunctionExecution,
     body: MachineBody,
     dataflow: crate::MachineFunctionDataflow,
 }
@@ -155,12 +163,14 @@ impl MachineFunction {
     pub(crate) fn new(
         linkage: MachineLinkageId,
         kind: MachineFunctionKind,
+        execution: MachineFunctionExecution,
         body: MachineBody,
     ) -> Result<Self, crate::MachineDataflowError> {
         let dataflow = crate::MachineFunctionDataflow::build(&body)?;
         Ok(Self {
             linkage,
             kind,
+            execution,
             body,
             dataflow,
         })
@@ -174,6 +184,11 @@ impl MachineFunction {
     #[must_use]
     pub const fn kind(&self) -> &MachineFunctionKind {
         &self.kind
+    }
+
+    #[must_use]
+    pub const fn execution(&self) -> &MachineFunctionExecution {
+        &self.execution
     }
 
     #[must_use]

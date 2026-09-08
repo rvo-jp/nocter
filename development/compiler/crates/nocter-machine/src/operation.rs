@@ -126,6 +126,9 @@ pub enum MachineOperationKind {
     ReleaseError {
         place: MachineAddressId,
     },
+    ReleaseComputation {
+        place: MachineAddressId,
+    },
     CreateRegion {
         parent: MachineValueId,
         region: crate::MachineStackId,
@@ -157,6 +160,7 @@ impl MachineOperationKind {
                 | Self::InvokeDrop { .. }
                 | Self::ReportError { .. }
                 | Self::ReleaseError { .. }
+                | Self::ReleaseComputation { .. }
                 | Self::ReleaseRegion { .. }
                 | Self::PackNext
                 | Self::DestroyPack

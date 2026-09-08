@@ -3,6 +3,7 @@
 //! This crate consumes only validated MIR and the closed toolchain identities retained by that
 //! program. It never receives syntax, name resolution, generic requirements, or rendered types.
 
+mod async_frame;
 mod call;
 mod context;
 mod control;
@@ -26,6 +27,10 @@ mod structural;
 mod target;
 mod transport;
 
+pub use async_frame::{
+    MachineAsyncFrame, MachineCancellationAction, MachineFrameField, MachineInitialAsyncState,
+    MachineSuspensionState,
+};
 pub use call::{
     MachineCall, MachineCallAllocation, MachineCallPack, MachineCallTarget, MachineImportedTarget,
     MachinePrimitiveTarget,
@@ -42,7 +47,7 @@ pub use dataflow::{
     MachineBlockDataflow, MachineDataflowError, MachineFunctionDataflow, MachineOperationDataflow,
 };
 pub use destruction::MachineDestructionError;
-pub(crate) use destruction::{
+pub use destruction::{
     MachineDestructionCapture, MachineDestructionElement, MachineDestructionField,
     MachineDestructionKind, MachineDestructionPayload, MachineDestructionPlan,
     MachineDestructionVariant,
@@ -72,8 +77,8 @@ pub use pack::{
 };
 pub use primitive_dependency::MachinePrimitiveDependency;
 pub use program::{
-    MachineBody, MachineFunction, MachineFunctionKind, MachineProgram, MachineProgramRoot,
-    MachineTestProgram,
+    MachineBody, MachineFunction, MachineFunctionExecution, MachineFunctionKind, MachineProgram,
+    MachineProgramRoot, MachineTestProgram,
 };
 pub use storage::{
     MachineAddress, MachineAddressExtent, MachineAddressRoot, MachineAddressStep, MachineDropFlag,

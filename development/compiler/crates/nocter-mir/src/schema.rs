@@ -323,20 +323,20 @@ impl MirFunction {
         initial_cancellation: Box<[crate::MirCancellationAction]>,
         cancellation: std::collections::BTreeMap<MirBlockId, Box<[crate::MirCancellationAction]>>,
         completed_destruction: Option<crate::MirDestructionPlan>,
-    ) -> Self {
+    ) -> Result<Self, crate::MirBodyBuildError> {
         let async_frame = crate::MirAsyncFrame::derive(
             &body,
             initial_cancellation,
             cancellation,
             completed_destruction,
-        );
-        Self {
+        )?;
+        Ok(Self {
             item,
             result,
             execution: MirFunctionExecution::Deferred { output },
             async_frame: Some(async_frame),
             body,
-        }
+        })
     }
 
     #[must_use]

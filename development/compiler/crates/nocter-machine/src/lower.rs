@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_mir::{MirBody, MirProgram, MirRoot};
+use nocter_mir::{MirBody, MirFunctionExecution, MirProgram, MirRoot};
 use nocter_model::{ExecutableItemId, MirOperationId, MirPlaceId, TestId, TypeId};
 
 use crate::destruction_table::MachineDestructionPlanTable;
@@ -15,6 +15,7 @@ use crate::{
 
 mod address;
 mod aggregate;
+mod async_frame;
 mod body;
 mod call;
 mod context;
@@ -63,10 +64,11 @@ impl MachineProgram {
                     )
                 }
                 key => {
-                    let (kind, body) = function_source(program, &abi, key)?;
-                    let body = lower_body(
+                    let (kind, body, async_frame) = function_source(program, &abi, key)?;
+                    let (body, execution) = lower_body(
                         linkage_id,
                         body,
+                        async_frame,
                         ProgramLoweringContext {
                             statics: program.statics(),
                             types: program.types(),
@@ -78,7 +80,7 @@ impl MachineProgram {
                             destructions: &destructions,
                         },
                     )?;
-                    MachineFunction::new(linkage_id, kind, body).map_err(|error| {
+                    MachineFunction::new(linkage_id, kind, execution, body).map_err(|error| {
                         MachineProgramError::Dataflow {
                             owner: linkage_id,
                             error,
@@ -111,7 +113,14 @@ fn function_source<'program>(
     program: &'program MirProgram,
     abi: &MachineAbiPlan,
     key: MachineLinkageKey,
-) -> Result<(MachineFunctionKind, &'program MirBody), MachineProgramError> {
+) -> Result<
+    (
+        MachineFunctionKind,
+        &'program MirBody,
+        Option<(TypeId, &'program nocter_mir::MirAsyncFrame)>,
+    ),
+    MachineProgramError,
+> {
     match key {
         MachineLinkageKey::Item(item) => {
             let function = program
@@ -122,7 +131,20 @@ fn function_source<'program>(
                 .get(item)
                 .cloned()
                 .ok_or(MachineProgramError::MissingCallableAbi(item))?;
-            Ok((MachineFunctionKind::Callable(callable), function.body()))
+            let async_frame = match function.execution() {
+                MirFunctionExecution::Immediate => None,
+                MirFunctionExecution::Deferred { output } => Some((
+                    output,
+                    function
+                        .async_frame()
+                        .ok_or(MachineProgramError::MissingAsyncFrame(item))?,
+                )),
+            };
+            Ok((
+                MachineFunctionKind::Callable(callable),
+                function.body(),
+                async_frame,
+            ))
         }
         MachineLinkageKey::ProcessRoot(target) => {
             let MirRoot::Process(root) = program.root() else {
@@ -131,7 +153,7 @@ fn function_source<'program>(
             if root.target() != target {
                 return Err(MachineProgramError::MissingProcessRoot(target));
             }
-            Ok((MachineFunctionKind::ProcessRoot, root.body()))
+            Ok((MachineFunctionKind::ProcessRoot, root.body(), None))
         }
         MachineLinkageKey::TestRoot(declaration) => {
             let MirRoot::Tests { cases, .. } = program.root() else {
@@ -141,7 +163,7 @@ fn function_source<'program>(
                 .iter()
                 .find(|root| root.declaration() == declaration)
                 .ok_or(MachineProgramError::MissingTestRoot(declaration))?;
-            Ok((MachineFunctionKind::TestRoot, root.body()))
+            Ok((MachineFunctionKind::TestRoot, root.body(), None))
         }
         MachineLinkageKey::Destruction(destruction) => {
             Err(MachineProgramError::MissingDestruction(destruction))
@@ -217,6 +239,7 @@ pub enum MachineProgramError {
     MissingItemFunction(ExecutableItemId),
     MissingItem(ExecutableItemId),
     MissingCallableAbi(ExecutableItemId),
+    MissingAsyncFrame(ExecutableItemId),
     MissingPrimitiveAbi(MirOperationId),
     MissingRuntimeCallAbi(MirOperationId),
     MissingTargetServiceImport(MirOperationId),
@@ -256,6 +279,10 @@ pub enum MachineProgramError {
         operation: MirOperationId,
         error: crate::MachineDestructionError,
     },
+    AsyncDestruction {
+        owner: MachineLinkageId,
+        error: crate::MachineDestructionError,
+    },
     Structural {
         owner: MachineLinkageId,
         operation: MirOperationId,
@@ -273,8 +300,6 @@ pub enum MachineProgramError {
         owner: MachineLinkageId,
         operation: MirOperationId,
     },
-    UnsupportedAsyncOperation(MirOperationId),
-    UnsupportedAsyncControl(MachineLinkageId),
     UnsupportedPlaceSwitch(MachineLinkageId),
     InvalidValueSwitch(MachineLinkageId),
     InvalidTagSwitch(MachineLinkageId),
@@ -300,6 +325,7 @@ impl std::error::Error for MachineProgramError {
             | Self::MissingItemFunction(_)
             | Self::MissingItem(_)
             | Self::MissingCallableAbi(_)
+            | Self::MissingAsyncFrame(_)
             | Self::MissingPrimitiveAbi(_)
             | Self::MissingRuntimeCallAbi(_)
             | Self::MissingTargetServiceImport(_)
@@ -320,12 +346,11 @@ impl std::error::Error for MachineProgramError {
             | Self::Address { .. }
             | Self::Aggregate { .. }
             | Self::Destruction { .. }
+            | Self::AsyncDestruction { .. }
             | Self::Structural { .. }
             | Self::InvalidPackTarget { .. }
             | Self::InvalidPackReceiver { .. }
             | Self::MissingOperationResult { .. }
-            | Self::UnsupportedAsyncOperation(_)
-            | Self::UnsupportedAsyncControl(_)
             | Self::UnsupportedPlaceSwitch(_)
             | Self::InvalidValueSwitch(_)
             | Self::InvalidTagSwitch(_) => None,

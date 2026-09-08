@@ -21,6 +21,82 @@ use crate::{
 mod destruction;
 
 #[test]
+fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() {
+    let mir = lower_fixture(
+        "struct Resource {}\n\
+         drop Resource(&+self) { return }\n\
+         func ready(): async void { return }\n\
+         func hold(value: Resource): async Resource {\n\
+             await ready()\n\
+             move value\n\
+         }\n\
+         func main(): void {\n\
+             let pending = hold(Resource {})\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let program = MachineProgram::lower(&mir).unwrap();
+    let deferred = program
+        .functions()
+        .find_map(|(_, function)| match function.execution() {
+            crate::MachineFunctionExecution::Deferred(frame) if !frame.states().is_empty() => {
+                Some((function, frame))
+            }
+            crate::MachineFunctionExecution::Immediate
+            | crate::MachineFunctionExecution::Deferred(_) => None,
+        })
+        .expect("one suspended deferred function");
+    let (function, frame) = deferred;
+    let state = &frame.states()[0];
+
+    assert!(matches!(
+        function.body().block(state.suspend()).unwrap().terminator(),
+        MachineTerminator::Suspend { computation, resume }
+            if *computation == state.awaited() && resume.block() == state.resume()
+    ));
+    assert!(
+        state
+            .fields()
+            .contains(&crate::MachineFrameField::Value(state.awaited()))
+    );
+    assert!(matches!(
+        state.cancellation().first(),
+        Some(crate::MachineCancellationAction::ReleaseAwaited(value))
+            if *value == state.awaited()
+    ));
+    assert!(state.cancellation().iter().any(|action| matches!(
+        action,
+        crate::MachineCancellationAction::Destroy {
+            plan,
+            initialized: None,
+            ..
+        } if matches!(plan.kind(), crate::MachineDestructionKind::Struct { drop: Some(_), .. })
+    )));
+    assert!(
+        frame
+            .initial()
+            .cancellation()
+            .iter()
+            .any(|action| matches!(action, crate::MachineCancellationAction::Destroy { .. }))
+    );
+    assert!(matches!(
+        frame
+            .completed_destruction()
+            .map(crate::MachineDestructionPlan::kind),
+        Some(crate::MachineDestructionKind::Struct { drop: Some(_), .. })
+    ));
+    assert!(program.functions().any(|(_, function)| {
+        function.body().operations().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MachineOperationKind::ReleaseComputation { .. }
+            )
+        })
+    }));
+}
+
+#[test]
 fn computes_the_complete_arm64_stored_layout_closure() {
     let program = stored_layout_fixture();
     let layouts = MachineLayoutStore::build(&program).unwrap();

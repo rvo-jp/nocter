@@ -198,6 +198,9 @@ impl<'a> DestructionBuilder<'a> {
                     &steps,
                 )?;
             }
+            MachineDestructionKind::Async => {
+                self.append_effect(MachineOperationKind::ReleaseComputation { place: subject })?;
+            }
             MachineDestructionKind::Error => {
                 self.append_effect(MachineOperationKind::ReleaseError { place: subject })?;
             }
@@ -569,8 +572,13 @@ impl<'a> DestructionBuilder<'a> {
             },
             MachineBlockId::new(0),
         );
-        MachineFunction::new(owner, MachineFunctionKind::Callable(abi), body)
-            .map_err(|error| crate::MachineProgramError::Dataflow { owner, error })
+        MachineFunction::new(
+            owner,
+            MachineFunctionKind::Callable(abi),
+            crate::MachineFunctionExecution::Immediate,
+            body,
+        )
+        .map_err(|error| crate::MachineProgramError::Dataflow { owner, error })
     }
 }
 

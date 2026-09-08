@@ -115,61 +115,61 @@ impl MirAsyncFrame {
         initial_cancellation: Box<[MirCancellationAction]>,
         mut cancellation: BTreeMap<MirBlockId, Box<[MirCancellationAction]>>,
         completed_destruction: Option<crate::MirDestructionPlan>,
-    ) -> Self {
+    ) -> Result<Self, crate::MirBodyBuildError> {
         let liveness = Liveness::analyze(body);
-        let states = body
-            .blocks()
-            .iter()
-            .filter_map(|(suspend, block)| {
-                let MirTerminator::Suspend {
-                    computation,
-                    resume,
-                } = block.terminator()
-                else {
-                    return None;
-                };
-                let mut fields = liveness.before[&resume.block()].clone();
-                fields.insert(MirFrameField::Value(*computation));
-                let actions = cancellation.remove(&suspend).unwrap_or_else(|| {
-                    Box::new([MirCancellationAction::ReleaseAwaited(*computation)])
-                });
-                for action in actions.iter() {
-                    match action {
-                        MirCancellationAction::ReleaseAwaited(value) => {
-                            fields.insert(MirFrameField::Value(*value));
+        let mut states = Vec::new();
+        for (suspend, block) in body.blocks().iter() {
+            let MirTerminator::Suspend {
+                computation,
+                resume,
+            } = block.terminator()
+            else {
+                continue;
+            };
+            let mut fields = liveness.before[&resume.block()].clone();
+            fields.insert(MirFrameField::Value(*computation));
+            let actions = cancellation.remove(&suspend).ok_or(
+                crate::MirBodyBuildError::MissingSuspensionCancellation(suspend),
+            )?;
+            for action in &actions {
+                match action {
+                    MirCancellationAction::ReleaseAwaited(value) => {
+                        fields.insert(MirFrameField::Value(*value));
+                    }
+                    MirCancellationAction::Destroy {
+                        place, initialized, ..
+                    } => {
+                        let place = body
+                            .places()
+                            .get(*place)
+                            .expect("cancellation plan owns a valid MIR place");
+                        if let MirPlaceRoot::Local(local) = place.root() {
+                            fields.insert(MirFrameField::Local(local));
                         }
-                        MirCancellationAction::Destroy {
-                            place, initialized, ..
-                        } => {
-                            let place = body
-                                .places()
-                                .get(*place)
-                                .expect("cancellation plan owns a valid MIR place");
-                            if let MirPlaceRoot::Local(local) = place.root() {
-                                fields.insert(MirFrameField::Local(local));
-                            }
-                            fields.extend(place_values(place).map(MirFrameField::Value));
-                            fields.extend(initialized.map(MirFrameField::DropFlag));
-                        }
-                        MirCancellationAction::ReleaseRegion(local) => {
-                            fields.insert(MirFrameField::Local(*local));
-                        }
-                        MirCancellationAction::DestroyPack => {
-                            fields.insert(MirFrameField::Pack);
-                        }
+                        fields.extend(place_values(place).map(MirFrameField::Value));
+                        fields.extend(initialized.map(MirFrameField::DropFlag));
+                    }
+                    MirCancellationAction::ReleaseRegion(local) => {
+                        fields.insert(MirFrameField::Local(*local));
+                    }
+                    MirCancellationAction::DestroyPack => {
+                        fields.insert(MirFrameField::Pack);
                     }
                 }
-                Some(MirSuspensionState {
-                    suspend,
-                    resume: resume.block(),
-                    awaited: *computation,
-                    fields: fields.into_iter().collect(),
-                    cancellation: actions,
-                })
-            })
-            .collect::<Vec<_>>()
-            .into_boxed_slice();
-        debug_assert!(cancellation.is_empty());
+            }
+            states.push(MirSuspensionState {
+                suspend,
+                resume: resume.block(),
+                awaited: *computation,
+                fields: fields.into_iter().collect(),
+                cancellation: actions,
+            });
+        }
+        if let Some(unexpected) = cancellation.keys().next().copied() {
+            return Err(crate::MirBodyBuildError::UnexpectedSuspensionCancellation(
+                unexpected,
+            ));
+        }
         let mut initial_fields = body
             .parameters()
             .iter()
@@ -179,14 +179,14 @@ impl MirAsyncFrame {
         if body.pack().is_some() {
             initial_fields.insert(MirFrameField::Pack);
         }
-        Self {
+        Ok(Self {
             initial: MirInitialAsyncState {
                 fields: initial_fields.into_iter().collect(),
                 cancellation: initial_cancellation,
             },
-            states,
+            states: states.into_boxed_slice(),
             completed_destruction,
-        }
+        })
     }
 }
 

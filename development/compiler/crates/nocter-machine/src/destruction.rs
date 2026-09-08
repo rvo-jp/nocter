@@ -150,6 +150,7 @@ pub enum MachineDestructionKind {
         success: Option<Box<MachineDestructionPlan>>,
         failure: Box<MachineDestructionPlan>,
     },
+    Async,
     Error,
     Closure(Box<[MachineDestructionCapture]>),
     Opaque(Box<MachineDestructionPlan>),

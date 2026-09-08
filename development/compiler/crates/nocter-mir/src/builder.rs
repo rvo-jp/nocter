@@ -267,6 +267,8 @@ pub enum MirBodyBuildError {
     EffectKindUsedAsValue,
     ValueKindUsedAsEffect,
     DuplicatePackInput,
+    MissingSuspensionCancellation(MirBlockId),
+    UnexpectedSuspensionCancellation(MirBlockId),
 }
 
 impl fmt::Display for MirBodyBuildError {
@@ -283,7 +285,9 @@ impl std::error::Error for MirBodyBuildError {
             | Self::UnterminatedBlock(_)
             | Self::EffectKindUsedAsValue
             | Self::ValueKindUsedAsEffect
-            | Self::DuplicatePackInput => None,
+            | Self::DuplicatePackInput
+            | Self::MissingSuspensionCancellation(_)
+            | Self::UnexpectedSuspensionCancellation(_) => None,
         }
     }
 }
@@ -334,7 +338,7 @@ impl MirFunctionBuilder {
         cancellation: BTreeMap<MirBlockId, Box<[crate::MirCancellationAction]>>,
         completed_destruction: Option<crate::MirDestructionPlan>,
     ) -> Result<MirFunction, MirBodyBuildError> {
-        Ok(MirFunction::new_deferred(
+        MirFunction::new_deferred(
             self.item,
             invocation_result,
             self.result,
@@ -342,7 +346,7 @@ impl MirFunctionBuilder {
             initial_cancellation,
             cancellation,
             completed_destruction,
-        ))
+        )
     }
 }
 
