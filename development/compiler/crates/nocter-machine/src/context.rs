@@ -217,7 +217,12 @@ fn async_frame_requires_context(
         .initial()
         .cancellation()
         .iter()
-        .chain(frame.states().iter().flat_map(|state| state.cancellation()))
+        .chain(
+            frame
+                .states()
+                .iter()
+                .flat_map(crate::MachineSuspensionState::cancellation),
+        )
         .filter_map(|action| match action {
             crate::MachineCancellationAction::Destroy { destruction, .. } => Some(*destruction),
             crate::MachineCancellationAction::ReleaseAwaited(_)

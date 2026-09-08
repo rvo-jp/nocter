@@ -214,7 +214,7 @@ fn collect_async_frame(
     collect_async_actions(
         owner,
         frame.initial().cancellation(),
-        |action| AsyncDestructionSite::Initial(action),
+        AsyncDestructionSite::Initial,
         layouts,
         functions,
         plans,
@@ -248,10 +248,6 @@ fn collect_async_frame(
     Ok(())
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the collection context is explicit and immutable"
-)]
 fn collect_async_actions(
     owner: MachineLinkageId,
     actions: &[MirCancellationAction],
@@ -270,10 +266,6 @@ fn collect_async_actions(
     Ok(())
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the collection context is explicit and immutable"
-)]
 fn insert_async_plan(
     owner: MachineLinkageId,
     site: AsyncDestructionSite,

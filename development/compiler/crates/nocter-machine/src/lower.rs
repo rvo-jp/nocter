@@ -64,11 +64,11 @@ impl MachineProgram {
                     )
                 }
                 key => {
-                    let (kind, body, async_frame) = function_source(program, &abi, key)?;
+                    let source = function_source(program, &abi, key)?;
                     let (body, execution) = lower_body(
                         linkage_id,
-                        body,
-                        async_frame,
+                        source.body,
+                        source.async_frame,
                         ProgramLoweringContext {
                             statics: program.statics(),
                             types: program.types(),
@@ -80,12 +80,12 @@ impl MachineProgram {
                             destructions: &destructions,
                         },
                     )?;
-                    MachineFunction::new(linkage_id, kind, execution, body).map_err(|error| {
-                        MachineProgramError::Dataflow {
+                    MachineFunction::new(linkage_id, source.kind, execution, body).map_err(
+                        |error| MachineProgramError::Dataflow {
                             owner: linkage_id,
                             error,
-                        }
-                    })
+                        },
+                    )
                 }
             })
             .collect::<Result<Vec<_>, MachineProgramError>>()?;
@@ -109,18 +109,17 @@ impl MachineProgram {
     }
 }
 
+struct FunctionSource<'program> {
+    kind: MachineFunctionKind,
+    body: &'program MirBody,
+    async_frame: Option<(TypeId, &'program nocter_mir::MirAsyncFrame)>,
+}
+
 fn function_source<'program>(
     program: &'program MirProgram,
     abi: &MachineAbiPlan,
     key: MachineLinkageKey,
-) -> Result<
-    (
-        MachineFunctionKind,
-        &'program MirBody,
-        Option<(TypeId, &'program nocter_mir::MirAsyncFrame)>,
-    ),
-    MachineProgramError,
-> {
+) -> Result<FunctionSource<'program>, MachineProgramError> {
     match key {
         MachineLinkageKey::Item(item) => {
             let function = program
@@ -140,11 +139,11 @@ fn function_source<'program>(
                         .ok_or(MachineProgramError::MissingAsyncFrame(item))?,
                 )),
             };
-            Ok((
-                MachineFunctionKind::Callable(callable),
-                function.body(),
+            Ok(FunctionSource {
+                kind: MachineFunctionKind::Callable(callable),
+                body: function.body(),
                 async_frame,
-            ))
+            })
         }
         MachineLinkageKey::ProcessRoot(target) => {
             let MirRoot::Process(root) = program.root() else {
@@ -153,7 +152,11 @@ fn function_source<'program>(
             if root.target() != target {
                 return Err(MachineProgramError::MissingProcessRoot(target));
             }
-            Ok((MachineFunctionKind::ProcessRoot, root.body(), None))
+            Ok(FunctionSource {
+                kind: MachineFunctionKind::ProcessRoot,
+                body: root.body(),
+                async_frame: None,
+            })
         }
         MachineLinkageKey::TestRoot(declaration) => {
             let MirRoot::Tests { cases, .. } = program.root() else {
@@ -163,7 +166,11 @@ fn function_source<'program>(
                 .iter()
                 .find(|root| root.declaration() == declaration)
                 .ok_or(MachineProgramError::MissingTestRoot(declaration))?;
-            Ok((MachineFunctionKind::TestRoot, root.body(), None))
+            Ok(FunctionSource {
+                kind: MachineFunctionKind::TestRoot,
+                body: root.body(),
+                async_frame: None,
+            })
         }
         MachineLinkageKey::Destruction(destruction) => {
             Err(MachineProgramError::MissingDestruction(destruction))

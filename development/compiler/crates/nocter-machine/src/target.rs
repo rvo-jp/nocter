@@ -5,78 +5,76 @@ pub use nocter_runtime_contract::RuntimeEndianness as MachineEndianness;
 /// Closed layout facts selected by the toolchain ABI identity.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct MachineTarget {
-    schema: RuntimeAbiSchema,
+    identity: RuntimeAbiIdentity,
 }
 
 impl MachineTarget {
     pub(crate) const fn select(abi: RuntimeAbiIdentity) -> Self {
-        Self {
-            schema: abi.schema(),
-        }
+        Self { identity: abi }
     }
 
     #[must_use]
     pub const fn runtime_schema(self) -> RuntimeAbiSchema {
-        self.schema
+        self.identity.schema()
     }
 
     #[must_use]
     pub const fn word_size(self) -> u64 {
-        self.schema.word_size()
+        self.identity.schema().word_size()
     }
 
     #[must_use]
     pub const fn pointer_size(self) -> u64 {
-        self.schema.pointer_size()
+        self.identity.schema().pointer_size()
     }
 
     #[must_use]
     pub const fn pointer_alignment(self) -> u64 {
-        self.schema.pointer_alignment()
+        self.identity.schema().pointer_alignment()
     }
 
     #[must_use]
     pub const fn stack_alignment(self) -> u64 {
-        self.schema.stack_alignment()
+        self.identity.schema().stack_alignment()
     }
 
     #[must_use]
     pub const fn argument_register_count(self) -> u8 {
-        self.schema.argument_register_count()
+        self.identity.schema().argument_register_count()
     }
 
     #[must_use]
     pub const fn floating_argument_register_count(self) -> u8 {
-        self.schema.floating_argument_register_count()
+        self.identity.schema().floating_argument_register_count()
     }
 
     #[must_use]
     pub const fn direct_value_word_limit(self) -> u8 {
-        self.schema.direct_value_word_limit()
+        self.identity.schema().direct_value_word_limit()
     }
 
     #[must_use]
     pub const fn direct_result_register_count(self) -> u8 {
-        self.schema.direct_result_register_count()
+        self.identity.schema().direct_result_register_count()
     }
 
     #[must_use]
     pub const fn indirect_result_register(self) -> u8 {
-        self.schema.indirect_result_register()
+        self.identity.schema().indirect_result_register()
     }
 
     #[must_use]
     pub const fn pack_pointer_register(self) -> u8 {
-        self.schema.pack_pointer_register()
+        self.identity.schema().pack_pointer_register()
     }
 
     #[must_use]
     pub const fn endianness(self) -> MachineEndianness {
-        self.schema.endianness()
+        self.identity.schema().endianness()
     }
 
     #[must_use]
     pub const fn error(self) -> nocter_runtime_contract::RuntimeErrorAbiSchema {
-        self.schema.error()
+        self.identity.schema().error()
     }
 }

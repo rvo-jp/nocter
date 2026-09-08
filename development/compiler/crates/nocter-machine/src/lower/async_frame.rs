@@ -19,7 +19,7 @@ pub(super) fn lower_async_frame(
         lower_fields(frame.initial().fields(), ids)?,
         lower_actions(
             frame.initial().cancellation(),
-            |action| AsyncDestructionSite::Initial(action),
+            AsyncDestructionSite::Initial,
             context,
             ids,
         )?,
