@@ -152,6 +152,26 @@ the target adapter normalizes interruption and already-removed native registrati
 Orderly shutdown uses the same cancellation transition for every retained task rather than
 implementing a second cleanup path.
 
+## Native Frame Placement
+
+Machine decides the exact union of stack objects, SSA values, initialization flags, and incoming
+pack ownership that survives any suspension. ARM64 placement consumes that union once and assigns
+each retained identity one stable byte range for the complete computation lifetime. Individual
+suspension states select subsets of those identities; they cannot request a second layout or
+overlay storage according to backend-recomputed liveness.
+
+The allocation-backed frame header stores the resume entry, cancellation entry, lifecycle state
+tag, incoming allocation context, any required process context, and any transferred pack pointer.
+The completed output has one separate stable field when its representation occupies bytes.
+Initial, suspension, and completed tags are assigned deterministically from the closed Machine
+state list. A running state is not externally cancellable in the single-threaded executor, so it
+does not require a second concurrently observable tag.
+
+Ordinary stack frames and asynchronous heap frames use the same target object-placement authority
+for alignment and overflow. The two layouts remain distinct products because a stack frame also
+owns outgoing-call storage, saved registers, and an ABI frame record, while an asynchronous frame
+must survive a return to the executor.
+
 ## Structured Execution
 
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;

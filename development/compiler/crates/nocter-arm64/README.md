@@ -16,6 +16,7 @@ source, loader commands, or package state.
 - instruction and addressing selection
 - call, aggregate, pack, primitive, error, and region lowering
 - frame layout and register allocation
+- allocation-backed async-frame placement from the exact Machine field union
 - parallel-copy resolution
 - branch, code-to-data, data-to-data, and imported-function pointer-slot fixups plus instruction
   encoding
@@ -36,6 +37,8 @@ source, loader commands, or package state.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.
+- Stack and async frames share one aligned-object placement authority. Async placement assigns one
+  stable byte range to each Machine-selected live identity and never repeats suspension liveness.
 - Until the v0.41.0 executor entry points exist, selection rejects deferred functions and
   computation-release operations explicitly. It never encodes a state-machine body as though it
   implemented the immediate callable ABI.

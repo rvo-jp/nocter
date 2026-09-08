@@ -11,12 +11,13 @@ been changed.
 
 Implement v0.41.0 Phase 3 from the
 [Asynchronous Computation Boundary](design/asynchronous-computation-design.md). Add the owned
-single-threaded executor, target-independent scheduler/reactor contracts, and Darwin readiness
-reactor against the completed Machine async state product. Stable registration identities and
+single-threaded executor and Darwin readiness reactor against the completed scheduler/reactor
+contract and ARM64 async heap-frame layout. Generate constructor, resume, and cancellation entries
+without repeating Machine liveness or ownership decisions. Stable registration identities and
 generations must make stale events harmless. Cancellation must remove readiness registrations
 before executing the frozen frame cleanup plan. Do not add public async time or network APIs until
-deterministic lifecycle tests and native concurrent loopback tests close the runtime contract.
-Keep the qualified v0.40.0 archive unchanged.
+deterministic lifecycle tests and native concurrent loopback tests close the runtime contract. Keep
+the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

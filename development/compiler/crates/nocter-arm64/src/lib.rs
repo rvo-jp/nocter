@@ -9,6 +9,7 @@ mod address_code;
 mod address_selection;
 mod aggregate_selection;
 mod allocation_selection;
+mod async_frame;
 mod call_selection;
 mod code;
 mod destruction_selection;
@@ -28,6 +29,7 @@ mod lower;
 mod memory_code;
 mod memory_parallel_copy;
 mod memory_selection;
+mod object_layout;
 mod pack_callback;
 mod pack_layout;
 mod pack_selection;
@@ -60,6 +62,10 @@ pub use abi::{Arm64AbiRegisterRole, Arm64NocterAbi};
 pub use address_selection::{
     Arm64SelectedAddressCalculation, Arm64SelectedAddressPlan, Arm64SelectedAddressRoot,
     Arm64SelectedAddressStep, Arm64SelectedIndex, Arm64SelectedIndexBound,
+};
+pub use async_frame::{
+    Arm64AsyncFrameField, Arm64AsyncFrameLayout, Arm64AsyncFrameLayoutError,
+    Arm64AsyncSuspensionTag,
 };
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
 pub use encode::Arm64EncodingError;

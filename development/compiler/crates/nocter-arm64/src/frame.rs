@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::fmt;
 
+use crate::object_layout::{Arm64ObjectLayoutError, Arm64ObjectSequence};
 use crate::{Arm64NocterAbi, Arm64Register};
 
 const STACK_ALIGNMENT: u64 = Arm64NocterAbi::stack_alignment();
@@ -147,7 +148,8 @@ impl Arm64FrameLayoutBuilder {
         size: u64,
         alignment: u64,
     ) -> Result<Arm64FrameObjectId, Arm64FrameLayoutError> {
-        validate_alignment(alignment)?;
+        crate::object_layout::validate_alignment(alignment, STACK_ALIGNMENT)
+            .map_err(map_object_layout_error)?;
         let id = Arm64FrameObjectId(self.objects.len());
         self.objects.push(FrameObjectRequest { size, alignment });
         Ok(id)
@@ -172,35 +174,34 @@ impl Arm64FrameLayoutBuilder {
     ///
     /// Rejects offset or total-frame arithmetic overflow.
     pub fn finish(self) -> Result<Arm64FrameLayout, Arm64FrameLayoutError> {
-        let mut next = self.outgoing_argument_size;
+        let mut sequence =
+            Arm64ObjectSequence::new(self.outgoing_argument_size, 1, STACK_ALIGNMENT);
         let mut objects = Vec::with_capacity(self.objects.len());
         for request in self.objects {
-            let offset = align_up(next, request.alignment)?;
-            next = offset
-                .checked_add(request.size)
-                .ok_or(Arm64FrameLayoutError::FrameOverflow)?;
+            let object = sequence
+                .add(request.size, request.alignment)
+                .map_err(map_object_layout_error)?;
             objects.push(Arm64FrameObject {
-                offset,
-                size: request.size,
-                alignment: request.alignment,
+                offset: object.offset(),
+                size: object.size(),
+                alignment: object.alignment(),
             });
         }
 
         let mut saved_registers = Vec::with_capacity(self.saved_registers.len());
         for register in self.saved_registers {
-            let offset = align_up(next, REGISTER_SIZE)?;
-            next = offset
-                .checked_add(REGISTER_SIZE)
-                .ok_or(Arm64FrameLayoutError::FrameOverflow)?;
-            saved_registers.push(Arm64SavedRegister { register, offset });
+            let object = sequence
+                .add(REGISTER_SIZE, REGISTER_SIZE)
+                .map_err(map_object_layout_error)?;
+            saved_registers.push(Arm64SavedRegister {
+                register,
+                offset: object.offset(),
+            });
         }
 
-        let frame_size = align_up(
-            next.checked_add(FRAME_RECORD_SIZE)
-                .ok_or(Arm64FrameLayoutError::FrameOverflow)?,
-            STACK_ALIGNMENT,
-        )?;
-        let frame_record_offset = frame_size - FRAME_RECORD_SIZE;
+        let (frame_size, frame_record_offset, _) = sequence
+            .finish_with_trailer(FRAME_RECORD_SIZE, STACK_ALIGNMENT)
+            .map_err(map_object_layout_error)?;
         Ok(Arm64FrameLayout {
             size: frame_size,
             outgoing_argument_size: self.outgoing_argument_size,
@@ -211,19 +212,13 @@ impl Arm64FrameLayoutBuilder {
     }
 }
 
-fn validate_alignment(alignment: u64) -> Result<(), Arm64FrameLayoutError> {
-    if !alignment.is_power_of_two() || alignment > STACK_ALIGNMENT {
-        return Err(Arm64FrameLayoutError::InvalidObjectAlignment(alignment));
+const fn map_object_layout_error(error: Arm64ObjectLayoutError) -> Arm64FrameLayoutError {
+    match error {
+        Arm64ObjectLayoutError::InvalidAlignment(alignment) => {
+            Arm64FrameLayoutError::InvalidObjectAlignment(alignment)
+        }
+        Arm64ObjectLayoutError::SizeOverflow => Arm64FrameLayoutError::FrameOverflow,
     }
-    Ok(())
-}
-
-fn align_up(value: u64, alignment: u64) -> Result<u64, Arm64FrameLayoutError> {
-    let mask = alignment - 1;
-    value
-        .checked_add(mask)
-        .map(|value| value & !mask)
-        .ok_or(Arm64FrameLayoutError::FrameOverflow)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

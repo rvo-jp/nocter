@@ -1050,6 +1050,118 @@ fn instruction_selection_rejects_deferred_functions_at_the_execution_boundary() 
 }
 
 #[test]
+fn async_frame_layout_places_the_machine_field_union_once() {
+    let program = crate::test_support::lower_machine(
+        "struct Resource { value: i64 }\n\
+         drop Resource(&+self) { return }\n\
+         func ready(): async i64 { return 1 }\n\
+         func hold(resource: Resource): async Resource {\n\
+             let observed = await ready()\n\
+             if observed == 0 { return move resource }\n\
+             return move resource\n\
+         }\n\
+         func main(): void {\n\
+             let pending = hold(Resource { value: 7 })\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let (owner, machine_frame) = program
+        .functions()
+        .find_map(|(owner, function)| match function.execution() {
+            nocter_machine::MachineFunctionExecution::Deferred(frame)
+                if !frame.states().is_empty() =>
+            {
+                Some((owner, frame))
+            }
+            nocter_machine::MachineFunctionExecution::Immediate
+            | nocter_machine::MachineFunctionExecution::Deferred(_) => None,
+        })
+        .expect("one suspended deferred function");
+    let layout = crate::Arm64AsyncFrameLayout::build(&program, owner).unwrap();
+
+    assert_eq!(layout.resume_function().offset(), 0);
+    assert_eq!(layout.cancel_function().offset(), 8);
+    assert_eq!(layout.state_tag().offset(), 16);
+    assert_eq!(layout.allocation_context().offset(), 24);
+    assert!(layout.process_context().is_none());
+    assert!(layout.pack_input().is_none());
+    assert!(layout.output().is_some());
+    assert_eq!(layout.initial_tag(), 0);
+    assert_eq!(
+        layout.completed_tag(),
+        u64::try_from(machine_frame.states().len()).unwrap() + 1
+    );
+    assert_eq!(layout.suspension_tags().len(), machine_frame.states().len());
+    for (index, (tag, state)) in layout
+        .suspension_tags()
+        .iter()
+        .zip(machine_frame.states())
+        .enumerate()
+    {
+        assert_eq!(tag.suspend(), state.suspend());
+        assert_eq!(tag.tag(), u64::try_from(index).unwrap() + 1);
+    }
+
+    for field in machine_frame.initial().fields().iter().chain(
+        machine_frame
+            .states()
+            .iter()
+            .flat_map(nocter_machine::MachineSuspensionState::fields),
+    ) {
+        match field {
+            nocter_machine::MachineFrameField::Pack => {
+                assert!(layout.pack_input().is_some());
+            }
+            nocter_machine::MachineFrameField::Stack(id) => {
+                assert!(layout.stack_object(*id).is_some());
+            }
+            nocter_machine::MachineFrameField::Value(id) => {
+                assert!(layout.value(*id).is_some());
+            }
+            nocter_machine::MachineFrameField::DropFlag(id) => {
+                assert!(layout.drop_flag(*id).is_some());
+            }
+        }
+    }
+    assert!(layout.size().is_multiple_of(layout.alignment()));
+}
+
+#[test]
+fn async_frame_layout_retains_a_transferred_pack_pointer() {
+    let program = crate::test_support::lower_machine(
+        "func ready(): async void { return }\n\
+         func count(...items: i32): async usize {\n\
+             await ready()\n\
+             return items.len()\n\
+         }\n\
+         func main(): void {\n\
+             let pending = count(1, 2, 3)\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let owner = program
+        .functions()
+        .find_map(|(owner, function)| match function.execution() {
+            nocter_machine::MachineFunctionExecution::Deferred(frame)
+                if frame
+                    .initial()
+                    .fields()
+                    .contains(&nocter_machine::MachineFrameField::Pack) =>
+            {
+                Some(owner)
+            }
+            nocter_machine::MachineFunctionExecution::Immediate
+            | nocter_machine::MachineFunctionExecution::Deferred(_) => None,
+        })
+        .expect("one deferred pack function");
+    let layout = crate::Arm64AsyncFrameLayout::build(&program, owner).unwrap();
+
+    assert_eq!(layout.pack_input().unwrap().size(), 8);
+}
+
+#[test]
 fn machine_value_plan_treats_user_destruction_as_a_call_boundary() {
     let program = crate::test_support::lower_machine(
         "struct Resource {}\n\
