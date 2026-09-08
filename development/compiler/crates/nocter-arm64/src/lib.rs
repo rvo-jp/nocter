@@ -10,6 +10,7 @@ mod address_selection;
 mod aggregate_selection;
 mod allocation_selection;
 mod async_constructor_code;
+mod async_consume_code;
 mod async_frame;
 mod async_function;
 mod call_selection;
@@ -68,6 +69,7 @@ pub use address_selection::{
     Arm64SelectedAddressStep, Arm64SelectedIndex, Arm64SelectedIndexBound,
 };
 pub use async_constructor_code::Arm64AsyncConstructorError;
+pub use async_consume_code::Arm64AsyncConsumeError;
 pub use async_frame::{
     Arm64AsyncFrameField, Arm64AsyncFrameLayout, Arm64AsyncFrameLayoutError,
     Arm64AsyncSuspensionTag,

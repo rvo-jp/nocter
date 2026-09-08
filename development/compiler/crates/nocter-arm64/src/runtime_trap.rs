@@ -15,6 +15,8 @@ pub(crate) enum Arm64RuntimeTrap {
     ProcessIndexOutOfBounds,
     ErrorNodeCorruption,
     ErrorReleaseFailure,
+    AsyncFrameStateCorruption,
+    AsyncFrameReleaseFailure,
 }
 
 impl Arm64RuntimeTrap {
@@ -31,6 +33,8 @@ impl Arm64RuntimeTrap {
             Self::ProcessIndexOutOfBounds => 9,
             Self::ErrorNodeCorruption => 10,
             Self::ErrorReleaseFailure => 11,
+            Self::AsyncFrameStateCorruption => 12,
+            Self::AsyncFrameReleaseFailure => 13,
         }
     }
 }

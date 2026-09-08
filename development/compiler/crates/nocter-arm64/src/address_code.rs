@@ -289,7 +289,11 @@ fn move_selected(
     Ok(())
 }
 
-fn move_register(code: &mut Arm64CodeBuilder, source: Arm64Register, destination: Arm64Register) {
+pub(crate) fn move_register(
+    code: &mut Arm64CodeBuilder,
+    source: Arm64Register,
+    destination: Arm64Register,
+) {
     if source != destination {
         code.append(Arm64Instruction::AddSubtractImmediate {
             size: Arm64DataSize::Bits64,

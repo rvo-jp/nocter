@@ -126,15 +126,12 @@ impl Arm64AsyncFrameLayout {
             fields.contains(&MachineFrameField::Pack),
             &mut sequence,
         )?;
-        let output_layout = program
-            .layouts()
-            .get(frame.output())
-            .ok_or(Arm64AsyncFrameLayoutError::MissingOutputLayout(owner))?;
-        let output = add_stored(
-            &mut sequence,
-            output_layout.size(),
-            output_layout.alignment(),
-        )?;
+        let output = match frame.output_representation() {
+            MachineValueRepresentation::Completion | MachineValueRepresentation::Diverging => None,
+            MachineValueRepresentation::Stored {
+                size, alignment, ..
+            } => add_stored(&mut sequence, size, alignment)?,
+        };
         let placed = place_body_fields(body, fields, &mut sequence)?;
         let suspension_tags = build_suspension_tags(owner, frame, asynchronous)?;
         let completed_tag = u64::try_from(suspension_tags.len())
@@ -415,7 +412,6 @@ pub enum Arm64AsyncFrameLayoutError {
     ImmediateFunction(MachineFunctionId),
     InvalidAllocationContext(MachineFunctionId),
     InvalidProcessContext(MachineFunctionId),
-    MissingOutputLayout(MachineFunctionId),
     UnknownStack(nocter_machine::MachineStackId),
     UnknownDropFlag(nocter_machine::MachineDropFlagId),
     UnknownValue(nocter_machine::MachineValueId),

@@ -230,6 +230,19 @@ impl Arm64AsyncFunctionPlan {
         crate::async_constructor_code::materialize(self, target)
     }
 
+    /// Materializes the completed-output transfer entry for this deferred function.
+    ///
+    /// # Errors
+    ///
+    /// Rejects a foreign or immediate native target, invalid runtime register assignments,
+    /// malformed output placement, or code emission failure.
+    pub fn materialize_consume(
+        &self,
+        target: crate::Arm64FunctionTarget,
+    ) -> Result<crate::Arm64Code, crate::Arm64AsyncConsumeError> {
+        crate::async_consume_code::materialize(self, target)
+    }
+
     pub(crate) const fn constructor_frame(&self) -> &Arm64AsyncConstructorFrame {
         &self.constructor_frame
     }

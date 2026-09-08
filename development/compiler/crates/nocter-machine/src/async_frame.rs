@@ -1,5 +1,3 @@
-use nocter_model::TypeId;
-
 use crate::{
     MachineAddressId, MachineBlockId, MachineDestructionPlan, MachineDropFlagId, MachineStackId,
     MachineValueId,
@@ -112,7 +110,7 @@ impl MachineSuspensionState {
 /// The closed target-independent lifecycle contract for one deferred function body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineAsyncFrame {
-    output: TypeId,
+    output_representation: crate::MachineValueRepresentation,
     initial: MachineInitialAsyncState,
     states: Box<[MachineSuspensionState]>,
     completed_destruction: Option<MachineDestructionPlan>,
@@ -120,22 +118,23 @@ pub struct MachineAsyncFrame {
 
 impl MachineAsyncFrame {
     pub(crate) fn new(
-        output: TypeId,
+        output_representation: crate::MachineValueRepresentation,
         initial: MachineInitialAsyncState,
         states: impl Into<Box<[MachineSuspensionState]>>,
         completed_destruction: Option<MachineDestructionPlan>,
     ) -> Self {
         Self {
-            output,
+            output_representation,
             initial,
             states: states.into(),
             completed_destruction,
         }
     }
 
+    /// Closed storage and transport class of the completed inner output.
     #[must_use]
-    pub const fn output(&self) -> TypeId {
-        self.output
+    pub const fn output_representation(&self) -> crate::MachineValueRepresentation {
+        self.output_representation
     }
 
     #[must_use]

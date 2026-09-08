@@ -1216,6 +1216,40 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
         .filter(|fixup| matches!(fixup, crate::code::Arm64CodeFixup::FunctionAddress { .. }))
         .count();
     assert_eq!(lifecycle_addresses, 3);
+    let consume = plan
+        .materialize_consume(targets.get(owner).unwrap())
+        .unwrap();
+    assert!(consume.instruction_count() > 8);
+}
+
+#[test]
+fn async_consume_supports_a_zero_sized_completed_output() {
+    let program = crate::test_support::lower_machine(
+        "func ready(): async void { return }\n\
+         func main(): void {\n\
+             let pending = ready()\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let owner = program
+        .functions()
+        .find_map(|(owner, function)| {
+            matches!(
+                function.execution(),
+                nocter_machine::MachineFunctionExecution::Deferred(_)
+            )
+            .then_some(owner)
+        })
+        .unwrap();
+    let plan = crate::Arm64AsyncFunctionPlan::build(&program, owner).unwrap();
+    assert!(plan.frame().output().is_none());
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
+    let consume = plan
+        .materialize_consume(targets.get(owner).unwrap())
+        .unwrap();
+    assert!(consume.instruction_count() > 5);
 }
 
 #[test]

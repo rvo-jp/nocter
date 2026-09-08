@@ -37,7 +37,7 @@ pub(super) fn lower_async_frame(
         .map(|plan| lower_async_destruction(plan, ids.owner(), context.layouts, context.functions))
         .transpose()?;
     Ok(MachineAsyncFrame::new(
-        output,
+        super::body::value_representation(output, context.types, context.layouts)?,
         initial,
         states,
         completed_destruction,

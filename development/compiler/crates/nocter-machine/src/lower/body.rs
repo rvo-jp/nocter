@@ -111,27 +111,7 @@ fn lower_values(
     body.values()
         .iter()
         .map(|(_, value)| {
-            let representation = match types.get(value.ty()) {
-                Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => {
-                    MachineValueRepresentation::Completion
-                }
-                Some(RuntimeType::Primitive(RuntimePrimitive::Never)) => {
-                    MachineValueRepresentation::Diverging
-                }
-                Some(_) => {
-                    let layout = layouts
-                        .get(value.ty())
-                        .ok_or(MachineProgramError::MissingStoredLayout(value.ty()))?;
-                    MachineValueRepresentation::Stored {
-                        size: layout.size(),
-                        alignment: layout.alignment(),
-                        class: layouts
-                            .class(value.ty())
-                            .ok_or(MachineProgramError::MissingStoredLayout(value.ty()))?,
-                    }
-                }
-                None => return Err(MachineProgramError::MissingStoredLayout(value.ty())),
-            };
+            let representation = value_representation(value.ty(), types, layouts)?;
             let definition = match value.definition() {
                 MirValueDefinition::BlockParameter { block, position } => {
                     MachineValueDefinition::BlockParameter {
@@ -146,6 +126,34 @@ fn lower_values(
             Ok(MachineValue::new(value.ty(), representation, definition))
         })
         .collect()
+}
+
+pub(super) fn value_representation(
+    ty: nocter_model::TypeId,
+    types: &RuntimeTypeTable,
+    layouts: &MachineLayoutPlan,
+) -> Result<MachineValueRepresentation, MachineProgramError> {
+    match types.get(ty) {
+        Some(RuntimeType::Primitive(RuntimePrimitive::Void)) => {
+            Ok(MachineValueRepresentation::Completion)
+        }
+        Some(RuntimeType::Primitive(RuntimePrimitive::Never)) => {
+            Ok(MachineValueRepresentation::Diverging)
+        }
+        Some(_) => {
+            let layout = layouts
+                .get(ty)
+                .ok_or(MachineProgramError::MissingStoredLayout(ty))?;
+            Ok(MachineValueRepresentation::Stored {
+                size: layout.size(),
+                alignment: layout.alignment(),
+                class: layouts
+                    .class(ty)
+                    .ok_or(MachineProgramError::MissingStoredLayout(ty))?,
+            })
+        }
+        None => Err(MachineProgramError::MissingStoredLayout(ty)),
+    }
 }
 
 pub(super) struct BodyIdentities {
