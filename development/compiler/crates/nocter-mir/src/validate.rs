@@ -33,11 +33,13 @@ pub fn validate_function(
     function: &MirFunction,
     environment: &impl MirValidationEnvironment,
 ) -> Result<(), MirValidationError> {
+    crate::validation_async::validate_async_function(function, environment)?;
     let context = ValidationContext {
         function: function.body(),
         contract: BodyContract::Function {
             item: function.item(),
-            result: function.result(),
+            result: function.body_result(),
+            execution: function.execution(),
         },
         environment,
         types: environment.types(),
@@ -63,6 +65,7 @@ enum BodyContract {
     Function {
         item: ExecutableItemId,
         result: TypeId,
+        execution: crate::MirFunctionExecution,
     },
     Root,
 }
@@ -76,7 +79,7 @@ struct ValidationContext<'a, E: ?Sized> {
 
 impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
     fn validate(&self) -> Result<(), MirValidationError> {
-        if let BodyContract::Function { item, result } = self.contract {
+        if let BodyContract::Function { item, result, .. } = self.contract {
             self.require_item(item)?;
             self.require_type(result)?;
         } else if !self.function.parameters().is_empty() || self.function.pack().is_some() {
@@ -398,7 +401,11 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             .collect::<BTreeMap<_, _>>();
         for (source, block) in self.function.blocks().iter() {
             for target in successors(block.terminator()) {
-                self.validate_edge(target)?;
+                if matches!(block.terminator(), MirTerminator::Suspend { .. }) {
+                    self.validate_resume_edge(target)?;
+                } else {
+                    self.validate_edge(target)?;
+                }
                 predecessors
                     .get_mut(&target.block())
                     .expect("validated successor block must exist")
@@ -424,6 +431,18 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             return Err(MirValidationError::UnreachableBlock(block));
         }
         Ok(predecessors)
+    }
+
+    fn validate_resume_edge(&self, edge: &MirBranchTarget) -> Result<(), MirValidationError> {
+        let destination = self.require_block(edge.block())?;
+        if !edge.arguments().is_empty() || destination.parameters().len() != 1 {
+            return Err(MirValidationError::EdgeArity {
+                block: edge.block(),
+                expected: 1,
+                actual: edge.arguments().len(),
+            });
+        }
+        Ok(())
     }
 
     fn validate_edge(&self, edge: &MirBranchTarget) -> Result<(), MirValidationError> {
@@ -929,6 +948,32 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                         values.extend_from_slice(case.target().arguments());
                     }
                     values.extend_from_slice(fallback.arguments());
+                }
+                MirTerminator::Suspend {
+                    computation,
+                    resume,
+                } => {
+                    let BodyContract::Function {
+                        execution: crate::MirFunctionExecution::Deferred { .. },
+                        ..
+                    } = self.contract
+                    else {
+                        return Err(MirValidationError::InvalidRootTerminator(block));
+                    };
+                    let Some(TypeKind::Async(output)) =
+                        self.types.get(self.value_type(*computation)?)
+                    else {
+                        return Err(MirValidationError::InvalidReturn(block));
+                    };
+                    let destination = self.require_block(resume.block())?;
+                    if destination
+                        .parameters()
+                        .first()
+                        .is_none_or(|value| self.value_type(*value).ok() != Some(*output))
+                    {
+                        return Err(MirValidationError::InvalidReturn(block));
+                    }
+                    values.push(*computation);
                 }
                 MirTerminator::Return(value) => {
                     let BodyContract::Function { result, .. } = self.contract else {

@@ -69,8 +69,12 @@ pub(super) fn analyze_body_ownership(
         regions: Vec::new(),
         temporaries: TemporaryPlanner::default(),
         cleanup_schedules: HashMap::new(),
+        cancellation_actions: HashMap::new(),
+        initial_cancellation_actions: Vec::new(),
         closure: None,
     };
+    let mut initial_state = state.clone();
+    analyzer.initial_cancellation_actions = analyzer.transfer_cleanup(&mut initial_state)?;
     analyzer.visit(body.root(), &mut state)?;
     for (_, definition) in closures
         .definitions()
@@ -140,6 +144,8 @@ struct OwnershipAnalyzer<'program> {
     regions: Vec<RegionFlow>,
     temporaries: TemporaryPlanner,
     cleanup_schedules: HashMap<BodyNodeId, Vec<CleanupSchedule>>,
+    cancellation_actions: HashMap<BodyNodeId, Vec<CleanupAction>>,
+    initial_cancellation_actions: Vec<CleanupAction>,
     closure: Option<&'program ClosureDefinition>,
 }
 
@@ -181,6 +187,7 @@ impl OwnershipAnalyzer<'_> {
             return Err(BodyCheckInternalError::CleanupPlanning);
         }
         let mut schedules = ArenaBuilder::new();
+        let mut cancellation = ArenaBuilder::new();
         for (node, _) in self.body.nodes().iter() {
             let actual = schedules.insert(
                 self.cleanup_schedules
@@ -191,11 +198,24 @@ impl OwnershipAnalyzer<'_> {
             if actual != node {
                 return Err(BodyCheckInternalError::CleanupPlanning);
             }
+            let actual = cancellation.insert(
+                self.cancellation_actions
+                    .remove(&node)
+                    .unwrap_or_default()
+                    .into_boxed_slice(),
+            );
+            if actual != node {
+                return Err(BodyCheckInternalError::CleanupPlanning);
+            }
         }
-        if !self.cleanup_schedules.is_empty() {
+        if !self.cleanup_schedules.is_empty() || !self.cancellation_actions.is_empty() {
             return Err(BodyCheckInternalError::CleanupPlanning);
         }
-        Ok(CleanupTable::new(schedules.finish()))
+        Ok(CleanupTable::new(
+            schedules.finish(),
+            cancellation.finish(),
+            self.initial_cancellation_actions,
+        ))
     }
 
     fn validate_all_copies(&mut self) -> Result<(), BodyCheckError> {
@@ -286,7 +306,24 @@ impl OwnershipAnalyzer<'_> {
                 Ok(reaches && checked.ty() != self.types.builtin(BuiltinType::Never))
             }
             CheckedOperation::BorrowConversion(conversion) => self.visit(conversion.value(), state),
-            CheckedOperation::Await(await_) => self.visit(await_.computation(), state),
+            CheckedOperation::Await(await_) => {
+                if !self.visit(await_.computation(), state)? {
+                    return Ok(false);
+                }
+                let mut cancellation_state = state.clone();
+                let actions = self.transfer_cleanup(&mut cancellation_state)?;
+                match self.cancellation_actions.entry(node) {
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        entry.insert(actions);
+                    }
+                    std::collections::hash_map::Entry::Occupied(entry)
+                        if entry.get() == &actions => {}
+                    std::collections::hash_map::Entry::Occupied(_) => {
+                        return Err(BodyCheckInternalError::CleanupPlanning.into());
+                    }
+                }
+                Ok(true)
+            }
             CheckedOperation::CallableGuaranteeErasure(value) => self.visit(*value, state),
             CheckedOperation::OpaqueWitness(witness) => self.visit(witness.value(), state),
             CheckedOperation::Aggregate(aggregate) => self.visit_aggregate(aggregate, state),

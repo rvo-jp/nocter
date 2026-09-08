@@ -320,6 +320,30 @@ impl MirFunctionBuilder {
             self.body.finish(entry)?,
         ))
     }
+
+    /// Freezes a deferred function whose invocation and body have distinct result contracts.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error for an unterminated block.
+    pub fn finish_deferred(
+        self,
+        entry: MirBlockId,
+        invocation_result: TypeId,
+        initial_cancellation: Box<[crate::MirCancellationAction]>,
+        cancellation: BTreeMap<MirBlockId, Box<[crate::MirCancellationAction]>>,
+        completed_destruction: Option<crate::MirDestructionPlan>,
+    ) -> Result<MirFunction, MirBodyBuildError> {
+        Ok(MirFunction::new_deferred(
+            self.item,
+            invocation_result,
+            self.result,
+            self.body.finish(entry)?,
+            initial_cancellation,
+            cancellation,
+            completed_destruction,
+        ))
+    }
 }
 
 impl Deref for MirFunctionBuilder {

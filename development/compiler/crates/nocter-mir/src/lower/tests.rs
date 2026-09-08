@@ -13,6 +13,149 @@ mod interpolation;
 mod root;
 
 #[test]
+fn lowers_deferred_functions_and_awaits_without_reclassifying_calls() {
+    let program = lower_fixture(
+        "func ready(value: i32): async i32 { value }\n\
+         func combine(left: i32): async i32 {\n\
+             let right = await ready(2)\n\
+             left + right\n\
+         }\n\
+         func main(): void {\n\
+             let pending = combine(40)\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let deferred = program
+        .functions()
+        .iter()
+        .filter(|(_, function)| {
+            matches!(
+                function.execution(),
+                crate::MirFunctionExecution::Deferred { .. }
+            )
+        })
+        .map(|(_, function)| function)
+        .collect::<Vec<_>>();
+
+    assert_eq!(deferred.len(), 2);
+    assert!(deferred.iter().any(|function| {
+        function.blocks().iter().any(|(_, block)| {
+            matches!(
+                block.terminator(),
+                MirTerminator::Suspend { computation, resume }
+                    if matches!(
+                        program.types().get(function.values().get(*computation).unwrap().ty()),
+                        Some(nocter_runtime_contract::RuntimeType::Async(_))
+                    ) && resume.arguments().is_empty()
+                        && function.blocks().get(resume.block()).unwrap().parameters().len() == 1
+            )
+        })
+    }));
+    let suspended = deferred
+        .iter()
+        .copied()
+        .find(|function| !function.async_frame().unwrap().states().is_empty())
+        .unwrap();
+    let state = &suspended.async_frame().unwrap().states()[0];
+    assert!(
+        state
+            .fields()
+            .contains(&crate::MirFrameField::Value(state.awaited()))
+    );
+    assert!(state.fields().iter().any(|field| {
+        matches!(field, crate::MirFrameField::Local(local)
+        if suspended.locals().get(*local).is_some_and(|local| {
+            matches!(local.kind(), crate::MirLocalKind::Parameter { position: 0 })
+        }))
+    }));
+    assert!(state.fields().iter().all(|field| {
+        !matches!(field, crate::MirFrameField::Value(value)
+        if suspended.values().get(*value).is_some_and(|value| {
+            matches!(value.definition(), crate::MirValueDefinition::Operation(operation)
+                if matches!(
+                    suspended.operations().get(operation).map(crate::MirOperation::kind),
+                    Some(MirOperationKind::Constant(crate::MirConstant::Integer(2)))
+                ))
+        }))
+    }));
+    assert!(program.functions().iter().any(|(_, function)| {
+        function.operations().iter().any(|(_, operation)| {
+            matches!(
+                operation.kind(),
+                MirOperationKind::ReleaseComputation { .. }
+            )
+        })
+    }));
+}
+
+#[test]
+fn freezes_checked_cancellation_cleanup_into_each_suspension_state() {
+    let program = lower_fixture(
+        "struct Resource {}\n\
+         drop Resource(&+self) { return }\n\
+         func ready(): async void { return }\n\
+         func hold(value: Resource): async Resource {\n\
+             await ready()\n\
+             move value\n\
+         }\n\
+         func main(): void {\n\
+             let pending = hold(Resource {})\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let function = program
+        .functions()
+        .iter()
+        .find_map(|(_, function)| {
+            function
+                .async_frame()
+                .is_some_and(|frame| !frame.states().is_empty())
+                .then_some(function)
+        })
+        .unwrap();
+    let frame = function.async_frame().unwrap();
+    let state = &frame.states()[0];
+
+    assert!(matches!(
+        state.cancellation().first(),
+        Some(crate::MirCancellationAction::ReleaseAwaited(value)) if *value == state.awaited()
+    ));
+    assert!(state.cancellation().iter().any(|action| {
+        matches!(
+            action,
+            crate::MirCancellationAction::Destroy {
+                initialized: None,
+                plan,
+                ..
+            } if matches!(
+                plan.kind(),
+                crate::MirDestructionKind::Struct { drop: Some(_), .. }
+            )
+        )
+    }));
+    assert!(frame.initial().cancellation().iter().any(|action| {
+        matches!(
+            action,
+            crate::MirCancellationAction::Destroy { plan, .. }
+                if matches!(
+                    plan.kind(),
+                    crate::MirDestructionKind::Struct { drop: Some(_), .. }
+                )
+        )
+    }));
+    assert!(matches!(
+        frame
+            .completed_destruction()
+            .map(crate::MirDestructionPlan::kind),
+        Some(crate::MirDestructionKind::Struct { drop: Some(_), .. })
+    ));
+}
+
+#[test]
 fn lowers_scalar_control_flow_through_the_complete_frontend() {
     let program = lower_fixture(
         "func main(): i32 {\n\

@@ -69,6 +69,9 @@ fn lower_terminator(
             cases,
             fallback,
         } => lower_tag_switch(body, *subject, cases, fallback, layouts, ids),
+        MirTerminator::Suspend { .. } => {
+            Err(MachineProgramError::UnsupportedAsyncControl(ids.owner()))
+        }
         MirTerminator::Return(value) => Ok(MachineTerminator::Return(
             value.map(|value| ids.value(value)).transpose()?,
         )),

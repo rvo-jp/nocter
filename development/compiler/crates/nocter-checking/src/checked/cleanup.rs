@@ -194,7 +194,7 @@ impl CleanupSchedule {
 }
 
 impl CleanupAction {
-    pub(crate) const fn new(
+    pub(crate) fn new(
         target: CleanupTarget,
         condition: CleanupCondition,
         effect: CleanupEffect,
@@ -234,11 +234,21 @@ impl CleanupAction {
 #[derive(Clone, Debug)]
 pub struct CleanupTable {
     schedules: Arena<BodyNodeId, Box<[CleanupSchedule]>>,
+    cancellation: Arena<BodyNodeId, Box<[CleanupAction]>>,
+    initial_cancellation: Box<[CleanupAction]>,
 }
 
 impl CleanupTable {
-    pub(crate) const fn new(schedules: Arena<BodyNodeId, Box<[CleanupSchedule]>>) -> Self {
-        Self { schedules }
+    pub(crate) fn new(
+        schedules: Arena<BodyNodeId, Box<[CleanupSchedule]>>,
+        cancellation: Arena<BodyNodeId, Box<[CleanupAction]>>,
+        initial_cancellation: impl Into<Box<[CleanupAction]>>,
+    ) -> Self {
+        Self {
+            schedules,
+            cancellation,
+            initial_cancellation: initial_cancellation.into(),
+        }
     }
 
     #[must_use]
@@ -258,6 +268,18 @@ impl CleanupTable {
     #[must_use]
     pub fn actions(&self, node: BodyNodeId, timing: CleanupTiming) -> Option<&[CleanupAction]> {
         self.schedule(node, timing).map(CleanupSchedule::actions)
+    }
+
+    /// Returns the checked ownership obligations active if this exact await is cancelled.
+    #[must_use]
+    pub fn cancellation_actions(&self, node: BodyNodeId) -> Option<&[CleanupAction]> {
+        self.cancellation.get(node).map(AsRef::as_ref)
+    }
+
+    /// Returns the owned input cleanup required before a deferred body starts running.
+    #[must_use]
+    pub const fn initial_cancellation_actions(&self) -> &[CleanupAction] {
+        &self.initial_cancellation
     }
 
     #[must_use]

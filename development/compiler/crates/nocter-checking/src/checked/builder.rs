@@ -189,6 +189,7 @@ impl CheckedBodyBuilder {
         })?;
         let places = self.places.finish();
         let nodes = self.nodes.finish();
+        let node_count = nodes.len();
         let mut cleanup_schedules =
             ArenaBuilder::<BodyNodeId, Box<[super::CleanupSchedule]>>::new();
         for _ in 0..nodes.len() {
@@ -202,7 +203,18 @@ impl CheckedBodyBuilder {
                 loops,
                 nodes,
             },
-            CleanupTable::new(cleanup_schedules.finish()),
+            CleanupTable::new(
+                cleanup_schedules.finish(),
+                {
+                    let mut cancellation =
+                        ArenaBuilder::<BodyNodeId, Box<[super::CleanupAction]>>::new();
+                    for _ in 0..node_count {
+                        cancellation.insert(Box::new([]));
+                    }
+                    cancellation.finish()
+                },
+                [],
+            ),
             root,
         ))
     }

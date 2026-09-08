@@ -125,6 +125,25 @@ impl MirProgramBuilder {
                 function: function.item(),
             });
         }
+        let expected = self
+            .executable
+            .items()
+            .get(item)
+            .ok_or(MirProgramBuildError::UnknownItem(item))?;
+        let execution_matches = match (expected.execution(), function.execution()) {
+            (
+                nocter_target_program::ExecutableExecution::Immediate,
+                crate::MirFunctionExecution::Immediate,
+            ) => true,
+            (
+                nocter_target_program::ExecutableExecution::Deferred { output: expected },
+                crate::MirFunctionExecution::Deferred { output: actual },
+            ) => expected == actual,
+            _ => false,
+        };
+        if function.result() != expected.signature().result() || !execution_matches {
+            return Err(MirProgramBuildError::MismatchedExecution(item));
+        }
         validate_function(&function, &self.executable)?;
         let slot = self
             .functions
@@ -212,6 +231,7 @@ pub enum MirProgramBuildError {
     },
     DuplicateFunction(ExecutableItemId),
     MissingFunction(ExecutableItemId),
+    MismatchedExecution(ExecutableItemId),
     DuplicateRoot,
     MissingRoot,
     MismatchedRoot,
@@ -253,6 +273,7 @@ impl std::error::Error for MirProgramBuildError {
             | Self::MismatchedItem { .. }
             | Self::DuplicateFunction(_)
             | Self::MissingFunction(_)
+            | Self::MismatchedExecution(_)
             | Self::DuplicateRoot
             | Self::MissingRoot
             | Self::MismatchedRoot

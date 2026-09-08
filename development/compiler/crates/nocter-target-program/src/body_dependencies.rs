@@ -160,6 +160,9 @@ pub fn collect_body_dependencies(
         .ok_or(BodyDependencyError::UnknownBody(body))?;
     let mut collector = DependencyCollector::new(program, body, checked_body);
     collector.visit_node(root)?;
+    for action in checked_body.cleanups().initial_cancellation_actions() {
+        collector.visit_cleanup(action.target())?;
+    }
     Ok(collector.finish())
 }
 
@@ -254,6 +257,16 @@ impl<'program> DependencyCollector<'program> {
                 for action in schedule.actions() {
                     self.visit_cleanup(action.target())?;
                 }
+            }
+        }
+        if let Some(actions) = self
+            .body
+            .cleanups()
+            .cancellation_actions(id)
+            .map(<[_]>::to_vec)
+        {
+            for action in actions {
+                self.visit_cleanup(action.target())?;
             }
         }
         Ok(())

@@ -39,6 +39,7 @@ pub(crate) fn successors(terminator: &MirTerminator) -> impl Iterator<Item = &Mi
             targets.extend(cases.iter().map(crate::MirSwitchCase::target));
             targets.push(fallback);
         }
+        MirTerminator::Suspend { resume, .. } => targets.push(resume),
         MirTerminator::Return(_)
         | MirTerminator::Exit(_)
         | MirTerminator::Trap

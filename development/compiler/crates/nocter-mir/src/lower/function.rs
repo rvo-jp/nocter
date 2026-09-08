@@ -8,7 +8,9 @@ use nocter_model::{
     BodyNodeId, BuiltinType, ClosureId, ExecutableItemId, LocalBindingId, LoopId, MirBlockId,
     MirDropFlagId, MirLocalId, MirPlaceId, MirValueId, ParameterId, TypeId, TypeKind,
 };
-use nocter_target_program::{ExecutableInputSource, ExecutableItem, ExecutableProgram};
+use nocter_target_program::{
+    ExecutableExecution, ExecutableInputSource, ExecutableItem, ExecutableProgram,
+};
 
 use super::MirLoweringError;
 use super::cleanup_flags::CleanupIdentity;
@@ -28,10 +30,22 @@ pub(super) fn lower_function(
         .ok_or(MirLoweringError::UnknownBody(item.body().body()))?;
     let mut lowerer = FunctionLowerer::new(executable, item_id, item, checked)?;
     lowerer.prepare_cleanup_flags()?;
+    let initial_cancellation = match item.execution() {
+        ExecutableExecution::Immediate => Box::new([]),
+        ExecutableExecution::Deferred { .. } => lowerer.lower_initial_cancellation_actions()?,
+    };
+    let completed_destruction = item
+        .completion_destruction()
+        .map(|plan| lowerer.lower_deferred_destruction(item.body().root(), plan))
+        .transpose()?;
     let result = lowerer.lower_node(item.body().root())?;
     if let Some(block) = lowerer.current {
         lowerer.destroy_pack()?;
-        match executable.types().get(item.signature().result()) {
+        let body_result = match item.execution() {
+            ExecutableExecution::Immediate => item.signature().result(),
+            ExecutableExecution::Deferred { output } => output,
+        };
+        match executable.types().get(body_result) {
             Some(TypeKind::Builtin(BuiltinType::Void)) => {
                 lowerer
                     .builder
@@ -53,7 +67,18 @@ pub(super) fn lower_function(
             }
         }
     }
-    lowerer.builder.finish(lowerer.entry).map_err(Into::into)
+    let cancellation = std::mem::take(&mut lowerer.cancellation);
+    match item.execution() {
+        ExecutableExecution::Immediate => lowerer.builder.finish(lowerer.entry),
+        ExecutableExecution::Deferred { .. } => lowerer.builder.finish_deferred(
+            lowerer.entry,
+            item.signature().result(),
+            initial_cancellation,
+            cancellation,
+            completed_destruction,
+        ),
+    }
+    .map_err(Into::into)
 }
 
 pub(super) struct FunctionLowerer<'a> {
@@ -71,6 +96,7 @@ pub(super) struct FunctionLowerer<'a> {
     pub(super) value_storage: BTreeMap<BodyNodeId, MirPlaceId>,
     pub(super) materialized_value_storage: BTreeSet<BodyNodeId>,
     pub(super) cleanup_flags: BTreeMap<CleanupIdentity, MirDropFlagId>,
+    pub(super) cancellation: BTreeMap<MirBlockId, Box<[crate::MirCancellationAction]>>,
     pub(super) loops: BTreeMap<LoopId, LoopTargets>,
     /// Innermost last. These compiler-owned resources select calls without mutating ambient state.
     pub(super) regions: Vec<MirLocalId>,
@@ -83,7 +109,11 @@ impl<'a> FunctionLowerer<'a> {
         item: &'a ExecutableItem,
         body: &'a CheckedBody,
     ) -> Result<Self, MirLoweringError> {
-        let mut builder = MirFunctionBuilder::new(item_id, item.signature().result());
+        let body_result = match item.execution() {
+            ExecutableExecution::Immediate => item.signature().result(),
+            ExecutableExecution::Deferred { output } => output,
+        };
+        let mut builder = MirFunctionBuilder::new(item_id, body_result);
         if let Some(pack) = item.signature().pack() {
             builder.set_pack_input(crate::MirPackInput::new(pack.element(), pack.next()))?;
         }
@@ -120,6 +150,7 @@ impl<'a> FunctionLowerer<'a> {
             value_storage: BTreeMap::new(),
             materialized_value_storage: BTreeSet::new(),
             cleanup_flags: BTreeMap::new(),
+            cancellation: BTreeMap::new(),
             loops: BTreeMap::new(),
             regions: Vec::new(),
         })
@@ -180,9 +211,8 @@ impl<'a> FunctionLowerer<'a> {
                 )
                 .map(Some)
             }
-            CheckedOperation::Await(_) | CheckedOperation::Place(_) => {
-                Err(MirLoweringError::UnsupportedOperation(node))
-            }
+            CheckedOperation::Await(await_) => self.lower_await(node, ty, await_).map(Some),
+            CheckedOperation::Place(_) => Err(MirLoweringError::UnsupportedOperation(node)),
             CheckedOperation::BorrowConversion(conversion) => {
                 self.lower_borrow_conversion(node, conversion).map(Some)
             }
@@ -375,6 +405,33 @@ impl<'a> FunctionLowerer<'a> {
         let local = self.builder.add_local(ty, kind, mutable);
         self.locals.insert(binding, local);
         Ok(local)
+    }
+}
+
+impl FunctionLowerer<'_> {
+    fn lower_await(
+        &mut self,
+        node: BodyNodeId,
+        output: TypeId,
+        await_: &nocter_checking::CheckedAwait,
+    ) -> Result<MirValueId, MirLoweringError> {
+        let computation = self.require_value(await_.computation())?;
+        let block = self.current.ok_or(MirLoweringError::MissingCurrentBlock)?;
+        let (resume, parameters) = self.builder.create_block([output]);
+        let result = parameters[0];
+        let cancellation = self.lower_cancellation_actions(node, await_.computation())?;
+        if self.cancellation.insert(block, cancellation).is_some() {
+            return Err(MirLoweringError::InvalidCleanup(node));
+        }
+        self.builder.terminate(
+            block,
+            MirTerminator::Suspend {
+                computation,
+                resume: crate::MirBranchTarget::new(resume, []),
+            },
+        )?;
+        self.current = Some(resume);
+        Ok(result)
     }
 }
 

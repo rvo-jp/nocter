@@ -147,6 +147,12 @@ pub enum MirTerminator {
         cases: Box<[MirSwitchCase]>,
         fallback: MirBranchTarget,
     },
+    /// Suspends a deferred body until the consumed computation produces the sole parameter of
+    /// `resume`'s destination block.
+    Suspend {
+        computation: MirValueId,
+        resume: MirBranchTarget,
+    },
     Return(Option<MirValueId>),
     /// Terminates one compiler-owned process root with status zero or an `i32`/`usize` value.
     Exit(Option<MirValueId>),
@@ -280,17 +286,57 @@ impl MirBody {
     }
 }
 
+/// How one complete monomorphized callable body executes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MirFunctionExecution {
+    Immediate,
+    Deferred { output: TypeId },
+}
+
 /// One complete monomorphized callable body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MirFunction {
     item: ExecutableItemId,
+    /// The result observed by an invocation. For deferred bodies this is `async body_result`.
     result: TypeId,
+    execution: MirFunctionExecution,
+    async_frame: Option<crate::MirAsyncFrame>,
     body: MirBody,
 }
 
 impl MirFunction {
     pub(crate) const fn new(item: ExecutableItemId, result: TypeId, body: MirBody) -> Self {
-        Self { item, result, body }
+        Self {
+            item,
+            result,
+            execution: MirFunctionExecution::Immediate,
+            async_frame: None,
+            body,
+        }
+    }
+
+    pub(crate) fn new_deferred(
+        item: ExecutableItemId,
+        result: TypeId,
+        output: TypeId,
+        body: MirBody,
+        initial_cancellation: Box<[crate::MirCancellationAction]>,
+        cancellation: std::collections::BTreeMap<MirBlockId, Box<[crate::MirCancellationAction]>>,
+        completed_destruction: Option<crate::MirDestructionPlan>,
+    ) -> Self {
+        let async_frame = crate::MirAsyncFrame::derive(
+            &body,
+            initial_cancellation,
+            cancellation,
+            completed_destruction,
+        );
+        Self {
+            item,
+            result,
+            execution: MirFunctionExecution::Deferred { output },
+            async_frame: Some(async_frame),
+            body,
+        }
     }
 
     #[must_use]
@@ -301,6 +347,24 @@ impl MirFunction {
     #[must_use]
     pub const fn result(&self) -> TypeId {
         self.result
+    }
+
+    #[must_use]
+    pub const fn execution(&self) -> MirFunctionExecution {
+        self.execution
+    }
+
+    #[must_use]
+    pub const fn body_result(&self) -> TypeId {
+        match self.execution {
+            MirFunctionExecution::Immediate => self.result,
+            MirFunctionExecution::Deferred { output } => output,
+        }
+    }
+
+    #[must_use]
+    pub const fn async_frame(&self) -> Option<&crate::MirAsyncFrame> {
+        self.async_frame.as_ref()
     }
 
     #[must_use]

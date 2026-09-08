@@ -3,7 +3,7 @@ use nocter_declarations::{CallableExecution, ProvenanceOrigin};
 
 use super::check_prepared_program;
 use crate::test_support::Fixture;
-use crate::{CheckedOperation, prepare_program_checking};
+use crate::{CheckedOperation, CleanupTarget, prepare_program_checking};
 
 fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
     let fixture = Fixture::new(source);
@@ -204,4 +204,41 @@ fn awaiting_an_immediate_generic_transfer_does_not_reclassify_the_callable() {
          func inferred_computation(): async i32 { await unreachable_value() }\n",
     )
     .unwrap();
+}
+
+#[test]
+fn await_records_the_active_ownership_cleanup_for_cancellation() {
+    let output = check(
+        "struct Resource {}\n\
+         drop Resource(&+self) { return }\n\
+         func ready(): async void { return }\n\
+         func keep(value: Resource): async void {\n\
+             await ready()\n\
+             let _ = &value\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+    let (body, await_node) = output
+        .program()
+        .bodies()
+        .iter()
+        .find_map(|(_, body)| {
+            body.nodes()
+                .iter()
+                .find_map(|(node, value)| {
+                    matches!(value.operation(), CheckedOperation::Await(_)).then_some(node)
+                })
+                .map(|node| (body, node))
+        })
+        .unwrap();
+    let actions = body.cleanups().cancellation_actions(await_node).unwrap();
+
+    assert!(actions.iter().any(|action| {
+        matches!(
+            action.target(),
+            CleanupTarget::Path(path)
+                if matches!(path.root(), crate::PlaceRoot::Parameter(_))
+        )
+    }));
 }

@@ -274,6 +274,7 @@ pub enum MachineProgramError {
         operation: MirOperationId,
     },
     UnsupportedAsyncOperation(MirOperationId),
+    UnsupportedAsyncControl(MachineLinkageId),
     UnsupportedPlaceSwitch(MachineLinkageId),
     InvalidValueSwitch(MachineLinkageId),
     InvalidTagSwitch(MachineLinkageId),
@@ -324,6 +325,7 @@ impl std::error::Error for MachineProgramError {
             | Self::InvalidPackReceiver { .. }
             | Self::MissingOperationResult { .. }
             | Self::UnsupportedAsyncOperation(_)
+            | Self::UnsupportedAsyncControl(_)
             | Self::UnsupportedPlaceSwitch(_)
             | Self::InvalidValueSwitch(_)
             | Self::InvalidTagSwitch(_) => None,

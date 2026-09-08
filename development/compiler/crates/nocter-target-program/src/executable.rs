@@ -443,6 +443,7 @@ pub struct ExecutableItem {
     key: ExecutableItemKey,
     signature: ExecutableSignature,
     execution: ExecutableExecution,
+    completion_destruction: Option<ConcreteDestructionPlan>,
     accepts_allocation_override: bool,
     closure: Option<ExecutableClosureLayout>,
     body: ExecutableBody,
@@ -462,6 +463,12 @@ impl ExecutableItem {
     #[must_use]
     pub const fn execution(&self) -> ExecutableExecution {
         self.execution
+    }
+
+    /// Destruction required when a deferred result completes but is released before consumption.
+    #[must_use]
+    pub const fn completion_destruction(&self) -> Option<&ConcreteDestructionPlan> {
+        self.completion_destruction.as_ref()
     }
 
     #[must_use]

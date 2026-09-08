@@ -253,6 +253,19 @@ impl<'program> ExecutableClosureBuilder<'program> {
         let accepts_allocation_override = accepts_allocation_override(self.target, key);
         let dependencies = collect_body_dependencies(self.target, context.body, context.root)?;
         let mut drops = BTreeMap::new();
+        let completion_destruction = match execution {
+            ExecutableExecution::Immediate => None,
+            ExecutableExecution::Deferred { output } => self
+                .resolver
+                .resolve_destruction(output, &TypeSubstitution::default())?,
+        };
+        if let Some(plan) = &completion_destruction {
+            let mut selections = BTreeSet::new();
+            collect_drops(plan, &mut selections);
+            for selection in selections {
+                self.record_drop(selection, &mut drops)?;
+            }
+        }
         let mut dispatches = Vec::new();
         for selection in dependencies.selections() {
             let plan = self.resolver.resolve(selection, &substitution)?;
@@ -335,6 +348,7 @@ impl<'program> ExecutableClosureBuilder<'program> {
         Ok(DraftItem {
             signature,
             execution,
+            completion_destruction,
             accepts_allocation_override,
             closure,
             body: context.body,
@@ -826,6 +840,7 @@ fn collect_drops(plan: &ConcreteDestructionPlan, drops: &mut BTreeSet<DropSelect
 struct DraftItem {
     signature: super::ExecutableSignature,
     execution: ExecutableExecution,
+    completion_destruction: Option<ConcreteDestructionPlan>,
     accepts_allocation_override: bool,
     closure: Option<super::ExecutableClosureLayout>,
     body: BodyId,
@@ -896,11 +911,13 @@ fn freeze_items(
             .ok_or_else(|| ExecutableProgramError::UnknownItem(key.clone()))?;
         let accepts_allocation_override = draft.accepts_allocation_override;
         let execution = draft.execution;
+        let completion_destruction = draft.completion_destruction.clone();
         let (signature, closure, body) = freeze_body(draft, &item_ids)?;
         Ok::<_, ExecutableProgramError>(ExecutableItem {
             key,
             signature,
             execution,
+            completion_destruction,
             accepts_allocation_override,
             closure,
             body,

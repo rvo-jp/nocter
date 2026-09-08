@@ -12,6 +12,82 @@ use crate::{
 };
 
 impl FunctionLowerer<'_> {
+    pub(super) fn lower_cancellation_actions(
+        &mut self,
+        await_node: BodyNodeId,
+        awaited: BodyNodeId,
+    ) -> Result<Box<[crate::MirCancellationAction]>, MirLoweringError> {
+        let mut lowered = vec![crate::MirCancellationAction::ReleaseAwaited(
+            self.require_value(awaited)?,
+        )];
+        let actions = self
+            .body
+            .cleanups()
+            .cancellation_actions(await_node)
+            .unwrap_or_default()
+            .to_vec();
+        lowered.extend(self.lower_checked_cancellation_actions(await_node, actions)?);
+        Ok(lowered.into_boxed_slice())
+    }
+
+    pub(super) fn lower_initial_cancellation_actions(
+        &mut self,
+    ) -> Result<Box<[crate::MirCancellationAction]>, MirLoweringError> {
+        let actions = self.body.cleanups().initial_cancellation_actions().to_vec();
+        let mut lowered = self.lower_checked_cancellation_actions(self.body.root(), actions)?;
+        if self.item.signature().pack().is_some() {
+            lowered.push(crate::MirCancellationAction::DestroyPack);
+        }
+        Ok(lowered.into_boxed_slice())
+    }
+
+    fn lower_checked_cancellation_actions(
+        &mut self,
+        owner: BodyNodeId,
+        actions: Vec<nocter_checking::CleanupAction>,
+    ) -> Result<Vec<crate::MirCancellationAction>, MirLoweringError> {
+        let mut lowered = Vec::new();
+        for action in actions {
+            if let CleanupTarget::Region { binding, .. } = action.target() {
+                lowered.push(crate::MirCancellationAction::ReleaseRegion(
+                    self.ensure_local(*binding)?,
+                ));
+                continue;
+            }
+            let place = match action.target() {
+                CleanupTarget::Path(path) => self.lower_cleanup_path(owner, path)?,
+                CleanupTarget::Place { place, ty } => {
+                    let place = self.lower_place(*place)?;
+                    self.require_cleanup_place_type(owner, place, *ty)?;
+                    place
+                }
+                CleanupTarget::Value { node, ty } => {
+                    self.materialize_cleanup_value(owner, *node, *ty)?
+                }
+                CleanupTarget::EnumResidual { subject, ty, .. } => {
+                    self.materialize_cleanup_value(owner, *subject, *ty)?
+                }
+                CleanupTarget::Region { .. } => unreachable!(),
+            };
+            let plan = self
+                .item
+                .body()
+                .cleanup_destruction(action.target())
+                .ok_or(MirLoweringError::InvalidCleanup(owner))?;
+            let plan = self.lower_deferred_destruction(owner, plan)?;
+            let initialized = (action.condition()
+                == nocter_checking::CleanupCondition::IfInitialized)
+                .then(|| self.cleanup_flag(owner, action.target()))
+                .transpose()?;
+            lowered.push(crate::MirCancellationAction::Destroy {
+                place,
+                initialized,
+                plan,
+            });
+        }
+        Ok(lowered)
+    }
+
     pub(super) fn lower_cleanup(
         &mut self,
         owner: BodyNodeId,

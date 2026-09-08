@@ -4,6 +4,7 @@
 //! executable semantic identities and never retains syntax, source ranges, unresolved dispatch,
 //! or rendered type names.
 
+mod async_frame;
 mod builder;
 mod destruction;
 mod lower;
@@ -16,6 +17,7 @@ mod program_validation;
 mod schema;
 mod static_data;
 mod validate;
+mod validation_async;
 mod validation_call;
 mod validation_closure;
 mod validation_destruction;
@@ -28,6 +30,9 @@ mod validation_region;
 mod validation_switch;
 mod validation_types;
 
+pub use async_frame::{
+    MirAsyncFrame, MirCancellationAction, MirFrameField, MirInitialAsyncState, MirSuspensionState,
+};
 pub use builder::MirBodyBuildError;
 pub(crate) use builder::{MirBodyBuilder, MirFunctionBuilder};
 pub use destruction::{
@@ -48,9 +53,9 @@ pub use place::{MirLocal, MirLocalKind, MirPlace, MirPlaceRoot, MirProjection, M
 pub use primitive_dependency::MirPrimitiveDependency;
 pub use program::{MirProgram, MirProgramBuildError, MirProgramBuilder, MirProgramOwner};
 pub use schema::{
-    MirBlock, MirBody, MirBranchTarget, MirDropFlag, MirFunction, MirProcessRoot, MirRoot,
-    MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator, MirTestRoot, MirValue,
-    MirValueDefinition,
+    MirBlock, MirBody, MirBranchTarget, MirDropFlag, MirFunction, MirFunctionExecution,
+    MirProcessRoot, MirRoot, MirSwitchCase, MirSwitchSubject, MirSwitchValue, MirTerminator,
+    MirTestRoot, MirValue, MirValueDefinition,
 };
 pub use static_data::MirStatic;
 pub use validate::validate_function;
