@@ -1318,12 +1318,14 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
     let resume = plan
         .materialize_resume(
             targets.get(owner).unwrap(),
-            &targets,
-            &async_primitives,
-            &[],
-            &[],
-            &[],
-            allocation_failure,
+            crate::async_function::Arm64AsyncResumeResources::new(
+                &targets,
+                &async_primitives,
+                &[],
+                &[],
+                &[],
+                allocation_failure,
+            ),
         )
         .unwrap();
     assert!(resume.instruction_count() > 20);
@@ -1428,12 +1430,14 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
     let resume = plan
         .materialize_resume(
             targets.get(owner).unwrap(),
-            &targets,
-            &async_primitives,
-            &[],
-            &[],
-            &[],
-            allocation_failure,
+            crate::async_function::Arm64AsyncResumeResources::new(
+                &targets,
+                &async_primitives,
+                &[],
+                &[],
+                &[],
+                allocation_failure,
+            ),
         )
         .unwrap();
     assert!(resume.instruction_count() > 40);

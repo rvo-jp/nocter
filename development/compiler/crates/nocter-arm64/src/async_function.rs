@@ -77,6 +77,64 @@ pub struct Arm64AsyncFunctionPlan {
     activation: crate::async_activation::Arm64AsyncActivationPlan,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Arm64AsyncResumeResources<'a> {
+    functions: &'a crate::Arm64FunctionTargets,
+    async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
+    data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
+    imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+    pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+    allocation_failure_error: crate::Arm64DataId,
+}
+
+impl<'a> Arm64AsyncResumeResources<'a> {
+    pub(crate) const fn new(
+        functions: &'a crate::Arm64FunctionTargets,
+        async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
+        data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
+        imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+        pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
+        allocation_failure_error: crate::Arm64DataId,
+    ) -> Self {
+        Self {
+            functions,
+            async_primitives,
+            data,
+            imports,
+            pack_callbacks,
+            allocation_failure_error,
+        }
+    }
+
+    pub(crate) const fn functions(self) -> &'a crate::Arm64FunctionTargets {
+        self.functions
+    }
+
+    pub(crate) const fn async_primitives(self) -> &'a crate::Arm64AsyncPrimitiveTargets {
+        self.async_primitives
+    }
+
+    pub(crate) const fn data(self) -> &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)] {
+        self.data
+    }
+
+    pub(crate) const fn imports(
+        self,
+    ) -> &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)] {
+        self.imports
+    }
+
+    pub(crate) const fn pack_callbacks(
+        self,
+    ) -> &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)] {
+        self.pack_callbacks
+    }
+
+    pub(crate) const fn allocation_failure_error(self) -> crate::Arm64DataId {
+        self.allocation_failure_error
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Arm64AsyncConstructorFrame {
     layout: Arm64FrameLayout,
@@ -286,26 +344,12 @@ impl Arm64AsyncFunctionPlan {
     ///
     /// Rejects a foreign lifecycle target, malformed persistent-to-activation projections,
     /// invalid native resources, and code emission failures.
-    pub fn materialize_resume(
+    pub(crate) fn materialize_resume(
         &self,
         target: crate::Arm64FunctionTarget,
-        functions: &crate::Arm64FunctionTargets,
-        async_primitives: &crate::Arm64AsyncPrimitiveTargets,
-        data: &[(nocter_machine::MachineDataId, crate::Arm64DataId)],
-        imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
-        pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
-        allocation_failure_error: crate::Arm64DataId,
+        resources: Arm64AsyncResumeResources<'_>,
     ) -> Result<crate::Arm64Code, crate::Arm64AsyncResumeError> {
-        crate::async_resume_code::materialize(
-            self,
-            target,
-            functions,
-            async_primitives,
-            data,
-            imports,
-            pack_callbacks,
-            allocation_failure_error,
-        )
+        crate::async_resume_code::materialize(self, target, resources)
     }
 
     pub(crate) const fn constructor_frame(&self) -> &Arm64AsyncConstructorFrame {

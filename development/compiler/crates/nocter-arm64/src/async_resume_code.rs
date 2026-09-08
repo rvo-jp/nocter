@@ -4,41 +4,20 @@ use crate::async_activation::{
 use crate::{
     Arm64AddSubtract, Arm64AsyncFrameField, Arm64AsyncFunctionPlan, Arm64AsyncResumeError,
     Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize,
-    Arm64FrameCode, Arm64FrameObjectId, Arm64FunctionTarget, Arm64FunctionTargets,
-    Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi, Arm64Register,
-    Arm64SelectedFloatRegister, Arm64SelectedRegister, Arm64SelectedTerminator, Arm64ValueStorage,
+    Arm64FrameCode, Arm64FrameObjectId, Arm64FunctionTarget, Arm64Instruction, Arm64LoadStoreSize,
+    Arm64NocterAbi, Arm64Register, Arm64SelectedFloatRegister, Arm64SelectedRegister,
+    Arm64SelectedTerminator, Arm64ValueStorage,
 };
 
-#[derive(Clone, Copy)]
-struct ResumeResources<'a> {
-    functions: &'a Arm64FunctionTargets,
-    async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
-    data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
-    imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
-    pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
-    allocation_failure_error: crate::Arm64DataId,
-}
+use crate::async_function::Arm64AsyncResumeResources;
 
 pub(crate) fn materialize(
     plan: &Arm64AsyncFunctionPlan,
     target: Arm64FunctionTarget,
-    functions: &Arm64FunctionTargets,
-    async_primitives: &crate::Arm64AsyncPrimitiveTargets,
-    data: &[(nocter_machine::MachineDataId, crate::Arm64DataId)],
-    imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
-    pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
-    allocation_failure_error: crate::Arm64DataId,
+    resources: Arm64AsyncResumeResources<'_>,
 ) -> Result<Arm64Code, Arm64AsyncResumeError> {
     validate_target(plan, target)?;
     let selected = plan.selected();
-    let resources = ResumeResources {
-        functions,
-        async_primitives,
-        data,
-        imports,
-        pack_callbacks,
-        allocation_failure_error,
-    };
     let mut code = Arm64CodeBuilder::new();
     let labels = selected
         .blocks()
@@ -112,22 +91,22 @@ fn validate_target(
 
 fn selected_context<'a>(
     plan: &'a Arm64AsyncFunctionPlan,
-    resources: ResumeResources<'a>,
+    resources: Arm64AsyncResumeResources<'a>,
 ) -> crate::selected_code::InstructionMaterialization<'a> {
     crate::selected_code::InstructionMaterialization {
         function: plan.selected(),
-        functions: resources.functions,
-        async_primitives: resources.async_primitives,
-        data: resources.data,
-        imports: resources.imports,
-        pack_callbacks: resources.pack_callbacks,
-        allocation_failure_error: resources.allocation_failure_error,
+        functions: resources.functions(),
+        async_primitives: resources.async_primitives(),
+        data: resources.data(),
+        imports: resources.imports(),
+        pack_callbacks: resources.pack_callbacks(),
+        allocation_failure_error: resources.allocation_failure_error(),
     }
 }
 
 fn emit_selected_entry(
     plan: &Arm64AsyncFunctionPlan,
-    resources: ResumeResources<'_>,
+    resources: Arm64AsyncResumeResources<'_>,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64AsyncResumeError> {
     let context = selected_context(plan, resources);

@@ -57,22 +57,7 @@ fn signal_ready_interests(
     code.bind(scan)?;
     compare_immediate(argument(2), 0, code);
     code.branch_conditional(complete, Arm64BranchCondition::Equal);
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(5),
-        argument(0),
-        schema.interest_readiness_pointer_offset(),
-    );
-    compare_immediate(argument(5), 0, code);
-    let readiness_valid = code.create_label();
-    code.branch_conditional(readiness_valid, Arm64BranchCondition::NotEqual);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
-    code.bind(readiness_valid)?;
+    load_readiness_pointer(argument(0), argument(5), code)?;
     crate::address_code::load_native(
         code,
         Arm64LoadStoreSize::Double,
@@ -126,22 +111,7 @@ fn signal_ready_interests(
     code.branch_conditional(advance, Arm64BranchCondition::UnsignedLowerOrSame);
 
     code.bind(signal)?;
-    crate::address_code::load_native(
-        code,
-        Arm64LoadStoreSize::Double,
-        None,
-        argument(4),
-        argument(0),
-        schema.interest_readiness_pointer_offset(),
-    );
-    compare_immediate(argument(4), 0, code);
-    let pointer_valid = code.create_label();
-    code.branch_conditional(pointer_valid, Arm64BranchCondition::NotEqual);
-    trap(
-        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
-        code,
-    );
-    code.bind(pointer_valid)?;
+    load_readiness_pointer(argument(0), argument(4), code)?;
     crate::frame_access::load_immediate(code, argument(5), 1, Arm64DataSize::Bits64);
     crate::address_code::store_native(
         code,
@@ -157,6 +127,29 @@ fn signal_ready_interests(
     subtract_immediate(argument(2), 1, code);
     code.branch(scan, false);
     code.bind(complete)
+}
+
+fn load_readiness_pointer(
+    record: crate::Arm64Register,
+    destination: crate::Arm64Register,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        destination,
+        record,
+        Arm64NocterAbi::asynchronous().interest_readiness_pointer_offset(),
+    );
+    compare_immediate(destination, 0, code);
+    let valid = code.create_label();
+    code.branch_conditional(valid, Arm64BranchCondition::NotEqual);
+    trap(
+        crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitRecordCorruption,
+        code,
+    );
+    code.bind(valid)
 }
 
 #[derive(Clone, Copy)]

@@ -48,7 +48,6 @@ const CONSTRUCTOR_STACK_SIZE: u64 = 48;
 pub(crate) fn materialize_constructor(
     targets: Arm64AsyncJoinTargets,
 ) -> Result<Arm64Code, crate::Arm64CodeError> {
-    let schema = Arm64NocterAbi::asynchronous();
     let mut code = Arm64CodeBuilder::new();
     validate_nonzero(argument(0), &mut code);
     validate_nonzero(argument(1), &mut code);
@@ -83,64 +82,67 @@ pub(crate) fn materialize_constructor(
     );
     crate::darwin_memory_code::emit_map(&mut code)?;
     crate::address_code::move_register(&mut code, argument(0), argument(6));
+    initialize_join_frame(argument(6), targets, &mut code);
+    crate::address_code::move_register(&mut code, argument(6), argument(0));
+    crate::frame_access::adjust_stack(&mut code, CONSTRUCTOR_STACK_SIZE, Arm64AddSubtract::Add);
+    return_to_caller(&mut code);
+    code.finish()
+}
+
+fn initialize_join_frame(
+    frame: crate::Arm64Register,
+    targets: Arm64AsyncJoinTargets,
+    code: &mut Arm64CodeBuilder,
+) {
+    let schema = Arm64NocterAbi::asynchronous();
     initialize_entry(
-        argument(6),
+        frame,
         schema.resume_function_offset(),
         targets.resume(),
-        &mut code,
+        code,
     );
     initialize_entry(
-        argument(6),
+        frame,
         schema.cancel_function_offset(),
         targets.cancel(),
-        &mut code,
+        code,
     );
     initialize_entry(
-        argument(6),
+        frame,
         schema.consume_function_offset(),
         targets.consume(),
-        &mut code,
+        code,
     );
-    store_immediate(
-        argument(6),
-        schema.state_tag_offset(),
-        ACTIVE_STATE,
-        &mut code,
-    );
+    store_immediate(frame, schema.state_tag_offset(), ACTIVE_STATE, code);
     load_stack(
         CONSTRUCTOR_ALLOCATION_CONTEXT_STACK_OFFSET,
         argument(4),
-        &mut code,
+        code,
     );
-    store(
-        argument(6),
-        schema.allocation_context_offset(),
-        argument(4),
-        &mut code,
-    );
+    store(frame, schema.allocation_context_offset(), argument(4), code);
     initialize_from_stack(
-        argument(6),
+        frame,
         FIRST_CHILD_OFFSET,
         CONSTRUCTOR_FIRST_STACK_OFFSET,
-        &mut code,
+        code,
     );
     initialize_from_stack(
-        argument(6),
+        frame,
         SECOND_CHILD_OFFSET,
         CONSTRUCTOR_SECOND_STACK_OFFSET,
-        &mut code,
+        code,
     );
     initialize_from_stack(
-        argument(6),
+        frame,
         FIRST_OUTPUT_OFFSET,
         CONSTRUCTOR_FIRST_OUTPUT_STACK_OFFSET,
-        &mut code,
+        code,
     );
     initialize_from_stack(
-        argument(6),
+        frame,
         SECOND_OUTPUT_OFFSET,
         CONSTRUCTOR_SECOND_OUTPUT_STACK_OFFSET,
-        &mut code,
+        code,
     );
     for offset in [
         FIRST_DONE_OFFSET,
@@ -152,12 +154,8 @@ pub(crate) fn materialize_constructor(
         SECOND_INTEREST_POINTER_OFFSET,
         SECOND_INTEREST_COUNT_OFFSET,
     ] {
-        store_immediate(argument(6), offset, 0, &mut code);
+        store_immediate(frame, offset, 0, code);
     }
-    crate::address_code::move_register(&mut code, argument(6), argument(0));
-    crate::frame_access::adjust_stack(&mut code, CONSTRUCTOR_STACK_SIZE, Arm64AddSubtract::Add);
-    return_to_caller(&mut code);
-    code.finish()
 }
 
 /// Polls both owned children from left to right and returns their combined wait-interest slice.
@@ -252,8 +250,8 @@ pub(crate) fn materialize_cancel() -> Result<Arm64Code, crate::Arm64CodeError> {
     emit_call_prologue(argument(0), &mut code);
     validate_state(ACTIVE_STATE, &mut code);
     release_interest_buffer(&mut code)?;
-    release_child(FIRST_CHILD_OFFSET, false, &mut code)?;
-    release_child(SECOND_CHILD_OFFSET, false, &mut code)?;
+    release_child(FIRST_CHILD_OFFSET, false, &mut code);
+    release_child(SECOND_CHILD_OFFSET, false, &mut code);
     release_join_frame(&mut code)?;
     emit_call_epilogue(&mut code);
     code.finish()
@@ -281,8 +279,8 @@ pub(crate) fn materialize_consume() -> Result<Arm64Code, crate::Arm64CodeError> 
         &mut code,
     );
     validate_state(COMPLETED_STATE, &mut code);
-    release_child(FIRST_CHILD_OFFSET, true, &mut code)?;
-    release_child(SECOND_CHILD_OFFSET, true, &mut code)?;
+    release_child(FIRST_CHILD_OFFSET, true, &mut code);
+    release_child(SECOND_CHILD_OFFSET, true, &mut code);
     release_join_frame(&mut code)?;
     load_stack(
         CONSUME_ALLOCATION_CONTEXT_STACK_OFFSET,
@@ -507,11 +505,7 @@ fn clear_pending_interests(code: &mut Arm64CodeBuilder) {
     }
 }
 
-fn release_child(
-    child_offset: u64,
-    consume: bool,
-    code: &mut Arm64CodeBuilder,
-) -> Result<(), crate::Arm64CodeError> {
+fn release_child(child_offset: u64, consume: bool, code: &mut Arm64CodeBuilder) {
     load_frame(argument(3), code);
     load(argument(3), child_offset, argument(0), code);
     validate_nonzero(argument(0), code);
@@ -537,7 +531,6 @@ fn release_child(
         target: argument(4),
         link: true,
     });
-    Ok(())
 }
 
 fn release_join_frame(code: &mut Arm64CodeBuilder) -> Result<(), crate::Arm64CodeError> {

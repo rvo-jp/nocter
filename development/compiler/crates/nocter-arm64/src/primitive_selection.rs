@@ -45,6 +45,10 @@ impl std::ops::Deref for Arm64PrimitiveTarget<'_> {
 }
 
 /// Expands one closed primitive role while preserving its ordinary Nocter ABI boundary.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the exhaustive role dispatch deliberately keeps every primitive visible at one boundary"
+)]
 pub(crate) fn select(
     program: &nocter_machine::MachineProgram,
     frame: &crate::Arm64FunctionFrame,

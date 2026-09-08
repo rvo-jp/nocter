@@ -42,6 +42,19 @@ impl SelectedMachineFunction {
     }
 }
 
+impl<'a> LoweringResources<'a> {
+    const fn async_resume(self) -> crate::async_function::Arm64AsyncResumeResources<'a> {
+        crate::async_function::Arm64AsyncResumeResources::new(
+            self.functions,
+            self.async_primitives,
+            self.data,
+            self.imports,
+            self.pack_callbacks,
+            self.allocation_failure_error,
+        )
+    }
+}
+
 impl Arm64Program {
     /// Selects and materializes a complete process machine program.
     ///
@@ -288,15 +301,7 @@ fn define_deferred_function(
     builder.define_function(target.callable(), function.materialize_constructor(target)?)?;
     builder.define_function(
         lifecycle.resume(),
-        function.materialize_resume(
-            target,
-            resources.functions,
-            resources.async_primitives,
-            resources.data,
-            resources.imports,
-            resources.pack_callbacks,
-            resources.allocation_failure_error,
-        )?,
+        function.materialize_resume(target, resources.async_resume())?,
     )?;
     builder.define_function(
         lifecycle.cancel(),
