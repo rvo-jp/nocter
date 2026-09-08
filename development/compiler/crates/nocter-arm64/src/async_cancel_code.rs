@@ -17,17 +17,6 @@ pub(crate) fn materialize(
     functions: &Arm64FunctionTargets,
 ) -> Result<Arm64Code, Arm64AsyncCancelError> {
     validate_target(plan, target)?;
-    if plan.pack().is_some()
-        || plan.cancellation().states().iter().any(|state| {
-            state
-                .actions()
-                .iter()
-                .any(|action| matches!(action, Arm64AsyncCancellationAction::DestroyPack))
-        })
-    {
-        return Err(Arm64AsyncCancelError::PackTransferUnsupported(plan.owner()));
-    }
-
     let activation = plan.cancellation().activation();
     let mut code = Arm64CodeBuilder::new();
     Arm64FrameCode::emit_prologue(activation.layout(), &mut code);
@@ -174,10 +163,45 @@ fn emit_action(
         Arm64AsyncCancellationAction::ReleaseRegion(field) => {
             emit_region_release(plan, *field, code)
         }
-        Arm64AsyncCancellationAction::DestroyPack => {
-            Err(Arm64AsyncCancelError::PackTransferUnsupported(plan.owner()))
-        }
+        Arm64AsyncCancellationAction::DestroyPack => emit_destroy_pack(plan, code),
     }
+}
+
+fn emit_destroy_pack(
+    plan: &Arm64AsyncFunctionPlan,
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64AsyncCancelError> {
+    let field = plan
+        .frame()
+        .pack_input()
+        .ok_or(Arm64AsyncCancelError::MissingPackInput)?;
+    restore_ambient_context(plan, code)?;
+    let descriptor = argument(2)?;
+    load_frame_word(plan, field, 0, descriptor, code)?;
+    let callback = scratch(0)?;
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        callback,
+        descriptor,
+        crate::Arm64PackDescriptorLayout::DESTROY_CALLBACK_OFFSET,
+    );
+    crate::address_code::load_native(
+        code,
+        Arm64LoadStoreSize::Double,
+        None,
+        argument(0)?,
+        descriptor,
+        crate::Arm64PackDescriptorLayout::STATE_POINTER_OFFSET,
+    );
+    code.append(Arm64Instruction::BranchRegister {
+        target: callback,
+        link: true,
+    });
+    load_frame_word(plan, field, 0, descriptor, code)?;
+    crate::pack_allocation_code::emit_release(descriptor, code)?;
+    Ok(())
 }
 
 fn emit_destruction(
@@ -519,7 +543,7 @@ pub enum Arm64AsyncCancelError {
     },
     ImmediateTarget(nocter_machine::MachineFunctionId),
     UnknownDestruction(nocter_machine::MachineFunctionId),
-    PackTransferUnsupported(nocter_machine::MachineFunctionId),
+    MissingPackInput,
     MissingCompletedOutput,
     InvalidActivation,
     RegisterOverflow,
@@ -545,7 +569,7 @@ impl std::error::Error for Arm64AsyncCancelError {
             Self::ForeignTarget { .. }
             | Self::ImmediateTarget(_)
             | Self::UnknownDestruction(_)
-            | Self::PackTransferUnsupported(_)
+            | Self::MissingPackInput
             | Self::MissingCompletedOutput
             | Self::InvalidActivation
             | Self::RegisterOverflow

@@ -28,9 +28,6 @@ pub(crate) fn materialize(
     allocation_failure_error: crate::Arm64DataId,
 ) -> Result<Arm64Code, Arm64AsyncResumeError> {
     validate_target(plan, target)?;
-    if plan.pack().is_some() {
-        return Err(Arm64AsyncResumeError::PackTransferUnsupported(plan.owner()));
-    }
     let selected = plan.selected();
     let resources = ResumeResources {
         functions,

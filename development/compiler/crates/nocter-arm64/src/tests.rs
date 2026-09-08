@@ -1411,7 +1411,7 @@ fn async_constructor_materializes_stack_and_indirect_parameter_capture() {
 }
 
 #[test]
-fn async_frame_layout_retains_a_transferred_pack_pointer() {
+fn async_frame_layout_captures_an_allocation_backed_pack_owner() {
     let program = crate::test_support::lower_machine(
         "func ready(): async void { return }\n\
          func count(...items: i32): async usize {\n\
@@ -1449,11 +1449,55 @@ fn async_frame_layout_retains_a_transferred_pack_pointer() {
     );
     let mut builder = crate::Arm64ProgramBuilder::new();
     let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
-    assert!(matches!(
-        function.materialize_constructor(targets.get(owner).unwrap()),
-        Err(crate::Arm64AsyncConstructorError::PackTransferUnsupported(actual))
-            if actual == owner
-    ));
+    let target = targets.get(owner).unwrap();
+    assert!(function.materialize_constructor(target).is_ok());
+    assert!(function.materialize_cancel(target, &targets).is_ok());
+}
+
+#[test]
+fn deferred_pack_forwarding_transfers_one_allocation_owner() {
+    let program = crate::test_support::lower_machine(
+        "func ready(): async void { return }\n\
+         func count(...items: i32): async usize {\n\
+             await ready()\n\
+             return items.len()\n\
+         }\n\
+         func forward(...items: i32): async usize {\n\
+             return await count(...items)\n\
+         }\n\
+         func main(): void {\n\
+             let pending = forward(1, 2, 3)\n\
+             drop pending\n\
+             return\n\
+         }\n",
+    );
+    let forward = program
+        .functions()
+        .find_map(|(owner, function)| {
+            let nocter_machine::MachineFunctionExecution::Deferred(frame) = function.execution()
+            else {
+                return None;
+            };
+            (function.body().packs().next().is_none()
+                && frame
+                    .initial()
+                    .fields()
+                    .contains(&nocter_machine::MachineFrameField::Pack)
+                && frame.states().iter().all(|state| {
+                    !state
+                        .fields()
+                        .contains(&nocter_machine::MachineFrameField::Pack)
+                }))
+            .then_some((owner, frame))
+        })
+        .expect("forwarded deferred pack function");
+
+    assert!(forward.1.states().iter().all(|state| {
+        !state
+            .fields()
+            .contains(&nocter_machine::MachineFrameField::Pack)
+    }));
+    assert!(crate::Arm64Program::lower_machine(&program).is_ok());
 }
 
 #[test]

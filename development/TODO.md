@@ -16,11 +16,10 @@ and constructor/resume/cancel/consume entries are complete. Whole-program loweri
 complete lifecycle, and native conformance covers lazy construction followed by cancellation.
 
 Next, generate the native executor loop against the same lifecycle and wait-interest ABI, then add
-deterministic completion/cancellation coverage and concurrent Darwin loopback coverage. Close the
-allocation-backed ownership representation for deferred variadic packs before accepting them;
-constructor, resume, and cancellation currently reject that combination explicitly. Do not add
-public async time or network APIs until these runtime contracts are qualified. Keep the qualified
-v0.40.0 archive unchanged.
+deterministic completion/cancellation coverage and concurrent Darwin loopback coverage. Deferred
+variadic packs now move their descriptor and callback state into one allocation-backed owner used
+by normal cleanup and cancellation. Do not add public async time or network APIs until the runtime
+contracts are qualified. Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

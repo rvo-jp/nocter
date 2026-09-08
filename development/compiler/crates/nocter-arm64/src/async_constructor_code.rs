@@ -21,16 +21,11 @@ pub(crate) fn materialize(
     let entries = target
         .asynchronous()
         .ok_or(Arm64AsyncConstructorError::ImmediateTarget(plan.owner()))?;
-    if plan.pack().is_some() {
-        return Err(Arm64AsyncConstructorError::PackTransferUnsupported(
-            plan.owner(),
-        ));
-    }
-
     let staging = plan.constructor_frame();
     let mut code = Arm64CodeBuilder::new();
     Arm64FrameCode::emit_prologue(staging.layout(), &mut code);
     stage_ambient_context(plan, &mut code)?;
+    crate::async_pack_capture_code::stage_input(plan, &mut code)?;
     stage_register_parameters(plan, &mut code)?;
     stage_stack_parameters(plan, &mut code)?;
     close_indirect_parameters(plan, &mut code)?;
@@ -53,6 +48,7 @@ pub(crate) fn materialize(
 
     initialize_header(plan, entries, &mut code)?;
     copy_captures_to_heap(plan, &mut code)?;
+    crate::async_pack_capture_code::capture(plan, &mut code)?;
     let result = abi_general_register(plan.result_register())?;
     load_stack_object(
         staging.layout(),
@@ -519,7 +515,7 @@ pub enum Arm64AsyncConstructorError {
         actual: nocter_machine::MachineFunctionId,
     },
     ImmediateTarget(nocter_machine::MachineFunctionId),
-    PackTransferUnsupported(nocter_machine::MachineFunctionId),
+    MissingPackInput,
     MissingParameter(usize),
     ParameterTransport(usize),
     RegisterOverflow,
@@ -549,7 +545,7 @@ impl std::error::Error for Arm64AsyncConstructorError {
             Self::Code(error) => Some(error),
             Self::ForeignTarget { .. }
             | Self::ImmediateTarget(_)
-            | Self::PackTransferUnsupported(_)
+            | Self::MissingPackInput
             | Self::MissingParameter(_)
             | Self::ParameterTransport(_)
             | Self::RegisterOverflow

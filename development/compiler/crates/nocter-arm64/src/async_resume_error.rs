@@ -10,7 +10,6 @@ pub enum Arm64AsyncResumeError {
         actual: nocter_machine::MachineFunctionId,
     },
     ImmediateTarget(nocter_machine::MachineFunctionId),
-    PackTransferUnsupported(nocter_machine::MachineFunctionId),
     MissingState(nocter_machine::MachineBlockId),
     UnknownBlock(nocter_machine::MachineBlockId),
     UnknownValue(nocter_machine::MachineValueId),

@@ -387,6 +387,9 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::ReleaseComputation { place } => {
             crate::async_release_code::emit(function, place, code)
         }
+        Arm64SelectedInstruction::ReleasePackAllocation { descriptor } => {
+            crate::pack_allocation_code::emit_release_selected(function, descriptor, code)
+        }
         Arm64SelectedInstruction::ReportError { place, buffer } => {
             crate::error_code::emit_report(function, place, buffer, code)
         }

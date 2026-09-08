@@ -331,6 +331,19 @@ fn select_descriptor(
             source: scratch,
         });
     }
+    selected.push(Arm64SelectedInstruction::LoadImmediate {
+        size: crate::Arm64DataSize::Bits64,
+        destination: scratch,
+        value: frame.state_layout().size(),
+    });
+    selected.push(Arm64SelectedInstruction::StoreMemory {
+        bytes: word_bytes(),
+        destination: frame_memory(
+            frame.descriptor(),
+            Arm64PackDescriptorLayout::STATE_SIZE_OFFSET,
+        ),
+        source: scratch,
+    });
     let pointer = crate::Arm64NocterAbi::argument_register(pointer_register)
         .ok_or(Arm64SelectionError::CallPack(operation))?;
     selected.push(Arm64SelectedInstruction::MemoryAddress {
@@ -453,6 +466,13 @@ fn select_callback(
     selected.push(Arm64SelectedInstruction::CallRegister(callback));
     if let Some((abi, result)) = result {
         crate::call_selection::select_call_result(operation, abi, result, values, selected)?;
+    } else {
+        let pointer = frame
+            .pack_input_pointer()
+            .ok_or(Arm64SelectionError::CallPack(operation))?;
+        selected.push(Arm64SelectedInstruction::ReleasePackAllocation {
+            descriptor: frame_memory(pointer, 0),
+        });
     }
     Ok(())
 }

@@ -47,5 +47,8 @@ source, loader commands, or package state.
   pending.
 - Computation release loads the cancellation entry from the opaque runtime header. Callers never
   inspect a deferred function's state layout or cleanup plan.
-- Deferred variadic-pack transfer remains rejected until its caller-owned callback state has an
-  explicit allocation-backed ownership representation.
+- Deferred variadic-pack construction moves a caller stack descriptor and callback state into one
+  allocation-backed owner. Forwarding an already allocation-backed pack transfers that owner
+  directly instead of copying its owned elements. The same descriptor ownership marker makes
+  ordinary body cleanup and cancellation release the allocation exactly once without changing
+  synchronous stack packs.

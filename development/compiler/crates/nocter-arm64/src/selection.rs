@@ -280,6 +280,10 @@ pub enum Arm64SelectedInstruction {
     ReleaseComputation {
         place: Arm64SelectedMemoryAddress,
     },
+    /// Releases allocation-backed pack storage; stack-backed descriptors carry a zero size.
+    ReleasePackAllocation {
+        descriptor: Arm64SelectedMemoryAddress,
+    },
     ConstructErrorLeaf {
         buffer: crate::Arm64FrameObjectId,
     },

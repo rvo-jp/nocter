@@ -81,6 +81,7 @@ pub struct Arm64AsyncFunctionPlan {
 pub(crate) struct Arm64AsyncConstructorFrame {
     layout: Arm64FrameLayout,
     parameters: Box<[Arm64FrameObjectId]>,
+    pack_input: Option<Arm64FrameObjectId>,
     allocation_context: Arm64FrameObjectId,
     process_context: Option<Arm64FrameObjectId>,
     mapping: Arm64FrameObjectId,
@@ -93,6 +94,10 @@ impl Arm64AsyncConstructorFrame {
 
     pub(crate) fn parameter(&self, index: usize) -> Option<Arm64FrameObjectId> {
         self.parameters.get(index).copied()
+    }
+
+    pub(crate) const fn pack_input(&self) -> Option<Arm64FrameObjectId> {
+        self.pack_input
     }
 
     pub(crate) const fn allocation_context(&self) -> Arm64FrameObjectId {
@@ -175,10 +180,15 @@ impl Arm64AsyncFunctionPlan {
             .into_boxed_slice();
         let pack = match (abi.pack(), frame.pack_input()) {
             (None, None) => None,
-            (Some(transport), Some(destination)) => Some(Arm64AsyncPackCapture {
-                transport,
-                destination,
-            }),
+            (Some(transport), Some(destination)) => {
+                if transport.pointer().words() != 1 {
+                    return Err(Arm64AsyncFunctionPlanError::Pack(owner));
+                }
+                Some(Arm64AsyncPackCapture {
+                    transport,
+                    destination,
+                })
+            }
             (None, Some(_)) | (Some(_), None) => {
                 return Err(Arm64AsyncFunctionPlanError::Pack(owner));
             }
@@ -233,8 +243,8 @@ impl Arm64AsyncFunctionPlan {
     ///
     /// # Errors
     ///
-    /// Rejects a foreign or immediate native target, pack transfer until its ownership-preserving
-    /// representation is implemented, malformed constructor storage, or code emission failure.
+    /// Rejects a foreign or immediate native target, malformed constructor or pack-capture
+    /// storage, or code emission failure.
     pub fn materialize_constructor(
         &self,
         target: crate::Arm64FunctionTarget,
@@ -275,7 +285,7 @@ impl Arm64AsyncFunctionPlan {
     /// # Errors
     ///
     /// Rejects a foreign lifecycle target, malformed persistent-to-activation projections,
-    /// unsupported transferred packs, invalid native resources, and code emission failures.
+    /// invalid native resources, and code emission failures.
     pub fn materialize_resume(
         &self,
         target: crate::Arm64FunctionTarget,
@@ -334,10 +344,15 @@ fn build_constructor_frame(
         .process_context()
         .map(|_| builder.add_object(8, 8))
         .transpose()?;
+    let pack_input = frame
+        .pack_input()
+        .map(|_| builder.add_object(8, 8))
+        .transpose()?;
     let mapping = builder.add_object(8, 8)?;
     Ok(Arm64AsyncConstructorFrame {
         layout: builder.finish()?,
         parameters: parameters.into_boxed_slice(),
+        pack_input,
         allocation_context,
         process_context,
         mapping,

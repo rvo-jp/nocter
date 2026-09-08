@@ -8,8 +8,9 @@ const CURSOR_SIZE: u64 = Arm64NocterAbi::word_size();
 
 /// Caller-owned descriptor passed through the literal ABI lane.
 ///
-/// The four words are the call-site state pointer, immutable total length, next callback, and
-/// residual-destruction callback. Callback code and state layout remain target-owned.
+/// The six words are the state pointer, immutable total length, callbacks, state byte size, and
+/// optional allocation byte size. A zero allocation size denotes caller-owned stack storage;
+/// deferred capture replaces it with one owning allocation containing descriptor and state.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64PackDescriptorLayout;
 
@@ -18,7 +19,9 @@ impl Arm64PackDescriptorLayout {
     pub const LENGTH_OFFSET: u64 = Arm64NocterAbi::word_size();
     pub const NEXT_CALLBACK_OFFSET: u64 = 2 * Arm64NocterAbi::word_size();
     pub const DESTROY_CALLBACK_OFFSET: u64 = 3 * Arm64NocterAbi::word_size();
-    pub const SIZE: u64 = 4 * Arm64NocterAbi::word_size();
+    pub const STATE_SIZE_OFFSET: u64 = 4 * Arm64NocterAbi::word_size();
+    pub const ALLOCATION_SIZE_OFFSET: u64 = 5 * Arm64NocterAbi::word_size();
+    pub const SIZE: u64 = 6 * Arm64NocterAbi::word_size();
     pub const ALIGNMENT: u64 = Arm64NocterAbi::word_size();
 }
 
