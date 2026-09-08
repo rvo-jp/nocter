@@ -315,15 +315,7 @@ impl FunctionLowerer<'_> {
                 self.lower_enum_destruction(owner, place, variants)?;
             }
             ConcreteDestructionKind::FixedArray { length, element } => {
-                for index in (0..*length).rev() {
-                    let child = self.project_cleanup_place(
-                        owner,
-                        place,
-                        MirProjectionKind::FixedIndex(index),
-                        element.ty(),
-                    )?;
-                    self.lower_destruction(owner, child, element)?;
-                }
+                self.lower_fixed_array_destruction(owner, place, *length, element)?;
             }
             ConcreteDestructionKind::Tuple(elements) => {
                 for element in elements {
@@ -391,6 +383,25 @@ impl FunctionLowerer<'_> {
                     self.lower_destruction(owner, child, capture.plan())?;
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn lower_fixed_array_destruction(
+        &mut self,
+        owner: BodyNodeId,
+        place: MirPlaceId,
+        length: u64,
+        element: &ConcreteDestructionPlan,
+    ) -> Result<(), MirLoweringError> {
+        for index in (0..length).rev() {
+            let child = self.project_cleanup_place(
+                owner,
+                place,
+                MirProjectionKind::FixedIndex(index),
+                element.ty(),
+            )?;
+            self.lower_destruction(owner, child, element)?;
         }
         Ok(())
     }

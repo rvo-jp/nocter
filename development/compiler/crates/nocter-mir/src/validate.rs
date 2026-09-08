@@ -996,27 +996,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                     computation,
                     resume,
                 } => {
-                    let BodyContract::Function {
-                        execution: crate::MirFunctionExecution::Deferred { .. },
-                        ..
-                    } = self.contract
-                    else {
-                        return Err(MirValidationError::InvalidRootTerminator(block));
-                    };
-                    let Some(TypeKind::Async(output)) =
-                        self.types.get(self.value_type(*computation)?)
-                    else {
-                        return Err(MirValidationError::InvalidReturn(block));
-                    };
-                    let destination = self.require_block(resume.block())?;
-                    if destination
-                        .parameters()
-                        .first()
-                        .is_none_or(|value| self.value_type(*value).ok() != Some(*output))
-                    {
-                        return Err(MirValidationError::InvalidReturn(block));
-                    }
-                    values.push(*computation);
+                    values.push(self.validate_suspend_terminator(block, *computation, resume)?);
                 }
                 MirTerminator::Return(value) => {
                     let BodyContract::Function { result, .. } = self.contract else {
@@ -1051,6 +1031,33 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
             }
         }
         Ok(())
+    }
+
+    fn validate_suspend_terminator(
+        &self,
+        block: MirBlockId,
+        computation: MirValueId,
+        resume: &MirBranchTarget,
+    ) -> Result<MirValueId, MirValidationError> {
+        let BodyContract::Function {
+            execution: crate::MirFunctionExecution::Deferred { .. },
+            ..
+        } = self.contract
+        else {
+            return Err(MirValidationError::InvalidRootTerminator(block));
+        };
+        let Some(TypeKind::Async(output)) = self.types.get(self.value_type(computation)?) else {
+            return Err(MirValidationError::InvalidReturn(block));
+        };
+        let destination = self.require_block(resume.block())?;
+        if destination
+            .parameters()
+            .first()
+            .is_none_or(|value| self.value_type(*value).ok() != Some(*output))
+        {
+            return Err(MirValidationError::InvalidReturn(block));
+        }
+        Ok(computation)
     }
 
     fn validate_use(
