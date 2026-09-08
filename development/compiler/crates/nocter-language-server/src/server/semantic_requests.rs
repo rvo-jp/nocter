@@ -424,6 +424,15 @@ mod tests {
         ))
     }
 
+    fn source_position(source: &str, needle: &str) -> (usize, usize) {
+        let offset = source.find(needle).unwrap();
+        let prefix = &source[..offset];
+        (
+            prefix.bytes().filter(|byte| *byte == b'\n').count(),
+            prefix.rsplit('\n').next().unwrap().chars().count(),
+        )
+    }
+
     fn request_outcome_code_action(
         source: &str,
         start: (usize, usize),
@@ -1334,6 +1343,94 @@ mod tests {
         assert!(response.contains("&func(i32): i32"));
         assert!(response.contains("\"activeParameter\":0"));
         assert!(closure.issue().is_none(), "{:?}", closure.issue());
+    }
+
+    #[test]
+    fn structured_async_join_contract_drives_editor_requests() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/task\n",
+            "func left(): async i32 { return 1 }\n",
+            "func right(): async u64 { return 2 }\n",
+            "func main(): async i32 {\n",
+            "    let pending = task.join(left(), right())\n",
+            "    let outputs = await pending\n",
+            "    if outputs.1 == 2 { return outputs.0 }\n",
+            "    return 0\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let (join_line, join_character) = source_position(text, "join");
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{join_line},\"character\":{join_character}}}}}}}"
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "pub primitive func join<A, B>(first: async A, second: async B): ",
+                "async (A, B) from first | second"
+            )),
+            "{response}"
+        );
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{join_line},\"character\":{join_character}}}}}}}"
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/task/index.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+        let (argument_line, argument_character) = source_position(text, ", right())");
+        let signature = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{argument_line},\"character\":{}}}}}}}",
+            argument_character + 1
+        ));
+        let response = signature.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "primitive func join<i32, u64>(first: async i32, second: async u64): ",
+                "async (i32, u64)"
+            )),
+            "{response}"
+        );
+        assert!(response.contains("\"activeParameter\":1"), "{response}");
+        assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":5,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":9,\"character\":0}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        for label in [": async (i32, u64)", ": (i32, u64)"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{label}\"")),
+                "{response}"
+            );
+        }
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
     }
 
     #[test]

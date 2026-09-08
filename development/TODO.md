@@ -9,7 +9,7 @@ been changed.
 
 ## Next Work
 
-Begin v0.41.0 Phase 5 from the
+Continue v0.41.0 Phase 5 from the
 [Asynchronous Computation Boundary](design/asynchronous-computation-design.md). The scheduler,
 Darwin reactor adapter, opaque single-threaded executor contract, ARM64 async heap-frame placement,
 and constructor/resume/cancel/consume entries are complete. Whole-program lowering now emits the
@@ -48,8 +48,9 @@ tuple output placement, ARM64 composes dynamically sized child interest sets, an
 readiness cells preserve exact wake identity through nested copies. Native coverage proves
 different concurrent deadlines, nested joins, unstarted cancellation, and concurrent public TCP
 connection and acceptance. Phase 4 is complete. Next, qualify the full tooling surface for
-`std/task.join`, add a complete user example, run the repository and packaging matrices, and review
-the entire async area before release preparation. Keep the qualified v0.40.0 archive unchanged.
+`std/task.join`. Its complete loopback example and semantic-editor contract coverage are now in
+place. Run the repository and packaging matrices, then review the entire async area before release
+preparation. Keep the qualified v0.40.0 archive unchanged.
 
 Publish v0.40.0 only when explicitly requested. Publication must occur from `main`, reuse the
 retained qualified archive without rebuilding it, update public latest-release references, create

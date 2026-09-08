@@ -122,6 +122,17 @@ nocter run examples/url-inspect.nct
 
 ## Package Examples
 
+[async-loopback/index.nct](async-loopback/index.nct) starts TCP connection and listener acceptance
+as one bounded `task.join`, then joins a complete async write with the matching async read. Both
+joins own their children and preserve each fallible result until the program handles it. The
+example uses only IPv4 loopback and a kernel-selected port.
+
+```sh
+cd examples/async-loopback
+nocter check
+nocter run
+```
+
 [http-get/index.nct](http-get/index.nct) is a synchronous one-request HTTP client. It parses one
 command-line URL, resolves its host through the operating system, applies a finite connection and
 per-operation stream timeout, reads the bounded decoded response body, and writes exact body bytes

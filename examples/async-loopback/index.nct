@@ -1,0 +1,16 @@
+//! Bounded structured asynchronous TCP example.
+
+#package: {
+    name: "async-loopback",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "async-loopback",
+}
+
+see ./exchange.nct
+
+func main(): async i32! {
+    return await run()
+}

@@ -1,0 +1,52 @@
+//! Concurrent loopback connection and byte transfer.
+
+see ./index.nct
+
+use std/io
+use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener}
+use std/string.String
+use std/task
+use std/time.Duration
+use std/vec.Vec
+
+func loopback(): SocketAddress {
+    return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
+}
+
+func run(): async i32! {
+    let timeout = Duration.from_seconds(1)
+    var listener = TcpListener.bind(loopback())?
+    let listening_address = listener.local_address()?
+    let connection = await task.join(
+        net.connect_tcp_async_with_timeout(listening_address, timeout),
+        listener.accept_async_with_timeout(timeout),
+    )
+    let client_result = move connection.0
+    let accepted_result = move connection.1
+    var client = move client_result?
+    let accepted = move accepted_result?
+    var server = move accepted.0
+
+    var bytes: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let transfer = task.join(
+        client.write_async_with_timeout("ping".bytes(), timeout),
+        server.read_async_with_timeout(&+bytes, timeout),
+    )
+    let transferred = await transfer
+    let write_result = move transferred.0
+    let read_result = move transferred.1
+    write_result?
+    let count = move read_result?
+    if count != 4 {
+        return error.new("async-loopback.length", "TCP changed the message length")
+    }
+    let text = String.from_utf8(&bytes)?
+    io.print("async tcp: ")?
+    io.println(&text)?
+    return 0
+}

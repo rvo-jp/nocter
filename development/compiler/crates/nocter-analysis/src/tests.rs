@@ -272,6 +272,83 @@ fn async_declarations_and_values_share_canonical_semantic_presentation() {
 }
 
 #[test]
+fn structured_async_join_projects_its_specialized_contract_and_output_types() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "use std/task\n",
+        "func left(): async i32 { return 1 }\n",
+        "func right(): async u64 { return 2 }\n",
+        "func main(): async i32 {\n",
+        "    let pending = task.join(left(), right())\n",
+        "    let outputs = await pending\n",
+        "    if outputs.1 == 2 { return outputs.0 }\n",
+        "    return 0\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(66));
+    assert_eq!(
+        snapshot.status(),
+        AnalysisStatus::Complete,
+        "join fixture diagnostics: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+
+    let join_offset = source_text.find("join").unwrap();
+    let join_offset = ByteOffset::new(u32::try_from(join_offset).unwrap());
+    let join = snapshot
+        .semantic_subject(source.id(), join_offset)
+        .unwrap()
+        .expect("task.join has no semantic subject");
+    assert_eq!(
+        join.presentation().code(),
+        concat!(
+            "pub primitive func join<A, B>(first: async A, second: async B): ",
+            "async (A, B) from first | second"
+        )
+    );
+    let definitions = snapshot
+        .semantic_definition(source.id(), join_offset)
+        .unwrap();
+    assert_eq!(definitions.len(), 1);
+    assert!(
+        snapshot
+            .sources()
+            .get(definitions[0].source())
+            .unwrap()
+            .name()
+            .as_str()
+            .ends_with("/std/task/index.nct")
+    );
+    let pending_offset = source_text.find("pending").unwrap();
+    let pending = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(pending_offset).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        pending.presentation().code(),
+        "let pending: async (i32, u64)"
+    );
+
+    let outputs_offset = source_text.find("outputs").unwrap();
+    let outputs = snapshot
+        .semantic_subject(
+            source.id(),
+            ByteOffset::new(u32::try_from(outputs_offset).unwrap()),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(outputs.presentation().code(), "let outputs: (i32, u64)");
+}
+
+#[test]
 fn tuple_projection_is_one_checked_editor_occurrence_without_a_definition() {
     let tree = TempTree::new();
     let source_text = concat!(
