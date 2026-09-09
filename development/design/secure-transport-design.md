@@ -116,3 +116,11 @@ No source declaration may construct a block, import a native symbol, choose a di
 inspect an `nw_*` object. The adapter will migrate plain TCP before it exposes TLS so HTTPS cannot
 introduce a second connection engine. Secure Transport and embedded TLS remain rejected
 alternatives for this milestone.
+
+The first adapter foundation now models the Darwin Blocks ABI once in the runtime contract. ARM64
+can construct only a typed, one-pointer capture block whose descriptor size and signature pointer
+are fixed by that schema. A generated executable passes such a block to Network.framework; the
+framework invokes it and the callback updates its captured mailbox. This proves the actual block
+calling convention without exposing general blocks or foreign callbacks to Nocter source. The
+remaining asynchronous boundary must add synchronization, retained mailbox lifetime, dispatch
+queue ownership, cancellation, and reactor wakeup before any connection object becomes public.

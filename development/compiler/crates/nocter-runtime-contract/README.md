@@ -22,6 +22,7 @@ public source-level imports.
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
 - canonical representation classes
 - fixed async owning-handle and heap-frame-header ABI
+- the fixed Darwin Blocks ABI subset admitted by compiler-owned native adapters
 - closed async lifecycle-state tag sequences
 - target-independent descriptor and monotonic-timer wait interests
 - target runtime capability requirements
@@ -36,6 +37,7 @@ public source-level imports.
 - A target-service binding owns its closed descriptor; later stages cannot reconstruct the
   descriptor from its role or declaration spelling.
 - Machine consumers cannot reach declaration or checking storage through this contract.
+- Native callback layouts have one numeric schema; source code cannot construct or inspect them.
 - Primitive effect facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.
 - A primitive role may immediately construct an opaque asynchronous value. This does not classify

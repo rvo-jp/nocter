@@ -9,9 +9,10 @@ closed native adapter foundation.
 
 ## Next Work
 
-Complete Phase 1's fixed Block ABI, callback mailbox, dispatch ownership, and reactor wake bridge.
-Keep native objects and callbacks compiler-owned; do not add source-level FFI or a general callback
-escape hatch.
+Complete Phase 1's cross-thread callback mailbox, dispatch ownership, cancellation lifetime, and
+reactor wake bridge. The fixed one-pointer Block ABI and synchronous native invocation are already
+qualified. Keep native objects and callbacks compiler-owned; do not add source-level FFI or a
+general callback escape hatch.
 
 Preserve every published tag and asset.
 

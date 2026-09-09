@@ -37,6 +37,9 @@ source, loader commands, or package state.
   neither derives a loader symbol nor encodes a dylib command.
 - Imported calls use the same preplanned scalar transport as other runtime calls, then load and
   branch through the machine import identity's pointer slot.
+- Darwin native blocks use one runtime-owned layout schema and typed descriptor identity. The
+  admitted materializer creates only a one-pointer, non-owning capture record; callers cannot pair
+  an arbitrary data object or capture count with that record.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.

@@ -31,6 +31,7 @@ mod async_wait_frame;
 mod async_wait_timeout_code;
 mod call_selection;
 mod code;
+mod darwin_block;
 mod darwin_kernel_abi;
 mod darwin_memory_code;
 mod destruction_selection;
@@ -105,6 +106,11 @@ pub use async_primitive_targets::{
 pub use async_resume_error::Arm64AsyncResumeError;
 pub use async_wait_frame::Arm64AsyncWaitFrame;
 pub use code::{Arm64Code, Arm64CodeBuilder, Arm64CodeError, Arm64LabelId};
+pub use darwin_block::{
+    Arm64DarwinBlockDescriptorId, Arm64DarwinBlockError,
+    add_darwin_pointer_capture_block_descriptor, load_darwin_stack_block_address,
+    materialize_darwin_pointer_capture_stack_block,
+};
 pub use encode::Arm64EncodingError;
 pub use frame::{
     Arm64FrameLayout, Arm64FrameLayoutBuilder, Arm64FrameLayoutError, Arm64FrameObject,

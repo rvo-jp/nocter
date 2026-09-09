@@ -5,6 +5,7 @@
 //! identities so no backend consumer gains access to checked or target-program storage.
 
 mod asynchronous;
+mod darwin_block;
 mod environment;
 mod import;
 mod primitive;
@@ -13,6 +14,7 @@ mod target;
 mod target_service;
 
 pub use asynchronous::{ReactorInterest, ReadinessDirection};
+pub use darwin_block::DarwinBlockAbiSchema;
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{
     RuntimeDataImport, RuntimeFunctionImport, RuntimeImport, RuntimeImportError,
