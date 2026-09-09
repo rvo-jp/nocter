@@ -15,6 +15,7 @@ pub enum CompileSessionError {
     MissingStandardPackage,
     Primitive(nocter_runtime_contract::PrimitiveBindingError),
     TargetService(nocter_runtime_contract::TargetServiceBindingError),
+    RuntimeStorage(nocter_runtime_contract::RuntimeStorageBindingError),
     TargetUnavailable(nocter_target_program::TargetUnavailable),
     Target(nocter_target_program::TargetProgramError),
 }
@@ -113,6 +114,7 @@ impl CompileSessionError {
             | Self::MissingStandardPackage
             | Self::Primitive(_)
             | Self::TargetService(_)
+            | Self::RuntimeStorage(_)
             | Self::TargetUnavailable(_)
             | Self::Target(_) => &[],
         }
@@ -133,6 +135,7 @@ impl CompileSessionError {
             | Self::MissingStandardPackage
             | Self::Primitive(_)
             | Self::TargetService(_)
+            | Self::RuntimeStorage(_)
             | Self::Target(_) => None,
         }
     }
@@ -153,6 +156,7 @@ impl fmt::Display for CompileSessionError {
             }
             Self::Primitive(error) => error.fmt(formatter),
             Self::TargetService(error) => error.fmt(formatter),
+            Self::RuntimeStorage(error) => error.fmt(formatter),
             Self::TargetUnavailable(error) => error.fmt(formatter),
             Self::Target(error) => error.fmt(formatter),
         }
@@ -171,6 +175,7 @@ impl std::error::Error for CompileSessionError {
             Self::Checking(error) => Some(error),
             Self::Primitive(error) => Some(error),
             Self::TargetService(error) => Some(error),
+            Self::RuntimeStorage(error) => Some(error),
             Self::TargetUnavailable(error) => Some(error),
             Self::Target(error) => Some(error),
         }
@@ -241,6 +246,12 @@ impl From<nocter_runtime_contract::PrimitiveBindingError> for CompileSessionErro
 impl From<nocter_runtime_contract::TargetServiceBindingError> for CompileSessionError {
     fn from(error: nocter_runtime_contract::TargetServiceBindingError) -> Self {
         Self::TargetService(error)
+    }
+}
+
+impl From<nocter_runtime_contract::RuntimeStorageBindingError> for CompileSessionError {
+    fn from(error: nocter_runtime_contract::RuntimeStorageBindingError) -> Self {
+        Self::RuntimeStorage(error)
     }
 }
 

@@ -111,8 +111,15 @@ pub(crate) fn target_from_finalized_program(
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let primitive_bindings = finalized.declarations().primitive_bindings().to_vec();
     let target_service_bindings = finalized.declarations().target_service_bindings().to_vec();
+    let runtime_storage_bindings = finalized.declarations().runtime_storage_bindings().to_vec();
     let checked = finalized.current_branch();
-    finish_semantic_product(unit, primitive_bindings, target_service_bindings, checked)
+    finish_semantic_product(
+        unit,
+        primitive_bindings,
+        target_service_bindings,
+        runtime_storage_bindings,
+        checked,
+    )
 }
 
 pub(crate) fn failure_from_finalization(
@@ -183,6 +190,7 @@ fn finish_semantic_product(
     unit: &DiscoveredUnit,
     primitive_bindings: Vec<nocter_runtime_contract::PrimitiveBinding>,
     target_service_bindings: Vec<nocter_runtime_contract::TargetServiceBinding>,
+    runtime_storage_bindings: Vec<nocter_runtime_contract::RuntimeStorageBinding>,
     checked: CheckedProgramOutput,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let primitives = match nocter_runtime_contract::PrimitiveRegistry::new(primitive_bindings) {
@@ -198,13 +206,27 @@ fn finish_semantic_product(
                 return Err(Box::new(failure_with_checked(error.into(), checked)));
             }
         };
-    finish_checked_target(unit.target(), primitives, target_services, checked)
+    let runtime_storage =
+        match nocter_runtime_contract::RuntimeStorageRegistry::new(runtime_storage_bindings) {
+            Ok(runtime_storage) => runtime_storage,
+            Err(error) => {
+                return Err(Box::new(failure_with_checked(error.into(), checked)));
+            }
+        };
+    finish_checked_target(
+        unit.target(),
+        primitives,
+        target_services,
+        runtime_storage,
+        checked,
+    )
 }
 
 fn finish_checked_target(
     target: nocter_model::CompilationTarget,
     primitives: nocter_runtime_contract::PrimitiveRegistry,
     target_services: nocter_runtime_contract::TargetServiceRegistry,
+    runtime_storage: nocter_runtime_contract::RuntimeStorageRegistry,
     checked: CheckedProgramOutput,
 ) -> Result<CompiledTarget, Box<CompileTargetFailure>> {
     let Some(standard_package) = checked.program().graph().standard_package() else {
@@ -213,13 +235,18 @@ fn finish_checked_target(
             checked,
         )));
     };
-    let snapshot =
-        match ToolchainSnapshot::select(target, standard_package, primitives, target_services) {
-            Ok(snapshot) => snapshot,
-            Err(error) => {
-                return Err(Box::new(failure_with_checked(error.into(), checked)));
-            }
-        };
+    let snapshot = match ToolchainSnapshot::select(
+        target,
+        standard_package,
+        primitives,
+        target_services,
+        runtime_storage,
+    ) {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            return Err(Box::new(failure_with_checked(error.into(), checked)));
+        }
+    };
     let (program, source_index) = match checked.try_map_program(|program| {
         TargetProgram::build_retaining_checked(program, snapshot)
             .map_err(|failure| Box::new((*failure).into_parts()))

@@ -1,8 +1,8 @@
 //! Target-independent socket ownership and synchronous operation policy.
 //!
-//! This package-private module owns descriptor state and retry/readiness policy. The selected
-//! target adapter owns native records, constants, and syscalls; public network errors remain in
-//! `std/net`.
+//! This package-private module owns provider-independent connection ownership plus the descriptor
+//! state and retry/readiness policy retained for UDP. The selected target adapter owns native
+//! records, constants, and syscalls; public network errors remain in `std/net`.
 
 use /internal/os.OSError
 use /internal/net/model.{NetworkAddress, NetworkFamily, ResolverFailure, ResolverNext}
@@ -12,6 +12,9 @@ see ./descriptor.nct
 see ./async_descriptor.nct
 see ./deadline.nct
 see ./resolver.nct
+
+/// Opaque, uniquely owned storage for one compiler-selected stream or listener provider.
+pub(/) primitive type NetworkOwner
 
 pub(/) enum NetworkFailure {
     os(value: OSError)

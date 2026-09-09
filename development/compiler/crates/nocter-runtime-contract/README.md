@@ -20,6 +20,7 @@ public source-level imports.
 - kind-preserving trusted function/data symbol identities and operating-system library identities,
   without concrete loader paths
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
+- closed compiler-owned storage roles and their ABI-specific layouts
 - canonical representation classes
 - fixed async owning-handle and heap-frame-header ABI
 - the fixed Darwin Blocks ABI subset admitted by compiler-owned native adapters
@@ -40,6 +41,8 @@ public source-level imports.
   cannot be selected from user source.
 - A target-service binding owns its closed descriptor; later stages cannot reconstruct the
   descriptor from its role or declaration spelling.
+- A runtime-storage role has one declaration binding and one ABI-selected layout; source cannot
+  supply its fields, size, or alignment.
 - Machine consumers cannot reach declaration or checking storage through this contract.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.
 - The Darwin callback channel carries complete event records. A shared queue, lock, and wake-only

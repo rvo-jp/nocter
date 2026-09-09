@@ -13,7 +13,7 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 
 ## Internal Responsibilities
 
-- stored layout and aggregate representation
+- stored layout, aggregate representation, and ABI-owned opaque runtime-storage layout
 - immutable-static serialization and data-to-data relocation construction
 - call/result ABI classification and transport shared by primitive and imported calls
 - one canonical imported-service identity domain retained independently of MIR
@@ -26,6 +26,8 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 ## Invariants
 
 - Layout is computed once and reused by every machine consumer.
+- Compiler-owned storage consumes the runtime role's ABI layout directly; Machine never projects
+  native fields or repeats their offsets.
 - Machine code cannot reach checking or target-program storage.
 - ABI rules are represented in machine contracts, not duplicated by the ARM64 encoder.
 - Runtime symbols identify already selected items and never drive semantic lookup.

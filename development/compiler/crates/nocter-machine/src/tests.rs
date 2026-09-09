@@ -2194,6 +2194,7 @@ fn lower_selected_fixture(fixture: &CompilerFixture, tests: bool) -> nocter_mir:
         standard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
+        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = checked.into_parts();

@@ -299,6 +299,10 @@ fn define_nominal(
         SurfaceDeclarationKind::Enum => NominalShape::Enum {
             variants: child_variants(types, representation),
         },
+        SurfaceDeclarationKind::PrimitiveType => NominalShape::Struct {
+            copy_declared: false,
+            fields: Box::new([]),
+        },
         _ => return Err(HeaderDefinitionError::InvalidSurface(declaration)),
     };
     let definition = NominalTypeDeclaration::new(

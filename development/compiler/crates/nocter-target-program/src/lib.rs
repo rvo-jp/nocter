@@ -14,6 +14,7 @@ mod instance_key;
 mod primitive_contracts;
 mod program;
 mod runtime_call_contracts;
+mod runtime_storage_contracts;
 mod snapshot;
 mod target_service_contracts;
 mod test_entry;
@@ -47,6 +48,7 @@ use nocter_runtime_contract::{
 pub use primitive_contracts::{PrimitiveContractError, PrimitiveContractRule};
 pub use program::{TargetProgram, TargetProgramError, TargetProgramFailure};
 pub use runtime_call_contracts::UnregisteredRuntimeCall;
+pub use runtime_storage_contracts::RuntimeStorageContractError;
 pub use snapshot::ToolchainSnapshot;
 pub use target_service_contracts::{TargetServiceContractError, TargetServiceContractRule};
 pub use test_entry::{

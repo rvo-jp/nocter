@@ -1,11 +1,11 @@
 //! Physical declaration profile for the standard package bundled with this compiler.
 
 use nocter_compile_input::{
-    BuiltinTypeLocator, ModuleIdentity, PrimitiveRoleLocator, StandardRoleLocator,
-    StructuralAttachmentInput, TargetServiceRoleLocator, ToolchainInput,
+    BuiltinTypeLocator, ModuleIdentity, PrimitiveRoleLocator, RuntimeStorageRoleLocator,
+    StandardRoleLocator, StructuralAttachmentInput, TargetServiceRoleLocator, ToolchainInput,
 };
 use nocter_model::{BuiltinType, PackageIdentity};
-use nocter_runtime_contract::{PrimitiveRole, TargetServiceRole};
+use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRole};
 use nocter_syntax::NodeKind;
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
@@ -22,7 +22,16 @@ pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
     )
     .with_primitive_roles(primitive_roles(package))
     .with_target_service_roles(target_service_roles(package))
+    .with_runtime_storage_roles(runtime_storage_roles(package))
     .with_builtin_types(builtin_types(package))
+}
+
+fn runtime_storage_roles(package: &PackageIdentity) -> Vec<RuntimeStorageRoleLocator> {
+    vec![RuntimeStorageRoleLocator::new(
+        RuntimeStorageRole::NetworkOwner,
+        module(package, &["internal", "net"]),
+        "NetworkOwner",
+    )]
 }
 
 fn builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {

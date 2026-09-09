@@ -2424,6 +2424,7 @@ fn target_fixture(fixture: &CompilerFixture) -> (TargetProgram, nocter_model::Pa
         standard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
+        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = checked.into_parts();

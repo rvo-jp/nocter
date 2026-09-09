@@ -45,6 +45,8 @@ pub enum RuntimeType {
     Fallible(TypeId),
     /// One owning, type-erased deferred computation whose eventual output has this type.
     Async(TypeId),
+    /// One compiler-owned, source-opaque storage representation.
+    Storage(super::RuntimeStorageRole),
     Opaque,
 }
 
@@ -154,6 +156,7 @@ impl RuntimeTypeTableBuilder {
                 | RuntimeType::Aggregate
                 | RuntimeType::Closure
                 | RuntimeType::Callable
+                | RuntimeType::Storage(_)
                 | RuntimeType::Opaque => None,
             };
             if let Some(referenced) = referenced

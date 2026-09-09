@@ -14,7 +14,8 @@ checking decisions.
 
 ## Internal Responsibilities
 
-- target capabilities, primitive completeness, and trusted target-service ABI validation
+- target capabilities, primitive completeness, trusted target-service ABI validation, and
+  compiler-owned runtime-storage validation
 - package target and entry validation
 - executable and test root selection
 - concrete instance, closure, and drop reachability
@@ -29,6 +30,8 @@ checking decisions.
 - Every concrete dispatch comes from checking's selected semantic authority.
 - A target-service dispatch retains the catalog-owned target, calling convention, import, and ABI
   classes; executable closure never derives them from a declaration name.
+- Runtime storage is accepted only from a toolchain-selected, fieldless, unique nominal declaration
+  in the standard package; its physical layout remains outside semantic representation.
 - Executable specialization owns key construction; a consumer cannot pair a semantic identity with
   an unrelated specialization type store.
 - Reachability uses semantic identities, never runtime symbol spelling.

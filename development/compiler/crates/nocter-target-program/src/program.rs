@@ -6,6 +6,7 @@ use nocter_model::{CompilationTarget, PackageId};
 use crate::ToolchainSnapshot;
 use crate::primitive_contracts::validate_primitive_contracts;
 use crate::runtime_call_contracts::validate_runtime_call_coverage;
+use crate::runtime_storage_contracts::validate_runtime_storage;
 use crate::target_service_contracts::validate_target_services;
 
 /// The complete selected-target success boundary shared by check, build, and run.
@@ -86,6 +87,8 @@ fn validate_target_program(
         .map_err(TargetProgramError::Primitive)?;
     validate_target_services(graph, checked.types(), toolchain)
         .map_err(TargetProgramError::TargetService)?;
+    validate_runtime_storage(graph, toolchain.runtime_storage())
+        .map_err(TargetProgramError::RuntimeStorage)?;
     validate_runtime_call_coverage(graph, toolchain)
         .map_err(TargetProgramError::RuntimeCallCoverage)?;
     Ok(())
@@ -119,6 +122,7 @@ pub enum TargetProgramError {
     },
     Primitive(crate::PrimitiveContractError),
     TargetService(crate::TargetServiceContractError),
+    RuntimeStorage(crate::RuntimeStorageContractError),
     RuntimeCallCoverage(crate::UnregisteredRuntimeCall),
 }
 
@@ -137,6 +141,7 @@ impl fmt::Display for TargetProgramError {
             ),
             Self::Primitive(error) => error.fmt(formatter),
             Self::TargetService(error) => error.fmt(formatter),
+            Self::RuntimeStorage(error) => error.fmt(formatter),
             Self::RuntimeCallCoverage(error) => error.fmt(formatter),
         }
     }
@@ -147,6 +152,7 @@ impl std::error::Error for TargetProgramError {
         match self {
             Self::Primitive(error) => Some(error),
             Self::TargetService(error) => Some(error),
+            Self::RuntimeStorage(error) => Some(error),
             Self::RuntimeCallCoverage(error) => Some(error),
             Self::TargetMismatch { .. }
             | Self::MissingStandardPackage

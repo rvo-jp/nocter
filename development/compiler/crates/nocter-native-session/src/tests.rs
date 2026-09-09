@@ -8,7 +8,7 @@ use nocter_filesystem::{SourceOverlay, SourceOverride};
 use nocter_model::CompilationTarget;
 use nocter_model::PackageIdentity;
 use nocter_package::{ResolvedPackageGraph, ResolvedPackageSpec};
-use nocter_runtime_contract::PrimitiveRole;
+use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole};
 use nocter_standard_profile::bundled_standard_toolchain;
 
 use super::{
@@ -817,6 +817,14 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
     assert_eq!(
         compiled.program().toolchain().primitives().bindings().len(),
         PrimitiveRole::ALL.len()
+    );
+    assert!(
+        compiled
+            .program()
+            .toolchain()
+            .runtime_storage()
+            .declaration(RuntimeStorageRole::NetworkOwner)
+            .is_some()
     );
     assert_eq!(
         compiled.program().checked().bodies().len(),

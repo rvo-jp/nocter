@@ -33,6 +33,9 @@ does not lower declarations or interpret body semantics.
 - Package-boundary validation extends and reuses the graph's exact root catalog; it does not probe
   the same directory through a second source authority.
 - Later stages receive the closed graph and cannot rediscover files.
+- Every declaration-bearing toolchain locator, including compiler-owned runtime storage, makes its
+  module an explicit discovery root; lowering can therefore require each selected declaration
+  without relying on an unrelated authored import.
 - The closed compile input is constructed once with the discovery snapshot. Repeated semantic
   demands receive the same input and shared source/syntax ownership, never a reconstructed graph.
 - A syntax provider cannot change discovery topology or attach a tree from another source identity.

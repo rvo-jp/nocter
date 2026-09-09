@@ -258,9 +258,11 @@ fn prepare_compile_unit_declarations_from<'syntax>(
         ))?;
     let toolchain = resolve_toolchain_surface(&surface, toolchain_input)
         .map_err(DeclarationLoweringError::Toolchain)?;
-    if let Err(error) =
-        crate::surface::validate_builtin_type_authority(&surface, toolchain.builtin_types())
-    {
+    if let Err(error) = crate::surface::validate_primitive_type_authority(
+        &surface,
+        toolchain.builtin_types(),
+        toolchain.runtime_storage_roles(),
+    ) {
         return match SurfaceDiagnostic::project(error, input) {
             Ok(diagnostic) => Err(DeclarationLoweringError::Surface(diagnostic)),
             Err(internal) => Err(DeclarationLoweringError::InternalSurface(internal)),

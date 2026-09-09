@@ -964,6 +964,15 @@ fn validate_toolchain(
             ));
         }
     }
+    let mut runtime_storage_kinds = BTreeSet::new();
+    for role in toolchain.runtime_storage_roles() {
+        validate_toolchain_module(toolchain, role.module())?;
+        if !runtime_storage_kinds.insert(role.role()) {
+            return Err(DiscoveryError::Toolchain(
+                ToolchainDiscoveryError::DuplicateRuntimeStorageRole(role.role()),
+            ));
+        }
+    }
     let mut builtin_kinds = BTreeSet::new();
     for builtin in toolchain.builtin_types() {
         validate_toolchain_module(toolchain, builtin.module())?;
@@ -1019,6 +1028,12 @@ fn initial_work(
     pending.extend(
         toolchain
             .target_service_roles()
+            .iter()
+            .map(|role| Work::Module(role.module().clone())),
+    );
+    pending.extend(
+        toolchain
+            .runtime_storage_roles()
             .iter()
             .map(|role| Work::Module(role.module().clone())),
     );

@@ -3,7 +3,7 @@ use std::fmt;
 use nocter_compile_input::ToolchainInput;
 use nocter_declarations::ProgramBuildError;
 use nocter_model::{BuiltinType, PackageIdentity};
-use nocter_runtime_contract::{PrimitiveRole, TargetServiceRole};
+use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRole};
 use nocter_syntax::NodeId;
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
@@ -29,6 +29,8 @@ pub enum ToolchainError {
     InvalidStandardDeclaration(StandardDeclarationRole),
     MissingPrimitiveDeclaration(PrimitiveRole),
     DuplicatePrimitiveDeclaration(PrimitiveRole),
+    MissingRuntimeStorageDeclaration(RuntimeStorageRole),
+    DuplicateRuntimeStorageDeclaration(RuntimeStorageRole),
     MissingTargetServiceDeclaration(TargetServiceRole),
     DuplicateTargetServiceDeclaration(TargetServiceRole),
     InconsistentImport(NodeId),
@@ -94,6 +96,14 @@ impl fmt::Display for ToolchainError {
                 formatter,
                 "toolchain primitive role {role:?} has multiple declarations"
             ),
+            Self::MissingRuntimeStorageDeclaration(role) => write!(
+                formatter,
+                "toolchain runtime storage role {role:?} has no declaration"
+            ),
+            Self::DuplicateRuntimeStorageDeclaration(role) => write!(
+                formatter,
+                "toolchain runtime storage role {role:?} has multiple declarations"
+            ),
             Self::MissingTargetServiceDeclaration(role) => write!(
                 formatter,
                 "toolchain target-service role {role:?} has no declaration"
@@ -152,6 +162,22 @@ pub(crate) struct ResolvedTargetServiceRole {
     declaration: SurfaceDeclarationId,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ResolvedRuntimeStorageRole {
+    role: RuntimeStorageRole,
+    declaration: SurfaceDeclarationId,
+}
+
+impl ResolvedRuntimeStorageRole {
+    pub(crate) const fn role(self) -> RuntimeStorageRole {
+        self.role
+    }
+
+    pub(crate) const fn declaration(self) -> SurfaceDeclarationId {
+        self.declaration
+    }
+}
+
 impl ResolvedTargetServiceRole {
     pub(crate) const fn role(self) -> TargetServiceRole {
         self.role
@@ -191,6 +217,7 @@ pub(crate) struct ResolvedToolchainInput {
     standard_roles: Box<[ResolvedStandardRole]>,
     primitive_roles: Box<[ResolvedPrimitiveRole]>,
     target_service_roles: Box<[ResolvedTargetServiceRole]>,
+    runtime_storage_roles: Box<[ResolvedRuntimeStorageRole]>,
     builtin_types: Box<[ResolvedBuiltinType]>,
 }
 
@@ -219,6 +246,10 @@ impl ResolvedToolchainInput {
         &self.target_service_roles
     }
 
+    pub(crate) fn runtime_storage_roles(&self) -> &[ResolvedRuntimeStorageRole] {
+        &self.runtime_storage_roles
+    }
+
     pub(crate) fn builtin_types(&self) -> &[ResolvedBuiltinType] {
         &self.builtin_types
     }
@@ -233,6 +264,7 @@ pub(crate) fn resolve_toolchain_surface(
     let builtin_types = resolve_builtin_types(surface, input)?;
     let primitive_roles = resolve_primitive_roles(surface, input)?;
     let target_service_roles = resolve_target_service_roles(surface, input)?;
+    let runtime_storage_roles = resolve_runtime_storage_roles(surface, input)?;
     Ok(ResolvedToolchainInput {
         standard_package: input.standard_package().clone(),
         prelude: input.prelude().clone(),
@@ -244,6 +276,7 @@ pub(crate) fn resolve_toolchain_surface(
         standard_roles: standard_roles.into_boxed_slice(),
         primitive_roles: primitive_roles.into_boxed_slice(),
         target_service_roles: target_service_roles.into_boxed_slice(),
+        runtime_storage_roles: runtime_storage_roles.into_boxed_slice(),
         builtin_types: builtin_types.into_boxed_slice(),
     })
 }
@@ -271,6 +304,12 @@ fn validate_locator_modules(input: &ToolchainInput) -> Result<(), ToolchainError
                 .iter()
                 .map(nocter_compile_input::TargetServiceRoleLocator::module),
         )
+        .chain(
+            input
+                .runtime_storage_roles()
+                .iter()
+                .map(nocter_compile_input::RuntimeStorageRoleLocator::module),
+        )
     {
         if module.package() != input.standard_package() {
             return Err(ToolchainError::DeclarationModuleOutsideStandardPackage(
@@ -279,6 +318,34 @@ fn validate_locator_modules(input: &ToolchainInput) -> Result<(), ToolchainError
         }
     }
     Ok(())
+}
+
+fn resolve_runtime_storage_roles(
+    surface: &DeclarationSurface<'_>,
+    input: &ToolchainInput,
+) -> Result<Vec<ResolvedRuntimeStorageRole>, ToolchainError> {
+    input
+        .runtime_storage_roles()
+        .iter()
+        .map(|locator| {
+            let matches =
+                matching_declarations(surface, locator.module(), locator.name(), |item| {
+                    item.kind() == SurfaceDeclarationKind::PrimitiveType
+                });
+            match matches.as_slice() {
+                [declaration] => Ok(ResolvedRuntimeStorageRole {
+                    role: locator.role(),
+                    declaration: *declaration,
+                }),
+                [] => Err(ToolchainError::MissingRuntimeStorageDeclaration(
+                    locator.role(),
+                )),
+                _ => Err(ToolchainError::DuplicateRuntimeStorageDeclaration(
+                    locator.role(),
+                )),
+            }
+        })
+        .collect()
 }
 
 fn resolve_standard_roles(

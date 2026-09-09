@@ -46,14 +46,28 @@ pub(super) fn close_type_representations(
             TypeKind::Nominal {
                 definition,
                 arguments,
-            } => Some(close_nominal(
-                target,
-                resolver,
-                ty,
-                definition,
-                &arguments,
-                &mut pending,
-            )?),
+            } => {
+                if target
+                    .toolchain()
+                    .runtime_storage()
+                    .role(definition)
+                    .is_some()
+                {
+                    if !arguments.is_empty() {
+                        return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
+                    }
+                    None
+                } else {
+                    Some(close_nominal(
+                        target,
+                        resolver,
+                        ty,
+                        definition,
+                        &arguments,
+                        &mut pending,
+                    )?)
+                }
+            }
             TypeKind::Opaque {
                 definition,
                 arguments,

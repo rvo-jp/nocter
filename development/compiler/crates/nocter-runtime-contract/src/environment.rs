@@ -30,6 +30,13 @@ impl RuntimeEnvironment {
         abi: RuntimeAbiIdentity,
     ) -> Result<Self, RuntimeEnvironmentError> {
         validate_representations(&types, &type_representations)?;
+        for (ty, kind) in types.iter() {
+            if let RuntimeType::Storage(role) = kind
+                && role.layout(abi).is_none()
+            {
+                return Err(RuntimeEnvironmentError::UnsupportedStorage { ty, role: *role });
+            }
+        }
         Ok(Self {
             types,
             type_representations,
@@ -166,8 +173,15 @@ pub enum RuntimeEnvironmentError {
     UnexpectedRepresentation(TypeId),
     UnknownRepresentationOwner(TypeId),
     RepresentationKindMismatch(TypeId),
-    UnknownRepresentationType { owner: TypeId, member: TypeId },
+    UnknownRepresentationType {
+        owner: TypeId,
+        member: TypeId,
+    },
     DuplicateRepresentationMember(TypeId),
+    UnsupportedStorage {
+        ty: TypeId,
+        role: crate::RuntimeStorageRole,
+    },
 }
 
 impl std::fmt::Display for RuntimeEnvironmentError {

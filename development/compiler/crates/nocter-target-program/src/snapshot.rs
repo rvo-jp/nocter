@@ -1,5 +1,5 @@
 use nocter_model::{CompilationTarget, PackageId};
-use nocter_runtime_contract::TargetServiceRegistry;
+use nocter_runtime_contract::{RuntimeStorageRegistry, TargetServiceRegistry};
 
 use crate::capabilities::capabilities_for;
 use crate::{
@@ -20,6 +20,7 @@ pub struct ToolchainSnapshot {
     standard_package: PackageId,
     primitives: PrimitiveRegistry,
     target_services: TargetServiceRegistry,
+    runtime_storage: RuntimeStorageRegistry,
 }
 
 impl ToolchainSnapshot {
@@ -34,6 +35,7 @@ impl ToolchainSnapshot {
         standard_package: PackageId,
         primitives: PrimitiveRegistry,
         target_services: TargetServiceRegistry,
+        runtime_storage: RuntimeStorageRegistry,
     ) -> Result<Self, TargetUnavailable> {
         let (backend, abi, executable_writer) = capabilities_for(target)?;
         Ok(Self {
@@ -44,6 +46,7 @@ impl ToolchainSnapshot {
             standard_package,
             primitives,
             target_services,
+            runtime_storage,
         })
     }
 
@@ -81,6 +84,11 @@ impl ToolchainSnapshot {
     pub const fn target_services(&self) -> &TargetServiceRegistry {
         &self.target_services
     }
+
+    #[must_use]
+    pub const fn runtime_storage(&self) -> &RuntimeStorageRegistry {
+        &self.runtime_storage
+    }
 }
 
 #[cfg(test)]
@@ -89,7 +97,7 @@ mod tests {
     use nocter_model::{CompilationTarget, SymbolTable};
     use nocter_runtime_contract::{
         PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, RuntimeAbiIdentity,
-        TargetServiceBinding, TargetServiceRegistry, TargetServiceRole,
+        RuntimeStorageRegistry, TargetServiceBinding, TargetServiceRegistry, TargetServiceRole,
     };
 
     use crate::{ExecutableWriterIdentity, TargetBackendIdentity, ToolchainSnapshot};
@@ -131,6 +139,7 @@ mod tests {
             standard_package(),
             complete_registry(),
             complete_target_services(),
+            RuntimeStorageRegistry::empty(),
         )
         .unwrap();
         assert_eq!(snapshot.backend(), TargetBackendIdentity::Arm64V1);
@@ -154,6 +163,7 @@ mod tests {
                 standard_package(),
                 complete_registry(),
                 complete_target_services(),
+                RuntimeStorageRegistry::empty(),
             )
             .unwrap_err();
             assert_eq!(error.target(), target);

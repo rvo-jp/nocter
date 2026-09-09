@@ -14,6 +14,7 @@ mod environment;
 mod import;
 mod primitive;
 mod representation;
+mod runtime_storage;
 mod target;
 mod target_service;
 
@@ -44,6 +45,10 @@ pub use primitive::{
 pub use representation::{
     RuntimeCaptureRepresentation, RuntimeFieldRepresentation, RuntimePayloadRepresentation,
     RuntimeTypeRepresentation, RuntimeTypeRepresentationTable, RuntimeVariantRepresentation,
+};
+pub use runtime_storage::{
+    RuntimeStorageBinding, RuntimeStorageBindingError, RuntimeStorageLayout,
+    RuntimeStorageRegistry, RuntimeStorageRole,
 };
 pub use target_service::{
     TargetServiceBinding, TargetServiceBindingError, TargetServiceCallingConvention,

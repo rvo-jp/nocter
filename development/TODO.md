@@ -9,9 +9,9 @@ plain TCP surface onto the closed native adapter foundation.
 
 ## Next Work
 
-Connect the production plain-connection constructor and frozen owner lifecycle to the Machine
-primitive boundary, then implement receive, send, local/remote address, cancellation, and release
-without exposing native handles in source declarations. Migrate the public plain TCP stream only
+Connect the production plain-connection constructor and frozen owner lifecycle to primitive calls
+over the completed `NetworkOwner` runtime-storage role, then implement receive, send, local/remote
+address, cancellation, and release. Migrate the public plain TCP stream only
 after equivalent loopback, timeout, transfer, cancellation, and stable-error evidence passes; then
 adopt accepted connections and migrate listeners. Remove descriptor-backed TCP only after the
 replacement is qualified. Keep UDP on its descriptor substrate. Keep native objects and callbacks

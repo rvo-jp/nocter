@@ -397,6 +397,18 @@ impl LayoutBuilder<'_> {
     ) -> Result<MachineLayout, MachineLayoutError> {
         match kind {
             RuntimeType::Primitive(primitive) => self.primitive(ty, *primitive),
+            RuntimeType::Storage(role) => {
+                let storage = role
+                    .layout(self.program.runtime_abi())
+                    .ok_or(MachineLayoutError::UnsupportedRuntimeStorage(ty))?;
+                Ok(MachineLayout {
+                    size: storage.size(),
+                    alignment: storage.alignment(),
+                    kind: MachineLayoutKind::Struct {
+                        fields: Box::new([]),
+                    },
+                })
+            }
             RuntimeType::Pointer(_) | RuntimeType::Async(_) => Ok(self.pointer()),
             RuntimeType::Borrow { referent, .. } => {
                 let referent = self
@@ -851,6 +863,7 @@ pub enum MachineLayoutError {
     RecursiveValue(TypeId),
     LayoutOverflow(TypeId),
     InvalidAlignment { ty: TypeId, alignment: u64 },
+    UnsupportedRuntimeStorage(TypeId),
 }
 
 impl fmt::Display for MachineLayoutError {

@@ -561,9 +561,10 @@ fn collect_declaration_surface_with<'syntax>(
     })
 }
 
-pub(crate) fn validate_builtin_type_authority(
+pub(crate) fn validate_primitive_type_authority(
     surface: &DeclarationSurface<'_>,
     builtins: &[crate::toolchain::ResolvedBuiltinType],
+    storage: &[crate::toolchain::ResolvedRuntimeStorageRole],
 ) -> Result<(), SurfaceError> {
     if let Some(declaration) =
         surface
@@ -574,7 +575,10 @@ pub(crate) fn validate_builtin_type_authority(
                 (declaration.kind() == SurfaceDeclarationKind::PrimitiveType
                     && !builtins.iter().any(|builtin| {
                         builtin.declaration() == SurfaceDeclarationId::from_index(index)
-                    }))
+                    })
+                    && !storage
+                        .iter()
+                        .any(|role| role.declaration() == SurfaceDeclarationId::from_index(index)))
                 .then_some(declaration)
             })
     {

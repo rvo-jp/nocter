@@ -1806,6 +1806,7 @@ fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
         standard_package,
         primitive_registry(checked.program()),
         nocter_runtime_contract::TargetServiceRegistry::empty(),
+        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = checked.into_parts();

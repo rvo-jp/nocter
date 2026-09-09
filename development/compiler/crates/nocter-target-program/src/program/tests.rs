@@ -6,7 +6,10 @@ use nocter_checking::{
 use nocter_declaration_lowering::lower_compile_unit_declarations;
 use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_model::{BuiltinType, CompilationTarget, TypeKind};
-use nocter_runtime_contract::{PrimitiveBinding, PrimitiveRegistry, PrimitiveRole};
+use nocter_runtime_contract::{
+    PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, RuntimeStorageBinding,
+    RuntimeStorageRegistry, RuntimeStorageRole,
+};
 use nocter_test_support::CompilerFixture as Fixture;
 
 use super::TargetProgram;
@@ -34,6 +37,7 @@ fn complete_closed_registry_constructs_a_target_program() {
         standard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
+        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = output.into_parts();
@@ -72,6 +76,7 @@ fn target_rejection_returns_the_unchanged_checked_program() {
         nonstandard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
+        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
     )
     .unwrap();
 
@@ -91,6 +96,51 @@ fn target_rejection_returns_the_unchanged_checked_program() {
         Some(standard_package)
     );
     assert!(!checked.program().bodies().is_empty());
+}
+
+#[test]
+fn target_rejects_a_runtime_storage_binding_to_an_ordinary_source_type() {
+    let fixture =
+        Fixture::with_app("struct Impostor { value: i32 }\nfunc main(): void { return }\n");
+    let input = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    let output = check_prepared_program(&input, prepared).unwrap();
+    let graph = output.program().graph();
+    let standard_package = graph.standard_package().unwrap();
+    let impostor = graph
+        .declarations()
+        .nominal_types()
+        .iter()
+        .find_map(|(id, declaration)| {
+            (graph.symbols().spelling(declaration.name()) == Some("Impostor")).then_some(id)
+        })
+        .unwrap();
+    let registry = registry_for(output.program());
+    let storage = RuntimeStorageRegistry::new([RuntimeStorageBinding::new(
+        RuntimeStorageRole::NetworkOwner,
+        impostor,
+    )])
+    .unwrap();
+    let snapshot = ToolchainSnapshot::select(
+        CompilationTarget::Arm64Darwin,
+        standard_package,
+        registry,
+        nocter_runtime_contract::TargetServiceRegistry::empty(),
+        storage,
+    )
+    .unwrap();
+    let (checked, _) = output.into_parts();
+
+    let error = TargetProgram::build(checked, snapshot).unwrap_err();
+    assert!(matches!(
+        error,
+        super::TargetProgramError::RuntimeStorage(
+            crate::RuntimeStorageContractError::InvalidDeclaration(declaration)
+        ) if declaration == impostor
+    ));
 }
 
 #[test]
@@ -693,6 +743,7 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
         standard_package,
         PrimitiveRegistry::new(bindings).unwrap(),
         nocter_runtime_contract::TargetServiceRegistry::empty(),
+        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = output.into_parts();
@@ -727,6 +778,7 @@ fn build_target_program(fixture: &Fixture) -> TargetProgram {
         standard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
+        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
     )
     .unwrap();
     let (checked, _) = output.into_parts();

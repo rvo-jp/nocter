@@ -159,6 +159,8 @@ const fn classify(error: &SurfaceError) -> Option<(SurfaceRule, NodeId)> {
 
 #[cfg(test)]
 mod tests {
+    use nocter_compile_input::RuntimeStorageRoleLocator;
+    use nocter_runtime_contract::RuntimeStorageRole;
     use nocter_source::{SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
 
@@ -287,6 +289,53 @@ mod tests {
         assert_eq!(diagnostic.rule(), SurfaceRule::UnauthorizedPrimitiveType);
         assert_eq!(diagnostic.source().code(), "E0235");
         assert_eq!(diagnostic.source().primary().source(), root_id);
+    }
+
+    #[test]
+    fn selected_runtime_storage_type_is_a_nominal_semantic_identity() {
+        let mut sources = SourceMap::new();
+        let manifest_id = add_source(&mut sources, "/app/index.nct", "");
+        let root_id = add_source(
+            &mut sources,
+            "/app/index.nct",
+            "primitive type NetworkOwner\n",
+        );
+        let manifest = parse_source(&sources, manifest_id, ParseGoal::SourceFile);
+        let root = parse_source(&sources, root_id, ParseGoal::SourceFile);
+        let module = ModuleIdentity::new(PackageIdentity::new("workspace:app"), Vec::<&str>::new());
+        let input = compile_unit(
+            &sources,
+            &manifest,
+            vec![ModuleSourceInput::new(
+                "/app/index.nct",
+                ModuleSourceKind::Root,
+                &root,
+            )],
+            Vec::new(),
+        )
+        .with_toolchain(
+            crate::test_support::empty_toolchain(module.clone()).with_runtime_storage_roles(vec![
+                RuntimeStorageRoleLocator::new(
+                    RuntimeStorageRole::NetworkOwner,
+                    module,
+                    "NetworkOwner",
+                ),
+            ]),
+        );
+
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let [binding] = lowered.runtime_storage_bindings() else {
+            panic!("runtime storage binding was not retained");
+        };
+        assert_eq!(binding.role(), RuntimeStorageRole::NetworkOwner);
+        assert!(
+            lowered
+                .program()
+                .declarations()
+                .nominal_types()
+                .get(binding.declaration())
+                .is_some()
+        );
     }
 
     #[test]

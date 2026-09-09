@@ -5,7 +5,7 @@
 //! consumers treat every identity and edge as immutable input.
 
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity, PackageTargetKind};
-use nocter_runtime_contract::{PrimitiveRole, TargetServiceRole};
+use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRole};
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree};
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
@@ -158,6 +158,44 @@ pub struct TargetServiceRoleLocator {
     role: TargetServiceRole,
     module: ModuleIdentity,
     name: Box<str>,
+}
+
+/// Semantic declaration selected for one compiler-owned runtime storage representation.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct RuntimeStorageRoleLocator {
+    role: RuntimeStorageRole,
+    module: ModuleIdentity,
+    name: Box<str>,
+}
+
+impl RuntimeStorageRoleLocator {
+    #[must_use]
+    pub fn new(
+        role: RuntimeStorageRole,
+        module: ModuleIdentity,
+        name: impl Into<Box<str>>,
+    ) -> Self {
+        Self {
+            role,
+            module,
+            name: name.into(),
+        }
+    }
+
+    #[must_use]
+    pub const fn role(&self) -> RuntimeStorageRole {
+        self.role
+    }
+
+    #[must_use]
+    pub const fn module(&self) -> &ModuleIdentity {
+        &self.module
+    }
+
+    #[must_use]
+    pub const fn name(&self) -> &str {
+        &self.name
+    }
 }
 
 impl TargetServiceRoleLocator {
@@ -319,6 +357,7 @@ pub struct ToolchainInput {
     standard_roles: Vec<StandardRoleLocator>,
     primitive_roles: Vec<PrimitiveRoleLocator>,
     target_service_roles: Vec<TargetServiceRoleLocator>,
+    runtime_storage_roles: Vec<RuntimeStorageRoleLocator>,
     builtin_types: Vec<BuiltinTypeLocator>,
 }
 
@@ -337,6 +376,7 @@ impl ToolchainInput {
             standard_roles,
             primitive_roles: Vec::new(),
             target_service_roles: Vec::new(),
+            runtime_storage_roles: Vec::new(),
             builtin_types: Vec::new(),
         }
     }
@@ -372,6 +412,11 @@ impl ToolchainInput {
     }
 
     #[must_use]
+    pub fn runtime_storage_roles(&self) -> &[RuntimeStorageRoleLocator] {
+        &self.runtime_storage_roles
+    }
+
+    #[must_use]
     pub fn builtin_types(&self) -> &[BuiltinTypeLocator] {
         &self.builtin_types
     }
@@ -391,6 +436,12 @@ impl ToolchainInput {
     #[must_use]
     pub fn with_target_service_roles(mut self, roles: Vec<TargetServiceRoleLocator>) -> Self {
         self.target_service_roles = roles;
+        self
+    }
+
+    #[must_use]
+    pub fn with_runtime_storage_roles(mut self, roles: Vec<RuntimeStorageRoleLocator>) -> Self {
+        self.runtime_storage_roles = roles;
         self
     }
 

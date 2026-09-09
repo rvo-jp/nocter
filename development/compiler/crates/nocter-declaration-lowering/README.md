@@ -9,8 +9,8 @@ contracts, and publish accepted or explicitly recoverable declaration evidence.
 
 The crate consumes syntax, compile-unit topology, target selection, toolchain/runtime contracts, and
 model construction authority. It produces `DeclarationProgram`, `AcceptedDeclarationProgram`, and
-one source-neutral `ReusableDeclarations` result containing the accepted authority, primitive and
-trusted target-service bindings, and `FrontendProjectionRecipe`. The recipe materializes frontend
+one source-neutral `ReusableDeclarations` result containing the accepted authority, primitive,
+trusted target-service, and runtime-storage bindings, and `FrontendProjectionRecipe`. The recipe materializes frontend
 bindings, diagnostic origins, and source projection together for one current syntax generation. It
 does not check callable bodies.
 
@@ -27,7 +27,8 @@ does not check callable bodies.
 - one-way binding of authored callable guarantees into declaration and structural-type contracts
 - construction-time binding of inherited associated names before declaration capability freeze
 - declaration surfaces and contract/definition joins
-- primitive, trusted target-service, builtin, standard-role, and package-target projection
+- primitive, trusted target-service, runtime-storage, builtin, standard-role, and package-target
+  projection
 - declaration recovery and diagnostic classification
 
 ## Invariants
@@ -38,6 +39,8 @@ does not check callable bodies.
   declaration scheduler.
 - Target directives, primitive roles, target-service roles, and standard roles are selected once
   upstream or here.
+- A selected non-builtin primitive type becomes one opaque nominal identity and one runtime-storage
+  binding; lowering does not invent or expose a field representation for it.
 - `SourceIndex` is output projection, never semantic input.
 - A projection recipe contains semantic identities and declaration-surface locators, never
   `SourceId`, `NodeId`, token ranges, documentation text, or body-local syntax.

@@ -186,3 +186,10 @@ temporary is released in reverse order. On success the endpoint and parameters a
 immediately while the connection, queue, and channel move into the record. A native generated image
 executes this production constructor and the complete cancellation fence, so qualification cannot
 drift into a second connection-creation implementation.
+
+The source-to-Machine boundary names this storage through the private standard declaration
+`primitive type NetworkOwner`. Declaration lowering binds that exact nominal identity once to the
+closed `NetworkOwner` runtime-storage role. Target closure removes its empty source representation,
+and Machine obtains size and alignment only from the ABI contract above. Standard source therefore
+controls visibility and unique ownership while it cannot restate, construct, or project any of the
+five native fields.

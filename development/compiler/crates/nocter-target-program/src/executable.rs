@@ -707,14 +707,16 @@ fn build_runtime_environment(
     types: &TypeStore,
     representations: RuntimeTypeRepresentationTable,
     abi: nocter_runtime_contract::RuntimeAbiIdentity,
+    runtime_storage: &nocter_runtime_contract::RuntimeStorageRegistry,
 ) -> Result<RuntimeEnvironment, ExecutableProgramError> {
-    let runtime_types = runtime_type_table(types)?;
+    let runtime_types = runtime_type_table(types, runtime_storage)?;
     RuntimeEnvironment::new(runtime_types, representations, abi)
         .map_err(ExecutableProgramError::RuntimeEnvironment)
 }
 
 fn runtime_type_table(
     types: &TypeStore,
+    runtime_storage: &nocter_runtime_contract::RuntimeStorageRegistry,
 ) -> Result<nocter_runtime_contract::RuntimeTypeTable, ExecutableProgramError> {
     use nocter_model::{BuiltinType, TypeKind};
     use nocter_runtime_contract::{RuntimePrimitive, RuntimeType, RuntimeTypeTableBuilder};
@@ -767,7 +769,19 @@ fn runtime_type_table(
                 key: *key,
                 value: *value,
             },
-            TypeKind::Nominal { .. } => RuntimeType::Aggregate,
+            TypeKind::Nominal {
+                definition,
+                arguments,
+            } => {
+                if let Some(role) = runtime_storage.role(*definition) {
+                    if !arguments.is_empty() {
+                        return Err(ExecutableProgramError::InvalidTypeRepresentation(ty));
+                    }
+                    RuntimeType::Storage(role)
+                } else {
+                    RuntimeType::Aggregate
+                }
+            }
             TypeKind::Closure { .. } => RuntimeType::Closure,
             TypeKind::Callable(_) => RuntimeType::Callable,
             TypeKind::Optional(payload) => RuntimeType::Optional(*payload),

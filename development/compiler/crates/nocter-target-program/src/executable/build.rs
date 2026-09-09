@@ -49,6 +49,7 @@ pub(super) fn build_executable(
         &frozen.types,
         frozen.type_representations,
         target.toolchain().abi(),
+        target.toolchain().runtime_storage(),
     )?;
     let semantic_environment =
         super::semantic_environment::ExecutableSemanticEnvironment::freeze(target);
@@ -111,6 +112,7 @@ pub(super) fn build_selected_tests(
         &frozen.types,
         frozen.type_representations,
         target.toolchain().abi(),
+        target.toolchain().runtime_storage(),
     )?;
     let semantic_environment =
         super::semantic_environment::ExecutableSemanticEnvironment::freeze(target);

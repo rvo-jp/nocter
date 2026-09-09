@@ -4,12 +4,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{
     BuiltinTypeLocator, ModuleIdentity, ModuleSourceKind, PackageMode, PrimitiveRoleLocator,
-    StandardRoleLocator, ToolchainInput,
+    RuntimeStorageRoleLocator, StandardRoleLocator, ToolchainInput,
 };
 use nocter_filesystem::{DocumentVersion, OpenDocument, SourceOverlay};
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
 use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
-use nocter_runtime_contract::PrimitiveRole;
+use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole};
 use nocter_standard_profile::bundled_standard_toolchain;
 use nocter_syntax::{DirectSourceSyntax, NodeKind};
 use nocter_toolchain_contract::StandardDeclarationRole;
@@ -214,6 +214,49 @@ fn discovery_retains_a_primitive_role_locator_without_selecting_syntax() {
             .toolchain()
             .unwrap()
             .primitive_roles()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn runtime_storage_locator_makes_its_declaration_module_reachable() {
+    let tree = TempTree::new();
+    tree.source(
+        "std/index.nct",
+        "#package: { name: \"std\", version: \"0.0.0\", }\n",
+    );
+    tree.source("std/index.nct", "//! Standard root.\n");
+    tree.source("std/storage/index.nct", "primitive type NetworkOwner\n");
+    let identity = PackageIdentity::new("toolchain:std");
+    let standard = package("toolchain:std", "std", &tree.path().join("std"))
+        .with_standard_dependency(identity.clone());
+    let storage_module = ModuleIdentity::new(identity.clone(), ["storage"]);
+    let locator = RuntimeStorageRoleLocator::new(
+        RuntimeStorageRole::NetworkOwner,
+        storage_module.clone(),
+        "NetworkOwner",
+    );
+
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph(vec![standard]),
+        vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
+        minimal_toolchain("toolchain:std").with_runtime_storage_roles(vec![locator]),
+    ))
+    .unwrap();
+
+    assert!(
+        unit.modules()
+            .iter()
+            .any(|module| module.identity() == &storage_module)
+    );
+    assert_eq!(
+        unit.compile_input()
+            .unwrap()
+            .toolchain()
+            .unwrap()
+            .runtime_storage_roles()
             .len(),
         1
     );

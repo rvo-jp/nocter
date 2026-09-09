@@ -62,7 +62,7 @@ pub struct LoweredDeclarations {
 #[derive(Debug)]
 pub struct ReusableDeclarations {
     program: AcceptedDeclarationProgram,
-    runtime_bindings: crate::runtime_bindings::RuntimeCallBindings,
+    runtime_bindings: crate::runtime_bindings::RuntimeBindings,
     module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
     projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
     body_identities: Box<[crate::ReusableBodyIdentity]>,
@@ -106,7 +106,7 @@ impl LoweredDeclarations {
         program: AcceptedDeclarationProgram,
         frontend_bindings: FrontendBindings,
         source_index: SourceIndex,
-        runtime_bindings: crate::runtime_bindings::RuntimeCallBindings,
+        runtime_bindings: crate::runtime_bindings::RuntimeBindings,
         module_bindings: Box<[(ModuleIdentity, ModuleId)]>,
         projection_recipe: crate::projection_recipe::FrontendProjectionRecipe,
         current_symbols: crate::current_symbols::CurrentCheckingSymbols,
@@ -144,6 +144,13 @@ impl LoweredDeclarations {
     #[must_use]
     pub const fn target_service_bindings(&self) -> &[TargetServiceBinding] {
         self.reusable.target_service_bindings()
+    }
+
+    #[must_use]
+    pub const fn runtime_storage_bindings(
+        &self,
+    ) -> &[nocter_runtime_contract::RuntimeStorageBinding] {
+        self.reusable.runtime_storage_bindings()
     }
 
     /// Returns the source-neutral projection recipe emitted with this semantic program.
@@ -199,6 +206,13 @@ impl ReusableDeclarations {
     #[must_use]
     pub const fn target_service_bindings(&self) -> &[TargetServiceBinding] {
         self.runtime_bindings.target_services()
+    }
+
+    #[must_use]
+    pub const fn runtime_storage_bindings(
+        &self,
+    ) -> &[nocter_runtime_contract::RuntimeStorageBinding] {
+        self.runtime_bindings.storage()
     }
 
     #[must_use]

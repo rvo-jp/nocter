@@ -8,7 +8,7 @@ use nocter_model::{
     InterfaceId, InterfaceImplementationId, ModuleId, NominalTypeId, OpaqueTypeId, PackageId,
     StaticId, TestId, TypeAliasId, VariantId,
 };
-use nocter_runtime_contract::{PrimitiveBinding, TargetServiceBinding};
+use nocter_runtime_contract::{PrimitiveBinding, RuntimeStorageBinding, TargetServiceBinding};
 use nocter_source::{SourceId, SourceMap};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::NodeId;
@@ -236,7 +236,7 @@ pub struct ReservedDeclarations<'syntax> {
     pub(crate) contracts: DeclarationContracts,
     pub(crate) entity_index: ReservedEntityIndex,
     pub(crate) toolchain: crate::toolchain::ResolvedToolchainInput,
-    pub(crate) runtime_bindings: crate::runtime_bindings::RuntimeCallBindings,
+    pub(crate) runtime_bindings: crate::runtime_bindings::RuntimeBindings,
 }
 
 impl ReservedDeclarations<'_> {
@@ -391,15 +391,10 @@ pub(crate) fn reserve_with_contracts(
         &declarations,
         &contracts,
         toolchain.builtin_types(),
+        toolchain.runtime_storage_roles(),
         &mut program,
     )?;
-    let primitive_bindings =
-        resolve_primitive_bindings(&declarations, &entity_index, toolchain.primitive_roles())?;
-    let target_service_bindings = resolve_target_service_bindings(
-        &declarations,
-        &entity_index,
-        toolchain.target_service_roles(),
-    )?;
+    let runtime_bindings = resolve_runtime_bindings(&declarations, &entity_index, &toolchain)?;
     project_declaration_documentation(
         &sources,
         &declarations,
@@ -442,11 +437,29 @@ pub(crate) fn reserve_with_contracts(
         contracts,
         entity_index,
         toolchain,
-        runtime_bindings: crate::runtime_bindings::RuntimeCallBindings::new(
-            primitive_bindings.into_boxed_slice(),
-            target_service_bindings.into_boxed_slice(),
-        ),
+        runtime_bindings,
     })
+}
+
+fn resolve_runtime_bindings(
+    declarations: &[SurfaceDeclaration],
+    entities: &ReservedEntityIndex,
+    toolchain: &crate::toolchain::ResolvedToolchainInput,
+) -> Result<crate::runtime_bindings::RuntimeBindings, ReservationError> {
+    let primitives =
+        resolve_primitive_bindings(declarations, entities, toolchain.primitive_roles())?;
+    let target_services =
+        resolve_target_service_bindings(declarations, entities, toolchain.target_service_roles())?;
+    let storage = resolve_runtime_storage_bindings(
+        declarations,
+        entities,
+        toolchain.runtime_storage_roles(),
+    )?;
+    Ok(crate::runtime_bindings::RuntimeBindings::new(
+        primitives.into_boxed_slice(),
+        target_services.into_boxed_slice(),
+        storage.into_boxed_slice(),
+    ))
 }
 
 fn reserve_root_packages(
@@ -672,6 +685,7 @@ fn reserve_surface_entities(
     declarations: &[SurfaceDeclaration],
     contracts: &DeclarationContracts,
     builtin_types: &[crate::toolchain::ResolvedBuiltinType],
+    runtime_storage_roles: &[crate::toolchain::ResolvedRuntimeStorageRole],
     program: &mut DeclarationProgramBuilder,
 ) -> Result<ReservedEntityIndex, ReservationError> {
     let mut entities = vec![None; declarations.len()];
@@ -683,11 +697,22 @@ fn reserve_surface_entities(
         }
         validate_owner(declarations, id, declaration)?;
         entities[index] = if declaration.kind() == SurfaceDeclarationKind::PrimitiveType {
-            builtin_types
+            if let Some(builtin) = builtin_types
                 .iter()
                 .copied()
                 .find(|builtin| builtin.declaration() == id)
-                .map(|builtin| ReservedEntity::BuiltinType(builtin.builtin()))
+            {
+                Some(ReservedEntity::BuiltinType(builtin.builtin()))
+            } else if runtime_storage_roles
+                .iter()
+                .any(|role| role.declaration() == id)
+            {
+                Some(ReservedEntity::NominalType(
+                    program.declarations_mut().reserve_nominal_type(),
+                ))
+            } else {
+                None
+            }
         } else {
             reserve_entity(program, declaration.kind())
         };
@@ -707,6 +732,31 @@ fn reserve_surface_entities(
         }
     }
     ReservedEntityIndex::new(entities, contracts)
+}
+
+fn resolve_runtime_storage_bindings(
+    declarations: &[SurfaceDeclaration],
+    entities: &ReservedEntityIndex,
+    roles: &[crate::toolchain::ResolvedRuntimeStorageRole],
+) -> Result<Vec<RuntimeStorageBinding>, ReservationError> {
+    roles
+        .iter()
+        .copied()
+        .map(|role| {
+            let declaration = declarations
+                .get(role.declaration().index())
+                .ok_or(InconsistentSurface(role.declaration()))?;
+            if declaration.kind() != SurfaceDeclarationKind::PrimitiveType {
+                return Err(InconsistentSurface(role.declaration()));
+            }
+            let Some(ReservedEntity::NominalType(declaration)) =
+                entities.entity(role.declaration())
+            else {
+                return Err(InconsistentSurface(role.declaration()));
+            };
+            Ok(RuntimeStorageBinding::new(role.role(), declaration))
+        })
+        .collect()
 }
 
 fn reserve_entity(
