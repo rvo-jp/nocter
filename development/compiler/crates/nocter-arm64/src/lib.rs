@@ -134,11 +134,9 @@ pub use darwin_network_connection::{
 };
 pub use darwin_network_connection_event::{
     Arm64DarwinNetworkConnectionEventError, Arm64DarwinNetworkConnectionEventTargets,
-    add_darwin_network_connection_event_targets,
 };
 pub use darwin_network_connection_lifecycle::{
     Arm64DarwinNetworkConnectionLifecycleError, Arm64DarwinNetworkConnectionLifecycleTargets,
-    add_darwin_network_connection_lifecycle_targets,
 };
 pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,

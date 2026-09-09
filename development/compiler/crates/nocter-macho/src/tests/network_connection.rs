@@ -1,9 +1,7 @@
 use nocter_arm64::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64DarwinNetworkAdapterImports, Arm64DataSize, Arm64FunctionId,
-    Arm64Instruction, Arm64Program, Arm64ProgramBuilder,
-    add_darwin_network_connection_event_targets, add_darwin_network_connection_lifecycle_targets,
-    add_darwin_plain_connection_targets,
+    Arm64Instruction, Arm64Program, Arm64ProgramBuilder, add_darwin_plain_connection_targets,
 };
 use nocter_runtime_contract::{
     DarwinNetworkAdapterFunction, DarwinNetworkCallbackEventAbiSchema,
@@ -26,15 +24,12 @@ fn connection_lifecycle_program() -> Arm64Program {
         .unwrap();
     let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
     let connection = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
-    let lifecycle =
-        add_darwin_network_connection_lifecycle_targets(&mut program, &imports).unwrap();
-    let events = add_darwin_network_connection_event_targets(&mut program, &imports).unwrap();
     define_connection_entry(
         &mut program,
         entry,
         connection.create(),
-        lifecycle,
-        events,
+        connection.lifecycle(),
+        connection.events(),
         address,
         &imports,
     );

@@ -5,10 +5,15 @@ use nocter_runtime_contract::{
     DarwinNetworkOwnerCreateStatus,
 };
 
+use crate::darwin_network_connection_event::add_darwin_network_connection_event_targets;
+use crate::darwin_network_connection_lifecycle::add_darwin_network_connection_lifecycle_targets;
+
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinBlockError, Arm64DarwinNetworkAdapterImports,
-    Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkOwnerError,
+    Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkConnectionEventError,
+    Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionLifecycleError,
+    Arm64DarwinNetworkConnectionLifecycleTargets, Arm64DarwinNetworkOwnerError,
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
     add_darwin_network_state_callback, add_darwin_pointer_capture_block_descriptor,
@@ -22,6 +27,8 @@ pub struct Arm64DarwinNetworkConnectionTargets {
     create: Arm64FunctionId,
     state_callback: Arm64FunctionId,
     state_block: crate::Arm64DarwinBlockDescriptorId,
+    lifecycle: Arm64DarwinNetworkConnectionLifecycleTargets,
+    events: Arm64DarwinNetworkConnectionEventTargets,
 }
 
 impl Arm64DarwinNetworkConnectionTargets {
@@ -38,6 +45,16 @@ impl Arm64DarwinNetworkConnectionTargets {
     #[must_use]
     pub const fn state_block(self) -> crate::Arm64DarwinBlockDescriptorId {
         self.state_block
+    }
+
+    #[must_use]
+    pub const fn lifecycle(self) -> Arm64DarwinNetworkConnectionLifecycleTargets {
+        self.lifecycle
+    }
+
+    #[must_use]
+    pub const fn events(self) -> Arm64DarwinNetworkConnectionEventTargets {
+        self.events
     }
 }
 
@@ -68,10 +85,14 @@ pub fn add_darwin_plain_connection_targets(
     let create = program.declare_function();
     let code = connection_create_code(imports, state_callback, state_block, queue_label)?;
     program.define_function(create, code.finish()?)?;
+    let lifecycle = add_darwin_network_connection_lifecycle_targets(program, imports)?;
+    let events = add_darwin_network_connection_event_targets(program, imports)?;
     Ok(Arm64DarwinNetworkConnectionTargets {
         create,
         state_callback,
         state_block,
+        lifecycle,
+        events,
     })
 }
 
@@ -444,6 +465,8 @@ pub enum Arm64DarwinNetworkConnectionError {
     Block(Arm64DarwinBlockError),
     Callback(Arm64DarwinNetworkCallbackError),
     Owner(Arm64DarwinNetworkOwnerError),
+    Lifecycle(Arm64DarwinNetworkConnectionLifecycleError),
+    Event(Arm64DarwinNetworkConnectionEventError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -463,6 +486,8 @@ impl std::error::Error for Arm64DarwinNetworkConnectionError {
             Self::Block(error) => Some(error),
             Self::Callback(error) => Some(error),
             Self::Owner(error) => Some(error),
+            Self::Lifecycle(error) => Some(error),
+            Self::Event(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::ContractLayout => None,
@@ -483,6 +508,8 @@ macro_rules! convert_error {
 convert_error!(Arm64DarwinBlockError, Block);
 convert_error!(Arm64DarwinNetworkCallbackError, Callback);
 convert_error!(Arm64DarwinNetworkOwnerError, Owner);
+convert_error!(Arm64DarwinNetworkConnectionLifecycleError, Lifecycle);
+convert_error!(Arm64DarwinNetworkConnectionEventError, Event);
 convert_error!(Arm64CodeError, Code);
 convert_error!(Arm64ProgramError, Program);
 

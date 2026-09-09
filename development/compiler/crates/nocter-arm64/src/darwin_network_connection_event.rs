@@ -41,7 +41,7 @@ impl Arm64DarwinNetworkConnectionEventTargets {
 /// # Errors
 ///
 /// Propagates malformed runtime contracts and ARM64 program/code construction failures.
-pub fn add_darwin_network_connection_event_targets(
+pub(crate) fn add_darwin_network_connection_event_targets(
     program: &mut Arm64ProgramBuilder,
     imports: &Arm64DarwinNetworkAdapterImports,
 ) -> Result<Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionEventError> {
