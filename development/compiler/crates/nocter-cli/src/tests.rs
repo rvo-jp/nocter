@@ -1033,6 +1033,7 @@ fn public_system_examples_run_through_the_installed_standard_library() {
     let tree = TempTree::new("system-examples");
     let home = tree.installation("arm64-darwin", true);
     for name in [
+        "async-http",
         "subprocess-status",
         "subprocess-output",
         "subprocess-configured",

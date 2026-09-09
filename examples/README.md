@@ -122,6 +122,17 @@ nocter run examples/url-inspect.nct
 
 ## Package Examples
 
+[async-http/index.nct](async-http/index.nct) runs a complete HTTP/1.1 exchange over a kernel-selected
+IPv4 loopback port. A structured join drives the async client and a small local peer together. The
+client uses validated text request conveniences, operation timeouts, and UTF-8 whole-body async
+collection without external DNS or Internet availability.
+
+```sh
+cd examples/async-http
+nocter check
+nocter run
+```
+
 [async-loopback/index.nct](async-loopback/index.nct) starts TCP connection and listener acceptance
 as one bounded `task.join`, then joins a complete async write with the matching async read. Both
 joins own their children and preserve each fallible result until the program handles it. The

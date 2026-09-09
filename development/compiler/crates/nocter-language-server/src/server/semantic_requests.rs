@@ -2398,13 +2398,145 @@ mod tests {
         );
         let completion = request_completion(&mut server, &uri, 9, 7, 26);
         let response = completion.response().unwrap();
-        for method in ["send", "send_with_timeout"] {
+        for method in [
+            "send",
+            "send_async",
+            "send_async_with_timeout",
+            "send_with_timeout",
+        ] {
             assert!(
                 response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
                 "{response}"
             );
         }
         assert!(!response.contains("limits_value"), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
+    }
+
+    #[test]
+    fn async_http_practical_contract_drives_hover_navigation_hints_and_completion() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/http.{Client, Request}\n",
+            "use std/time.Duration\n",
+            "use std/url.Url\n",
+            "func main(): async void! {\n",
+            "    let url = Url.parse(\"http://localhost/\")?\n",
+            "    let request = Request.post(move url)?\n",
+            "    let client = Client.new()\n",
+            "    let timeout = Duration.from_seconds(1)\n",
+            "    let pending = client.send_async_with_timeout(move request, timeout)?\n",
+            "    var response = await pending?\n",
+            "    let body = await response.read_to_string_async_with_timeout(timeout)?\n",
+            "    return\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let (send_line, send_character) = source_position(text, "send_async_with_timeout");
+        let send_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{send_line},\"character\":{}}}}}}}",
+            send_character + 5,
+        ));
+        let response = send_hover.response().unwrap();
+        assert!(response.contains("send_async_with_timeout"), "{response}");
+        assert!(response.contains("(async Response!)!"), "{response}");
+        assert!(send_hover.issue().is_none(), "{:?}", send_hover.issue());
+
+        let send_definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{send_line},\"character\":{}}}}}}}",
+            send_character + 5,
+        ));
+        let response = send_definition.response().unwrap();
+        assert!(response.contains("/std/http/index.nct"), "{response}");
+        assert!(!response.contains("async_client.nct"), "{response}");
+        assert!(
+            send_definition.issue().is_none(),
+            "{:?}",
+            send_definition.issue()
+        );
+
+        let (read_line, read_character) =
+            source_position(text, "read_to_string_async_with_timeout");
+        let read_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{read_line},\"character\":{}}}}}}}",
+            read_character + 5,
+        ));
+        let response = read_hover.response().unwrap();
+        assert!(
+            response.contains("read_to_string_async_with_timeout"),
+            "{response}"
+        );
+        assert!(response.contains("async String!"), "{response}");
+        assert!(read_hover.issue().is_none(), "{:?}", read_hover.issue());
+
+        let hints = server.receive(&format!(
+            concat!(
+                "{{\"jsonrpc\":\"2.0\",\"id\":5,",
+                "\"method\":\"textDocument/inlayHint\",",
+                "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
+                "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
+                "\"end\":{{\"line\":13,\"character\":0}}}}}}}}"
+            ),
+            uri = uri,
+        ));
+        let response = hints.response().unwrap();
+        for label in [": async Response!", ": Response", ": String"] {
+            assert!(
+                response.contains(&format!("\"label\":\"{label}\"")),
+                "{response}"
+            );
+        }
+        assert!(hints.issue().is_none(), "{:?}", hints.issue());
+
+        let incomplete = text.replace(
+            "response.read_to_string_async_with_timeout(timeout)",
+            "response.",
+        );
+        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        assert_eq!(
+            changed.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let (completion_line, completion_character) = source_position(&incomplete, "response.");
+        let completion = request_completion(
+            &mut server,
+            &uri,
+            6,
+            completion_line,
+            completion_character + "response.".len(),
+        );
+        let response = completion.response().unwrap();
+        for method in [
+            "read_async",
+            "read_async_with_timeout",
+            "read_to_end_async",
+            "read_to_end_async_with_timeout",
+            "read_to_string_async",
+            "read_to_string_async_with_timeout",
+        ] {
+            assert!(
+                response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+                "{response}"
+            );
+        }
+        assert!(!response.contains("\"label\":\"complete\""), "{response}");
+        assert!(!response.contains("\"label\":\"decoder\""), "{response}");
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 

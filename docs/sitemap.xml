@@ -666,6 +666,16 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://nocter.dev/examples/async-http/exchange/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://nocter.dev/examples/async-http/index/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://nocter.dev/examples/async-loopback/exchange/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

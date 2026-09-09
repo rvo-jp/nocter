@@ -1,0 +1,90 @@
+see ./index.nct
+
+use std/http.{Client, Request}
+use std/io
+use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener}
+use std/string.String
+use std/task
+use std/time.Duration
+use std/url.Url
+use std/vec.Vec
+
+func loopback(): SocketAddress {
+    return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
+}
+
+noalloc func ends_with(bytes: &[u8], suffix: &[u8]): bool {
+    if suffix.len() > bytes.len() { return false }
+    let start = bytes.len() - suffix.len()
+    var offset: usize = 0
+    while offset < suffix.len() {
+        if bytes[start + offset] != suffix[offset] { return false }
+        offset += 1
+    }
+    return true
+}
+
+func serve_once(
+    listener: TcpListener,
+    timeout: Duration,
+): async void! {
+    var owner = move listener
+    let accepted = await owner.accept_async_with_timeout(timeout)?
+    var stream = move accepted.0
+    var request: Vec<u8> = Vec.empty()
+    var scratch: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    while !ends_with(&request, "\r\n\r\nping".bytes()) {
+        let received = await stream.read_async_with_timeout(&+scratch, timeout)?
+        if received == 0 {
+            return error.new("async-http.request", "client closed before its request was complete")
+        }
+        var offset: usize = 0
+        while offset < received {
+            request.push(scratch[offset])
+            offset += 1
+        }
+        if request.len() > 4096 {
+            return error.new("async-http.request", "local request exceeded the example limit")
+        }
+    }
+    await stream.write_async_with_timeout(
+        "HTTP/1.1 200 OK\r\nContent-Length: 4\r\nX-Example: local\r\n\r\npong".bytes(),
+        timeout,
+    )?
+    return
+}
+
+func run(): async i32! {
+    let timeout = Duration.from_seconds(1)
+    var listener = TcpListener.bind(loopback())?
+    let address = listener.local_address()?
+    let port = address.port().to_string()
+    let url_text = String.concat("http://127.0.0.1:", &port, "/echo")
+
+    var request = Request.post(Url.parse(&url_text)?)?
+    request.append_header_text("X-Example", "client")?
+    request.set_text_body("ping")
+    let client = Client.new()
+    let response = client.send_async_with_timeout(move request, timeout)?
+    let exchanged = await task.join(
+        move response,
+        serve_once(move listener, timeout),
+    )
+    let response_result = move exchanged.0
+    let server_result = move exchanged.1
+    var received = move response_result?
+    move server_result?
+    if received.status().code() != 200 {
+        return error.new("async-http.status", "local server returned an unexpected status")
+    }
+    let _header = received.headers().first("x-example") otherwise {
+        return error.new("async-http.header", "local response header was absent")
+    }
+    let body = await received.read_to_string_async_with_timeout(timeout)?
+    io.print("async http: ")?
+    io.println(&body)?
+    return 0
+}

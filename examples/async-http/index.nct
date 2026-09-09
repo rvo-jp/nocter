@@ -1,0 +1,14 @@
+#package: {
+    name: "async-http",
+    version: "0.1.0",
+}
+
+#executable: {
+    name: "async-http",
+}
+
+see ./exchange.nct
+
+func main(): async i32! {
+    return await run()
+}
