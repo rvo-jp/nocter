@@ -41,6 +41,7 @@ mod darwin_network_connection;
 mod darwin_network_connection_address;
 mod darwin_network_connection_event;
 mod darwin_network_connection_lifecycle;
+mod darwin_network_connection_transfer;
 mod darwin_network_owner;
 mod darwin_network_primitive_targets;
 mod destruction_selection;
@@ -143,6 +144,9 @@ pub use darwin_network_connection_event::{
 };
 pub use darwin_network_connection_lifecycle::{
     Arm64DarwinNetworkConnectionLifecycleError, Arm64DarwinNetworkConnectionLifecycleTargets,
+};
+pub use darwin_network_connection_transfer::{
+    Arm64DarwinNetworkConnectionTransferError, Arm64DarwinNetworkConnectionTransferTargets,
 };
 pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,

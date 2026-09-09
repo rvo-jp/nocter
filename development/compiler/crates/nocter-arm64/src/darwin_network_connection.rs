@@ -8,6 +8,7 @@ use nocter_runtime_contract::{
 use crate::darwin_network_connection_address::add_darwin_network_connection_address_targets;
 use crate::darwin_network_connection_event::add_darwin_network_connection_event_targets;
 use crate::darwin_network_connection_lifecycle::add_darwin_network_connection_lifecycle_targets;
+use crate::darwin_network_connection_transfer::add_darwin_network_connection_transfer_targets;
 
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
@@ -15,7 +16,8 @@ use crate::{
     Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkConnectionAddressError,
     Arm64DarwinNetworkConnectionAddressTargets, Arm64DarwinNetworkConnectionEventError,
     Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionLifecycleError,
-    Arm64DarwinNetworkConnectionLifecycleTargets, Arm64DarwinNetworkOwnerError,
+    Arm64DarwinNetworkConnectionLifecycleTargets, Arm64DarwinNetworkConnectionTransferError,
+    Arm64DarwinNetworkConnectionTransferTargets, Arm64DarwinNetworkOwnerError,
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
     add_darwin_network_state_callback, add_darwin_pointer_capture_block_descriptor,
@@ -32,6 +34,7 @@ pub struct Arm64DarwinNetworkConnectionTargets {
     lifecycle: Arm64DarwinNetworkConnectionLifecycleTargets,
     events: Arm64DarwinNetworkConnectionEventTargets,
     addresses: Arm64DarwinNetworkConnectionAddressTargets,
+    transfers: Arm64DarwinNetworkConnectionTransferTargets,
 }
 
 impl Arm64DarwinNetworkConnectionTargets {
@@ -63,6 +66,11 @@ impl Arm64DarwinNetworkConnectionTargets {
     #[must_use]
     pub const fn addresses(self) -> Arm64DarwinNetworkConnectionAddressTargets {
         self.addresses
+    }
+
+    #[must_use]
+    pub const fn transfers(self) -> Arm64DarwinNetworkConnectionTransferTargets {
+        self.transfers
     }
 }
 
@@ -96,6 +104,7 @@ pub fn add_darwin_plain_connection_targets(
     let lifecycle = add_darwin_network_connection_lifecycle_targets(program, imports)?;
     let events = add_darwin_network_connection_event_targets(program, imports)?;
     let addresses = add_darwin_network_connection_address_targets(program, imports)?;
+    let transfers = add_darwin_network_connection_transfer_targets(program, imports)?;
     Ok(Arm64DarwinNetworkConnectionTargets {
         create,
         state_callback,
@@ -103,6 +112,7 @@ pub fn add_darwin_plain_connection_targets(
         lifecycle,
         events,
         addresses,
+        transfers,
     })
 }
 
@@ -478,6 +488,7 @@ pub enum Arm64DarwinNetworkConnectionError {
     Lifecycle(Arm64DarwinNetworkConnectionLifecycleError),
     Event(Arm64DarwinNetworkConnectionEventError),
     Address(Arm64DarwinNetworkConnectionAddressError),
+    Transfer(Arm64DarwinNetworkConnectionTransferError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -500,6 +511,7 @@ impl std::error::Error for Arm64DarwinNetworkConnectionError {
             Self::Lifecycle(error) => Some(error),
             Self::Event(error) => Some(error),
             Self::Address(error) => Some(error),
+            Self::Transfer(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::ContractLayout => None,
@@ -523,6 +535,7 @@ convert_error!(Arm64DarwinNetworkOwnerError, Owner);
 convert_error!(Arm64DarwinNetworkConnectionLifecycleError, Lifecycle);
 convert_error!(Arm64DarwinNetworkConnectionEventError, Event);
 convert_error!(Arm64DarwinNetworkConnectionAddressError, Address);
+convert_error!(Arm64DarwinNetworkConnectionTransferError, Transfer);
 convert_error!(Arm64CodeError, Code);
 convert_error!(Arm64ProgramError, Program);
 

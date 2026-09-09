@@ -59,6 +59,10 @@ source, loader commands, or package state.
 - Effective local and remote connection addresses use one provider-ownership cleanup path. The
   target validates and copies a complete IPv4 or IPv6 socket record before releasing its endpoint
   and path; only caller-owned bytes and their validated length cross the source ABI.
+- Receive and send starters own their fixed callback signatures, Block descriptors, and callable
+  entries as one transfer target set. Send copies borrowed source bytes into system-owned dispatch
+  data before returning and releases its local dispatch owner immediately after Network.framework
+  accepts the operation.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.
