@@ -13,6 +13,7 @@ see ./client_storage.nct
 see ./client_tests.nct
 see ./codec.nct
 see ./errors.nct
+see ./exchange.nct
 see ./request.nct
 see ./response_head.nct
 see ./storage.nct

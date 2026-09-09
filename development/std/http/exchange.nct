@@ -1,0 +1,116 @@
+//! Transport-independent HTTP client request and final-response policy.
+
+see ./body.nct
+see ./client_storage.nct
+see ./codec.nct
+see ./errors.nct
+see ./index.nct
+see ./request.nct
+see ./response_head.nct
+see ./storage.nct
+see ./values.nct
+see ./wire.nct
+
+use /url.UrlScheme
+use /vec.Vec
+
+struct PreparedRequest {
+    request: Request
+    encoded: Vec<u8>
+    limits: Limits
+}
+
+struct ReceivedResponseHead {
+    head: ResponseHead
+    decoder: BodyDecoder
+    pending: Vec<u8>
+    pending_start: usize
+}
+
+enum FinalResponseHeadAttempt {
+    incomplete(decoder: ResponseHeadDecoder)
+    ready(response: ReceivedResponseHead)
+    failed(failure: error)
+}
+
+func append_prefix(output: &+Vec<u8>, input: &[u8], count: usize): void {
+    var offset: usize = 0
+    while offset < count {
+        output.push(input[offset])
+        offset += 1
+    }
+    return
+}
+
+noalloc func reserved_client_header(name: &str): bool {
+    return ascii_case_equal(name, "host")
+        || ascii_case_equal(name, "connection")
+        || ascii_case_equal(name, "content-length")
+        || ascii_case_equal(name, "transfer-encoding")
+}
+
+func prepare_request(request: Request, limits: Limits): PreparedRequest! {
+    var owned_request = move request
+    if owned_request.url_value.scheme() is UrlScheme.https { return unsupported_scheme() }
+    if ascii_case_equal(owned_request.head_value.request_method().text(), "CONNECT") {
+        return unsupported_method()
+    }
+    var offset: usize = 0
+    while offset < owned_request.head_value.headers().len() {
+        let header = owned_request.head_value.headers().at(offset) otherwise {
+            return invalid_syntax()
+        }
+        if reserved_client_header(header.name().text()) { return reserved_header() }
+        offset += 1
+    }
+    let authority = owned_request.url_value.authority()
+    owned_request.head_value.append_header(Header.new(
+        HeaderName.parse("host")?,
+        HeaderValue.from_text(&authority)?,
+    ))
+    owned_request.head_value.append_header(Header.new(
+        HeaderName.parse("connection")?,
+        HeaderValue.from_text("close")?,
+    ))
+    let encoded = encode_request_head(
+        &owned_request.head_value,
+        owned_request.body_value.len(),
+        limits,
+    )?
+    return PreparedRequest {
+        request: move owned_request,
+        encoded: move encoded,
+        limits: limits,
+    }
+}
+
+func advance_final_response_head(
+    decoder: ResponseHeadDecoder,
+    request_method: &Method,
+): FinalResponseHeadAttempt {
+    var owner = move decoder
+    loop {
+        match advance_response_head(move owner, request_method) {
+            ResponseHeadAttempt.incomplete(next) {
+                return FinalResponseHeadAttempt.incomplete(move next)
+            }
+            ResponseHeadAttempt.informational(status, next) {
+                if status.code() == 101 {
+                    return FinalResponseHeadAttempt.failed(unsupported_upgrade())
+                }
+                owner = move next
+            }
+            ResponseHeadAttempt.ready(parsed) {
+                return FinalResponseHeadAttempt.ready(ReceivedResponseHead {
+                    head: move parsed.head,
+                    decoder: move parsed.decoder,
+                    pending: move parsed.pending,
+                    pending_start: parsed.consumed,
+                })
+            }
+            ResponseHeadAttempt.failed(failure) {
+                return FinalResponseHeadAttempt.failed(move failure)
+            }
+        }
+    }
+}

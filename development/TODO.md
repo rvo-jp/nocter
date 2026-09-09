@@ -2,16 +2,17 @@
 
 ## Current State
 
-Nocter v0.41.0 is published and externally audited. The public download is byte-identical to the
-qualified archive, the annotated tag resolves to the publication commit, and GitHub reports it as
-the latest release.
+Nocter v0.42.0 Phase 0 is complete on the development branch. HTTP request normalization and final
+response-head selection have one transport-independent authority consumed by the synchronous
+client. The async HTTP ownership and immediate/deferred boundary is documented.
 
 ## Next Work
 
-Define the next release boundary before changing source. Preserve the immutable v0.40.0 and
-v0.41.0 tags and assets; any correction requires a new version and complete qualification.
+Implement v0.42.0 Phase 1: async request transmission and response-body consumption over the
+existing async TCP surface. Synchronous name resolution must finish before returning the lazy
+computation, and sync and async paths must share protocol policy and the unique response state.
 
-Preserve every published tag and asset.
+Preserve every published tag and asset, including v0.41.0.
 
 ## Blockers
 

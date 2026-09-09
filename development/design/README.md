@@ -35,6 +35,7 @@ under `development/history/`, not in current design documents.
 - [Network I/O Boundary](network-io-design.md)
 - [Synchronous Internet Client Boundary](internet-client-design.md)
 - [Asynchronous Computation Boundary](asynchronous-computation-design.md)
+- [Asynchronous HTTP Client Boundary](asynchronous-http-client-design.md)
 
 ## Maintenance Contracts
 

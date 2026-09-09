@@ -1,4 +1,4 @@
-//! Sole ownership layout for synchronous HTTP requests, clients, and responses.
+//! Sole ownership layout for HTTP requests, clients, and transport-owning responses.
 
 see ./body.nct
 see ./index.nct
@@ -18,12 +18,6 @@ struct Request {
 
 struct Client {
     limits_value: Limits
-}
-
-struct PreparedRequest {
-    request: Request
-    encoded: Vec<u8>
-    limits: Limits
 }
 
 struct Response {
@@ -51,18 +45,6 @@ func request_from_parts(url: Url, head: RequestHead): Request {
         url_value: move url,
         head_value: move head,
         body_value: Vec.empty(),
-    }
-}
-
-func prepared_request_from_parts(
-    request: Request,
-    encoded: Vec<u8>,
-    limits: Limits,
-): PreparedRequest {
-    return PreparedRequest {
-        request: move request,
-        encoded: move encoded,
-        limits: limits,
     }
 }
 

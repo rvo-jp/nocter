@@ -2,7 +2,9 @@
 
 see ./client.nct
 see ./client_storage.nct
+see ./exchange.nct
 see ./index.nct
+see ./response_head.nct
 
 use /io.{Reader, Writer}
 use /net.{IpAddress, Ipv4Address, SocketAddress, TcpListener, TcpShutdown, TcpStream}
@@ -49,6 +51,44 @@ noalloc func same_bytes(left: &[u8], right: &[u8]): bool {
         offset += 1
     }
     return true
+}
+
+test final_response_head_policy_is_transport_independent {
+    var decoder = response_head_decoder(Limits.standard())
+    let wire = "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 204 No Content\r\nX-Test: yes\r\n\r\n"
+    append_response_head_input_range(&+decoder, wire.bytes(), 0, wire.len())?
+    let request_method = Method.get()
+    match advance_final_response_head(move decoder, &request_method) {
+        FinalResponseHeadAttempt.ready(parsed) {
+            if parsed.head.status().code() != 204 {
+                return error.new("std.http.test", "final response selection changed")
+            }
+            if parsed.pending_start != wire.len() {
+                return error.new("std.http.test", "final response consumption changed")
+            }
+        }
+        FinalResponseHeadAttempt.incomplete(_) {
+            return error.new("std.http.test", "complete response remained incomplete")
+        }
+        FinalResponseHeadAttempt.failed(failure) { return move failure }
+    }
+
+    var upgrade = response_head_decoder(Limits.standard())
+    let switch = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: test\r\n\r\n"
+    append_response_head_input_range(&+upgrade, switch.bytes(), 0, switch.len())?
+    let upgrade_method = Method.get()
+    match advance_final_response_head(move upgrade, &upgrade_method) {
+        FinalResponseHeadAttempt.failed(failure) {
+            if failure.has_code("std.http.unsupported_upgrade") { return }
+            return error.new("std.http.test", "upgrade failure changed")
+        }
+        FinalResponseHeadAttempt.incomplete(_) {
+            return error.new("std.http.test", "complete upgrade remained incomplete")
+        }
+        FinalResponseHeadAttempt.ready(_) {
+            return error.new("std.http.test", "upgrade escaped final-response policy")
+        }
+    }
 }
 
 test synchronous_client_generates_policy_fields_and_streams_fixed_body {

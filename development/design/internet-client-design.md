@@ -124,8 +124,10 @@ contain CR, LF, NUL, or forbidden controls. Headers remain an ordered sequence s
 are neither lost in a map nor silently combined.
 
 One private HTTP/1.1 codec owns request-line, status-line, header, chunk, and trailer syntax. It is
-transport-neutral and can be reused by a future server. The client owns DNS, connection, timeout,
-redirect, and connection-lifecycle decisions; the codec owns none of them.
+transport-neutral and can be reused by a future server. A private exchange layer owns request
+normalization and final response-head selection for every client orchestration. The synchronous
+client owns DNS, connection, timeout, and connection-lifecycle progress; the codec and exchange
+layer own none of those transport operations.
 
 For each response, the codec selects exactly one body framing before body bytes are exposed:
 
@@ -185,7 +187,8 @@ contract rather than being relabeled as a protocol failure.
 | Host validation, logical results, and candidate order | `std/net` resolver | applications, HTTP client |
 | URL grammar and canonical components | `std/url` | applications, HTTP client |
 | HTTP syntax and body framing | private transport-neutral HTTP codec | synchronous client, future server |
-| Request policy and connection lifecycle | synchronous HTTP client | applications |
+| Request policy and final-head selection | private HTTP exchange layer | client orchestration |
+| Connection lifecycle progress | synchronous HTTP client | applications |
 | Descriptor and monotonic deadline policy | existing private network substrate | resolver connection policy, HTTP client |
 | Public declarations and documentation | module `index.nct` and assigned guide | compiler, editor, applications |
 

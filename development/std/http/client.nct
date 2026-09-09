@@ -3,6 +3,7 @@
 see ./body.nct
 see ./client_storage.nct
 see ./errors.nct
+see ./exchange.nct
 see ./index.nct
 see ./request.nct
 see ./response_head.nct
@@ -11,62 +12,8 @@ see ./values.nct
 
 use /net.TcpStream
 use /time.Duration
-use /url.{Url, UrlScheme}
+use /url.Url
 use /vec.Vec
-
-struct ReceivedResponseHead {
-    head: ResponseHead
-    decoder: BodyDecoder
-    pending: Vec<u8>
-    pending_start: usize
-}
-
-func append_prefix(output: &+Vec<u8>, input: &[u8], count: usize): void {
-    var offset: usize = 0
-    while offset < count {
-        output.push(input[offset])
-        offset += 1
-    }
-    return
-}
-
-noalloc func reserved_client_header(name: &str): bool {
-    return ascii_case_equal(name, "host")
-        || ascii_case_equal(name, "connection")
-        || ascii_case_equal(name, "content-length")
-        || ascii_case_equal(name, "transfer-encoding")
-}
-
-func prepare_request(request: Request, limits: Limits): PreparedRequest! {
-    var owned_request = move request
-    if owned_request.url_value.scheme() is UrlScheme.https { return unsupported_scheme() }
-    if ascii_case_equal(owned_request.head_value.request_method().text(), "CONNECT") {
-        return unsupported_method()
-    }
-    var offset: usize = 0
-    while offset < owned_request.head_value.headers().len() {
-        let header = owned_request.head_value.headers().at(offset) otherwise {
-            return invalid_syntax()
-        }
-        if reserved_client_header(header.name().text()) { return reserved_header() }
-        offset += 1
-    }
-    let authority = owned_request.url_value.authority()
-    owned_request.head_value.append_header(Header.new(
-        HeaderName.parse("host")?,
-        HeaderValue.from_text(&authority)?,
-    ))
-    owned_request.head_value.append_header(Header.new(
-        HeaderName.parse("connection")?,
-        HeaderValue.from_text("close")?,
-    ))
-    let encoded = encode_request_head(
-        &owned_request.head_value,
-        owned_request.body_value.len(),
-        limits,
-    )?
-    return prepared_request_from_parts(move owned_request, move encoded, limits)
-}
 
 func read_response_head(
     stream: &+TcpStream,
@@ -76,24 +23,10 @@ func read_response_head(
     var scratch = initialized_bytes(CLIENT_BUFFER_BYTES)
     var decoder = response_head_decoder(limits)
     loop {
-        let attempt = advance_response_head(move decoder, request_method)
-        match move attempt {
-            ResponseHeadAttempt.ready(parsed) {
-                return ReceivedResponseHead {
-                    head: move parsed.head,
-                    decoder: move parsed.decoder,
-                    pending: move parsed.pending,
-                    pending_start: parsed.consumed,
-                }
-            }
-            ResponseHeadAttempt.informational(status, next) {
-                if status.code() == 101 { return unsupported_upgrade() }
-                decoder = move next
-            }
-            ResponseHeadAttempt.failed(failure) {
-                return move failure
-            }
-            ResponseHeadAttempt.incomplete(next) {
+        match advance_final_response_head(move decoder, request_method) {
+            FinalResponseHeadAttempt.ready(parsed) { return move parsed }
+            FinalResponseHeadAttempt.failed(failure) { return move failure }
+            FinalResponseHeadAttempt.incomplete(next) {
                 decoder = move next
                 let received = stream.read(&+scratch) catch failure {
                     return failure.context("while reading the HTTP response head")
