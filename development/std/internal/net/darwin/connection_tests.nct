@@ -3,8 +3,17 @@
 see ./adapter.nct
 see ./index.nct
 
-use /internal/net/model.NetworkAddress
+use /internal/net/model.{NetworkAddress, NetworkFamily, NetworkOwner}
 use /ptr
+
+noalloc func release_test_connection(owner: NetworkOwner): void {
+    var connection = move owner
+    network_connection_request_cancel_raw(&+connection)
+    while network_connection_receive_state_raw(&+connection).0 != 5 {}
+    network_connection_release_barrier_raw(&+connection)
+    network_connection_release_raw(move connection)
+    return
+}
 
 test plain_connection_primitives_preserve_one_owner_lifecycle {
     let address = NetworkAddress.ipv4([127, 0, 0, 1], 1)
@@ -15,12 +24,71 @@ test plain_connection_primitives_preserve_one_owner_lifecycle {
 
     network_connection_start_raw(&+owner)
     let descriptor = network_connection_event_descriptor_raw(&owner)
-    network_connection_request_cancel_raw(&+owner)
-    while network_connection_receive_state_raw(&+owner).0 != 5 {}
-    network_connection_release_barrier_raw(&+owner)
-    network_connection_release_raw(move owner)
+    release_test_connection(move owner)
     if descriptor == 0 {
         return error.new("std.net.test", "Network callback descriptor was invalid")
+    }
+    return
+}
+
+test plain_connection_copies_effective_addresses_without_provider_ownership {
+    let listener = match create_tcp(NetworkFamily.ipv4) {
+        RawDescriptorAttempt.ready(fd) { fd }
+        _ { return error.new("std.net.test", "TCP listener creation failed") }
+    }
+    let requested = NetworkAddress.ipv4([127, 0, 0, 1], 0)
+    match bind_once(listener, &requested) {
+        RawUnitAttempt.ready {}
+        _ {
+            close_once(listener)
+            return error.new("std.net.test", "TCP listener bind failed")
+        }
+    }
+    match listen_once(listener) {
+        RawUnitAttempt.ready {}
+        _ {
+            close_once(listener)
+            return error.new("std.net.test", "TCP listener listen failed")
+        }
+    }
+    let bound = match local_address_once(listener) {
+        RawAddressAttempt.ready(address) { address }
+        _ {
+            close_once(listener)
+            return error.new("std.net.test", "TCP listener address was unavailable")
+        }
+    }
+    let native = native_address(&bound)
+    var owner = network_connection_create_raw(ptr.from_ref(&native.bytes[0])) otherwise {
+        close_once(listener)
+        return error.new("std.net.test", "Network connection owner creation failed")
+    }
+    network_connection_start_raw(&+owner)
+
+    var state = network_connection_receive_state_raw(&+owner)
+    while state.0 != 3 && state.0 != 4 && state.0 != 5 {
+        state = network_connection_receive_state_raw(&+owner)
+    }
+    if state.0 != 3 {
+        release_test_connection(move owner)
+        close_once(listener)
+        return error.new("std.net.test", "Network connection did not become ready")
+    }
+    let local = network_connection_local_address(&owner) otherwise {
+        release_test_connection(move owner)
+        close_once(listener)
+        return error.new("std.net.test", "effective local address was unavailable")
+    }
+    let remote = network_connection_remote_address(&owner) otherwise {
+        release_test_connection(move owner)
+        close_once(listener)
+        return error.new("std.net.test", "effective remote address was unavailable")
+    }
+
+    release_test_connection(move owner)
+    close_once(listener)
+    if local.port == 0 || remote.port != bound.port {
+        return error.new("std.net.test", "effective connection addresses were malformed")
     }
     return
 }

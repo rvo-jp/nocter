@@ -161,6 +161,8 @@ pub(crate) fn select(
         | PrimitiveRole::NetworkConnectionStart
         | PrimitiveRole::NetworkConnectionEventDescriptor
         | PrimitiveRole::NetworkConnectionReceiveState
+        | PrimitiveRole::NetworkConnectionCopyLocalAddress
+        | PrimitiveRole::NetworkConnectionCopyRemoteAddress
         | PrimitiveRole::NetworkConnectionRequestCancel
         | PrimitiveRole::NetworkConnectionReleaseBarrier
         | PrimitiveRole::NetworkConnectionRelease => {
@@ -175,20 +177,30 @@ fn select_network_primitive(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_type_arguments(operation, target, 0)?;
-    let [argument] = target.abi().arguments() else {
-        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    let expected_arguments: &[MachineValueClass] = match target.role() {
+        PrimitiveRole::NetworkConnectionCopyLocalAddress
+        | PrimitiveRole::NetworkConnectionCopyRemoteAddress => &[
+            MachineValueClass::Direct { words: 1 },
+            MachineValueClass::Direct { words: 1 },
+        ],
+        PrimitiveRole::NetworkConnectionRelease => &[MachineValueClass::Indirect],
+        _ => &[MachineValueClass::Direct { words: 1 }],
     };
-    let Some(MachineArgumentLocation::Registers(registers)) = argument.location() else {
-        return Err(Arm64SelectionError::PrimitiveCall(operation));
-    };
-    let expected_class = if target.role() == PrimitiveRole::NetworkConnectionRelease {
-        MachineValueClass::Indirect
-    } else {
-        MachineValueClass::Direct { words: 1 }
-    };
-    if argument.class() != expected_class
-        || registers.first() != 0
-        || registers.words() != 1
+    if target.abi().arguments().len() != expected_arguments.len()
+        || target
+            .abi()
+            .arguments()
+            .iter()
+            .zip(expected_arguments)
+            .zip(0u8..)
+            .any(|((argument, expected_class), index)| {
+                argument.class() != *expected_class
+                    || !matches!(
+                        argument.location(),
+                        Some(MachineArgumentLocation::Registers(registers))
+                            if registers.first() == index && registers.words() == 1
+                    )
+            })
         || target.abi().pack().is_some()
         || target.abi().stack_argument_size() != 0
     {
@@ -204,7 +216,9 @@ fn select_network_primitive(
                             == (MachineResultLocation::CallerStorage { pointer_register: 8 })
             )
         }
-        PrimitiveRole::NetworkConnectionEventDescriptor => matches!(
+        PrimitiveRole::NetworkConnectionEventDescriptor
+        | PrimitiveRole::NetworkConnectionCopyLocalAddress
+        | PrimitiveRole::NetworkConnectionCopyRemoteAddress => matches!(
             target.abi().result(),
             MachineResultAbi::Value(result)
                 if result.class() == (MachineValueClass::Direct { words: 1 })

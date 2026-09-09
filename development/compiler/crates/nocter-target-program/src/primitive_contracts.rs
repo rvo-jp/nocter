@@ -803,6 +803,15 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::NetworkConnectionCopyLocalAddress
+        | PrimitiveRole::NetworkConnectionCopyRemoteAddress => make(
+            0,
+            vec![TypeContract::readonly(network_owner()), byte_pointer()],
+            usize(),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::NetworkConnectionRelease => make(
             0,
             vec![network_owner()],

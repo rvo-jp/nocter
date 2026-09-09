@@ -52,6 +52,8 @@ public source-level imports.
   symbol kinds, libraries, Block signatures, event size, or interrupted-transfer classification.
 - A final Network.framework state must be followed by a barrier on the same serial dispatch queue;
   event receipt alone never authorizes native-owner release.
+- Effective Network.framework addresses cross the target boundary only as complete copied Darwin
+  IPv4 or IPv6 socket records. Provider path and endpoint ownership never enters source storage.
 - Primitive effect facts are keyed by closed roles, never inferred from source names or target
   instruction sequences.
 - A primitive role may immediately construct an opaque asynchronous value. This does not classify

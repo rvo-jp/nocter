@@ -14,6 +14,8 @@ const INTERNAL_TASK: &[&str] = &["internal", "task"];
 const READINESS_OR_DEADLINE: &str = "descriptor_readiness_or_deadline_raw";
 const NET_EVENT_DESCRIPTOR: &str = "network_connection_event_descriptor_raw";
 const NET_RECEIVE_STATE: &str = "network_connection_receive_state_raw";
+const NET_COPY_LOCAL_ADDRESS: &str = "network_connection_copy_local_address_raw";
+const NET_COPY_REMOTE_ADDRESS: &str = "network_connection_copy_remote_address_raw";
 const NET_REQUEST_CANCEL: &str = "network_connection_request_cancel_raw";
 const NET_RELEASE_BARRIER: &str = "network_connection_release_barrier_raw";
 
@@ -248,6 +250,8 @@ pub const fn bundled_primitive_source_location(
         Role::NetworkConnectionStart => (DARWIN_NET, "network_connection_start_raw"),
         Role::NetworkConnectionEventDescriptor => (DARWIN_NET, NET_EVENT_DESCRIPTOR),
         Role::NetworkConnectionReceiveState => (DARWIN_NET, NET_RECEIVE_STATE),
+        Role::NetworkConnectionCopyLocalAddress => (DARWIN_NET, NET_COPY_LOCAL_ADDRESS),
+        Role::NetworkConnectionCopyRemoteAddress => (DARWIN_NET, NET_COPY_REMOTE_ADDRESS),
         Role::NetworkConnectionRequestCancel => (DARWIN_NET, NET_REQUEST_CANCEL),
         Role::NetworkConnectionReleaseBarrier => (DARWIN_NET, NET_RELEASE_BARRIER),
         Role::NetworkConnectionRelease => (DARWIN_NET, "network_connection_release_raw"),

@@ -38,6 +38,7 @@ mod darwin_network_adapter;
 mod darwin_network_callback;
 mod darwin_network_channel;
 mod darwin_network_connection;
+mod darwin_network_connection_address;
 mod darwin_network_connection_event;
 mod darwin_network_connection_lifecycle;
 mod darwin_network_owner;
@@ -133,6 +134,9 @@ pub use darwin_network_channel::{
 pub use darwin_network_connection::{
     Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
     add_darwin_plain_connection_targets,
+};
+pub use darwin_network_connection_address::{
+    Arm64DarwinNetworkConnectionAddressError, Arm64DarwinNetworkConnectionAddressTargets,
 };
 pub use darwin_network_connection_event::{
     Arm64DarwinNetworkConnectionEventError, Arm64DarwinNetworkConnectionEventTargets,

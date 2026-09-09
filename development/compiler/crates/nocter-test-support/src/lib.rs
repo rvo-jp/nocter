@@ -362,6 +362,10 @@ pub(/) noalloc primitive func network_connection_event_descriptor_raw(owner: &Ne
 #target: \"arm64-darwin\"
 pub(/) noalloc primitive func network_connection_receive_state_raw(owner: &+NetworkOwner): (usize, usize, usize)
 #target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_copy_local_address_raw(owner: &NetworkOwner, destination: *u8): usize
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_copy_remote_address_raw(owner: &NetworkOwner, destination: *u8): usize
+#target: \"arm64-darwin\"
 pub(/) noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
 pub(/) noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void

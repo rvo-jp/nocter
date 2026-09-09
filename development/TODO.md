@@ -9,9 +9,9 @@ plain TCP surface onto the closed native adapter foundation.
 
 ## Next Work
 
-Implement receive, send, and local/remote address operations over the completed plain-connection
-primitive family, extending the private event consumer without exposing callback storage or
-provider ownership to source. Migrate the public plain TCP stream only after equivalent loopback,
+Implement receive and send operations over the completed plain-connection primitive family,
+extending the private event consumer without exposing callback storage or provider ownership to
+source. Migrate the public plain TCP stream only after equivalent loopback,
 timeout, transfer, cancellation, and stable-error evidence passes; then
 adopt accepted connections and migrate listeners. Remove descriptor-backed TCP only after the
 replacement is qualified. Keep UDP on its descriptor substrate. Keep native objects and callbacks

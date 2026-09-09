@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /internal/net/model.{NetworkAddress, NetworkFamily, NetworkOwner}
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
 use /internal/os.OSError
@@ -204,6 +204,26 @@ noalloc func logical_address_from_pointer(pointer: *u8, len: usize): NetworkAddr
         index += 1
     }
     return logical_address(&native.bytes, len)
+}
+
+#target: "arm64-darwin"
+noalloc func network_connection_local_address(owner: &NetworkOwner): NetworkAddress? {
+    var native = empty_native_address()
+    let length = network_connection_copy_local_address_raw(
+        owner,
+        ptr.from_ref_mut(&+native.bytes[0]),
+    )
+    return logical_address(&native.bytes, length)
+}
+
+#target: "arm64-darwin"
+noalloc func network_connection_remote_address(owner: &NetworkOwner): NetworkAddress? {
+    var native = empty_native_address()
+    let length = network_connection_copy_remote_address_raw(
+        owner,
+        ptr.from_ref_mut(&+native.bytes[0]),
+    )
+    return logical_address(&native.bytes, length)
 }
 
 #target: "arm64-darwin"

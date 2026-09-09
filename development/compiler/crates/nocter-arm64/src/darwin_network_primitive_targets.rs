@@ -25,6 +25,8 @@ pub enum Arm64DarwinNetworkPrimitive {
     Start,
     EventDescriptor,
     ReceiveState,
+    CopyLocalAddress,
+    CopyRemoteAddress,
     RequestCancel,
     ReleaseBarrier,
     Release,
@@ -37,6 +39,8 @@ impl Arm64DarwinNetworkPrimitive {
             PrimitiveRole::NetworkConnectionStart => Some(Self::Start),
             PrimitiveRole::NetworkConnectionEventDescriptor => Some(Self::EventDescriptor),
             PrimitiveRole::NetworkConnectionReceiveState => Some(Self::ReceiveState),
+            PrimitiveRole::NetworkConnectionCopyLocalAddress => Some(Self::CopyLocalAddress),
+            PrimitiveRole::NetworkConnectionCopyRemoteAddress => Some(Self::CopyRemoteAddress),
             PrimitiveRole::NetworkConnectionRequestCancel => Some(Self::RequestCancel),
             PrimitiveRole::NetworkConnectionReleaseBarrier => Some(Self::ReleaseBarrier),
             PrimitiveRole::NetworkConnectionRelease => Some(Self::Release),
@@ -94,6 +98,12 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             Arm64DarwinNetworkPrimitive::Start => Some(lifecycle.start()),
             Arm64DarwinNetworkPrimitive::EventDescriptor => Some(events.descriptor()),
             Arm64DarwinNetworkPrimitive::ReceiveState => Some(events.receive_state()),
+            Arm64DarwinNetworkPrimitive::CopyLocalAddress => {
+                Some(self.production.addresses().local())
+            }
+            Arm64DarwinNetworkPrimitive::CopyRemoteAddress => {
+                Some(self.production.addresses().remote())
+            }
             Arm64DarwinNetworkPrimitive::RequestCancel => Some(lifecycle.request_cancel()),
             Arm64DarwinNetworkPrimitive::ReleaseBarrier => {
                 Some(lifecycle.complete_release_barrier())

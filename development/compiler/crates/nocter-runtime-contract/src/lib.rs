@@ -7,6 +7,7 @@
 mod asynchronous;
 mod darwin_block;
 mod darwin_network;
+mod darwin_network_address;
 mod darwin_network_import;
 mod darwin_network_operation;
 mod darwin_network_owner;
@@ -26,6 +27,7 @@ pub use darwin_network::{
     DarwinNetworkConnectionStateObservationAbiSchema, DarwinNetworkEventKind,
     DarwinNetworkEventPayload, DarwinNetworkListenerState,
 };
+pub use darwin_network_address::DarwinNetworkSocketAddressAbiSchema;
 pub use darwin_network_import::{DarwinNetworkAdapterData, DarwinNetworkAdapterFunction};
 pub use darwin_network_operation::{
     DarwinNetworkAdapterOperation, DarwinNetworkOperationError, DarwinNetworkOwner,

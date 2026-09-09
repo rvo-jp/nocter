@@ -70,6 +70,7 @@ pub enum DarwinNetworkAdapterOperation {
     EventDescriptor,
     BeginReceive,
     BeginSend,
+    CopyAddress,
     ReceiveEvent,
     RequestCancel,
     ObserveFinalState,
@@ -86,6 +87,7 @@ impl DarwinNetworkAdapterOperation {
         Self::EventDescriptor,
         Self::BeginReceive,
         Self::BeginSend,
+        Self::CopyAddress,
         Self::ReceiveEvent,
         Self::RequestCancel,
         Self::ObserveFinalState,
@@ -105,6 +107,7 @@ impl DarwinNetworkAdapterOperation {
             | Self::EventDescriptor
             | Self::BeginReceive
             | Self::BeginSend
+            | Self::CopyAddress
             | Self::ReceiveEvent
             | Self::RequestCancel
             | Self::ObserveFinalState
@@ -206,7 +209,8 @@ impl DarwinNetworkOwner {
                 | State::FinalStateObserved
                 | State::Quiesced,
             )
-            | (Operation::ReceiveEvent, _, State::Running | State::CancelRequested) => self.state,
+            | (Operation::ReceiveEvent, _, State::Running | State::CancelRequested)
+            | (Operation::CopyAddress, Kind::Connection, State::Running) => self.state,
             (Operation::BeginReceive | Operation::BeginSend, Kind::Connection, State::Running) => {
                 State::Running
             }

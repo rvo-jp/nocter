@@ -56,6 +56,9 @@ source, loader commands, or package state.
   release are production callable targets. Native qualification calls those targets and cannot
   carry a parallel lifecycle implementation; quiescence commits only after `dispatch_sync_f`
   returns on the owner's queue.
+- Effective local and remote connection addresses use one provider-ownership cleanup path. The
+  target validates and copies a complete IPv4 or IPv6 socket record before releasing its endpoint
+  and path; only caller-owned bytes and their validated length cross the source ABI.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.
