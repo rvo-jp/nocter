@@ -2,15 +2,16 @@
 
 ## Current State
 
-Nocter v0.42.0 Phase 5 is complete on the development branch. The asynchronous HTTP client has one
-protocol authority and one response owner across synchronous and asynchronous transport adapters.
-The complete source-tree qualification passes without an open practical implementation finding.
+Nocter v0.42.0 implementation and source-tree qualification are complete on the development
+branch, with no open practical finding. Its candidate identity is fixed at `0.42.0`; public
+latest-release references remain at v0.41.0.
 
 ## Next Work
 
-Prepare the v0.42.0 release identity, reproducible archives, release notes, and publication audit
-without weakening the existing qualification gates. Do not tag or publish without explicit user
-authorization.
+Commit the release-content identity, run two independent complete compiler gates, run the explicit
+public-HTTPS acquisition test, build the archive twice from isolated targets, qualify a fresh
+installed home from the retained candidate, and record exact source and artifact identities. Stop
+before publication, which remains a separate explicitly authorized operation.
 
 Preserve every published tag and asset, including v0.41.0.
 
