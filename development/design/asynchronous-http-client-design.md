@@ -66,14 +66,18 @@ the private representation is generalized.
 
 ## Deadlines and Cancellation
 
-The existing timeout-bearing synchronous API applies a duration to connection and individual I/O
-operations. A whole-request deadline is a different contract and must not be inferred from that
-name. The next asynchronous timeout surface keeps per-operation timeout behavior distinct from any
-later absolute request deadline.
+The timeout-bearing synchronous and asynchronous APIs apply a duration to connection and
+individual I/O progress. A whole-request deadline is a different contract and must not be inferred
+from those names. `send_async_with_timeout` delegates its connection deadline and each write or
+response-head idle wait to async TCP. `read_async_with_timeout` supplies the same explicit idle
+timeout for response-body transport input. HTTP does not implement a second timer or readiness
+race.
 
 Every suspended operation owns either a candidate connector or the response stream, never both
-after a transfer. Cancellation removes readiness registrations before closing the descriptor.
-HTTP state contains no scheduler identity, and the executor contains no HTTP parser state.
+after a transfer. Cancellation removes readiness registrations before destroying an owned
+connector or stream. A body-read computation borrows the response instead: cancelling it releases
+the borrow while the response remains the unique stream owner. HTTP state contains no scheduler
+identity, and the executor contains no HTTP parser state.
 
 ## Responsibility Matrix
 

@@ -243,6 +243,12 @@ instance Client {
     /// Resolves immediately, then lazily connects, sends, and receives without blocking the executor.
     pub method &self.send_async(request: Request): (async Response!)!
 
+    /// Performs each asynchronous transport operation with an explicit timeout.
+    pub method &self.send_async_with_timeout(
+        request: Request,
+        timeout: Duration,
+    ): (async Response!)!
+
     /// Sends with one connection deadline and per-operation stream timeouts.
     pub method &self.send_with_timeout(request: Request, timeout: Duration): Response!
 }
@@ -261,6 +267,12 @@ instance Response {
 
     /// Reads decoded response-body bytes without blocking the executor thread.
     pub method &+self.read_async(output: &+[u8]): async usize!
+
+    /// Reads decoded bytes until transport input remains idle for `timeout`.
+    pub method &+self.read_async_with_timeout(
+        output: &+[u8],
+        timeout: Duration,
+    ): async usize!
 
     /// Closes the owned connection; later reads report end of stream.
     pub noalloc method &+self.close(): void

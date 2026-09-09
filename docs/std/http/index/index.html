@@ -431,6 +431,12 @@
     <span class="token-comment">/// Resolves immediately, then lazily connects, sends, and receives without blocking the executor.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">send_async</span><span class="token-operator">(</span>request<span class="token-operator">:</span> <span class="token-type">Request</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">Response</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
 
+    <span class="token-comment">/// Performs each asynchronous transport operation with an explicit timeout.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">send_async_with_timeout</span><span class="token-operator">(</span>
+        request<span class="token-operator">:</span> <span class="token-type">Request</span><span class="token-operator">,</span>
+        timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">Response</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
+
     <span class="token-comment">/// Sends with one connection deadline and per-operation stream timeouts.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">send_with_timeout</span><span class="token-operator">(</span>request<span class="token-operator">:</span> <span class="token-type">Request</span><span class="token-operator">,</span> timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Response</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
@@ -449,6 +455,12 @@
 
     <span class="token-comment">/// Reads decoded response-body bytes without blocking the executor thread.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_async</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">usize</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Reads decoded bytes until transport input remains idle for `timeout`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_async_with_timeout</span><span class="token-operator">(</span>
+        output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">,</span>
+        timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">usize</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Closes the owned connection; later reads report end of stream.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>

@@ -2,17 +2,16 @@
 
 ## Current State
 
-Nocter v0.42.0 Phase 1 is complete on the development branch. HTTP request normalization,
-final-response-head selection, and response-body progression each have one transport-independent
-authority consumed by synchronous and asynchronous orchestration. `Client.send_async` and
-`Response.read_async` cross the native reactor, including fragmented chunked input after an
-informational response.
+Nocter v0.42.0 Phase 2 is complete on the development branch. Async HTTP timeout operations
+delegate connection, write, readiness, and idle-input timing to the existing async TCP authority.
+Native fixtures cover lazy cancellation, exclusive response-read ownership, head/body idle
+timeouts, write backpressure, and premature peer closure.
 
 ## Next Work
 
-Implement v0.42.0 Phase 2: qualify timeout and cancellation behavior at every async HTTP ownership
-transition. Keep connection timeout, write backpressure, idle head/body reads, and any future
-whole-request deadline as distinct contracts.
+Implement v0.42.0 Phase 3: add the practical request and response operations needed by ordinary
+applications. Every convenience must derive from the existing message, exchange, and unique
+response-owner contracts rather than duplicate policy or imply replay.
 
 Preserve every published tag and asset, including v0.41.0.
 

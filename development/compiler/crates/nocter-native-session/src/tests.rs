@@ -2444,6 +2444,224 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
     server.join().unwrap();
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn async_http_timeout_source(port: u16) -> String {
+    format!(
+        "use std/http.{{Client, Request}}\n\
+         use std/time.Duration\n\
+         use std/url.Url\n\
+         use std/vec.Vec\n\
+         \n\
+         func head_times_out(client: &Client, url: Url, timeout: Duration): async bool {{\n\
+             let request = Request.get(move url) catch _ {{ return false }}\n\
+             let pending = client.send_async_with_timeout(\n\
+                 move request,\n\
+                 timeout,\n\
+             ) catch _ {{ return false }}\n\
+             let _response = await pending catch failure {{\n\
+                 return failure.has_code(\"std.net.timed_out\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func body_times_out(client: &Client, url: Url, timeout: Duration): async bool {{\n\
+             let request = Request.get(move url) catch _ {{ return false }}\n\
+             let pending = client.send_async_with_timeout(\n\
+                 move request,\n\
+                 Duration.from_seconds(1),\n\
+             ) catch _ {{ return false }}\n\
+             var response = await pending catch _ {{ return false }}\n\
+             var buffer: Vec<u8> = Vec [u8.truncate(0)]\n\
+             let abandoned = response.read_async(&+buffer)\n\
+             drop abandoned\n\
+             let _received = await response.read_async_with_timeout(\n\
+                 &+buffer,\n\
+                 timeout,\n\
+             ) catch failure {{\n\
+                 return failure.has_code(\"std.net.timed_out\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func truncated_peer_fails(client: &Client, url: Url): async bool {{\n\
+             let request = Request.get(move url) catch _ {{ return false }}\n\
+             let pending = client.send_async_with_timeout(\n\
+                 move request,\n\
+                 Duration.from_seconds(1),\n\
+             ) catch _ {{ return false }}\n\
+             var response = await pending catch _ {{ return false }}\n\
+             var buffer: Vec<u8> = Vec [\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+             ]\n\
+             let first = await response.read_async_with_timeout(\n\
+                 &+buffer,\n\
+                 Duration.from_seconds(1),\n\
+             ) catch _ {{ return false }}\n\
+             if first != 2 {{ return false }}\n\
+             let _second = await response.read_async_with_timeout(\n\
+                 &+buffer,\n\
+                 Duration.from_seconds(1),\n\
+             ) catch failure {{\n\
+                 return failure.has_code(\"std.http.premature_eof\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func main(): async i32 {{\n\
+             let client = Client.new()\n\
+             let abandoned_request = Request.get(\n\
+                 Url.parse(\"http://localhost:{port}/abandoned\") catch _ {{ return 1 }},\n\
+             ) catch _ {{ return 2 }}\n\
+             let abandoned = client.send_async(move abandoned_request) catch _ {{ return 3 }}\n\
+             drop abandoned\n\
+             let short = Duration.from_milliseconds(20)\n\
+             let head_url = Url.parse(\"http://localhost:{port}/head\") catch _ {{ return 4 }}\n\
+             if !await head_times_out(&client, move head_url, short) {{ return 5 }}\n\
+             let body_url = Url.parse(\"http://localhost:{port}/body\") catch _ {{ return 6 }}\n\
+             if !await body_times_out(&client, move body_url, short) {{ return 7 }}\n\
+             let truncated_url = Url.parse(\"http://localhost:{port}/truncated\") catch _ {{ return 8 }}\n\
+             if !await truncated_peer_fails(&client, move truncated_url) {{ return 9 }}\n\
+             return 0\n\
+         }}\n"
+    )
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_async_http_timeouts_and_abandoned_operations_preserve_ownership() {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+    use std::time::Duration;
+
+    fn read_request_head(stream: &mut TcpStream) -> Vec<u8> {
+        let mut request = Vec::new();
+        let mut scratch = [0_u8; 256];
+        while request.windows(4).all(|bytes| bytes != b"\r\n\r\n") {
+            let received = stream.read(&mut scratch).unwrap();
+            assert_ne!(received, 0, "HTTP client closed before sending its head");
+            request.extend_from_slice(&scratch[..received]);
+        }
+        request
+    }
+
+    let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = fixture.local_addr().unwrap().port();
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source("main.nct", &async_http_timeout_source(port));
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+
+    let server = thread::spawn(move || {
+        let (mut head_stream, _) = fixture.accept().unwrap();
+        let head_request = read_request_head(&mut head_stream);
+        assert!(head_request.starts_with(b"GET /head HTTP/1.1\r\n"));
+        thread::sleep(Duration::from_millis(100));
+        drop(head_stream);
+
+        let (mut body_stream, _) = fixture.accept().unwrap();
+        let body_request = read_request_head(&mut body_stream);
+        assert!(body_request.starts_with(b"GET /body HTTP/1.1\r\n"));
+        body_stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n")
+            .unwrap();
+        thread::sleep(Duration::from_millis(100));
+        let _ = body_stream.write_all(b"late");
+
+        let (mut truncated_stream, _) = fixture.accept().unwrap();
+        let truncated_request = read_request_head(&mut truncated_stream);
+        assert!(truncated_request.starts_with(b"GET /truncated HTTP/1.1\r\n"));
+        truncated_stream
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nab")
+            .unwrap();
+    });
+
+    execute_native_status(image.image(), &package_root.0, "async-http-timeouts", 0);
+    server.join().unwrap();
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_async_http_request_body_observes_write_backpressure_timeout() {
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = fixture.local_addr().unwrap().port();
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let body_chunk = "x".repeat(1024);
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/http.{{Client, Method, Request}}\n\
+             use std/time.Duration\n\
+             use std/url.Url\n\
+             use std/vec.Vec\n\
+             \n\
+             func main(): async i32 {{\n\
+                 let body_text = \"{body_chunk}\".repeat(2048)\n\
+                 let body_view: &str = &body_text\n\
+                 let body = Vec.from_slice(body_view.bytes())\n\
+                 let url = Url.parse(\"http://localhost:{port}/backpressure\") catch _ {{ return 1 }}\n\
+                 var request = Request.new(Method.post(), move url) catch _ {{ return 2 }}\n\
+                 request.set_body(move body)\n\
+                 let client = Client.new()\n\
+                 let pending = client.send_async_with_timeout(\n\
+                     move request,\n\
+                     Duration.from_milliseconds(20),\n\
+                 ) catch _ {{ return 3 }}\n\
+                 let _response = await pending catch failure {{\n\
+                     if failure.has_code(\"std.net.timed_out\")\n\
+                         && failure.message() == \"while writing the HTTP request body\" {{\n\
+                         return 0\n\
+                     }}\n\
+                     return 4\n\
+                 }}\n\
+                 return 5\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+
+    let server = thread::spawn(move || {
+        let (_stream, _) = fixture.accept().unwrap();
+        thread::sleep(Duration::from_millis(100));
+    });
+
+    execute_native_status(
+        image.image(),
+        &package_root.0,
+        "async-http-write-timeout",
+        0,
+    );
+    server.join().unwrap();
+}
+
 #[test]
 fn standard_io_descriptor_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

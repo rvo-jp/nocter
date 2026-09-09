@@ -29,6 +29,23 @@ flag, and uniquely owned stream used by `read`. Synchronous and asynchronous rea
 independent cursors or concurrently consume one response. Their transport loops share one body
 progress operation, so EOF and decoding decisions are not reimplemented by either adapter.
 
+`send_async_with_timeout` applies its `Duration` to the existing shared connection deadline, each
+complete request-head or request-body write, and each idle wait for more response-head input. Host
+resolution remains synchronous and consumes time from the connection deadline; retaining the lazy
+computation before awaiting it does not restart that deadline. Receiving head bytes begins a new
+idle interval. The timeout is not a deadline for the complete response.
+
+`read_async_with_timeout` bounds the idle interval before the next transport input needed by one
+body-read call. Buffered decoded bytes return immediately. Each received framing or body fragment
+begins another idle interval when further input is required. A timeout is a terminal network
+failure for that response and closes its stream, matching synchronous response-read failure.
+
+Destroying an unstarted send computation starts no connection. Cancelling a suspended send
+computation removes its readiness interests before destroying the connector or stream it owns.
+Destroying a body-read computation instead releases its exclusive borrow and leaves the `Response`
+owner intact; a later read may continue from the same decoder state. HTTP stores neither task IDs
+nor timer registrations.
+
 `send_with_timeout` applies one duration to the host-connection deadline and then as the timeout of
 each stream read and write operation. It is not a wall-clock deadline for the complete response.
 

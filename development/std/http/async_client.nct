@@ -11,11 +11,35 @@ see ./values.nct
 
 use /net
 use /net.TcpStream
+use /time.Duration
+
+func read_http_transport_async(
+    stream: &+TcpStream,
+    output: &+[u8],
+    timeout: Duration?,
+): async usize! {
+    let finite = timeout otherwise { return await stream.read_async(output)? }
+    return await stream.read_async_with_timeout(output, finite)?
+}
+
+func write_http_transport_async(
+    stream: &+TcpStream,
+    bytes: &[u8],
+    timeout: Duration?,
+): async void! {
+    let finite = timeout otherwise {
+        await stream.write_async(bytes)?
+        return
+    }
+    await stream.write_async_with_timeout(bytes, finite)?
+    return
+}
 
 func read_response_head_async(
     stream: &+TcpStream,
     request_method: &Method,
     limits: Limits,
+    timeout: Duration?,
 ): async ReceivedResponseHead! {
     var scratch = initialized_bytes(CLIENT_BUFFER_BYTES)
     var decoder = response_head_decoder(limits)
@@ -25,7 +49,11 @@ func read_response_head_async(
             FinalResponseHeadAttempt.failed(failure) { return move failure }
             FinalResponseHeadAttempt.incomplete(next) {
                 decoder = move next
-                let received = await stream.read_async(&+scratch) catch failure {
+                let received = await read_http_transport_async(
+                    stream,
+                    &+scratch,
+                    timeout,
+                ) catch failure {
                     return failure.context("while reading the HTTP response head")
                 }
                 if received == 0 { return premature_eof() }
@@ -38,17 +66,18 @@ func read_response_head_async(
 func send_after_connect(
     prepared: PreparedRequest,
     pending_connection: async TcpStream!,
+    timeout: Duration?,
 ): async Response! {
     var owned = move prepared
     var connection = await pending_connection catch failure {
         return failure.context("while connecting the HTTP request")
     }
-    await connection.write_async(&owned.encoded) catch failure {
+    await write_http_transport_async(&+connection, &owned.encoded, timeout) catch failure {
         return failure.context("while writing the HTTP request head")
     }
     if owned.request.body_value.len() != 0 {
         let body: &[u8] = &owned.request.body_value
-        await connection.write_async(body) catch failure {
+        await write_http_transport_async(&+connection, body, timeout) catch failure {
             return failure.context("while writing the HTTP request body")
         }
     }
@@ -56,6 +85,7 @@ func send_after_connect(
         &+connection,
         owned.request.head_value.request_method(),
         owned.limits,
+        timeout,
     )?
     return response_from_parts(
         move connection,
@@ -66,65 +96,109 @@ func send_after_connect(
     )
 }
 
-instance Client {
-    method &self.send_async(request: Request): (async Response!)! {
-        let prepared = prepare_request(move request, self.limits_value)?
+func begin_async_send(
+    limits: Limits,
+    request: Request,
+    timeout: Duration?,
+): (async Response!)! {
+    let prepared = prepare_request(move request, limits)?
+    let finite = timeout otherwise {
         let pending_connection = net.connect_host_async(
             prepared.request.url_value.host(),
             prepared.request.url_value.port(),
         ) catch failure {
             return failure.context("while resolving the HTTP request host")
         }
-        return send_after_connect(move prepared, move pending_connection)
+        return send_after_connect(move prepared, move pending_connection, none)
+    }
+    let pending_connection = net.connect_host_async_with_timeout(
+        prepared.request.url_value.host(),
+        prepared.request.url_value.port(),
+        finite,
+    ) catch failure {
+        return failure.context("while resolving the HTTP request host")
+    }
+    return send_after_connect(move prepared, move pending_connection, finite)
+}
+
+func read_response_body_async(
+    response: &+Response,
+    output: &+[u8],
+    timeout: Duration?,
+): async usize! {
+    if response.complete || output.len() == 0 { return 0 }
+    loop {
+        match advance_response_body(response, output, false) {
+            ResponseBodyAttempt.ready(written) { return written }
+            ResponseBodyAttempt.complete(written) {
+                response.stream.close()
+                return written
+            }
+            ResponseBodyAttempt.failed(failure) {
+                response.stream.close()
+                response.complete = true
+                return failure.context("while decoding the HTTP response body")
+            }
+            ResponseBodyAttempt.input {
+                let received = await read_http_transport_async(
+                    &+response.stream,
+                    &+response.scratch,
+                    timeout,
+                ) catch failure {
+                    response.stream.close()
+                    response.complete = true
+                    return failure.context("while reading the HTTP response body")
+                }
+                if received == 0 {
+                    match advance_response_body(response, output, true) {
+                        ResponseBodyAttempt.complete(written) {
+                            response.stream.close()
+                            return written
+                        }
+                        ResponseBodyAttempt.failed(failure) {
+                            response.stream.close()
+                            response.complete = true
+                            return failure.context("at the end of the HTTP response body")
+                        }
+                        ResponseBodyAttempt.ready(written) {
+                            response.stream.close()
+                            return written
+                        }
+                        ResponseBodyAttempt.input {
+                            response.stream.close()
+                            response.complete = true
+                            return premature_eof()
+                        }
+                    }
+                }
+                append_prefix(&+response.pending, &response.scratch, received)
+            }
+        }
+    }
+}
+
+instance Client {
+    method &self.send_async(request: Request): (async Response!)! {
+        return begin_async_send(self.limits_value, move request, none)
+    }
+
+    method &self.send_async_with_timeout(
+        request: Request,
+        timeout: Duration,
+    ): (async Response!)! {
+        return begin_async_send(self.limits_value, move request, timeout)
     }
 }
 
 instance Response {
     method &+self.read_async(output: &+[u8]): async usize! {
-        if self.complete || output.len() == 0 { return 0 }
-        loop {
-            match advance_response_body(self, output, false) {
-                ResponseBodyAttempt.ready(written) { return written }
-                ResponseBodyAttempt.complete(written) {
-                    self.stream.close()
-                    return written
-                }
-                ResponseBodyAttempt.failed(failure) {
-                    self.stream.close()
-                    self.complete = true
-                    return failure.context("while decoding the HTTP response body")
-                }
-                ResponseBodyAttempt.input {
-                    let received = await self.stream.read_async(&+self.scratch) catch failure {
-                        self.stream.close()
-                        self.complete = true
-                        return failure.context("while reading the HTTP response body")
-                    }
-                    if received == 0 {
-                        match advance_response_body(self, output, true) {
-                            ResponseBodyAttempt.complete(written) {
-                                self.stream.close()
-                                return written
-                            }
-                            ResponseBodyAttempt.failed(failure) {
-                                self.stream.close()
-                                self.complete = true
-                                return failure.context("at the end of the HTTP response body")
-                            }
-                            ResponseBodyAttempt.ready(written) {
-                                self.stream.close()
-                                return written
-                            }
-                            ResponseBodyAttempt.input {
-                                self.stream.close()
-                                self.complete = true
-                                return premature_eof()
-                            }
-                        }
-                    }
-                    append_prefix(&+self.pending, &self.scratch, received)
-                }
-            }
-        }
+        return await read_response_body_async(self, output, none)?
+    }
+
+    method &+self.read_async_with_timeout(
+        output: &+[u8],
+        timeout: Duration,
+    ): async usize! {
+        return await read_response_body_async(self, output, timeout)?
     }
 }
