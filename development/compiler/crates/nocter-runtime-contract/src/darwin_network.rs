@@ -234,6 +234,15 @@ pub enum DarwinNetworkConnectionState {
 }
 
 impl DarwinNetworkConnectionState {
+    pub const ALL: &'static [Self] = &[
+        Self::Invalid,
+        Self::Waiting,
+        Self::Preparing,
+        Self::Ready,
+        Self::Failed,
+        Self::Cancelled,
+    ];
+
     #[must_use]
     pub const fn code(self) -> u64 {
         match self {

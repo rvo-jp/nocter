@@ -16,9 +16,6 @@ see ./resolver.nct
 /// Opaque, uniquely owned storage for one compiler-selected stream or listener provider.
 pub(/) primitive type NetworkOwner
 
-/// Opaque storage for one callback event and any native ownership carried by that event.
-pub(/) primitive type NetworkEvent
-
 pub(/) enum NetworkFailure {
     os(value: OSError)
     closed

@@ -3,14 +3,9 @@ use nocter_arm64::{
     Arm64CodeBuilder, Arm64DarwinNetworkAdapterImports, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64Program, Arm64ProgramBuilder, add_darwin_plain_connection_targets,
 };
-use nocter_runtime_contract::{
-    DarwinNetworkAdapterFunction, DarwinNetworkCallbackEventAbiSchema,
-    DarwinNetworkConnectionState, DarwinNetworkOwnerCreateStatus,
-};
+use nocter_runtime_contract::{DarwinNetworkConnectionState, DarwinNetworkOwnerCreateStatus};
 
-use super::network_callback::{
-    adjust_stack, call, immediate, load, move_register, stack_address, x,
-};
+use super::network_callback::{adjust_stack, immediate, move_register, stack_address, x};
 use crate::MachOImage;
 
 fn connection_lifecycle_program() -> Arm64Program {
@@ -31,7 +26,6 @@ fn connection_lifecycle_program() -> Arm64Program {
         connection.lifecycle(),
         connection.events(),
         address,
-        &imports,
     );
     program.set_entry(entry).unwrap();
     program.finish().unwrap()
@@ -44,13 +38,10 @@ fn define_connection_entry(
     lifecycle: nocter_arm64::Arm64DarwinNetworkConnectionLifecycleTargets,
     events: nocter_arm64::Arm64DarwinNetworkConnectionEventTargets,
     address: nocter_arm64::Arm64DataId,
-    imports: &Arm64DarwinNetworkAdapterImports,
 ) {
     const OWNER_OFFSET: u32 = 0;
-    const EVENT_OFFSET: u32 = 48;
-    let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
     let mut code = Arm64CodeBuilder::new();
-    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 96);
+    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 48);
     stack_address(&mut code, OWNER_OFFSET, x(26));
     move_register(&mut code, x(0), x(26));
     code.load_data_address(address, x(1));
@@ -72,37 +63,15 @@ fn define_connection_entry(
     call_function(&mut code, lifecycle.request_cancel());
 
     let receive = code.create_label();
-    let error_released = code.create_label();
     code.bind(receive).unwrap();
     move_register(&mut code, x(0), x(26));
-    stack_address(&mut code, EVENT_OFFSET, x(1));
-    call_function(&mut code, events.receive());
-    load(
-        &mut code,
-        x(27),
-        EVENT_OFFSET + u32::try_from(schema.payload_offset(0).unwrap()).unwrap(),
-    );
-    load(
-        &mut code,
-        x(28),
-        EVENT_OFFSET + u32::try_from(schema.payload_offset(1).unwrap()).unwrap(),
-    );
-    compare_zero(&mut code, x(28));
-    code.branch_conditional(error_released, Arm64BranchCondition::Equal);
-    move_register(&mut code, x(0), x(28));
-    call(
-        &mut code,
-        imports.function(DarwinNetworkAdapterFunction::NetworkRelease),
-    );
-    code.bind(error_released).unwrap();
+    call_function(&mut code, events.receive_state());
     compare_immediate(
         &mut code,
-        x(27),
+        x(0),
         DarwinNetworkConnectionState::Cancelled.code(),
     );
     code.branch_conditional(receive, Arm64BranchCondition::NotEqual);
-    move_register(&mut code, x(0), x(26));
-    call_function(&mut code, lifecycle.observe_final_state());
     move_register(&mut code, x(0), x(26));
     call_function(&mut code, lifecycle.complete_release_barrier());
     move_register(&mut code, x(0), x(26));
@@ -113,10 +82,6 @@ fn define_connection_entry(
     program
         .define_function(entry, code.finish().unwrap())
         .unwrap();
-}
-
-fn compare_zero(code: &mut Arm64CodeBuilder, value: nocter_arm64::Arm64Register) {
-    compare_immediate(code, value, 0);
 }
 
 fn call_function(code: &mut Arm64CodeBuilder, target: Arm64FunctionId) {
