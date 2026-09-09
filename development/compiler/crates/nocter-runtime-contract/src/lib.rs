@@ -6,6 +6,7 @@
 
 mod asynchronous;
 mod darwin_block;
+mod darwin_network;
 mod environment;
 mod import;
 mod primitive;
@@ -15,6 +16,9 @@ mod target_service;
 
 pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use darwin_block::DarwinBlockAbiSchema;
+pub use darwin_network::{
+    DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState, DarwinNetworkEventKind,
+};
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{
     RuntimeDataImport, RuntimeFunctionImport, RuntimeImport, RuntimeImportError,

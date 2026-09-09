@@ -9,6 +9,8 @@ use nocter_runtime_contract::{RuntimeDataImport, RuntimeFunctionImport, RuntimeL
 
 use crate::MachOImage;
 
+mod network_callback;
+
 fn x(number: u8) -> Arm64Register {
     Arm64Register::new(number).unwrap()
 }

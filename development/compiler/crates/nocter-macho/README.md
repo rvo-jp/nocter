@@ -22,4 +22,6 @@ service, inspect a source declaration, validate package semantics, or publish ar
   identity; a framework cannot be added through a symbol-specific special case.
 - Readonly data is writable only during loader fixups and is protected after rebasing.
 - Imported symbols contribute to the deterministic image UUID and code signature.
+- Native qualification executes compiler-materialized blocks both synchronously through
+  Network.framework and asynchronously through a dispatch queue and descriptor event channel.
 - Equal input produces byte-identical output.
