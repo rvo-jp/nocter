@@ -2,25 +2,23 @@ use nocter_arm64::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64DarwinNetworkAdapterImports, Arm64DataRegister, Arm64DataSize,
     Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64Program, Arm64ProgramBuilder,
-    add_darwin_pointer_capture_block_descriptor, emit_darwin_network_event_receive,
-    emit_darwin_network_event_send, load_darwin_stack_block_address,
+    add_darwin_network_state_callback, add_darwin_pointer_capture_block_descriptor,
+    emit_darwin_network_event_receive, load_darwin_stack_block_address,
     materialize_darwin_pointer_capture_stack_block,
 };
 use nocter_runtime_contract::{
     DarwinNetworkAdapterData, DarwinNetworkAdapterFunction, DarwinNetworkCallbackEventAbiSchema,
-    DarwinNetworkCallbackRole, DarwinNetworkConnectionState, DarwinNetworkEventKind,
+    DarwinNetworkCallbackRole, DarwinNetworkConnectionState,
 };
 
 use super::network_callback::{
-    adjust_stack, call, immediate, load, load_word, move_register, stack_address, store,
-    store_zero, x,
+    adjust_stack, call, immediate, load, load_word, move_register, stack_address, x,
 };
 use crate::MachOImage;
 
 fn connection_lifecycle_program() -> Arm64Program {
     let mut program = Arm64ProgramBuilder::new();
     let entry = program.declare_function();
-    let invoke = program.declare_function();
     let barrier = program.declare_function();
     let descriptor = add_darwin_pointer_capture_block_descriptor(
         &mut program,
@@ -33,7 +31,12 @@ fn connection_lifecycle_program() -> Arm64Program {
         .add_data(b"nocter.network.connection\0".as_slice(), 1)
         .unwrap();
     let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
-    define_state_callback(&mut program, invoke, &imports);
+    let invoke = add_darwin_network_state_callback(
+        &mut program,
+        DarwinNetworkCallbackRole::ConnectionState,
+        &imports,
+    )
+    .unwrap();
     define_dispatch_barrier(&mut program, barrier);
     define_connection_entry(
         &mut program,
@@ -56,85 +59,6 @@ fn define_dispatch_barrier(program: &mut Arm64ProgramBuilder, barrier: Arm64Func
     });
     program
         .define_function(barrier, code.finish().unwrap())
-        .unwrap();
-}
-
-fn define_state_callback(
-    program: &mut Arm64ProgramBuilder,
-    invoke: Arm64FunctionId,
-    imports: &Arm64DarwinNetworkAdapterImports,
-) {
-    let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
-    let mut code = Arm64CodeBuilder::new();
-    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 96);
-    for (register, offset) in [(x(19), 64), (x(20), 72), (x(21), 80), (x(30), 88)] {
-        store(&mut code, register, offset);
-    }
-    code.append(Arm64Instruction::LoadUnsigned {
-        size: Arm64LoadStoreSize::Double,
-        destination: Arm64DataRegister::General(x(19)),
-        base: Arm64BaseRegister::General(x(0)),
-        offset: 32,
-    });
-    code.append(Arm64Instruction::BitfieldExtend {
-        size: Arm64DataSize::Bits64,
-        signed: false,
-        source_bits: 32,
-        destination: x(20),
-        source: x(1),
-    });
-    move_register(&mut code, x(21), x(2));
-
-    let retained = code.create_label();
-    compare_zero(&mut code, x(21));
-    code.branch_conditional(retained, Arm64BranchCondition::Equal);
-    move_register(&mut code, x(0), x(21));
-    call(
-        &mut code,
-        imports.function(DarwinNetworkAdapterFunction::NetworkRetain),
-    );
-    code.bind(retained).unwrap();
-
-    immediate(
-        &mut code,
-        x(8),
-        DarwinNetworkEventKind::ConnectionState.code(),
-    );
-    store(
-        &mut code,
-        x(8),
-        u32::try_from(schema.kind_offset()).unwrap(),
-    );
-    store(
-        &mut code,
-        x(20),
-        u32::try_from(schema.payload_offset(0).unwrap()).unwrap(),
-    );
-    store(
-        &mut code,
-        x(21),
-        u32::try_from(schema.payload_offset(1).unwrap()).unwrap(),
-    );
-    store_zero(
-        &mut code,
-        u32::try_from(schema.payload_offset(2).unwrap()).unwrap(),
-    );
-    store_zero(
-        &mut code,
-        u32::try_from(schema.payload_offset(3).unwrap()).unwrap(),
-    );
-    emit_darwin_network_event_send(&mut code, imports.channel(), x(19), 0).unwrap();
-
-    for (register, offset) in [(x(19), 64), (x(20), 72), (x(21), 80), (x(30), 88)] {
-        load(&mut code, register, offset);
-    }
-    adjust_stack(&mut code, Arm64AddSubtract::Add, 96);
-    code.append(Arm64Instruction::BranchRegister {
-        target: x(30),
-        link: false,
-    });
-    program
-        .define_function(invoke, code.finish().unwrap())
         .unwrap();
 }
 

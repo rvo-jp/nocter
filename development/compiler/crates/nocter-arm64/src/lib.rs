@@ -35,6 +35,7 @@ mod darwin_block;
 mod darwin_kernel_abi;
 mod darwin_memory_code;
 mod darwin_network_adapter;
+mod darwin_network_callback;
 mod darwin_network_channel;
 mod destruction_selection;
 mod encode;
@@ -114,6 +115,9 @@ pub use darwin_block::{
     materialize_darwin_pointer_capture_stack_block,
 };
 pub use darwin_network_adapter::Arm64DarwinNetworkAdapterImports;
+pub use darwin_network_callback::{
+    Arm64DarwinNetworkCallbackError, add_darwin_network_state_callback,
+};
 pub use darwin_network_channel::{
     Arm64DarwinNetworkChannelError, Arm64DarwinNetworkChannelImports,
     emit_darwin_network_event_receive, emit_darwin_network_event_send,
