@@ -24,4 +24,6 @@ service, inspect a source declaration, validate package semantics, or publish ar
 - Imported symbols contribute to the deterministic image UUID and code signature.
 - Native qualification executes compiler-materialized blocks both synchronously through
   Network.framework and asynchronously through a dispatch queue and descriptor event channel.
+- Native connection qualification retains callback errors across that channel and releases all
+  provider and dispatch owners only after the final state and a same-queue synchronous barrier.
 - Equal input produces byte-identical output.

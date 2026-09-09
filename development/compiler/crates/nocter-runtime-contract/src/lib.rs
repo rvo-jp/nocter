@@ -18,6 +18,7 @@ pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState, DarwinNetworkEventKind,
+    DarwinNetworkEventPayload, DarwinNetworkListenerState, DarwinNetworkReleaseFence,
 };
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{

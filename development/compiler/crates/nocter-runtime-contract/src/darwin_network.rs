@@ -55,6 +55,19 @@ pub enum DarwinNetworkEventKind {
     AcceptedConnection,
 }
 
+/// The ownership and representation of one event payload lane.
+///
+/// A retained object crosses the callback channel at +1. A consumer must either transfer that
+/// ownership into a higher-level value or release it with the matching runtime family.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DarwinNetworkEventPayload {
+    Empty,
+    Word,
+    OptionalRetainedNetworkObject,
+    RetainedNetworkObject,
+    OptionalRetainedDispatchData,
+}
+
 impl DarwinNetworkEventKind {
     #[must_use]
     pub const fn code(self) -> u64 {
@@ -76,6 +89,41 @@ impl DarwinNetworkEventKind {
             3 => Some(Self::ListenerState),
             4 => Some(Self::AcceptedConnection),
             _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn payload(self, lane: usize) -> Option<DarwinNetworkEventPayload> {
+        let payloads = match self {
+            Self::ConnectionState | Self::ListenerState => [
+                DarwinNetworkEventPayload::Word,
+                DarwinNetworkEventPayload::OptionalRetainedNetworkObject,
+                DarwinNetworkEventPayload::Empty,
+                DarwinNetworkEventPayload::Empty,
+            ],
+            Self::ReceiveCompletion => [
+                DarwinNetworkEventPayload::OptionalRetainedDispatchData,
+                DarwinNetworkEventPayload::OptionalRetainedNetworkObject,
+                DarwinNetworkEventPayload::Word,
+                DarwinNetworkEventPayload::OptionalRetainedNetworkObject,
+            ],
+            Self::SendCompletion => [
+                DarwinNetworkEventPayload::OptionalRetainedNetworkObject,
+                DarwinNetworkEventPayload::Empty,
+                DarwinNetworkEventPayload::Empty,
+                DarwinNetworkEventPayload::Empty,
+            ],
+            Self::AcceptedConnection => [
+                DarwinNetworkEventPayload::RetainedNetworkObject,
+                DarwinNetworkEventPayload::Empty,
+                DarwinNetworkEventPayload::Empty,
+                DarwinNetworkEventPayload::Empty,
+            ],
+        };
+        if lane < payloads.len() {
+            Some(payloads[lane])
+        } else {
+            None
         }
     }
 }
@@ -116,12 +164,109 @@ impl DarwinNetworkConnectionState {
             _ => None,
         }
     }
+
+    /// Whether this is the last provider callback state for a cancelled connection.
+    ///
+    /// Receipt alone does not permit release: the consumer must complete a barrier on the same
+    /// serial dispatch queue so the callback that sent the event has returned.
+    #[must_use]
+    pub const fn is_final_callback_state(self) -> bool {
+        matches!(self, Self::Cancelled)
+    }
+}
+
+/// Network.framework listener states normalized at the provider boundary.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DarwinNetworkListenerState {
+    Invalid,
+    Waiting,
+    Ready,
+    Failed,
+    Cancelled,
+}
+
+impl DarwinNetworkListenerState {
+    #[must_use]
+    pub const fn code(self) -> u64 {
+        match self {
+            Self::Invalid => 0,
+            Self::Waiting => 1,
+            Self::Ready => 2,
+            Self::Failed => 3,
+            Self::Cancelled => 4,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_code(code: u64) -> Option<Self> {
+        match code {
+            0 => Some(Self::Invalid),
+            1 => Some(Self::Waiting),
+            2 => Some(Self::Ready),
+            3 => Some(Self::Failed),
+            4 => Some(Self::Cancelled),
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_final_callback_state(self) -> bool {
+        matches!(self, Self::Cancelled)
+    }
+}
+
+/// The two-step release fence for one cancelled Network.framework owner.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DarwinNetworkReleaseFence {
+    AwaitingFinalState,
+    AwaitingDispatchBarrier,
+    Releasable,
+}
+
+impl DarwinNetworkReleaseFence {
+    #[must_use]
+    pub const fn observe_connection_state(self, state: DarwinNetworkConnectionState) -> Self {
+        if state.is_final_callback_state() {
+            match self {
+                Self::AwaitingFinalState => Self::AwaitingDispatchBarrier,
+                Self::AwaitingDispatchBarrier | Self::Releasable => self,
+            }
+        } else {
+            self
+        }
+    }
+
+    #[must_use]
+    pub const fn observe_listener_state(self, state: DarwinNetworkListenerState) -> Self {
+        if state.is_final_callback_state() {
+            match self {
+                Self::AwaitingFinalState => Self::AwaitingDispatchBarrier,
+                Self::AwaitingDispatchBarrier | Self::Releasable => self,
+            }
+        } else {
+            self
+        }
+    }
+
+    #[must_use]
+    pub const fn complete_dispatch_barrier(self) -> Self {
+        match self {
+            Self::AwaitingDispatchBarrier => Self::Releasable,
+            Self::AwaitingFinalState | Self::Releasable => self,
+        }
+    }
+
+    #[must_use]
+    pub const fn can_release(self) -> bool {
+        matches!(self, Self::Releasable)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState, DarwinNetworkEventKind,
+        DarwinNetworkEventPayload, DarwinNetworkListenerState, DarwinNetworkReleaseFence,
     };
 
     #[test]
@@ -147,6 +292,15 @@ mod tests {
             assert_eq!(DarwinNetworkEventKind::from_code(kind.code()), Some(kind));
         }
         assert_eq!(DarwinNetworkEventKind::from_code(5), None);
+        assert_eq!(
+            DarwinNetworkEventKind::ReceiveCompletion.payload(0),
+            Some(DarwinNetworkEventPayload::OptionalRetainedDispatchData)
+        );
+        assert_eq!(
+            DarwinNetworkEventKind::AcceptedConnection.payload(0),
+            Some(DarwinNetworkEventPayload::RetainedNetworkObject)
+        );
+        assert_eq!(DarwinNetworkEventKind::SendCompletion.payload(4), None);
 
         for state in [
             DarwinNetworkConnectionState::Invalid,
@@ -162,5 +316,35 @@ mod tests {
             );
         }
         assert_eq!(DarwinNetworkConnectionState::from_code(6), None);
+        assert!(DarwinNetworkConnectionState::Cancelled.is_final_callback_state());
+
+        for state in [
+            DarwinNetworkListenerState::Invalid,
+            DarwinNetworkListenerState::Waiting,
+            DarwinNetworkListenerState::Ready,
+            DarwinNetworkListenerState::Failed,
+            DarwinNetworkListenerState::Cancelled,
+        ] {
+            assert_eq!(
+                DarwinNetworkListenerState::from_code(state.code()),
+                Some(state)
+            );
+        }
+        assert_eq!(DarwinNetworkListenerState::from_code(5), None);
+        assert!(DarwinNetworkListenerState::Cancelled.is_final_callback_state());
+
+        let fence = DarwinNetworkReleaseFence::AwaitingFinalState;
+        assert!(!fence.complete_dispatch_barrier().can_release());
+        assert_eq!(
+            fence.observe_connection_state(DarwinNetworkConnectionState::Ready),
+            fence
+        );
+        let fence = fence.observe_connection_state(DarwinNetworkConnectionState::Cancelled);
+        assert!(!fence.can_release());
+        assert!(fence.complete_dispatch_barrier().can_release());
+
+        let listener_fence = DarwinNetworkReleaseFence::AwaitingFinalState
+            .observe_listener_state(DarwinNetworkListenerState::Cancelled);
+        assert!(listener_fence.complete_dispatch_barrier().can_release());
     }
 }

@@ -9,10 +9,12 @@ closed native adapter foundation.
 
 ## Next Work
 
-Complete Phase 1's provider-object retention, dispatch ownership, and final cancellation lifetime
-fence. The fixed one-pointer Block ABI and the cross-thread datagram event channel are qualified;
-the channel's read descriptor already fits the existing reactor contract. Keep native objects and
-callbacks compiler-owned; do not add source-level FFI or a general callback escape hatch.
+Complete Phase 1's closed adapter operation surface and permanent callback-channel failure policy.
+The fixed one-pointer Block ABI, cross-thread datagram event channel, retained provider-object
+transfer, and final-state-plus-dispatch-barrier release fence are qualified against a generated
+secure TCP connection. The channel's read descriptor already fits the existing reactor contract.
+Keep native objects and callbacks compiler-owned; do not add source-level FFI or a general callback
+escape hatch.
 
 Preserve every published tag and asset.
 

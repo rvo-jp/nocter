@@ -16,7 +16,7 @@ const BLOCK_OFFSET: u32 = 16;
 const EVENT_OFFSET: u32 = 64;
 const FRAME_SIZE: u16 = 112;
 
-fn x(number: u8) -> Arm64Register {
+pub(super) fn x(number: u8) -> Arm64Register {
     Arm64Register::new(number).unwrap()
 }
 
@@ -31,7 +31,10 @@ struct CallbackChannelImports {
     dispatch_release: Arm64FunctionImportId,
 }
 
-fn function_import(program: &mut Arm64ProgramBuilder, symbol: &str) -> Arm64FunctionImportId {
+pub(super) fn function_import(
+    program: &mut Arm64ProgramBuilder,
+    symbol: &str,
+) -> Arm64FunctionImportId {
     program
         .add_function_import(
             RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSystem, symbol).unwrap(),
@@ -198,7 +201,7 @@ fn define_entry(
         .unwrap();
 }
 
-fn adjust_stack(code: &mut Arm64CodeBuilder, operation: Arm64AddSubtract, amount: u16) {
+pub(super) fn adjust_stack(code: &mut Arm64CodeBuilder, operation: Arm64AddSubtract, amount: u16) {
     code.append(Arm64Instruction::AddSubtractImmediate {
         size: Arm64DataSize::Bits64,
         operation,
@@ -210,7 +213,7 @@ fn adjust_stack(code: &mut Arm64CodeBuilder, operation: Arm64AddSubtract, amount
     });
 }
 
-fn stack_address(code: &mut Arm64CodeBuilder, offset: u32, destination: Arm64Register) {
+pub(super) fn stack_address(code: &mut Arm64CodeBuilder, offset: u32, destination: Arm64Register) {
     code.append(Arm64Instruction::AddSubtractImmediate {
         size: Arm64DataSize::Bits64,
         operation: Arm64AddSubtract::Add,
@@ -222,7 +225,11 @@ fn stack_address(code: &mut Arm64CodeBuilder, offset: u32, destination: Arm64Reg
     });
 }
 
-fn move_register(code: &mut Arm64CodeBuilder, destination: Arm64Register, source: Arm64Register) {
+pub(super) fn move_register(
+    code: &mut Arm64CodeBuilder,
+    destination: Arm64Register,
+    source: Arm64Register,
+) {
     code.append(Arm64Instruction::AddSubtractImmediate {
         size: Arm64DataSize::Bits64,
         operation: Arm64AddSubtract::Add,
@@ -234,7 +241,7 @@ fn move_register(code: &mut Arm64CodeBuilder, destination: Arm64Register, source
     });
 }
 
-fn immediate(code: &mut Arm64CodeBuilder, destination: Arm64Register, value: u64) {
+pub(super) fn immediate(code: &mut Arm64CodeBuilder, destination: Arm64Register, value: u64) {
     let immediate = u16::try_from(value).expect("test immediate fits one move-wide halfword");
     code.append(Arm64Instruction::MoveWide {
         size: Arm64DataSize::Bits64,
@@ -245,7 +252,7 @@ fn immediate(code: &mut Arm64CodeBuilder, destination: Arm64Register, value: u64
     });
 }
 
-fn load(code: &mut Arm64CodeBuilder, destination: Arm64Register, offset: u32) {
+pub(super) fn load(code: &mut Arm64CodeBuilder, destination: Arm64Register, offset: u32) {
     code.append(Arm64Instruction::LoadUnsigned {
         size: Arm64LoadStoreSize::Double,
         destination: Arm64DataRegister::General(destination),
@@ -254,7 +261,7 @@ fn load(code: &mut Arm64CodeBuilder, destination: Arm64Register, offset: u32) {
     });
 }
 
-fn load_word(code: &mut Arm64CodeBuilder, destination: Arm64Register, offset: u32) {
+pub(super) fn load_word(code: &mut Arm64CodeBuilder, destination: Arm64Register, offset: u32) {
     code.append(Arm64Instruction::LoadUnsigned {
         size: Arm64LoadStoreSize::Word,
         destination: Arm64DataRegister::General(destination),
@@ -263,7 +270,7 @@ fn load_word(code: &mut Arm64CodeBuilder, destination: Arm64Register, offset: u3
     });
 }
 
-fn store(code: &mut Arm64CodeBuilder, source: Arm64Register, offset: u32) {
+pub(super) fn store(code: &mut Arm64CodeBuilder, source: Arm64Register, offset: u32) {
     code.append(Arm64Instruction::StoreUnsigned {
         size: Arm64LoadStoreSize::Double,
         source: Arm64DataRegister::General(source),
@@ -272,7 +279,7 @@ fn store(code: &mut Arm64CodeBuilder, source: Arm64Register, offset: u32) {
     });
 }
 
-fn store_zero(code: &mut Arm64CodeBuilder, offset: u32) {
+pub(super) fn store_zero(code: &mut Arm64CodeBuilder, offset: u32) {
     code.append(Arm64Instruction::StoreUnsigned {
         size: Arm64LoadStoreSize::Double,
         source: Arm64DataRegister::Zero,
@@ -281,7 +288,7 @@ fn store_zero(code: &mut Arm64CodeBuilder, offset: u32) {
     });
 }
 
-fn call(code: &mut Arm64CodeBuilder, target: Arm64FunctionImportId) {
+pub(super) fn call(code: &mut Arm64CodeBuilder, target: Arm64FunctionImportId) {
     code.load_function_import(target, x(16));
     code.append(Arm64Instruction::BranchRegister {
         target: x(16),

@@ -123,8 +123,8 @@ can construct only a typed, one-pointer capture block whose descriptor size and 
 are fixed by that schema. A generated executable passes such a block to Network.framework; the
 framework invokes it and the callback updates its captured mailbox. This proves the actual block
 calling convention without exposing general blocks or foreign callbacks to Nocter source. The
-remaining asynchronous boundary must add provider-object retention, dispatch queue ownership, and
-the final cancellation lifetime fence before any connection object becomes public.
+remaining asynchronous boundary must turn these qualified mechanisms into one closed adapter
+operation surface before any connection object becomes public.
 
 The callback transport does not use a shared-memory mailbox plus a separate wake byte. Each
 callback writes one fixed 40-byte record to an `AF_UNIX/SOCK_DGRAM` socketpair owned by its native
@@ -132,10 +132,16 @@ adapter object. The kernel datagram queue preserves complete message boundaries 
 applies bounded backpressure, and exposes the read descriptor directly to the existing reactor.
 Consequently no mutex, event-node allocation, pointer publication, or second readiness model exists.
 A serial dispatch queue is mandatory. Any provider object placed in an event must be retained before
-the send and becomes the consumer's responsibility only after a complete receive. Cancellation's
-final provider state is the lifetime fence after which blocks, queue, channel, and connection can be
-released.
+the send and becomes the consumer's responsibility only after a complete receive. Receiving the
+final cancelled state does not by itself permit release: the callback sends the event before it
+returns. The consumer must subsequently complete a synchronous barrier on the same serial dispatch
+queue. Only this two-step fence proves that the final callback has returned, after which blocks,
+queue, channel, and connection can be released.
 
 A generated executable now copies a one-pointer block onto a serial dispatch queue, sends one event
-from the callback thread, receives it as one datagram, and observes its payload. Provider-object
-retention and the complete connection cancellation fence remain to be qualified.
+from the callback thread, receives it as one datagram, and observes its payload. A second generated
+executable creates and cancels a real secure TCP connection, retains callback error objects across
+the channel, releases them after receipt, waits for the final cancelled state, completes the
+same-queue barrier, and only then releases every connection, endpoint, parameter, queue, and channel
+owner. The production adapter must still own permanent channel-failure policy rather than exposing
+that policy to source code.
