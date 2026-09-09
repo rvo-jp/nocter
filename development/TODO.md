@@ -2,16 +2,15 @@
 
 ## Current State
 
-Nocter v0.40.0 is published and externally audited. v0.41.0 implementation and source-tree
-qualification are complete on `develop-v0.41.0`, with no open practical finding. Its candidate
-identity is fixed at `0.41.0`; public latest-release references remain at v0.40.0.
+Nocter v0.40.0 is published and externally audited. The exact v0.41.0 release candidate is
+qualified and retained locally from release-content commit
+`d63f749f83847bf445112b49e94173b315233ee2`. Public latest-release references remain at v0.40.0.
 
 ## Next Work
 
-Commit the release-content identity, run two independent complete compiler gates, run the explicit
-public-HTTPS acquisition test, build the archive twice from isolated targets, qualify a fresh
-installed home from the retained candidate, and record exact source and artifact identities. Stop
-before publication, which remains a separate explicitly authorized operation.
+Wait for explicit publication authorization. Publication must reuse the retained qualified archive
+without rebuilding it, update public latest-release surfaces in a separate commit, create and push
+one annotated `v0.41.0` tag, upload exactly one asset, and verify the public asset byte for byte.
 
 Preserve the immutable v0.39.0 and v0.40.0 tags and assets.
 
