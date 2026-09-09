@@ -2337,6 +2337,113 @@ fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
     server.join().unwrap();
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = fixture.local_addr().unwrap().port();
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/http.{{Client, Request}}\n\
+             use std/string.String\n\
+             use std/url.Url\n\
+             use std/vec.Vec\n\
+             \n\
+             func main(): async i32 {{\n\
+                 let url = Url.parse(\"http://localhost:{port}/async?q=1\") catch _ {{ return 1 }}\n\
+                 var request = Request.get(move url) catch _ {{ return 2 }}\n\
+                 request.set_body(Vec.from_slice(\"payload\".bytes()))\n\
+                 let client = Client.new()\n\
+                 let pending = client.send_async(move request) catch _ {{ return 3 }}\n\
+                 var response = await pending catch _ {{ return 4 }}\n\
+                 if response.status().code() != 200 {{ return 5 }}\n\
+                 let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 6 }}\n\
+                 var body: Vec<u8> = Vec.empty()\n\
+                 var scratch: Vec<u8> = Vec [\n\
+                     u8.truncate(0),\n\
+                     u8.truncate(0),\n\
+                     u8.truncate(0),\n\
+                     u8.truncate(0),\n\
+                 ]\n\
+                 loop {{\n\
+                     let received = await response.read_async(&+scratch) catch _ {{ return 7 }}\n\
+                     if received == 0 {{ break }}\n\
+                     var offset: usize = 0\n\
+                     while offset < received {{\n\
+                         body.push(scratch[offset])\n\
+                         offset += 1\n\
+                     }}\n\
+                 }}\n\
+                 let text = String.from_utf8(&body) catch _ {{ return 8 }}\n\
+                 if text != \"fragmented\" {{ return 9 }}\n\
+                 return 0\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+
+    let server = thread::spawn(move || {
+        let (mut stream, _) = fixture.accept().unwrap();
+        let mut request = Vec::new();
+        let mut scratch = [0_u8; 256];
+        let head_end = loop {
+            if let Some(offset) = request.windows(4).position(|bytes| bytes == b"\r\n\r\n") {
+                break offset + 4;
+            }
+            let received = stream.read(&mut scratch).unwrap();
+            assert_ne!(
+                received, 0,
+                "async HTTP client closed before completing its head"
+            );
+            request.extend_from_slice(&scratch[..received]);
+        };
+        while request.len() < head_end + 7 {
+            let received = stream.read(&mut scratch).unwrap();
+            assert_ne!(
+                received, 0,
+                "async HTTP client closed before completing its body"
+            );
+            request.extend_from_slice(&scratch[..received]);
+        }
+        assert_eq!(
+            &request[..head_end],
+            format!(
+                "GET /async?q=1 HTTP/1.1\r\nhost: localhost:{port}\r\nconnection: close\r\ncontent-length: 7\r\n\r\n"
+            )
+            .as_bytes()
+        );
+        assert_eq!(&request[head_end..], b"payload");
+        stream
+            .write_all(
+                b"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nX-Fixture: yes\r\n\r\n4\r\nfrag\r\n",
+            )
+            .unwrap();
+        thread::sleep(Duration::from_millis(10));
+        stream.write_all(b"6\r\nmented\r\n0\r\n\r\n").unwrap();
+    });
+
+    execute_native_status(image.image(), &package_root.0, "async-http-client", 0);
+    server.join().unwrap();
+}
+
 #[test]
 fn standard_io_descriptor_contract_crosses_native_tests() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -2613,6 +2720,69 @@ fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_status(image.image(), &package_root.0, "borrowed-parent-frame", 0);
+}
+
+#[test]
+fn large_async_output_staging_preserves_the_consume_entry() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/time\n\
+         use std/vec.Vec\n\
+         \n\
+         struct Payload {\n\
+             first: Vec<u8>\n\
+             second: Vec<u8>\n\
+             third: Vec<u8>\n\
+             fourth: Vec<u8>\n\
+             fifth: Vec<u8>\n\
+             sixth: Vec<u8>\n\
+             seventh: Vec<u8>\n\
+             eighth: Vec<u8>\n\
+             ninth: Vec<u8>\n\
+             tenth: Vec<u8>\n\
+             eleventh: Vec<u8>\n\
+             twelfth: Vec<u8>\n\
+         }\n\
+         \n\
+         func hold(payload: Payload): async Payload {\n\
+             await time.delay(time.Duration.from_milliseconds(20))\n\
+             return move payload\n\
+         }\n\
+         \n\
+         func main(): async i32 {\n\
+             let payload = Payload {\n\
+                 first: Vec [u8.truncate(1)],\n\
+                 second: Vec [u8.truncate(2)],\n\
+                 third: Vec [u8.truncate(3)],\n\
+                 fourth: Vec [u8.truncate(4)],\n\
+                 fifth: Vec [u8.truncate(5)],\n\
+                 sixth: Vec [u8.truncate(6)],\n\
+                 seventh: Vec [u8.truncate(7)],\n\
+                 eighth: Vec [u8.truncate(8)],\n\
+                 ninth: Vec [u8.truncate(9)],\n\
+                 tenth: Vec [u8.truncate(42)],\n\
+                 eleventh: Vec [u8.truncate(11)],\n\
+                 twelfth: Vec [u8.truncate(12)],\n\
+             }\n\
+             let result = await hold(move payload)\n\
+             if result.tenth[0] == 42 { return 0 }\n\
+             return 1\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "large-async-output", 0);
 }
 
 #[test]

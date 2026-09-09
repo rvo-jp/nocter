@@ -1,0 +1,41 @@
+//! Transport-independent advancement of the uniquely owned response body.
+
+see ./body.nct
+see ./client_storage.nct
+
+enum ResponseBodyAttempt {
+    ready(written: usize)
+    input
+    complete(written: usize)
+    failed(failure: error)
+}
+
+func advance_response_body(
+    response: &+Response,
+    output: &+[u8],
+    end_of_input: bool,
+): ResponseBodyAttempt {
+    loop {
+        let decoded = decode_body(
+            &+response.decoder,
+            &response.pending,
+            response.pending_start,
+            output,
+            end_of_input,
+        ) catch failure {
+            return ResponseBodyAttempt.failed(move failure)
+        }
+        response.pending_start += decoded.consumed
+        if decoded.complete {
+            response.complete = true
+            return ResponseBodyAttempt.complete(decoded.written)
+        }
+        if decoded.written != 0 { return ResponseBodyAttempt.ready(decoded.written) }
+        if response.pending_start == response.pending.len() {
+            response.pending.clear()
+            response.pending_start = 0
+            return ResponseBodyAttempt.input
+        }
+    }
+}
+

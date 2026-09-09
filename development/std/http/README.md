@@ -1,9 +1,9 @@
-# Synchronous HTTP/1.1
+# HTTP/1.1 Client
 
 `std/http` owns validated HTTP/1.1 message values, the protocol's single transport-independent
-framing authority, and a synchronous one-request-per-connection client. The client composes the
-public URL, name-resolution, TCP, and I/O contracts; the codec remains independent of sockets,
-descriptors, DNS, and connection policy.
+framing authority, and synchronous and asynchronous one-request-per-connection operations. The
+client composes the public URL, name-resolution, TCP, and I/O contracts; the codec remains
+independent of sockets, descriptors, DNS, executor state, and connection policy.
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a
 canonical `Host`, `Connection: close`, and one computed `Content-Length`. Callers cannot supply
@@ -17,6 +17,17 @@ rejected because the API does not transfer the upgraded stream. `Response` expos
 and fields and implements `Reader` for decoded body bytes. Completion, decoding or network failure,
 explicit `close`, and destruction of an unfinished response all close the connection. There is no
 pooling, redirect following, request replay, decompression, or connection reuse.
+
+`Client.send_async` has an immediate outer result and a lazy inner computation. Request validation,
+request-head encoding, and synchronous host resolution finish before the method returns. Awaiting
+the inner computation connects, writes the complete request, and receives the final response head
+without blocking the executor thread. Dropping that computation cancels the connection or stream
+it uniquely owns through the ordinary async lifecycle.
+
+`Response.read_async` uses async TCP while advancing the same decoder, pending bytes, completion
+flag, and uniquely owned stream used by `read`. Synchronous and asynchronous reads cannot form
+independent cursors or concurrently consume one response. Their transport loops share one body
+progress operation, so EOF and decoding decisions are not reimplemented by either adapter.
 
 `send_with_timeout` applies one duration to the host-connection deadline and then as the timeout of
 each stream read and write operation. It is not a wall-clock deadline for the complete response.

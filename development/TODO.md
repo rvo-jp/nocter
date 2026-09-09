@@ -2,15 +2,17 @@
 
 ## Current State
 
-Nocter v0.42.0 Phase 0 is complete on the development branch. HTTP request normalization and final
-response-head selection have one transport-independent authority consumed by the synchronous
-client. The async HTTP ownership and immediate/deferred boundary is documented.
+Nocter v0.42.0 Phase 1 is complete on the development branch. HTTP request normalization,
+final-response-head selection, and response-body progression each have one transport-independent
+authority consumed by synchronous and asynchronous orchestration. `Client.send_async` and
+`Response.read_async` cross the native reactor, including fragmented chunked input after an
+informational response.
 
 ## Next Work
 
-Implement v0.42.0 Phase 1: async request transmission and response-body consumption over the
-existing async TCP surface. Synchronous name resolution must finish before returning the lazy
-computation, and sync and async paths must share protocol policy and the unique response state.
+Implement v0.42.0 Phase 2: qualify timeout and cancellation behavior at every async HTTP ownership
+transition. Keep connection timeout, write backpressure, idle head/body reads, and any future
+whole-request deadline as distinct contracts.
 
 Preserve every published tag and asset, including v0.41.0.
 

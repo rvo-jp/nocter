@@ -49,7 +49,7 @@ noalloc func premature_eof(): error {
 }
 
 noalloc func unsupported_scheme(): error {
-    return error.new("std.http.unsupported_scheme", "synchronous HTTP does not provide TLS")
+    return error.new("std.http.unsupported_scheme", "the HTTP client does not provide TLS")
 }
 
 noalloc func reserved_header(): error {
@@ -62,13 +62,13 @@ noalloc func reserved_header(): error {
 noalloc func unsupported_method(): error {
     return error.new(
         "std.http.unsupported_method",
-        "synchronous HTTP does not provide CONNECT tunnel ownership",
+        "the HTTP client does not provide CONNECT tunnel ownership",
     )
 }
 
 noalloc func unsupported_upgrade(): error {
     return error.new(
         "std.http.unsupported_upgrade",
-        "synchronous HTTP does not transfer upgraded protocol ownership",
+        "the HTTP client does not transfer upgraded protocol ownership",
     )
 }

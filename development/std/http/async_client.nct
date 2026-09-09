@@ -1,26 +1,22 @@
-//! Synchronous request policy and the uniquely owned response lifecycle.
+//! Asynchronous HTTP transport orchestration over the shared exchange state.
 
-see ./body.nct
 see ./client_storage.nct
 see ./errors.nct
 see ./exchange.nct
 see ./index.nct
-see ./request.nct
 see ./response_head.nct
 see ./response_progress.nct
 see ./storage.nct
 see ./values.nct
 
+use /net
 use /net.TcpStream
-use /time.Duration
-use /url.Url
-use /vec.Vec
 
-func read_response_head(
+func read_response_head_async(
     stream: &+TcpStream,
     request_method: &Method,
     limits: Limits,
-): ReceivedResponseHead! {
+): async ReceivedResponseHead! {
     var scratch = initialized_bytes(CLIENT_BUFFER_BYTES)
     var decoder = response_head_decoder(limits)
     loop {
@@ -29,7 +25,7 @@ func read_response_head(
             FinalResponseHeadAttempt.failed(failure) { return move failure }
             FinalResponseHeadAttempt.incomplete(next) {
                 decoder = move next
-                let received = stream.read(&+scratch) catch failure {
+                let received = await stream.read_async(&+scratch) catch failure {
                     return failure.context("while reading the HTTP response head")
                 }
                 if received == 0 { return premature_eof() }
@@ -39,22 +35,24 @@ func read_response_head(
     }
 }
 
-func send_over_stream(
+func send_after_connect(
     prepared: PreparedRequest,
-    stream: TcpStream,
-): Response! {
+    pending_connection: async TcpStream!,
+): async Response! {
     var owned = move prepared
-    var connection = move stream
-    connection.write(&owned.encoded) catch failure {
+    var connection = await pending_connection catch failure {
+        return failure.context("while connecting the HTTP request")
+    }
+    await connection.write_async(&owned.encoded) catch failure {
         return failure.context("while writing the HTTP request head")
     }
     if owned.request.body_value.len() != 0 {
         let body: &[u8] = &owned.request.body_value
-        connection.write(body) catch failure {
+        await connection.write_async(body) catch failure {
             return failure.context("while writing the HTTP request body")
         }
     }
-    let parsed = read_response_head(
+    let parsed = await read_response_head_async(
         &+connection,
         owned.request.head_value.request_method(),
         owned.limits,
@@ -68,94 +66,21 @@ func send_over_stream(
     )
 }
 
-construct Request {
-    func new(request_method: Method, url: Url): Self! {
-        let target = url.request_target()
-        let head = RequestHead.new(move request_method, &target)?
-        return request_from_parts(move url, move head)
-    }
-
-    func get(url: Url): Self! {
-        return Request.new(Method.get(), move url)?
-    }
-}
-
-instance Request {
-    noalloc method &self.url(): &Url from self {
-        return &self.url_value
-    }
-
-    noalloc method &self.request_method(): &Method from self {
-        return self.head_value.request_method()
-    }
-
-    noalloc method &self.headers(): &Headers from self {
-        return self.head_value.headers()
-    }
-
-    noalloc method &self.body(): &[u8] from self {
-        let body: &[u8] = &self.body_value
-        return body
-    }
-
-    method &+self.append_header(header: Header): void {
-        self.head_value.append_header(move header)
-        return
-    }
-
-    method &+self.set_body(body: Vec<u8>): void {
-        self.body_value = move body
-        return
-    }
-}
-
-construct Client {
-    noalloc func new(): Self {
-        return client_from_limits(Limits.standard())
-    }
-
-    noalloc func with_limits(limits: Limits): Self {
-        return client_from_limits(limits)
-    }
-}
-
 instance Client {
-    method &self.send(request: Request): Response! {
+    method &self.send_async(request: Request): (async Response!)! {
         let prepared = prepare_request(move request, self.limits_value)?
-        let stream = TcpStream.connect_host(
+        let pending_connection = net.connect_host_async(
             prepared.request.url_value.host(),
             prepared.request.url_value.port(),
         ) catch failure {
-            return failure.context("while connecting the HTTP request")
+            return failure.context("while resolving the HTTP request host")
         }
-        return send_over_stream(move prepared, move stream)?
-    }
-
-    method &self.send_with_timeout(request: Request, timeout: Duration): Response! {
-        let prepared = prepare_request(move request, self.limits_value)?
-        var stream = TcpStream.connect_host_with_timeout(
-            prepared.request.url_value.host(),
-            prepared.request.url_value.port(),
-            timeout,
-        ) catch failure {
-            return failure.context("while connecting the HTTP request")
-        }
-        stream.set_read_timeout(timeout)
-        stream.set_write_timeout(timeout)
-        return send_over_stream(move prepared, move stream)?
+        return send_after_connect(move prepared, move pending_connection)
     }
 }
 
 instance Response {
-    noalloc method &self.status(): Status {
-        return self.head.status()
-    }
-
-    noalloc method &self.headers(): &Headers from self {
-        return self.head.headers()
-    }
-
-    method &+self.read(output: &+[u8]): usize! {
+    method &+self.read_async(output: &+[u8]): async usize! {
         if self.complete || output.len() == 0 { return 0 }
         loop {
             match advance_response_body(self, output, false) {
@@ -170,7 +95,7 @@ instance Response {
                     return failure.context("while decoding the HTTP response body")
                 }
                 ResponseBodyAttempt.input {
-                    let received = self.stream.read(&+self.scratch) catch failure {
+                    let received = await self.stream.read_async(&+self.scratch) catch failure {
                         self.stream.close()
                         self.complete = true
                         return failure.context("while reading the HTTP response body")
@@ -202,16 +127,4 @@ instance Response {
             }
         }
     }
-
-    noalloc method &+self.close(): void {
-        self.stream.close()
-        self.complete = true
-        return
-    }
-}
-
-noalloc drop Response(&+self) {
-    self.stream.close()
-    self.complete = true
-    return
 }

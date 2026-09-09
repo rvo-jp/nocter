@@ -1,7 +1,7 @@
 # Asynchronous HTTP Client Boundary
 
 This document defines the shared protocol and ownership boundary for the asynchronous HTTP client
-planned for v0.42.0. Exact public declarations remain owned by `development/std/http/index.nct`,
+introduced in v0.42.0. Exact public declarations remain owned by `development/std/http/index.nct`,
 observable behavior by `development/std/http/README.md`, and async computation semantics by the
 [Asynchronous Computation Boundary](asynchronous-computation-design.md).
 
@@ -36,7 +36,7 @@ HTTP syntax and body framing.
 
 ## Immediate and Deferred Work
 
-The asynchronous request operation will return `(async Response!)!`, not `async Response!`.
+The asynchronous request operation returns `(async Response!)!`, not `async Response!`.
 Request validation and encoding happen before the outer result succeeds. Host resolution also
 remains immediate because the current system resolver is synchronous and must never run on the
 single-threaded executor. The returned lazy computation owns the resolved candidates and performs
@@ -68,8 +68,8 @@ the private representation is generalized.
 
 The existing timeout-bearing synchronous API applies a duration to connection and individual I/O
 operations. A whole-request deadline is a different contract and must not be inferred from that
-name. The asynchronous surface will keep per-operation timeout behavior distinct from any later
-absolute request deadline.
+name. The next asynchronous timeout surface keeps per-operation timeout behavior distinct from any
+later absolute request deadline.
 
 Every suspended operation owns either a candidate connector or the response stream, never both
 after a transfer. Cancellation removes readiness registrations before closing the descriptor.
@@ -98,4 +98,3 @@ HTTP state contains no scheduler identity, and the executor contains no HTTP par
   responses.
 - Do not create separate sync and async response owners over one stream.
 - Do not silently reinterpret an operation timeout as a whole-response deadline.
-

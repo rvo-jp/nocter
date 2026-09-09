@@ -249,6 +249,13 @@ fn consume_child_output(
     result: nocter_machine::MachineValueId,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64AsyncResumeError> {
+    // Form the destination before retaining the indirect branch target. A large activation frame
+    // may need the compiler scratch bank to materialize this stack address.
+    if let Some(staging) = plan.selected().frame().async_output_staging() {
+        form_object_address(plan, staging, argument(1)?, code)?;
+    } else {
+        crate::frame_access::load_immediate(code, argument(1)?, 0, Arm64DataSize::Bits64);
+    }
     let child = crate::selected_code::read_register(plan.selected(), computation, 0, code)?;
     crate::address_code::move_register(code, child, argument(0)?);
     let consume_entry = scratch(0)?;
@@ -260,11 +267,6 @@ fn consume_child_output(
         argument(0)?,
         Arm64NocterAbi::asynchronous().consume_function_offset(),
     );
-    if let Some(staging) = plan.selected().frame().async_output_staging() {
-        form_object_address(plan, staging, argument(1)?, code)?;
-    } else {
-        crate::frame_access::load_immediate(code, argument(1)?, 0, Arm64DataSize::Bits64);
-    }
     code.append(Arm64Instruction::BranchRegister {
         target: consume_entry,
         link: true,

@@ -7,6 +7,7 @@ use /time.Duration
 use /url.Url
 use /vec.Vec
 
+see ./async_client.nct
 see ./body.nct
 see ./client.nct
 see ./client_storage.nct
@@ -16,6 +17,7 @@ see ./errors.nct
 see ./exchange.nct
 see ./request.nct
 see ./response_head.nct
+see ./response_progress.nct
 see ./storage.nct
 see ./tests.nct
 see ./values.nct
@@ -223,7 +225,7 @@ instance Request {
     pub method &+self.set_body(body: Vec<u8>): void
 }
 
-/// Immutable synchronous HTTP request policy.
+/// Immutable HTTP request policy shared by synchronous and asynchronous operations.
 pub struct Client
 
 construct Client {
@@ -237,6 +239,9 @@ construct Client {
 instance Client {
     /// Sends one request over one new connection and returns its final response.
     pub method &self.send(request: Request): Response!
+
+    /// Resolves immediately, then lazily connects, sends, and receives without blocking the executor.
+    pub method &self.send_async(request: Request): (async Response!)!
 
     /// Sends with one connection deadline and per-operation stream timeouts.
     pub method &self.send_with_timeout(request: Request, timeout: Duration): Response!
@@ -253,6 +258,9 @@ instance Response {
 
     /// Borrows the final ordered response fields.
     pub noalloc method &self.headers(): &Headers from self
+
+    /// Reads decoded response-body bytes without blocking the executor thread.
+    pub method &+self.read_async(output: &+[u8]): async usize!
 
     /// Closes the owned connection; later reads report end of stream.
     pub noalloc method &+self.close(): void
