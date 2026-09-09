@@ -2,16 +2,16 @@
 
 ## Current State
 
-Nocter v0.42.0 Phase 2 is complete on the development branch. Async HTTP timeout operations
-delegate connection, write, readiness, and idle-input timing to the existing async TCP authority.
-Native fixtures cover lazy cancellation, exclusive response-read ownership, head/body idle
-timeouts, write backpressure, and premature peer closure.
+Nocter v0.42.0 Phase 3 is complete on the development branch. Practical request constructors and
+text mutation derive from validated request values. Async whole-body byte and UTF-8 collection
+consume the existing unique response cursor and delegate timeout behavior to the established
+per-input idle-timeout operation.
 
 ## Next Work
 
-Implement v0.42.0 Phase 3: add the practical request and response operations needed by ordinary
-applications. Every convenience must derive from the existing message, exchange, and unique
-response-owner contracts rather than duplicate policy or imply replay.
+Implement v0.42.0 Phase 4: add a complete asynchronous local HTTP example, editor coverage, public
+documentation, and packaged qualification. External Internet access must remain unnecessary for
+tests and examples must not imply HTTPS, redirect, retry, or connection-reuse support.
 
 Preserve every published tag and asset, including v0.41.0.
 

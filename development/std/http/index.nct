@@ -16,6 +16,8 @@ see ./codec.nct
 see ./errors.nct
 see ./exchange.nct
 see ./request.nct
+see ./request_convenience.nct
+see ./response_collection.nct
 see ./response_head.nct
 see ./response_progress.nct
 see ./storage.nct
@@ -203,6 +205,12 @@ construct Request {
 
     /// Creates an empty-body GET request for `url`.
     pub func get(url: Url): Self!
+
+    /// Creates an empty-body HEAD request for `url`.
+    pub func head(url: Url): Self!
+
+    /// Creates an empty-body POST request for `url`.
+    pub func post(url: Url): Self!
 }
 
 instance Request {
@@ -221,8 +229,14 @@ instance Request {
     /// Appends one validated user field.
     pub method &+self.append_header(header: Header): void
 
+    /// Validates and appends one textual user field.
+    pub method &+self.append_header_text(name: &str, value: &str): void!
+
     /// Replaces the complete owned request body.
     pub method &+self.set_body(body: Vec<u8>): void
+
+    /// Copies UTF-8 bytes into the complete owned request body.
+    pub method &+self.set_text_body(text: &str): void
 }
 
 /// Immutable HTTP request policy shared by synchronous and asynchronous operations.
@@ -273,6 +287,18 @@ instance Response {
         output: &+[u8],
         timeout: Duration,
     ): async usize!
+
+    /// Reads the complete decoded body into independently owned byte storage.
+    pub method &+self.read_to_end_async(): async Vec<u8>!
+
+    /// Reads the complete decoded body and validates it as UTF-8.
+    pub method &+self.read_to_string_async(): async String!
+
+    /// Reads the complete decoded body with a fresh idle timeout for each needed input fragment.
+    pub method &+self.read_to_end_async_with_timeout(timeout: Duration): async Vec<u8>!
+
+    /// Reads and validates the complete UTF-8 body with per-fragment idle timeouts.
+    pub method &+self.read_to_string_async_with_timeout(timeout: Duration): async String!
 
     /// Closes the owned connection; later reads report end of stream.
     pub noalloc method &+self.close(): void

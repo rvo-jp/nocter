@@ -74,10 +74,6 @@ construct Request {
         let head = RequestHead.new(move request_method, &target)?
         return request_from_parts(move url, move head)
     }
-
-    func get(url: Url): Self! {
-        return Request.new(Method.get(), move url)?
-    }
 }
 
 instance Request {

@@ -1,0 +1,62 @@
+//! Whole-body asynchronous collection over the public response cursor contract.
+
+see ./index.nct
+
+use /string.String
+use /time.Duration
+use /vec.Vec
+
+const RESPONSE_COLLECTION_BUFFER_BYTES: usize = 8192
+
+func response_collection_buffer(): Vec<u8> {
+    var buffer: Vec<u8> = Vec.with_capacity(RESPONSE_COLLECTION_BUFFER_BYTES)
+    while buffer.len() < RESPONSE_COLLECTION_BUFFER_BYTES { buffer.push(0) }
+    return move buffer
+}
+
+func read_response_chunk_async(
+    response: &+Response,
+    output: &+[u8],
+    timeout: Duration?,
+): async usize! {
+    let finite = timeout otherwise { return await response.read_async(output)? }
+    return await response.read_async_with_timeout(output, finite)?
+}
+
+func collect_response_bytes_async(
+    response: &+Response,
+    timeout: Duration?,
+): async Vec<u8>! {
+    var result: Vec<u8> = Vec.empty()
+    var scratch = response_collection_buffer()
+    loop {
+        let received = await read_response_chunk_async(response, &+scratch, timeout)?
+        if received == 0 { return move result }
+        result.reserve(received)
+        var offset: usize = 0
+        while offset < received {
+            result.push(scratch[offset])
+            offset += 1
+        }
+    }
+}
+
+instance Response {
+    method &+self.read_to_end_async(): async Vec<u8>! {
+        return await collect_response_bytes_async(self, none)?
+    }
+
+    method &+self.read_to_string_async(): async String! {
+        let bytes = await self.read_to_end_async()?
+        return String.from_utf8(&bytes)?
+    }
+
+    method &+self.read_to_end_async_with_timeout(timeout: Duration): async Vec<u8>! {
+        return await collect_response_bytes_async(self, timeout)?
+    }
+
+    method &+self.read_to_string_async_with_timeout(timeout: Duration): async String! {
+        let bytes = await self.read_to_end_async_with_timeout(timeout)?
+        return String.from_utf8(&bytes)?
+    }
+}

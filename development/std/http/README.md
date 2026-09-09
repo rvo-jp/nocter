@@ -11,6 +11,11 @@ those fields or `Transfer-Encoding`, so request framing has one authority. HTTPS
 name resolution because this release has no TLS transport. CONNECT is rejected because the API
 does not transfer tunnel ownership.
 
+`Request.get`, `Request.head`, and `Request.post` are named constructors over the same validated
+`Request.new` operation. `append_header_text` validates both textual components before mutating the
+request, and `set_text_body` copies the exact UTF-8 bytes. These conveniences do not infer a
+`Content-Type`, select an encoding, or bypass the reserved-field policy applied by `Client`.
+
 `Client.send` opens one connection and returns a uniquely owned `Response`. Ordinary informational
 responses are consumed before the final response is exposed; protocol-switching status 101 is
 rejected because the API does not transfer the upgraded stream. `Response` exposes the final status
@@ -28,6 +33,12 @@ it uniquely owns through the ordinary async lifecycle.
 flag, and uniquely owned stream used by `read`. Synchronous and asynchronous reads cannot form
 independent cursors or concurrently consume one response. Their transport loops share one body
 progress operation, so EOF and decoding decisions are not reimplemented by either adapter.
+
+`read_to_end_async` repeatedly consumes that same asynchronous cursor into owned bytes, while
+`read_to_string_async` additionally validates the completed bytes as UTF-8. Their timeout-bearing
+forms delegate every needed read to `read_async_with_timeout`; the duration therefore remains a
+per-input idle timeout rather than becoming a whole-body deadline. Collection remains bounded by
+the `Limits` selected by the client and introduces no second body decoder.
 
 `send_async_with_timeout` applies its `Duration` to the existing shared connection deadline, each
 complete request-head or request-body write, and each idle wait for more response-head input. Host

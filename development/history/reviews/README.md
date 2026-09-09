@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.42.0 Phase 3 Practical HTTP Client API Review](v0.42.0-phase-3.md)
 - [v0.41.0 Phase 5 Structured Asynchronous I/O Review](v0.41.0-phase-5.md)
 - [v0.40.0 Phase 5 Internet-client Integration and Final Review](v0.40.0-phase-5.md)
 - [v0.39.0 Phase 5 Network Integration and Final Review](v0.39.0-phase-5.md)

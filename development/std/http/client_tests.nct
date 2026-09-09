@@ -53,6 +53,46 @@ noalloc func same_bytes(left: &[u8], right: &[u8]): bool {
     return true
 }
 
+test request_conveniences_preserve_the_validated_request_contract {
+    let head = Request.head(Url.parse("http://example.com/metadata")?)?
+    if head.request_method().text() != "HEAD" || head.body().len() != 0 {
+        return error.new("std.http.test", "HEAD convenience changed the empty request contract")
+    }
+
+    var post = Request.post(Url.parse("http://example.com/items")?)?
+    post.append_header_text("X-Mode", "create")?
+    post.set_text_body("payload")
+    if post.request_method().text() != "POST" || !same_bytes(post.body(), "payload".bytes()) {
+        return error.new("std.http.test", "POST text convenience changed its request values")
+    }
+    let mode = post.headers().first("x-mode") otherwise {
+        return error.new("std.http.test", "text header convenience lost its canonical name")
+    }
+    if !same_bytes(mode.bytes(), "create".bytes()) {
+        return error.new("std.http.test", "text header convenience changed its exact value")
+    }
+    return
+}
+
+test failed_text_header_validation_does_not_mutate_the_request {
+    var invalid_name = Request.get(Url.parse("http://example.com/")?)?
+    invalid_name.append_header_text("bad name", "value") catch name_failure {
+        if !name_failure.has_code("std.http.invalid_header_name")
+            || invalid_name.headers().len() != 0 {
+            return error.new("std.http.test", "invalid header name mutated the request")
+        }
+
+        var invalid_value = Request.get(Url.parse("http://example.com/")?)?
+        invalid_value.append_header_text("x-test", "bad\nvalue") catch value_failure {
+            if value_failure.has_code("std.http.invalid_header_value")
+                && invalid_value.headers().len() == 0 { return }
+            return error.new("std.http.test", "invalid header value mutated the request")
+        }
+        return error.new("std.http.test", "invalid header value was accepted")
+    }
+    return error.new("std.http.test", "invalid header name was accepted")
+}
+
 test final_response_head_policy_is_transport_independent {
     var decoder = response_head_decoder(Limits.standard())
     let wire = "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 204 No Content\r\nX-Test: yes\r\n\r\n"

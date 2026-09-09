@@ -1,0 +1,34 @@
+//! Derived request construction and textual mutation conveniences.
+
+see ./index.nct
+
+use /url.Url
+use /vec.Vec
+
+construct Request {
+    func get(url: Url): Self! {
+        return Request.new(Method.get(), move url)?
+    }
+
+    func head(url: Url): Self! {
+        return Request.new(Method.head(), move url)?
+    }
+
+    func post(url: Url): Self! {
+        return Request.new(Method.post(), move url)?
+    }
+}
+
+instance Request {
+    method &+self.append_header_text(name: &str, value: &str): void! {
+        let header_name = HeaderName.parse(name)?
+        let header_value = HeaderValue.from_text(value)?
+        self.append_header(Header.new(move header_name, move header_value))
+        return
+    }
+
+    method &+self.set_text_body(text: &str): void {
+        self.set_body(Vec.from_slice(text.bytes()))
+        return
+    }
+}

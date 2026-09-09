@@ -2257,7 +2257,7 @@ fn standard_http_framing_contract_crosses_native_tests() {
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
         panic!("standard HTTP framing tests failed native compilation")
     };
-    assert_eq!(cases.len(), 22);
+    assert_eq!(cases.len(), 24);
     let output = TempPackage::new();
     for case in cases {
         execute_native_test(case.image(), &output.0, case.identity().name());
@@ -2354,36 +2354,19 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
         "main.nct",
         &format!(
             "use std/http.{{Client, Request}}\n\
-             use std/string.String\n\
              use std/url.Url\n\
-             use std/vec.Vec\n\
              \n\
              func main(): async i32 {{\n\
                  let url = Url.parse(\"http://localhost:{port}/async?q=1\") catch _ {{ return 1 }}\n\
-                 var request = Request.get(move url) catch _ {{ return 2 }}\n\
-                 request.set_body(Vec.from_slice(\"payload\".bytes()))\n\
+                 var request = Request.post(move url) catch _ {{ return 2 }}\n\
+                 request.append_header_text(\"X-Request\", \"phase3\") catch _ {{ return 3 }}\n\
+                 request.set_text_body(\"payload\")\n\
                  let client = Client.new()\n\
-                 let pending = client.send_async(move request) catch _ {{ return 3 }}\n\
-                 var response = await pending catch _ {{ return 4 }}\n\
-                 if response.status().code() != 200 {{ return 5 }}\n\
-                 let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 6 }}\n\
-                 var body: Vec<u8> = Vec.empty()\n\
-                 var scratch: Vec<u8> = Vec [\n\
-                     u8.truncate(0),\n\
-                     u8.truncate(0),\n\
-                     u8.truncate(0),\n\
-                     u8.truncate(0),\n\
-                 ]\n\
-                 loop {{\n\
-                     let received = await response.read_async(&+scratch) catch _ {{ return 7 }}\n\
-                     if received == 0 {{ break }}\n\
-                     var offset: usize = 0\n\
-                     while offset < received {{\n\
-                         body.push(scratch[offset])\n\
-                         offset += 1\n\
-                     }}\n\
-                 }}\n\
-                 let text = String.from_utf8(&body) catch _ {{ return 8 }}\n\
+                 let pending = client.send_async(move request) catch _ {{ return 4 }}\n\
+                 var response = await pending catch _ {{ return 5 }}\n\
+                 if response.status().code() != 200 {{ return 6 }}\n\
+                 let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 7 }}\n\
+                 let text = await response.read_to_string_async() catch _ {{ return 8 }}\n\
                  if text != \"fragmented\" {{ return 9 }}\n\
                  return 0\n\
              }}\n"
@@ -2426,7 +2409,7 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
         assert_eq!(
             &request[..head_end],
             format!(
-                "GET /async?q=1 HTTP/1.1\r\nhost: localhost:{port}\r\nconnection: close\r\ncontent-length: 7\r\n\r\n"
+                "POST /async?q=1 HTTP/1.1\r\nx-request: phase3\r\nhost: localhost:{port}\r\nconnection: close\r\ncontent-length: 7\r\n\r\n"
             )
             .as_bytes()
         );
@@ -2474,10 +2457,7 @@ fn async_http_timeout_source(port: u16) -> String {
              var buffer: Vec<u8> = Vec [u8.truncate(0)]\n\
              let abandoned = response.read_async(&+buffer)\n\
              drop abandoned\n\
-             let _received = await response.read_async_with_timeout(\n\
-                 &+buffer,\n\
-                 timeout,\n\
-             ) catch failure {{\n\
+             let _body = await response.read_to_end_async_with_timeout(timeout) catch failure {{\n\
                  return failure.has_code(\"std.net.timed_out\")\n\
              }}\n\
              return false\n\

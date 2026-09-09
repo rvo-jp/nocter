@@ -79,6 +79,20 @@ connector or stream. A body-read computation borrows the response instead: cance
 the borrow while the response remains the unique stream owner. HTTP state contains no scheduler
 identity, and the executor contains no HTTP parser state.
 
+## Derived Convenience Layer
+
+Practical request and response operations depend only on the public value and cursor contracts.
+Named GET, HEAD, and POST constructors call the sole general request constructor. Textual field
+mutation constructs validated `HeaderName` and `HeaderValue` values before appending anything, so
+failure cannot partially mutate the request. Text-body mutation copies bytes into the same owned
+body accepted by the general byte operation; it does not infer media type or character encoding.
+
+Whole-body asynchronous reads repeatedly call the public asynchronous response-read operations.
+They do not access the decoder, pending-input offsets, stream, or completion flag. The
+timeout-bearing collector passes the same duration to each read and therefore preserves the
+established idle-timeout contract. UTF-8 collection is a final conversion of the owned byte result,
+not a second transport or framing path.
+
 ## Responsibility Matrix
 
 | Decision | Sole authority | Consumers |
@@ -90,6 +104,7 @@ identity, and the executor contains no HTTP parser state.
 | Descriptor progress and operation timeout | `std/net` async TCP | async orchestration |
 | Computation lifecycle and cancellation | async runtime contract | HTTP computation owner |
 | Response connection and decoder ownership | private `Response` representation | sync and async body reads |
+| Derived request and body collection conveniences | request and response contract adapters | applications |
 | Public declarations | `development/std/http/index.nct` | compiler, editor, applications |
 
 ## Rejected Shortcuts

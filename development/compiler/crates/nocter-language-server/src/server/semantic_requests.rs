@@ -2316,7 +2316,10 @@ mod tests {
         ));
         let response = references.response().unwrap();
         assert!(response.contains("/std/http/index.nct"), "{response}");
-        assert!(response.contains("/std/http/client.nct"), "{response}");
+        assert!(
+            response.contains("/std/http/request_convenience.nct"),
+            "{response}"
+        );
         assert!(response.contains("/main.nct"), "{response}");
         assert!(references.issue().is_none(), "{:?}", references.issue());
     }

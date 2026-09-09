@@ -204,6 +204,8 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>errors<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>exchange<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>request<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>request_convenience<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>response_collection<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>response_head<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>response_progress<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
@@ -391,6 +393,12 @@
 
     <span class="token-comment">/// Creates an empty-body GET request for `url`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">get</span><span class="token-operator">(</span>url<span class="token-operator">:</span> <span class="token-type">Url</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Creates an empty-body HEAD request for `url`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">head</span><span class="token-operator">(</span>url<span class="token-operator">:</span> <span class="token-type">Url</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Creates an empty-body POST request for `url`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">post</span><span class="token-operator">(</span>url<span class="token-operator">:</span> <span class="token-type">Url</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Request</span> <span class="token-operator">{</span>
@@ -409,8 +417,14 @@
     <span class="token-comment">/// Appends one validated user field.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">append_header</span><span class="token-operator">(</span>header<span class="token-operator">:</span> <span class="token-type">Header</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
+    <span class="token-comment">/// Validates and appends one textual user field.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">append_header_text</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
     <span class="token-comment">/// Replaces the complete owned request body.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_body</span><span class="token-operator">(</span>body<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+    <span class="token-comment">/// Copies UTF-8 bytes into the complete owned request body.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">set_text_body</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Immutable HTTP request policy shared by synchronous and asynchronous operations.</span>
@@ -461,6 +475,18 @@
         output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">,</span>
         timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
     <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">usize</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Reads the complete decoded body into independently owned byte storage.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_to_end_async</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Reads the complete decoded body and validates it as UTF-8.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_to_string_async</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">String</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Reads the complete decoded body with a fresh idle timeout for each needed input fragment.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_to_end_async_with_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Reads and validates the complete UTF-8 body with per-fragment idle timeouts.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_to_string_async_with_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">String</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Closes the owned connection; later reads report end of stream.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
