@@ -4,16 +4,7 @@ use crate::{
     Arm64LoadStoreSize, Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction,
 };
 
-const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
-const DARWIN_POLL: u64 = 0x0200_00e6;
-const ERRNO_INTERRUPTED: u64 = 4;
-const POLL_INPUT: u64 = 1;
-const POLL_OUTPUT: u64 = 4;
-const POLL_DESCRIPTOR_SIZE: u64 = 8;
-const POLL_EVENTS_OFFSET: u32 = 4;
-const POLL_RETURNED_EVENTS_OFFSET: u32 = 6;
-const MAX_DESCRIPTOR: u64 = i32::MAX as u64;
-const MAX_POLL_COUNT: u64 = u32::MAX as u64;
+use crate::darwin_kernel_abi::DarwinPollAbi;
 
 /// Converts one suspended computation's ABI interest slice into a Darwin `poll` wait.
 ///
@@ -82,7 +73,7 @@ fn signal_ready_interests(
         None,
         argument(4),
         argument(1),
-        u64::from(POLL_RETURNED_EVENTS_OFFSET),
+        u64::from(DarwinPollAbi::RETURNED_EVENTS_OFFSET),
     );
     compare_immediate(argument(4), 0, code);
     code.branch_conditional(advance, Arm64BranchCondition::Equal);
@@ -123,7 +114,7 @@ fn signal_ready_interests(
 
     code.bind(advance)?;
     add_immediate(argument(0), schema.interest_record_size(), code);
-    add_immediate(argument(1), POLL_DESCRIPTOR_SIZE, code);
+    add_immediate(argument(1), DarwinPollAbi::DESCRIPTOR_SIZE, code);
     subtract_immediate(argument(2), 1, code);
     code.branch(scan, false);
     code.bind(complete)
@@ -198,7 +189,7 @@ fn validate_pending_result(code: &mut Arm64CodeBuilder) {
         .expect("fresh async wait label binds once");
     compare_immediate(argument(2), 0, code);
     code.branch_conditional(invalid, Arm64BranchCondition::Equal);
-    compare_register_with_immediate(argument(2), MAX_POLL_COUNT, code);
+    compare_register_with_immediate(argument(2), DarwinPollAbi::MAX_COUNT, code);
     let valid = code.create_label();
     code.branch_conditional(valid, Arm64BranchCondition::UnsignedLowerOrSame);
     code.bind(invalid)
@@ -215,7 +206,12 @@ fn save_pending_result(offsets: WaitOffsets, code: &mut Arm64CodeBuilder) {
     store_word(offsets.interest_count, argument(2), code);
     let bytes = argument(3);
     let width = argument(4);
-    crate::frame_access::load_immediate(code, width, POLL_DESCRIPTOR_SIZE, Arm64DataSize::Bits64);
+    crate::frame_access::load_immediate(
+        code,
+        width,
+        DarwinPollAbi::DESCRIPTOR_SIZE,
+        Arm64DataSize::Bits64,
+    );
     code.append(Arm64Instruction::MultiplyAdd {
         size: Arm64DataSize::Bits64,
         destination: bytes,
@@ -297,7 +293,7 @@ fn translate_interests(
 
     code.bind(advance)?;
     add_immediate(argument(0), schema.interest_record_size(), code);
-    add_immediate(argument(1), POLL_DESCRIPTOR_SIZE, code);
+    add_immediate(argument(1), DarwinPollAbi::DESCRIPTOR_SIZE, code);
     subtract_immediate(argument(2), 1, code);
     code.branch(scan, false);
 
@@ -318,7 +314,7 @@ fn emit_descriptor_record(
         argument(0),
         schema.interest_subject_offset(),
     );
-    compare_register_with_immediate(argument(5), MAX_DESCRIPTOR, code);
+    compare_register_with_immediate(argument(5), DarwinPollAbi::MAX_DESCRIPTOR, code);
     let descriptor_valid = code.create_label();
     code.branch_conditional(descriptor_valid, Arm64BranchCondition::UnsignedLowerOrSame);
     trap(
@@ -347,10 +343,20 @@ fn emit_descriptor_record(
         code,
     );
     code.bind(readable)?;
-    crate::frame_access::load_immediate(code, argument(7), POLL_INPUT, Arm64DataSize::Bits32);
+    crate::frame_access::load_immediate(
+        code,
+        argument(7),
+        DarwinPollAbi::INPUT_EVENT,
+        Arm64DataSize::Bits32,
+    );
     code.branch(detail_ready, false);
     code.bind(writable)?;
-    crate::frame_access::load_immediate(code, argument(7), POLL_OUTPUT, Arm64DataSize::Bits32);
+    crate::frame_access::load_immediate(
+        code,
+        argument(7),
+        DarwinPollAbi::OUTPUT_EVENT,
+        Arm64DataSize::Bits32,
+    );
     code.bind(detail_ready)?;
     code.append(Arm64Instruction::StoreUnsigned {
         size: Arm64LoadStoreSize::Word,
@@ -362,13 +368,13 @@ fn emit_descriptor_record(
         size: Arm64LoadStoreSize::Half,
         source: Arm64DataRegister::General(argument(7)),
         base: Arm64BaseRegister::General(argument(1)),
-        offset: POLL_EVENTS_OFFSET,
+        offset: DarwinPollAbi::EVENTS_OFFSET,
     });
     code.append(Arm64Instruction::StoreUnsigned {
         size: Arm64LoadStoreSize::Half,
         source: Arm64DataRegister::Zero,
         base: Arm64BaseRegister::General(argument(1)),
-        offset: POLL_RETURNED_EVENTS_OFFSET,
+        offset: DarwinPollAbi::RETURNED_EVENTS_OFFSET,
     });
     Ok(())
 }
@@ -417,7 +423,7 @@ fn emit_timer_record(
         size: Arm64LoadStoreSize::Word,
         source: Arm64DataRegister::Zero,
         base: Arm64BaseRegister::General(argument(1)),
-        offset: POLL_EVENTS_OFFSET,
+        offset: DarwinPollAbi::EVENTS_OFFSET,
     });
     Ok(())
 }
@@ -434,12 +440,12 @@ fn wait_until_ready(
     crate::async_wait_timeout_code::emit(argument(3), argument(2), code)?;
     load_word(offsets.mapping_pointer, argument(0), code);
     load_word(offsets.interest_count, argument(1), code);
-    crate::frame_access::load_immediate(code, scratch(0), DARWIN_POLL, Arm64DataSize::Bits64);
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Poll,
+    );
     code.branch_conditional(returned, Arm64BranchCondition::CarryClear);
-    compare_immediate(argument(0), ERRNO_INTERRUPTED, code);
+    compare_immediate(argument(0), DarwinPollAbi::INTERRUPTED_ERROR, code);
     code.branch_conditional(invoke, Arm64BranchCondition::Equal);
     trap(
         crate::runtime_trap::Arm64RuntimeTrap::AsyncWaitFailure,

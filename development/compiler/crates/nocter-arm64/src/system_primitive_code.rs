@@ -4,9 +4,6 @@ use crate::{
     Arm64SelectedFunction, Arm64SelectedRegister,
 };
 
-const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
-const DARWIN_EXIT: u64 = 1;
-
 /// Translates the ordinary Nocter primitive ABI into Darwin's syscall register convention.
 pub(crate) fn emit_system_call(
     argument_count: u8,
@@ -17,14 +14,12 @@ pub(crate) fn emit_system_call(
             argument_count,
         ));
     }
-    let syscall_number = crate::frame_access::scratch(0);
+    let syscall_number = crate::darwin_kernel_abi::system_call_register();
     move_register(argument(0), syscall_number, code);
     for position in 0..argument_count {
         move_register(argument(position + 1), argument(position), code);
     }
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
+    crate::darwin_kernel_abi::emit_loaded_system_call(code);
 
     let success = code.create_label();
     let complete = code.create_label();
@@ -42,11 +37,9 @@ pub(crate) fn emit_system_call(
 pub(crate) fn emit_system_call_pair(
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), Arm64MaterializationError> {
-    let syscall_number = crate::frame_access::scratch(0);
+    let syscall_number = crate::darwin_kernel_abi::system_call_register();
     move_register(argument(0), syscall_number, code);
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
+    crate::darwin_kernel_abi::emit_loaded_system_call(code);
 
     let success = code.create_label();
     let complete = code.create_label();
@@ -73,15 +66,10 @@ pub(crate) fn emit_exit(
     } else {
         crate::frame_access::load_immediate(code, status_register, 0, Arm64DataSize::Bits64);
     }
-    crate::frame_access::load_immediate(
+    crate::darwin_kernel_abi::emit_system_call(
         code,
-        crate::frame_access::scratch(0),
-        DARWIN_EXIT,
-        Arm64DataSize::Bits64,
+        crate::darwin_kernel_abi::DarwinSystemCall::Exit,
     );
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
     Ok(())
 }
 

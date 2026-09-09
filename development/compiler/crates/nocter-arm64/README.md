@@ -28,6 +28,9 @@ source, loader commands, or package state.
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
 - Every primitive expansion is selected by closed runtime role.
+- Darwin kernel syscall numbers, trap encoding, native record layouts, and OS value constants have
+  one backend-local authority. Emitters prepare operation-specific values but cannot restate the
+  kernel ABI.
 - Data-pointer fixups identify exact eight-byte fields and section-local targets; executable image
   policy remains outside this crate.
 - Imported-function slots retain exact trusted runtime identities; ARM64 neither derives a loader

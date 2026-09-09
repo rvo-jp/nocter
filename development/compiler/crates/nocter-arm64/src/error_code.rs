@@ -4,9 +4,6 @@ use crate::{
     Arm64MaterializationError, Arm64NocterAbi, Arm64SelectedFunction, Arm64SelectedRegister,
 };
 
-const DARWIN_SUPERVISOR_CALL: u16 = 0x80;
-const DARWIN_WRITE: u64 = 0x0200_0004;
-const STDERR: u64 = 2;
 const SEPARATOR_AND_NEWLINE: u64 = u64::from_le_bytes([b':', b' ', b'\n', 0, 0, 0, 0, 0]);
 
 pub(crate) fn emit_allocation_failure(
@@ -336,14 +333,19 @@ fn emit_stack_bytes(offset: u64, len: u64, code: &mut Arm64CodeBuilder) {
 }
 
 fn prepare_write(code: &mut Arm64CodeBuilder) {
-    crate::frame_access::load_immediate(code, argument(0), STDERR, Arm64DataSize::Bits64);
+    crate::frame_access::load_immediate(
+        code,
+        argument(0),
+        crate::darwin_kernel_abi::DarwinProcessAbi::STANDARD_ERROR,
+        Arm64DataSize::Bits64,
+    );
 }
 
 fn emit_write(code: &mut Arm64CodeBuilder) {
-    crate::frame_access::load_immediate(code, scratch(0), DARWIN_WRITE, Arm64DataSize::Bits64);
-    code.append(Arm64Instruction::SupervisorCall {
-        immediate: DARWIN_SUPERVISOR_CALL,
-    });
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Write,
+    );
 }
 
 fn load_node_word(

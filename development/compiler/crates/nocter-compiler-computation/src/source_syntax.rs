@@ -224,7 +224,7 @@ impl<'database> ComputedSourceSyntax<'database> {
             }));
         }
         if !source
-            .matches_input(observed_name.as_ref(), observed.bytes())
+            .matches_source_bytes(observed.bytes())
             .map_err(SourceSyntaxError::new)?
         {
             return Err(SourceSyntaxError::new(SourceAdmissionError::Contents(

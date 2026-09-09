@@ -52,7 +52,7 @@ impl SourceFile {
         &self.text
     }
 
-    /// Reports whether this file is the normalized source produced from one named byte input.
+    /// Reports whether this file is the normalized source produced from one byte input.
     ///
     /// This keeps newline and UTF-8 normalization inside the source owner. Callers that validate
     /// an external source observation do not need to reconstruct a temporary source map or repeat
@@ -62,10 +62,7 @@ impl SourceFile {
     ///
     /// Returns the same source-ingestion error as [`SourceMap::add_bytes`] when `bytes` are not a
     /// valid source input.
-    pub fn matches_input(&self, name: &str, bytes: &[u8]) -> Result<bool, SourceError> {
-        if self.name.as_str() != name {
-            return Ok(false);
-        }
+    pub fn matches_source_bytes(&self, bytes: &[u8]) -> Result<bool, SourceError> {
         Ok(self.text == normalize(bytes)?)
     }
 
@@ -301,16 +298,20 @@ mod tests {
             sources
                 .get(id)
                 .unwrap()
-                .matches_input("app.nct", b"first\r\nsecond\r\n")
+                .matches_source_bytes(b"first\r\nsecond\r\n")
                 .unwrap()
         );
         assert!(
             !sources
                 .get(id)
                 .unwrap()
-                .matches_input("other.nct", b"first\r\nsecond\r\n")
+                .matches_source_bytes(b"other")
                 .unwrap()
         );
+        assert!(matches!(
+            sources.get(id).unwrap().matches_source_bytes(&[0xff]),
+            Err(SourceError::InvalidUtf8 { .. })
+        ));
     }
 
     #[test]

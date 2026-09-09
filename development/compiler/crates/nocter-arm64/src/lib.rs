@@ -31,6 +31,7 @@ mod async_wait_frame;
 mod async_wait_timeout_code;
 mod call_selection;
 mod code;
+mod darwin_kernel_abi;
 mod darwin_memory_code;
 mod destruction_selection;
 mod encode;
