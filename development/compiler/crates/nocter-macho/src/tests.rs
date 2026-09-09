@@ -1,8 +1,9 @@
 use nocter_arm64::{
-    Arm64BaseRegister, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize, Arm64Instruction,
-    Arm64LoadStoreSize, Arm64MoveWide, Arm64Program, Arm64ProgramBuilder, Arm64Register,
+    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64CodeBuilder,
+    Arm64DataRegister, Arm64DataSize, Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide,
+    Arm64Program, Arm64ProgramBuilder, Arm64Register,
 };
-use nocter_runtime_contract::{RuntimeFunctionImport, RuntimeLibraryIdentity};
+use nocter_runtime_contract::{RuntimeDataImport, RuntimeFunctionImport, RuntimeLibraryIdentity};
 
 use crate::MachOImage;
 
@@ -56,13 +57,7 @@ fn imported_call_program() -> Arm64Program {
     assert_eq!(function, duplicate);
 
     let mut code = Arm64CodeBuilder::new();
-    code.load_data_address(function, x(16));
-    code.append(Arm64Instruction::LoadUnsigned {
-        size: Arm64LoadStoreSize::Double,
-        destination: Arm64DataRegister::General(x(16)),
-        base: Arm64BaseRegister::General(x(16)),
-        offset: 0,
-    });
+    code.load_function_import(function, x(16));
     code.append(Arm64Instruction::BranchRegister {
         target: x(16),
         link: true,
@@ -156,13 +151,81 @@ fn imported_security_program() -> Arm64Program {
         shift: 0,
     });
     for function in [create_context, release] {
-        code.load_data_address(function, x(16));
-        code.append(Arm64Instruction::LoadUnsigned {
-            size: Arm64LoadStoreSize::Double,
-            destination: Arm64DataRegister::General(x(16)),
-            base: Arm64BaseRegister::General(x(16)),
-            offset: 0,
+        code.load_function_import(function, x(16));
+        code.append(Arm64Instruction::BranchRegister {
+            target: x(16),
+            link: true,
         });
+    }
+    code.append(Arm64Instruction::MoveWide {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64MoveWide::Zero,
+        destination: x(0),
+        immediate: 0,
+        shift: 0,
+    });
+    code.append(Arm64Instruction::MoveWide {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64MoveWide::Zero,
+        destination: x(16),
+        immediate: 1,
+        shift: 0,
+    });
+    code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
+    program
+        .define_function(entry, code.finish().unwrap())
+        .unwrap();
+    program.set_entry(entry).unwrap();
+    program.finish().unwrap()
+}
+
+fn imported_network_program() -> Arm64Program {
+    let mut program = Arm64ProgramBuilder::new();
+    let entry = program.declare_function();
+    let default_configuration = program
+        .add_data_import(
+            RuntimeDataImport::new(
+                RuntimeLibraryIdentity::DarwinNetwork,
+                "__nw_parameters_configure_protocol_default_configuration",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let create_parameters = program
+        .add_function_import(
+            RuntimeFunctionImport::new(
+                RuntimeLibraryIdentity::DarwinNetwork,
+                "_nw_parameters_create_secure_tcp",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let release = program
+        .add_function_import(
+            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinNetwork, "_nw_release")
+                .unwrap(),
+        )
+        .unwrap();
+
+    let mut code = Arm64CodeBuilder::new();
+    code.load_data_import(default_configuration, x(0));
+    code.append(Arm64Instruction::LoadUnsigned {
+        size: Arm64LoadStoreSize::Double,
+        destination: Arm64DataRegister::General(x(0)),
+        base: Arm64BaseRegister::General(x(0)),
+        offset: 0,
+    });
+    code.append(Arm64Instruction::AddSubtractImmediate {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Add,
+        set_flags: false,
+        destination: Arm64AddSubtractDestination::General(x(1)),
+        source: Arm64BaseRegister::General(x(0)),
+        immediate: 0,
+        shift_12: false,
+    });
+    for function in [create_parameters, release] {
+        code.load_function_import(function, x(16));
         code.append(Arm64Instruction::BranchRegister {
             target: x(16),
             link: true,
@@ -265,6 +328,20 @@ fn imported_library_identity_contributes_to_the_complete_image() {
 }
 
 #[test]
+fn function_and_data_import_kinds_remain_distinct() {
+    let program = imported_network_program();
+    assert_eq!(program.runtime_imports().len(), 3);
+    assert!(matches!(
+        program.runtime_imports()[0].import(),
+        nocter_runtime_contract::RuntimeImport::Data(_)
+    ));
+    assert!(program.runtime_imports()[1..].iter().all(|import| matches!(
+        import.import(),
+        nocter_runtime_contract::RuntimeImport::Function(_)
+    )));
+}
+
+#[test]
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn generated_image_executes_without_external_linking_or_signing() {
     use std::os::unix::fs::PermissionsExt;
@@ -303,6 +380,22 @@ fn generated_image_binds_and_calls_security_and_core_foundation() {
     let image = MachOImage::build(&imported_security_program()).unwrap();
     let path =
         std::env::temp_dir().join(format!("nocter-macho-security-test-{}", std::process::id()));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let status = std::process::Command::new(&path).status().unwrap();
+    std::fs::remove_file(&path).unwrap();
+
+    assert_eq!(status.code(), Some(0));
+}
+
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn generated_image_binds_and_reads_network_framework_data() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let image = MachOImage::build(&imported_network_program()).unwrap();
+    let path =
+        std::env::temp_dir().join(format!("nocter-macho-network-test-{}", std::process::id()));
     std::fs::write(&path, image.bytes()).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
     let status = std::process::Command::new(&path).status().unwrap();

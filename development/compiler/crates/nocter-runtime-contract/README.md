@@ -2,7 +2,7 @@
 
 ## Responsibility
 
-Own source-independent runtime primitive roles, trusted function-import identities, canonical
+Own source-independent runtime primitive roles, trusted typed import identities, canonical
 runtime representations, target runtime requirements, and the closed environment passed toward
 native lowering.
 
@@ -17,7 +17,8 @@ public source-level imports.
 
 - primitive role identities
 - closed positive effect evidence for primitive roles
-- trusted operating-system library and loader-symbol identities, without concrete loader paths
+- kind-preserving trusted function/data symbol identities and operating-system library identities,
+  without concrete loader paths
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
 - canonical representation classes
 - fixed async owning-handle and heap-frame-header ABI
@@ -30,7 +31,8 @@ public source-level imports.
 
 - A role has one numeric and structural authority.
 - Source spelling and visibility are not runtime identities.
-- A loader symbol is validated once and cannot be selected from user source.
+- A loader symbol is validated once, retains whether it denotes a function or data object, and
+  cannot be selected from user source.
 - A target-service binding owns its closed descriptor; later stages cannot reconstruct the
   descriptor from its role or declaration spelling.
 - Machine consumers cannot reach declaration or checking storage through this contract.

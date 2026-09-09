@@ -21,7 +21,10 @@ struct LoweringResources<'a> {
     functions: &'a Arm64FunctionTargets,
     async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
     data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
-    imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+    imports: &'a [(
+        nocter_machine::MachineImportId,
+        crate::Arm64FunctionImportId,
+    )],
     pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
     allocation_failure_error: crate::Arm64DataId,
 }

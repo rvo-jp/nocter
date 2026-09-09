@@ -131,6 +131,36 @@ impl Arm64CodeBuilder {
         });
     }
 
+    /// Loads the callable address retained by one typed function-import slot.
+    pub fn load_function_import(
+        &mut self,
+        target: crate::Arm64FunctionImportId,
+        destination: Arm64Register,
+    ) {
+        self.load_data_address(target.slot(), destination);
+        self.append(crate::Arm64Instruction::LoadUnsigned {
+            size: crate::Arm64LoadStoreSize::Double,
+            destination: crate::Arm64DataRegister::General(destination),
+            base: crate::Arm64BaseRegister::General(destination),
+            offset: 0,
+        });
+    }
+
+    /// Loads the external object address retained by one typed data-import slot.
+    pub fn load_data_import(
+        &mut self,
+        target: crate::Arm64DataImportId,
+        destination: Arm64Register,
+    ) {
+        self.load_data_address(target.slot(), destination);
+        self.append(crate::Arm64Instruction::LoadUnsigned {
+            size: crate::Arm64LoadStoreSize::Double,
+            destination: crate::Arm64DataRegister::General(destination),
+            base: crate::Arm64BaseRegister::General(destination),
+            offset: 0,
+        });
+    }
+
     /// Resolves all labels and relaxes out-of-range conditional branches before encoding.
     ///
     /// # Errors

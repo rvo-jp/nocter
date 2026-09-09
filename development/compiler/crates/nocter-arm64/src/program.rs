@@ -1,7 +1,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use nocter_runtime_contract::RuntimeFunctionImport;
+use nocter_runtime_contract::{RuntimeDataImport, RuntimeFunctionImport, RuntimeImport};
 
 use crate::code::Arm64CodeFixup;
 use crate::{
@@ -94,19 +94,39 @@ struct Arm64ProgramContents {
     function_address_fixups: Box<[Arm64FunctionAddressFixup]>,
     data_fixups: Box<[Arm64DataAddressFixup]>,
     data_pointer_fixups: Box<[Arm64DataPointerFixup]>,
-    function_imports: Box<[Arm64FunctionImport]>,
+    runtime_imports: Box<[Arm64RuntimeImport]>,
 }
 
-/// One loader-bound function pointer slot in the read-only-data section.
+/// One loader-bound function or data pointer slot in the read-only-data section.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Arm64FunctionImport {
-    import: RuntimeFunctionImport,
+pub struct Arm64RuntimeImport {
+    import: RuntimeImport,
     pointer_offset: u64,
 }
 
-impl Arm64FunctionImport {
+/// A loader-bound callable address that may only enter a function-call materialization path.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Arm64FunctionImportId(Arm64DataId);
+
+impl Arm64FunctionImportId {
+    pub(crate) const fn slot(self) -> Arm64DataId {
+        self.0
+    }
+}
+
+/// A loader-bound external object address that may only enter a data-access materialization path.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Arm64DataImportId(Arm64DataId);
+
+impl Arm64DataImportId {
+    pub(crate) const fn slot(self) -> Arm64DataId {
+        self.0
+    }
+}
+
+impl Arm64RuntimeImport {
     #[must_use]
-    pub const fn import(&self) -> &RuntimeFunctionImport {
+    pub const fn import(&self) -> &RuntimeImport {
         &self.import
     }
 
@@ -197,8 +217,8 @@ impl Arm64Program {
 
     /// External function-pointer slots requiring executable-loader binding.
     #[must_use]
-    pub fn function_imports(&self) -> &[Arm64FunctionImport] {
-        &self.contents.function_imports
+    pub fn runtime_imports(&self) -> &[Arm64RuntimeImport] {
+        &self.contents.runtime_imports
     }
 
     #[must_use]
@@ -297,8 +317,8 @@ struct DataPointerDefinition {
     target: Arm64DataId,
 }
 
-struct FunctionImportDefinition {
-    import: RuntimeFunctionImport,
+struct RuntimeImportDefinition {
+    import: RuntimeImport,
     slot: Arm64DataId,
 }
 
@@ -307,7 +327,7 @@ struct FunctionImportDefinition {
 pub struct Arm64ProgramBuilder {
     functions: Vec<Option<Arm64Code>>,
     data: Vec<DataDefinition>,
-    function_imports: Vec<FunctionImportDefinition>,
+    runtime_imports: Vec<RuntimeImportDefinition>,
     entry: Option<Arm64FunctionId>,
 }
 
@@ -317,7 +337,7 @@ impl Arm64ProgramBuilder {
         Self {
             functions: Vec::new(),
             data: Vec::new(),
-            function_imports: Vec::new(),
+            runtime_imports: Vec::new(),
             entry: None,
         }
     }
@@ -384,17 +404,41 @@ impl Arm64ProgramBuilder {
     pub fn add_function_import(
         &mut self,
         import: RuntimeFunctionImport,
+    ) -> Result<Arm64FunctionImportId, Arm64ProgramError> {
+        self.add_runtime_import(import.into())
+            .map(Arm64FunctionImportId)
+    }
+
+    /// Adds one deduplicated loader-bound data-address slot.
+    ///
+    /// The slot contains the external object's address. A caller must explicitly load from that
+    /// object when the symbol represents a pointer-valued global.
+    ///
+    /// # Errors
+    ///
+    /// Propagates data-domain overflow or alignment failure.
+    pub fn add_data_import(
+        &mut self,
+        import: RuntimeDataImport,
+    ) -> Result<Arm64DataImportId, Arm64ProgramError> {
+        self.add_runtime_import(import.into())
+            .map(Arm64DataImportId)
+    }
+
+    fn add_runtime_import(
+        &mut self,
+        import: RuntimeImport,
     ) -> Result<Arm64DataId, Arm64ProgramError> {
         if let Some(existing) = self
-            .function_imports
+            .runtime_imports
             .iter()
             .find(|existing| existing.import == import)
         {
             return Ok(existing.slot);
         }
         let slot = self.add_data([0_u8; 8], 8)?;
-        self.function_imports
-            .push(FunctionImportDefinition { import, slot });
+        self.runtime_imports
+            .push(RuntimeImportDefinition { import, slot });
         Ok(slot)
     }
 
@@ -489,8 +533,8 @@ impl Arm64ProgramBuilder {
         let data = laid_out_data.ranges;
         let data_alignment = laid_out_data.alignment;
         let data_pointer_fixups = laid_out_data.pointer_fixups;
-        let function_imports = self
-            .function_imports
+        let runtime_imports = self
+            .runtime_imports
             .into_iter()
             .map(|definition| {
                 let slot = data
@@ -499,7 +543,7 @@ impl Arm64ProgramBuilder {
                 if slot.size != 8 || slot.alignment < 8 {
                     return Err(Arm64ProgramError::InvalidImportSlot(definition.slot));
                 }
-                Ok(Arm64FunctionImport {
+                Ok(Arm64RuntimeImport {
                     import: definition.import,
                     pointer_offset: slot.offset,
                 })
@@ -560,7 +604,7 @@ impl Arm64ProgramBuilder {
                 function_address_fixups: function_address_fixups.into_boxed_slice(),
                 data_fixups: data_fixups.into_boxed_slice(),
                 data_pointer_fixups,
-                function_imports: function_imports.into_boxed_slice(),
+                runtime_imports: runtime_imports.into_boxed_slice(),
             }),
             entry,
         })

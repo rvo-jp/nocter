@@ -2,25 +2,22 @@
 
 ## Current State
 
-Nocter v0.43.0 development is active on `develop-v0.43.0`. Phase 0 has completed the Darwin TLS
-provider evaluation and generalized runtime library loading. The provider decision is intentionally
-open because no available choice preserves both the accepted descriptor architecture and a public
-TLS 1.3 contract.
+Nocter v0.43.0 development is active on `develop-v0.43.0`. Phase 0 is complete.
+Network.framework is the selected Darwin TLS provider, and v0.43.0 includes replacement of the TCP
+stream/listener substrate so HTTPS does not leave two connection engines. Phase 1 has begun the
+closed native adapter foundation.
 
 ## Next Work
 
-Choose the provider direction recorded by
-[`development/design/secure-transport-design.md`](design/secure-transport-design.md), then replace
-the provisional v0.43.0 phases with an exact implementation boundary before adding TLS source APIs.
+Complete Phase 1's fixed Block ABI, callback mailbox, dispatch ownership, and reactor wake bridge.
+Keep native objects and callbacks compiler-owned; do not add source-level FFI or a general callback
+escape hatch.
 
 Preserve every published tag and asset.
 
 ## Blockers
 
-The v0.43.0 provider choice requires a product decision. Secure Transport preserves the current
-TCP/reactor architecture but guarantees only TLS 1.2 through a deprecated API. Network.framework
-provides TLS 1.3 but requires a broader network architecture replacement. An embedded provider
-first requires a maintained native-object link and update boundary.
+None.
 
 ## Non-negotiable Boundaries
 

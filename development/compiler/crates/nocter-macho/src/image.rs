@@ -55,6 +55,7 @@ const DARWIN_LIBRARY_LOAD_ORDER: &[RuntimeLibraryIdentity] = &[
     RuntimeLibraryIdentity::DarwinSystem,
     RuntimeLibraryIdentity::DarwinCoreFoundation,
     RuntimeLibraryIdentity::DarwinSecurity,
+    RuntimeLibraryIdentity::DarwinNetwork,
 ];
 
 /// A complete executable file image. Writing it to an executable path requires no assembler,
@@ -372,19 +373,17 @@ fn encode_bind_info(
     program: &Arm64Program,
     libraries: &[LoadedLibrary],
 ) -> Result<Box<[u8]>, MachOError> {
-    if program.function_imports().is_empty() {
+    if program.runtime_imports().is_empty() {
         return Ok(Box::new([]));
     }
     let mut output = vec![BIND_OPCODE_SET_TYPE_IMM | BIND_TYPE_POINTER];
     let mut ordinal = None;
-    for function in program.function_imports() {
+    for import in program.runtime_imports() {
         let next_ordinal = libraries
             .iter()
-            .position(|library| library.identity == function.import().library())
+            .position(|library| library.identity == import.import().library())
             .and_then(|index| u8::try_from(index + 1).ok())
-            .ok_or(MachOError::MissingRuntimeLibrary(
-                function.import().library(),
-            ))?;
+            .ok_or(MachOError::MissingRuntimeLibrary(import.import().library()))?;
         if next_ordinal > 15 {
             return Err(MachOError::LibraryOrdinalOverflow);
         }
@@ -393,10 +392,10 @@ fn encode_bind_info(
             ordinal = Some(next_ordinal);
         }
         output.push(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM);
-        output.extend_from_slice(function.import().symbol().as_bytes());
+        output.extend_from_slice(import.import().symbol().as_bytes());
         output.push(0);
         output.push(BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB | DATA_CONST_SEGMENT_INDEX);
-        push_uleb128(&mut output, function.pointer_offset());
+        push_uleb128(&mut output, import.pointer_offset());
         output.push(BIND_OPCODE_DO_BIND);
     }
     output.push(0);
@@ -406,9 +405,9 @@ fn encode_bind_info(
 fn loaded_libraries(program: &Arm64Program) -> Result<Box<[LoadedLibrary]>, MachOError> {
     let mut required = vec![RuntimeLibraryIdentity::DarwinSystem];
     for identity in program
-        .function_imports()
+        .runtime_imports()
         .iter()
-        .map(|function| function.import().library())
+        .map(|import| import.import().library())
     {
         if !required.contains(&identity) {
             required.push(identity);
@@ -445,6 +444,9 @@ const fn library_path(identity: RuntimeLibraryIdentity) -> &'static [u8] {
         }
         RuntimeLibraryIdentity::DarwinSecurity => {
             b"/System/Library/Frameworks/Security.framework/Versions/A/Security\0"
+        }
+        RuntimeLibraryIdentity::DarwinNetwork => {
+            b"/System/Library/Frameworks/Network.framework/Versions/A/Network\0"
         }
     }
 }

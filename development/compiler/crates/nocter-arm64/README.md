@@ -7,7 +7,7 @@ Select, allocate, and encode ARM64 instructions for one immutable machine progra
 ## Contract
 
 The crate consumes target-independent machine operations and runtime roles. It publishes an
-`Arm64Program` containing encoded code/data sections, function-import pointer slots, and fixup
+`Arm64Program` containing encoded code/data sections, typed runtime-import pointer slots, and fixup
 information for the image writer. It does not inspect MIR semantics, declaration identities,
 source, loader commands, or package state.
 
@@ -33,8 +33,8 @@ source, loader commands, or package state.
   kernel ABI.
 - Data-pointer fixups identify exact eight-byte fields and section-local targets; executable image
   policy remains outside this crate.
-- Imported-function slots retain exact trusted runtime identities; ARM64 neither derives a loader
-  symbol nor encodes a dylib command.
+- Imported function and data slots retain exact kind-preserving trusted runtime identities; ARM64
+  neither derives a loader symbol nor encodes a dylib command.
 - Imported calls use the same preplanned scalar transport as other runtime calls, then load and
   branch through the machine import identity's pointer slot.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative

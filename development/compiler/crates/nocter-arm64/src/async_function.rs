@@ -82,7 +82,10 @@ pub(crate) struct Arm64AsyncResumeResources<'a> {
     functions: &'a crate::Arm64FunctionTargets,
     async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
     data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
-    imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+    imports: &'a [(
+        nocter_machine::MachineImportId,
+        crate::Arm64FunctionImportId,
+    )],
     pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
     allocation_failure_error: crate::Arm64DataId,
 }
@@ -92,7 +95,10 @@ impl<'a> Arm64AsyncResumeResources<'a> {
         functions: &'a crate::Arm64FunctionTargets,
         async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
         data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
-        imports: &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+        imports: &'a [(
+            nocter_machine::MachineImportId,
+            crate::Arm64FunctionImportId,
+        )],
         pack_callbacks: &'a [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
         allocation_failure_error: crate::Arm64DataId,
     ) -> Self {
@@ -120,7 +126,10 @@ impl<'a> Arm64AsyncResumeResources<'a> {
 
     pub(crate) const fn imports(
         self,
-    ) -> &'a [(nocter_machine::MachineImportId, crate::Arm64DataId)] {
+    ) -> &'a [(
+        nocter_machine::MachineImportId,
+        crate::Arm64FunctionImportId,
+    )] {
         self.imports
     }
 

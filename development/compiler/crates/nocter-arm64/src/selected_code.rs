@@ -24,7 +24,10 @@ impl Arm64SelectedFunction {
         functions: &crate::Arm64FunctionTargets,
         async_primitives: &crate::Arm64AsyncPrimitiveTargets,
         data: &[(MachineDataId, crate::Arm64DataId)],
-        imports: &[(nocter_machine::MachineImportId, crate::Arm64DataId)],
+        imports: &[(
+            nocter_machine::MachineImportId,
+            crate::Arm64FunctionImportId,
+        )],
         pack_callbacks: &[(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
         allocation_failure_error: crate::Arm64DataId,
     ) -> Result<Arm64Code, Arm64MaterializationError> {
@@ -64,7 +67,10 @@ pub(crate) struct InstructionMaterialization<'selected> {
     pub(crate) functions: &'selected crate::Arm64FunctionTargets,
     pub(crate) async_primitives: &'selected crate::Arm64AsyncPrimitiveTargets,
     pub(crate) data: &'selected [(MachineDataId, crate::Arm64DataId)],
-    pub(crate) imports: &'selected [(nocter_machine::MachineImportId, crate::Arm64DataId)],
+    pub(crate) imports: &'selected [(
+        nocter_machine::MachineImportId,
+        crate::Arm64FunctionImportId,
+    )],
     pub(crate) pack_callbacks: &'selected [(crate::Arm64PackCallbackKey, crate::Arm64FunctionId)],
     pub(crate) allocation_failure_error: crate::Arm64DataId,
 }
@@ -329,13 +335,7 @@ pub(crate) fn emit_instruction(
                 .ok_or(Arm64MaterializationError::UnknownImport(import))?;
             let scratch = Arm64NocterAbi::compiler_scratch_register(0)
                 .ok_or(Arm64MaterializationError::MissingScratchRegister)?;
-            code.load_data_address(slot, scratch);
-            code.append(Arm64Instruction::LoadUnsigned {
-                size: Arm64LoadStoreSize::Double,
-                destination: Arm64DataRegister::General(scratch),
-                base: Arm64BaseRegister::General(scratch),
-                offset: 0,
-            });
+            code.load_function_import(slot, scratch);
             code.append(Arm64Instruction::BranchRegister {
                 target: scratch,
                 link: true,

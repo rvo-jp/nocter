@@ -37,10 +37,11 @@ verification, and provider error classification. `std/tls` owns public values an
 errors. TCP owns the descriptor. The reactor owns readiness registration. HTTP owns protocol
 syntax and response framing.
 
-## Darwin Provider Evaluation
+## Darwin Provider Selection
 
-The Darwin SDK exposes two materially different choices. Neither currently satisfies the complete
-contract without changing one accepted release requirement.
+The Darwin SDK exposes two materially different system providers. v0.43.0 selects
+Network.framework and expands the release boundary to replace the existing Darwin TCP
+implementation rather than retaining two connection engines.
 
 ### Secure Transport
 
@@ -54,7 +55,7 @@ in/out byte-count and `OSStatus` contract that is not equivalent to POSIX `read`
 those functions directly would be ABI-incorrect. A bridge may be compiler-owned, but it must expose
 only a fixed TLS service operation and fixed connection record—not general callback construction.
 
-### Network.framework
+### Network.framework: selected
 
 Network.framework provides the supported modern TLS stack and TLS 1.3. Its public connection API
 owns endpoint resolution, connection establishment, transport progress, dispatch scheduling, and
@@ -62,9 +63,16 @@ completion callbacks together with TLS. It cannot wrap Nocter's existing connect
 through a public SDK contract. Adopting it only for HTTPS would therefore create a second DNS, TCP,
 deadline, cancellation, and reactor model.
 
-Replacing the complete network substrate with Network.framework would avoid that duplication, but
-is a separate network architecture migration rather than a TLS provider addition. It would also
-replace the already qualified descriptor-based TCP, UDP, listener, and structured-async boundary.
+Network.framework will therefore replace the complete public TCP stream and listener substrate
+before HTTPS is enabled. The descriptor implementation remains qualification evidence until the
+migration is complete, then is removed rather than retained as a compatibility path. Numeric
+address values and the explicit resolver remain independent value services. UDP remains on its
+datagram-specific descriptor substrate because it neither constructs nor backs a TCP stream.
+
+This choice preserves Nocter's low-dependency distribution contract. Network.framework,
+Security.framework, CoreFoundation.framework, libdispatch, and the Blocks runtime are operating-
+system components on the supported Darwin target. Compilation still invokes no external compiler
+or linker, and a generated executable requires no adjacent Nocter or third-party runtime.
 
 ### Embedded TLS
 
@@ -94,17 +102,17 @@ ARM64 retains logical imports and pointer slots only. It does not know framework
 A native generated-image test loads Security.framework and CoreFoundation.framework, creates a TLS
 context, releases it, and exits without an external linker or bundled runtime.
 
-## Decision Gate
+## Selected Migration Boundary
 
-Implementation beyond the loader foundation requires one explicit product decision:
+The migration proceeds through one compiler-owned adapter with four closed responsibilities:
 
-1. ship authenticated TLS 1.2 over the existing descriptor architecture using the deprecated but
-   still available Secure Transport provider;
-2. replace the broader Darwin network substrate with Network.framework before implementing HTTPS;
-   or
-3. first add a general native-object/static-archive link boundary and adopt a maintained embedded
-   TLS provider.
+1. retain typed function and data imports required by the public Network.framework ABI;
+2. materialize only the fixed block signatures used by the adapter;
+3. translate callback completion into an owned mailbox and one reactor-visible wake descriptor;
+4. publish logical connection, transfer, cancellation, and release results to the standard
+   library.
 
-The compiler must not hide this conflict behind a TLS-specific wrapper or claim TLS 1.3 from an API
-whose public contract stops at TLS 1.2.
-
+No source declaration may construct a block, import a native symbol, choose a dispatch queue, or
+inspect an `nw_*` object. The adapter will migrate plain TCP before it exposes TLS so HTTPS cannot
+introduce a second connection engine. Secure Transport and embedded TLS remain rejected
+alternatives for this milestone.

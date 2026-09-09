@@ -14,7 +14,10 @@ mod target_service;
 
 pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
-pub use import::{RuntimeFunctionImport, RuntimeFunctionImportError, RuntimeLibraryIdentity};
+pub use import::{
+    RuntimeDataImport, RuntimeFunctionImport, RuntimeImport, RuntimeImportError,
+    RuntimeLibraryIdentity,
+};
 pub use primitive::{
     PrimitiveBinding, PrimitiveBindingError, PrimitiveEffects, PrimitiveRegistry, PrimitiveRole,
 };

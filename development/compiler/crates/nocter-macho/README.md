@@ -7,8 +7,8 @@ Write one deterministic ARM64 Mach-O executable image from an already encoded `A
 ## Contract
 
 The crate owns Mach-O headers, segments, load commands, offsets, alignment, entry metadata, loader
-binding streams, and final bytes. It consumes explicit ARM64 data-pointer fixups and trusted
-function-import slots, then emits the rebase and bind metadata needed for position-independent
+binding streams, and final bytes. It consumes explicit ARM64 data-pointer fixups and trusted typed
+runtime-import slots, then emits the rebase and bind metadata needed for position-independent
 readonly data. It is the sole authority mapping logical runtime-library identities to Darwin
 install names and dylib ordinals. It does not perform instruction selection, select an imported
 service, inspect a source declaration, validate package semantics, or publish artifacts.
