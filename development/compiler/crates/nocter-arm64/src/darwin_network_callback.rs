@@ -2,6 +2,7 @@ use std::fmt;
 
 use nocter_runtime_contract::{
     DarwinNetworkAdapterFunction, DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole,
+    DarwinNetworkEventKind,
 };
 
 use crate::{
@@ -93,6 +94,204 @@ pub fn add_darwin_network_state_callback(
     });
     program.define_function(target, code.finish()?)?;
     Ok(target)
+}
+
+/// Declares and defines a fixed receive, send, or accepted-connection callback.
+///
+/// Every object placed in the event record is retained with its own runtime family before channel
+/// transfer. The receiver consequently owns each non-null payload after one complete event read.
+///
+/// # Errors
+///
+/// Rejects a configuration or state role and propagates code, channel, and program construction
+/// errors.
+pub fn add_darwin_network_completion_callback(
+    program: &mut Arm64ProgramBuilder,
+    role: DarwinNetworkCallbackRole,
+    imports: &Arm64DarwinNetworkAdapterImports,
+) -> Result<Arm64FunctionId, Arm64DarwinNetworkCallbackError> {
+    let target = program.declare_function();
+    let code = match role {
+        DarwinNetworkCallbackRole::ConnectionReceive => receive_callback(imports)?,
+        DarwinNetworkCallbackRole::ConnectionSend => send_callback(imports)?,
+        DarwinNetworkCallbackRole::ListenerAccept => accepted_connection_callback(imports)?,
+        DarwinNetworkCallbackRole::ConfigureProtocol
+        | DarwinNetworkCallbackRole::ConnectionState
+        | DarwinNetworkCallbackRole::ListenerState => {
+            return Err(Arm64DarwinNetworkCallbackError::UnsupportedRole(role));
+        }
+    };
+    program.define_function(target, code.finish()?)?;
+    Ok(target)
+}
+
+fn receive_callback(
+    imports: &Arm64DarwinNetworkAdapterImports,
+) -> Result<Arm64CodeBuilder, Arm64DarwinNetworkCallbackError> {
+    let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
+    let saved = [
+        (x(19), 48),
+        (x(20), 56),
+        (x(21), 64),
+        (x(22), 72),
+        (x(23), 80),
+        (x(30), 88),
+    ];
+    let mut code = Arm64CodeBuilder::new();
+    begin_callback(&mut code, &saved);
+    move_register(&mut code, x(20), x(1));
+    move_register(&mut code, x(21), x(2));
+    code.append(Arm64Instruction::BitfieldExtend {
+        size: Arm64DataSize::Bits64,
+        signed: false,
+        source_bits: 8,
+        destination: x(22),
+        source: x(3),
+    });
+    move_register(&mut code, x(23), x(4));
+    retain_optional(
+        &mut code,
+        x(20),
+        imports.function(DarwinNetworkAdapterFunction::DispatchRetain),
+    )?;
+    retain_optional(
+        &mut code,
+        x(21),
+        imports.function(DarwinNetworkAdapterFunction::NetworkRetain),
+    )?;
+    retain_optional(
+        &mut code,
+        x(23),
+        imports.function(DarwinNetworkAdapterFunction::NetworkRetain),
+    )?;
+    write_event(
+        &mut code,
+        schema,
+        DarwinNetworkEventKind::ReceiveCompletion,
+        [Some(x(20)), Some(x(23)), Some(x(22)), Some(x(21))],
+        imports,
+    )?;
+    finish_callback(&mut code, &saved);
+    Ok(code)
+}
+
+fn send_callback(
+    imports: &Arm64DarwinNetworkAdapterImports,
+) -> Result<Arm64CodeBuilder, Arm64DarwinNetworkCallbackError> {
+    let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
+    let saved = [(x(19), 64), (x(20), 72), (x(30), 88)];
+    let mut code = Arm64CodeBuilder::new();
+    begin_callback(&mut code, &saved);
+    move_register(&mut code, x(20), x(1));
+    retain_optional(
+        &mut code,
+        x(20),
+        imports.function(DarwinNetworkAdapterFunction::NetworkRetain),
+    )?;
+    write_event(
+        &mut code,
+        schema,
+        DarwinNetworkEventKind::SendCompletion,
+        [Some(x(20)), None, None, None],
+        imports,
+    )?;
+    finish_callback(&mut code, &saved);
+    Ok(code)
+}
+
+fn accepted_connection_callback(
+    imports: &Arm64DarwinNetworkAdapterImports,
+) -> Result<Arm64CodeBuilder, Arm64DarwinNetworkCallbackError> {
+    let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
+    let saved = [(x(19), 64), (x(20), 72), (x(30), 88)];
+    let mut code = Arm64CodeBuilder::new();
+    begin_callback(&mut code, &saved);
+    move_register(&mut code, x(20), x(1));
+    retain_required(
+        &mut code,
+        x(20),
+        imports.function(DarwinNetworkAdapterFunction::NetworkRetain),
+    );
+    write_event(
+        &mut code,
+        schema,
+        DarwinNetworkEventKind::AcceptedConnection,
+        [Some(x(20)), None, None, None],
+        imports,
+    )?;
+    finish_callback(&mut code, &saved);
+    Ok(code)
+}
+
+fn begin_callback(code: &mut Arm64CodeBuilder, saved: &[(Arm64Register, u32)]) {
+    adjust_stack(code, Arm64AddSubtract::Subtract, 96);
+    for (register, offset) in saved {
+        store(code, *register, *offset);
+    }
+    code.append(Arm64Instruction::LoadUnsigned {
+        size: Arm64LoadStoreSize::Double,
+        destination: Arm64DataRegister::General(x(19)),
+        base: Arm64BaseRegister::General(x(0)),
+        offset: 32,
+    });
+}
+
+fn finish_callback(code: &mut Arm64CodeBuilder, saved: &[(Arm64Register, u32)]) {
+    for (register, offset) in saved {
+        load(code, *register, *offset);
+    }
+    adjust_stack(code, Arm64AddSubtract::Add, 96);
+    code.append(Arm64Instruction::BranchRegister {
+        target: x(30),
+        link: false,
+    });
+}
+
+fn retain_optional(
+    code: &mut Arm64CodeBuilder,
+    object: Arm64Register,
+    retain: crate::Arm64FunctionImportId,
+) -> Result<(), Arm64DarwinNetworkCallbackError> {
+    let complete = code.create_label();
+    compare_zero(code, object);
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    retain_required(code, object, retain);
+    code.bind(complete)?;
+    Ok(())
+}
+
+fn retain_required(
+    code: &mut Arm64CodeBuilder,
+    object: Arm64Register,
+    retain: crate::Arm64FunctionImportId,
+) {
+    move_register(code, x(0), object);
+    call(code, retain);
+}
+
+fn write_event(
+    code: &mut Arm64CodeBuilder,
+    schema: DarwinNetworkCallbackEventAbiSchema,
+    event: DarwinNetworkEventKind,
+    payloads: [Option<Arm64Register>; 4],
+    imports: &Arm64DarwinNetworkAdapterImports,
+) -> Result<(), Arm64DarwinNetworkCallbackError> {
+    immediate(code, x(8), event.code())?;
+    store(
+        code,
+        x(8),
+        u32::try_from(schema.kind_offset())
+            .map_err(|_| Arm64DarwinNetworkCallbackError::ContractLayout)?,
+    );
+    for (lane, payload) in payloads.iter().copied().enumerate() {
+        if let Some(payload) = payload {
+            store(code, payload, payload_offset(schema, lane)?);
+        } else {
+            store_zero(code, payload_offset(schema, lane)?);
+        }
+    }
+    emit_darwin_network_event_send(code, imports.channel(), x(19), 0)?;
+    Ok(())
 }
 
 fn payload_offset(
@@ -245,7 +444,10 @@ impl From<Arm64ProgramError> for Arm64DarwinNetworkCallbackError {
 mod tests {
     use nocter_runtime_contract::DarwinNetworkCallbackRole;
 
-    use super::{Arm64DarwinNetworkCallbackError, add_darwin_network_state_callback};
+    use super::{
+        Arm64DarwinNetworkCallbackError, add_darwin_network_completion_callback,
+        add_darwin_network_state_callback,
+    };
     use crate::{Arm64DarwinNetworkAdapterImports, Arm64ProgramBuilder};
 
     #[test]
@@ -260,6 +462,30 @@ mod tests {
             ),
             Err(Arm64DarwinNetworkCallbackError::UnsupportedRole(
                 DarwinNetworkCallbackRole::ConnectionReceive
+            ))
+        );
+    }
+
+    #[test]
+    fn completion_callbacks_cover_each_ownership_shape() {
+        let mut program = Arm64ProgramBuilder::new();
+        let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
+        let callbacks = [
+            DarwinNetworkCallbackRole::ConnectionReceive,
+            DarwinNetworkCallbackRole::ConnectionSend,
+            DarwinNetworkCallbackRole::ListenerAccept,
+        ]
+        .map(|role| add_darwin_network_completion_callback(&mut program, role, &imports).unwrap());
+        assert_ne!(callbacks[0], callbacks[1]);
+        assert_ne!(callbacks[1], callbacks[2]);
+        assert_eq!(
+            add_darwin_network_completion_callback(
+                &mut program,
+                DarwinNetworkCallbackRole::ListenerState,
+                &imports,
+            ),
+            Err(Arm64DarwinNetworkCallbackError::UnsupportedRole(
+                DarwinNetworkCallbackRole::ListenerState
             ))
         );
     }

@@ -117,7 +117,8 @@ pub use darwin_block::{
 };
 pub use darwin_network_adapter::Arm64DarwinNetworkAdapterImports;
 pub use darwin_network_callback::{
-    Arm64DarwinNetworkCallbackError, add_darwin_network_state_callback,
+    Arm64DarwinNetworkCallbackError, add_darwin_network_completion_callback,
+    add_darwin_network_state_callback,
 };
 pub use darwin_network_channel::{
     Arm64DarwinNetworkChannelError, Arm64DarwinNetworkChannelImports,

@@ -14,6 +14,7 @@ pub enum DarwinNetworkAdapterFunction {
     DispatchQueueCreate,
     DispatchAsync,
     DispatchSync,
+    DispatchRetain,
     DispatchRelease,
     DispatchDataCreate,
     DispatchDataCreateMap,
@@ -56,6 +57,7 @@ impl DarwinNetworkAdapterFunction {
         Self::DispatchQueueCreate,
         Self::DispatchAsync,
         Self::DispatchSync,
+        Self::DispatchRetain,
         Self::DispatchRelease,
         Self::DispatchDataCreate,
         Self::DispatchDataCreateMap,
@@ -106,6 +108,7 @@ impl DarwinNetworkAdapterFunction {
             ),
             Self::DispatchAsync => (RuntimeLibraryIdentity::DarwinSystem, "_dispatch_async"),
             Self::DispatchSync => (RuntimeLibraryIdentity::DarwinSystem, "_dispatch_sync_f"),
+            Self::DispatchRetain => (RuntimeLibraryIdentity::DarwinSystem, "_dispatch_retain"),
             Self::DispatchRelease => (RuntimeLibraryIdentity::DarwinSystem, "_dispatch_release"),
             Self::DispatchDataCreate => (
                 RuntimeLibraryIdentity::DarwinSystem,
