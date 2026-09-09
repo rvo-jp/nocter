@@ -30,7 +30,8 @@ pub use darwin_network_operation::{
     DarwinNetworkOwnerKind, DarwinNetworkOwnerState,
 };
 pub use darwin_network_owner::{
-    DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerField, DarwinNetworkOwnerResourceFamily,
+    DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerField,
+    DarwinNetworkOwnerResourceFamily,
 };
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{

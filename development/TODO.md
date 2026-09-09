@@ -9,14 +9,13 @@ plain TCP surface onto the closed native adapter foundation.
 
 ## Next Work
 
-Materialize the frozen Network.framework operation/lifecycle contract through the canonical ARM64
-adapter imports and migrate the public plain TCP stream and listener while retaining the existing
-logical timeout, synchronous, asynchronous, stable-error, and unique-ownership contracts. Define
-the fixed source-independent owner representation, then implement and qualify connection creation,
-start, transfer, address, cancellation, and release through that owner before listener adoption.
-Remove descriptor-backed TCP only after equivalent loopback and cancellation evidence passes. Keep
-UDP on its descriptor substrate. Keep native objects and callbacks compiler-owned; do not add
-source-level FFI or a general callback escape hatch.
+Connect the production plain-connection constructor and frozen owner lifecycle to the Machine
+primitive boundary, then implement receive, send, local/remote address, cancellation, and release
+without exposing native handles in source declarations. Migrate the public plain TCP stream only
+after equivalent loopback, timeout, transfer, cancellation, and stable-error evidence passes; then
+adopt accepted connections and migrate listeners. Remove descriptor-backed TCP only after the
+replacement is qualified. Keep UDP on its descriptor substrate. Keep native objects and callbacks
+compiler-owned; do not add source-level FFI or a general callback escape hatch.
 
 Preserve every published tag and asset.
 

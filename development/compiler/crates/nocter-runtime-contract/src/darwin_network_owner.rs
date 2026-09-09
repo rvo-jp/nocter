@@ -40,6 +40,53 @@ pub enum DarwinNetworkOwnerResourceFamily {
     Value,
 }
 
+/// Closed result of native owner construction before provider progress begins.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DarwinNetworkOwnerCreateStatus {
+    Created,
+    ChannelUnavailable,
+    QueueUnavailable,
+    EndpointUnavailable,
+    ParametersUnavailable,
+    NativeOwnerUnavailable,
+}
+
+impl DarwinNetworkOwnerCreateStatus {
+    pub const ALL: &'static [Self] = &[
+        Self::Created,
+        Self::ChannelUnavailable,
+        Self::QueueUnavailable,
+        Self::EndpointUnavailable,
+        Self::ParametersUnavailable,
+        Self::NativeOwnerUnavailable,
+    ];
+
+    #[must_use]
+    pub const fn code(self) -> u64 {
+        match self {
+            Self::Created => 0,
+            Self::ChannelUnavailable => 1,
+            Self::QueueUnavailable => 2,
+            Self::EndpointUnavailable => 3,
+            Self::ParametersUnavailable => 4,
+            Self::NativeOwnerUnavailable => 5,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_code(code: u64) -> Option<Self> {
+        match code {
+            0 => Some(Self::Created),
+            1 => Some(Self::ChannelUnavailable),
+            2 => Some(Self::QueueUnavailable),
+            3 => Some(Self::EndpointUnavailable),
+            4 => Some(Self::ParametersUnavailable),
+            5 => Some(Self::NativeOwnerUnavailable),
+            _ => None,
+        }
+    }
+}
+
 /// Fixed native record shared by connection and listener adapter owners on ARM64 Darwin.
 ///
 /// Temporary endpoint, parameter, Block, dispatch-data, path, and error objects are deliberately
@@ -89,7 +136,8 @@ impl DarwinNetworkOwnerAbiSchema {
 #[cfg(test)]
 mod tests {
     use super::{
-        DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerField, DarwinNetworkOwnerResourceFamily,
+        DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerField,
+        DarwinNetworkOwnerResourceFamily,
     };
 
     #[test]
@@ -117,5 +165,16 @@ mod tests {
             DarwinNetworkOwnerField::Lifecycle.resource_family(),
             DarwinNetworkOwnerResourceFamily::Value
         );
+    }
+
+    #[test]
+    fn creation_status_tags_are_closed_and_round_trip() {
+        for status in DarwinNetworkOwnerCreateStatus::ALL.iter().copied() {
+            assert_eq!(
+                DarwinNetworkOwnerCreateStatus::from_code(status.code()),
+                Some(status)
+            );
+        }
+        assert_eq!(DarwinNetworkOwnerCreateStatus::from_code(6), None);
     }
 }

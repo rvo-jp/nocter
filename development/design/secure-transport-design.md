@@ -177,3 +177,12 @@ ARM64 initializes the record only after all resources exist, derives every legal
 the runtime operation authority, checks the current tag in generated code, and permits terminal
 cleanup only from `quiesced`. Cleanup clears each resource slot and ends in `released`, so a second
 release fails before it can touch native storage.
+
+The plain outbound constructor is the first complete producer of this record. Its input is a
+numeric Darwin socket address rather than a provider endpoint or textual host. It creates the
+channel, queue, endpoint, plain-TCP parameters, connection, state handler, and queue association as
+one transaction. The destination record remains untouched on failure, and every fully initialized
+temporary is released in reverse order. On success the endpoint and parameters are released
+immediately while the connection, queue, and channel move into the record. A native generated image
+executes this production constructor and the complete cancellation fence, so qualification cannot
+drift into a second connection-creation implementation.
