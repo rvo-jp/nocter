@@ -123,8 +123,8 @@ can construct only a typed, one-pointer capture block whose descriptor size and 
 are fixed by that schema. A generated executable passes such a block to Network.framework; the
 framework invokes it and the callback updates its captured mailbox. This proves the actual block
 calling convention without exposing general blocks or foreign callbacks to Nocter source. The
-remaining asynchronous boundary must turn these qualified mechanisms into one closed adapter
-operation surface before any connection object becomes public.
+asynchronous boundary consumes a closed adapter-operation vocabulary before any connection object
+becomes public.
 
 The callback transport does not use a shared-memory mailbox plus a separate wake byte. Each
 callback writes one fixed 40-byte record to an `AF_UNIX/SOCK_DGRAM` socketpair owned by its native
@@ -148,3 +148,24 @@ runtime catalog. ARM64 event transfer retries only interruption and aborts on EO
 permanent channel failure because continuing after a lost ownership-bearing event cannot be safe.
 The production operation surface consumes this policy rather than reproducing it or exposing it to
 source code.
+
+## Adapter Operation Authority
+
+The runtime contract owns one checked lifecycle for both connection and listener owners. A native
+owner progresses through `initialized`, `running`, `cancel requested`, `final state observed`,
+`quiesced`, and `released`. The final provider state and the same-queue dispatch barrier are
+separate transitions; neither can independently manufacture release authority. Connection
+transfer operations are rejected for listener owners, and provider-state finality is derived from
+the typed connection or listener state rather than supplied as a Boolean by a caller.
+
+The closed operation vocabulary admits only owner creation or accepted-owner adoption, start,
+event-descriptor observation, receive/send initiation, complete event receipt, cancellation, the
+release barrier, and final release. It does not admit independent handler installation, arbitrary
+queue selection, Block construction, or native retain/release from source code. The target adapter
+applies this state machine while it materializes those operations.
+
+The runtime import catalog contains the complete plain-TCP dependency families needed by that
+surface: address endpoints, plain-TCP parameters, connections, listeners, dispatch data, effective
+path endpoints, provider errors, and fixed message contexts. Exact Block signatures for connection
+state, receive, send, listener state, and accepted-connection callbacks are likewise closed runtime
+roles. A source-level primitive cannot choose a different loader symbol or callback signature.

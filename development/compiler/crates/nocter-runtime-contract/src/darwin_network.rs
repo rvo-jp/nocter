@@ -63,15 +63,34 @@ pub enum DarwinNetworkChannelIoOutcome {
 pub enum DarwinNetworkCallbackRole {
     ConfigureProtocol,
     ConnectionState,
+    ConnectionReceive,
+    ConnectionSend,
+    ListenerState,
+    ListenerAccept,
 }
 
 impl DarwinNetworkCallbackRole {
+    pub const ALL: &'static [Self] = &[
+        Self::ConfigureProtocol,
+        Self::ConnectionState,
+        Self::ConnectionReceive,
+        Self::ConnectionSend,
+        Self::ListenerState,
+        Self::ListenerAccept,
+    ];
+
     /// Returns the canonical NUL-terminated Objective-C Block signature.
     #[must_use]
     pub const fn block_signature(self) -> &'static [u8] {
         match self {
             Self::ConfigureProtocol => b"v16@?0^{nw_protocol_options=}8\0",
             Self::ConnectionState => b"v20@?0i8^{nw_error=}12\0",
+            Self::ConnectionReceive => {
+                b"v36@?0^{dispatch_data_s=}8^{nw_content_context=}16B24^{nw_error=}28\0"
+            }
+            Self::ConnectionSend => b"v16@?0^{nw_error=}8\0",
+            Self::ListenerState => b"v20@?0i8^{nw_error=}12\0",
+            Self::ListenerAccept => b"v16@?0^{nw_connection=}8\0",
         }
     }
 
@@ -80,6 +99,10 @@ impl DarwinNetworkCallbackRole {
         match self {
             Self::ConfigureProtocol => None,
             Self::ConnectionState => Some(DarwinNetworkEventKind::ConnectionState),
+            Self::ConnectionReceive => Some(DarwinNetworkEventKind::ReceiveCompletion),
+            Self::ConnectionSend => Some(DarwinNetworkEventKind::SendCompletion),
+            Self::ListenerState => Some(DarwinNetworkEventKind::ListenerState),
+            Self::ListenerAccept => Some(DarwinNetworkEventKind::AcceptedConnection),
         }
     }
 }
@@ -287,60 +310,13 @@ impl DarwinNetworkListenerState {
     }
 }
 
-/// The two-step release fence for one cancelled Network.framework owner.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum DarwinNetworkReleaseFence {
-    AwaitingFinalState,
-    AwaitingDispatchBarrier,
-    Releasable,
-}
-
-impl DarwinNetworkReleaseFence {
-    #[must_use]
-    pub const fn observe_connection_state(self, state: DarwinNetworkConnectionState) -> Self {
-        if state.is_final_callback_state() {
-            match self {
-                Self::AwaitingFinalState => Self::AwaitingDispatchBarrier,
-                Self::AwaitingDispatchBarrier | Self::Releasable => self,
-            }
-        } else {
-            self
-        }
-    }
-
-    #[must_use]
-    pub const fn observe_listener_state(self, state: DarwinNetworkListenerState) -> Self {
-        if state.is_final_callback_state() {
-            match self {
-                Self::AwaitingFinalState => Self::AwaitingDispatchBarrier,
-                Self::AwaitingDispatchBarrier | Self::Releasable => self,
-            }
-        } else {
-            self
-        }
-    }
-
-    #[must_use]
-    pub const fn complete_dispatch_barrier(self) -> Self {
-        match self {
-            Self::AwaitingDispatchBarrier => Self::Releasable,
-            Self::AwaitingFinalState | Self::Releasable => self,
-        }
-    }
-
-    #[must_use]
-    pub const fn can_release(self) -> bool {
-        matches!(self, Self::Releasable)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
         DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole,
         DarwinNetworkChannelIoContract, DarwinNetworkChannelIoOutcome,
         DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkEventPayload,
-        DarwinNetworkListenerState, DarwinNetworkReleaseFence,
+        DarwinNetworkListenerState,
     };
 
     #[test]
@@ -351,15 +327,18 @@ mod tests {
         assert_eq!(schema.payload_offset(3), Some(32));
         assert_eq!(schema.payload_offset(4), None);
 
-        assert!(
-            DarwinNetworkCallbackRole::ConfigureProtocol
-                .block_signature()
-                .ends_with(&[0])
-        );
-        assert_eq!(
-            DarwinNetworkCallbackRole::ConnectionState.event_kind(),
-            Some(DarwinNetworkEventKind::ConnectionState)
-        );
+        let events = [
+            None,
+            Some(DarwinNetworkEventKind::ConnectionState),
+            Some(DarwinNetworkEventKind::ReceiveCompletion),
+            Some(DarwinNetworkEventKind::SendCompletion),
+            Some(DarwinNetworkEventKind::ListenerState),
+            Some(DarwinNetworkEventKind::AcceptedConnection),
+        ];
+        for (role, event) in DarwinNetworkCallbackRole::ALL.iter().copied().zip(events) {
+            assert!(role.block_signature().ends_with(&[0]));
+            assert_eq!(role.event_kind(), event);
+        }
         assert_eq!(schema.size(), 40);
         assert_eq!(schema.alignment(), 8);
 
@@ -435,19 +414,5 @@ mod tests {
         }
         assert_eq!(DarwinNetworkListenerState::from_code(5), None);
         assert!(DarwinNetworkListenerState::Cancelled.is_final_callback_state());
-
-        let fence = DarwinNetworkReleaseFence::AwaitingFinalState;
-        assert!(!fence.complete_dispatch_barrier().can_release());
-        assert_eq!(
-            fence.observe_connection_state(DarwinNetworkConnectionState::Ready),
-            fence
-        );
-        let fence = fence.observe_connection_state(DarwinNetworkConnectionState::Cancelled);
-        assert!(!fence.can_release());
-        assert!(fence.complete_dispatch_barrier().can_release());
-
-        let listener_fence = DarwinNetworkReleaseFence::AwaitingFinalState
-            .observe_listener_state(DarwinNetworkListenerState::Cancelled);
-        assert!(listener_fence.complete_dispatch_barrier().can_release());
     }
 }

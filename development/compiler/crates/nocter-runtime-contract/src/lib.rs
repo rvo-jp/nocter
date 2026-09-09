@@ -8,6 +8,7 @@ mod asynchronous;
 mod darwin_block;
 mod darwin_network;
 mod darwin_network_import;
+mod darwin_network_operation;
 mod environment;
 mod import;
 mod primitive;
@@ -20,9 +21,13 @@ pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,
     DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionState, DarwinNetworkEventKind,
-    DarwinNetworkEventPayload, DarwinNetworkListenerState, DarwinNetworkReleaseFence,
+    DarwinNetworkEventPayload, DarwinNetworkListenerState,
 };
 pub use darwin_network_import::{DarwinNetworkAdapterData, DarwinNetworkAdapterFunction};
+pub use darwin_network_operation::{
+    DarwinNetworkAdapterOperation, DarwinNetworkOperationError, DarwinNetworkOwner,
+    DarwinNetworkOwnerKind, DarwinNetworkOwnerState,
+};
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{
     RuntimeDataImport, RuntimeFunctionImport, RuntimeImport, RuntimeImportError,

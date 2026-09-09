@@ -9,12 +9,13 @@ plain TCP surface onto the closed native adapter foundation.
 
 ## Next Work
 
-Migrate the public plain TCP stream and listener onto compiler-owned Network.framework primitives
-while retaining the existing logical timeout, synchronous, asynchronous, stable-error, and unique
-ownership contracts. Introduce the closed primitive operation surface before changing public
-owners; then remove descriptor-backed TCP only after equivalent loopback and cancellation evidence
-passes. Keep UDP on its descriptor substrate. Keep native objects and callbacks compiler-owned; do
-not add source-level FFI or a general callback escape hatch.
+Materialize the frozen Network.framework operation/lifecycle contract in ARM64 and migrate the
+public plain TCP stream and listener while retaining the existing logical timeout, synchronous,
+asynchronous, stable-error, and unique-ownership contracts. Implement and qualify connection
+creation, start, transfer, address, cancellation, and release before listener adoption. Then remove
+descriptor-backed TCP only after equivalent loopback and cancellation evidence passes. Keep UDP on
+its descriptor substrate. Keep native objects and callbacks compiler-owned; do not add source-level
+FFI or a general callback escape hatch.
 
 Preserve every published tag and asset.
 
