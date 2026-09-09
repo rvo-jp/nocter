@@ -120,6 +120,28 @@ pub fn emit_darwin_network_owner_transition(
     Ok(())
 }
 
+/// Validates that an owner may perform one state-preserving or externally committed operation.
+///
+/// This emits only the fail-stop lifecycle guard. It exists for operations such as a dispatch
+/// barrier whose external effect must complete before the corresponding state transition is
+/// committed.
+///
+/// # Errors
+///
+/// Rejects an operation that is invalid for every owner state, a volatile owner register, or a
+/// malformed runtime owner schema.
+pub fn emit_darwin_network_owner_guard(
+    code: &mut Arm64CodeBuilder,
+    owner: Arm64Register,
+    kind: DarwinNetworkOwnerKind,
+    operation: DarwinNetworkAdapterOperation,
+    imports: &Arm64DarwinNetworkAdapterImports,
+) -> Result<(), Arm64DarwinNetworkOwnerError> {
+    validate_owner_register(owner)?;
+    let (accepted, _) = transition_domain(kind, operation)?;
+    emit_state_guard(code, owner, &accepted, imports)
+}
+
 /// Releases every native owner resource after validating the complete release fence.
 ///
 /// The operation is fail-stop on an invalid lifecycle. Each resource field is cleared after its

@@ -2,13 +2,13 @@ use nocter_arm64::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64DarwinNetworkAdapterImports, Arm64DataRegister, Arm64DataSize,
     Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64Program, Arm64ProgramBuilder,
-    add_darwin_plain_connection_targets, emit_darwin_network_event_receive,
-    emit_darwin_network_owner_release, emit_darwin_network_owner_transition,
+    add_darwin_network_connection_lifecycle_targets, add_darwin_plain_connection_targets,
+    emit_darwin_network_event_receive,
 };
 use nocter_runtime_contract::{
-    DarwinNetworkAdapterFunction, DarwinNetworkAdapterOperation,
-    DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState, DarwinNetworkOwnerAbiSchema,
-    DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerField, DarwinNetworkOwnerKind,
+    DarwinNetworkAdapterFunction, DarwinNetworkCallbackEventAbiSchema,
+    DarwinNetworkConnectionState, DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus,
+    DarwinNetworkOwnerField,
 };
 
 use super::network_callback::{
@@ -19,7 +19,6 @@ use crate::MachOImage;
 fn connection_lifecycle_program() -> Arm64Program {
     let mut program = Arm64ProgramBuilder::new();
     let entry = program.declare_function();
-    let barrier = program.declare_function();
     let address = program
         .add_data(
             [16, 2, 0, 1, 127, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0].as_slice(),
@@ -28,12 +27,13 @@ fn connection_lifecycle_program() -> Arm64Program {
         .unwrap();
     let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
     let connection = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
-    define_dispatch_barrier(&mut program, barrier);
+    let lifecycle =
+        add_darwin_network_connection_lifecycle_targets(&mut program, &imports).unwrap();
     define_connection_entry(
         &mut program,
         entry,
         connection.create(),
-        barrier,
+        lifecycle,
         address,
         &imports,
     );
@@ -41,22 +41,11 @@ fn connection_lifecycle_program() -> Arm64Program {
     program.finish().unwrap()
 }
 
-fn define_dispatch_barrier(program: &mut Arm64ProgramBuilder, barrier: Arm64FunctionId) {
-    let mut code = Arm64CodeBuilder::new();
-    code.append(Arm64Instruction::BranchRegister {
-        target: x(30),
-        link: false,
-    });
-    program
-        .define_function(barrier, code.finish().unwrap())
-        .unwrap();
-}
-
 fn define_connection_entry(
     program: &mut Arm64ProgramBuilder,
     entry: Arm64FunctionId,
     create: Arm64FunctionId,
-    barrier: Arm64FunctionId,
+    lifecycle: nocter_arm64::Arm64DarwinNetworkConnectionLifecycleTargets,
     address: nocter_arm64::Arm64DataId,
     imports: &Arm64DarwinNetworkAdapterImports,
 ) {
@@ -80,8 +69,11 @@ fn define_connection_entry(
     immediate(&mut code, x(16), 1);
     code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
     code.bind(created).unwrap();
-    load_owner_resources(&mut code);
-    start_then_cancel(&mut code, imports);
+    load_event_reader(&mut code);
+    move_register(&mut code, x(0), x(26));
+    call_function(&mut code, lifecycle.start());
+    move_register(&mut code, x(0), x(26));
+    call_function(&mut code, lifecycle.request_cancel());
 
     let receive = code.create_label();
     let error_released = code.create_label();
@@ -111,7 +103,12 @@ fn define_connection_entry(
         DarwinNetworkConnectionState::Cancelled.code(),
     );
     code.branch_conditional(receive, Arm64BranchCondition::NotEqual);
-    complete_release_fence(&mut code, barrier, imports);
+    move_register(&mut code, x(0), x(26));
+    call_function(&mut code, lifecycle.observe_final_state());
+    move_register(&mut code, x(0), x(26));
+    call_function(&mut code, lifecycle.complete_release_barrier());
+    move_register(&mut code, x(0), x(26));
+    call_function(&mut code, lifecycle.release());
     immediate(&mut code, x(0), 0);
     immediate(&mut code, x(16), 1);
     code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
@@ -120,81 +117,14 @@ fn define_connection_entry(
         .unwrap();
 }
 
-fn load_owner_resources(code: &mut Arm64CodeBuilder) {
+fn load_event_reader(code: &mut Arm64CodeBuilder) {
     let schema = DarwinNetworkOwnerAbiSchema::ARM64_DARWIN;
-    for (destination, field) in [
-        (x(25), DarwinNetworkOwnerField::NativeObject),
-        (x(22), DarwinNetworkOwnerField::SerialQueue),
-        (x(20), DarwinNetworkOwnerField::EventReader),
-    ] {
-        code.append(Arm64Instruction::LoadUnsigned {
-            size: Arm64LoadStoreSize::Double,
-            destination: Arm64DataRegister::General(destination),
-            base: Arm64BaseRegister::General(x(26)),
-            offset: u32::try_from(schema.offset(field)).unwrap(),
-        });
-    }
-}
-
-fn start_then_cancel(code: &mut Arm64CodeBuilder, imports: &Arm64DarwinNetworkAdapterImports) {
-    emit_darwin_network_owner_transition(
-        code,
-        x(26),
-        DarwinNetworkOwnerKind::Connection,
-        DarwinNetworkAdapterOperation::Start,
-        imports,
-    )
-    .unwrap();
-    move_register(code, x(0), x(25));
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::ConnectionStart),
-    );
-    emit_darwin_network_owner_transition(
-        code,
-        x(26),
-        DarwinNetworkOwnerKind::Connection,
-        DarwinNetworkAdapterOperation::RequestCancel,
-        imports,
-    )
-    .unwrap();
-    move_register(code, x(0), x(25));
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::ConnectionCancel),
-    );
-}
-
-fn complete_release_fence(
-    code: &mut Arm64CodeBuilder,
-    barrier: Arm64FunctionId,
-    imports: &Arm64DarwinNetworkAdapterImports,
-) {
-    emit_darwin_network_owner_transition(
-        code,
-        x(26),
-        DarwinNetworkOwnerKind::Connection,
-        DarwinNetworkAdapterOperation::ObserveFinalState,
-        imports,
-    )
-    .unwrap();
-    move_register(code, x(0), x(22));
-    immediate(code, x(1), 0);
-    code.load_function_address(barrier, x(2));
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::DispatchSync),
-    );
-    emit_darwin_network_owner_transition(
-        code,
-        x(26),
-        DarwinNetworkOwnerKind::Connection,
-        DarwinNetworkAdapterOperation::CompleteReleaseBarrier,
-        imports,
-    )
-    .unwrap();
-    emit_darwin_network_owner_release(code, x(26), DarwinNetworkOwnerKind::Connection, imports)
-        .unwrap();
+    code.append(Arm64Instruction::LoadUnsigned {
+        size: Arm64LoadStoreSize::Double,
+        destination: Arm64DataRegister::General(x(20)),
+        base: Arm64BaseRegister::General(x(26)),
+        offset: u32::try_from(schema.offset(DarwinNetworkOwnerField::EventReader)).unwrap(),
+    });
 }
 
 fn compare_zero(code: &mut Arm64CodeBuilder, value: nocter_arm64::Arm64Register) {

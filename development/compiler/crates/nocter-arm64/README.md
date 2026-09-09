@@ -43,6 +43,10 @@ source, loader commands, or package state.
 - Darwin network event transfer consumes the closed runtime catalog and emits one complete-record
   policy: interrupted calls retry, while EOF, short records, and permanent channel failures abort
   because safe native-owner progress is no longer possible.
+- Plain connection start, cancellation, final-state observation, serial-queue quiescence, and
+  release are production callable targets. Native qualification calls those targets and cannot
+  carry a parallel lifecycle implementation; quiescence commits only after `dispatch_sync_f`
+  returns on the owner's queue.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.

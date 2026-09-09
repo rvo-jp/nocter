@@ -38,6 +38,7 @@ mod darwin_network_adapter;
 mod darwin_network_callback;
 mod darwin_network_channel;
 mod darwin_network_connection;
+mod darwin_network_connection_lifecycle;
 mod darwin_network_owner;
 mod destruction_selection;
 mod encode;
@@ -129,10 +130,14 @@ pub use darwin_network_connection::{
     Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
     add_darwin_plain_connection_targets,
 };
+pub use darwin_network_connection_lifecycle::{
+    Arm64DarwinNetworkConnectionLifecycleError, Arm64DarwinNetworkConnectionLifecycleTargets,
+    add_darwin_network_connection_lifecycle_targets,
+};
 pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,
-    emit_darwin_network_owner_initialize, emit_darwin_network_owner_release,
-    emit_darwin_network_owner_transition,
+    emit_darwin_network_owner_guard, emit_darwin_network_owner_initialize,
+    emit_darwin_network_owner_release, emit_darwin_network_owner_transition,
 };
 pub use encode::Arm64EncodingError;
 pub use frame::{
