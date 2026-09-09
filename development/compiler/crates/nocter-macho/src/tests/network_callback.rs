@@ -1,13 +1,14 @@
 use nocter_arm64::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64CodeBuilder,
-    Arm64DataImportId, Arm64DataRegister, Arm64DataSize, Arm64FunctionId, Arm64FunctionImportId,
-    Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide, Arm64Program, Arm64ProgramBuilder,
-    Arm64Register, add_darwin_pointer_capture_block_descriptor, load_darwin_stack_block_address,
-    materialize_darwin_pointer_capture_stack_block,
+    Arm64DarwinNetworkChannelImports, Arm64DataImportId, Arm64DataRegister, Arm64DataSize,
+    Arm64FunctionId, Arm64FunctionImportId, Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide,
+    Arm64Program, Arm64ProgramBuilder, Arm64Register, add_darwin_pointer_capture_block_descriptor,
+    emit_darwin_network_event_receive, emit_darwin_network_event_send,
+    load_darwin_stack_block_address, materialize_darwin_pointer_capture_stack_block,
 };
 use nocter_runtime_contract::{
-    DarwinNetworkCallbackEventAbiSchema, DarwinNetworkEventKind, RuntimeDataImport,
-    RuntimeFunctionImport, RuntimeLibraryIdentity,
+    DarwinNetworkAdapterData, DarwinNetworkAdapterFunction, DarwinNetworkCallbackEventAbiSchema,
+    DarwinNetworkEventKind,
 };
 
 use crate::MachOImage;
@@ -22,9 +23,8 @@ pub(super) fn x(number: u8) -> Arm64Register {
 
 struct CallbackChannelImports {
     stack_block_class: Arm64DataImportId,
+    channel: Arm64DarwinNetworkChannelImports,
     socket_pair: Arm64FunctionImportId,
-    send: Arm64FunctionImportId,
-    receive: Arm64FunctionImportId,
     close: Arm64FunctionImportId,
     queue_create: Arm64FunctionImportId,
     dispatch_async: Arm64FunctionImportId,
@@ -33,33 +33,22 @@ struct CallbackChannelImports {
 
 pub(super) fn function_import(
     program: &mut Arm64ProgramBuilder,
-    symbol: &str,
+    role: DarwinNetworkAdapterFunction,
 ) -> Arm64FunctionImportId {
-    program
-        .add_function_import(
-            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSystem, symbol).unwrap(),
-        )
-        .unwrap()
+    program.add_function_import(role.import()).unwrap()
 }
 
 fn declare_imports(program: &mut Arm64ProgramBuilder) -> CallbackChannelImports {
     CallbackChannelImports {
         stack_block_class: program
-            .add_data_import(
-                RuntimeDataImport::new(
-                    RuntimeLibraryIdentity::DarwinSystem,
-                    "__NSConcreteStackBlock",
-                )
-                .unwrap(),
-            )
+            .add_data_import(DarwinNetworkAdapterData::StackBlockClass.import())
             .unwrap(),
-        socket_pair: function_import(program, "_socketpair"),
-        send: function_import(program, "_send"),
-        receive: function_import(program, "_recv"),
-        close: function_import(program, "_close"),
-        queue_create: function_import(program, "_dispatch_queue_create"),
-        dispatch_async: function_import(program, "_dispatch_async"),
-        dispatch_release: function_import(program, "_dispatch_release"),
+        channel: Arm64DarwinNetworkChannelImports::declare(program).unwrap(),
+        socket_pair: function_import(program, DarwinNetworkAdapterFunction::SocketPair),
+        close: function_import(program, DarwinNetworkAdapterFunction::Close),
+        queue_create: function_import(program, DarwinNetworkAdapterFunction::DispatchQueueCreate),
+        dispatch_async: function_import(program, DarwinNetworkAdapterFunction::DispatchAsync),
+        dispatch_release: function_import(program, DarwinNetworkAdapterFunction::DispatchRelease),
     }
 }
 
@@ -73,7 +62,7 @@ fn callback_channel_program() -> Arm64Program {
         .unwrap();
     let imports = declare_imports(&mut program);
 
-    define_callback(&mut program, invoke, imports.send);
+    define_callback(&mut program, invoke, imports.channel);
     define_entry(
         &mut program,
         entry,
@@ -89,15 +78,16 @@ fn callback_channel_program() -> Arm64Program {
 fn define_callback(
     program: &mut Arm64ProgramBuilder,
     invoke: Arm64FunctionId,
-    send: Arm64FunctionImportId,
+    channel: Arm64DarwinNetworkChannelImports,
 ) {
     let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract, 64);
+    store(&mut code, x(19), 40);
     store(&mut code, x(30), 48);
     code.append(Arm64Instruction::LoadUnsigned {
         size: Arm64LoadStoreSize::Double,
-        destination: Arm64DataRegister::General(x(0)),
+        destination: Arm64DataRegister::General(x(19)),
         base: Arm64BaseRegister::General(x(0)),
         offset: 32,
     });
@@ -121,10 +111,8 @@ fn define_callback(
         x(8),
         u32::try_from(schema.payload_offset(0).unwrap()).unwrap(),
     );
-    stack_address(&mut code, 0, x(1));
-    immediate(&mut code, x(2), schema.size());
-    immediate(&mut code, x(3), 0);
-    call(&mut code, send);
+    emit_darwin_network_event_send(&mut code, channel, x(19), 0).unwrap();
+    load(&mut code, x(19), 40);
     load(&mut code, x(30), 48);
     adjust_stack(&mut code, Arm64AddSubtract::Add, 64);
     code.append(Arm64Instruction::BranchRegister {
@@ -175,11 +163,7 @@ fn define_entry(
     load_darwin_stack_block_address(&mut code, BLOCK_OFFSET, x(1)).unwrap();
     call(&mut code, imports.dispatch_async);
 
-    move_register(&mut code, x(0), x(20));
-    stack_address(&mut code, EVENT_OFFSET, x(1));
-    immediate(&mut code, x(2), schema.size());
-    immediate(&mut code, x(3), 0);
-    call(&mut code, imports.receive);
+    emit_darwin_network_event_receive(&mut code, imports.channel, x(20), EVENT_OFFSET).unwrap();
     load(
         &mut code,
         x(23),

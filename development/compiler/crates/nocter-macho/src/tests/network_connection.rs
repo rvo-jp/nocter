@@ -1,13 +1,14 @@
 use nocter_arm64::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64CodeBuilder, Arm64DataImportId, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
-    Arm64FunctionImportId, Arm64Instruction, Arm64LoadStoreSize, Arm64Program, Arm64ProgramBuilder,
-    add_darwin_pointer_capture_block_descriptor, load_darwin_stack_block_address,
-    materialize_darwin_pointer_capture_stack_block,
+    Arm64CodeBuilder, Arm64DarwinNetworkChannelImports, Arm64DataImportId, Arm64DataRegister,
+    Arm64DataSize, Arm64FunctionId, Arm64FunctionImportId, Arm64Instruction, Arm64LoadStoreSize,
+    Arm64Program, Arm64ProgramBuilder, add_darwin_pointer_capture_block_descriptor,
+    emit_darwin_network_event_receive, emit_darwin_network_event_send,
+    load_darwin_stack_block_address, materialize_darwin_pointer_capture_stack_block,
 };
 use nocter_runtime_contract::{
-    DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState, DarwinNetworkEventKind,
-    RuntimeDataImport, RuntimeFunctionImport, RuntimeLibraryIdentity,
+    DarwinNetworkAdapterData, DarwinNetworkAdapterFunction, DarwinNetworkCallbackEventAbiSchema,
+    DarwinNetworkCallbackRole, DarwinNetworkConnectionState, DarwinNetworkEventKind,
 };
 
 use super::network_callback::{
@@ -19,9 +20,8 @@ use crate::MachOImage;
 struct NetworkConnectionImports {
     stack_block_class: Arm64DataImportId,
     default_configuration: Arm64DataImportId,
+    channel: Arm64DarwinNetworkChannelImports,
     socket_pair: Arm64FunctionImportId,
-    send: Arm64FunctionImportId,
-    receive: Arm64FunctionImportId,
     close: Arm64FunctionImportId,
     queue_create: Arm64FunctionImportId,
     dispatch_sync: Arm64FunctionImportId,
@@ -37,61 +37,43 @@ struct NetworkConnectionImports {
     connection_cancel: Arm64FunctionImportId,
 }
 
-fn network_function_import(
-    program: &mut Arm64ProgramBuilder,
-    symbol: &str,
-) -> Arm64FunctionImportId {
-    program
-        .add_function_import(
-            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinNetwork, symbol).unwrap(),
-        )
-        .unwrap()
-}
-
 fn declare_imports(program: &mut Arm64ProgramBuilder) -> NetworkConnectionImports {
     let stack_block_class = program
-        .add_data_import(
-            RuntimeDataImport::new(
-                RuntimeLibraryIdentity::DarwinSystem,
-                "__NSConcreteStackBlock",
-            )
-            .unwrap(),
-        )
+        .add_data_import(DarwinNetworkAdapterData::StackBlockClass.import())
         .unwrap();
     let default_configuration = program
-        .add_data_import(
-            RuntimeDataImport::new(
-                RuntimeLibraryIdentity::DarwinNetwork,
-                "__nw_parameters_configure_protocol_default_configuration",
-            )
-            .unwrap(),
-        )
+        .add_data_import(DarwinNetworkAdapterData::DefaultProtocolConfiguration.import())
         .unwrap();
     NetworkConnectionImports {
         stack_block_class,
         default_configuration,
-        socket_pair: function_import(program, "_socketpair"),
-        send: function_import(program, "_send"),
-        receive: function_import(program, "_recv"),
-        close: function_import(program, "_close"),
-        queue_create: function_import(program, "_dispatch_queue_create"),
-        dispatch_sync: function_import(program, "_dispatch_sync_f"),
-        dispatch_release: function_import(program, "_dispatch_release"),
-        retain: network_function_import(program, "_nw_retain"),
-        release: network_function_import(program, "_nw_release"),
-        endpoint_create_host: network_function_import(program, "_nw_endpoint_create_host"),
-        parameters_create_secure_tcp: network_function_import(
+        channel: Arm64DarwinNetworkChannelImports::declare(program).unwrap(),
+        socket_pair: function_import(program, DarwinNetworkAdapterFunction::SocketPair),
+        close: function_import(program, DarwinNetworkAdapterFunction::Close),
+        queue_create: function_import(program, DarwinNetworkAdapterFunction::DispatchQueueCreate),
+        dispatch_sync: function_import(program, DarwinNetworkAdapterFunction::DispatchSync),
+        dispatch_release: function_import(program, DarwinNetworkAdapterFunction::DispatchRelease),
+        retain: function_import(program, DarwinNetworkAdapterFunction::NetworkRetain),
+        release: function_import(program, DarwinNetworkAdapterFunction::NetworkRelease),
+        endpoint_create_host: function_import(
             program,
-            "_nw_parameters_create_secure_tcp",
+            DarwinNetworkAdapterFunction::EndpointCreateHost,
         ),
-        connection_create: network_function_import(program, "_nw_connection_create"),
-        connection_set_handler: network_function_import(
+        parameters_create_secure_tcp: function_import(
             program,
-            "_nw_connection_set_state_changed_handler",
+            DarwinNetworkAdapterFunction::ParametersCreateSecureTcp,
         ),
-        connection_set_queue: network_function_import(program, "_nw_connection_set_queue"),
-        connection_start: network_function_import(program, "_nw_connection_start"),
-        connection_cancel: network_function_import(program, "_nw_connection_cancel"),
+        connection_create: function_import(program, DarwinNetworkAdapterFunction::ConnectionCreate),
+        connection_set_handler: function_import(
+            program,
+            DarwinNetworkAdapterFunction::ConnectionSetStateHandler,
+        ),
+        connection_set_queue: function_import(
+            program,
+            DarwinNetworkAdapterFunction::ConnectionSetQueue,
+        ),
+        connection_start: function_import(program, DarwinNetworkAdapterFunction::ConnectionStart),
+        connection_cancel: function_import(program, DarwinNetworkAdapterFunction::ConnectionCancel),
     }
 }
 
@@ -100,9 +82,11 @@ fn connection_lifecycle_program() -> Arm64Program {
     let entry = program.declare_function();
     let invoke = program.declare_function();
     let barrier = program.declare_function();
-    let descriptor =
-        add_darwin_pointer_capture_block_descriptor(&mut program, b"v20@?0i8^{nw_error=}12\0")
-            .unwrap();
+    let descriptor = add_darwin_pointer_capture_block_descriptor(
+        &mut program,
+        DarwinNetworkCallbackRole::ConnectionState.block_signature(),
+    )
+    .unwrap();
     let host = program.add_data(b"127.0.0.1\0".as_slice(), 1).unwrap();
     let port = program.add_data(b"1\0".as_slice(), 1).unwrap();
     let queue_label = program
@@ -196,11 +180,7 @@ fn define_state_callback(
         &mut code,
         u32::try_from(schema.payload_offset(3).unwrap()).unwrap(),
     );
-    move_register(&mut code, x(0), x(19));
-    stack_address(&mut code, 0, x(1));
-    immediate(&mut code, x(2), schema.size());
-    immediate(&mut code, x(3), 0);
-    call(&mut code, imports.send);
+    emit_darwin_network_event_send(&mut code, imports.channel, x(19), 0).unwrap();
 
     for (register, offset) in [(x(19), 64), (x(20), 72), (x(21), 80), (x(30), 88)] {
         load(&mut code, register, offset);
@@ -240,11 +220,7 @@ fn define_connection_entry(
     let receive = code.create_label();
     let error_released = code.create_label();
     code.bind(receive).unwrap();
-    move_register(&mut code, x(0), x(20));
-    stack_address(&mut code, EVENT_OFFSET, x(1));
-    immediate(&mut code, x(2), schema.size());
-    immediate(&mut code, x(3), 0);
-    call(&mut code, imports.receive);
+    emit_darwin_network_event_receive(&mut code, imports.channel, x(20), EVENT_OFFSET).unwrap();
     load(
         &mut code,
         x(26),

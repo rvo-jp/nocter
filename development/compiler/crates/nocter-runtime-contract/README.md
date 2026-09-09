@@ -25,6 +25,8 @@ public source-level imports.
 - the fixed Darwin Blocks ABI subset admitted by compiler-owned native adapters
 - the fixed Darwin network callback-event record, payload ownership table, provider state codes,
   and two-step release fence consumed through a descriptor channel
+- the closed Darwin network adapter import catalog, callback signatures, and complete-transfer
+  classification
 - closed async lifecycle-state tag sequences
 - target-independent descriptor and monotonic-timer wait interests
 - target runtime capability requirements
@@ -42,6 +44,8 @@ public source-level imports.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.
 - The Darwin callback channel carries complete event records. A shared queue, lock, and wake-only
   signal are not part of the runtime contract.
+- Network adapter consumers select typed catalog roles; they cannot reproduce loader symbols,
+  symbol kinds, libraries, Block signatures, event size, or interrupted-transfer classification.
 - A final Network.framework state must be followed by a barrier on the same serial dispatch queue;
   event receipt alone never authorizes native-owner release.
 - Primitive effect facts are keyed by closed roles, never inferred from source names or target

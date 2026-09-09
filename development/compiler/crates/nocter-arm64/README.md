@@ -40,6 +40,9 @@ source, loader commands, or package state.
 - Darwin native blocks use one runtime-owned layout schema and typed descriptor identity. The
   admitted materializer creates only a one-pointer, non-owning capture record; callers cannot pair
   an arbitrary data object or capture count with that record.
+- Darwin network event transfer consumes the closed runtime catalog and emits one complete-record
+  policy: interrupted calls retry, while EOF, short records, and permanent channel failures abort
+  because safe native-owner progress is no longer possible.
 - A monotonic-counter observation is emitted as an ordered observation, never as a speculative
   bare system-register read.
 - Encoding is deterministic for one machine program.

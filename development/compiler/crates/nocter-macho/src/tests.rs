@@ -5,7 +5,10 @@ use nocter_arm64::{
     Arm64Program, Arm64ProgramBuilder, Arm64Register, add_darwin_pointer_capture_block_descriptor,
     load_darwin_stack_block_address, materialize_darwin_pointer_capture_stack_block,
 };
-use nocter_runtime_contract::{RuntimeDataImport, RuntimeFunctionImport, RuntimeLibraryIdentity};
+use nocter_runtime_contract::{
+    DarwinNetworkAdapterData, DarwinNetworkAdapterFunction, DarwinNetworkCallbackRole,
+    RuntimeFunctionImport, RuntimeLibraryIdentity,
+};
 
 use crate::MachOImage;
 
@@ -188,28 +191,13 @@ fn imported_network_program() -> Arm64Program {
     let mut program = Arm64ProgramBuilder::new();
     let entry = program.declare_function();
     let default_configuration = program
-        .add_data_import(
-            RuntimeDataImport::new(
-                RuntimeLibraryIdentity::DarwinNetwork,
-                "__nw_parameters_configure_protocol_default_configuration",
-            )
-            .unwrap(),
-        )
+        .add_data_import(DarwinNetworkAdapterData::DefaultProtocolConfiguration.import())
         .unwrap();
     let create_parameters = program
-        .add_function_import(
-            RuntimeFunctionImport::new(
-                RuntimeLibraryIdentity::DarwinNetwork,
-                "_nw_parameters_create_secure_tcp",
-            )
-            .unwrap(),
-        )
+        .add_function_import(DarwinNetworkAdapterFunction::ParametersCreateSecureTcp.import())
         .unwrap();
     let release = program
-        .add_function_import(
-            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinNetwork, "_nw_release")
-                .unwrap(),
-        )
+        .add_function_import(DarwinNetworkAdapterFunction::NetworkRelease.import())
         .unwrap();
 
     let mut code = Arm64CodeBuilder::new();
@@ -280,41 +268,20 @@ struct NetworkBlockResources {
 fn declare_network_block_resources(program: &mut Arm64ProgramBuilder) -> NetworkBlockResources {
     let descriptor = add_darwin_pointer_capture_block_descriptor(
         program,
-        b"v16@?0^{nw_protocol_options=}8\0".as_slice(),
+        DarwinNetworkCallbackRole::ConfigureProtocol.block_signature(),
     )
     .unwrap();
     let stack_block_class = program
-        .add_data_import(
-            RuntimeDataImport::new(
-                RuntimeLibraryIdentity::DarwinSystem,
-                "__NSConcreteStackBlock",
-            )
-            .unwrap(),
-        )
+        .add_data_import(DarwinNetworkAdapterData::StackBlockClass.import())
         .unwrap();
     let default_configuration = program
-        .add_data_import(
-            RuntimeDataImport::new(
-                RuntimeLibraryIdentity::DarwinNetwork,
-                "__nw_parameters_configure_protocol_default_configuration",
-            )
-            .unwrap(),
-        )
+        .add_data_import(DarwinNetworkAdapterData::DefaultProtocolConfiguration.import())
         .unwrap();
     let create_parameters = program
-        .add_function_import(
-            RuntimeFunctionImport::new(
-                RuntimeLibraryIdentity::DarwinNetwork,
-                "_nw_parameters_create_secure_tcp",
-            )
-            .unwrap(),
-        )
+        .add_function_import(DarwinNetworkAdapterFunction::ParametersCreateSecureTcp.import())
         .unwrap();
     let release = program
-        .add_function_import(
-            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinNetwork, "_nw_release")
-                .unwrap(),
-        )
+        .add_function_import(DarwinNetworkAdapterFunction::NetworkRelease.import())
         .unwrap();
     NetworkBlockResources {
         descriptor,

@@ -12,6 +12,78 @@ pub struct DarwinNetworkCallbackEventAbiSchema {
     alignment: u64,
 }
 
+/// The fixed callback-channel transfer rule for the supported Darwin target.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinNetworkChannelIoContract {
+    complete_count: i64,
+    interrupted_errno: i32,
+}
+
+impl DarwinNetworkChannelIoContract {
+    pub const ARM64_DARWIN: Self = Self {
+        complete_count: DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN
+            .size
+            .cast_signed(),
+        interrupted_errno: 4,
+    };
+
+    #[must_use]
+    pub const fn complete_count(self) -> i64 {
+        self.complete_count
+    }
+
+    #[must_use]
+    pub const fn interrupted_errno(self) -> i32 {
+        self.interrupted_errno
+    }
+
+    /// Classifies one `send` or `recv` result without permitting short event records.
+    #[must_use]
+    pub const fn classify(self, result: i64, errno: i32) -> DarwinNetworkChannelIoOutcome {
+        if result == self.complete_count {
+            DarwinNetworkChannelIoOutcome::Complete
+        } else if result == -1 && errno == self.interrupted_errno {
+            DarwinNetworkChannelIoOutcome::Interrupted
+        } else {
+            DarwinNetworkChannelIoOutcome::Fatal
+        }
+    }
+}
+
+/// Closed callback-channel transfer outcomes understood by the native adapter.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DarwinNetworkChannelIoOutcome {
+    Complete,
+    Interrupted,
+    Fatal,
+}
+
+/// Fixed Block roles admitted by the Darwin Network adapter.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum DarwinNetworkCallbackRole {
+    ConfigureProtocol,
+    ConnectionState,
+}
+
+impl DarwinNetworkCallbackRole {
+    /// Returns the canonical NUL-terminated Objective-C Block signature.
+    #[must_use]
+    pub const fn block_signature(self) -> &'static [u8] {
+        match self {
+            Self::ConfigureProtocol => b"v16@?0^{nw_protocol_options=}8\0",
+            Self::ConnectionState => b"v20@?0i8^{nw_error=}12\0",
+        }
+    }
+
+    #[must_use]
+    pub const fn event_kind(self) -> Option<DarwinNetworkEventKind> {
+        match self {
+            Self::ConfigureProtocol => None,
+            Self::ConnectionState => Some(DarwinNetworkEventKind::ConnectionState),
+        }
+    }
+}
+
 impl DarwinNetworkCallbackEventAbiSchema {
     pub const ARM64_DARWIN: Self = Self {
         kind_offset: 0,
@@ -265,8 +337,10 @@ impl DarwinNetworkReleaseFence {
 #[cfg(test)]
 mod tests {
     use super::{
-        DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState, DarwinNetworkEventKind,
-        DarwinNetworkEventPayload, DarwinNetworkListenerState, DarwinNetworkReleaseFence,
+        DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole,
+        DarwinNetworkChannelIoContract, DarwinNetworkChannelIoOutcome,
+        DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkEventPayload,
+        DarwinNetworkListenerState, DarwinNetworkReleaseFence,
     };
 
     #[test]
@@ -276,8 +350,37 @@ mod tests {
         assert_eq!(schema.payload_offset(0), Some(8));
         assert_eq!(schema.payload_offset(3), Some(32));
         assert_eq!(schema.payload_offset(4), None);
+
+        assert!(
+            DarwinNetworkCallbackRole::ConfigureProtocol
+                .block_signature()
+                .ends_with(&[0])
+        );
+        assert_eq!(
+            DarwinNetworkCallbackRole::ConnectionState.event_kind(),
+            Some(DarwinNetworkEventKind::ConnectionState)
+        );
         assert_eq!(schema.size(), 40);
         assert_eq!(schema.alignment(), 8);
+
+        let channel = DarwinNetworkChannelIoContract::ARM64_DARWIN;
+        assert_eq!(channel.complete_count(), 40);
+        assert_eq!(
+            channel.classify(40, 0),
+            DarwinNetworkChannelIoOutcome::Complete
+        );
+        assert_eq!(
+            channel.classify(-1, channel.interrupted_errno()),
+            DarwinNetworkChannelIoOutcome::Interrupted
+        );
+        assert_eq!(
+            channel.classify(39, channel.interrupted_errno()),
+            DarwinNetworkChannelIoOutcome::Fatal
+        );
+        assert_eq!(
+            channel.classify(-1, 9),
+            DarwinNetworkChannelIoOutcome::Fatal
+        );
     }
 
     #[test]

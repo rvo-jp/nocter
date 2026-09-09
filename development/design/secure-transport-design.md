@@ -143,5 +143,8 @@ from the callback thread, receives it as one datagram, and observes its payload.
 executable creates and cancels a real secure TCP connection, retains callback error objects across
 the channel, releases them after receipt, waits for the final cancelled state, completes the
 same-queue barrier, and only then releases every connection, endpoint, parameter, queue, and channel
-owner. The production adapter must still own permanent channel-failure policy rather than exposing
-that policy to source code.
+owner. Loader symbols, symbol kinds, libraries, and Block signatures now come from one closed
+runtime catalog. ARM64 event transfer retries only interruption and aborts on EOF, short records, or
+permanent channel failure because continuing after a lost ownership-bearing event cannot be safe.
+The production operation surface consumes this policy rather than reproducing it or exposing it to
+source code.

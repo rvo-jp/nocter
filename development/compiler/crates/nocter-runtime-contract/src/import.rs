@@ -41,6 +41,13 @@ impl RuntimeSymbolIdentity {
 pub struct RuntimeFunctionImport(RuntimeSymbolIdentity);
 
 impl RuntimeFunctionImport {
+    pub(crate) fn trusted(library: RuntimeLibraryIdentity, symbol: &'static str) -> Self {
+        Self(RuntimeSymbolIdentity {
+            library,
+            symbol: symbol.into(),
+        })
+    }
+
     /// Constructs one validated loader function.
     ///
     /// # Errors
@@ -73,6 +80,13 @@ impl RuntimeFunctionImport {
 pub struct RuntimeDataImport(RuntimeSymbolIdentity);
 
 impl RuntimeDataImport {
+    pub(crate) fn trusted(library: RuntimeLibraryIdentity, symbol: &'static str) -> Self {
+        Self(RuntimeSymbolIdentity {
+            library,
+            symbol: symbol.into(),
+        })
+    }
+
     /// Constructs one validated loader data object.
     ///
     /// # Errors
