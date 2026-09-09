@@ -1,9 +1,10 @@
-# Synchronous Internet Client Boundary
+# Internet Client Foundation
 
-This document defines the cross-responsibility contract for the v0.40.0 synchronous Internet
-client. Exact implemented declarations remain owned by the checked standard-library `index.nct`
-files, and observable behavior remains owned by their assigned guides. The milestone owns delivery
-order and completion evidence.
+This document defines the cross-responsibility URL, resolver, and HTTP foundation introduced by the
+v0.40.0 synchronous Internet client. Exact implemented declarations remain owned by the checked
+standard-library `index.nct` files, and observable behavior remains owned by their assigned guides.
+The asynchronous transport extension is defined separately by the
+[Asynchronous HTTP Client Boundary](asynchronous-http-client-design.md).
 
 ## Outcome
 
@@ -13,8 +14,10 @@ consume a correctly framed response body. The complete path is deterministic und
 fixture and does not require an external command, compiler plugin, bundled runtime, or editor-only
 interpretation.
 
-TLS, HTTPS transport, asynchronous I/O, public nonblocking sockets, HTTP/2, HTTP/3, WebSocket,
-proxying, cookies, automatic content decoding, and a public HTTP server are outside v0.40.0.
+TLS, HTTPS transport, public nonblocking sockets, HTTP/2, HTTP/3, WebSocket, proxying, cookies,
+automatic content decoding, and a public HTTP server remain outside this foundation. Asynchronous
+I/O was outside v0.40.0 and now composes the same values and protocol authorities through the
+separate boundary linked above.
 
 ## Existing Boundary
 
@@ -126,8 +129,8 @@ are neither lost in a map nor silently combined.
 One private HTTP/1.1 codec owns request-line, status-line, header, chunk, and trailer syntax. It is
 transport-neutral and can be reused by a future server. A private exchange layer owns request
 normalization and final response-head selection for every client orchestration. The synchronous
-client owns DNS, connection, timeout, and connection-lifecycle progress; the codec and exchange
-layer own none of those transport operations.
+and asynchronous client adapters own DNS, connection, timeout, and connection-lifecycle progress;
+the codec and exchange layer own none of those transport operations.
 
 For each response, the codec selects exactly one body framing before body bytes are exposed:
 
@@ -186,9 +189,9 @@ contract rather than being relabeled as a protocol failure.
 | Darwin resolver records and native result cleanup | Darwin resolver adapter | private resolver policy |
 | Host validation, logical results, and candidate order | `std/net` resolver | applications, HTTP client |
 | URL grammar and canonical components | `std/url` | applications, HTTP client |
-| HTTP syntax and body framing | private transport-neutral HTTP codec | synchronous client, future server |
+| HTTP syntax and body framing | private transport-neutral HTTP codec | client exchange and response progression, future server |
 | Request policy and final-head selection | private HTTP exchange layer | client orchestration |
-| Connection lifecycle progress | synchronous HTTP client | applications |
+| Connection lifecycle progress | synchronous and asynchronous HTTP adapters | applications |
 | Descriptor and monotonic deadline policy | existing private network substrate | resolver connection policy, HTTP client |
 | Public declarations and documentation | module `index.nct` and assigned guide | compiler, editor, applications |
 

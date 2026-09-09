@@ -1,0 +1,20 @@
+//! Shared allocation and append operations for bounded HTTP transport buffers.
+
+use /vec.Vec
+
+const CLIENT_BUFFER_BYTES: usize = 8192
+
+func initialized_bytes(size: usize): Vec<u8> {
+    var bytes: Vec<u8> = Vec.with_capacity(size)
+    while bytes.len() < size { bytes.push(0) }
+    return move bytes
+}
+
+func append_prefix(output: &+Vec<u8>, input: &[u8], count: usize): void {
+    var offset: usize = 0
+    while offset < count {
+        output.push(input[offset])
+        offset += 1
+    }
+    return
+}

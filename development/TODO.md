@@ -2,15 +2,15 @@
 
 ## Current State
 
-Nocter v0.42.0 Phase 4 is complete on the development branch. The self-contained `async-http`
-example crosses a structured client/server join over loopback, and editor plus installed-standard
-tests qualify the new async request and whole-body response contracts.
+Nocter v0.42.0 Phase 5 is complete on the development branch. The asynchronous HTTP client has one
+protocol authority and one response owner across synchronous and asynchronous transport adapters.
+The complete source-tree qualification passes without an open practical implementation finding.
 
 ## Next Work
 
-Implement v0.42.0 Phase 5: review the complete compiler, runtime, HTTP, documentation, and example
-change for duplicate state machines, ownership gaps, blocking executor work, stale synchronous-
-only wording, and obsolete helpers. Then run release qualification without weakening any gate.
+Prepare the v0.42.0 release identity, reproducible archives, release notes, and publication audit
+without weakening the existing qualification gates. Do not tag or publish without explicit user
+authorization.
 
 Preserve every published tag and asset, including v0.41.0.
 

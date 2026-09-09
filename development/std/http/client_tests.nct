@@ -5,6 +5,7 @@ see ./client_storage.nct
 see ./exchange.nct
 see ./index.nct
 see ./response_head.nct
+see ./transport_buffer.nct
 
 use /io.{Reader, Writer}
 use /net.{IpAddress, Ipv4Address, SocketAddress, TcpListener, TcpShutdown, TcpStream}

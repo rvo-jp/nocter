@@ -33,15 +33,6 @@ enum FinalResponseHeadAttempt {
     failed(failure: error)
 }
 
-func append_prefix(output: &+Vec<u8>, input: &[u8], count: usize): void {
-    var offset: usize = 0
-    while offset < count {
-        output.push(input[offset])
-        offset += 1
-    }
-    return
-}
-
 noalloc func reserved_client_header(name: &str): bool {
     return ascii_case_equal(name, "host")
         || ascii_case_equal(name, "connection")

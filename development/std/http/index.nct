@@ -22,6 +22,7 @@ see ./response_head.nct
 see ./response_progress.nct
 see ./storage.nct
 see ./tests.nct
+see ./transport_buffer.nct
 see ./values.nct
 see ./wire.nct
 
@@ -279,10 +280,10 @@ instance Response {
     /// Borrows the final ordered response fields.
     pub noalloc method &self.headers(): &Headers from self
 
-    /// Reads decoded response-body bytes without blocking the executor thread.
+    /// Reads at most `output.len()` decoded response-body bytes without blocking the executor.
     pub method &+self.read_async(output: &+[u8]): async usize!
 
-    /// Reads decoded bytes until transport input remains idle for `timeout`.
+    /// Reads at most `output.len()` decoded bytes with an idle timeout for needed input.
     pub method &+self.read_async_with_timeout(
         output: &+[u8],
         timeout: Duration,

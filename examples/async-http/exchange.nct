@@ -33,8 +33,14 @@ func serve_once(
     var stream = move accepted.0
     var request: Vec<u8> = Vec.empty()
     var scratch: Vec<u8> = Vec [
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
-        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
     ]
     while !ends_with(&request, "\r\n\r\nping".bytes()) {
         let received = await stream.read_async_with_timeout(&+scratch, timeout)?

@@ -210,6 +210,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>response_progress<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>storage<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>transport_buffer<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>values<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>wire<span class="token-operator">.</span>nct
 
@@ -467,10 +468,10 @@
     <span class="token-comment">/// Borrows the final ordered response fields.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">headers</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Headers</span> from self
 
-    <span class="token-comment">/// Reads decoded response-body bytes without blocking the executor thread.</span>
+    <span class="token-comment">/// Reads at most `output.len()` decoded response-body bytes without blocking the executor.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_async</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">usize</span><span class="token-operator">!</span>
 
-    <span class="token-comment">/// Reads decoded bytes until transport input remains idle for `timeout`.</span>
+    <span class="token-comment">/// Reads at most `output.len()` decoded bytes with an idle timeout for needed input.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_async_with_timeout</span><span class="token-operator">(</span>
         output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">,</span>
         timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>

@@ -40,6 +40,11 @@ forms delegate every needed read to `read_async_with_timeout`; the duration ther
 per-input idle timeout rather than becoming a whole-body deadline. Collection remains bounded by
 the `Limits` selected by the client and introduces no second body decoder.
 
+Whole-body collection consumes the response cursor as it progresses. Destroying a collector after
+one or more completed chunk reads discards its owned prefix and does not rewind the response.
+Transport, framing, timeout, or final UTF-8 validation failure returns no partial collection;
+UTF-8 failure occurs after the complete body has been consumed.
+
 `send_async_with_timeout` applies its `Duration` to the existing shared connection deadline, each
 complete request-head or request-body write, and each idle wait for more response-head input. Host
 resolution remains synchronous and consumes time from the connection deadline; retaining the lazy

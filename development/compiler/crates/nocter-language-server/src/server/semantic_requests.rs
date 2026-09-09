@@ -2413,18 +2413,8 @@ mod tests {
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 
-    #[test]
-    fn async_http_practical_contract_drives_hover_navigation_hints_and_completion() {
-        let temporary = TemporaryDirectory::new();
-        let source = temporary.path().join("main.nct");
-        let uri = format!("file://{}", source.display());
-        let mut server = semantic_server(temporary.path());
-        server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
-            temporary.path().display()
-        ));
-        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let text = concat!(
+    fn async_http_source() -> &'static str {
+        concat!(
             "use std/http.{Client, Request}\n",
             "use std/time.Duration\n",
             "use std/url.Url\n",
@@ -2438,7 +2428,21 @@ mod tests {
             "    let body = await response.read_to_string_async_with_timeout(timeout)?\n",
             "    return\n",
             "}\n",
-        );
+        )
+    }
+
+    #[test]
+    fn async_http_practical_contract_drives_hover_navigation_and_hints() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = async_http_source();
         let opened = set_completion_document(&mut server, &uri, text, 1);
         let snapshot = opened.analysis().unwrap().snapshot().unwrap();
         assert_eq!(
@@ -2503,14 +2507,27 @@ mod tests {
             );
         }
         assert!(hints.issue().is_none(), "{:?}", hints.issue());
+    }
 
+    #[test]
+    fn async_http_practical_contract_drives_incomplete_source_completion() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = async_http_source();
         let incomplete = text.replace(
             "response.read_to_string_async_with_timeout(timeout)",
             "response.",
         );
-        let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
+        let opened = set_completion_document(&mut server, &uri, &incomplete, 1);
         assert_eq!(
-            changed.analysis().unwrap().snapshot().unwrap().status(),
+            opened.analysis().unwrap().snapshot().unwrap().status(),
             nocter_analysis::AnalysisStatus::SyntaxFailed
         );
         let (completion_line, completion_character) = source_position(&incomplete, "response.");

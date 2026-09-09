@@ -9,6 +9,7 @@ see ./request.nct
 see ./response_head.nct
 see ./response_progress.nct
 see ./storage.nct
+see ./transport_buffer.nct
 see ./values.nct
 
 use /net.TcpStream

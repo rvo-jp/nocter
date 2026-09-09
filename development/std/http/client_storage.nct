@@ -3,12 +3,11 @@
 see ./body.nct
 see ./index.nct
 see ./storage.nct
+see ./transport_buffer.nct
 
 use /net.TcpStream
 use /url.Url
 use /vec.Vec
-
-const CLIENT_BUFFER_BYTES: usize = 8192
 
 struct Request {
     url_value: Url
@@ -28,12 +27,6 @@ struct Response {
     pending_start: usize
     scratch: Vec<u8>
     complete: bool
-}
-
-func initialized_bytes(size: usize): Vec<u8> {
-    var bytes: Vec<u8> = Vec.with_capacity(size)
-    while bytes.len() < size { bytes.push(0) }
-    return move bytes
 }
 
 noalloc func client_from_limits(limits: Limits): Client {

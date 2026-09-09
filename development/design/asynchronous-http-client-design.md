@@ -93,6 +93,10 @@ timeout-bearing collector passes the same duration to each read and therefore pr
 established idle-timeout contract. UTF-8 collection is a final conversion of the owned byte result,
 not a second transport or framing path.
 
+The collector owns each consumed prefix rather than lending it back to the response. Cancellation
+after progress drops that prefix and leaves the response at its one advanced cursor position;
+neither cancellation nor UTF-8 failure can rewind transport state.
+
 ## Responsibility Matrix
 
 | Decision | Sole authority | Consumers |
