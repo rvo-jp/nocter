@@ -9,6 +9,7 @@ the milestone itself, while publication evidence belongs in
 ## Recent Milestones
 
 - [v0.41.0: Structured Asynchronous I/O Foundation](v0.41.0.md)
+- [v0.41.0 Release Preparation](v0.41.0-release-preparation.md)
 - [v0.40.0: Synchronous Internet Client Foundation](v0.40.0.md)
 - [v0.40.0 Release Preparation](v0.40.0-release-preparation.md)
 - [v0.39.0: Synchronous Network I/O Foundation](v0.39.0.md)
