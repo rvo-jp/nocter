@@ -9,6 +9,7 @@ mod darwin_block;
 mod darwin_network;
 mod darwin_network_import;
 mod darwin_network_operation;
+mod darwin_network_owner;
 mod environment;
 mod import;
 mod primitive;
@@ -27,6 +28,9 @@ pub use darwin_network_import::{DarwinNetworkAdapterData, DarwinNetworkAdapterFu
 pub use darwin_network_operation::{
     DarwinNetworkAdapterOperation, DarwinNetworkOperationError, DarwinNetworkOwner,
     DarwinNetworkOwnerKind, DarwinNetworkOwnerState,
+};
+pub use darwin_network_owner::{
+    DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerField, DarwinNetworkOwnerResourceFamily,
 };
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{

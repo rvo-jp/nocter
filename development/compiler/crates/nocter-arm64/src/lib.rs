@@ -37,6 +37,7 @@ mod darwin_memory_code;
 mod darwin_network_adapter;
 mod darwin_network_callback;
 mod darwin_network_channel;
+mod darwin_network_owner;
 mod destruction_selection;
 mod encode;
 mod error_code;
@@ -121,6 +122,11 @@ pub use darwin_network_callback::{
 pub use darwin_network_channel::{
     Arm64DarwinNetworkChannelError, Arm64DarwinNetworkChannelImports,
     emit_darwin_network_event_receive, emit_darwin_network_event_send,
+};
+pub use darwin_network_owner::{
+    Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,
+    emit_darwin_network_owner_initialize, emit_darwin_network_owner_release,
+    emit_darwin_network_owner_transition,
 };
 pub use encode::Arm64EncodingError;
 pub use frame::{

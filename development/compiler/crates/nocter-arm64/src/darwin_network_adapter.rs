@@ -54,6 +54,10 @@ impl Arm64DarwinNetworkAdapterImports {
     }
 
     /// Returns the unique function slot assigned to a closed adapter role.
+    ///
+    /// # Panics
+    ///
+    /// Only if this privately constructed value violates its complete-catalog invariant.
     #[must_use]
     pub fn function(&self, role: DarwinNetworkAdapterFunction) -> Arm64FunctionImportId {
         self.functions
@@ -63,6 +67,10 @@ impl Arm64DarwinNetworkAdapterImports {
     }
 
     /// Returns the unique data slot assigned to a closed adapter role.
+    ///
+    /// # Panics
+    ///
+    /// Only if this privately constructed value violates its complete-catalog invariant.
     #[must_use]
     pub fn data(&self, role: DarwinNetworkAdapterData) -> Arm64DataImportId {
         self.data

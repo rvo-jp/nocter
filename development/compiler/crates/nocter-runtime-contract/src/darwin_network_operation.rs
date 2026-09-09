@@ -21,6 +21,42 @@ pub enum DarwinNetworkOwnerState {
     Released,
 }
 
+impl DarwinNetworkOwnerState {
+    pub const ALL: &'static [Self] = &[
+        Self::Initialized,
+        Self::Running,
+        Self::CancelRequested,
+        Self::FinalStateObserved,
+        Self::Quiesced,
+        Self::Released,
+    ];
+
+    #[must_use]
+    pub const fn code(self) -> u64 {
+        match self {
+            Self::Initialized => 0,
+            Self::Running => 1,
+            Self::CancelRequested => 2,
+            Self::FinalStateObserved => 3,
+            Self::Quiesced => 4,
+            Self::Released => 5,
+        }
+    }
+
+    #[must_use]
+    pub const fn from_code(code: u64) -> Option<Self> {
+        match code {
+            0 => Some(Self::Initialized),
+            1 => Some(Self::Running),
+            2 => Some(Self::CancelRequested),
+            3 => Some(Self::FinalStateObserved),
+            4 => Some(Self::Quiesced),
+            5 => Some(Self::Released),
+            _ => None,
+        }
+    }
+}
+
 /// Operations admitted by the compiler-owned Network.framework adapter.
 ///
 /// This is deliberately smaller than the provider API. Source code cannot set handlers, select a
@@ -36,6 +72,7 @@ pub enum DarwinNetworkAdapterOperation {
     BeginSend,
     ReceiveEvent,
     RequestCancel,
+    ObserveFinalState,
     CompleteReleaseBarrier,
     Release,
 }
@@ -51,6 +88,7 @@ impl DarwinNetworkAdapterOperation {
         Self::BeginSend,
         Self::ReceiveEvent,
         Self::RequestCancel,
+        Self::ObserveFinalState,
         Self::CompleteReleaseBarrier,
         Self::Release,
     ];
@@ -69,8 +107,28 @@ impl DarwinNetworkAdapterOperation {
             | Self::BeginSend
             | Self::ReceiveEvent
             | Self::RequestCancel
+            | Self::ObserveFinalState
             | Self::CompleteReleaseBarrier
             | Self::Release => None,
+        }
+    }
+
+    /// Computes the deterministic lifecycle transition for an existing owner model.
+    ///
+    /// Event receipt remains separate: only the typed provider-state observers may select
+    /// [`Self::ObserveFinalState`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the same closed transition error as [`DarwinNetworkOwner::apply`].
+    pub const fn transition(
+        self,
+        kind: DarwinNetworkOwnerKind,
+        state: DarwinNetworkOwnerState,
+    ) -> Result<DarwinNetworkOwnerState, DarwinNetworkOperationError> {
+        match (DarwinNetworkOwner { kind, state }).apply(self) {
+            Ok(owner) => Ok(owner.state()),
+            Err(error) => Err(error),
         }
     }
 }
@@ -91,7 +149,6 @@ impl DarwinNetworkOwner {
     /// # Errors
     ///
     /// Rejects operations that require an existing owner.
-    #[must_use]
     pub const fn create(
         operation: DarwinNetworkAdapterOperation,
     ) -> Result<Self, DarwinNetworkOperationError> {
@@ -157,6 +214,7 @@ impl DarwinNetworkOwner {
                 _,
                 State::Initialized | State::Running | State::CancelRequested,
             ) => State::CancelRequested,
+            (Operation::ObserveFinalState, _, State::CancelRequested) => State::FinalStateObserved,
             (Operation::CompleteReleaseBarrier, _, State::FinalStateObserved) => State::Quiesced,
             (Operation::Release, _, State::Quiesced) => State::Released,
             (
@@ -291,10 +349,7 @@ impl DarwinNetworkOwner {
                 event,
             });
         }
-        Ok(Self {
-            kind: self.kind,
-            state: State::FinalStateObserved,
-        })
+        self.apply(DarwinNetworkAdapterOperation::ObserveFinalState)
     }
 }
 
@@ -379,6 +434,14 @@ mod tests {
                 Operation::CreateOutboundConnection
             ))
         );
+    }
+
+    #[test]
+    fn owner_state_tags_are_closed_and_round_trip() {
+        for state in State::ALL.iter().copied() {
+            assert_eq!(State::from_code(state.code()), Some(state));
+        }
+        assert_eq!(State::from_code(6), None);
     }
 
     #[test]

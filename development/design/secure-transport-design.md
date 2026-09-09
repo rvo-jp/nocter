@@ -169,3 +169,11 @@ surface: address endpoints, plain-TCP parameters, connections, listeners, dispat
 path endpoints, provider errors, and fixed message contexts. Exact Block signatures for connection
 state, receive, send, listener state, and accepted-connection callbacks are likewise closed runtime
 roles. A source-level primitive cannot choose a different loader symbol or callback signature.
+
+Connection and listener owners share one fixed five-word native record: provider object, serial
+queue, event reader, event writer, and lifecycle tag. Endpoint, parameter, Block, dispatch-data,
+path, and error objects are operation-local and cannot silently acquire a second owner lifetime.
+ARM64 initializes the record only after all resources exist, derives every legal transition from
+the runtime operation authority, checks the current tag in generated code, and permits terminal
+cleanup only from `quiesced`. Cleanup clears each resource slot and ends in `released`, so a second
+release fails before it can touch native storage.

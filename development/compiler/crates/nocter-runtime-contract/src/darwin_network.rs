@@ -84,12 +84,11 @@ impl DarwinNetworkCallbackRole {
     pub const fn block_signature(self) -> &'static [u8] {
         match self {
             Self::ConfigureProtocol => b"v16@?0^{nw_protocol_options=}8\0",
-            Self::ConnectionState => b"v20@?0i8^{nw_error=}12\0",
+            Self::ConnectionState | Self::ListenerState => b"v20@?0i8^{nw_error=}12\0",
             Self::ConnectionReceive => {
                 b"v36@?0^{dispatch_data_s=}8^{nw_content_context=}16B24^{nw_error=}28\0"
             }
             Self::ConnectionSend => b"v16@?0^{nw_error=}8\0",
-            Self::ListenerState => b"v20@?0i8^{nw_error=}12\0",
             Self::ListenerAccept => b"v16@?0^{nw_connection=}8\0",
         }
     }

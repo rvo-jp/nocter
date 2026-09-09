@@ -70,7 +70,7 @@ pub fn add_darwin_network_state_callback(
     );
     code.bind(retained)?;
 
-    immediate(&mut code, x(8), event.code());
+    immediate(&mut code, x(8), event.code())?;
     store(
         &mut code,
         x(8),
@@ -133,15 +133,21 @@ fn move_register(code: &mut Arm64CodeBuilder, destination: Arm64Register, source
     });
 }
 
-fn immediate(code: &mut Arm64CodeBuilder, destination: Arm64Register, value: u64) {
-    debug_assert!(value <= u64::from(u16::MAX));
+fn immediate(
+    code: &mut Arm64CodeBuilder,
+    destination: Arm64Register,
+    value: u64,
+) -> Result<(), Arm64DarwinNetworkCallbackError> {
+    let immediate =
+        u16::try_from(value).map_err(|_| Arm64DarwinNetworkCallbackError::ContractLayout)?;
     code.append(Arm64Instruction::MoveWide {
         size: Arm64DataSize::Bits64,
         operation: crate::Arm64MoveWide::Zero,
         destination,
-        immediate: value as u16,
+        immediate,
         shift: 0,
     });
+    Ok(())
 }
 
 fn compare_zero(code: &mut Arm64CodeBuilder, value: Arm64Register) {

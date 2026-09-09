@@ -88,6 +88,10 @@ impl DarwinNetworkAdapterFunction {
     ];
 
     #[must_use]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one exhaustive role-to-loader mapping is the import catalog's authority"
+    )]
     pub fn import(self) -> RuntimeFunctionImport {
         let (library, symbol) = match self {
             Self::SocketPair => (RuntimeLibraryIdentity::DarwinSystem, "_socketpair"),
