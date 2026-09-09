@@ -244,7 +244,9 @@
   admitted materializer creates only a one-pointer, non-owning capture record; callers cannot pair
   an arbitrary data object or capture count with that record.</li><li>Darwin network event transfer consumes the closed runtime catalog and emits one complete-record
   policy: interrupted calls retry, while EOF, short records, and permanent channel failures abort
-  because safe native-owner progress is no longer possible.</li><li>Plain connection start, cancellation, final-state observation, serial-queue quiescence, and
+  because safe native-owner progress is no longer possible.</li><li>Connection event observation and complete-record receipt are production callable targets. The
+  latter writes to an explicit caller-owned opaque event record; its pointer and descriptor remain
+  in nonvolatile registers across retry and errno calls.</li><li>Plain connection start, cancellation, final-state observation, serial-queue quiescence, and
   release are production callable targets. Native qualification calls those targets and cannot
   carry a parallel lifecycle implementation; quiescence commits only after <code>dispatch_sync_f</code>
   returns on the owner's queue.</li><li>A monotonic-counter observation is emitted as an ordered observation, never as a speculative

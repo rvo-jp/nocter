@@ -138,7 +138,13 @@ pub fn emit_darwin_network_owner_guard(
     imports: &Arm64DarwinNetworkAdapterImports,
 ) -> Result<(), Arm64DarwinNetworkOwnerError> {
     validate_owner_register(owner)?;
-    let (accepted, _) = transition_domain(kind, operation)?;
+    let accepted = transition_candidates(kind, operation)
+        .into_iter()
+        .map(|(state, _)| state)
+        .collect::<Vec<_>>();
+    if accepted.is_empty() {
+        return Err(Arm64DarwinNetworkOwnerError::NoTransition(operation));
+    }
     emit_state_guard(code, owner, &accepted, imports)
 }
 
@@ -195,10 +201,7 @@ fn transition_domain(
 ) -> Result<(Vec<DarwinNetworkOwnerState>, DarwinNetworkOwnerState), Arm64DarwinNetworkOwnerError> {
     let mut accepted = Vec::new();
     let mut next = None;
-    for state in DarwinNetworkOwnerState::ALL.iter().copied() {
-        let Ok(candidate) = operation.transition(kind, state) else {
-            continue;
-        };
+    for (state, candidate) in transition_candidates(kind, operation) {
         if next.is_some_and(|next| next != candidate) {
             return Err(Arm64DarwinNetworkOwnerError::NonUniformTransition(
                 operation,
@@ -209,6 +212,22 @@ fn transition_domain(
     }
     let next = next.ok_or(Arm64DarwinNetworkOwnerError::NoTransition(operation))?;
     Ok((accepted, next))
+}
+
+fn transition_candidates(
+    kind: DarwinNetworkOwnerKind,
+    operation: DarwinNetworkAdapterOperation,
+) -> Vec<(DarwinNetworkOwnerState, DarwinNetworkOwnerState)> {
+    DarwinNetworkOwnerState::ALL
+        .iter()
+        .copied()
+        .filter_map(|state| {
+            operation
+                .transition(kind, state)
+                .ok()
+                .map(|next| (state, next))
+        })
+        .collect()
 }
 
 fn emit_state_guard(

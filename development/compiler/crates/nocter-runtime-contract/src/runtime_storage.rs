@@ -8,11 +8,13 @@ use nocter_model::NominalTypeId;
 pub enum RuntimeStorageRole {
     /// Fixed native owner shared by Network.framework connections and listeners.
     NetworkOwner,
+    /// One ownership-bearing callback event transferred through the fixed adapter channel.
+    NetworkEvent,
 }
 
 impl RuntimeStorageRole {
     /// Every storage role required by this compiler release.
-    pub const ALL: &'static [Self] = &[Self::NetworkOwner];
+    pub const ALL: &'static [Self] = &[Self::NetworkOwner, Self::NetworkEvent];
 
     /// Returns the size and alignment owned by the runtime ABI contract.
     #[must_use]
@@ -22,6 +24,12 @@ impl RuntimeStorageRole {
                 Some(RuntimeStorageLayout::new(
                     super::DarwinNetworkOwnerAbiSchema::ARM64_DARWIN.size(),
                     super::DarwinNetworkOwnerAbiSchema::ARM64_DARWIN.alignment(),
+                ))
+            }
+            (Self::NetworkEvent, super::RuntimeAbiIdentity::Arm64DarwinV1) => {
+                Some(RuntimeStorageLayout::new(
+                    super::DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN.size(),
+                    super::DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN.alignment(),
                 ))
             }
         }
@@ -135,8 +143,8 @@ impl RuntimeStorageRegistry {
     #[must_use]
     pub fn declaration(&self, role: RuntimeStorageRole) -> Option<NominalTypeId> {
         self.bindings
-            .get(role as usize)
-            .filter(|binding| binding.role() == role)
+            .iter()
+            .find(|binding| binding.role() == role)
             .map(|binding| binding.declaration())
     }
 
@@ -173,20 +181,19 @@ mod tests {
     #[test]
     fn registry_requires_one_distinct_declaration_per_closed_role() {
         let mut declarations = ArenaBuilder::new();
-        let declaration = declarations.insert(());
-        let registry = RuntimeStorageRegistry::new([RuntimeStorageBinding::new(
-            RuntimeStorageRole::NetworkOwner,
-            declaration,
-        )])
+        let owner = declarations.insert(());
+        let event = declarations.insert(());
+        let registry = RuntimeStorageRegistry::new([
+            RuntimeStorageBinding::new(RuntimeStorageRole::NetworkOwner, owner),
+            RuntimeStorageBinding::new(RuntimeStorageRole::NetworkEvent, event),
+        ])
         .unwrap();
-        assert_eq!(
-            registry.role(declaration),
-            Some(RuntimeStorageRole::NetworkOwner)
-        );
+        assert_eq!(registry.role(owner), Some(RuntimeStorageRole::NetworkOwner));
         assert_eq!(
             registry.declaration(RuntimeStorageRole::NetworkOwner),
-            Some(declaration)
+            Some(owner)
         );
+        assert_eq!(registry.role(event), Some(RuntimeStorageRole::NetworkEvent));
         assert_eq!(
             RuntimeStorageRegistry::new([]).unwrap(),
             RuntimeStorageRegistry::empty()

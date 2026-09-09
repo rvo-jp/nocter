@@ -38,6 +38,7 @@ mod darwin_network_adapter;
 mod darwin_network_callback;
 mod darwin_network_channel;
 mod darwin_network_connection;
+mod darwin_network_connection_event;
 mod darwin_network_connection_lifecycle;
 mod darwin_network_owner;
 mod destruction_selection;
@@ -124,11 +125,16 @@ pub use darwin_network_callback::{
 };
 pub use darwin_network_channel::{
     Arm64DarwinNetworkChannelError, Arm64DarwinNetworkChannelImports,
-    emit_darwin_network_event_receive, emit_darwin_network_event_send,
+    emit_darwin_network_event_receive, emit_darwin_network_event_receive_to_pointer,
+    emit_darwin_network_event_send,
 };
 pub use darwin_network_connection::{
     Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
     add_darwin_plain_connection_targets,
+};
+pub use darwin_network_connection_event::{
+    Arm64DarwinNetworkConnectionEventError, Arm64DarwinNetworkConnectionEventTargets,
+    add_darwin_network_connection_event_targets,
 };
 pub use darwin_network_connection_lifecycle::{
     Arm64DarwinNetworkConnectionLifecycleError, Arm64DarwinNetworkConnectionLifecycleTargets,

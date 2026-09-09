@@ -52,7 +52,13 @@ pub fn emit_darwin_network_event_send(
     writer: Arm64Register,
     event_stack_offset: u32,
 ) -> Result<(), Arm64DarwinNetworkChannelError> {
-    emit_transfer(code, imports, imports.send, writer, event_stack_offset)
+    emit_transfer(
+        code,
+        imports,
+        imports.send,
+        writer,
+        EventAddress::stack(event_stack_offset)?,
+    )
 }
 
 /// Receives one complete event at `event_stack_offset`, retrying only interrupted transfers.
@@ -70,7 +76,73 @@ pub fn emit_darwin_network_event_receive(
     reader: Arm64Register,
     event_stack_offset: u32,
 ) -> Result<(), Arm64DarwinNetworkChannelError> {
-    emit_transfer(code, imports, imports.receive, reader, event_stack_offset)
+    emit_transfer(
+        code,
+        imports,
+        imports.receive,
+        reader,
+        EventAddress::stack(event_stack_offset)?,
+    )
+}
+
+/// Receives one complete event into an exact caller-owned record address.
+///
+/// The destination register must be nonvolatile because an interrupted receive retries after
+/// calling the process errno accessor. Transfer and failure behavior are otherwise identical to
+/// [`emit_darwin_network_event_receive`].
+///
+/// # Errors
+///
+/// Rejects volatile descriptor or destination registers and invalid local labels.
+pub fn emit_darwin_network_event_receive_to_pointer(
+    code: &mut Arm64CodeBuilder,
+    imports: Arm64DarwinNetworkChannelImports,
+    reader: Arm64Register,
+    destination: Arm64Register,
+) -> Result<(), Arm64DarwinNetworkChannelError> {
+    if !(19..=28).contains(&destination.number()) {
+        return Err(Arm64DarwinNetworkChannelError::VolatileEventRegister(
+            destination,
+        ));
+    }
+    emit_transfer(
+        code,
+        imports,
+        imports.receive,
+        reader,
+        EventAddress::Register(destination),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum EventAddress {
+    Stack(u16),
+    Register(Arm64Register),
+}
+
+impl EventAddress {
+    fn stack(offset: u32) -> Result<Self, Arm64DarwinNetworkChannelError> {
+        u16::try_from(offset)
+            .ok()
+            .filter(|offset| *offset <= 4095)
+            .map(Self::Stack)
+            .ok_or(Arm64DarwinNetworkChannelError::StackOffset(offset))
+    }
+
+    fn emit(self, code: &mut Arm64CodeBuilder) {
+        match self {
+            Self::Stack(offset) => code.append(Arm64Instruction::AddSubtractImmediate {
+                size: Arm64DataSize::Bits64,
+                operation: Arm64AddSubtract::Add,
+                set_flags: false,
+                destination: Arm64AddSubtractDestination::General(register(1)),
+                source: Arm64BaseRegister::StackPointer,
+                immediate: offset,
+                shift_12: false,
+            }),
+            Self::Register(source) => move_register(code, register(1), source),
+        }
+    }
 }
 
 fn emit_transfer(
@@ -78,19 +150,13 @@ fn emit_transfer(
     imports: Arm64DarwinNetworkChannelImports,
     transfer: Arm64FunctionImportId,
     descriptor: Arm64Register,
-    event_stack_offset: u32,
+    event: EventAddress,
 ) -> Result<(), Arm64DarwinNetworkChannelError> {
     if !(19..=28).contains(&descriptor.number()) {
         return Err(Arm64DarwinNetworkChannelError::VolatileDescriptorRegister(
             descriptor,
         ));
     }
-    let offset = u16::try_from(event_stack_offset)
-        .ok()
-        .filter(|offset| *offset <= 4095)
-        .ok_or(Arm64DarwinNetworkChannelError::StackOffset(
-            event_stack_offset,
-        ))?;
     let io = DarwinNetworkChannelIoContract::ARM64_DARWIN;
     let complete_count = u16::try_from(io.complete_count())
         .map_err(|_| Arm64DarwinNetworkChannelError::ContractLayout)?;
@@ -102,15 +168,7 @@ fn emit_transfer(
 
     code.bind(retry)?;
     move_register(code, register(0), descriptor);
-    code.append(Arm64Instruction::AddSubtractImmediate {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Add,
-        set_flags: false,
-        destination: Arm64AddSubtractDestination::General(register(1)),
-        source: Arm64BaseRegister::StackPointer,
-        immediate: offset,
-        shift_12: false,
-    });
+    event.emit(code);
     move_immediate(code, register(2), complete_count);
     move_immediate(code, register(3), 0);
     call_import(code, transfer);
@@ -197,6 +255,7 @@ fn call_import(code: &mut Arm64CodeBuilder, target: Arm64FunctionImportId) {
 pub enum Arm64DarwinNetworkChannelError {
     StackOffset(u32),
     VolatileDescriptorRegister(Arm64Register),
+    VolatileEventRegister(Arm64Register),
     ContractLayout,
     Program(Arm64ProgramError),
     Code(Arm64CodeError),
@@ -213,9 +272,10 @@ impl std::error::Error for Arm64DarwinNetworkChannelError {
         match self {
             Self::Program(error) => Some(error),
             Self::Code(error) => Some(error),
-            Self::StackOffset(_) | Self::VolatileDescriptorRegister(_) | Self::ContractLayout => {
-                None
-            }
+            Self::StackOffset(_)
+            | Self::VolatileDescriptorRegister(_)
+            | Self::VolatileEventRegister(_)
+            | Self::ContractLayout => None,
         }
     }
 }
@@ -236,7 +296,7 @@ impl From<Arm64CodeError> for Arm64DarwinNetworkChannelError {
 mod tests {
     use super::{
         Arm64DarwinNetworkChannelError, Arm64DarwinNetworkChannelImports,
-        emit_darwin_network_event_send,
+        emit_darwin_network_event_receive_to_pointer, emit_darwin_network_event_send,
     };
     use crate::{Arm64CodeBuilder, Arm64ProgramBuilder, Arm64Register};
 
@@ -257,6 +317,19 @@ mod tests {
             emit_darwin_network_event_send(&mut invalid, first, Arm64Register::new(0).unwrap(), 0,),
             Err(Arm64DarwinNetworkChannelError::VolatileDescriptorRegister(
                 Arm64Register::new(0).unwrap()
+            ))
+        );
+
+        let mut invalid_destination = Arm64CodeBuilder::new();
+        assert_eq!(
+            emit_darwin_network_event_receive_to_pointer(
+                &mut invalid_destination,
+                first,
+                Arm64Register::new(19).unwrap(),
+                Arm64Register::new(1).unwrap(),
+            ),
+            Err(Arm64DarwinNetworkChannelError::VolatileEventRegister(
+                Arm64Register::new(1).unwrap()
             ))
         );
     }

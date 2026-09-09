@@ -100,8 +100,9 @@ fn target_rejection_returns_the_unchanged_checked_program() {
 
 #[test]
 fn target_rejects_a_runtime_storage_binding_to_an_ordinary_source_type() {
-    let fixture =
-        Fixture::with_app("struct Impostor { value: i32 }\nfunc main(): void { return }\n");
+    let fixture = Fixture::with_app(
+        "struct Impostor { value: i32 }\nstruct ImpostorEvent {}\nfunc main(): void { return }\n",
+    );
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
@@ -118,11 +119,19 @@ fn target_rejects_a_runtime_storage_binding_to_an_ordinary_source_type() {
             (graph.symbols().spelling(declaration.name()) == Some("Impostor")).then_some(id)
         })
         .unwrap();
+    let impostor_event = graph
+        .declarations()
+        .nominal_types()
+        .iter()
+        .find_map(|(id, declaration)| {
+            (graph.symbols().spelling(declaration.name()) == Some("ImpostorEvent")).then_some(id)
+        })
+        .unwrap();
     let registry = registry_for(output.program());
-    let storage = RuntimeStorageRegistry::new([RuntimeStorageBinding::new(
-        RuntimeStorageRole::NetworkOwner,
-        impostor,
-    )])
+    let storage = RuntimeStorageRegistry::new([
+        RuntimeStorageBinding::new(RuntimeStorageRole::NetworkOwner, impostor),
+        RuntimeStorageBinding::new(RuntimeStorageRole::NetworkEvent, impostor_event),
+    ])
     .unwrap();
     let snapshot = ToolchainSnapshot::select(
         CompilationTarget::Arm64Darwin,

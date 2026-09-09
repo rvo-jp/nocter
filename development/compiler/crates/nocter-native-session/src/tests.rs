@@ -826,6 +826,14 @@ fn bundled_standard_library_crosses_the_complete_target_session() {
             .declaration(RuntimeStorageRole::NetworkOwner)
             .is_some()
     );
+    assert!(
+        compiled
+            .program()
+            .toolchain()
+            .runtime_storage()
+            .declaration(RuntimeStorageRole::NetworkEvent)
+            .is_some()
+    );
     assert_eq!(
         compiled.program().checked().bodies().len(),
         compiled

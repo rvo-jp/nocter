@@ -27,11 +27,15 @@ pub fn bundled_standard_toolchain(package: &PackageIdentity) -> ToolchainInput {
 }
 
 fn runtime_storage_roles(package: &PackageIdentity) -> Vec<RuntimeStorageRoleLocator> {
-    vec![RuntimeStorageRoleLocator::new(
-        RuntimeStorageRole::NetworkOwner,
-        module(package, &["internal", "net"]),
-        "NetworkOwner",
-    )]
+    [
+        (RuntimeStorageRole::NetworkOwner, "NetworkOwner"),
+        (RuntimeStorageRole::NetworkEvent, "NetworkEvent"),
+    ]
+    .into_iter()
+    .map(|(role, name)| {
+        RuntimeStorageRoleLocator::new(role, module(package, &["internal", "net"]), name)
+    })
+    .collect()
 }
 
 fn builtin_types(package: &PackageIdentity) -> Vec<BuiltinTypeLocator> {

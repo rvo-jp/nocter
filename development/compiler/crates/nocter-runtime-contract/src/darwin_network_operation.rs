@@ -205,7 +205,8 @@ impl DarwinNetworkOwner {
                 | State::CancelRequested
                 | State::FinalStateObserved
                 | State::Quiesced,
-            ) => self.state,
+            )
+            | (Operation::ReceiveEvent, _, State::Running | State::CancelRequested) => self.state,
             (Operation::BeginReceive | Operation::BeginSend, Kind::Connection, State::Running) => {
                 State::Running
             }
@@ -224,9 +225,6 @@ impl DarwinNetworkOwner {
                 _,
                 _,
             ) => return Err(DarwinNetworkOperationError::RequiresCreation(operation)),
-            (Operation::ReceiveEvent, _, _) => {
-                return Err(DarwinNetworkOperationError::RequiresEvent);
-            }
             _ => {
                 return Err(DarwinNetworkOperationError::InvalidState {
                     operation,
@@ -357,7 +355,6 @@ impl DarwinNetworkOwner {
 pub enum DarwinNetworkOperationError {
     RequiresExistingOwner(DarwinNetworkAdapterOperation),
     RequiresCreation(DarwinNetworkAdapterOperation),
-    RequiresEvent,
     InvalidState {
         operation: DarwinNetworkAdapterOperation,
         kind: DarwinNetworkOwnerKind,
@@ -453,6 +450,7 @@ mod tests {
         assert_eq!(owner.state(), State::Running);
         assert_eq!(owner.apply(Operation::BeginReceive).unwrap(), owner);
         assert_eq!(owner.apply(Operation::BeginSend).unwrap(), owner);
+        assert_eq!(owner.apply(Operation::ReceiveEvent).unwrap(), owner);
         assert_eq!(
             owner.observe_event(Event::ReceiveCompletion).unwrap(),
             owner

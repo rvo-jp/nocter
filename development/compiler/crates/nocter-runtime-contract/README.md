@@ -42,7 +42,8 @@ public source-level imports.
 - A target-service binding owns its closed descriptor; later stages cannot reconstruct the
   descriptor from its role or declaration spelling.
 - A runtime-storage role has one declaration binding and one ABI-selected layout; source cannot
-  supply its fields, size, or alignment.
+  supply its fields, size, or alignment. Native owners and ownership-bearing callback events keep
+  distinct roles even where their current layouts happen to have equal dimensions.
 - Machine consumers cannot reach declaration or checking storage through this contract.
 - Native callback layouts have one numeric schema; source code cannot construct or inspect them.
 - The Darwin callback channel carries complete event records. A shared queue, lock, and wake-only
