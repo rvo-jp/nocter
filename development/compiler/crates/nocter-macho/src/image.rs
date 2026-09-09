@@ -3,6 +3,7 @@ use std::fmt;
 use nocter_arm64::{Arm64Program, Arm64ProgramError};
 
 use nocter_hash::sha256;
+use nocter_runtime_contract::RuntimeLibraryIdentity;
 
 const MACH_HEADER_SIZE: u64 = 32;
 const VM_BASE: u64 = 0x1_0000_0000;
@@ -50,6 +51,11 @@ const EXECUTABLE_SEGMENT_MAIN_BINARY: u64 = 1;
 const CODE_DIRECTORY_HEADER_SIZE: u32 = 88;
 const SUPERBLOB_HEADER_SIZE: u32 = 20;
 const SIGNATURE_IDENTIFIER: &[u8] = b"nocter\0";
+const DARWIN_LIBRARY_LOAD_ORDER: &[RuntimeLibraryIdentity] = &[
+    RuntimeLibraryIdentity::DarwinSystem,
+    RuntimeLibraryIdentity::DarwinCoreFoundation,
+    RuntimeLibraryIdentity::DarwinSecurity,
+];
 
 /// A complete executable file image. Writing it to an executable path requires no assembler,
 /// linker, code-signing process, or runtime bundled with Nocter.
@@ -76,6 +82,7 @@ impl MachOImage {
             relocated.read_only_data(),
             layout.entry_offset,
             &layout.bind_info,
+            &layout.libraries,
         );
         let mut bytes = Vec::with_capacity(layout.file_size()?);
         write_header(&mut bytes, &layout);
@@ -135,14 +142,23 @@ struct ImageLayout {
     linkedit_virtual_size: u64,
     entry_offset: u64,
     dylinker_command_size: u32,
-    dylib_command_size: u32,
+    libraries: Box<[LoadedLibrary]>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct LoadedLibrary {
+    identity: RuntimeLibraryIdentity,
+    path: &'static [u8],
+    command_size: u32,
 }
 
 impl ImageLayout {
     fn new(program: &Arm64Program) -> Result<Self, MachOError> {
         let dylinker_command_size = string_command_size(12, b"/usr/lib/dyld\0")?;
-        let dylib_command_size = string_command_size(24, b"/usr/lib/libSystem.B.dylib\0")?;
-        let command_count = 11;
+        let libraries = loaded_libraries(program)?;
+        let command_count = 10_u32
+            .checked_add(u32::try_from(libraries.len()).map_err(|_| MachOError::OffsetOverflow)?)
+            .ok_or(MachOError::OffsetOverflow)?;
         let command_size = SEGMENT_COMMAND_SIZE
             .checked_add(SEGMENT_COMMAND_SIZE + SECTION_SIZE)
             .and_then(|size| size.checked_add(SEGMENT_COMMAND_SIZE + SECTION_SIZE))
@@ -151,7 +167,11 @@ impl ImageLayout {
             .and_then(|size| size.checked_add(BUILD_VERSION_COMMAND_SIZE))
             .and_then(|size| size.checked_add(UUID_COMMAND_SIZE))
             .and_then(|size| size.checked_add(MAIN_COMMAND_SIZE))
-            .and_then(|size| size.checked_add(dylib_command_size))
+            .and_then(|size| {
+                libraries.iter().try_fold(size, |total, library| {
+                    total.checked_add(library.command_size)
+                })
+            })
             .and_then(|size| size.checked_add(DYLD_INFO_COMMAND_SIZE))
             .and_then(|size| size.checked_add(LINKEDIT_DATA_COMMAND_SIZE))
             .ok_or(MachOError::OffsetOverflow)?;
@@ -179,7 +199,7 @@ impl ImageLayout {
             linkedit_offset,
             u64::try_from(rebase_info.len()).map_err(|_| MachOError::OffsetOverflow)?,
         )?;
-        let bind_info = encode_bind_info(program);
+        let bind_info = encode_bind_info(program, &libraries)?;
         let bind_offset = if bind_info.is_empty() { 0 } else { rebase_end };
         let bind_end = checked_add(
             rebase_end,
@@ -219,7 +239,7 @@ impl ImageLayout {
             linkedit_virtual_size,
             entry_offset,
             dylinker_command_size,
-            dylib_command_size,
+            libraries,
         })
     }
 
@@ -295,7 +315,9 @@ fn write_load_commands(bytes: &mut Vec<u8>, layout: &ImageLayout, uuid: [u8; 16]
     push_u32(bytes, MAIN_COMMAND_SIZE);
     push_u64(bytes, layout.entry_offset);
     push_u64(bytes, 0);
-    write_dylib_command(bytes, layout.dylib_command_size);
+    for library in &layout.libraries {
+        write_dylib_command(bytes, *library);
+    }
     push_u32(bytes, LC_DYLD_INFO_ONLY);
     push_u32(bytes, DYLD_INFO_COMMAND_SIZE);
     push_u32(
@@ -346,17 +368,29 @@ fn encode_rebase_info(program: &Arm64Program) -> Box<[u8]> {
     output.into_boxed_slice()
 }
 
-fn encode_bind_info(program: &Arm64Program) -> Box<[u8]> {
+fn encode_bind_info(
+    program: &Arm64Program,
+    libraries: &[LoadedLibrary],
+) -> Result<Box<[u8]>, MachOError> {
     if program.function_imports().is_empty() {
-        return Box::new([]);
+        return Ok(Box::new([]));
     }
-    let mut output = vec![
-        BIND_OPCODE_SET_DYLIB_ORDINAL_IMM | 1,
-        BIND_OPCODE_SET_TYPE_IMM | BIND_TYPE_POINTER,
-    ];
+    let mut output = vec![BIND_OPCODE_SET_TYPE_IMM | BIND_TYPE_POINTER];
+    let mut ordinal = None;
     for function in program.function_imports() {
-        match function.import().library() {
-            nocter_runtime_contract::RuntimeLibraryIdentity::DarwinSystem => {}
+        let next_ordinal = libraries
+            .iter()
+            .position(|library| library.identity == function.import().library())
+            .and_then(|index| u8::try_from(index + 1).ok())
+            .ok_or(MachOError::MissingRuntimeLibrary(
+                function.import().library(),
+            ))?;
+        if next_ordinal > 15 {
+            return Err(MachOError::LibraryOrdinalOverflow);
+        }
+        if ordinal != Some(next_ordinal) {
+            output.push(BIND_OPCODE_SET_DYLIB_ORDINAL_IMM | next_ordinal);
+            ordinal = Some(next_ordinal);
         }
         output.push(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM);
         output.extend_from_slice(function.import().symbol().as_bytes());
@@ -366,7 +400,53 @@ fn encode_bind_info(program: &Arm64Program) -> Box<[u8]> {
         output.push(BIND_OPCODE_DO_BIND);
     }
     output.push(0);
-    output.into_boxed_slice()
+    Ok(output.into_boxed_slice())
+}
+
+fn loaded_libraries(program: &Arm64Program) -> Result<Box<[LoadedLibrary]>, MachOError> {
+    let mut required = vec![RuntimeLibraryIdentity::DarwinSystem];
+    for identity in program
+        .function_imports()
+        .iter()
+        .map(|function| function.import().library())
+    {
+        if !required.contains(&identity) {
+            required.push(identity);
+        }
+    }
+    let libraries = DARWIN_LIBRARY_LOAD_ORDER
+        .iter()
+        .copied()
+        .filter(|identity| required.contains(identity))
+        .map(|identity| {
+            let path = library_path(identity);
+            Ok(LoadedLibrary {
+                identity,
+                path,
+                command_size: string_command_size(24, path)?,
+            })
+        })
+        .collect::<Result<Vec<_>, MachOError>>()?;
+    if libraries.len() != required.len() {
+        let unsupported = required
+            .into_iter()
+            .find(|identity| !DARWIN_LIBRARY_LOAD_ORDER.contains(identity))
+            .expect("library cardinality differs only for an unsupported identity");
+        return Err(MachOError::UnsupportedRuntimeLibrary(unsupported));
+    }
+    Ok(libraries.into_boxed_slice())
+}
+
+const fn library_path(identity: RuntimeLibraryIdentity) -> &'static [u8] {
+    match identity {
+        RuntimeLibraryIdentity::DarwinSystem => b"/usr/lib/libSystem.B.dylib\0",
+        RuntimeLibraryIdentity::DarwinCoreFoundation => {
+            b"/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation\0"
+        }
+        RuntimeLibraryIdentity::DarwinSecurity => {
+            b"/System/Library/Frameworks/Security.framework/Versions/A/Security\0"
+        }
+    }
 }
 
 fn push_uleb128(output: &mut Vec<u8>, mut value: u64) {
@@ -383,12 +463,26 @@ fn push_uleb128(output: &mut Vec<u8>, mut value: u64) {
     }
 }
 
-fn image_uuid(text: &[u8], data: &[u8], entry_offset: u64, bind_info: &[u8]) -> [u8; 16] {
-    let mut content = Vec::with_capacity(text.len() + data.len() + bind_info.len() + 8);
+fn image_uuid(
+    text: &[u8],
+    data: &[u8],
+    entry_offset: u64,
+    bind_info: &[u8],
+    libraries: &[LoadedLibrary],
+) -> [u8; 16] {
+    let library_bytes = libraries
+        .iter()
+        .map(|library| library.path.len())
+        .sum::<usize>();
+    let mut content =
+        Vec::with_capacity(text.len() + data.len() + bind_info.len() + library_bytes + 8);
     content.extend_from_slice(text);
     content.extend_from_slice(data);
     content.extend_from_slice(&entry_offset.to_le_bytes());
     content.extend_from_slice(bind_info);
+    for library in libraries {
+        content.extend_from_slice(library.path);
+    }
     let digest = sha256(&content);
     let mut uuid: [u8; 16] = digest[..16].try_into().expect("digest prefix has 16 bytes");
     uuid[6] = (uuid[6] & 0x0f) | 0x30;
@@ -513,14 +607,14 @@ fn write_section(bytes: &mut Vec<u8>, section: SectionRecord<'_>) {
     push_u32(bytes, 0);
 }
 
-fn write_dylib_command(bytes: &mut Vec<u8>, command_size: u32) {
+fn write_dylib_command(bytes: &mut Vec<u8>, library: LoadedLibrary) {
     push_u32(bytes, LC_LOAD_DYLIB);
-    push_u32(bytes, command_size);
+    push_u32(bytes, library.command_size);
     push_u32(bytes, 24);
     push_u32(bytes, 2);
     push_u32(bytes, 0);
     push_u32(bytes, 0x0001_0000);
-    push_padded(bytes, b"/usr/lib/libSystem.B.dylib\0", command_size - 24);
+    push_padded(bytes, library.path, library.command_size - 24);
 }
 
 fn write_string_command(
@@ -711,6 +805,9 @@ pub enum MachOError {
     FileOffsetOutOfRange(u64),
     OverlappingLayout,
     InvalidCodeLimit,
+    UnsupportedRuntimeLibrary(RuntimeLibraryIdentity),
+    MissingRuntimeLibrary(RuntimeLibraryIdentity),
+    LibraryOrdinalOverflow,
     OffsetOverflow,
     Arm64(Arm64ProgramError),
 }
@@ -732,6 +829,20 @@ impl fmt::Display for MachOError {
             }
             Self::OverlappingLayout => formatter.write_str("Mach-O sections overlap"),
             Self::InvalidCodeLimit => formatter.write_str("Mach-O code signature limit is invalid"),
+            Self::UnsupportedRuntimeLibrary(library) => {
+                write!(
+                    formatter,
+                    "runtime library {library:?} has no Darwin load-command contract"
+                )
+            }
+            Self::MissingRuntimeLibrary(library) => {
+                write!(
+                    formatter,
+                    "Mach-O runtime library {library:?} is not loaded"
+                )
+            }
+            Self::LibraryOrdinalOverflow => formatter
+                .write_str("Mach-O runtime library ordinal exceeds the compact bind domain"),
             Self::OffsetOverflow => formatter.write_str("Mach-O layout offset overflowed"),
             Self::Arm64(error) => write!(formatter, "ARM64 relocation failed: {error}"),
         }
@@ -747,6 +858,9 @@ impl std::error::Error for MachOError {
             | Self::FileOffsetOutOfRange(_)
             | Self::OverlappingLayout
             | Self::InvalidCodeLimit
+            | Self::UnsupportedRuntimeLibrary(_)
+            | Self::MissingRuntimeLibrary(_)
+            | Self::LibraryOrdinalOverflow
             | Self::OffsetOverflow => None,
         }
     }

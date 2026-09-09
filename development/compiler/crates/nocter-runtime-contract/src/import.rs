@@ -7,6 +7,8 @@ use std::fmt;
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum RuntimeLibraryIdentity {
     DarwinSystem,
+    DarwinCoreFoundation,
+    DarwinSecurity,
 }
 
 /// One exact external function required by a closed runtime call plan.
@@ -84,6 +86,13 @@ mod tests {
                 .unwrap();
         assert_eq!(import.library(), RuntimeLibraryIdentity::DarwinSystem);
         assert_eq!(import.symbol(), "_getaddrinfo");
+
+        assert_ne!(
+            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSecurity, "_SSLHandshake")
+                .unwrap(),
+            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSystem, "_SSLHandshake")
+                .unwrap()
+        );
 
         for invalid in ["", "get-address", "9invalid", "symbol\0tail"] {
             assert_eq!(

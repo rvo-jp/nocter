@@ -17,7 +17,7 @@ public source-level imports.
 
 - primitive role identities
 - closed positive effect evidence for primitive roles
-- trusted operating-system library and loader-symbol identities
+- trusted operating-system library and loader-symbol identities, without concrete loader paths
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
 - canonical representation classes
 - fixed async owning-handle and heap-frame-header ABI

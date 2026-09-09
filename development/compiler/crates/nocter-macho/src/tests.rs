@@ -90,14 +90,84 @@ fn imported_call_program() -> Arm64Program {
 }
 
 fn imported_exit_program(symbol: &str) -> Arm64Program {
+    imported_exit_program_from(RuntimeLibraryIdentity::DarwinSystem, symbol)
+}
+
+fn imported_exit_program_from(library: RuntimeLibraryIdentity, symbol: &str) -> Arm64Program {
     let mut program = Arm64ProgramBuilder::new();
     let entry = program.declare_function();
     let _ = program
-        .add_function_import(
-            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSystem, symbol).unwrap(),
-        )
+        .add_function_import(RuntimeFunctionImport::new(library, symbol).unwrap())
         .unwrap();
     let mut code = Arm64CodeBuilder::new();
+    code.append(Arm64Instruction::MoveWide {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64MoveWide::Zero,
+        destination: x(0),
+        immediate: 0,
+        shift: 0,
+    });
+    code.append(Arm64Instruction::MoveWide {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64MoveWide::Zero,
+        destination: x(16),
+        immediate: 1,
+        shift: 0,
+    });
+    code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
+    program
+        .define_function(entry, code.finish().unwrap())
+        .unwrap();
+    program.set_entry(entry).unwrap();
+    program.finish().unwrap()
+}
+
+fn imported_security_program() -> Arm64Program {
+    let mut program = Arm64ProgramBuilder::new();
+    let entry = program.declare_function();
+    let create_context = program
+        .add_function_import(
+            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSecurity, "_SSLCreateContext")
+                .unwrap(),
+        )
+        .unwrap();
+    let release = program
+        .add_function_import(
+            RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinCoreFoundation, "_CFRelease")
+                .unwrap(),
+        )
+        .unwrap();
+
+    let mut code = Arm64CodeBuilder::new();
+    for destination in [x(0), x(2)] {
+        code.append(Arm64Instruction::MoveWide {
+            size: Arm64DataSize::Bits64,
+            operation: Arm64MoveWide::Zero,
+            destination,
+            immediate: 0,
+            shift: 0,
+        });
+    }
+    code.append(Arm64Instruction::MoveWide {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64MoveWide::Zero,
+        destination: x(1),
+        immediate: 1,
+        shift: 0,
+    });
+    for function in [create_context, release] {
+        code.load_data_address(function, x(16));
+        code.append(Arm64Instruction::LoadUnsigned {
+            size: Arm64LoadStoreSize::Double,
+            destination: Arm64DataRegister::General(x(16)),
+            base: Arm64BaseRegister::General(x(16)),
+            offset: 0,
+        });
+        code.append(Arm64Instruction::BranchRegister {
+            target: x(16),
+            link: true,
+        });
+    }
     code.append(Arm64Instruction::MoveWide {
         size: Arm64DataSize::Bits64,
         operation: Arm64MoveWide::Zero,
@@ -163,6 +233,38 @@ fn imported_symbol_identity_contributes_to_the_complete_image() {
 }
 
 #[test]
+fn imported_library_identity_contributes_to_the_complete_image() {
+    let system = MachOImage::build(&imported_exit_program_from(
+        RuntimeLibraryIdentity::DarwinSystem,
+        "_same_symbol",
+    ))
+    .unwrap();
+    let security = MachOImage::build(&imported_exit_program_from(
+        RuntimeLibraryIdentity::DarwinSecurity,
+        "_same_symbol",
+    ))
+    .unwrap();
+    assert_ne!(system, security);
+    let complete_provider = MachOImage::build(&imported_security_program()).unwrap();
+    assert_eq!(
+        u32::from_le_bytes(complete_provider.bytes()[16..20].try_into().unwrap()),
+        13
+    );
+    for path in [
+        b"/System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation\0"
+            .as_slice(),
+        b"/System/Library/Frameworks/Security.framework/Versions/A/Security\0".as_slice(),
+    ] {
+        assert!(
+            complete_provider
+                .bytes()
+                .windows(path.len())
+                .any(|candidate| candidate == path)
+        );
+    }
+}
+
+#[test]
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 fn generated_image_executes_without_external_linking_or_signing() {
     use std::os::unix::fs::PermissionsExt;
@@ -185,6 +287,22 @@ fn generated_image_binds_and_calls_one_system_function() {
     let image = MachOImage::build(&imported_call_program()).unwrap();
     let path =
         std::env::temp_dir().join(format!("nocter-macho-import-test-{}", std::process::id()));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let status = std::process::Command::new(&path).status().unwrap();
+    std::fs::remove_file(&path).unwrap();
+
+    assert_eq!(status.code(), Some(0));
+}
+
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn generated_image_binds_and_calls_security_and_core_foundation() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let image = MachOImage::build(&imported_security_program()).unwrap();
+    let path =
+        std::env::temp_dir().join(format!("nocter-macho-security-test-{}", std::process::id()));
     std::fs::write(&path, image.bytes()).unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
     let status = std::process::Command::new(&path).status().unwrap();
