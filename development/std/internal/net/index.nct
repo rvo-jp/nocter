@@ -13,9 +13,6 @@ see ./async_descriptor.nct
 see ./deadline.nct
 see ./resolver.nct
 
-/// Opaque, uniquely owned storage for one compiler-selected stream or listener provider.
-pub(/) primitive type NetworkOwner
-
 pub(/) enum NetworkFailure {
     os(value: OSError)
     closed

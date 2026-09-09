@@ -18,10 +18,12 @@ pub fn repository_release_version() -> &'static str {
 
 use nocter_compile_input::{
     BuiltinTypeLocator, CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput,
-    ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput, StandardRoleLocator,
+    ModuleSourceKind, PackageInput, PackageMode, PackageTargetResolutionInput,
+    PrimitiveRoleLocator, RuntimeStorageRoleLocator, StandardRoleLocator,
     StructuralAttachmentInput, ToolchainInput, UseResolutionInput,
 };
 use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
+use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole};
 use nocter_source::{SourceId, SourceMap, SourceName};
 use nocter_syntax::{NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
@@ -346,6 +348,26 @@ pub func descriptor_readiness_or_deadline_for_test(
     return
 }
 ";
+const INTERNAL_NET_MODEL_SOURCE: &str = "\
+pub(/) primitive type NetworkOwner
+";
+const INTERNAL_NET_DARWIN_SOURCE: &str = "\
+use /internal/net/model.NetworkOwner
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_event_descriptor_raw(owner: &NetworkOwner): usize
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_receive_state_raw(owner: &+NetworkOwner): (usize, usize, usize)
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+pub(/) noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
+";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"
 pub(/) copy struct SyscallResult {
@@ -412,6 +434,12 @@ struct FixtureModule {
     path: Box<[Box<str>]>,
     source_path: Box<str>,
     syntax: SyntaxTree,
+    uses: Box<[FixtureUse]>,
+}
+
+struct FixtureUse {
+    declaration: nocter_syntax::NodeId,
+    target: Box<[Box<str>]>,
 }
 
 #[derive(Clone, Copy)]
@@ -636,12 +664,24 @@ impl CompilerFixture {
             (&["task"][..], TASK_SOURCE),
             (&["internal", "time"][..], INTERNAL_TIME_SOURCE),
             (&["internal", "task"][..], INTERNAL_TASK_SOURCE),
+            (&["internal", "net", "model"][..], INTERNAL_NET_MODEL_SOURCE),
+            (
+                &["internal", "net", "darwin"][..],
+                INTERNAL_NET_DARWIN_SOURCE,
+            ),
             (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),
         ]
         .into_iter()
         .map(|(path, text)| {
             let source_path = format!("/std/{}/index.nct", path.join("/"));
             let syntax = add_parsed(&mut sources, &source_path, text, ParseGoal::SourceFile);
+            let use_targets: &[&[&str]] = if path == ["internal", "net", "darwin"] {
+                &[&["internal", "net", "model"]]
+            } else {
+                &[]
+            };
+            let declarations = use_declarations(&syntax);
+            assert_eq!(declarations.len(), use_targets.len());
             FixtureModule {
                 path: path
                     .iter()
@@ -650,6 +690,18 @@ impl CompilerFixture {
                     .into_boxed_slice(),
                 source_path: source_path.into_boxed_str(),
                 syntax,
+                uses: declarations
+                    .into_iter()
+                    .zip(use_targets)
+                    .map(|(declaration, target)| FixtureUse {
+                        declaration,
+                        target: target
+                            .iter()
+                            .map(|segment| Box::<str>::from(*segment))
+                            .collect::<Vec<_>>()
+                            .into_boxed_slice(),
+                    })
+                    .collect(),
             }
         })
         .collect();
@@ -730,7 +782,18 @@ impl CompilerFixture {
                 &fixture.syntax,
             )
         }));
-        let use_resolutions = self.app_use_resolutions(&standard_package);
+        let mut use_resolutions = self.app_use_resolutions(&standard_package);
+        use_resolutions.extend(self.modules.iter().flat_map(|module| {
+            module.uses.iter().map(|resolution| {
+                UseResolutionInput::new(
+                    resolution.declaration,
+                    ModuleIdentity::new(
+                        standard_package.clone(),
+                        resolution.target.iter().map(AsRef::as_ref),
+                    ),
+                )
+            })
+        }));
         let toolchain = self.toolchain_input(&standard_package);
         let mut input = CompileUnitInput::new(
             CompilationTarget::Arm64Darwin,
@@ -771,7 +834,28 @@ impl CompilerFixture {
             )],
             self.standard_role_inputs(),
         )
+        .with_primitive_roles(Self::primitive_role_inputs(standard))
+        .with_runtime_storage_roles(vec![RuntimeStorageRoleLocator::new(
+            RuntimeStorageRole::NetworkOwner,
+            ModuleIdentity::new(standard.clone(), ["internal", "net", "model"]),
+            "NetworkOwner",
+        )])
         .with_builtin_types(Self::builtin_type_inputs())
+    }
+
+    fn primitive_role_inputs(standard: &PackageIdentity) -> Vec<PrimitiveRoleLocator> {
+        PrimitiveRole::ALL
+            .iter()
+            .copied()
+            .map(|role| {
+                let (path, name) = nocter_standard_profile::bundled_primitive_source_location(role);
+                PrimitiveRoleLocator::new(
+                    role,
+                    ModuleIdentity::new(standard.clone(), path.iter().copied()),
+                    name,
+                )
+            })
+            .collect()
     }
 
     fn builtin_type_inputs() -> Vec<BuiltinTypeLocator> {

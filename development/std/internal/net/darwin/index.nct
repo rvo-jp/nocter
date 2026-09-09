@@ -3,12 +3,45 @@
 //! Native address and poll layouts, socket constants, byte order, and raw syscall classification
 //! are confined to this module. Consumers receive closed logical attempts.
 
-use /internal/net/model.{NetworkAddress, NetworkFamily, ResolverFailure, ResolverNext}
+use /internal/net/model.{NetworkAddress, NetworkFamily, NetworkOwner, ResolverFailure, ResolverNext}
 use /internal/os.OSError
 
 see ./adapter.nct
+see ./connection_tests.nct
 see ./resolver.nct
 see ./resolver_tests.nct
+
+/// Creates an unstarted plain connection over one complete native socket address.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
+
+/// Starts callbacks and provider progress for an initialized connection owner.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
+
+/// Returns the reactor-readable callback-channel descriptor.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func network_connection_event_descriptor_raw(
+    owner: &NetworkOwner,
+): usize
+
+/// Receives one normalized state and consumes all provider ownership carried by its event.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func network_connection_receive_state_raw(
+    owner: &+NetworkOwner,
+): (usize, usize, usize)
+
+/// Requests idempotent provider cancellation.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
+
+/// Waits until the final callback has returned and advances the release fence.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
+
+/// Releases a quiesced connection owner and all of its native resources.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
 
 #target: "arm64-darwin"
 pub(/) enum RawDescriptorAttempt {

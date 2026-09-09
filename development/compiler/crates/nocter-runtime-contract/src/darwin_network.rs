@@ -12,6 +12,51 @@ pub struct DarwinNetworkCallbackEventAbiSchema {
     alignment: u64,
 }
 
+/// Provider-independent words returned after consuming one connection-state callback event.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinNetworkConnectionStateObservationAbiSchema {
+    state_offset: u64,
+    error_domain_offset: u64,
+    error_code_offset: u64,
+    size: u64,
+    alignment: u64,
+}
+
+impl DarwinNetworkConnectionStateObservationAbiSchema {
+    pub const ARM64_DARWIN: Self = Self {
+        state_offset: 0,
+        error_domain_offset: 8,
+        error_code_offset: 16,
+        size: 24,
+        alignment: 8,
+    };
+
+    #[must_use]
+    pub const fn state_offset(self) -> u64 {
+        self.state_offset
+    }
+
+    #[must_use]
+    pub const fn error_domain_offset(self) -> u64 {
+        self.error_domain_offset
+    }
+
+    #[must_use]
+    pub const fn error_code_offset(self) -> u64 {
+        self.error_code_offset
+    }
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.alignment
+    }
+}
+
 /// The fixed callback-channel transfer rule for the supported Darwin target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DarwinNetworkChannelIoContract {
@@ -368,6 +413,16 @@ mod tests {
             channel.classify(-1, 9),
             DarwinNetworkChannelIoOutcome::Fatal
         );
+    }
+
+    #[test]
+    fn consumed_connection_state_has_one_native_free_result_layout() {
+        let schema = super::DarwinNetworkConnectionStateObservationAbiSchema::ARM64_DARWIN;
+        assert_eq!(schema.state_offset(), 0);
+        assert_eq!(schema.error_domain_offset(), 8);
+        assert_eq!(schema.error_code_offset(), 16);
+        assert_eq!(schema.size(), 24);
+        assert_eq!(schema.alignment(), 8);
     }
 
     #[test]

@@ -267,6 +267,8 @@ pub enum Arm64SelectedInstruction {
         first_output_offset: u64,
         second_output_offset: u64,
     },
+    /// Calls one source-ABI entry from the compiler-owned plain connection target set.
+    CallDarwinNetworkPrimitive(crate::Arm64DarwinNetworkPrimitive),
     ExitProcess {
         status: Arm64SelectedRegister,
     },

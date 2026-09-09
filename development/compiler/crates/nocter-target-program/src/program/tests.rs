@@ -4,7 +4,7 @@ use nocter_checking::{
     prepare_program_checking,
 };
 use nocter_declaration_lowering::lower_compile_unit_declarations;
-use nocter_declarations::{CallableKind, CallableOwner};
+use nocter_declarations::CallableOwner;
 use nocter_model::{BuiltinType, CompilationTarget, TypeKind};
 use nocter_runtime_contract::{
     PrimitiveBinding, PrimitiveRegistry, PrimitiveRole, RuntimeStorageBinding,
@@ -24,20 +24,14 @@ mod executable;
 #[test]
 fn complete_closed_registry_constructs_a_target_program() {
     let fixture = Fixture::new();
-    let input = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
-    let prepared =
-        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
-    let output = check_prepared_program(&input, prepared).unwrap();
+    let (output, registry, storage) = checked_fixture(&fixture);
     let standard_package = output.program().graph().standard_package().unwrap();
-    let registry = registry_for(output.program());
     let snapshot = ToolchainSnapshot::select(
         CompilationTarget::Arm64Darwin,
         standard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
-        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
+        storage,
     )
     .unwrap();
     let (checked, _) = output.into_parts();
@@ -55,12 +49,7 @@ fn complete_closed_registry_constructs_a_target_program() {
 #[test]
 fn target_rejection_returns_the_unchanged_checked_program() {
     let fixture = Fixture::with_app("func main(): void { return }\n");
-    let input = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
-    let prepared =
-        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
-    let output = check_prepared_program(&input, prepared).unwrap();
+    let (output, registry, storage) = checked_fixture(&fixture);
     let standard_package = output.program().graph().standard_package().unwrap();
     let nonstandard_package = output
         .program()
@@ -70,13 +59,12 @@ fn target_rejection_returns_the_unchanged_checked_program() {
         .map(|(id, _)| id)
         .find(|id| *id != standard_package)
         .unwrap();
-    let registry = registry_for(output.program());
     let snapshot = ToolchainSnapshot::select(
         CompilationTarget::Arm64Darwin,
         nonstandard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
-        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
+        storage,
     )
     .unwrap();
 
@@ -102,12 +90,7 @@ fn target_rejection_returns_the_unchanged_checked_program() {
 fn target_rejects_a_runtime_storage_binding_to_an_ordinary_source_type() {
     let fixture =
         Fixture::with_app("struct Impostor { value: i32 }\nfunc main(): void { return }\n");
-    let input = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
-    let prepared =
-        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
-    let output = check_prepared_program(&input, prepared).unwrap();
+    let (output, registry, _) = checked_fixture(&fixture);
     let graph = output.program().graph();
     let standard_package = graph.standard_package().unwrap();
     let impostor = graph
@@ -118,7 +101,6 @@ fn target_rejects_a_runtime_storage_binding_to_an_ordinary_source_type() {
             (graph.symbols().spelling(declaration.name()) == Some("Impostor")).then_some(id)
         })
         .unwrap();
-    let registry = registry_for(output.program());
     let storage = RuntimeStorageRegistry::new([RuntimeStorageBinding::new(
         RuntimeStorageRole::NetworkOwner,
         impostor,
@@ -717,14 +699,8 @@ fn test_target_selects_only_direct_cases_in_source_order() {
 #[test]
 fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
     let fixture = Fixture::new();
-    let input = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
-    let prepared =
-        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
-    let output = check_prepared_program(&input, prepared).unwrap();
+    let (output, registry, storage) = checked_fixture(&fixture);
     let standard_package = output.program().graph().standard_package().unwrap();
-    let registry = registry_for(output.program());
     let mut bindings = registry.bindings().to_vec();
     let left = bindings
         .iter()
@@ -743,7 +719,7 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
         standard_package,
         PrimitiveRegistry::new(bindings).unwrap(),
         nocter_runtime_contract::TargetServiceRegistry::empty(),
-        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
+        storage,
     )
     .unwrap();
     let (checked, _) = output.into_parts();
@@ -765,20 +741,14 @@ fn semantic_attachment_is_authoritative_for_same_shaped_primitives() {
 }
 
 fn build_target_program(fixture: &Fixture) -> TargetProgram {
-    let input = fixture.input();
-    let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
-    let prepared =
-        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
-    let output = check_prepared_program(&input, prepared).unwrap();
+    let (output, registry, storage) = checked_fixture(fixture);
     let standard_package = output.program().graph().standard_package().unwrap();
-    let registry = registry_for(output.program());
     let snapshot = ToolchainSnapshot::select(
         CompilationTarget::Arm64Darwin,
         standard_package,
         registry,
         nocter_runtime_contract::TargetServiceRegistry::empty(),
-        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
+        storage,
     )
     .unwrap();
     let (checked, _) = output.into_parts();
@@ -821,37 +791,21 @@ fn callable_dependencies(
     .unwrap()
 }
 
-fn registry_for(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry {
-    let graph = checked.graph();
-    PrimitiveRegistry::new(PrimitiveRole::ALL.iter().copied().map(|role| {
-        let callable = graph
-            .declarations()
-            .callables()
-            .iter()
-            .find_map(|(callable, declaration)| {
-                let CallableOwner::Module(module) = declaration.owner() else {
-                    return None;
-                };
-                let actual_path = graph
-                    .modules()
-                    .get(module)?
-                    .path()
-                    .segments()
-                    .iter()
-                    .map(|segment| graph.symbols().spelling(*segment))
-                    .collect::<Option<Vec<_>>>()?;
-                let (module, name) =
-                    nocter_standard_profile::bundled_primitive_source_location(role);
-                (declaration.kind() == CallableKind::Primitive
-                    && actual_path == module
-                    && declaration
-                        .name()
-                        .and_then(|name| graph.symbols().spelling(name))
-                        == Some(name))
-                .then_some(callable)
-            })
-            .unwrap_or_else(|| panic!("missing fixture primitive {role:?}"));
-        PrimitiveBinding::new(role, callable)
-    }))
-    .unwrap()
+fn checked_fixture(
+    fixture: &Fixture,
+) -> (
+    nocter_checking::CheckedProgramOutput,
+    PrimitiveRegistry,
+    RuntimeStorageRegistry,
+) {
+    let input = fixture.input();
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let primitives = PrimitiveRegistry::new(lowered.primitive_bindings().iter().copied()).unwrap();
+    let storage =
+        RuntimeStorageRegistry::new(lowered.runtime_storage_bindings().iter().copied()).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    let output = check_prepared_program(&input, prepared).unwrap();
+    (output, primitives, storage)
 }

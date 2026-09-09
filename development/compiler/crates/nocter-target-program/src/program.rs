@@ -83,12 +83,12 @@ fn validate_target_program(
             toolchain: toolchain.standard_package(),
         });
     }
+    validate_runtime_storage(graph, toolchain.runtime_storage())
+        .map_err(TargetProgramError::RuntimeStorage)?;
     validate_primitive_contracts(graph, checked.types(), toolchain)
         .map_err(TargetProgramError::Primitive)?;
     validate_target_services(graph, checked.types(), toolchain)
         .map_err(TargetProgramError::TargetService)?;
-    validate_runtime_storage(graph, toolchain.runtime_storage())
-        .map_err(TargetProgramError::RuntimeStorage)?;
     validate_runtime_call_coverage(graph, toolchain)
         .map_err(TargetProgramError::RuntimeCallCoverage)?;
     Ok(())

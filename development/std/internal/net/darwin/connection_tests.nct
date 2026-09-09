@@ -1,0 +1,26 @@
+//! Source-to-native qualification for the plain Network connection primitive family.
+
+see ./adapter.nct
+see ./index.nct
+
+use /internal/net/model.NetworkAddress
+use /ptr
+
+test plain_connection_primitives_preserve_one_owner_lifecycle {
+    let address = NetworkAddress.ipv4([127, 0, 0, 1], 1)
+    let native = native_address(&address)
+    var owner = network_connection_create_raw(ptr.from_ref(&native.bytes[0])) otherwise {
+        return error.new("std.net.test", "Network connection owner creation failed")
+    }
+
+    network_connection_start_raw(&+owner)
+    let descriptor = network_connection_event_descriptor_raw(&owner)
+    network_connection_request_cancel_raw(&+owner)
+    while network_connection_receive_state_raw(&+owner).0 != 5 {}
+    network_connection_release_barrier_raw(&+owner)
+    network_connection_release_raw(move owner)
+    if descriptor == 0 {
+        return error.new("std.net.test", "Network callback descriptor was invalid")
+    }
+    return
+}

@@ -80,7 +80,7 @@ pub struct Arm64AsyncFunctionPlan {
 #[derive(Clone, Copy)]
 pub(crate) struct Arm64AsyncResumeResources<'a> {
     functions: &'a crate::Arm64FunctionTargets,
-    async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
+    primitives: &'a crate::primitive_targets::Arm64PrimitiveTargets,
     data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
     imports: &'a [(
         nocter_machine::MachineImportId,
@@ -93,7 +93,7 @@ pub(crate) struct Arm64AsyncResumeResources<'a> {
 impl<'a> Arm64AsyncResumeResources<'a> {
     pub(crate) const fn new(
         functions: &'a crate::Arm64FunctionTargets,
-        async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
+        primitives: &'a crate::primitive_targets::Arm64PrimitiveTargets,
         data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
         imports: &'a [(
             nocter_machine::MachineImportId,
@@ -104,7 +104,7 @@ impl<'a> Arm64AsyncResumeResources<'a> {
     ) -> Self {
         Self {
             functions,
-            async_primitives,
+            primitives,
             data,
             imports,
             pack_callbacks,
@@ -116,8 +116,8 @@ impl<'a> Arm64AsyncResumeResources<'a> {
         self.functions
     }
 
-    pub(crate) const fn async_primitives(self) -> &'a crate::Arm64AsyncPrimitiveTargets {
-        self.async_primitives
+    pub(crate) const fn primitives(self) -> &'a crate::primitive_targets::Arm64PrimitiveTargets {
+        self.primitives
     }
 
     pub(crate) const fn data(self) -> &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)] {

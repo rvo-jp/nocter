@@ -9,6 +9,14 @@ use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole, TargetServiceRo
 use nocter_syntax::NodeKind;
 use nocter_toolchain_contract::{StandardDeclarationRole, StructuralAttachment};
 
+const DARWIN_NET: &[&str] = &["internal", "net", "darwin"];
+const INTERNAL_TASK: &[&str] = &["internal", "task"];
+const READINESS_OR_DEADLINE: &str = "descriptor_readiness_or_deadline_raw";
+const NET_EVENT_DESCRIPTOR: &str = "network_connection_event_descriptor_raw";
+const NET_RECEIVE_STATE: &str = "network_connection_receive_state_raw";
+const NET_REQUEST_CANCEL: &str = "network_connection_request_cancel_raw";
+const NET_RELEASE_BARRIER: &str = "network_connection_release_barrier_raw";
+
 /// Builds the exact standard-source profile bundled with this compiler.
 ///
 /// The returned locators are resolved against target-filtered declaration surfaces by lowering.
@@ -30,7 +38,11 @@ fn runtime_storage_roles(package: &PackageIdentity) -> Vec<RuntimeStorageRoleLoc
     [(RuntimeStorageRole::NetworkOwner, "NetworkOwner")]
         .into_iter()
         .map(|(role, name)| {
-            RuntimeStorageRoleLocator::new(role, module(package, &["internal", "net"]), name)
+            RuntimeStorageRoleLocator::new(
+                role,
+                module(package, &["internal", "net", "model"]),
+                name,
+            )
         })
         .collect()
 }
@@ -228,13 +240,17 @@ pub const fn bundled_primitive_source_location(
         Role::MonotonicCounterRead => (&["internal", "time"], "monotonic_counter_raw"),
         Role::MonotonicCounterFrequency => (&["internal", "time"], "monotonic_frequency_raw"),
         Role::MonotonicCounterDelta => (&["internal", "time"], "monotonic_delta_raw"),
-        Role::DescriptorReadiness => (&["internal", "task"], "descriptor_readiness_raw"),
-        Role::DescriptorReadinessOrDeadline => (
-            &["internal", "task"],
-            "descriptor_readiness_or_deadline_raw",
-        ),
+        Role::DescriptorReadiness => (INTERNAL_TASK, "descriptor_readiness_raw"),
+        Role::DescriptorReadinessOrDeadline => (INTERNAL_TASK, READINESS_OR_DEADLINE),
         Role::MonotonicDeadline => (&["internal", "time"], "monotonic_deadline_raw"),
         Role::TaskJoin => (&["task"], "join"),
+        Role::NetworkConnectionCreate => (DARWIN_NET, "network_connection_create_raw"),
+        Role::NetworkConnectionStart => (DARWIN_NET, "network_connection_start_raw"),
+        Role::NetworkConnectionEventDescriptor => (DARWIN_NET, NET_EVENT_DESCRIPTOR),
+        Role::NetworkConnectionReceiveState => (DARWIN_NET, NET_RECEIVE_STATE),
+        Role::NetworkConnectionRequestCancel => (DARWIN_NET, NET_REQUEST_CANCEL),
+        Role::NetworkConnectionReleaseBarrier => (DARWIN_NET, NET_RELEASE_BARRIER),
+        Role::NetworkConnectionRelease => (DARWIN_NET, "network_connection_release_raw"),
         Role::Syscall0 => (&["internal", "os", "darwin"], "syscall0"),
         Role::SyscallPair0 => (&["internal", "os", "darwin"], "syscall_pair0"),
         Role::Syscall1 => (&["internal", "os", "darwin"], "syscall1"),

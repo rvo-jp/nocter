@@ -44,11 +44,14 @@ source, loader commands, or package state.
   policy: interrupted calls retry, while EOF, short records, and permanent channel failures abort
   because safe native-owner progress is no longer possible.
 - Connection event observation and complete-record receipt are production callable targets. The
-  latter writes to an explicit caller-owned opaque event record; its pointer and descriptor remain
-  in nonvolatile registers across retry and errno calls.
+  receiver keeps the ownership-bearing provider record in private target storage, consumes it, and
+  returns only normalized state and error words through the source ABI.
 - Plain connection construction publishes one atomic target set containing construction, event,
   and terminal-lifecycle entries. A consumer cannot request the constructor while accidentally
   omitting the operations required to drain callbacks and release its owner.
+- Whole-program lowering scans Machine primitive calls once. Closed role usage and the exact ABI
+  targets needed for source wrappers are passed to helper families; those families cannot
+  rediscover dependencies by walking Machine independently.
 - Plain connection start, cancellation, final-state observation, serial-queue quiescence, and
   release are production callable targets. Native qualification calls those targets and cannot
   carry a parallel lifecycle implementation; quiescence commits only after `dispatch_sync_f`

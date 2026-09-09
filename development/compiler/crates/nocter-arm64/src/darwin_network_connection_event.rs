@@ -2,7 +2,8 @@ use std::fmt;
 
 use nocter_runtime_contract::{
     DarwinNetworkAdapterFunction, DarwinNetworkAdapterOperation,
-    DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState, DarwinNetworkEventKind,
+    DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionState,
+    DarwinNetworkConnectionStateObservationAbiSchema, DarwinNetworkEventKind,
     DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerField, DarwinNetworkOwnerKind,
 };
 
@@ -38,9 +39,9 @@ impl Arm64DarwinNetworkConnectionEventTargets {
 ///
 /// `descriptor` accepts the owner address in `x0` and returns the reactor-readable descriptor in
 /// `x0`. `receive_state` accepts the owner address in `x0`, receives and consumes exactly one
-/// connection-state event, and returns normalized `(state, error domain, error code)` words in
-/// `x0` through `x2`. Zero error-domain and error-code words mean that the provider supplied no
-/// error.
+/// connection-state event, and writes normalized `(state, error domain, error code)` words to the
+/// caller storage addressed by the Nocter ABI result register `x8`. Zero error-domain and
+/// error-code words mean that the provider supplied no error.
 ///
 /// The receive target owns event-kind and state validation, retained-error release, record
 /// clearing, and the final-state owner transition. No caller can observe or forget an ownership-
@@ -89,23 +90,26 @@ fn descriptor_code(
 fn receive_state_code(
     imports: &Arm64DarwinNetworkAdapterImports,
 ) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionEventError> {
-    const FRAME_SIZE: u16 = 96;
-    const SAVED: [(Arm64Register, u32); 7] = [
+    const FRAME_SIZE: u16 = 112;
+    const SAVED: [(Arm64Register, u32); 8] = [
         (x(19), 40),
         (x(20), 48),
         (x(21), 56),
         (x(22), 64),
         (x(23), 72),
         (x(24), 80),
-        (x(30), 88),
+        (x(25), 88),
+        (x(30), 96),
     ];
     let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
+    let observation = DarwinNetworkConnectionStateObservationAbiSchema::ARM64_DARWIN;
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract, FRAME_SIZE);
     for (register, offset) in SAVED {
         store_stack(&mut code, register, offset);
     }
     move_register(&mut code, x(19), x(0));
+    move_register(&mut code, x(25), x(8));
     emit_darwin_network_owner_guard(
         &mut code,
         x(19),
@@ -180,16 +184,13 @@ fn receive_state_code(
     )?;
     code.bind(not_final)?;
 
-    move_register(&mut code, x(9), x(21));
-    move_register(&mut code, x(10), x(23));
-    move_register(&mut code, x(11), x(24));
+    store_at(&mut code, x(25), observation.state_offset(), x(21))?;
+    store_at(&mut code, x(25), observation.error_domain_offset(), x(23))?;
+    store_at(&mut code, x(25), observation.error_code_offset(), x(24))?;
     for (register, offset) in SAVED {
         load_stack(&mut code, register, offset);
     }
     adjust_stack(&mut code, Arm64AddSubtract::Add, FRAME_SIZE);
-    move_register(&mut code, x(0), x(9));
-    move_register(&mut code, x(1), x(10));
-    move_register(&mut code, x(2), x(11));
     return_from_function(&mut code);
     code.finish().map_err(Into::into)
 }
@@ -278,6 +279,23 @@ fn store_zero_at(
     code.append(Arm64Instruction::StoreUnsigned {
         size: Arm64LoadStoreSize::Double,
         source: Arm64DataRegister::Zero,
+        base: Arm64BaseRegister::General(base),
+        offset,
+    });
+    Ok(())
+}
+
+fn store_at(
+    code: &mut Arm64CodeBuilder,
+    base: Arm64Register,
+    offset: u64,
+    source: Arm64Register,
+) -> Result<(), Arm64DarwinNetworkConnectionEventError> {
+    let offset = u32::try_from(offset)
+        .map_err(|_| Arm64DarwinNetworkConnectionEventError::ContractLayout)?;
+    code.append(Arm64Instruction::StoreUnsigned {
+        size: Arm64LoadStoreSize::Double,
+        source: Arm64DataRegister::General(source),
         base: Arm64BaseRegister::General(base),
         offset,
     });

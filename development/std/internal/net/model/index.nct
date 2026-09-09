@@ -2,6 +2,9 @@
 
 see ./address.nct
 
+/// Opaque, uniquely owned storage for one compiler-selected stream or listener provider.
+pub(/) primitive type NetworkOwner
+
 pub(/) enum NetworkFamily {
     ipv4
     ipv6

@@ -1088,7 +1088,10 @@ fn function_targets_declare_one_callable_and_closed_async_lifecycle_entries() {
 fn async_primitive_targets_follow_machine_dependencies() {
     let absent = crate::test_support::lower_machine("func main(): i32 { return 0 }\n");
     let mut absent_builder = crate::Arm64ProgramBuilder::new();
-    let absent = crate::Arm64AsyncPrimitiveTargets::declare(&absent, &mut absent_builder);
+    let absent =
+        crate::primitive_targets::Arm64PrimitiveTargets::declare(&absent, &mut absent_builder)
+            .unwrap()
+            .asynchronous();
     assert_eq!(absent.descriptor_readiness(), None);
     assert_eq!(absent.descriptor_readiness_or_deadline(), None);
     assert_eq!(absent.monotonic_deadline(), None);
@@ -1110,7 +1113,10 @@ fn async_primitive_targets_follow_machine_dependencies() {
         &[&["internal", "task"], &["internal", "time"]],
     );
     let mut present_builder = crate::Arm64ProgramBuilder::new();
-    let present = crate::Arm64AsyncPrimitiveTargets::declare(&present, &mut present_builder);
+    let present =
+        crate::primitive_targets::Arm64PrimitiveTargets::declare(&present, &mut present_builder)
+            .unwrap()
+            .asynchronous();
     assert!(present.descriptor_readiness().is_some());
     assert!(present.monotonic_deadline().is_some());
     assert_eq!(
@@ -1138,7 +1144,9 @@ fn lowers_structured_join_with_one_closed_native_lifecycle() {
         &[&["task"]],
     );
     let mut builder = crate::Arm64ProgramBuilder::new();
-    let targets = crate::Arm64AsyncPrimitiveTargets::declare(&machine, &mut builder);
+    let targets = crate::primitive_targets::Arm64PrimitiveTargets::declare(&machine, &mut builder)
+        .unwrap()
+        .asynchronous();
     let join = targets.task_join().expect("one structured join lifecycle");
 
     assert_ne!(join.constructor(), join.resume());
@@ -1159,7 +1167,9 @@ fn dual_interest_primitive_owns_a_distinct_fixed_cardinality_lifecycle() {
         &[&["internal", "task"]],
     );
     let mut builder = crate::Arm64ProgramBuilder::new();
-    let targets = crate::Arm64AsyncPrimitiveTargets::declare(&program, &mut builder);
+    let targets = crate::primitive_targets::Arm64PrimitiveTargets::declare(&program, &mut builder)
+        .unwrap()
+        .asynchronous();
 
     assert!(targets.descriptor_readiness_or_deadline().is_some());
     assert_eq!(
@@ -1296,7 +1306,7 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
     let allocation_failure = builder.add_data([0], 8).unwrap();
-    let async_primitives = crate::Arm64AsyncPrimitiveTargets::default();
+    let primitive_targets = crate::primitive_targets::Arm64PrimitiveTargets::default();
     let code = plan
         .materialize_constructor(targets.get(owner).unwrap())
         .unwrap();
@@ -1320,7 +1330,7 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
             targets.get(owner).unwrap(),
             crate::async_function::Arm64AsyncResumeResources::new(
                 &targets,
-                &async_primitives,
+                &primitive_targets,
                 &[],
                 &[],
                 &[],
@@ -1415,7 +1425,7 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
     let mut builder = crate::Arm64ProgramBuilder::new();
     let targets = crate::Arm64FunctionTargets::declare(&program, &mut builder).unwrap();
     let allocation_failure = builder.add_data([0], 8).unwrap();
-    let async_primitives = crate::Arm64AsyncPrimitiveTargets::default();
+    let primitive_targets = crate::primitive_targets::Arm64PrimitiveTargets::default();
     let cancel = plan
         .materialize_cancel(targets.get(owner).unwrap(), &targets)
         .unwrap();
@@ -1432,7 +1442,7 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
             targets.get(owner).unwrap(),
             crate::async_function::Arm64AsyncResumeResources::new(
                 &targets,
-                &async_primitives,
+                &primitive_targets,
                 &[],
                 &[],
                 &[],

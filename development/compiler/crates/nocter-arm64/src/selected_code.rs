@@ -19,10 +19,10 @@ impl Arm64SelectedFunction {
     ///
     /// Rejects missing function/block mappings, invalid virtual locations, frame-address overflow,
     /// malformed object offsets, and concrete code-encoding failures.
-    pub fn materialize(
+    pub(crate) fn materialize(
         &self,
         functions: &crate::Arm64FunctionTargets,
-        async_primitives: &crate::Arm64AsyncPrimitiveTargets,
+        primitives: &crate::primitive_targets::Arm64PrimitiveTargets,
         data: &[(MachineDataId, crate::Arm64DataId)],
         imports: &[(
             nocter_machine::MachineImportId,
@@ -40,7 +40,7 @@ impl Arm64SelectedFunction {
         let context = InstructionMaterialization {
             function: self,
             functions,
-            async_primitives,
+            primitives,
             data,
             imports,
             pack_callbacks,
@@ -65,7 +65,7 @@ impl Arm64SelectedFunction {
 pub(crate) struct InstructionMaterialization<'selected> {
     pub(crate) function: &'selected Arm64SelectedFunction,
     pub(crate) functions: &'selected crate::Arm64FunctionTargets,
-    pub(crate) async_primitives: &'selected crate::Arm64AsyncPrimitiveTargets,
+    pub(crate) primitives: &'selected crate::primitive_targets::Arm64PrimitiveTargets,
     pub(crate) data: &'selected [(MachineDataId, crate::Arm64DataId)],
     pub(crate) imports: &'selected [(
         nocter_machine::MachineImportId,
@@ -372,17 +372,20 @@ pub(crate) fn emit_instruction(
             Ok(())
         }
         Arm64SelectedInstruction::ConstructDescriptorReadiness => context
-            .async_primitives
+            .primitives
+            .asynchronous()
             .descriptor_readiness()
             .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
         Arm64SelectedInstruction::ConstructDescriptorReadinessOrDeadline => context
-            .async_primitives
+            .primitives
+            .asynchronous()
             .descriptor_readiness_or_deadline()
             .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
         Arm64SelectedInstruction::ConstructMonotonicDeadline => context
-            .async_primitives
+            .primitives
+            .asynchronous()
             .monotonic_deadline()
             .map(|target| code.call(target))
             .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget),
@@ -405,11 +408,18 @@ pub(crate) fn emit_instruction(
                 Arm64DataSize::Bits64,
             );
             context
-                .async_primitives
+                .primitives
+                .asynchronous()
                 .task_join()
                 .map(|targets| code.call(targets.constructor()))
                 .ok_or(Arm64MaterializationError::MissingAsyncPrimitiveTarget)
         }
+        Arm64SelectedInstruction::CallDarwinNetworkPrimitive(primitive) => context
+            .primitives
+            .network()
+            .and_then(|targets| targets.target(primitive))
+            .map(|target| code.call(target))
+            .ok_or(Arm64MaterializationError::MissingNetworkPrimitiveTarget),
         Arm64SelectedInstruction::ExitProcess { status } => {
             crate::system_primitive_code::emit_exit(function, Some(status), code)
         }
@@ -1199,6 +1209,7 @@ pub enum Arm64MaterializationError {
     MissingAsyncWaitFrame,
     MissingAsyncFramePointer,
     MissingAsyncPrimitiveTarget,
+    MissingNetworkPrimitiveTarget,
     PackCallbackFrame(crate::Arm64FrameLayoutError),
     Code(Arm64CodeError),
 }

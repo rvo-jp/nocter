@@ -245,10 +245,12 @@
   an arbitrary data object or capture count with that record.</li><li>Darwin network event transfer consumes the closed runtime catalog and emits one complete-record
   policy: interrupted calls retry, while EOF, short records, and permanent channel failures abort
   because safe native-owner progress is no longer possible.</li><li>Connection event observation and complete-record receipt are production callable targets. The
-  latter writes to an explicit caller-owned opaque event record; its pointer and descriptor remain
-  in nonvolatile registers across retry and errno calls.</li><li>Plain connection construction publishes one atomic target set containing construction, event,
+  receiver keeps the ownership-bearing provider record in private target storage, consumes it, and
+  returns only normalized state and error words through the source ABI.</li><li>Plain connection construction publishes one atomic target set containing construction, event,
   and terminal-lifecycle entries. A consumer cannot request the constructor while accidentally
-  omitting the operations required to drain callbacks and release its owner.</li><li>Plain connection start, cancellation, final-state observation, serial-queue quiescence, and
+  omitting the operations required to drain callbacks and release its owner.</li><li>Whole-program lowering scans Machine primitive calls once. Closed role usage and the exact ABI
+  targets needed for source wrappers are passed to helper families; those families cannot
+  rediscover dependencies by walking Machine independently.</li><li>Plain connection start, cancellation, final-state observation, serial-queue quiescence, and
   release are production callable targets. Native qualification calls those targets and cannot
   carry a parallel lifecycle implementation; quiescence commits only after <code>dispatch_sync_f</code>
   returns on the owner's queue.</li><li>A monotonic-counter observation is emitted as an ordered observation, never as a speculative

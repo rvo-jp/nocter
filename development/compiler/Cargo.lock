@@ -1712,12 +1712,10 @@ version = "0.0.0"
 dependencies = [
  "nocter-checking",
  "nocter-declaration-lowering",
- "nocter-declarations",
  "nocter-machine",
  "nocter-mir",
  "nocter-model",
  "nocter-runtime-contract",
- "nocter-standard-profile",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -2164,7 +2162,6 @@ dependencies = [
  "nocter-declarations",
  "nocter-model",
  "nocter-runtime-contract",
- "nocter-standard-profile",
  "nocter-test-support",
  "nocter-toolchain-contract",
 ]
@@ -2192,7 +2189,9 @@ dependencies = [
  "nocter-compile-input",
  "nocter-model",
  "nocter-package",
+ "nocter-runtime-contract",
  "nocter-source",
+ "nocter-standard-profile",
  "nocter-syntax",
  "nocter-toolchain-contract",
 ]

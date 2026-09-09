@@ -157,7 +157,80 @@ pub(crate) fn select(
         | PrimitiveRole::DescriptorReadinessOrDeadline
         | PrimitiveRole::MonotonicDeadline
         | PrimitiveRole::TaskJoin => select_async_primitive(operation, target, selected),
+        PrimitiveRole::NetworkConnectionCreate
+        | PrimitiveRole::NetworkConnectionStart
+        | PrimitiveRole::NetworkConnectionEventDescriptor
+        | PrimitiveRole::NetworkConnectionReceiveState
+        | PrimitiveRole::NetworkConnectionRequestCancel
+        | PrimitiveRole::NetworkConnectionReleaseBarrier
+        | PrimitiveRole::NetworkConnectionRelease => {
+            select_network_primitive(operation, target, selected)
+        }
     }
+}
+
+fn select_network_primitive(
+    operation: MachineOperationId,
+    target: Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_type_arguments(operation, target, 0)?;
+    let [argument] = target.abi().arguments() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    let Some(MachineArgumentLocation::Registers(registers)) = argument.location() else {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    };
+    let expected_class = if target.role() == PrimitiveRole::NetworkConnectionRelease {
+        MachineValueClass::Indirect
+    } else {
+        MachineValueClass::Direct { words: 1 }
+    };
+    if argument.class() != expected_class
+        || registers.first() != 0
+        || registers.words() != 1
+        || target.abi().pack().is_some()
+        || target.abi().stack_argument_size() != 0
+    {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    let valid_result = match target.role() {
+        PrimitiveRole::NetworkConnectionCreate | PrimitiveRole::NetworkConnectionReceiveState => {
+            matches!(
+                target.abi().result(),
+                MachineResultAbi::Value(result)
+                    if result.class() == MachineValueClass::Indirect
+                        && result.location()
+                            == (MachineResultLocation::CallerStorage { pointer_register: 8 })
+            )
+        }
+        PrimitiveRole::NetworkConnectionEventDescriptor => matches!(
+            target.abi().result(),
+            MachineResultAbi::Value(result)
+                if result.class() == (MachineValueClass::Direct { words: 1 })
+                    && matches!(
+                        result.location(),
+                        MachineResultLocation::Registers(registers)
+                            if registers.first() == 0 && registers.words() == 1
+                    )
+        ),
+        PrimitiveRole::NetworkConnectionStart
+        | PrimitiveRole::NetworkConnectionRequestCancel
+        | PrimitiveRole::NetworkConnectionReleaseBarrier
+        | PrimitiveRole::NetworkConnectionRelease => {
+            target.abi().result() == MachineResultAbi::Completion
+        }
+        _ => false,
+    };
+    if !valid_result {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    let primitive = crate::Arm64DarwinNetworkPrimitive::from_role(target.role())
+        .ok_or(Arm64SelectionError::PrimitiveCall(operation))?;
+    selected.push(Arm64SelectedInstruction::CallDarwinNetworkPrimitive(
+        primitive,
+    ));
+    Ok(())
 }
 
 fn select_typed_view(

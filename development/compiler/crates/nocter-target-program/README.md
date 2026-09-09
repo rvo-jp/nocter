@@ -32,6 +32,8 @@ checking decisions.
   classes; executable closure never derives them from a declaration name.
 - Runtime storage is accepted only from a toolchain-selected, fieldless, unique nominal declaration
   in the standard package; its physical layout remains outside semantic representation.
+- Runtime-storage bindings are validated before primitive signatures that refer to them. An invalid
+  prerequisite therefore cannot be reported as a downstream primitive mismatch.
 - Executable specialization owns key construction; a consumer cannot pair a semantic identity with
   an unrelated specialization type store.
 - Reachability uses semantic identities, never runtime symbol spelling.

@@ -96,7 +96,7 @@ fn selected_context<'a>(
     crate::selected_code::InstructionMaterialization {
         function: plan.selected(),
         functions: resources.functions(),
-        async_primitives: resources.async_primitives(),
+        primitives: resources.primitives(),
         data: resources.data(),
         imports: resources.imports(),
         pack_callbacks: resources.pack_callbacks(),

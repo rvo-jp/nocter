@@ -9,12 +9,10 @@ plain TCP surface onto the closed native adapter foundation.
 
 ## Next Work
 
-Connect the production plain-connection constructor, normalized connection-state receipt, and
-callable terminal lifecycle to primitive calls over the completed `NetworkOwner` runtime-storage
-role. Then implement receive, send, and local/remote address operations, extending the private
-event consumer without exposing callback storage or provider ownership to source. Migrate the public
-plain TCP stream only
-after equivalent loopback, timeout, transfer, cancellation, and stable-error evidence passes; then
+Implement receive, send, and local/remote address operations over the completed plain-connection
+primitive family, extending the private event consumer without exposing callback storage or
+provider ownership to source. Migrate the public plain TCP stream only after equivalent loopback,
+timeout, transfer, cancellation, and stable-error evidence passes; then
 adopt accepted connections and migrate listeners. Remove descriptor-backed TCP only after the
 replacement is qualified. Keep UDP on its descriptor substrate. Keep native objects and callbacks
 compiler-owned; do not add source-level FFI or a general callback escape hatch.

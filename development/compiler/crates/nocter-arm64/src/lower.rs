@@ -19,7 +19,7 @@ enum SelectedMachineFunction {
 #[derive(Clone, Copy)]
 struct LoweringResources<'a> {
     functions: &'a Arm64FunctionTargets,
-    async_primitives: &'a crate::Arm64AsyncPrimitiveTargets,
+    primitives: &'a crate::primitive_targets::Arm64PrimitiveTargets,
     data: &'a [(nocter_machine::MachineDataId, crate::Arm64DataId)],
     imports: &'a [(
         nocter_machine::MachineImportId,
@@ -49,7 +49,7 @@ impl<'a> LoweringResources<'a> {
     const fn async_resume(self) -> crate::async_function::Arm64AsyncResumeResources<'a> {
         crate::async_function::Arm64AsyncResumeResources::new(
             self.functions,
-            self.async_primitives,
+            self.primitives,
             self.data,
             self.imports,
             self.pack_callbacks,
@@ -155,7 +155,8 @@ fn lower_machine_entry(
     let selected = select_machine_functions(machine)?;
     let mut builder = Arm64ProgramBuilder::new();
     let functions = Arm64FunctionTargets::declare(machine, &mut builder)?;
-    let async_primitives = crate::Arm64AsyncPrimitiveTargets::declare(machine, &mut builder);
+    let primitive_targets =
+        crate::primitive_targets::Arm64PrimitiveTargets::declare(machine, &mut builder)?;
     let mut pack_callbacks = Vec::new();
     for function in &selected {
         let body = machine
@@ -213,14 +214,14 @@ fn lower_machine_entry(
     }
     let resources = LoweringResources {
         functions: &functions,
-        async_primitives: &async_primitives,
+        primitives: &primitive_targets,
         data: &data,
         imports: &imports,
         pack_callbacks: &pack_callbacks,
         allocation_failure_error,
     };
     define_machine_functions(&selected, resources, &mut builder)?;
-    define_async_primitives(async_primitives, &mut builder)?;
+    define_async_primitives(primitive_targets.asynchronous(), &mut builder)?;
     for (key, target) in &pack_callbacks {
         let function = selected
             .get(key.owner().index())
@@ -277,7 +278,7 @@ fn define_machine_functions(
                 target.callable(),
                 function.materialize(
                     resources.functions,
-                    resources.async_primitives,
+                    resources.primitives,
                     resources.data,
                     resources.imports,
                     resources.pack_callbacks,
@@ -415,6 +416,7 @@ pub enum Arm64LoweringError {
     AsyncResume(Arm64AsyncResumeError),
     AsyncCancel(Arm64AsyncCancelError),
     AsyncConsume(Arm64AsyncConsumeError),
+    NetworkPrimitive(crate::Arm64DarwinNetworkPrimitiveError),
     FunctionTargets(Arm64FunctionTargetsError),
     Materialization(Arm64MaterializationError),
     Program(Arm64ProgramError),
@@ -435,6 +437,7 @@ impl std::error::Error for Arm64LoweringError {
             Self::AsyncResume(error) => Some(error),
             Self::AsyncCancel(error) => Some(error),
             Self::AsyncConsume(error) => Some(error),
+            Self::NetworkPrimitive(error) => Some(error),
             Self::FunctionTargets(error) => Some(error),
             Self::Materialization(error) => Some(error),
             Self::Program(error) => Some(error),
@@ -485,6 +488,12 @@ impl From<Arm64AsyncCancelError> for Arm64LoweringError {
 impl From<Arm64AsyncConsumeError> for Arm64LoweringError {
     fn from(error: Arm64AsyncConsumeError) -> Self {
         Self::AsyncConsume(error)
+    }
+}
+
+impl From<crate::Arm64DarwinNetworkPrimitiveError> for Arm64LoweringError {
+    fn from(error: crate::Arm64DarwinNetworkPrimitiveError) -> Self {
+        Self::NetworkPrimitive(error)
     }
 }
 

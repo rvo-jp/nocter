@@ -41,6 +41,7 @@ mod darwin_network_connection;
 mod darwin_network_connection_event;
 mod darwin_network_connection_lifecycle;
 mod darwin_network_owner;
+mod darwin_network_primitive_targets;
 mod destruction_selection;
 mod encode;
 mod error_code;
@@ -69,6 +70,7 @@ mod parallel_copy_schedule;
 mod primitive_memory_code;
 mod primitive_memory_selection;
 mod primitive_selection;
+mod primitive_targets;
 mod process_code;
 mod process_layout;
 mod process_selection;
@@ -142,6 +144,10 @@ pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,
     emit_darwin_network_owner_guard, emit_darwin_network_owner_initialize,
     emit_darwin_network_owner_release, emit_darwin_network_owner_transition,
+};
+pub use darwin_network_primitive_targets::{
+    Arm64DarwinNetworkPrimitive, Arm64DarwinNetworkPrimitiveError,
+    Arm64DarwinNetworkPrimitiveTargets,
 };
 pub use encode::Arm64EncodingError;
 pub use frame::{

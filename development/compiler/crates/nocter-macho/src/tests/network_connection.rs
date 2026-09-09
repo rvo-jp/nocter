@@ -5,7 +5,7 @@ use nocter_arm64::{
 };
 use nocter_runtime_contract::{DarwinNetworkConnectionState, DarwinNetworkOwnerCreateStatus};
 
-use super::network_callback::{adjust_stack, immediate, move_register, stack_address, x};
+use super::network_callback::{adjust_stack, immediate, load, move_register, stack_address, x};
 use crate::MachOImage;
 
 fn connection_lifecycle_program() -> Arm64Program {
@@ -40,8 +40,9 @@ fn define_connection_entry(
     address: nocter_arm64::Arm64DataId,
 ) {
     const OWNER_OFFSET: u32 = 0;
+    const OBSERVATION_OFFSET: u32 = 48;
     let mut code = Arm64CodeBuilder::new();
-    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 48);
+    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 80);
     stack_address(&mut code, OWNER_OFFSET, x(26));
     move_register(&mut code, x(0), x(26));
     code.load_data_address(address, x(1));
@@ -65,10 +66,12 @@ fn define_connection_entry(
     let receive = code.create_label();
     code.bind(receive).unwrap();
     move_register(&mut code, x(0), x(26));
+    stack_address(&mut code, OBSERVATION_OFFSET, x(8));
     call_function(&mut code, events.receive_state());
+    load(&mut code, x(27), OBSERVATION_OFFSET);
     compare_immediate(
         &mut code,
-        x(0),
+        x(27),
         DarwinNetworkConnectionState::Cancelled.code(),
     );
     code.branch_conditional(receive, Arm64BranchCondition::NotEqual);

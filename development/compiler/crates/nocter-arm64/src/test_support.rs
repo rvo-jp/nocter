@@ -1,10 +1,9 @@
 use nocter_checking::{check_prepared_program, prepare_program_checking};
 use nocter_declaration_lowering::lower_compile_unit_declarations;
-use nocter_declarations::{CallableKind, CallableOwner};
 use nocter_machine::MachineProgram;
 use nocter_mir::lower_executable;
 use nocter_model::CompilationTarget;
-use nocter_runtime_contract::{PrimitiveBinding, PrimitiveRegistry, PrimitiveRole};
+use nocter_runtime_contract::{PrimitiveRegistry, RuntimeStorageRegistry};
 use nocter_target_program::{ExecutableProgram, TargetProgram, ToolchainSnapshot};
 use nocter_test_support::CompilerFixture;
 
@@ -29,18 +28,19 @@ pub(crate) fn lower_tests(source: &str) -> MachineProgram {
 fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
     let input = fixture.input();
     let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let primitive_bindings = lowered.primitive_bindings().to_vec();
+    let runtime_storage_bindings = lowered.runtime_storage_bindings().to_vec();
     let (declarations, frontend_bindings, source_index) = lowered.into_checking_parts();
     let prepared =
         prepare_program_checking(&input, declarations, &frontend_bindings, source_index).unwrap();
     let checked = check_prepared_program(&input, prepared).unwrap();
     let standard_package = checked.program().graph().standard_package().unwrap();
-    let registry = primitive_registry(checked.program());
     let snapshot = ToolchainSnapshot::select(
         CompilationTarget::Arm64Darwin,
         standard_package,
-        registry,
+        PrimitiveRegistry::new(primitive_bindings).unwrap(),
         nocter_runtime_contract::TargetServiceRegistry::empty(),
-        nocter_runtime_contract::RuntimeStorageRegistry::empty(),
+        RuntimeStorageRegistry::new(runtime_storage_bindings).unwrap(),
     )
     .unwrap();
     let (checked, _) = checked.into_parts();
@@ -59,39 +59,4 @@ fn lower_fixture(fixture: &CompilerFixture, tests: bool) -> MachineProgram {
         ExecutableProgram::for_executable(target, selected).unwrap()
     };
     MachineProgram::lower(&lower_executable(executable).unwrap()).unwrap()
-}
-
-fn primitive_registry(checked: &nocter_checking::CheckedProgram) -> PrimitiveRegistry {
-    let graph = checked.graph();
-    PrimitiveRegistry::new(PrimitiveRole::ALL.iter().copied().map(|role| {
-        let callable = graph
-            .declarations()
-            .callables()
-            .iter()
-            .find_map(|(callable, declaration)| {
-                let CallableOwner::Module(module) = declaration.owner() else {
-                    return None;
-                };
-                let actual_path = graph
-                    .modules()
-                    .get(module)?
-                    .path()
-                    .segments()
-                    .iter()
-                    .map(|segment| graph.symbols().spelling(*segment))
-                    .collect::<Option<Vec<_>>>()?;
-                let (module, name) =
-                    nocter_standard_profile::bundled_primitive_source_location(role);
-                (declaration.kind() == CallableKind::Primitive
-                    && actual_path == module
-                    && declaration
-                        .name()
-                        .and_then(|name| graph.symbols().spelling(name))
-                        == Some(name))
-                .then_some(callable)
-            })
-            .unwrap_or_else(|| panic!("missing fixture primitive {role:?}"));
-        PrimitiveBinding::new(role, callable)
-    }))
-    .unwrap()
 }

@@ -10,6 +10,7 @@ use nocter_model::{
     BorrowCapability, BuiltinType, CallableId, CompilationTarget, GenericParameterId,
     NominalTypeId, PackageId, TypeId, TypeKind, TypeStore,
 };
+use nocter_runtime_contract::{RuntimeStorageRegistry, RuntimeStorageRole};
 
 use crate::{PrimitiveRole, ToolchainSnapshot};
 
@@ -27,6 +28,8 @@ enum TypeContract {
     Slice(Box<Self>),
     Tuple(Vec<Self>),
     Async(Box<Self>),
+    Optional(Box<Self>),
+    RuntimeStorage(RuntimeStorageRole),
 }
 
 impl TypeContract {
@@ -55,6 +58,10 @@ impl TypeContract {
 
     fn asynchronous(output: Self) -> Self {
         Self::Async(Box::new(output))
+    }
+
+    fn optional(value: Self) -> Self {
+        Self::Optional(Box::new(value))
     }
 
     fn tuple(elements: impl Into<Vec<Self>>) -> Self {
@@ -90,6 +97,7 @@ pub(crate) fn validate_primitive_contracts(
             graph,
             types,
             snapshot.standard_package(),
+            snapshot.runtime_storage(),
             binding.role(),
             binding.callable(),
         )?;
@@ -101,6 +109,7 @@ fn validate_binding(
     graph: &DeclarationGraph,
     types: &TypeStore,
     standard_package: PackageId,
+    runtime_storage: &RuntimeStorageRegistry,
     role: PrimitiveRole,
     callable: CallableId,
 ) -> Result<(), PrimitiveContractError> {
@@ -116,6 +125,7 @@ fn validate_binding(
                 graph,
                 types,
                 standard_package,
+                runtime_storage,
                 callable,
                 declaration,
                 &contract,
@@ -179,6 +189,7 @@ fn validate_signature(
     graph: &DeclarationGraph,
     types: &TypeStore,
     standard_package: PackageId,
+    runtime_storage: &RuntimeStorageRegistry,
     callable: CallableId,
     declaration: &nocter_declarations::CallableDeclaration,
     contract: &PrimitiveContract,
@@ -193,22 +204,15 @@ fn validate_signature(
     if !declaration.requirements().is_empty() {
         return Err(PrimitiveContractRule::Requirements);
     }
-    validate_parameters(
-        graph,
-        types,
-        standard_package,
-        callable,
-        declaration,
-        contract,
-    )?;
-    if !type_matches(
+    let type_context = TypeContractContext {
         graph,
         types,
         callable,
-        declaration.result(),
-        &contract.result,
         standard_package,
-    ) {
+        runtime_storage,
+    };
+    validate_parameters(&type_context, declaration, contract)?;
+    if !type_context.matches(declaration.result(), &contract.result) {
         return Err(PrimitiveContractRule::ResultType);
     }
     if !provenance_matches(declaration, contract) {
@@ -224,10 +228,7 @@ fn validate_signature(
 }
 
 fn validate_parameters(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
-    standard_package: PackageId,
-    callable: CallableId,
+    context: &TypeContractContext<'_>,
     declaration: &nocter_declarations::CallableDeclaration,
     contract: &PrimitiveContract,
 ) -> Result<(), PrimitiveContractRule> {
@@ -240,21 +241,15 @@ fn validate_parameters(
         .zip(&contract.parameters)
         .enumerate()
     {
-        let actual = graph
+        let actual = context
+            .graph
             .declarations()
             .parameters()
             .get(*parameter)
             .ok_or(PrimitiveContractRule::ParameterShape)?;
-        if actual.owner() != ParameterOwner::Callable(callable)
+        if actual.owner() != ParameterOwner::Callable(context.callable)
             || actual.role() != (ParameterRole::Ordinary { position })
-            || !type_matches(
-                graph,
-                types,
-                callable,
-                actual.ty(),
-                expected,
-                standard_package,
-            )
+            || !context.matches(actual.ty(), expected)
         {
             return Err(PrimitiveContractRule::ParameterShape);
         }
@@ -306,85 +301,95 @@ fn provenance_matches(
             })
 }
 
-fn type_matches(
-    graph: &DeclarationGraph,
-    types: &TypeStore,
+struct TypeContractContext<'a> {
+    graph: &'a DeclarationGraph,
+    types: &'a TypeStore,
     callable: CallableId,
-    actual: TypeId,
-    expected: &TypeContract,
     standard_package: PackageId,
-) -> bool {
-    match (types.get(actual), expected) {
-        (Some(TypeKind::Builtin(actual)), TypeContract::Builtin(expected)) => actual == expected,
-        (Some(TypeKind::GenericParameter(actual)), TypeContract::Generic(position)) => {
-            graph
-                .declarations()
-                .callables()
-                .get(callable)
-                .and_then(|declaration| declaration.generic_parameters().get(*position))
-                == Some(actual)
+    runtime_storage: &'a RuntimeStorageRegistry,
+}
+
+impl TypeContractContext<'_> {
+    fn matches(&self, actual: TypeId, expected: &TypeContract) -> bool {
+        match (self.types.get(actual), expected) {
+            (Some(TypeKind::Builtin(actual)), TypeContract::Builtin(expected)) => {
+                actual == expected
+            }
+            (Some(TypeKind::GenericParameter(actual)), TypeContract::Generic(position)) => {
+                self.graph
+                    .declarations()
+                    .callables()
+                    .get(self.callable)
+                    .and_then(|declaration| declaration.generic_parameters().get(*position))
+                    == Some(actual)
+            }
+            (
+                Some(TypeKind::Nominal {
+                    definition,
+                    arguments,
+                }),
+                TypeContract::RuntimeStorage(role),
+            ) => {
+                arguments.is_empty() && self.runtime_storage.declaration(*role) == Some(*definition)
+            }
+            (
+                Some(TypeKind::Nominal {
+                    definition,
+                    arguments,
+                }),
+                TypeContract::SyscallResult,
+            ) => {
+                arguments.is_empty()
+                    && validate_supporting_struct(
+                        self.graph,
+                        self.types,
+                        *definition,
+                        self.standard_package,
+                        &[BuiltinType::Usize, BuiltinType::I32],
+                    )
+            }
+            (
+                Some(TypeKind::Nominal {
+                    definition,
+                    arguments,
+                }),
+                TypeContract::SyscallPairResult,
+            ) => {
+                arguments.is_empty()
+                    && validate_supporting_struct(
+                        self.graph,
+                        self.types,
+                        *definition,
+                        self.standard_package,
+                        &[BuiltinType::Usize, BuiltinType::Usize, BuiltinType::I32],
+                    )
+            }
+            (Some(TypeKind::Pointer(actual)), TypeContract::Pointer(expected))
+            | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected))
+            | (Some(TypeKind::Async(actual)), TypeContract::Async(expected))
+            | (Some(TypeKind::Optional(actual)), TypeContract::Optional(expected)) => {
+                self.matches(*actual, expected)
+            }
+            (Some(TypeKind::Tuple(actual)), TypeContract::Tuple(expected)) => {
+                actual.as_slice().len() == expected.len()
+                    && actual
+                        .as_slice()
+                        .iter()
+                        .zip(expected)
+                        .all(|(actual, expected)| self.matches(*actual, expected))
+            }
+            (
+                Some(TypeKind::Borrow {
+                    capability: actual_capability,
+                    referent: actual,
+                }),
+                TypeContract::Borrow {
+                    capability: expected_capability,
+                    referent: expected,
+                },
+            ) => actual_capability == expected_capability && self.matches(*actual, expected),
+            _ => false,
         }
-        (
-            Some(TypeKind::Nominal {
-                definition,
-                arguments,
-            }),
-            TypeContract::SyscallResult,
-        ) => {
-            arguments.is_empty()
-                && validate_supporting_struct(
-                    graph,
-                    types,
-                    *definition,
-                    standard_package,
-                    &[BuiltinType::Usize, BuiltinType::I32],
-                )
-        }
-        (
-            Some(TypeKind::Nominal {
-                definition,
-                arguments,
-            }),
-            TypeContract::SyscallPairResult,
-        ) => {
-            arguments.is_empty()
-                && validate_supporting_struct(
-                    graph,
-                    types,
-                    *definition,
-                    standard_package,
-                    &[BuiltinType::Usize, BuiltinType::Usize, BuiltinType::I32],
-                )
-        }
-        (Some(TypeKind::Pointer(actual)), TypeContract::Pointer(expected))
-        | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected))
-        | (Some(TypeKind::Async(actual)), TypeContract::Async(expected)) => {
-            type_matches(graph, types, callable, *actual, expected, standard_package)
-        }
-        (Some(TypeKind::Tuple(actual)), TypeContract::Tuple(expected)) => {
-            actual.as_slice().len() == expected.len()
-                && actual
-                    .as_slice()
-                    .iter()
-                    .zip(expected)
-                    .all(|(actual, expected)| {
-                        type_matches(graph, types, callable, *actual, expected, standard_package)
-                    })
-        }
-        (
-            Some(TypeKind::Borrow {
-                capability: actual_capability,
-                referent: actual,
-            }),
-            TypeContract::Borrow {
-                capability: expected_capability,
-                referent: expected,
-            },
-        ) => {
-            actual_capability == expected_capability
-                && type_matches(graph, types, callable, *actual, expected, standard_package)
-        }
-        _ => false,
     }
 }
 
@@ -461,6 +466,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
     let character = || builtin(BuiltinType::Char);
     let str_ref = || TypeContract::readonly(builtin(BuiltinType::Str));
     let byte_pointer = || TypeContract::pointer(u8());
+    let network_owner = || TypeContract::RuntimeStorage(RuntimeStorageRole::NetworkOwner);
     let readonly_bytes = || TypeContract::readonly(TypeContract::slice(u8()));
     let syscall_result = || TypeContract::SyscallResult;
     let syscall_pair_result = || TypeContract::SyscallPairResult;
@@ -762,6 +768,48 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             public,
             None,
             vec![0, 1],
+        ),
+        PrimitiveRole::NetworkConnectionCreate => make(
+            0,
+            vec![byte_pointer()],
+            TypeContract::optional(network_owner()),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::NetworkConnectionStart
+        | PrimitiveRole::NetworkConnectionRequestCancel
+        | PrimitiveRole::NetworkConnectionReleaseBarrier => make(
+            0,
+            vec![TypeContract::readwrite(network_owner())],
+            void(),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::NetworkConnectionEventDescriptor => make(
+            0,
+            vec![TypeContract::readonly(network_owner())],
+            usize(),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::NetworkConnectionReceiveState => make(
+            0,
+            vec![TypeContract::readwrite(network_owner())],
+            TypeContract::tuple(vec![usize(), usize(), usize()]),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::NetworkConnectionRelease => make(
+            0,
+            vec![network_owner()],
+            void(),
+            package,
+            arm64_darwin,
+            vec![],
         ),
         PrimitiveRole::Syscall0
         | PrimitiveRole::Syscall1

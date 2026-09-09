@@ -18,7 +18,6 @@ use crate::{
 pub struct Arm64DarwinNetworkConnectionLifecycleTargets {
     start: Arm64FunctionId,
     request_cancel: Arm64FunctionId,
-    observe_final_state: Arm64FunctionId,
     complete_release_barrier: Arm64FunctionId,
     release: Arm64FunctionId,
 }
@@ -32,11 +31,6 @@ impl Arm64DarwinNetworkConnectionLifecycleTargets {
     #[must_use]
     pub const fn request_cancel(self) -> Arm64FunctionId {
         self.request_cancel
-    }
-
-    #[must_use]
-    pub const fn observe_final_state(self) -> Arm64FunctionId {
-        self.observe_final_state
     }
 
     #[must_use]
@@ -66,7 +60,6 @@ pub(crate) fn add_darwin_network_connection_lifecycle_targets(
 {
     let start = program.declare_function();
     let request_cancel = program.declare_function();
-    let observe_final_state = program.declare_function();
     let complete_release_barrier = program.declare_function();
     let release = program.declare_function();
     let barrier_callback = program.declare_function();
@@ -87,10 +80,6 @@ pub(crate) fn add_darwin_network_connection_lifecycle_targets(
             DarwinNetworkAdapterFunction::ConnectionCancel,
         )?,
     )?;
-    program.define_function(
-        observe_final_state,
-        owner_transition(imports, DarwinNetworkAdapterOperation::ObserveFinalState)?,
-    )?;
     program.define_function(barrier_callback, return_only()?)?;
     program.define_function(
         complete_release_barrier,
@@ -101,7 +90,6 @@ pub(crate) fn add_darwin_network_connection_lifecycle_targets(
     Ok(Arm64DarwinNetworkConnectionLifecycleTargets {
         start,
         request_cancel,
-        observe_final_state,
         complete_release_barrier,
         release,
     })
@@ -128,23 +116,6 @@ fn owner_import_operation(
         DarwinNetworkOwnerField::NativeObject,
     )?;
     call_import(&mut code, imports.function(imported));
-    owner_epilogue(&mut code);
-    code.finish().map_err(Into::into)
-}
-
-fn owner_transition(
-    imports: &Arm64DarwinNetworkAdapterImports,
-    operation: DarwinNetworkAdapterOperation,
-) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionLifecycleError> {
-    let mut code = Arm64CodeBuilder::new();
-    owner_prologue(&mut code);
-    emit_darwin_network_owner_transition(
-        &mut code,
-        x(19),
-        DarwinNetworkOwnerKind::Connection,
-        operation,
-        imports,
-    )?;
     owner_epilogue(&mut code);
     code.finish().map_err(Into::into)
 }
@@ -369,7 +340,6 @@ mod tests {
         let functions = [
             targets.start(),
             targets.request_cancel(),
-            targets.observe_final_state(),
             targets.complete_release_barrier(),
             targets.release(),
         ];

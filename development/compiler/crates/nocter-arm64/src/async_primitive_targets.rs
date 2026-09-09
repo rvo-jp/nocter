@@ -1,4 +1,3 @@
-use nocter_machine::{MachineCallTarget, MachineOperationKind};
 use nocter_runtime_contract::PrimitiveRole;
 
 use crate::{Arm64FunctionId, Arm64ProgramBuilder};
@@ -78,30 +77,14 @@ pub struct Arm64AsyncPrimitiveTargets {
 
 impl Arm64AsyncPrimitiveTargets {
     pub(crate) fn declare(
-        machine: &nocter_machine::MachineProgram,
+        roles: &std::collections::BTreeSet<PrimitiveRole>,
         builder: &mut Arm64ProgramBuilder,
     ) -> Self {
-        let mut descriptor_readiness = false;
-        let mut descriptor_readiness_or_deadline = false;
-        let mut monotonic_deadline = false;
-        let mut task_join = false;
-        for role in machine.functions().flat_map(|(_, function)| {
-            function.body().operations().filter_map(|(_, operation)| {
-                let MachineOperationKind::Call(call) = operation.kind() else {
-                    return None;
-                };
-                let MachineCallTarget::Primitive(target) = call.target() else {
-                    return None;
-                };
-                Some(target.role())
-            })
-        }) {
-            descriptor_readiness |= role == PrimitiveRole::DescriptorReadiness;
-            descriptor_readiness_or_deadline |=
-                role == PrimitiveRole::DescriptorReadinessOrDeadline;
-            monotonic_deadline |= role == PrimitiveRole::MonotonicDeadline;
-            task_join |= role == PrimitiveRole::TaskJoin;
-        }
+        let descriptor_readiness = roles.contains(&PrimitiveRole::DescriptorReadiness);
+        let descriptor_readiness_or_deadline =
+            roles.contains(&PrimitiveRole::DescriptorReadinessOrDeadline);
+        let monotonic_deadline = roles.contains(&PrimitiveRole::MonotonicDeadline);
+        let task_join = roles.contains(&PrimitiveRole::TaskJoin);
         let single_interest_lifecycle =
             (descriptor_readiness || monotonic_deadline).then(|| declare_lifecycle(builder, 1));
         let dual_interest_lifecycle =
