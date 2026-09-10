@@ -9,13 +9,12 @@ plain TCP surface onto the closed native adapter foundation.
 
 ## Next Work
 
-Complete normalized receive/send event consumption and connect the production transfer starters
-to the plain-connection primitive family without exposing callback storage or provider ownership
-to source. Migrate the public plain TCP stream only after equivalent loopback,
-timeout, transfer, cancellation, and stable-error evidence passes; then
-adopt accepted connections and migrate listeners. Remove descriptor-backed TCP only after the
-replacement is qualified. Keep UDP on its descriptor substrate. Keep native objects and callbacks
-compiler-owned; do not add source-level FFI or a general callback escape hatch.
+Build the target-independent plain-stream policy over the qualified connection primitives. Preserve
+the existing synchronous, asynchronous, deadline, full-write, EOF, cancellation, and stable-error
+contracts before switching the public `TcpStream` representation. Then adopt accepted connections
+and migrate listeners. Remove descriptor-backed TCP only after the replacement is qualified. Keep
+UDP on its descriptor substrate. Keep native objects and callbacks compiler-owned; do not add
+source-level FFI or a general callback escape hatch.
 
 Preserve every published tag and asset.
 

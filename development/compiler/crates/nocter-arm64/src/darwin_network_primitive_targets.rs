@@ -6,7 +6,7 @@ use nocter_machine::{
     MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::{
-    DarwinNetworkConnectionStateObservationAbiSchema, DarwinNetworkOwnerAbiSchema,
+    DarwinNetworkConnectionEventObservationAbiSchema, DarwinNetworkOwnerAbiSchema,
     DarwinNetworkOwnerCreateStatus, PrimitiveRole,
 };
 
@@ -24,7 +24,9 @@ pub enum Arm64DarwinNetworkPrimitive {
     Create,
     Start,
     EventDescriptor,
-    ReceiveState,
+    BeginReceive,
+    BeginSend,
+    ReceiveEvent,
     CopyLocalAddress,
     CopyRemoteAddress,
     RequestCancel,
@@ -38,7 +40,9 @@ impl Arm64DarwinNetworkPrimitive {
             PrimitiveRole::NetworkConnectionCreate => Some(Self::Create),
             PrimitiveRole::NetworkConnectionStart => Some(Self::Start),
             PrimitiveRole::NetworkConnectionEventDescriptor => Some(Self::EventDescriptor),
-            PrimitiveRole::NetworkConnectionReceiveState => Some(Self::ReceiveState),
+            PrimitiveRole::NetworkConnectionBeginReceive => Some(Self::BeginReceive),
+            PrimitiveRole::NetworkConnectionBeginSend => Some(Self::BeginSend),
+            PrimitiveRole::NetworkConnectionReceiveEvent => Some(Self::ReceiveEvent),
             PrimitiveRole::NetworkConnectionCopyLocalAddress => Some(Self::CopyLocalAddress),
             PrimitiveRole::NetworkConnectionCopyRemoteAddress => Some(Self::CopyRemoteAddress),
             PrimitiveRole::NetworkConnectionRequestCancel => Some(Self::RequestCancel),
@@ -61,7 +65,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         machine: &nocter_machine::MachineProgram,
         roles: &BTreeSet<PrimitiveRole>,
         create: Option<&MachinePrimitiveTarget>,
-        receive_state: Option<&MachinePrimitiveTarget>,
+        receive_event: Option<&MachinePrimitiveTarget>,
         builder: &mut Arm64ProgramBuilder,
     ) -> Result<Option<Self>, Arm64DarwinNetworkPrimitiveError> {
         if !roles
@@ -73,7 +77,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         }
         let imports = Arm64DarwinNetworkAdapterImports::declare(builder)?;
         let production = add_darwin_plain_connection_targets(builder, &imports)?;
-        validate_state_result(machine, roles, receive_state)?;
+        validate_event_result(machine, roles, receive_event)?;
         let source_create = create
             .map(|target| {
                 let layout = creation_layout(machine, target)?;
@@ -97,7 +101,13 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             Arm64DarwinNetworkPrimitive::Create => self.source_create,
             Arm64DarwinNetworkPrimitive::Start => Some(lifecycle.start()),
             Arm64DarwinNetworkPrimitive::EventDescriptor => Some(events.descriptor()),
-            Arm64DarwinNetworkPrimitive::ReceiveState => Some(events.receive_state()),
+            Arm64DarwinNetworkPrimitive::BeginReceive => {
+                Some(self.production.transfers().begin_receive())
+            }
+            Arm64DarwinNetworkPrimitive::BeginSend => {
+                Some(self.production.transfers().begin_send())
+            }
+            Arm64DarwinNetworkPrimitive::ReceiveEvent => Some(events.receive()),
             Arm64DarwinNetworkPrimitive::CopyLocalAddress => {
                 Some(self.production.addresses().local())
             }
@@ -190,12 +200,12 @@ fn creation_layout(
     })
 }
 
-fn validate_state_result(
+fn validate_event_result(
     machine: &nocter_machine::MachineProgram,
     roles: &BTreeSet<PrimitiveRole>,
     target: Option<&MachinePrimitiveTarget>,
 ) -> Result<(), Arm64DarwinNetworkPrimitiveError> {
-    if !roles.contains(&PrimitiveRole::NetworkConnectionReceiveState) {
+    if !roles.contains(&PrimitiveRole::NetworkConnectionReceiveEvent) {
         return Ok(());
     }
     let target = target.ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
@@ -212,16 +222,19 @@ fn validate_state_result(
     let MachineLayoutKind::Tuple { elements } = layout.kind() else {
         return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
     };
-    let schema = DarwinNetworkConnectionStateObservationAbiSchema::ARM64_DARWIN;
+    let schema = DarwinNetworkConnectionEventObservationAbiSchema::ARM64_DARWIN;
     if result.class() != MachineValueClass::Indirect
         || result.location()
             != (MachineResultLocation::CallerStorage {
                 pointer_register: 8,
             })
-        || elements.len() != 3
-        || elements[0].offset() != schema.state_offset()
-        || elements[1].offset() != schema.error_domain_offset()
-        || elements[2].offset() != schema.error_code_offset()
+        || elements.len() != 5
+        || elements[0].offset() != schema.kind_offset()
+        || elements
+            .iter()
+            .skip(1)
+            .enumerate()
+            .any(|(lane, element)| schema.value_offset(lane) != Some(element.offset()))
         || layout.size() != schema.size()
         || layout.alignment() != schema.alignment()
     {

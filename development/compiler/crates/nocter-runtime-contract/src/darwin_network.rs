@@ -12,38 +12,35 @@ pub struct DarwinNetworkCallbackEventAbiSchema {
     alignment: u64,
 }
 
-/// Provider-independent words returned after consuming one connection-state callback event.
+/// Native-object-free words returned after consuming any connection callback event.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct DarwinNetworkConnectionStateObservationAbiSchema {
-    state_offset: u64,
-    error_domain_offset: u64,
-    error_code_offset: u64,
+pub struct DarwinNetworkConnectionEventObservationAbiSchema {
+    kind_offset: u64,
+    value_offsets: [u64; 4],
     size: u64,
     alignment: u64,
 }
 
-impl DarwinNetworkConnectionStateObservationAbiSchema {
+impl DarwinNetworkConnectionEventObservationAbiSchema {
     pub const ARM64_DARWIN: Self = Self {
-        state_offset: 0,
-        error_domain_offset: 8,
-        error_code_offset: 16,
-        size: 24,
+        kind_offset: 0,
+        value_offsets: [8, 16, 24, 32],
+        size: 40,
         alignment: 8,
     };
 
     #[must_use]
-    pub const fn state_offset(self) -> u64 {
-        self.state_offset
+    pub const fn kind_offset(self) -> u64 {
+        self.kind_offset
     }
 
     #[must_use]
-    pub const fn error_domain_offset(self) -> u64 {
-        self.error_domain_offset
-    }
-
-    #[must_use]
-    pub const fn error_code_offset(self) -> u64 {
-        self.error_code_offset
+    pub const fn value_offset(self, lane: usize) -> Option<u64> {
+        if lane < self.value_offsets.len() {
+            Some(self.value_offsets[lane])
+        } else {
+            None
+        }
     }
 
     #[must_use]
@@ -416,12 +413,13 @@ mod tests {
     }
 
     #[test]
-    fn consumed_connection_state_has_one_native_free_result_layout() {
-        let schema = super::DarwinNetworkConnectionStateObservationAbiSchema::ARM64_DARWIN;
-        assert_eq!(schema.state_offset(), 0);
-        assert_eq!(schema.error_domain_offset(), 8);
-        assert_eq!(schema.error_code_offset(), 16);
-        assert_eq!(schema.size(), 24);
+    fn consumed_connection_event_has_one_native_free_result_layout() {
+        let schema = super::DarwinNetworkConnectionEventObservationAbiSchema::ARM64_DARWIN;
+        assert_eq!(schema.kind_offset(), 0);
+        assert_eq!(schema.value_offset(0), Some(8));
+        assert_eq!(schema.value_offset(3), Some(32));
+        assert_eq!(schema.value_offset(4), None);
+        assert_eq!(schema.size(), 40);
         assert_eq!(schema.alignment(), 8);
     }
 

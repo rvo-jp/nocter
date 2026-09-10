@@ -13,57 +13,66 @@ see ./resolver_tests.nct
 
 /// Creates an unstarted plain connection over one complete native socket address.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
+noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
 
 /// Starts callbacks and provider progress for an initialized connection owner.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
+noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
 
 /// Returns the reactor-readable callback-channel descriptor.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_event_descriptor_raw(
+noalloc primitive func network_connection_event_descriptor_raw(
     owner: &NetworkOwner,
 ): usize
 
-/// Receives one normalized state and consumes all provider ownership carried by its event.
+/// Starts one provider receive whose completion enters the ordered connection event channel.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_receive_state_raw(
+noalloc primitive func network_connection_begin_receive_raw(
     owner: &+NetworkOwner,
-): (usize, usize, usize)
+    maximum_length: u32,
+): void
+
+/// Starts one provider send after copying the source bytes into system-owned storage.
+#target: "arm64-darwin"
+noalloc primitive func network_connection_begin_send_raw(
+    owner: &+NetworkOwner,
+    bytes: *u8,
+    len: usize,
+): bool
+
+/// Receives one ordered connection event and consumes all provider ownership carried by it.
+#target: "arm64-darwin"
+noalloc primitive func network_connection_receive_event_raw(
+    owner: &+NetworkOwner,
+    destination: *u8,
+    capacity: usize,
+): (usize, usize, usize, usize, usize)
 
 /// Copies the current effective local address into a 28-byte caller-owned native record.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_copy_local_address_raw(
+noalloc primitive func network_connection_copy_local_address_raw(
     owner: &NetworkOwner,
     destination: *u8,
 ): usize
 
 /// Copies the current effective remote address into a 28-byte caller-owned native record.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_copy_remote_address_raw(
+noalloc primitive func network_connection_copy_remote_address_raw(
     owner: &NetworkOwner,
     destination: *u8,
 ): usize
 
-/// Returns the current effective local address without exposing a provider endpoint.
-#target: "arm64-darwin"
-pub(/) noalloc func network_connection_local_address(owner: &NetworkOwner): NetworkAddress?
-
-/// Returns the current effective remote address without exposing a provider endpoint.
-#target: "arm64-darwin"
-pub(/) noalloc func network_connection_remote_address(owner: &NetworkOwner): NetworkAddress?
-
 /// Requests idempotent provider cancellation.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
+noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
 
 /// Waits until the final callback has returned and advances the release fence.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
+noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
 
 /// Releases a quiesced connection owner and all of its native resources.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
+noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
 
 #target: "arm64-darwin"
 pub(/) enum RawDescriptorAttempt {

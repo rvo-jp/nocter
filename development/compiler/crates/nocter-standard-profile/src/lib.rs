@@ -13,7 +13,9 @@ const DARWIN_NET: &[&str] = &["internal", "net", "darwin"];
 const INTERNAL_TASK: &[&str] = &["internal", "task"];
 const READINESS_OR_DEADLINE: &str = "descriptor_readiness_or_deadline_raw";
 const NET_EVENT_DESCRIPTOR: &str = "network_connection_event_descriptor_raw";
-const NET_RECEIVE_STATE: &str = "network_connection_receive_state_raw";
+const NET_BEGIN_RECEIVE: &str = "network_connection_begin_receive_raw";
+const NET_BEGIN_SEND: &str = "network_connection_begin_send_raw";
+const NET_RECEIVE_EVENT: &str = "network_connection_receive_event_raw";
 const NET_COPY_LOCAL_ADDRESS: &str = "network_connection_copy_local_address_raw";
 const NET_COPY_REMOTE_ADDRESS: &str = "network_connection_copy_remote_address_raw";
 const NET_REQUEST_CANCEL: &str = "network_connection_request_cancel_raw";
@@ -162,6 +164,10 @@ fn target_service_roles(package: &PackageIdentity) -> Vec<TargetServiceRoleLocat
 
 /// Returns the sole physical source location of a bundled standard primitive role.
 #[must_use]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one exhaustive role-to-source table is the profile's reviewable authority"
+)]
 pub const fn bundled_primitive_source_location(
     role: PrimitiveRole,
 ) -> (&'static [&'static str], &'static str) {
@@ -249,7 +255,9 @@ pub const fn bundled_primitive_source_location(
         Role::NetworkConnectionCreate => (DARWIN_NET, "network_connection_create_raw"),
         Role::NetworkConnectionStart => (DARWIN_NET, "network_connection_start_raw"),
         Role::NetworkConnectionEventDescriptor => (DARWIN_NET, NET_EVENT_DESCRIPTOR),
-        Role::NetworkConnectionReceiveState => (DARWIN_NET, NET_RECEIVE_STATE),
+        Role::NetworkConnectionBeginReceive => (DARWIN_NET, NET_BEGIN_RECEIVE),
+        Role::NetworkConnectionBeginSend => (DARWIN_NET, NET_BEGIN_SEND),
+        Role::NetworkConnectionReceiveEvent => (DARWIN_NET, NET_RECEIVE_EVENT),
         Role::NetworkConnectionCopyLocalAddress => (DARWIN_NET, NET_COPY_LOCAL_ADDRESS),
         Role::NetworkConnectionCopyRemoteAddress => (DARWIN_NET, NET_COPY_REMOTE_ADDRESS),
         Role::NetworkConnectionRequestCancel => (DARWIN_NET, NET_REQUEST_CANCEL),

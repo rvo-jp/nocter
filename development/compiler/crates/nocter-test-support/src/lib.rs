@@ -354,23 +354,27 @@ pub(/) primitive type NetworkOwner
 const INTERNAL_NET_DARWIN_SOURCE: &str = "\
 use /internal/net/model.NetworkOwner
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
+noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
+noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_event_descriptor_raw(owner: &NetworkOwner): usize
+noalloc primitive func network_connection_event_descriptor_raw(owner: &NetworkOwner): usize
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_receive_state_raw(owner: &+NetworkOwner): (usize, usize, usize)
+noalloc primitive func network_connection_begin_receive_raw(owner: &+NetworkOwner, maximum_length: u32): void
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_copy_local_address_raw(owner: &NetworkOwner, destination: *u8): usize
+noalloc primitive func network_connection_begin_send_raw(owner: &+NetworkOwner, bytes: *u8, len: usize): bool
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_copy_remote_address_raw(owner: &NetworkOwner, destination: *u8): usize
+noalloc primitive func network_connection_receive_event_raw(owner: &+NetworkOwner, destination: *u8, capacity: usize): (usize, usize, usize, usize, usize)
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
+noalloc primitive func network_connection_copy_local_address_raw(owner: &NetworkOwner, destination: *u8): usize
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
+noalloc primitive func network_connection_copy_remote_address_raw(owner: &NetworkOwner, destination: *u8): usize
 #target: \"arm64-darwin\"
-pub(/) noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
+noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
 ";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"

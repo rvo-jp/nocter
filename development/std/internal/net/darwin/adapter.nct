@@ -207,6 +207,7 @@ noalloc func logical_address_from_pointer(pointer: *u8, len: usize): NetworkAddr
 }
 
 #target: "arm64-darwin"
+/// Returns the current effective local address without exposing a provider endpoint.
 noalloc func network_connection_local_address(owner: &NetworkOwner): NetworkAddress? {
     var native = empty_native_address()
     let length = network_connection_copy_local_address_raw(
@@ -217,6 +218,7 @@ noalloc func network_connection_local_address(owner: &NetworkOwner): NetworkAddr
 }
 
 #target: "arm64-darwin"
+/// Returns the current effective remote address without exposing a provider endpoint.
 noalloc func network_connection_remote_address(owner: &NetworkOwner): NetworkAddress? {
     var native = empty_native_address()
     let length = network_connection_copy_remote_address_raw(

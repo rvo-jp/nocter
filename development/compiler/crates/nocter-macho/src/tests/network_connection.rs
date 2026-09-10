@@ -42,7 +42,7 @@ fn define_connection_entry(
     const OWNER_OFFSET: u32 = 0;
     const OBSERVATION_OFFSET: u32 = 48;
     let mut code = Arm64CodeBuilder::new();
-    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 80);
+    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 96);
     stack_address(&mut code, OWNER_OFFSET, x(26));
     move_register(&mut code, x(0), x(26));
     code.load_data_address(address, x(1));
@@ -66,9 +66,18 @@ fn define_connection_entry(
     let receive = code.create_label();
     code.bind(receive).unwrap();
     move_register(&mut code, x(0), x(26));
+    immediate(&mut code, x(1), 0);
+    immediate(&mut code, x(2), 0);
     stack_address(&mut code, OBSERVATION_OFFSET, x(8));
-    call_function(&mut code, events.receive_state());
+    call_function(&mut code, events.receive());
     load(&mut code, x(27), OBSERVATION_OFFSET);
+    compare_immediate(
+        &mut code,
+        x(27),
+        nocter_runtime_contract::DarwinNetworkEventKind::ConnectionState.code(),
+    );
+    code.branch_conditional(receive, Arm64BranchCondition::NotEqual);
+    load(&mut code, x(27), OBSERVATION_OFFSET + 8);
     compare_immediate(
         &mut code,
         x(27),

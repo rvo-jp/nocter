@@ -1802,7 +1802,6 @@ dependencies = [
  "nocter-arm64",
  "nocter-checking",
  "nocter-declaration-lowering",
- "nocter-declarations",
  "nocter-json",
  "nocter-language",
  "nocter-machine",
@@ -1810,7 +1809,6 @@ dependencies = [
  "nocter-mir",
  "nocter-model",
  "nocter-runtime-contract",
- "nocter-standard-profile",
  "nocter-syntax",
  "nocter-target-program",
  "nocter-test-support",
@@ -1966,11 +1964,9 @@ version = "0.0.0"
 dependencies = [
  "nocter-checking",
  "nocter-declaration-lowering",
- "nocter-declarations",
  "nocter-mir",
  "nocter-model",
  "nocter-runtime-contract",
- "nocter-standard-profile",
  "nocter-target-program",
  "nocter-test-support",
 ]
@@ -1990,10 +1986,8 @@ version = "0.0.0"
 dependencies = [
  "nocter-checking",
  "nocter-declaration-lowering",
- "nocter-declarations",
  "nocter-model",
  "nocter-runtime-contract",
- "nocter-standard-profile",
  "nocter-target-program",
  "nocter-test-support",
  "nocter-toolchain-contract",

@@ -25,7 +25,7 @@ impl Arm64PrimitiveTargets {
     ) -> Result<Self, Arm64DarwinNetworkPrimitiveError> {
         let mut roles = BTreeSet::new();
         let mut network_create = None;
-        let mut network_receive_state = None;
+        let mut network_receive_event = None;
         for target in machine.functions().flat_map(|(_, function)| {
             function.body().operations().filter_map(|(_, operation)| {
                 let MachineOperationKind::Call(call) = operation.kind() else {
@@ -42,8 +42,8 @@ impl Arm64PrimitiveTargets {
                 PrimitiveRole::NetworkConnectionCreate => {
                     remember_unique_abi(machine, &mut network_create, target)?;
                 }
-                PrimitiveRole::NetworkConnectionReceiveState => {
-                    remember_unique_abi(machine, &mut network_receive_state, target)?;
+                PrimitiveRole::NetworkConnectionReceiveEvent => {
+                    remember_unique_abi(machine, &mut network_receive_event, target)?;
                 }
                 _ => {}
             }
@@ -63,7 +63,7 @@ impl Arm64PrimitiveTargets {
                 machine,
                 &roles,
                 network_create,
-                network_receive_state,
+                network_receive_event,
                 builder,
             )?,
         })

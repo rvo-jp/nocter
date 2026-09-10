@@ -23,9 +23,9 @@ pub use asynchronous::{ReactorInterest, ReadinessDirection};
 pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,
-    DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionState,
-    DarwinNetworkConnectionStateObservationAbiSchema, DarwinNetworkEventKind,
-    DarwinNetworkEventPayload, DarwinNetworkListenerState,
+    DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionEventObservationAbiSchema,
+    DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkEventPayload,
+    DarwinNetworkListenerState,
 };
 pub use darwin_network_address::DarwinNetworkSocketAddressAbiSchema;
 pub use darwin_network_import::{DarwinNetworkAdapterData, DarwinNetworkAdapterFunction};
