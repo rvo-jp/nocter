@@ -106,6 +106,12 @@ boundary, so no terminal path can forget retained provider ownership or accident
 executor thread. Public wrappers use ordinary structural field destruction instead of repeating
 the provider lifecycle.
 
+Asynchronous host setup also stays inside the provider lifecycle. Standard source owns validation
+and NUL-terminated host/service storage, while distinct closed primitive roles select numeric or
+host endpoint creation. Network.framework owns DNS progress and address selection after the future
+starts. TLS extends the same host constructor with authentication parameters; it does not run a
+second resolver or reproduce connection fallback policy in source.
+
 ## Standard-Library Migration Inventory
 
 The following current families contain synchronous external waits and must expose or propagate

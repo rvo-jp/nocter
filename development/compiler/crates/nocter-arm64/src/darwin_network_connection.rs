@@ -46,10 +46,18 @@ pub(crate) enum Arm64DarwinConnectionParameters {
     },
 }
 
+/// Endpoint constructor selected by the closed source primitive role.
+#[derive(Clone, Copy)]
+pub(crate) enum Arm64DarwinConnectionEndpoint {
+    Address,
+    Host,
+}
+
 /// Native entries and fixed Block metadata for plain outbound connections.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64DarwinNetworkConnectionTargets {
     create: Arm64FunctionId,
+    create_host: Arm64FunctionId,
     adopt_accepted: Arm64DarwinAcceptedConnectionAdoptionTarget,
     state_callback: Arm64FunctionId,
     state_block: crate::Arm64DarwinBlockDescriptorId,
@@ -64,6 +72,11 @@ impl Arm64DarwinNetworkConnectionTargets {
     #[must_use]
     pub const fn create(self) -> Arm64FunctionId {
         self.create
+    }
+
+    #[must_use]
+    pub const fn create_host(self) -> Arm64FunctionId {
+        self.create_host
     }
 
     #[must_use]
@@ -107,12 +120,13 @@ impl Arm64DarwinNetworkConnectionTargets {
     }
 }
 
-/// Adds the fixed plain-TCP outbound-connection constructor and its state callback.
+/// Adds fixed numeric- and host-endpoint plain-TCP constructors and their shared lifecycle.
 ///
-/// The constructor accepts an aligned owner-record pointer in `x0` and a Darwin `sockaddr` pointer
-/// in `x1`, and returns [`DarwinNetworkOwnerCreateStatus::code`] in `x0`. It cleans every partial
-/// resource on failure and publishes the owner record only after the channel, queue, endpoint,
-/// parameters, connection, handler, and queue association all exist.
+/// Each constructor accepts an aligned owner-record pointer in `x0`, followed by either a Darwin
+/// `sockaddr` pointer or NUL-terminated host and service pointers, and returns
+/// [`DarwinNetworkOwnerCreateStatus::code`] in `x0`. It cleans every partial resource on failure
+/// and publishes the owner record only after the channel, queue, endpoint, parameters, connection,
+/// handler, and queue association all exist.
 ///
 /// # Errors
 ///
@@ -137,6 +151,16 @@ pub fn add_darwin_plain_connection_targets(
         state_callback,
         state_block,
         queue_label,
+        Arm64DarwinConnectionEndpoint::Address,
+        Arm64DarwinConnectionParameters::Plain,
+    )?;
+    let create_host = add_darwin_connection_create_target(
+        program,
+        imports,
+        state_callback,
+        state_block,
+        queue_label,
+        Arm64DarwinConnectionEndpoint::Host,
         Arm64DarwinConnectionParameters::Plain,
     )?;
     let adopt_accepted = add_darwin_accepted_connection_adoption_target(
@@ -160,6 +184,7 @@ pub fn add_darwin_plain_connection_targets(
     let transfers = add_darwin_network_connection_transfer_targets(program, imports)?;
     Ok(Arm64DarwinNetworkConnectionTargets {
         create,
+        create_host,
         adopt_accepted,
         state_callback,
         state_block,
@@ -178,6 +203,7 @@ pub(crate) fn add_darwin_connection_create_target(
     state_callback: Arm64FunctionId,
     state_block: crate::Arm64DarwinBlockDescriptorId,
     queue_label: crate::Arm64DataId,
+    endpoint: Arm64DarwinConnectionEndpoint,
     parameters: Arm64DarwinConnectionParameters,
 ) -> Result<Arm64FunctionId, Arm64DarwinNetworkConnectionError> {
     let target = program.declare_function();
@@ -186,6 +212,7 @@ pub(crate) fn add_darwin_connection_create_target(
         state_callback,
         state_block,
         queue_label,
+        endpoint,
         parameters,
     )?;
     program.define_function(target, code.finish()?)?;
@@ -201,6 +228,7 @@ fn connection_create_code(
     state_callback: Arm64FunctionId,
     state_block: crate::Arm64DarwinBlockDescriptorId,
     queue_label: crate::Arm64DataId,
+    endpoint: Arm64DarwinConnectionEndpoint,
     parameters: Arm64DarwinConnectionParameters,
 ) -> Result<Arm64CodeBuilder, Arm64DarwinNetworkConnectionError> {
     const FRAME_SIZE: u16 = 224;
@@ -225,9 +253,21 @@ fn connection_create_code(
     }
     move_register(&mut code, x(19), x(0));
     move_register(&mut code, x(20), x(1));
+    if matches!(endpoint, Arm64DarwinConnectionEndpoint::Host) {
+        store_stack(&mut code, x(2), 88);
+    }
     immediate(&mut code, x(28), 0)?;
     if matches!(parameters, Arm64DarwinConnectionParameters::Tls { .. }) {
-        for (register, offset) in [(x(2), 96), (x(3), 104), (x(4), 112), (x(5), 120)] {
+        let first = match endpoint {
+            Arm64DarwinConnectionEndpoint::Address => 2,
+            Arm64DarwinConnectionEndpoint::Host => 3,
+        };
+        for (register, offset) in [
+            (x(first), 96),
+            (x(first + 1), 104),
+            (x(first + 2), 112),
+            (x(first + 3), 120),
+        ] {
             store_stack(&mut code, register, offset);
         }
     }
@@ -265,10 +305,19 @@ fn connection_create_code(
     move_register(&mut code, x(23), x(0));
 
     move_register(&mut code, x(0), x(20));
-    call(
-        &mut code,
-        imports.function(DarwinNetworkAdapterFunction::EndpointCreateAddress),
-    );
+    match endpoint {
+        Arm64DarwinConnectionEndpoint::Address => call(
+            &mut code,
+            imports.function(DarwinNetworkAdapterFunction::EndpointCreateAddress),
+        ),
+        Arm64DarwinConnectionEndpoint::Host => {
+            load_stack(&mut code, x(1), 88);
+            call(
+                &mut code,
+                imports.function(DarwinNetworkAdapterFunction::EndpointCreateHost),
+            );
+        }
+    }
     compare_zero(&mut code, x(0));
     code.branch_conditional(endpoint_ready, Arm64BranchCondition::NotEqual);
     status(
@@ -707,6 +756,7 @@ mod tests {
         let mut program = Arm64ProgramBuilder::new();
         let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
         let targets = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
+        assert_ne!(targets.create(), targets.create_host());
         assert_ne!(targets.create(), targets.state_callback());
         assert_ne!(targets.create(), targets.adopt_accepted().function());
         assert_ne!(targets.disposal().dispose(), targets.disposal().worker());

@@ -23,11 +23,29 @@ see ./resolver_tests.nct
 #target: "arm64-darwin"
 pub(/) noalloc func connection_create(address: &NetworkAddress): NetworkOwner?
 
+/// Creates one unstarted provider connection from validated NUL-terminated host and service text.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_create_host(
+    host: *u8,
+    service: *u8,
+): NetworkOwner?
+
 /// Creates one unstarted authenticated TLS connection from a numeric address and validated
 /// NUL-terminated server-name and optional ALPN pointers.
 #target: "arm64-darwin"
 pub(/) noalloc func tls_connection_create(
     address: &NetworkAddress,
+    server_name: *u8,
+    application_protocol: *u8,
+    trust_anchor: *u8,
+    trust_anchor_len: usize,
+): NetworkOwner?
+
+/// Creates one unstarted authenticated TLS connection from a provider-resolved host endpoint.
+#target: "arm64-darwin"
+pub(/) noalloc func tls_connection_create_host(
+    host: *u8,
+    service: *u8,
     server_name: *u8,
     application_protocol: *u8,
     trust_anchor: *u8,
@@ -129,10 +147,28 @@ pub(/) noalloc func listener_dispose(owner: NetworkOwner): void
 #target: "arm64-darwin"
 noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
 
+/// Creates an unstarted plain connection from NUL-terminated host and service text.
+#target: "arm64-darwin"
+noalloc primitive func network_connection_create_host_raw(
+    host: *u8,
+    service: *u8,
+): NetworkOwner? from static
+
 /// Creates an unstarted TLS connection with system trust and hostname authentication.
 #target: "arm64-darwin"
 noalloc primitive func network_tls_connection_create_raw(
     address: *u8,
+    server_name: *u8,
+    application_protocol: *u8,
+    trust_anchor: *u8,
+    trust_anchor_len: usize,
+): NetworkOwner? from static
+
+/// Creates an unstarted TLS connection from NUL-terminated host and service text.
+#target: "arm64-darwin"
+noalloc primitive func network_tls_connection_create_host_raw(
+    host: *u8,
+    service: *u8,
     server_name: *u8,
     application_protocol: *u8,
     trust_anchor: *u8,

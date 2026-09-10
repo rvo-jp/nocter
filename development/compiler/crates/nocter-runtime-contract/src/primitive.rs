@@ -155,7 +155,9 @@ closed_role_enum! {
         /// Takes ownership of two lazy computations and produces both outputs concurrently.
         TaskJoin,
         NetworkConnectionCreate,
+        NetworkConnectionCreateHost,
         NetworkTlsConnectionCreate,
+        NetworkTlsConnectionCreateHost,
         NetworkTlsConnectionMatchesApplicationProtocol,
         NetworkConnectionStart,
         NetworkConnectionEventDescriptor,
@@ -285,7 +287,9 @@ impl PrimitiveRole {
             Self::MonotonicDeadline => "monotonic_deadline",
             Self::TaskJoin => "task_join",
             Self::NetworkConnectionCreate
+            | Self::NetworkConnectionCreateHost
             | Self::NetworkTlsConnectionCreate
+            | Self::NetworkTlsConnectionCreateHost
             | Self::NetworkTlsConnectionMatchesApplicationProtocol
             | Self::NetworkConnectionStart
             | Self::NetworkConnectionEventDescriptor
@@ -341,7 +345,9 @@ impl PrimitiveRole {
     const fn network_connection_name(self) -> &'static str {
         match self {
             Self::NetworkConnectionCreate => "network_connection_create",
+            Self::NetworkConnectionCreateHost => "network_connection_create_host",
             Self::NetworkTlsConnectionCreate => "network_tls_connection_create",
+            Self::NetworkTlsConnectionCreateHost => "network_tls_connection_create_host",
             Self::NetworkTlsConnectionMatchesApplicationProtocol => {
                 "network_tls_connection_matches_application_protocol"
             }

@@ -89,15 +89,17 @@ pub(/) async func connect_stream_async_with_timeout(
     timeout: Duration,
 ): StreamConnectionAttempt
 
-/// Connects asynchronously without restarting one shared candidate deadline.
-pub(/) async func connect_stream_async_before(
-    address: NetworkAddress,
+/// Connects one provider-resolved host endpoint without blocking the executor thread.
+pub(/) async func connect_host_stream_async_before(
+    host: &str,
+    service: &str,
     deadline: &+ConnectionDeadline,
 ): StreamConnectionAttempt
 
-/// Authenticates one TLS stream asynchronously through the shared provider event channel.
-pub(/) async func connect_tls_stream_async_before(
-    address: NetworkAddress,
+/// Resolves and authenticates one TLS host endpoint through the provider event channel.
+pub(/) async func connect_tls_host_stream_async_before(
+    host: &str,
+    service: &str,
     server_name: &str,
     application_protocol: *u8,
     trust_anchor: *u8,

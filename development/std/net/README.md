@@ -54,12 +54,13 @@ connection work cannot receive a fresh duration afterward. As with other zero-du
 operations, one immediate connection attempt is permitted and later candidates require remaining
 time.
 
-`net.connect_host_async` and `net.connect_host_async_with_timeout` expose that synchronous resolver
-boundary in their type. Calling either validates and resolves the host and may return an outer
-failure immediately. Success produces one lazy `future TcpStream!` that owns the resolved candidates
-and tries them in system order without blocking on socket readiness. The timeout form starts its
-single deadline before resolution and does not restart it for each candidate. A typical call
-therefore uses `?` once when creating the computation and once after `await`.
+`net.connect_host_async` and `net.connect_host_async_with_timeout` validate and copy NUL-terminated
+host and decimal service text before returning. Invalid input is the outer failure. Success
+produces one lazy `future TcpStream!`; driving it asks the operating-system network provider to
+resolve and connect the host without synchronously invoking the resolver or waiting for socket
+readiness. The timeout form starts its single deadline when the future begins and retains that
+deadline across provider resolution and connection. A typical call therefore uses `?` once when
+creating the computation and once after `await`.
 
 ## TCP Streams and Listeners
 
@@ -144,10 +145,11 @@ cannot affect these deadlines.
 
 ## Current Boundary
 
-Numeric addresses, system host resolution, ordered host connection, synchronous TCP, basic
-asynchronous numeric TCP connection and transfer, boundary-preserving UDP, and monotonic
-synchronous operation timeouts are implemented. Asynchronous TCP candidate fallback and numeric
-TCP readiness/deadline races are implemented; host resolution remains explicitly synchronous.
+Numeric addresses, explicit synchronous system host resolution, ordered synchronous host
+connection, synchronous TCP, provider-resolved asynchronous host connection, asynchronous numeric
+TCP connection and transfer, boundary-preserving UDP, and monotonic synchronous operation timeouts
+are implemented. Async host resolution and connection are one provider operation; the standard
+library does not materialize or retry a second address list on that path.
 Native public-surface qualification covers peer EOF, idle-read timeout, and backpressure during a
 timed complete write. Structured concurrency and explicit pending-child cancellation are not yet
 public. Asynchronous UDP remains open. URLs are provided by `std/url`. HTTP, TLS, and public

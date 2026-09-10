@@ -1,0 +1,47 @@
+//! Validation and owned provider text for deferred host endpoint creation.
+
+see ./index.nct
+
+use /string.String
+
+struct HostEndpoint {
+    host: String
+    service: String
+}
+
+noalloc func valid_host(host: &str): bool {
+    if host.len() == 0 { return false }
+    let bytes = host.bytes()
+    var offset: usize = 0
+    while offset < bytes.len() {
+        if bytes[offset] == 0 || bytes[offset] >= 128 { return false }
+        offset += 1
+    }
+    return true
+}
+
+noalloc func invalid_host(): error {
+    return error.new(
+        "std.net.invalid_host",
+        "host names must be non-empty ASCII text without NUL bytes",
+    )
+}
+
+func host_endpoint(host: &str, port: u16): HostEndpoint! {
+    if !valid_host(host) { return invalid_host() }
+    var owned_host = String.copy(host)
+    owned_host.push('\u{0}')
+    var service = port.to_string()
+    service.push('\u{0}')
+    return HostEndpoint { host: move owned_host, service: move service }
+}
+
+instance HostEndpoint {
+    noalloc method &self.nul_host(): &str from self {
+        return &self.host
+    }
+
+    noalloc method &self.nul_service(): &str from self {
+        return &self.service
+    }
+}

@@ -236,17 +236,17 @@
     <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
-<span class="token-comment">/// Resolves synchronously, then authenticates candidates without blocking the executor thread.</span>
+<span class="token-comment">/// Retains one host endpoint, then resolves and authenticates while the future is driven.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_async</span><span class="token-operator">(</span>host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">future</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
 
-<span class="token-comment">/// Resolves synchronously, then authenticates candidates before one fixed timeout.</span>
+<span class="token-comment">/// Resolves and authenticates through the provider before one future-owned fixed timeout.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_async_with_timeout</span><span class="token-operator">(</span>
     host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
     timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">future</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
 
-<span class="token-comment">/// Resolves synchronously, then authenticates asynchronously with one additional root.</span>
+<span class="token-comment">/// Resolves and authenticates asynchronously with one retained additional root.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_async_with_trust_anchor</span><span class="token-operator">(</span>
     host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
@@ -286,10 +286,10 @@
     timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span>
 
-<span class="token-comment">/// Resolves immediately and returns one package-internal HTTP/1.1 TLS computation.</span>
+<span class="token-comment">/// Retains one endpoint and returns a package-internal HTTP/1.1 TLS computation.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">connect_http1_async</span><span class="token-operator">(</span>host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">future</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
 
-<span class="token-comment">/// Resolves immediately and authenticates HTTP/1.1 TLS before a fixed timeout.</span>
+<span class="token-comment">/// Resolves and authenticates HTTP/1.1 TLS before a future-owned fixed timeout.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">connect_http1_async_with_timeout</span><span class="token-operator">(</span>
     host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>

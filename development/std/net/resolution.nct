@@ -2,6 +2,7 @@
 
 see ./errors.nct
 see ./index.nct
+see ./host_endpoint.nct
 see ./tcp.nct
 see ./values.nct
 
@@ -24,13 +25,6 @@ enum HostResolutionAttempt {
     input(failure: error)
     resolver(failure: error)
     allocation(failure: error)
-}
-
-noalloc func invalid_host(): error {
-    return error.new(
-        "std.net.invalid_host",
-        "host names must be non-empty ASCII text without NUL bytes",
-    )
 }
 
 noalloc func resolver_error(failure: ResolverFailure): error {
@@ -57,17 +51,6 @@ noalloc func resolver_error(failure: ResolverFailure): error {
             return error.new("std.net.target_error", "system resolver returned an invalid result")
         }
     }
-}
-
-noalloc func valid_host(host: &str): bool {
-    if host.len() == 0 { return false }
-    let bytes = host.bytes()
-    var offset: usize = 0
-    while offset < bytes.len() {
-        if bytes[offset] == 0 || bytes[offset] >= 128 { return false }
-        offset += 1
-    }
-    return true
 }
 
 noalloc func contains_address(
@@ -202,35 +185,29 @@ noalloc func connect_resolved(
     return last_failure.context("every resolved address failed to connect")
 }
 
-async func connect_resolved_async(
-    addresses: Vec<SocketAddress>,
-    connection: ConnectionDeadline,
+async func connect_endpoint_async(
+    endpoint: HostEndpoint,
+    timeout: Duration?,
 ): TcpStream! {
-    var deadline = move connection
-    var offset: usize = 0
-    var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
-    while offset < addresses.len() {
-        let address = addresses[offset]
-        match await substrate.connect_stream_async_before(
-            substrate_address(&address),
-            &+deadline,
-        ) {
-            StreamConnectionAttempt.ready(ready_connection) {
-                return stream_from_connection(move ready_connection)
-            }
-            StreamConnectionAttempt.failed(failure) {
-                last_failure = network_error(move failure)
-            }
+    let owned_endpoint = move endpoint
+    var deadline = substrate.connection_deadline(timeout)
+    match await substrate.connect_host_stream_async_before(
+        owned_endpoint.nul_host(),
+        owned_endpoint.nul_service(),
+        &+deadline,
+    ) {
+        StreamConnectionAttempt.ready(ready_connection) {
+            return stream_from_connection(move ready_connection)
         }
-        offset += 1
+        StreamConnectionAttempt.failed(failure) {
+            return network_error(move failure)
+        }
     }
-    return last_failure.context("every resolved address failed to connect")
 }
 
 func connect_host_async(host: &str, port: u16): (future TcpStream!)! {
-    let addresses = resolve(host, port)?
-    let deadline = substrate.connection_deadline(none)
-    return connect_resolved_async(move addresses, move deadline)
+    let endpoint = host_endpoint(host, port)?
+    return connect_endpoint_async(move endpoint, none)
 }
 
 func connect_host_async_with_timeout(
@@ -238,9 +215,8 @@ func connect_host_async_with_timeout(
     port: u16,
     timeout: Duration,
 ): (future TcpStream!)! {
-    let deadline = substrate.connection_deadline(timeout)
-    let addresses = resolve(host, port)?
-    return connect_resolved_async(move addresses, move deadline)
+    let endpoint = host_endpoint(host, port)?
+    return connect_endpoint_async(move endpoint, timeout)
 }
 
 construct TcpStream {

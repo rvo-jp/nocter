@@ -48,17 +48,17 @@ construct TlsStream {
     ): Self!
 }
 
-/// Resolves synchronously, then authenticates candidates without blocking the executor thread.
+/// Retains one host endpoint, then resolves and authenticates while the future is driven.
 pub func connect_async(host: &str, port: u16): (future TlsStream!)!
 
-/// Resolves synchronously, then authenticates candidates before one fixed timeout.
+/// Resolves and authenticates through the provider before one future-owned fixed timeout.
 pub func connect_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
 ): (future TlsStream!)!
 
-/// Resolves synchronously, then authenticates asynchronously with one additional root.
+/// Resolves and authenticates asynchronously with one retained additional root.
 pub func connect_async_with_trust_anchor(
     host: &str,
     port: u16,
@@ -98,10 +98,10 @@ pub(/) func connect_http1_with_trust_anchor_and_timeout(
     timeout: Duration,
 ): TlsStream!
 
-/// Resolves immediately and returns one package-internal HTTP/1.1 TLS computation.
+/// Retains one endpoint and returns a package-internal HTTP/1.1 TLS computation.
 pub(/) func connect_http1_async(host: &str, port: u16): (future TlsStream!)!
 
-/// Resolves immediately and authenticates HTTP/1.1 TLS before a fixed timeout.
+/// Resolves and authenticates HTTP/1.1 TLS before a future-owned fixed timeout.
 pub(/) func connect_http1_async_with_timeout(
     host: &str,
     port: u16,

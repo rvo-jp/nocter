@@ -204,6 +204,7 @@
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>contracts<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>formatting<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>host_endpoint<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>parsing<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>resolution<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>resolution_tests<span class="token-operator">.</span>nct
@@ -244,6 +245,20 @@
 
 <span class="token-comment">/// One uniquely owned UDP datagram socket.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">UdpSocket</span>
+
+<span class="token-comment">/// Owned validated provider endpoint text used by package-internal asynchronous clients.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">struct</span> <span class="token-type">HostEndpoint</span>
+
+<span class="token-comment">/// Copies and validates one host and decimal service for asynchronous provider resolution.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">host_endpoint</span><span class="token-operator">(</span>host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">HostEndpoint</span><span class="token-operator">!</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">HostEndpoint</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns the retained NUL-terminated host text.</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">nul_host</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self
+
+    <span class="token-comment">/// Returns the retained NUL-terminated decimal service text.</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">nul_service</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span> from self
+<span class="token-operator">}</span>
 
 <span class="token-comment">/// Converts one public socket address to the target-independent provider representation.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">substrate_address</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">NetworkAddress</span>
@@ -451,10 +466,10 @@
     timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TcpStream</span><span class="token-operator">!</span>
 
-<span class="token-comment">/// Resolves synchronously, then returns an asynchronous ordered candidate connection.</span>
+<span class="token-comment">/// Validates and retains one host endpoint, then resolves and connects while the future is driven.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_host_async</span><span class="token-operator">(</span>host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">future</span> <span class="token-type">TcpStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
 
-<span class="token-comment">/// Resolves synchronously, then connects candidates before one fixed timeout.</span>
+<span class="token-comment">/// Resolves and connects through the provider before one future-owned fixed timeout.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_host_async_with_timeout</span><span class="token-operator">(</span>
     host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>

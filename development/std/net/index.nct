@@ -16,6 +16,7 @@ use /vec.Vec
 
 see ./contracts.nct
 see ./formatting.nct
+see ./host_endpoint.nct
 see ./parsing.nct
 see ./resolution.nct
 see ./resolution_tests.nct
@@ -56,6 +57,20 @@ pub struct TcpListener
 
 /// One uniquely owned UDP datagram socket.
 pub struct UdpSocket
+
+/// Owned validated provider endpoint text used by package-internal asynchronous clients.
+pub(/) struct HostEndpoint
+
+/// Copies and validates one host and decimal service for asynchronous provider resolution.
+pub(/) func host_endpoint(host: &str, port: u16): HostEndpoint!
+
+instance HostEndpoint {
+    /// Returns the retained NUL-terminated host text.
+    pub(/) noalloc method &self.nul_host(): &str from self
+
+    /// Returns the retained NUL-terminated decimal service text.
+    pub(/) noalloc method &self.nul_service(): &str from self
+}
 
 /// Converts one public socket address to the target-independent provider representation.
 pub(/) noalloc func substrate_address(address: &SocketAddress): NetworkAddress
@@ -263,10 +278,10 @@ pub async func connect_tcp_async_with_timeout(
     timeout: Duration,
 ): TcpStream!
 
-/// Resolves synchronously, then returns an asynchronous ordered candidate connection.
+/// Validates and retains one host endpoint, then resolves and connects while the future is driven.
 pub func connect_host_async(host: &str, port: u16): (future TcpStream!)!
 
-/// Resolves synchronously, then connects candidates before one fixed timeout.
+/// Resolves and connects through the provider before one future-owned fixed timeout.
 pub func connect_host_async_with_timeout(
     host: &str,
     port: u16,

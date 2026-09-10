@@ -259,7 +259,11 @@ pub const fn bundled_primitive_source_location(
         Role::MonotonicDeadline => (&["internal", "time"], "monotonic_deadline_raw"),
         Role::TaskJoin => (&["task"], "join"),
         Role::NetworkConnectionCreate => (DARWIN_NET, "network_connection_create_raw"),
+        Role::NetworkConnectionCreateHost => (DARWIN_NET, "network_connection_create_host_raw"),
         Role::NetworkTlsConnectionCreate => (DARWIN_NET, "network_tls_connection_create_raw"),
+        Role::NetworkTlsConnectionCreateHost => {
+            (DARWIN_NET, "network_tls_connection_create_host_raw")
+        }
         Role::NetworkTlsConnectionMatchesApplicationProtocol => (
             DARWIN_NET,
             "network_tls_connection_matches_application_protocol_raw",

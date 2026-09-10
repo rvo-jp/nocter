@@ -5,32 +5,27 @@ see ./stream.nct
 
 use /internal/net as substrate
 use /internal/net.{
-    ConnectionDeadline,
     StreamConnectionAttempt,
     TransferAttempt,
     UnitAttempt,
 }
 use /internal/ptr
 use /net as net
-use /net.SocketAddress
 use /ptr as public_ptr
 use /string.String
 use /time.Duration
 use /vec.Vec
 
-async func connect_candidates_async(
-    server_name: String,
+async func connect_endpoint_async(
+    endpoint: net.HostEndpoint,
     application_protocol: String,
     trust_anchor: Vec<u8>,
-    addresses: Vec<SocketAddress>,
-    connection_deadline: ConnectionDeadline,
+    timeout: Duration?,
 ): TlsStream! {
-    var owned_server_name = move server_name
+    let owned_endpoint = move endpoint
     var owned_application_protocol = move application_protocol
     var owned_trust_anchor = move trust_anchor
-    var candidates = move addresses
-    var deadline = move connection_deadline
-    let server_text: &str = &owned_server_name
+    var deadline = substrate.connection_deadline(timeout)
     let application_protocol_pointer: *u8 = if owned_application_protocol.len() == 0 {
         ptr.from_addr(0)
     } else {
@@ -41,41 +36,47 @@ async func connect_candidates_async(
     } else {
         public_ptr.from_ref(&owned_trust_anchor[0])
     }
-    var offset: usize = 0
-    var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
-    while offset < candidates.len() {
-        let address = candidates[offset]
-        match await substrate.connect_tls_stream_async_before(
-            net.substrate_address(&address),
-            server_text,
-            application_protocol_pointer,
-            trust_anchor_pointer,
-            owned_trust_anchor.len(),
-            &+deadline,
-        ) {
-            StreamConnectionAttempt.ready(connection) {
-                return TlsStream { connection: move connection }
-            }
-            StreamConnectionAttempt.failed(failure) {
-                last_failure = net.network_error(move failure)
-            }
+    match await substrate.connect_tls_host_stream_async_before(
+        owned_endpoint.nul_host(),
+        owned_endpoint.nul_service(),
+        owned_endpoint.nul_host(),
+        application_protocol_pointer,
+        trust_anchor_pointer,
+        owned_trust_anchor.len(),
+        &+deadline,
+    ) {
+        StreamConnectionAttempt.ready(connection) {
+            return TlsStream { connection: move connection }
         }
-        offset += 1
+        StreamConnectionAttempt.failed(failure) {
+            return net.network_error(move failure)
+        }
     }
-    return last_failure.context("every resolved address failed TLS authentication")
+}
+
+func begin_connect_async(
+    host: &str,
+    port: u16,
+    application_protocol: String,
+    trust_anchor: Vec<u8>,
+    timeout: Duration?,
+): (future TlsStream!)! {
+    let endpoint = net.host_endpoint(host, port)?
+    return connect_endpoint_async(
+        move endpoint,
+        move application_protocol,
+        move trust_anchor,
+        timeout,
+    )
 }
 
 func connect_async(host: &str, port: u16): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(none)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         String.empty(),
         Vec.empty(),
-        move addresses,
-        move deadline,
+        none,
     )
 }
 
@@ -84,16 +85,12 @@ func connect_async_with_timeout(
     port: u16,
     timeout: Duration,
 ): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(timeout)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         String.empty(),
         Vec.empty(),
-        move addresses,
-        move deadline,
+        timeout,
     )
 }
 
@@ -102,16 +99,12 @@ func connect_async_with_trust_anchor(
     port: u16,
     trust_anchor: &TrustAnchor,
 ): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(none)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         String.empty(),
         Vec.from_slice(trust_anchor.bytes()),
-        move addresses,
-        move deadline,
+        none,
     )
 }
 
@@ -121,31 +114,23 @@ func connect_async_with_trust_anchor_and_timeout(
     trust_anchor: &TrustAnchor,
     timeout: Duration,
 ): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(timeout)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         String.empty(),
         Vec.from_slice(trust_anchor.bytes()),
-        move addresses,
-        move deadline,
+        timeout,
     )
 }
 
 func connect_http1_async(host: &str, port: u16): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(none)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
     let application_protocol = http1_application_protocol()
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         move application_protocol,
         Vec.empty(),
-        move addresses,
-        move deadline,
+        none,
     )
 }
 
@@ -154,17 +139,13 @@ func connect_http1_async_with_timeout(
     port: u16,
     timeout: Duration,
 ): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(timeout)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
     let application_protocol = http1_application_protocol()
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         move application_protocol,
         Vec.empty(),
-        move addresses,
-        move deadline,
+        timeout,
     )
 }
 
@@ -173,17 +154,13 @@ func connect_http1_async_with_trust_anchor(
     port: u16,
     trust_anchor: &TrustAnchor,
 ): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(none)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
     let application_protocol = http1_application_protocol()
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         move application_protocol,
         Vec.from_slice(trust_anchor.bytes()),
-        move addresses,
-        move deadline,
+        none,
     )
 }
 
@@ -193,17 +170,13 @@ func connect_http1_async_with_trust_anchor_and_timeout(
     trust_anchor: &TrustAnchor,
     timeout: Duration,
 ): (future TlsStream!)! {
-    let deadline = substrate.connection_deadline(timeout)
-    let addresses = net.resolve(host, port)?
-    var server_name = String.copy(host)
-    server_name.push('\u{0}')
     let application_protocol = http1_application_protocol()
-    return connect_candidates_async(
-        move server_name,
+    return begin_connect_async(
+        host,
+        port,
         move application_protocol,
         Vec.from_slice(trust_anchor.bytes()),
-        move addresses,
-        move deadline,
+        timeout,
     )
 }
 

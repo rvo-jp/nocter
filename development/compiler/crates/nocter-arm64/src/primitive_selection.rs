@@ -164,7 +164,9 @@ pub(crate) fn select(
         | PrimitiveRole::MonotonicDeadline
         | PrimitiveRole::TaskJoin => select_async_primitive(operation, target, selected),
         PrimitiveRole::NetworkConnectionCreate
+        | PrimitiveRole::NetworkConnectionCreateHost
         | PrimitiveRole::NetworkTlsConnectionCreate
+        | PrimitiveRole::NetworkTlsConnectionCreateHost
         | PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol
         | PrimitiveRole::NetworkConnectionStart
         | PrimitiveRole::NetworkConnectionEventDescriptor
@@ -244,7 +246,9 @@ fn network_expected_arguments(role: PrimitiveRole) -> &'static [MachineValueClas
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
         ],
+        PrimitiveRole::NetworkConnectionCreateHost => TWO_DIRECT_ARGUMENTS,
         PrimitiveRole::NetworkTlsConnectionCreate => NETWORK_TLS_CREATE_ARGUMENTS,
+        PrimitiveRole::NetworkTlsConnectionCreateHost => NETWORK_TLS_HOST_CREATE_ARGUMENTS,
         PrimitiveRole::NetworkConnectionReceiveEvent
         | PrimitiveRole::NetworkConnectionTryReceiveEvent => &[
             MachineValueClass::Direct { words: 1 },
@@ -262,7 +266,9 @@ fn network_expected_arguments(role: PrimitiveRole) -> &'static [MachineValueClas
 fn network_result_is_valid(target: Arm64PrimitiveTarget<'_>) -> bool {
     match target.role() {
         PrimitiveRole::NetworkConnectionCreate
+        | PrimitiveRole::NetworkConnectionCreateHost
         | PrimitiveRole::NetworkTlsConnectionCreate
+        | PrimitiveRole::NetworkTlsConnectionCreateHost
         | PrimitiveRole::NetworkConnectionReceiveEvent
         | PrimitiveRole::NetworkConnectionTryReceiveEvent
         | PrimitiveRole::NetworkListenerCreate
@@ -313,6 +319,20 @@ const NETWORK_TLS_CREATE_ARGUMENTS: &[MachineValueClass] = &[
     MachineValueClass::Direct { words: 1 },
     MachineValueClass::Direct { words: 1 },
     MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+];
+
+const NETWORK_TLS_HOST_CREATE_ARGUMENTS: &[MachineValueClass] = &[
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+];
+
+const TWO_DIRECT_ARGUMENTS: &[MachineValueClass] = &[
     MachineValueClass::Direct { words: 1 },
     MachineValueClass::Direct { words: 1 },
 ];

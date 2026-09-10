@@ -16,18 +16,20 @@ use crate::{
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinNetworkAdapterImports,
     Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
     Arm64DarwinNetworkListenerError, Arm64DarwinNetworkListenerTargets,
-    Arm64DarwinTlsAdapterImports, Arm64DarwinTlsConnectionError, Arm64DarwinTlsProtocolError,
-    Arm64DataRegister, Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize,
-    Arm64ProgramBuilder, Arm64ProgramError, Arm64Register, add_darwin_plain_connection_targets,
-    add_darwin_plain_listener_targets, add_darwin_tls_application_protocol_match_target,
-    add_darwin_tls_connection_create_target,
+    Arm64DarwinTlsAdapterImports, Arm64DarwinTlsConnectionCreateTargets,
+    Arm64DarwinTlsConnectionError, Arm64DarwinTlsProtocolError, Arm64DataRegister, Arm64DataSize,
+    Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError,
+    Arm64Register, add_darwin_plain_connection_targets, add_darwin_plain_listener_targets,
+    add_darwin_tls_application_protocol_match_target, add_darwin_tls_connection_create_targets,
 };
 
 /// One source primitive in the closed plain-connection adapter family.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64DarwinNetworkPrimitive {
     Create,
+    CreateHost,
     TlsCreate,
+    TlsCreateHost,
     TlsApplicationProtocolMatches,
     Start,
     EventDescriptor,
@@ -57,7 +59,9 @@ pub enum Arm64DarwinNetworkPrimitive {
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Arm64DarwinNetworkPrimitiveAbis<'program> {
     connection_create: Option<&'program MachinePrimitiveTarget>,
+    connection_create_host: Option<&'program MachinePrimitiveTarget>,
     tls_connection_create: Option<&'program MachinePrimitiveTarget>,
+    tls_connection_create_host: Option<&'program MachinePrimitiveTarget>,
     connection_receive_event: Option<&'program MachinePrimitiveTarget>,
     connection_try_receive_event: Option<&'program MachinePrimitiveTarget>,
     listener_create: Option<&'program MachinePrimitiveTarget>,
@@ -73,7 +77,9 @@ impl<'program> Arm64DarwinNetworkPrimitiveAbis<'program> {
     ) -> Result<(), Arm64DarwinNetworkPrimitiveError> {
         let slot = match target.role() {
             PrimitiveRole::NetworkConnectionCreate => &mut self.connection_create,
+            PrimitiveRole::NetworkConnectionCreateHost => &mut self.connection_create_host,
             PrimitiveRole::NetworkTlsConnectionCreate => &mut self.tls_connection_create,
+            PrimitiveRole::NetworkTlsConnectionCreateHost => &mut self.tls_connection_create_host,
             PrimitiveRole::NetworkConnectionReceiveEvent => &mut self.connection_receive_event,
             PrimitiveRole::NetworkConnectionTryReceiveEvent => {
                 &mut self.connection_try_receive_event
@@ -98,7 +104,9 @@ impl Arm64DarwinNetworkPrimitive {
     pub(crate) const fn from_role(role: PrimitiveRole) -> Option<Self> {
         match role {
             PrimitiveRole::NetworkConnectionCreate => Some(Self::Create),
+            PrimitiveRole::NetworkConnectionCreateHost => Some(Self::CreateHost),
             PrimitiveRole::NetworkTlsConnectionCreate => Some(Self::TlsCreate),
+            PrimitiveRole::NetworkTlsConnectionCreateHost => Some(Self::TlsCreateHost),
             PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol => {
                 Some(Self::TlsApplicationProtocolMatches)
             }
@@ -133,7 +141,9 @@ impl Arm64DarwinNetworkPrimitive {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64DarwinNetworkPrimitiveTargets {
     source_connection_create: Option<Arm64FunctionId>,
+    source_connection_create_host: Option<Arm64FunctionId>,
     source_tls_connection_create: Option<Arm64FunctionId>,
+    source_tls_connection_create_host: Option<Arm64FunctionId>,
     tls_application_protocol_matches: Option<Arm64FunctionId>,
     source_listener_create: Option<Arm64FunctionId>,
     connection: Arm64DarwinNetworkConnectionTargets,
@@ -157,37 +167,47 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         let imports = Arm64DarwinNetworkAdapterImports::declare(builder)?;
         let connection = add_darwin_plain_connection_targets(builder, &imports)?;
         let tls = (abis.tls_connection_create.is_some()
+            || abis.tls_connection_create_host.is_some()
             || roles.contains(&PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol))
         .then(|| Arm64DarwinTlsAdapterImports::declare(builder))
         .transpose()?;
         validate_connection_event_result(machine, roles, abis.connection_receive_event)?;
         validate_connection_event_poll_result(machine, roles, abis.connection_try_receive_event)?;
-        let source_connection_create = abis
-            .connection_create
-            .map(|target| {
-                let layout = creation_layout(machine, target, 1)?;
-                let wrapper = builder.declare_function();
-                builder.define_function(
-                    wrapper,
-                    source_create_code(connection.create(), layout, 1)?,
-                )?;
-                Ok::<Arm64FunctionId, Arm64DarwinNetworkPrimitiveError>(wrapper)
-            })
-            .transpose()?;
-        let source_tls_connection_create = abis
-            .tls_connection_create
-            .map(|target| {
-                let layout = creation_layout(machine, target, 5)?;
-                let tls = tls
-                    .as_ref()
-                    .ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
-                let production =
-                    add_darwin_tls_connection_create_target(builder, &imports, tls, connection)?;
-                let wrapper = builder.declare_function();
-                builder.define_function(wrapper, source_create_code(production, layout, 5)?)?;
-                Ok::<Arm64FunctionId, Arm64DarwinNetworkPrimitiveError>(wrapper)
-            })
-            .transpose()?;
+        let source_connection_create = declare_source_create(
+            machine,
+            abis.connection_create,
+            Some(connection.create()),
+            1,
+            builder,
+        )?;
+        let source_connection_create_host = declare_source_create(
+            machine,
+            abis.connection_create_host,
+            Some(connection.create_host()),
+            2,
+            builder,
+        )?;
+        let tls_connection_create_targets = declare_tls_connection_create_targets(
+            abis,
+            builder,
+            &imports,
+            tls.as_ref(),
+            connection,
+        )?;
+        let source_tls_connection_create = declare_source_create(
+            machine,
+            abis.tls_connection_create,
+            tls_connection_create_targets.map(Arm64DarwinTlsConnectionCreateTargets::address),
+            5,
+            builder,
+        )?;
+        let source_tls_connection_create_host = declare_source_create(
+            machine,
+            abis.tls_connection_create_host,
+            tls_connection_create_targets.map(Arm64DarwinTlsConnectionCreateTargets::host),
+            6,
+            builder,
+        )?;
         let tls_application_protocol_matches = roles
             .contains(&PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol)
             .then(|| {
@@ -215,20 +235,18 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             .transpose()?;
         validate_listener_event_result(machine, roles, abis.listener_receive_event)?;
         validate_listener_event_poll_result(machine, roles, abis.listener_try_receive_event)?;
-        let source_listener_create = match (abis.listener_create, listener) {
-            (Some(target), Some(listener)) => {
-                let layout = creation_layout(machine, target, 1)?;
-                let wrapper = builder.declare_function();
-                builder
-                    .define_function(wrapper, source_create_code(listener.create(), layout, 1)?)?;
-                Some(wrapper)
-            }
-            (None, _) => None,
-            (Some(_), None) => return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi),
-        };
+        let source_listener_create = declare_source_create(
+            machine,
+            abis.listener_create,
+            listener.map(Arm64DarwinNetworkListenerTargets::create),
+            1,
+            builder,
+        )?;
         Ok(Some(Self {
             source_connection_create,
+            source_connection_create_host,
             source_tls_connection_create,
+            source_tls_connection_create_host,
             tls_application_protocol_matches,
             source_listener_create,
             connection,
@@ -242,7 +260,9 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         let events = self.connection.events();
         match primitive {
             Arm64DarwinNetworkPrimitive::Create => self.source_connection_create,
+            Arm64DarwinNetworkPrimitive::CreateHost => self.source_connection_create_host,
             Arm64DarwinNetworkPrimitive::TlsCreate => self.source_tls_connection_create,
+            Arm64DarwinNetworkPrimitive::TlsCreateHost => self.source_tls_connection_create_host,
             Arm64DarwinNetworkPrimitive::TlsApplicationProtocolMatches => {
                 self.tls_application_protocol_matches
             }
@@ -322,6 +342,46 @@ struct CreationLayout {
     payload_offset: u16,
     present_tag: u64,
     absent_tag: u64,
+}
+
+fn declare_source_create(
+    machine: &nocter_machine::MachineProgram,
+    target: Option<&MachinePrimitiveTarget>,
+    production: Option<Arm64FunctionId>,
+    argument_words: u8,
+    builder: &mut Arm64ProgramBuilder,
+) -> Result<Option<Arm64FunctionId>, Arm64DarwinNetworkPrimitiveError> {
+    let Some(target) = target else {
+        return Ok(None);
+    };
+    let production = production.ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
+    let layout = creation_layout(machine, target, argument_words)?;
+    let wrapper = builder.declare_function();
+    builder.define_function(
+        wrapper,
+        source_create_code(production, layout, argument_words)?,
+    )?;
+    Ok(Some(wrapper))
+}
+
+fn declare_tls_connection_create_targets(
+    abis: Arm64DarwinNetworkPrimitiveAbis<'_>,
+    builder: &mut Arm64ProgramBuilder,
+    network: &Arm64DarwinNetworkAdapterImports,
+    tls: Option<&Arm64DarwinTlsAdapterImports>,
+    connection: Arm64DarwinNetworkConnectionTargets,
+) -> Result<Option<Arm64DarwinTlsConnectionCreateTargets>, Arm64DarwinNetworkPrimitiveError> {
+    (abis.tls_connection_create.is_some() || abis.tls_connection_create_host.is_some())
+        .then(|| {
+            add_darwin_tls_connection_create_targets(
+                builder,
+                network,
+                tls.ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?,
+                connection,
+            )
+            .map_err(Arm64DarwinNetworkPrimitiveError::from)
+        })
+        .transpose()
 }
 
 fn creation_layout(

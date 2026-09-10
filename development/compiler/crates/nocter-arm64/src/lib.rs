@@ -194,7 +194,8 @@ pub use darwin_network_primitive_targets::{
 pub use darwin_tls_adapter::Arm64DarwinTlsAdapterImports;
 pub use darwin_tls_callback::{Arm64DarwinTlsCallbackError, add_darwin_tls_configuration_callback};
 pub use darwin_tls_connection::{
-    Arm64DarwinTlsConnectionError, add_darwin_tls_connection_create_target,
+    Arm64DarwinTlsConnectionCreateTargets, Arm64DarwinTlsConnectionError,
+    add_darwin_tls_connection_create_targets,
 };
 pub use darwin_tls_protocol::Arm64DarwinTlsProtocolError;
 pub(crate) use darwin_tls_protocol::add_darwin_tls_application_protocol_match_target;

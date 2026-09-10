@@ -366,12 +366,14 @@ fn assert_aggregate_layouts(program: &nocter_mir::MirProgram, layouts: &MachineL
 }
 
 fn assert_tuple_layout(types: &RuntimeTypeTable, layouts: &MachineLayoutStore) {
-    let tuple = types
-        .iter()
-        .find_map(|(ty, kind)| {
-            matches!(kind, RuntimeType::Tuple(elements) if elements.len() == 3).then_some(ty)
-        })
-        .expect("fixture tuple type");
+    let tuple = tuple_type(
+        types,
+        &[
+            runtime_primitive(types, RuntimePrimitive::Unsigned(8)),
+            runtime_primitive(types, RuntimePrimitive::Unsigned(64)),
+            runtime_primitive(types, RuntimePrimitive::Unsigned(16)),
+        ],
+    );
     let tuple_layout = layouts.get(tuple).unwrap();
     assert_eq!((tuple_layout.size(), tuple_layout.alignment()), (24, 8));
     let MachineLayoutKind::Tuple { elements } = tuple_layout.kind() else {
@@ -697,13 +699,14 @@ fn abi_classifies_indirect_arguments_and_all_return_forms_from_stored_layouts() 
     let empty = named_nominal(&program, "Empty");
     let pair = named_nominal(&program, "Pair");
     let large = named_nominal(&program, "Large");
-    let tuple = program
-        .types()
-        .iter()
-        .find_map(|(ty, kind)| {
-            matches!(kind, RuntimeType::Tuple(elements) if elements.len() == 3).then_some(ty)
-        })
-        .expect("ABI fixture tuple");
+    let tuple = tuple_type(
+        program.types(),
+        &[
+            runtime_primitive(program.types(), RuntimePrimitive::Unsigned(64)),
+            runtime_primitive(program.types(), RuntimePrimitive::Unsigned(64)),
+            runtime_primitive(program.types(), RuntimePrimitive::Unsigned(64)),
+        ],
+    );
 
     let indirect = abi
         .iter()
@@ -2137,6 +2140,16 @@ fn runtime_primitive(types: &RuntimeTypeTable, primitive: RuntimePrimitive) -> T
     types
         .primitive(primitive)
         .unwrap_or_else(|| panic!("missing runtime primitive {primitive:?}"))
+}
+
+fn tuple_type(types: &RuntimeTypeTable, expected: &[TypeId]) -> TypeId {
+    types
+        .iter()
+        .find_map(|(ty, kind)| {
+            matches!(kind, RuntimeType::Tuple(elements) if elements.as_ref() == expected)
+                .then_some(ty)
+        })
+        .expect("fixture tuple type")
 }
 
 fn lower_fixture(source: &str) -> nocter_mir::MirProgram {

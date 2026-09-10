@@ -19,10 +19,11 @@ so malformed non-empty DER is reported as `std.net.tls_failed`, not during byte 
 construction. The asynchronous operations copy the anchor into the deferred computation and do not
 borrow the caller's `TrustAnchor` after returning.
 
-`tls.connect_async` and `tls.connect_async_with_timeout` perform resolution before returning a
-deferred computation. Resolution failure therefore belongs to the outer result; authentication or
-transport failure after the computation starts belongs to the awaited result. The timeout variant
-starts one monotonic deadline before resolution and preserves it across every address candidate.
+`tls.connect_async` and `tls.connect_async_with_timeout` validate and retain the host endpoint before
+returning a deferred computation. Invalid host input belongs to the outer result. Provider
+resolution, authentication, and transport failure belong to the awaited result. The timeout
+variant starts one monotonic deadline when the future begins and preserves it across provider
+resolution and authentication.
 
 The `std/http` client selects this authenticated transport for `https` URLs. Its
 `with_trust_anchor` policy carries one additional root through the TLS-owned connection boundary;
@@ -57,6 +58,5 @@ stream transfers ownership through the same nonwaiting cleanup boundary.
 ## Failures
 
 Resolution and transport failures retain the stable `std.net.*` vocabulary. TLS provider failures
-use `std.net.tls_failed`; native error domains and codes remain private. Failure of one resolved
-candidate does not restart the timeout or change the authentication name, and the final error is
-contextualized after every candidate fails.
+use `std.net.tls_failed`; native error domains and codes remain private. Provider endpoint
+selection does not restart the timeout or change the authentication name.
