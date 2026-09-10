@@ -2,8 +2,9 @@
 
 ## Current State
 
-Nocter v0.43.0 development is active on `develop-v0.43.0`. Phases 0-6 are complete and the
-implementation and source-tree qualification are closed.
+Nocter v0.43.0 implementation and source-tree qualification are complete on the development
+branch, with no open practical finding. Its candidate identity is fixed at `0.43.0`; public
+latest-release references remain at v0.42.0.
 Network.framework now supplies plain TCP and authenticated TLS
 through one owner/event model. System trust, custom-root augmentation, hostname authentication,
 synchronous TLS, asynchronous TLS, HTTP/1.1 ALPN, and custom-trust HTTPS have deterministic local
@@ -11,15 +12,12 @@ native coverage.
 
 ## Next Work
 
-Prepare the v0.43.0 release: update release identity and public release documentation, build and
-inspect the final archive from a clean revision, requalify the extracted adjacent toolchain home,
-and record reproducibility evidence before tagging or publication. Phase 6 already qualifies trust
-failures, hostname and certificate validity, truncated records, handshake deadlines, negotiated
-HTTP/1.1 ALPN, cancellation ownership, editor projection, examples, pre-release packaging, and the
-complete repository gate. Keep UDP on its descriptor substrate and keep native objects and
-callbacks compiler-owned; do not add source-level FFI or a general callback escape hatch.
+Commit the release-content identity, run two independent complete compiler gates, run the explicit
+public-HTTPS acquisition test, build the archive twice from isolated targets, qualify a fresh
+installed home from the retained candidate, and record exact source and artifact identities.
+Publication is already authorized, but must reuse only that retained qualified archive.
 
-Preserve every published tag and asset.
+Preserve every published tag and asset, including v0.42.0.
 
 ## Blockers
 
