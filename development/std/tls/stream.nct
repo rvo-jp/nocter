@@ -5,6 +5,7 @@ see ./index.nct
 use /internal/net as substrate
 use /internal/net.{
     AddressAttempt,
+    ConnectionDeadline,
     NetworkShutdown,
     StreamConnection,
     StreamConnectionAttempt,
@@ -25,13 +26,12 @@ struct TlsStream {
 func connect_candidates(
     host: &str,
     addresses: &[SocketAddress],
-    timeout: Duration?,
+    deadline: &+ConnectionDeadline,
 ): TlsStream! {
     var server_name = String.copy(host)
     server_name.push('\u{0}')
     let server_text: &str = &server_name
     let no_application_protocol: *u8 = ptr.from_addr(0)
-    var deadline = substrate.connection_deadline(timeout)
     var offset: usize = 0
     var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
     while offset < addresses.len() {
@@ -40,7 +40,7 @@ func connect_candidates(
             net.substrate_address(&address),
             server_text.ptr(),
             no_application_protocol,
-            &+deadline,
+            deadline,
         ) {
             StreamConnectionAttempt.ready(connection) {
                 return TlsStream { connection: move connection }
@@ -56,13 +56,15 @@ func connect_candidates(
 
 construct TlsStream {
     func connect(host: &str, port: u16): Self! {
+        var deadline = substrate.connection_deadline(none)
         let addresses = net.resolve(host, port)?
-        return connect_candidates(host, &addresses, none)
+        return connect_candidates(host, &addresses, &+deadline)
     }
 
     func connect_with_timeout(host: &str, port: u16, timeout: Duration): Self! {
+        var deadline = substrate.connection_deadline(timeout)
         let addresses = net.resolve(host, port)?
-        return connect_candidates(host, &addresses, timeout)
+        return connect_candidates(host, &addresses, &+deadline)
     }
 }
 
