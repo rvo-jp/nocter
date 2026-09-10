@@ -2,18 +2,18 @@
 
 ## Current State
 
-Publication of the qualified v0.44.0 candidate is authorized and in progress. The retained archive
-was built from release-content commit `2409fb55d11eccb00d82f655128df024fdcbcda4`; its identity must
-remain unchanged through the public audit.
+Nocter v0.44.0 is published and externally audited. It separates the `async` producer modifier from
+the structural `future T` value type without retaining the old `async T` spelling or result-driven
+execution inference. The public asset is byte-identical to the retained qualified archive built
+from release-content commit `2409fb55d11eccb00d82f655128df024fdcbcda4`.
 
 ## Next Work
 
-Integrate the public latest-release surfaces into `main`, create and push one annotated `v0.44.0`
-tag, upload the retained archive as the release's only asset, and verify the public tag,
-latest-release endpoint, asset bytes, extracted installation, and remote `main`. Record that
-evidence and stop.
+Plan the next milestone only when requested. A later asynchronous API phase may evaluate `_async`
+naming and a separately enforceable `noblock` guarantee, but neither should be changed without a
+public source-design decision and practical standard-library evidence.
 
-Preserve every published tag and asset, including v0.43.0.
+Preserve every published tag and asset, including v0.44.0.
 
 ## Blockers
 
