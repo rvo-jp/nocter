@@ -5,6 +5,7 @@ use nocter_runtime_contract::{
     DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerKind,
 };
 
+use crate::darwin_network_listener_event::add_darwin_network_listener_event_target;
 use crate::darwin_network_owner_creation::{
     emit_darwin_network_close_descriptor, emit_darwin_network_create_channel,
     emit_darwin_network_create_serial_queue, emit_darwin_network_install_pointer_handler,
@@ -15,14 +16,16 @@ use crate::darwin_network_owner_event::add_darwin_network_owner_event_descriptor
 use crate::darwin_network_owner_lifecycle::add_darwin_network_owner_lifecycle_targets;
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64CodeBuilder, Arm64CodeError, Arm64DarwinBlockDescriptorId, Arm64DarwinBlockError,
-    Arm64DarwinNetworkAdapterImports, Arm64DarwinNetworkCallbackError,
-    Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerEventError,
-    Arm64DarwinNetworkOwnerLifecycleError, Arm64DarwinNetworkOwnerLifecycleTargets,
-    Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
-    Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
-    add_darwin_network_completion_callback, add_darwin_network_state_callback,
-    add_darwin_pointer_capture_block_descriptor, emit_darwin_network_owner_initialize,
+    Arm64CodeBuilder, Arm64CodeError, Arm64DarwinAcceptedConnectionAdoptionTarget,
+    Arm64DarwinBlockDescriptorId, Arm64DarwinBlockError, Arm64DarwinNetworkAdapterImports,
+    Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkListenerEventError,
+    Arm64DarwinNetworkListenerEventTarget, Arm64DarwinNetworkOwnerError,
+    Arm64DarwinNetworkOwnerEventError, Arm64DarwinNetworkOwnerLifecycleError,
+    Arm64DarwinNetworkOwnerLifecycleTargets, Arm64DarwinNetworkOwnerResources, Arm64DataRegister,
+    Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder,
+    Arm64ProgramError, Arm64Register, add_darwin_network_completion_callback,
+    add_darwin_network_state_callback, add_darwin_pointer_capture_block_descriptor,
+    emit_darwin_network_owner_initialize,
 };
 
 /// Native construction and lifecycle entries for one plain Network.framework listener.
@@ -34,6 +37,7 @@ pub struct Arm64DarwinNetworkListenerTargets {
     state_block: Arm64DarwinBlockDescriptorId,
     accept_block: Arm64DarwinBlockDescriptorId,
     event_descriptor: Arm64FunctionId,
+    receive_event: Arm64DarwinNetworkListenerEventTarget,
     lifecycle: Arm64DarwinNetworkOwnerLifecycleTargets,
 }
 
@@ -69,6 +73,11 @@ impl Arm64DarwinNetworkListenerTargets {
     }
 
     #[must_use]
+    pub const fn receive_event(self) -> Arm64DarwinNetworkListenerEventTarget {
+        self.receive_event
+    }
+
+    #[must_use]
     pub const fn lifecycle(self) -> Arm64DarwinNetworkOwnerLifecycleTargets {
         self.lifecycle
     }
@@ -86,6 +95,7 @@ impl Arm64DarwinNetworkListenerTargets {
 pub fn add_darwin_plain_listener_targets(
     program: &mut Arm64ProgramBuilder,
     imports: &Arm64DarwinNetworkAdapterImports,
+    adopt_accepted: Arm64DarwinAcceptedConnectionAdoptionTarget,
 ) -> Result<Arm64DarwinNetworkListenerTargets, Arm64DarwinNetworkListenerError> {
     let state_block = add_darwin_pointer_capture_block_descriptor(
         program,
@@ -121,6 +131,7 @@ pub fn add_darwin_plain_listener_targets(
         imports,
         DarwinNetworkOwnerKind::Listener,
     )?;
+    let receive_event = add_darwin_network_listener_event_target(program, imports, adopt_accepted)?;
     let lifecycle = add_darwin_network_owner_lifecycle_targets(
         program,
         imports,
@@ -135,6 +146,7 @@ pub fn add_darwin_plain_listener_targets(
         state_block,
         accept_block,
         event_descriptor,
+        receive_event,
         lifecycle,
     })
 }
@@ -435,6 +447,7 @@ pub enum Arm64DarwinNetworkListenerError {
     Callback(Arm64DarwinNetworkCallbackError),
     Owner(Arm64DarwinNetworkOwnerError),
     OwnerEvent(Arm64DarwinNetworkOwnerEventError),
+    Event(Arm64DarwinNetworkListenerEventError),
     Lifecycle(Arm64DarwinNetworkOwnerLifecycleError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
@@ -453,6 +466,7 @@ impl std::error::Error for Arm64DarwinNetworkListenerError {
             Self::Callback(error) => Some(error),
             Self::Owner(error) => Some(error),
             Self::OwnerEvent(error) => Some(error),
+            Self::Event(error) => Some(error),
             Self::Lifecycle(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
@@ -475,6 +489,7 @@ convert_error!(Arm64DarwinBlockError, Block);
 convert_error!(Arm64DarwinNetworkCallbackError, Callback);
 convert_error!(Arm64DarwinNetworkOwnerError, Owner);
 convert_error!(Arm64DarwinNetworkOwnerEventError, OwnerEvent);
+convert_error!(Arm64DarwinNetworkListenerEventError, Event);
 convert_error!(Arm64DarwinNetworkOwnerLifecycleError, Lifecycle);
 convert_error!(Arm64CodeError, Code);
 convert_error!(Arm64ProgramError, Program);
@@ -482,19 +497,25 @@ convert_error!(Arm64ProgramError, Program);
 #[cfg(test)]
 mod tests {
     use super::add_darwin_plain_listener_targets;
-    use crate::{Arm64DarwinNetworkAdapterImports, Arm64ProgramBuilder};
+    use crate::{
+        Arm64DarwinNetworkAdapterImports, Arm64ProgramBuilder, add_darwin_plain_connection_targets,
+    };
 
     #[test]
     fn listener_construction_and_lifecycle_targets_are_distinct() {
         let mut program = Arm64ProgramBuilder::new();
         let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
-        let targets = add_darwin_plain_listener_targets(&mut program, &imports).unwrap();
+        let connection = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
+        let targets =
+            add_darwin_plain_listener_targets(&mut program, &imports, connection.adopt_accepted())
+                .unwrap();
         let lifecycle = targets.lifecycle();
         let functions = [
             targets.create(),
             targets.state_callback(),
             targets.accept_callback(),
             targets.event_descriptor(),
+            targets.receive_event().function(),
             lifecycle.start(),
             lifecycle.request_cancel(),
             lifecycle.complete_release_barrier(),

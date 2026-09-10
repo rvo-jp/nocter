@@ -25,7 +25,7 @@ pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,
     DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionEventObservationAbiSchema,
     DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkEventPayload,
-    DarwinNetworkListenerState,
+    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerState,
 };
 pub use darwin_network_address::DarwinNetworkSocketAddressAbiSchema;
 pub use darwin_network_import::{DarwinNetworkAdapterData, DarwinNetworkAdapterFunction};

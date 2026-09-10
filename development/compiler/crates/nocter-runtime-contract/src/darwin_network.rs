@@ -21,6 +21,67 @@ pub struct DarwinNetworkConnectionEventObservationAbiSchema {
     alignment: u64,
 }
 
+/// Provider-object-opaque listener observation with an optional compiler-owned connection.
+///
+/// The first four words contain `(kind, state-or-adoption-status, error-domain, error-code)`.
+/// The final 48 bytes are the fixed optional representation: a one-byte tag, alignment padding,
+/// and one [`DarwinNetworkOwnerAbiSchema`](crate::DarwinNetworkOwnerAbiSchema) payload. A retained
+/// native connection therefore never crosses this ABI.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinNetworkListenerEventObservationAbiSchema {
+    kind_offset: u64,
+    value_offsets: [u64; 3],
+    accepted_tag_offset: u64,
+    accepted_owner_offset: u64,
+    size: u64,
+    alignment: u64,
+}
+
+impl DarwinNetworkListenerEventObservationAbiSchema {
+    pub const ARM64_DARWIN: Self = Self {
+        kind_offset: 0,
+        value_offsets: [8, 16, 24],
+        accepted_tag_offset: 32,
+        accepted_owner_offset: 40,
+        size: 80,
+        alignment: 8,
+    };
+
+    #[must_use]
+    pub const fn kind_offset(self) -> u64 {
+        self.kind_offset
+    }
+
+    #[must_use]
+    pub const fn value_offset(self, lane: usize) -> Option<u64> {
+        if lane < self.value_offsets.len() {
+            Some(self.value_offsets[lane])
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub const fn accepted_tag_offset(self) -> u64 {
+        self.accepted_tag_offset
+    }
+
+    #[must_use]
+    pub const fn accepted_owner_offset(self) -> u64 {
+        self.accepted_owner_offset
+    }
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.alignment
+    }
+}
+
 impl DarwinNetworkConnectionEventObservationAbiSchema {
     pub const ARM64_DARWIN: Self = Self {
         kind_offset: 0,
@@ -331,6 +392,14 @@ pub enum DarwinNetworkListenerState {
 }
 
 impl DarwinNetworkListenerState {
+    pub const ALL: &'static [Self] = &[
+        Self::Invalid,
+        Self::Waiting,
+        Self::Ready,
+        Self::Failed,
+        Self::Cancelled,
+    ];
+
     #[must_use]
     pub const fn code(self) -> u64 {
         match self {
@@ -366,7 +435,7 @@ mod tests {
         DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole,
         DarwinNetworkChannelIoContract, DarwinNetworkChannelIoOutcome,
         DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkEventPayload,
-        DarwinNetworkListenerState,
+        DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerState,
     };
 
     #[test]
@@ -410,6 +479,19 @@ mod tests {
             channel.classify(-1, 9),
             DarwinNetworkChannelIoOutcome::Fatal
         );
+    }
+
+    #[test]
+    fn listener_observation_contains_only_values_and_an_optional_owned_connection() {
+        let schema = DarwinNetworkListenerEventObservationAbiSchema::ARM64_DARWIN;
+        assert_eq!(schema.kind_offset(), 0);
+        assert_eq!(schema.value_offset(0), Some(8));
+        assert_eq!(schema.value_offset(2), Some(24));
+        assert_eq!(schema.value_offset(3), None);
+        assert_eq!(schema.accepted_tag_offset(), 32);
+        assert_eq!(schema.accepted_owner_offset(), 40);
+        assert_eq!(schema.size(), 80);
+        assert_eq!(schema.alignment(), 8);
     }
 
     #[test]

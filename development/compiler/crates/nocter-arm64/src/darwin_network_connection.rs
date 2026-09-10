@@ -6,6 +6,7 @@ use nocter_runtime_contract::{
 };
 
 use crate::darwin_network_connection_address::add_darwin_network_connection_address_targets;
+use crate::darwin_network_connection_adoption::add_darwin_accepted_connection_adoption_target;
 use crate::darwin_network_connection_event::add_darwin_network_connection_event_targets;
 use crate::darwin_network_connection_transfer::add_darwin_network_connection_transfer_targets;
 use crate::darwin_network_owner_creation::{
@@ -18,7 +19,8 @@ use crate::darwin_network_owner_lifecycle::add_darwin_network_owner_lifecycle_ta
 
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64CodeBuilder, Arm64CodeError, Arm64DarwinBlockError, Arm64DarwinNetworkAdapterImports,
+    Arm64CodeBuilder, Arm64CodeError, Arm64DarwinAcceptedConnectionAdoptionTarget,
+    Arm64DarwinBlockError, Arm64DarwinConnectionAdoptionError, Arm64DarwinNetworkAdapterImports,
     Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkConnectionAddressError,
     Arm64DarwinNetworkConnectionAddressTargets, Arm64DarwinNetworkConnectionEventError,
     Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionTransferError,
@@ -34,6 +36,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64DarwinNetworkConnectionTargets {
     create: Arm64FunctionId,
+    adopt_accepted: Arm64DarwinAcceptedConnectionAdoptionTarget,
     state_callback: Arm64FunctionId,
     state_block: crate::Arm64DarwinBlockDescriptorId,
     lifecycle: Arm64DarwinNetworkOwnerLifecycleTargets,
@@ -46,6 +49,11 @@ impl Arm64DarwinNetworkConnectionTargets {
     #[must_use]
     pub const fn create(self) -> Arm64FunctionId {
         self.create
+    }
+
+    #[must_use]
+    pub const fn adopt_accepted(self) -> Arm64DarwinAcceptedConnectionAdoptionTarget {
+        self.adopt_accepted
     }
 
     #[must_use]
@@ -106,6 +114,13 @@ pub fn add_darwin_plain_connection_targets(
     let create = program.declare_function();
     let code = connection_create_code(imports, state_callback, state_block, queue_label)?;
     program.define_function(create, code.finish()?)?;
+    let adopt_accepted = add_darwin_accepted_connection_adoption_target(
+        program,
+        imports,
+        state_callback,
+        state_block,
+        queue_label,
+    )?;
     let lifecycle = add_darwin_network_owner_lifecycle_targets(
         program,
         imports,
@@ -118,6 +133,7 @@ pub fn add_darwin_plain_connection_targets(
     let transfers = add_darwin_network_connection_transfer_targets(program, imports)?;
     Ok(Arm64DarwinNetworkConnectionTargets {
         create,
+        adopt_accepted,
         state_callback,
         state_block,
         lifecycle,
@@ -404,6 +420,7 @@ pub enum Arm64DarwinNetworkConnectionError {
     Event(Arm64DarwinNetworkConnectionEventError),
     Address(Arm64DarwinNetworkConnectionAddressError),
     Transfer(Arm64DarwinNetworkConnectionTransferError),
+    Adoption(Arm64DarwinConnectionAdoptionError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -427,6 +444,7 @@ impl std::error::Error for Arm64DarwinNetworkConnectionError {
             Self::Event(error) => Some(error),
             Self::Address(error) => Some(error),
             Self::Transfer(error) => Some(error),
+            Self::Adoption(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::ContractLayout => None,
@@ -451,6 +469,7 @@ convert_error!(Arm64DarwinNetworkOwnerLifecycleError, Lifecycle);
 convert_error!(Arm64DarwinNetworkConnectionEventError, Event);
 convert_error!(Arm64DarwinNetworkConnectionAddressError, Address);
 convert_error!(Arm64DarwinNetworkConnectionTransferError, Transfer);
+convert_error!(Arm64DarwinConnectionAdoptionError, Adoption);
 convert_error!(Arm64CodeError, Code);
 convert_error!(Arm64ProgramError, Program);
 
@@ -465,5 +484,6 @@ mod tests {
         let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
         let targets = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
         assert_ne!(targets.create(), targets.state_callback());
+        assert_ne!(targets.create(), targets.adopt_accepted().function());
     }
 }

@@ -39,9 +39,12 @@ mod darwin_network_callback;
 mod darwin_network_channel;
 mod darwin_network_connection;
 mod darwin_network_connection_address;
+mod darwin_network_connection_adoption;
 mod darwin_network_connection_event;
 mod darwin_network_connection_transfer;
+mod darwin_network_event_error;
 mod darwin_network_listener;
+mod darwin_network_listener_event;
 mod darwin_network_owner;
 mod darwin_network_owner_creation;
 mod darwin_network_owner_event;
@@ -142,15 +145,23 @@ pub use darwin_network_connection::{
 pub use darwin_network_connection_address::{
     Arm64DarwinNetworkConnectionAddressError, Arm64DarwinNetworkConnectionAddressTargets,
 };
+pub use darwin_network_connection_adoption::{
+    Arm64DarwinAcceptedConnectionAdoptionTarget, Arm64DarwinConnectionAdoptionError,
+};
 pub use darwin_network_connection_event::{
     Arm64DarwinNetworkConnectionEventError, Arm64DarwinNetworkConnectionEventTargets,
 };
 pub use darwin_network_connection_transfer::{
     Arm64DarwinNetworkConnectionTransferError, Arm64DarwinNetworkConnectionTransferTargets,
 };
+pub use darwin_network_event_error::Arm64DarwinNetworkErrorConsumptionError;
+pub(crate) use darwin_network_event_error::emit_darwin_network_consume_error;
 pub use darwin_network_listener::{
     Arm64DarwinNetworkListenerError, Arm64DarwinNetworkListenerTargets,
     add_darwin_plain_listener_targets,
+};
+pub use darwin_network_listener_event::{
+    Arm64DarwinNetworkListenerEventError, Arm64DarwinNetworkListenerEventTarget,
 };
 pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,

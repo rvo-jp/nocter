@@ -12,9 +12,10 @@ use crate::darwin_network_owner_event::add_darwin_network_owner_event_descriptor
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinNetworkAdapterImports,
-    Arm64DarwinNetworkChannelError, Arm64DarwinNetworkOwnerError,
-    Arm64DarwinNetworkOwnerEventError, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
-    Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
+    Arm64DarwinNetworkChannelError, Arm64DarwinNetworkErrorConsumptionError,
+    Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerEventError, Arm64DataRegister,
+    Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder,
+    Arm64ProgramError, Arm64Register, emit_darwin_network_consume_error,
     emit_darwin_network_event_receive_to_pointer, emit_darwin_network_owner_guard,
     emit_darwin_network_owner_transition,
 };
@@ -173,7 +174,7 @@ fn consume_state_event(
     load_event_field(code, x(21), x(20), event_payload_offset(schema, 0)?)?;
     validate_connection_state(code, x(21), imports)?;
     load_event_field(code, x(22), x(20), event_payload_offset(schema, 1)?)?;
-    consume_error(code, imports, x(22), x(23), x(24))?;
+    emit_darwin_network_consume_error(code, imports, x(22), x(23), x(24))?;
     let not_final = code.create_label();
     compare_immediate(code, x(21), DarwinNetworkConnectionState::Cancelled.code())?;
     code.branch_conditional(not_final, Arm64BranchCondition::NotEqual);
@@ -208,7 +209,7 @@ fn consume_receive_event(
     validate_boolean(code, x(24), imports)?;
     store_stack(code, x(24), 136);
     release_optional_network_object(code, imports, x(25))?;
-    consume_error(code, imports, x(23), x(21), x(25))?;
+    emit_darwin_network_consume_error(code, imports, x(23), x(21), x(25))?;
     copy_dispatch_data(code, imports, x(22), x(26), x(27), x(23))?;
     load_stack(code, x(19), 136);
     store_observation_values(
@@ -227,7 +228,7 @@ fn consume_send_event(
     observation: DarwinNetworkConnectionEventObservationAbiSchema,
 ) -> Result<(), Arm64DarwinNetworkConnectionEventError> {
     load_event_field(code, x(22), x(20), event_payload_offset(schema, 0)?)?;
-    consume_error(code, imports, x(22), x(23), x(24))?;
+    emit_darwin_network_consume_error(code, imports, x(22), x(23), x(24))?;
     store_observation_values(code, observation, [Some(x(23)), Some(x(24)), None, None])?;
     Ok(())
 }
@@ -240,39 +241,6 @@ fn branch_if_kind(
 ) -> Result<(), Arm64DarwinNetworkConnectionEventError> {
     compare_immediate(code, actual, expected.code())?;
     code.branch_conditional(target, Arm64BranchCondition::Equal);
-    Ok(())
-}
-
-fn consume_error(
-    code: &mut Arm64CodeBuilder,
-    imports: &Arm64DarwinNetworkAdapterImports,
-    error: Arm64Register,
-    domain: Arm64Register,
-    error_code: Arm64Register,
-) -> Result<(), Arm64DarwinNetworkConnectionEventError> {
-    immediate(code, domain, 0)?;
-    immediate(code, error_code, 0)?;
-    let consumed = code.create_label();
-    compare_immediate(code, error, 0)?;
-    code.branch_conditional(consumed, Arm64BranchCondition::Equal);
-    move_register(code, x(0), error);
-    call_import(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::NetworkErrorGetDomain),
-    );
-    move_register(code, domain, x(0));
-    move_register(code, x(0), error);
-    call_import(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::NetworkErrorGetCode),
-    );
-    move_register(code, error_code, x(0));
-    move_register(code, x(0), error);
-    call_import(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::NetworkRelease),
-    );
-    code.bind(consumed)?;
     Ok(())
 }
 
@@ -723,6 +691,7 @@ pub enum Arm64DarwinNetworkConnectionEventError {
     Owner(Arm64DarwinNetworkOwnerError),
     OwnerEvent(Arm64DarwinNetworkOwnerEventError),
     Channel(Arm64DarwinNetworkChannelError),
+    EventError(Arm64DarwinNetworkErrorConsumptionError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -739,6 +708,7 @@ impl std::error::Error for Arm64DarwinNetworkConnectionEventError {
             Self::Owner(error) => Some(error),
             Self::OwnerEvent(error) => Some(error),
             Self::Channel(error) => Some(error),
+            Self::EventError(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::ContractLayout => None,
@@ -759,6 +729,7 @@ macro_rules! convert_error {
 convert_error!(Arm64DarwinNetworkOwnerError, Owner);
 convert_error!(Arm64DarwinNetworkOwnerEventError, OwnerEvent);
 convert_error!(Arm64DarwinNetworkChannelError, Channel);
+convert_error!(Arm64DarwinNetworkErrorConsumptionError, EventError);
 convert_error!(Arm64CodeError, Code);
 convert_error!(Arm64ProgramError, Program);
 
