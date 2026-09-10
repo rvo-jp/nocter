@@ -2325,6 +2325,58 @@ mod tests {
     }
 
     #[test]
+    fn http_custom_trust_policy_uses_only_public_http_and_tls_contracts() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = concat!(
+            "use std/http.Client\n",
+            "use std/tls.TrustAnchor\n",
+            "\n",
+            "func configured(certificate: &[u8]): Client! {\n",
+            "    let anchor = TrustAnchor.from_der(certificate)?\n",
+            "    return Client.new().with_trust_anchor(move anchor)\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let (line, character) = source_position(text, "with_trust_anchor");
+        let hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{line},\"character\":{}}}}}}}",
+            character + 5,
+        ));
+        let response = hover.response().unwrap();
+        assert!(
+            response.contains("with_trust_anchor(trust_anchor: TrustAnchor): Client"),
+            "{response}"
+        );
+        assert!(!response.contains("ClientTrust"), "{response}");
+        assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+        let definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{line},\"character\":{}}}}}}}",
+            character + 5,
+        ));
+        let response = definition.response().unwrap();
+        assert!(response.contains("/std/http/index.nct"), "{response}");
+        assert!(!response.contains("client.nct"), "{response}");
+        assert!(definition.issue().is_none(), "{:?}", definition.issue());
+    }
+
+    #[test]
     fn http_client_source_drives_rename_tokens_hints_and_completion() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
@@ -2403,6 +2455,7 @@ mod tests {
             "send_async",
             "send_async_with_timeout",
             "send_with_timeout",
+            "with_trust_anchor",
         ] {
             assert!(
                 response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),

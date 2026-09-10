@@ -11,11 +11,11 @@ native coverage.
 ## Next Work
 
 Complete Phase 6 failure, lifecycle, tooling, packaging, and security review. Malformed trust
-material, an unknown root, hostname mismatch, certificate validity, a truncated TLS record, and
-synchronous and asynchronous handshake timeouts are qualified. Close the remaining
-unfinished-computation ownership, editor, and packaged-toolchain evidence. Keep UDP on its
-descriptor substrate and keep native objects and callbacks compiler-owned; do not add source-level
-FFI or a general callback escape hatch.
+material, an unknown root, hostname mismatch, certificate validity, a truncated TLS record,
+synchronous and asynchronous handshake timeouts, unfinished-computation ownership, and editor
+projection are qualified. Close the remaining example, packaged-toolchain, complete-gate, and
+security-review evidence. Keep UDP on its descriptor substrate and keep native objects and
+callbacks compiler-owned; do not add source-level FFI or a general callback escape hatch.
 
 Preserve every published tag and asset.
 
