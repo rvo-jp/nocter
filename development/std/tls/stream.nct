@@ -26,12 +26,12 @@ struct TlsStream {
 func connect_candidates(
     host: &str,
     addresses: &[SocketAddress],
+    application_protocol: *u8,
     deadline: &+ConnectionDeadline,
 ): TlsStream! {
     var server_name = String.copy(host)
     server_name.push('\u{0}')
     let server_text: &str = &server_name
-    let no_application_protocol: *u8 = ptr.from_addr(0)
     var offset: usize = 0
     var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
     while offset < addresses.len() {
@@ -39,7 +39,7 @@ func connect_candidates(
         match substrate.connect_tls_stream_before(
             net.substrate_address(&address),
             server_text.ptr(),
-            no_application_protocol,
+            application_protocol,
             deadline,
         ) {
             StreamConnectionAttempt.ready(connection) {
@@ -54,18 +54,42 @@ func connect_candidates(
     return last_failure.context("every resolved address failed TLS authentication")
 }
 
+func http1_application_protocol(): String {
+    var protocol = String.copy("http/1.1")
+    protocol.push('\u{0}')
+    return move protocol
+}
+
 construct TlsStream {
     func connect(host: &str, port: u16): Self! {
         var deadline = substrate.connection_deadline(none)
         let addresses = net.resolve(host, port)?
-        return connect_candidates(host, &addresses, &+deadline)
+        return connect_candidates(host, &addresses, ptr.from_addr(0), &+deadline)
     }
 
     func connect_with_timeout(host: &str, port: u16, timeout: Duration): Self! {
         var deadline = substrate.connection_deadline(timeout)
         let addresses = net.resolve(host, port)?
-        return connect_candidates(host, &addresses, &+deadline)
+        return connect_candidates(host, &addresses, ptr.from_addr(0), &+deadline)
     }
+}
+
+func connect_http1(host: &str, port: u16): TlsStream! {
+    var deadline = substrate.connection_deadline(none)
+    let addresses = net.resolve(host, port)?
+    let protocol = http1_application_protocol()
+    return connect_candidates(host, &addresses, protocol.ptr(), &+deadline)
+}
+
+func connect_http1_with_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+): TlsStream! {
+    var deadline = substrate.connection_deadline(timeout)
+    let addresses = net.resolve(host, port)?
+    let protocol = http1_application_protocol()
+    return connect_candidates(host, &addresses, protocol.ptr(), &+deadline)
 }
 
 instance TlsStream {

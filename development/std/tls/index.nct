@@ -31,6 +31,26 @@ pub func connect_async_with_timeout(
     timeout: Duration,
 ): (async TlsStream!)!
 
+/// Opens one package-internal TLS stream that advertises only HTTP/1.1.
+pub(/) func connect_http1(host: &str, port: u16): TlsStream!
+
+/// Opens one package-internal HTTP/1.1 TLS stream before a fixed timeout.
+pub(/) func connect_http1_with_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+): TlsStream!
+
+/// Resolves immediately and returns one package-internal HTTP/1.1 TLS computation.
+pub(/) func connect_http1_async(host: &str, port: u16): (async TlsStream!)!
+
+/// Resolves immediately and authenticates HTTP/1.1 TLS before a fixed timeout.
+pub(/) func connect_http1_async_with_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+): (async TlsStream!)!
+
 instance TlsStream {
     impl Reader
     impl Writer

@@ -19,14 +19,20 @@ use /vec.Vec
 
 func connect_candidates_async(
     server_name: String,
+    application_protocol: String,
     addresses: Vec<SocketAddress>,
     connection_deadline: ConnectionDeadline,
 ): async TlsStream! {
     var owned_server_name = move server_name
+    var owned_application_protocol = move application_protocol
     var candidates = move addresses
     var deadline = move connection_deadline
     let server_text: &str = &owned_server_name
-    let no_application_protocol: *u8 = ptr.from_addr(0)
+    let application_protocol_pointer: *u8 = if owned_application_protocol.len() == 0 {
+        ptr.from_addr(0)
+    } else {
+        owned_application_protocol.ptr()
+    }
     var offset: usize = 0
     var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
     while offset < candidates.len() {
@@ -34,7 +40,7 @@ func connect_candidates_async(
         match await substrate.connect_tls_stream_async_before(
             net.substrate_address(&address),
             server_text,
-            no_application_protocol,
+            application_protocol_pointer,
             &+deadline,
         ) {
             StreamConnectionAttempt.ready(connection) {
@@ -54,7 +60,12 @@ func connect_async(host: &str, port: u16): (async TlsStream!)! {
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
     server_name.push('\u{0}')
-    return connect_candidates_async(move server_name, move addresses, move deadline)
+    return connect_candidates_async(
+        move server_name,
+        String.empty(),
+        move addresses,
+        move deadline,
+    )
 }
 
 func connect_async_with_timeout(
@@ -66,7 +77,44 @@ func connect_async_with_timeout(
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
     server_name.push('\u{0}')
-    return connect_candidates_async(move server_name, move addresses, move deadline)
+    return connect_candidates_async(
+        move server_name,
+        String.empty(),
+        move addresses,
+        move deadline,
+    )
+}
+
+func connect_http1_async(host: &str, port: u16): (async TlsStream!)! {
+    let deadline = substrate.connection_deadline(none)
+    let addresses = net.resolve(host, port)?
+    var server_name = String.copy(host)
+    server_name.push('\u{0}')
+    let application_protocol = http1_application_protocol()
+    return connect_candidates_async(
+        move server_name,
+        move application_protocol,
+        move addresses,
+        move deadline,
+    )
+}
+
+func connect_http1_async_with_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+): (async TlsStream!)! {
+    let deadline = substrate.connection_deadline(timeout)
+    let addresses = net.resolve(host, port)?
+    var server_name = String.copy(host)
+    server_name.push('\u{0}')
+    let application_protocol = http1_application_protocol()
+    return connect_candidates_async(
+        move server_name,
+        move application_protocol,
+        move addresses,
+        move deadline,
+    )
 }
 
 instance TlsStream {

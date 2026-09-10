@@ -2484,12 +2484,40 @@ fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-#[test]
-fn public_tls_sync_and_async_reject_a_plain_local_peer() {
+fn serve_plain_tls_peers_and_require_https_alpn(fixture: &std::net::TcpListener) {
     use std::io::{Read, Write};
-    use std::net::TcpListener;
     use std::thread;
     use std::time::Duration;
+
+    for connection_index in 0..4 {
+        let (mut stream, _) = fixture.accept().unwrap();
+        let mut record_header = [0_u8; 5];
+        stream.read_exact(&mut record_header).unwrap();
+        assert_eq!(
+            record_header[0], 22,
+            "client did not begin with a TLS handshake"
+        );
+        let record_len = usize::from(u16::from_be_bytes([record_header[3], record_header[4]]));
+        let mut client_hello = vec![0_u8; record_len];
+        stream.read_exact(&mut client_hello).unwrap();
+        if connection_index >= 2 {
+            assert!(
+                client_hello
+                    .windows(b"http/1.1".len())
+                    .any(|window| window == b"http/1.1"),
+                "HTTPS did not advertise the HTTP/1.1 ALPN protocol"
+            );
+        }
+        stream.write_all(b"this is not a TLS record").unwrap();
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
+    use std::net::TcpListener;
+    use std::thread;
 
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = fixture.local_addr().unwrap().port();
@@ -2577,15 +2605,7 @@ fn public_tls_sync_and_async_reject_a_plain_local_peer() {
     let target = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
 
-    let server = thread::spawn(move || {
-        for _ in 0..4 {
-            let (mut stream, _) = fixture.accept().unwrap();
-            let mut client_hello = [0_u8; 512];
-            assert_ne!(stream.read(&mut client_hello).unwrap(), 0);
-            stream.write_all(b"this is not a TLS record").unwrap();
-            thread::sleep(Duration::from_millis(100));
-        }
-    });
+    let server = thread::spawn(move || serve_plain_tls_peers_and_require_https_alpn(&fixture));
     execute_native_status(image.image(), &package_root.0, "tls-plain-peer", 0);
     server.join().unwrap();
 }
