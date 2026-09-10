@@ -13,6 +13,7 @@ pub(crate) enum DarwinSystemCall {
     MemoryMap,
     Poll,
     Select,
+    GetTimeOfDay,
 }
 
 impl DarwinSystemCall {
@@ -26,6 +27,7 @@ impl DarwinSystemCall {
             Self::MemoryMap => 0x0200_00c5,
             Self::Poll => 0x0200_00e6,
             Self::Select => 0x0200_005d,
+            Self::GetTimeOfDay => 0x0200_0074,
         }
     }
 }
@@ -90,6 +92,17 @@ impl DarwinSelectAbi {
     pub(crate) const MICROSECONDS_OFFSET: u64 = 8;
 }
 
+/// Darwin's native `timeval` result layout.
+pub(crate) struct DarwinTimevalAbi;
+
+impl DarwinTimevalAbi {
+    pub(crate) const SIZE: u64 = 16;
+    pub(crate) const SECONDS_OFFSET: u64 = 0;
+    /// Offset of a signed 32-bit count followed by four padding bytes. The backend zeroes the
+    /// complete word before the syscall and therefore publishes it as a validated `u64` lane.
+    pub(crate) const MICROSECONDS_OFFSET: u64 = 8;
+}
+
 /// Stable Darwin process descriptors used by compiler-owned diagnostics.
 pub(crate) struct DarwinProcessAbi;
 
@@ -120,6 +133,7 @@ mod tests {
             DarwinSystemCall::MemoryMap,
             DarwinSystemCall::Poll,
             DarwinSystemCall::Select,
+            DarwinSystemCall::GetTimeOfDay,
         ];
         for (index, call) in calls.iter().enumerate() {
             assert!(
@@ -136,5 +150,12 @@ mod tests {
         assert_eq!(DarwinSelectAbi::TIMEVAL_SIZE, 16);
         assert_eq!(DarwinSelectAbi::SECONDS_OFFSET, 0);
         assert_eq!(DarwinSelectAbi::MICROSECONDS_OFFSET, 8);
+    }
+
+    #[test]
+    fn timeval_layout_is_two_words() {
+        assert_eq!(DarwinTimevalAbi::SIZE, 16);
+        assert_eq!(DarwinTimevalAbi::SECONDS_OFFSET, 0);
+        assert_eq!(DarwinTimevalAbi::MICROSECONDS_OFFSET, 8);
     }
 }

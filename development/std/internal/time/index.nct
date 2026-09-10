@@ -29,6 +29,10 @@ pub(/) noalloc func monotonic_frequency(): u64
 /// Computes the wrapping monotonic-counter distance from earlier to later.
 pub(/) noalloc func monotonic_delta(earlier: u64, later: u64): u64
 
+/// Observes one native wall-clock timeval and returns fields plus a target error code.
+#target: "arm64-darwin"
+noalloc primitive func wall_clock_raw(): (i64, u64, i32)
+
 /// Suspends until one absolute monotonic-counter deadline is observed.
 pub(/) async func wait_until(deadline: u64): void
 

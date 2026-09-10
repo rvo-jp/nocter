@@ -366,6 +366,9 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinTimeoutWait => {
             crate::darwin_timeout_code::emit_timeout_wait(code)
         }
+        Arm64SelectedInstruction::DarwinWallClockRead => {
+            crate::darwin_wall_clock_code::emit_wall_clock_read(code)
+        }
         Arm64SelectedInstruction::ReadMonotonicCounter => {
             // CNTVCT_EL0 is not self-synchronizing on the baseline ARM64 target. Treat the
             // primitive as an ordered time observation rather than a bare register read so a

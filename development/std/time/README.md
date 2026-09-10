@@ -134,8 +134,8 @@ raw roles independently. The target contract does not construct `Duration`, `Sys
 `UtcDateTime`; implement duration segmentation, sleep policy, or calendar arithmetic; classify
 public errors; or expose target time structures to user code.
 
-The compiler target backend owns the raw timeout ABI layout and syscall identity. Target-specific
-standard-library adapters own wall-clock representation and translate the closed timeout result.
+The compiler target backend owns raw wall-clock and timeout ABI layouts, syscall identities, and
+zero-or-error normalization. Target-specific standard-library adapters validate the closed results.
 The target-independent `std/time` implementation owns normalization,
 counter-to-duration conversion, rounding, chunking, interruption retry, and public failure policy.
 Neither layer may rediscover the other layer's facts from source spelling or machine instructions.

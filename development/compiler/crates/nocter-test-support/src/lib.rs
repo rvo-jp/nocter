@@ -321,6 +321,8 @@ noalloc primitive func monotonic_frequency_raw(): u64
 #target: \"arm64-darwin\"
 noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64
 #target: \"arm64-darwin\"
+noalloc primitive func wall_clock_raw(): (i64, u64, i32)
+#target: \"arm64-darwin\"
 noalloc blocking primitive func timeout_wait_raw(seconds: u64, microseconds: u64): i32
 #target: \"arm64-darwin\"
 primitive func monotonic_deadline_raw(deadline: u64): future void

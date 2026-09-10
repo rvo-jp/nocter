@@ -58,6 +58,7 @@ mod darwin_tls_connection;
 mod darwin_tls_protocol;
 mod darwin_tls_trust_context;
 mod darwin_tls_verify_callback;
+mod darwin_wall_clock_code;
 mod destruction_selection;
 mod encode;
 mod error_code;

@@ -22,6 +22,9 @@ pub(super) fn select(
         }
         PrimitiveRole::DescriptorClose => select_descriptor_close(operation, target, selected),
         PrimitiveRole::EntropySeedFill => select_entropy_seed_fill(operation, target, selected),
+        PrimitiveRole::WallClockRead => {
+            select_wall_clock_read(program, operation, target, selected)
+        }
         PrimitiveRole::TimeoutWait => select_timeout_wait(operation, target, selected),
         PrimitiveRole::ProcessExit => select_exit(operation, target, selected),
         PrimitiveRole::MonotonicCounterRead | PrimitiveRole::MonotonicCounterFrequency => {
@@ -41,6 +44,18 @@ pub(super) fn select(
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
+}
+
+fn select_wall_clock_read(
+    program: &nocter_machine::MachineProgram,
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 0)?;
+    validate_three_word_indirect_result(program, operation, target)?;
+    selected.push(Arm64SelectedInstruction::DarwinWallClockRead);
+    Ok(())
 }
 
 fn select_timeout_wait(
@@ -99,7 +114,7 @@ fn select_syscall_pair(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_ordinary_inputs(operation, target, 1)?;
-    validate_indirect_result(program, operation, target)?;
+    validate_three_word_indirect_result(program, operation, target)?;
     selected.push(Arm64SelectedInstruction::DarwinSystemCallPair);
     for lane in 0..3 {
         selected.push(Arm64SelectedInstruction::StoreMemory {
@@ -114,7 +129,7 @@ fn select_syscall_pair(
     Ok(())
 }
 
-fn validate_indirect_result(
+fn validate_three_word_indirect_result(
     program: &nocter_machine::MachineProgram,
     operation: MachineOperationId,
     target: super::primitive_selection::Arm64PrimitiveTarget<'_>,

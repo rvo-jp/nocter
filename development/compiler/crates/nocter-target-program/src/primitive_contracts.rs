@@ -763,6 +763,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         PrimitiveRole::MonotonicCounterDelta => {
             make(0, vec![u64(), u64()], u64(), private, arm64_darwin, vec![])
         }
+        PrimitiveRole::WallClockRead => make(
+            0,
+            vec![],
+            TypeContract::tuple(vec![i64(), u64(), i32()]),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::TimeoutWait => {
             make(0, vec![u64(), u64()], i32(), private, arm64_darwin, vec![])
         }

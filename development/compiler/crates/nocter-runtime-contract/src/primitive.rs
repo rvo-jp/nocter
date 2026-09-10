@@ -141,6 +141,8 @@ closed_role_enum! {
         MonotonicCounterFrequency,
         /// Computes `later - earlier` in the counter's wrapping 64-bit domain.
         MonotonicCounterDelta,
+        /// Observes one wall-clock timeval and returns normalized fields plus a target error code.
+        WallClockRead,
         /// Performs one target timeout wait attempt and returns its target error code.
         TimeoutWait,
         /// Creates one lazy computation that becomes completable after descriptor readiness.
@@ -272,6 +274,7 @@ impl PrimitiveRole {
             Self::MonotonicCounterRead => "monotonic_counter_read",
             Self::MonotonicCounterFrequency => "monotonic_counter_frequency",
             Self::MonotonicCounterDelta => "monotonic_counter_delta",
+            Self::WallClockRead => "wall_clock_read",
             Self::TimeoutWait => "timeout_wait",
             Self::DescriptorReadiness => "descriptor_readiness",
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",

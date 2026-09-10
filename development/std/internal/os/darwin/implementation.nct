@@ -132,9 +132,6 @@ const SYS_STAT64: usize = 0x02000152
 const SYS_GETDIRENTRIES64: usize = 0x02000158
 
 #target: "arm64-darwin"
-const SYS_GETTIMEOFDAY: usize = 0x02000074
-
-#target: "arm64-darwin"
 const STDIN_FD: usize = 0
 
 #target: "arm64-darwin"

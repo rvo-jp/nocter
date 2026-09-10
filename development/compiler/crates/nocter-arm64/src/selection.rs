@@ -265,6 +265,8 @@ pub enum Arm64SelectedInstruction {
     DarwinEntropySeedFill,
     /// Performs one Darwin `select` timeout and returns zero or its errno.
     DarwinTimeoutWait,
+    /// Observes one Darwin wall-clock timeval and returns normalized fields plus errno.
+    DarwinWallClockRead,
     ReadMonotonicCounter,
     ReadMonotonicCounterFrequency,
     /// Calls the compiler-owned descriptor-readiness computation constructor.
