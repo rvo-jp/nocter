@@ -2,20 +2,15 @@
 
 ## Current State
 
-Nocter v0.43.0 is published and externally audited. The annotated tag, remote `main`, GitHub latest
-release, retained local candidate, public asset bytes, and extracted installation all resolve to
-the recorded v0.43.0 identities.
-Network.framework now supplies plain TCP and authenticated TLS
-through one owner/event model. System trust, custom-root augmentation, hostname authentication,
-synchronous TLS, asynchronous TLS, HTTP/1.1 ALPN, and custom-trust HTTPS have deterministic local
-native coverage.
+Nocter v0.43.0 is published and externally audited. v0.44.0 development is active on
+`develop-v0.44.0`. Phase 0 has replaced the old result-type-driven asynchronous producer contract
+with an explicit `async` declaration modifier and a separate `future T` structural type.
 
 ## Next Work
 
-Plan v0.44.0 as the explicit asynchronous-producer and `future T` type-model change before adding
-more asynchronous APIs or a `noblock` guarantee. Freeze its grammar, callable execution authority,
-ownership semantics, migration boundary, and deletion of the old `async T` inference model before
-implementation begins.
+Implement v0.44.0 Phase 1 across syntax, formatting, semantic types, declaration lowering,
+validation, and semantic presentation. Delete the `async T` parser and result-shape classification;
+do not add a compatibility parser or migration fallback.
 
 Preserve every published tag and asset, including v0.43.0.
 

@@ -1,105 +1,107 @@
 # Asynchronous Computations
 
-This chapter defines deferred computation values, asynchronous producer declarations, suspension,
-ownership, and storage lifetime.
+This chapter defines asynchronous producer declarations, future values, suspension, ownership, and
+storage lifetime.
 
-## Computation Type
+## Future Type
 
-`async T` is an owning structural type for one lazy computation that eventually produces `T`.
-The computation is a value: it may be bound, stored in another sized value, moved, passed to a
-call, or returned through an enclosing non-async type.
+`future T` is an owning structural type for one lazy computation that eventually produces `T`.
+The future is a value: it may be bound, stored in another sized value, moved, passed to a call, or
+returned by an immediate callable.
 
 ```nct
-let pending = fetch(url)
+let pending: future String! = fetch(url)
 let response = await pending?
 ```
 
-Every `async T` value is move-only, irrespective of `T`. Copying it would create two authorities
+Every `future T` value is move-only, irrespective of `T`. Copying it would create two authorities
 for starting, cancelling, or consuming the same work. `await` consumes the value directly, so its
 canonical operand spelling does not add `move`. Using the binding again after `await` is an
 uninitialized-place error.
 
-An unfinished computation is lazy. Creating it captures its invocation inputs but does not execute
-the producer body. Awaiting it starts or resumes execution. Destroying an unfinished computation
-cancels it and releases its initialized captures exactly once. Destroying a completed but
-unconsumed computation destroys its stored output exactly once.
+An unfinished future is lazy. Creating it captures its invocation inputs but does not execute the
+producer body. Awaiting it starts or resumes execution. Destroying an unfinished future cancels it
+and releases its initialized captures exactly once. Destroying a completed but unconsumed future
+destroys its stored output exactly once.
 
 ## Producer Declarations
 
-A function or method is a deferred producer when its normalized declared result has `async` as its
-outer constructor:
+`async` is a declaration modifier. It makes an ordinary function or method a deferred producer:
 
 ```nct
-func fetch(url: Url): async String! {
-    // This body produces String!, not async String!.
+async func fetch(url: Url): String! {
+    // This body produces String!.
 }
 ```
 
-Calling `fetch` captures its arguments and returns immediately with `async String!`. The body is
-checked against `String!` and runs only when the computation is driven.
+Calling `fetch` captures its arguments and returns immediately with `future String!`. The declared
+result annotation is the output produced by the body, not the call expression's outer future type.
+The body runs only when its future is driven.
 
-Aliases are expanded before this classification. Generic substitution happens afterward and
-cannot change it:
+Execution kind never follows from a result type, alias expansion, or generic substitution:
 
 ```nct
-type PendingCount = async usize
+type PendingCount = future usize
 
-func count_later(): PendingCount { 0 } // deferred; body result is usize
-func identity<T>(value: T): T { move value } // always immediate
+func forward<T>(value: T): T { move value }        // always immediate
+func forward_named(value: PendingCount): PendingCount { move value }
+async func count_later(): usize { 0 }               // always deferred
+async func nested(): future usize { count_later() } // call type: future future usize
 ```
 
-Instantiating `identity` with `T = async usize` transfers an existing computation. It does not turn
-`identity` into a deferred producer.
+Instantiating `forward` with `T = future usize` transfers an existing future. It does not turn
+`forward` into an asynchronous producer.
 
-Only ordinary functions and methods admit deferred producer bodies. Primitive functions,
-constructors, literals, coercions, operators, drop declarations, tests, and anonymous closures do
-not acquire deferred execution from an `async` result. A structural callable result such as
-`func(Input): async Output` describes an immediate invocation that returns a computation value; it
-does not independently reclassify an unknown callable body.
+`async` is admitted on ordinary function and method declarations, including interface method
+contracts and default method bodies. A matching interface implementation must have the same
+execution kind. Constructors, literals, coercions, operators, drop declarations, tests, anonymous
+closures, and primitive functions do not admit the modifier in the initial model. A primitive or
+ordinary immediate function may return `future T` when it constructs or transfers a future value
+directly.
 
-A primitive may therefore declare an outer `async` result when its compiler implementation creates
-an opaque computation directly. The primitive remains immediate: invoking it constructs the value,
-and only `await` or a structured executor starts the represented work.
+A structural callable type describes invocation behavior through its result type. For example,
+`func(Input): future Output` is an immediately invoked callable that returns a future. It does not
+imply that the callable declaration used `async`, and callable values do not expose a second
+execution-kind dimension.
 
 ## Type Layering
 
-`async` consumes a complete type operand:
+`future` consumes a complete type operand:
 
 ```nct
-async String!   // async (String!): awaiting produces String!
-(async String)! // immediate fallible value containing async String on success
-async &T        // awaiting produces a readonly borrow
-&async T        // readonly borrow of the computation value
+future String!    // future (String!): awaiting produces String!
+(future String)!  // immediate fallible value containing future String on success
+future &T         // awaiting produces a readonly borrow
+&future T         // readonly borrow of the future value
 ```
 
-Outcome propagation follows `await`. `await operation()?` first consumes `operation()`'s
-computation, obtains its fallible output, and then propagates failure through the current deferred
-body.
+Outcome propagation follows `await`. `await operation()?` first consumes `operation()`'s future,
+obtains its fallible output, and then propagates failure through the current asynchronous body.
 
 ## Suspension
 
-`await` is valid only inside a deferred function or method body. Its operand must be an owned
-`async T` value, and its expression type is `T`. A borrowed computation cannot be awaited because
-the borrower does not own its consumption authority.
+`await` is valid only inside an `async` function or method body. Its operand must be an owned
+`future T` value, and its expression type is `T`. A borrowed future cannot be awaited because the
+borrower does not own its consumption authority.
 
-Nested computations require one `await` per layer:
+Nested futures require one `await` per layer:
 
 ```nct
-func flatten(): async i32! {
+async func flatten(): i32! {
     await await nested()?
 }
 ```
 
 Control flow does not weaken this rule. Branches and loops use the same ownership joins as other
-move-only values, so a computation consumed on only one path is maybe initialized afterward.
+move-only values, so a future consumed on only one path is maybe initialized afterward.
 
 ## Process Entry
 
-The selected top-level `main` may return `async R` when `R` is one of the ordinary accepted process
-results: `void`, `void!`, `i32`, `i32!`, `usize`, or `usize!`.
+The selected top-level `main` may carry `async` when its declared result is one of the ordinary
+accepted process results: `void`, `void!`, `i32`, `i32!`, `usize`, or `usize!`.
 
 ```nct
-func main(): async i32! {
+async func main(): i32! {
     let response = await fetch()?
     io.print(response)
     0
@@ -107,14 +109,14 @@ func main(): async i32! {
 ```
 
 The compiler-generated process adapter invokes the lazy producer, becomes the owner of that one
-root computation, drives it until completion, and then applies the same exit-status and error
-reporting rules as the corresponding immediate result. This is a process-boundary rule, not an
-alternate calling convention visible to source code. Calling the same function normally still
-returns an unstarted `async R` value.
+root future, drives it until completion, and then applies the same exit-status and error-reporting
+rules as the corresponding immediate result. This is a process-boundary rule, not an alternate
+calling convention visible to source code. Calling the same function normally still returns an
+unstarted `future R` value.
 
-When the root computation suspends, it supplies one or more descriptor-readiness or absolute
+When the root future suspends, it supplies one or more descriptor-readiness or absolute
 monotonic-deadline interests. The process adapter waits for any interest to become eligible and
-then resumes the computation; it does not repeatedly poll a pending computation. Readiness is only
+then resumes the computation; it does not repeatedly poll a pending future. Readiness is only
 permission to retry the suspended operation. The operation remains responsible for reporting
 success, closure, timeout, or failure.
 
@@ -124,28 +126,28 @@ eligible early.
 
 ## Captures and Result Provenance
 
-A pending computation retains every receiver and argument needed to begin its producer body. A
-borrowed input therefore constrains how long the pending computation may remain alive even when
-the eventual output is storage-independent.
+A pending future retains every receiver and argument needed to begin its producer body. A borrowed
+input therefore constrains how long the future may remain alive even when its eventual output is
+storage-independent.
 
 The `from` clause has a separate meaning: it constrains only the value produced by `await`.
 
 ```nct
-func inspect(source: &Buffer): async usize
-func view(source: &Buffer): async &str from source
+async func inspect(source: &Buffer): usize
+async func view(source: &Buffer): &str from source
 ```
 
-Both pending computations retain `source` until completion. Only the output of `view` continues to
-depend on `source` after the computation has been consumed. Frame allocation, scheduler storage,
-and capture retention never add an implicit source-visible `from` clause.
+Both futures retain `source` until completion. Only the output of `view` continues to depend on
+`source` after the future has been consumed. Frame allocation, scheduler storage, and capture
+retention never add an implicit source-visible `from` clause.
 
-Borrowed storage owned outside the deferred call may remain live across suspension. Storage owned
-by the deferred call may also be borrowed by the exact computation it awaits:
+Borrowed storage owned outside the asynchronous call may remain live across suspension. Storage
+owned by the asynchronous call may also be borrowed by the exact future it awaits:
 
 ```nct
-func fill(buffer: &+Buffer): async void
+async func fill(buffer: &+Buffer): void
 
-func receive(): async Buffer {
+async func receive(): Buffer {
     var buffer = Buffer.with_capacity(4096)
     await fill(&+buffer)
     return move buffer
@@ -157,7 +159,7 @@ address must remain stable at each suspension. That storage resides directly in 
 allocation-backed parent computation frame; it is not copied through a temporary activation
 address. Cancellation releases the awaited child before destroying the borrowed parent storage.
 
-This is structured borrowing, not a general escape. A child computation that retains a borrow of
+This is structured borrowing, not a general escape. A child future that retains a borrow of
 parent-owned storage cannot be returned, stored outside that owner, or otherwise outlive the
 parent. Such an escape is rejected by the ordinary result-provenance and loan rules.
 
@@ -165,8 +167,10 @@ parent. Such an escape is rejected by the ordinary result-provenance and loan ru
 
 Asynchronous work remains under one lexical ownership authority. The initial model has no detached
 task and does not start a hidden global executor from synchronous code. Scheduling transfers a
-computation into a scope-owned task; normal scope exit joins remaining children, and exceptional
-exit cancels them.
+future into a scope-owned task; normal scope exit joins remaining children, and exceptional exit
+cancels them.
 
-`async` describes the ability to suspend. It does not promise that the body avoids blocking its
-operating-system thread. A future `noblock` guarantee will express that independent property.
+`async` describes a producer body that may suspend. It does not promise that the body avoids
+blocking its operating-system thread. A future `noblock` guarantee will express that independent
+property. Under the initial allocation-backed representation, an `async` producer cannot satisfy
+`noalloc`; immediate `noalloc` code may still move, store, or return an already-created future.

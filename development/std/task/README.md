@@ -8,8 +8,8 @@ starts both children in left-to-right order, allows either child to make progres
 interest becomes ready, and completes only after both outputs are available. The result tuple keeps
 the argument order.
 
-Joining does not interpret output types. In particular, joining `async A!` and `async B!` produces
-`async (A!, B!)`; it does not cancel one child merely because the other completed with a
+Joining does not interpret output types. In particular, joining `future A!` and `future B!` produces
+`future (A!, B!)`; it does not cancel one child merely because the other completed with a
 recoverable failure value.
 
 The joined computation is the sole lifecycle owner of both children. Destroying it before its

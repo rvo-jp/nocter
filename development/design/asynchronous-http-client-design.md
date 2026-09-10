@@ -36,7 +36,7 @@ HTTP syntax and body framing.
 
 ## Immediate and Deferred Work
 
-The asynchronous request operation returns `(async Response!)!`, not `async Response!`.
+The asynchronous request operation returns `(future Response!)!`, not `future Response!`.
 Request validation and encoding happen before the outer result succeeds. Host resolution also
 remains immediate because the current system resolver is synchronous and must never run on the
 single-threaded executor. The returned lazy computation owns the resolved candidates and performs

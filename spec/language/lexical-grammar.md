@@ -100,6 +100,7 @@ enum
 false
 for
 func
+future
 if
 see
 in

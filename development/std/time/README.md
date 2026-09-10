@@ -110,7 +110,7 @@ or another undeclared guarantee.
 
 ## Asynchronous Delay
 
-`delay` accepts a `Duration` by value and returns a lazy `async void` computation. Calling it does
+`delay` accepts a `Duration` by value and returns a lazy `future void` computation. Calling it does
 not wait. Awaiting it completes only after at least the requested monotonic duration has elapsed;
 destroying the unfinished computation cancels its pending deadline. A zero duration completes on
 its first execution without publishing a wait interest.

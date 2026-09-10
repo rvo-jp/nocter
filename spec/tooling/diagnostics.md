@@ -356,8 +356,8 @@ Source-backed checked-body diagnostics:
   selected position is outside the tuple's arity.
 - `E0414`: a finite floating-point literal rounds to infinity, or a nonzero literal rounds to zero,
   in its selected `f32` or `f64` type.
-- `E0415`: `await` appears outside a deferred function or method body.
-- `E0416`: `await` does not consume an owned `async T` value.
+- `E0415`: `await` appears outside an `async` function or method body.
+- `E0416`: `await` does not consume an owned `future T` value.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

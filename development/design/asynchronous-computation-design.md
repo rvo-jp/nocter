@@ -1,17 +1,18 @@
 # Asynchronous Computation Boundary
 
 This document defines the cross-responsibility contract for Nocter's asynchronous computation
-model. Public syntax and observable behavior belong in `spec/` after the implementation supports
-them. The v0.41.0 milestone owns delivery order and qualification evidence.
+model. Public syntax and observable behavior belong in `spec/`; milestone records own delivery
+order and qualification evidence.
 
 ## Outcome
 
-`async T` is an owning structural type for one deferred computation that will eventually produce
-`T`. It is not a callable modifier, interface, hidden thread, or synonym for nonblocking execution.
-An asynchronous producer is written by returning that type:
+`async` is the explicit execution modifier for a deferred function or method. `future T` is the
+separate owning structural type for one deferred computation that will eventually produce `T`.
+Neither is an interface, hidden thread, or synonym for nonblocking execution. An asynchronous
+producer is written explicitly:
 
 ```nct
-func fetch(url: Url): async String!
+async func fetch(url: Url): String!
 ```
 
 Calling `fetch` creates a lazy computation and returns immediately. Moving the value transfers the
@@ -19,26 +20,25 @@ only ownership of that computation. `await` consumes it and produces `String!`. 
 unfinished value cancels its work and releases every captured or acquired resource exactly once.
 
 The initial model is deliberately single-use and structured. It has no implicit copying, detached
-task, hidden global executor, or background execution merely because an `async T` value exists.
+task, hidden global executor, or background execution merely because a `future T` value exists.
 
 ## Type and Precedence
 
-`async` is a unary type constructor whose operand is a complete type. Therefore:
+`future` is a unary type constructor whose operand is a complete type. Therefore:
 
-- `async String!` means `async (String!)`;
-- `(async String)!` means a fallible operation that immediately returns an asynchronous
+- `future String!` means `future (String!)`;
+- `(future String)!` means a fallible operation that immediately returns an asynchronous
   computation;
-- `&async T` borrows the computation value;
-- `async &T` produces a borrow when awaited.
+- `&future T` borrows the computation value;
+- `future &T` produces a borrow when awaited.
 
 The distinction between the last two forms is preserved in syntax, checked types, presentation,
 serialization, and source maps. No later stage may recover it from source text.
 
-Type aliases are transparent during declaration checking. A declaration whose normalized result
-has `async` as its outer constructor is an asynchronous producer. Generic substitution does not
-reclassify a declaration later. For example, `identity<T>(value: T): T` remains an immediate
-callable when instantiated with `T = async U`; it transfers an existing computation rather than
-creating a new one.
+The parsed declaration modifier is the sole input to callable execution classification. Result
+types, aliases, and generic substitution never reclassify a declaration. For example,
+`identity<T>(value: T): T` remains immediate when instantiated with `T = future U`; it transfers
+an existing computation rather than creating a new one.
 
 ## Callable Execution Authority
 
@@ -48,28 +48,29 @@ Declaration checking assigns every callable body exactly one execution kind:
 - **deferred** — invocation captures the arguments and creates a computation, while awaiting or
   scheduling that computation executes the body and produces the inner result.
 
-The checked callable declaration is the sole authority for this choice. It determines `deferred`
-once from the normalized outer result constructor in the declaration's generic domain. Body
-checking, call checking, state-machine lowering, diagnostics, and semantic presentation consume
-that decision. They cannot independently inspect syntax or substitute call-site types to infer it.
+Declaration lowering records this choice once from the syntax-owned modifier. The checked callable
+declaration is the sole downstream authority. Body checking, call checking, state-machine lowering,
+diagnostics, and semantic presentation consume that decision. They cannot independently inspect
+syntax, result shapes, aliases, or call-site substitutions to infer it.
 
-A deferred body is checked against the inner result type. Thus a body declared as
-`async String!` returns or tail-produces `String!`, not another `async String!`. A future
-tail-forwarding optimization may reuse or fuse computations, but cannot change this source-level
-rule.
+A deferred body is checked against its declared result type. Thus `async func load(): String!`
+returns or tail-produces `String!`, while calling it produces `future String!`. An explicit result
+of `future String!` instead creates a nested `future future String!` call type. A future
+tail-forwarding optimization may reuse or fuse computations only when these source-level types
+remain observably identical.
 
-Constructors, literals, coercions, operators, and destruction declarations do not acquire
-asynchronous execution accidentally from a nested type. Each declaration category must explicitly
-admit the checked execution kind before it can produce a deferred body.
+Constructors, literals, coercions, operators, destruction declarations, tests, anonymous closures,
+and primitives do not admit `async` in the initial model. Their result types never imply deferred
+execution.
 
-A compiler-authorized primitive may return an `async T` value immediately. Such a primitive
+A compiler-authorized primitive may return a `future T` value immediately. Such a primitive
 constructs an opaque computation through its target lowering and has no deferred Nocter body.
 Callable execution therefore belongs to the declaration contract; it is not equivalent to the
 outer shape of every callable result.
 
 ## Ownership and Lifecycle
 
-An `async T` value has one lifecycle authority. Its abstract states are created, scheduled,
+A `future T` value has one lifecycle authority. Its abstract states are created, scheduled,
 running, suspended, completed, cancelled, and consumed. Legal transitions are closed in the
 checked and executable representations rather than inferred by the runtime.
 
@@ -98,10 +99,10 @@ storage-independent. Declaration checking records this **computation capture pro
 checked parameter and capture model. Call checking maps it to argument origins. No source-visible
 annotation is required because the capture follows mechanically from invocation ownership.
 
-The existing `from` contract continues to describe only the produced value. For example, an
-asynchronous view may return `async &str from text`; awaiting it yields a borrow derived from
-`text`. `from` does not describe scheduler storage, frame allocation, or the mere fact that the
-computation captured `text` while pending.
+The existing `from` contract continues to describe only the produced value. For example,
+`async func view(text: &Text): &str from text` produces a future whose awaited value is a borrow
+derived from `text`. `from` does not describe scheduler storage, frame allocation, or the mere fact
+that the computation captured `text` while pending.
 
 These two provenance products have separate owners and consumers:
 
@@ -114,7 +115,7 @@ These two provenance products have separate owners and consumers:
 ## Suspension and State Machines
 
 `await` is a consuming expression valid only in a body whose checked execution kind admits
-suspension. Its checked result is the inner type of the consumed `async T`. The checker decides
+suspension. Its checked result is the inner type of the consumed `future T`. The checker decides
 ownership, result type, error and optional structure, live borrows, and cleanup obligations before
 lowering.
 
@@ -128,7 +129,7 @@ maps that exact product to machine identities and layouts without recomputing it
 The initial state owns captured inputs before the first resume. Each suspension publishes one
 runtime-provided output edge and one ordered cancellation plan. Normal return completes with the
 body result, and destruction of a completed but unconsumed computation uses its frozen output
-plan. For `async T!`, both success and recoverable failure are completed values of type `T!`;
+plan. For `future T!`, both success and recoverable failure are completed values of type `T!`;
 there is no parallel hidden scheduler-error channel. Runtime cancellation remains distinct from a
 completed language-level failure.
 
@@ -211,7 +212,8 @@ inspect a child's output offset or cancellation state.
 
 ## Structured Execution
 
-The selected process entry is the first concrete execution owner. If `main` returns `async R`, the
+The selected process entry is the first concrete execution owner. If `main` is `async` with
+declared result `R`, the
 compiler-generated process adapter invokes its constructor, owns the resulting root computation,
 drives it to completion, consumes `R`, and applies the ordinary process-result policy. Entry
 selection freezes immediate versus deferred execution once; MIR and Machine receive that fact and
@@ -256,15 +258,16 @@ normal exit joins it and exceptional exit cancels it. A task handle is an owners
 detached observation token. Detached execution is excluded until the language has an explicit
 process-lifetime ownership and failure-reporting contract.
 
-Creating an `async T` value is lazy. It does not run until consumed by `await` or transferred to a
+Creating a `future T` value is lazy. It does not run until consumed by `await` or transferred to a
 structured scheduling operation. This keeps argument capture, cancellation, and start order
 observable and deterministic.
 
 ## Independent Guarantees
 
-`async` and a future `noblock` guarantee answer different questions:
+`async`, `future`, and a future `noblock` guarantee answer different questions:
 
-- `async T` says that producing `T` may suspend and is represented as an owned computation;
+- `async` says that a function or method invocation creates deferred work whose body may suspend;
+- `future T` is the owned value representing that work and its eventual `T` output;
 - `noblock` will say that executing a callable cannot block its operating-system thread.
 
 An asynchronous computation may initially contain blocking work, although doing so can stall a
@@ -280,8 +283,9 @@ representation-independent allocation contract exists; it must not be hidden beh
 
 | Decision | Sole authority | Consumers |
 |---|---|---|
-| `async T` syntax and precedence | syntax tree | declaration lowering, formatter, source projection |
-| Structural async type identity | type store | checking, presentation, executable closure |
+| `async` declaration modifier | syntax tree | declaration lowering |
+| `future T` syntax and precedence | syntax tree | declaration lowering, formatter, source projection |
+| Structural future type identity | type store | checking, presentation, executable closure |
 | Immediate or deferred callable execution | checked declaration | body checking, call checking, lowering, tooling |
 | Compiler-owned computation construction | selected primitive role and target lowering | native lifecycle helper |
 | Immediate or deferred process entry | executable entry selection | process-root MIR, native process adapter |
@@ -297,8 +301,8 @@ representation-independent allocation contract exists; it must not be hidden beh
 
 ## Rejected Shortcuts
 
-- `async func` is not retained as an alternate spelling. It would make asynchronous values look
-  like a declaration-only effect and create two surface authorities.
+- `async T` is not retained as an alternate type spelling. It would let result syntax silently
+  decide callable execution and recreate two authorities for the same fact.
 - Callable execution is not inferred from call-site substitution, source spelling, or the presence
   of `await` in a body.
 - `from current` is not exposed to describe frame or executor storage.
@@ -311,7 +315,7 @@ representation-independent allocation contract exists; it must not be hidden beh
 
 ## Delivery Order
 
-The language and compiler first establish one lossless async type, execution-kind fact, consuming
+The language and compiler first establish one lossless future type, execution-kind fact, consuming
 `await`, capture provenance, and explicit diagnostics. State-machine lowering follows only after
 the checked product is closed. Executor and reactor implementation follows only after the
 executable state contract is closed. The generated Darwin process adapter, descriptor-readiness

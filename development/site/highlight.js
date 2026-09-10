@@ -2,6 +2,7 @@ const NOCTER_LANGUAGES = new Set(["nct", "nocter"]);
 const SHELL_LANGUAGES = new Set(["sh", "shell", "bash", "zsh"]);
 const NOCTER_RESERVED_KEYWORDS = new Set([
     "as", "async", "await", "break", "catch", "const", "continue", "construct", "else", "enum", "false",
+    "future",
     "for", "func", "if", "impl", "in", "instance", "interface", "is", "let", "literal", "loop",
     "match", "method", "move", "never", "noalloc", "none", "operator", "otherwise", "primitive", "pub",
     "region", "return", "see", "struct", "test", "true", "type", "use", "using", "var", "void",

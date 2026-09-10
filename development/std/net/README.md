@@ -56,7 +56,7 @@ time.
 
 `net.connect_host_async` and `net.connect_host_async_with_timeout` expose that synchronous resolver
 boundary in their type. Calling either validates and resolves the host and may return an outer
-failure immediately. Success produces one lazy `async TcpStream!` that owns the resolved candidates
+failure immediately. Success produces one lazy `future TcpStream!` that owns the resolved candidates
 and tries them in system order without blocking on socket readiness. The timeout form starts its
 single deadline before resolution and does not restart it for each candidate. A typical call
 therefore uses `?` once when creating the computation and once after `await`.

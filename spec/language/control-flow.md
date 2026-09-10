@@ -39,8 +39,8 @@ Return checking:
   function returning `void!`; success returns no value, and failure returns an
   `error` value.
 - `func main(): void`, `func main(): i32`, and `func main(): usize` follow the same return checking rules as functions with those return types.
-- An `async` entry body is checked against its inner process result. For example,
-  `func main(): async i32!` follows the `i32!` return rules and may suspend with `await`; the
+- An `async` entry body is checked against its declared process result. For example,
+  `async func main(): i32!` follows the `i32!` return rules and may suspend with `await`; the
   compiler-generated process adapter consumes the completed `i32!` value.
 
 Return value ownership, move, borrow, and view rules are specified in [Ownership, Borrowing, and Drop](ownership.md#return-values).

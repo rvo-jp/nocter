@@ -243,10 +243,11 @@ parameter. Other declaration forms reject the modifier.
 ## Functions, Primitive Types, and Aliases
 
 ```text
-FunctionDeclaration = Visibility? NoAllocModifier? "primitive"? "func" Name GenericParameters? Parameters
+FunctionDeclaration = Visibility? NoAllocModifier? AsyncModifier? "primitive"? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
 
 NoAllocModifier = "noalloc"
+AsyncModifier = "async"
 
 PrimitiveTypeDeclaration = Visibility? "primitive" "type" PrimitiveTypeName
 
@@ -261,6 +262,10 @@ recognized with a body or as a bodyless contract; module composition and visibil
 whether the latter is valid. Semantic toolchain validation restricts `PrimitiveTypeName` to the
 exact closed built-in declaration selected for that source token; accepting a syntactic `Name`
 here does not create an open user-defined primitive-type facility.
+
+`async` is admitted only on an ordinary function. Its canonical position follows `noalloc` and
+precedes `func`; combining `async` with `primitive` or `noalloc` is a semantic error. The modifier
+declares deferred execution and is independent of the callable's result type.
 
 ## Structs and Enums
 
@@ -303,8 +308,8 @@ InterfaceMember = AssociatedTypeDeclaration
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
 InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 
-PublicInterfaceMethod = "pub" NoAllocModifier? "default"? MethodSignature CallableBody
-ImplementationInterfaceMethod = NoAllocModifier? "default" MethodSignature Block
+PublicInterfaceMethod = "pub" NoAllocModifier? AsyncModifier? "default"? MethodSignature CallableBody
+ImplementationInterfaceMethod = NoAllocModifier? AsyncModifier? "default" MethodSignature Block
 ```
 
 An interface contract member always writes bare `pub`; it cannot narrow its visibility
@@ -312,6 +317,9 @@ independently from the interface. A method without `default` is a bodyless requi
 with `default` is reusable behavior and either carries a block inline or omits it as an eligible
 root contract. The matching private interface fragment writes `default method` without visibility
 and must carry the body. A block on a method without `default` is invalid.
+`async` has the same canonical position and execution meaning as on a function. An interface
+requirement and its implementation must either both carry it or both omit it. Combining `async`
+with `noalloc` is invalid.
 Fields, operators, coercions, construction entries, drop declarations, and tests have no interface
 member production.
 
@@ -360,7 +368,7 @@ InstanceMember = InherentMethod
                | IndexOperator
                | ExpansionOperator
 
-InherentMethod = Visibility? NoAllocModifier? MethodSignature CallableBody
+InherentMethod = Visibility? NoAllocModifier? AsyncModifier? MethodSignature CallableBody
 
 InterfaceImplementation = "impl" InterfaceApplication
 
@@ -371,6 +379,8 @@ AssociatedTypeBinding = "." Name "=" Type
 
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
 Receiver = "&" "self" | "&+" "self" | "self"
+
+An inherent `async` method follows the same execution and `noalloc` rules as an `async` function.
 
 CoercionDeclaration = Visibility? NoAllocModifier? "coerce" BorrowReceiver "as" Type
                       CoercionProvenance? CallableBody
@@ -482,10 +492,10 @@ PrefixType = CallableType | NonCallablePrefix
 NonCallablePrefix = "*" PrefixType
                   | "&" NonCallablePrefix
                   | "&+" NonCallablePrefix
-                  | AsyncType
+                  | FutureType
                   | TypeAtom
 
-AsyncType = "async" Type
+FutureType = "future" Type
 
 TypeAtom = BuiltinScalarType
          | "str"
@@ -529,8 +539,8 @@ Prefix pointer and borrow operators bind before an outcome suffix. Consequently 
 optional readonly borrow. A grouped inner type is required for a borrow of an outcome, as in
 `&(T?)`.
 
-`async` consumes a complete `Type` operand rather than a `NonCallablePrefix`. Consequently
-`async T!` is `async (T!)`, while `(async T)!` puts the fallible layer outside the asynchronous
+`future` consumes a complete `Type` operand rather than a `NonCallablePrefix`. Consequently
+`future T!` is `future (T!)`, while `(future T)!` puts the fallible layer outside the asynchronous
 computation. This distinction is syntactic and does not depend on name or type resolution.
 
 At one ungrouped layer, `?`, `!`, and `?!` are the recognized suffixes. Reversing the outcome
