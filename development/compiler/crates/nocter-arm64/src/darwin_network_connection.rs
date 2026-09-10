@@ -8,6 +8,12 @@ use nocter_runtime_contract::{
 use crate::darwin_network_connection_address::add_darwin_network_connection_address_targets;
 use crate::darwin_network_connection_event::add_darwin_network_connection_event_targets;
 use crate::darwin_network_connection_transfer::add_darwin_network_connection_transfer_targets;
+use crate::darwin_network_owner_creation::{
+    emit_darwin_network_close_descriptor, emit_darwin_network_create_channel,
+    emit_darwin_network_create_serial_queue, emit_darwin_network_install_pointer_handler,
+    emit_darwin_network_load_imported_object, emit_darwin_network_release_dispatch_object,
+    emit_darwin_network_release_network_object, emit_darwin_network_set_owner_queue,
+};
 use crate::darwin_network_owner_lifecycle::add_darwin_network_owner_lifecycle_targets;
 
 use crate::{
@@ -21,8 +27,7 @@ use crate::{
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
     add_darwin_network_state_callback, add_darwin_pointer_capture_block_descriptor,
-    emit_darwin_network_owner_initialize, load_darwin_stack_block_address,
-    materialize_darwin_pointer_capture_stack_block,
+    emit_darwin_network_owner_initialize,
 };
 
 /// Native entries and fixed Block metadata for plain outbound connections.
@@ -165,7 +170,7 @@ fn connection_create_code(
     let cleanup_channel = code.create_label();
     let complete = code.create_label();
 
-    create_channel(&mut code, imports);
+    emit_darwin_network_create_channel(&mut code, imports, 0);
     compare_zero(&mut code, x(0));
     code.branch_conditional(channel_ready, Arm64BranchCondition::Equal);
     status(
@@ -177,12 +182,7 @@ fn connection_create_code(
     load_stack_word(&mut code, x(21), 0);
     load_stack_word(&mut code, x(22), 4);
 
-    code.load_data_address(queue_label, x(0));
-    immediate(&mut code, x(1), 0)?;
-    call(
-        &mut code,
-        imports.function(DarwinNetworkAdapterFunction::DispatchQueueCreate),
-    );
+    emit_darwin_network_create_serial_queue(&mut code, imports, queue_label);
     compare_zero(&mut code, x(0));
     code.branch_conditional(queue_ready, Arm64BranchCondition::NotEqual);
     status(&mut code, DarwinNetworkOwnerCreateStatus::QueueUnavailable)?;
@@ -205,12 +205,12 @@ fn connection_create_code(
     code.bind(endpoint_ready)?;
     move_register(&mut code, x(24), x(0));
 
-    load_imported_object(
+    emit_darwin_network_load_imported_object(
         &mut code,
         imports.data(DarwinNetworkAdapterData::DisableProtocolConfiguration),
         x(0),
     );
-    load_imported_object(
+    emit_darwin_network_load_imported_object(
         &mut code,
         imports.data(DarwinNetworkAdapterData::DefaultProtocolConfiguration),
         x(1),
@@ -245,15 +245,25 @@ fn connection_create_code(
     code.bind(connection_ready)?;
     move_register(&mut code, x(26), x(0));
 
-    install_state_handler(
+    emit_darwin_network_install_pointer_handler(
         &mut code,
         imports,
+        x(26),
+        x(22),
         state_callback,
         state_block,
         BLOCK_OFFSET,
+        DarwinNetworkAdapterFunction::ConnectionSetStateHandler,
     )?;
-    release_network_object(&mut code, imports, x(25));
-    release_network_object(&mut code, imports, x(24));
+    emit_darwin_network_set_owner_queue(
+        &mut code,
+        imports,
+        x(26),
+        x(23),
+        DarwinNetworkAdapterFunction::ConnectionSetQueue,
+    );
+    emit_darwin_network_release_network_object(&mut code, imports, x(25));
+    emit_darwin_network_release_network_object(&mut code, imports, x(24));
     emit_darwin_network_owner_initialize(
         &mut code,
         x(19),
@@ -263,14 +273,14 @@ fn connection_create_code(
     code.branch(complete, false);
 
     code.bind(cleanup_parameters)?;
-    release_network_object(&mut code, imports, x(25));
+    emit_darwin_network_release_network_object(&mut code, imports, x(25));
     code.bind(cleanup_endpoint)?;
-    release_network_object(&mut code, imports, x(24));
+    emit_darwin_network_release_network_object(&mut code, imports, x(24));
     code.bind(cleanup_queue)?;
-    release_dispatch_object(&mut code, imports, x(23));
+    emit_darwin_network_release_dispatch_object(&mut code, imports, x(23));
     code.bind(cleanup_channel)?;
-    close_descriptor(&mut code, imports, x(22));
-    close_descriptor(&mut code, imports, x(21));
+    emit_darwin_network_close_descriptor(&mut code, imports, x(22));
+    emit_darwin_network_close_descriptor(&mut code, imports, x(21));
 
     code.bind(complete)?;
     move_register(&mut code, x(0), x(27));
@@ -285,100 +295,11 @@ fn connection_create_code(
     Ok(code)
 }
 
-fn create_channel(code: &mut Arm64CodeBuilder, imports: &Arm64DarwinNetworkAdapterImports) {
-    immediate(code, x(0), 1).expect("closed AF_UNIX value fits");
-    immediate(code, x(1), 2).expect("closed SOCK_DGRAM value fits");
-    immediate(code, x(2), 0).expect("zero fits");
-    stack_address(code, 0, x(3));
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::SocketPair),
-    );
-}
-
-fn install_state_handler(
-    code: &mut Arm64CodeBuilder,
-    imports: &Arm64DarwinNetworkAdapterImports,
-    state_callback: Arm64FunctionId,
-    state_block: crate::Arm64DarwinBlockDescriptorId,
-    block_offset: u32,
-) -> Result<(), Arm64DarwinNetworkConnectionError> {
-    materialize_darwin_pointer_capture_stack_block(
-        code,
-        block_offset,
-        imports.data(DarwinNetworkAdapterData::StackBlockClass),
-        state_callback,
-        state_block,
-        x(22),
-        x(8),
-    )?;
-    move_register(code, x(0), x(26));
-    load_darwin_stack_block_address(code, block_offset, x(1))?;
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::ConnectionSetStateHandler),
-    );
-    move_register(code, x(0), x(26));
-    move_register(code, x(1), x(23));
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::ConnectionSetQueue),
-    );
-    Ok(())
-}
-
 fn status(
     code: &mut Arm64CodeBuilder,
     status: DarwinNetworkOwnerCreateStatus,
 ) -> Result<(), Arm64DarwinNetworkConnectionError> {
     immediate(code, x(27), status.code())
-}
-
-fn release_network_object(
-    code: &mut Arm64CodeBuilder,
-    imports: &Arm64DarwinNetworkAdapterImports,
-    object: Arm64Register,
-) {
-    move_register(code, x(0), object);
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::NetworkRelease),
-    );
-}
-
-fn release_dispatch_object(
-    code: &mut Arm64CodeBuilder,
-    imports: &Arm64DarwinNetworkAdapterImports,
-    object: Arm64Register,
-) {
-    move_register(code, x(0), object);
-    call(
-        code,
-        imports.function(DarwinNetworkAdapterFunction::DispatchRelease),
-    );
-}
-
-fn close_descriptor(
-    code: &mut Arm64CodeBuilder,
-    imports: &Arm64DarwinNetworkAdapterImports,
-    descriptor: Arm64Register,
-) {
-    move_register(code, x(0), descriptor);
-    call(code, imports.function(DarwinNetworkAdapterFunction::Close));
-}
-
-fn load_imported_object(
-    code: &mut Arm64CodeBuilder,
-    source: crate::Arm64DataImportId,
-    destination: Arm64Register,
-) {
-    code.load_data_import(source, destination);
-    code.append(Arm64Instruction::LoadUnsigned {
-        size: Arm64LoadStoreSize::Double,
-        destination: Arm64DataRegister::General(destination),
-        base: Arm64BaseRegister::General(destination),
-        offset: 0,
-    });
 }
 
 fn x(number: u8) -> Arm64Register {
@@ -434,18 +355,6 @@ fn adjust_stack(code: &mut Arm64CodeBuilder, operation: Arm64AddSubtract, amount
         destination: Arm64AddSubtractDestination::StackPointer,
         source: Arm64BaseRegister::StackPointer,
         immediate: amount,
-        shift_12: false,
-    });
-}
-
-fn stack_address(code: &mut Arm64CodeBuilder, offset: u16, destination: Arm64Register) {
-    code.append(Arm64Instruction::AddSubtractImmediate {
-        size: Arm64DataSize::Bits64,
-        operation: Arm64AddSubtract::Add,
-        set_flags: false,
-        destination: Arm64AddSubtractDestination::General(destination),
-        source: Arm64BaseRegister::StackPointer,
-        immediate: offset,
         shift_12: false,
     });
 }

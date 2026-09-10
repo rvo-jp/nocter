@@ -42,6 +42,7 @@ mod darwin_network_connection_address;
 mod darwin_network_connection_event;
 mod darwin_network_connection_transfer;
 mod darwin_network_owner;
+mod darwin_network_owner_creation;
 mod darwin_network_owner_event;
 mod darwin_network_owner_lifecycle;
 mod darwin_network_primitive_targets;
