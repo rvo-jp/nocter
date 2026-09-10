@@ -3932,7 +3932,7 @@ mod tests {
             "pub interface Readable {\n",
             "    pub type Item\n",
             "    pub method &self.read<T>(fallback: T): Self.Item from self where copy T\n",
-            "    pub method &self.ready(): bool\n",
+            "    pub async method &self.ready(): bool\n",
             "}\n",
             "\n",
             "struct Value {}\n",
@@ -3980,7 +3980,7 @@ mod tests {
             "{response}"
         );
         assert!(
-            response.contains("method &self.ready(): bool"),
+            response.contains("async method &self.ready(): bool"),
             "{response}"
         );
         assert!(response.contains("abort()"), "{response}");

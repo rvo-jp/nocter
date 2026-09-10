@@ -555,7 +555,7 @@ impl<'a> Renderer<'a> {
         self.generic_parameters(callable.generic_parameters())?;
         self.parameters(callable.parameters())?;
         self.output.push_str(": ");
-        self.ty(callable.execution().body_result(callable.result()))?;
+        self.ty(callable.body_result())?;
         self.provenance(callable)?;
         self.requirements(callable.requirements())?;
         Some(())
@@ -568,6 +568,9 @@ impl<'a> Renderer<'a> {
         let declarations = self.graph.declarations();
         let callable = declarations.callables().get(required.interface_method())?;
         self.callable_guarantees(callable.guarantees());
+        if required.is_deferred() {
+            self.output.push_str("async ");
+        }
         self.output.push_str("method ");
         self.output.push_str(match required.receiver() {
             CallableCapability::Readonly => "&self.",

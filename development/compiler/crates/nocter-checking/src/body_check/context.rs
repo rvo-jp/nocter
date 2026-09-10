@@ -53,7 +53,7 @@ pub(super) fn body_contract(
                     CallableExecution::Deferred { .. } => BodyExecution::Deferred,
                 };
                 BodyContract {
-                    result: declaration.execution().body_result(declaration.result()),
+                    result: declaration.body_result(),
                     execution,
                 }
             })

@@ -45,16 +45,6 @@ pub enum CallableExecution {
     Deferred { output: TypeId },
 }
 
-impl CallableExecution {
-    #[must_use]
-    pub const fn body_result(self, declared_result: TypeId) -> TypeId {
-        match self {
-            Self::Immediate => declared_result,
-            Self::Deferred { output } => output,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ProvenanceOrigin {
     Receiver,
@@ -264,9 +254,22 @@ impl CallableDeclaration {
         &self.parameters
     }
 
+    /// Returns the type produced by invoking this callable.
+    ///
+    /// For deferred execution this is `future Output`; use [`Self::body_result`] when checking or
+    /// presenting the authored body contract.
     #[must_use]
     pub const fn result(&self) -> TypeId {
         self.result
+    }
+
+    /// Returns the type produced by the callable body.
+    #[must_use]
+    pub const fn body_result(&self) -> TypeId {
+        match self.execution {
+            CallableExecution::Immediate => self.result,
+            CallableExecution::Deferred { output } => output,
+        }
     }
 
     #[must_use]

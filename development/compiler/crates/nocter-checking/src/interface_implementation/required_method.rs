@@ -1,4 +1,6 @@
-use nocter_declarations::{CallableDeclaration, DeclarationGraph, ParameterRole};
+use nocter_declarations::{
+    CallableDeclaration, CallableExecution, DeclarationGraph, ParameterRole,
+};
 use nocter_model::{
     ArgumentPackType, CallableCapability, CallableId, GenericParameterId,
     InterfaceImplementationId, ParameterId, TypeId, TypeKind,
@@ -44,8 +46,14 @@ pub struct RequiredInterfaceImplementationMethod {
     receiver: CallableCapability,
     generic_parameters: Box<[GenericParameterId]>,
     parameters: Box<[RequiredInterfaceImplementationParameter]>,
-    result: TypeId,
+    execution: RequiredMethodExecution,
     requirements: Box<[CheckedPredicate]>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RequiredMethodExecution {
+    Immediate { result: TypeId },
+    Deferred { output: TypeId },
 }
 
 impl RequiredInterfaceImplementationMethod {
@@ -110,7 +118,14 @@ impl RequiredInterfaceImplementationMethod {
                 })
             })
             .collect::<Result<Vec<_>, InterfaceImplementationInternalError>>()?;
-        let result = substitution.apply_type(types, expected.result())?;
+        let execution = match expected.execution() {
+            CallableExecution::Immediate => RequiredMethodExecution::Immediate {
+                result: substitution.apply_type(types, expected.result())?,
+            },
+            CallableExecution::Deferred { output } => RequiredMethodExecution::Deferred {
+                output: substitution.apply_type(types, output)?,
+            },
+        };
         let requirements =
             normalize_requirements(graph, types, &substitution, expected.requirements())?
                 .into_iter()
@@ -123,7 +138,7 @@ impl RequiredInterfaceImplementationMethod {
             receiver,
             generic_parameters: expected.generic_parameters().into(),
             parameters: parameters.into_boxed_slice(),
-            result,
+            execution,
             requirements: requirements.into_boxed_slice(),
         })
     }
@@ -155,7 +170,15 @@ impl RequiredInterfaceImplementationMethod {
 
     #[must_use]
     pub const fn result(&self) -> TypeId {
-        self.result
+        match self.execution {
+            RequiredMethodExecution::Immediate { result } => result,
+            RequiredMethodExecution::Deferred { output } => output,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_deferred(&self) -> bool {
+        matches!(self.execution, RequiredMethodExecution::Deferred { .. })
     }
 
     #[must_use]
