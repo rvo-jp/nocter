@@ -69,7 +69,7 @@ async func accept_stream_async_before(
                         return StreamListenerAcceptAttempt.failed(move normalized)
                     }
                     NetworkListenerState.cancelled {
-                        release_cancelled_stream_listener(listener)
+                        dispose_stream_listener(listener)
                         return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
                     }
                 }

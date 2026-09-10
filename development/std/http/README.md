@@ -31,9 +31,9 @@ the public response cursor operate on the sum rather than branching on the URL s
 informational responses are consumed before the final response is exposed; protocol-switching
 status 101 is rejected because the API does not transfer the upgraded stream. `Response` exposes
 the final status and fields and implements `Reader` for decoded body bytes. Completion, decoding or
-network failure, explicit `close`, and destruction of an unfinished response all close the
-connection. There is no pooling, redirect following, request replay, decompression, or connection
-reuse.
+network failure, explicit `close`, and destruction of an unfinished response all transfer the
+connection through its exact-once nonwaiting disposal boundary. There is no pooling, redirect
+following, request replay, decompression, or connection reuse.
 
 `Client.send_async` has an immediate outer result and a lazy inner computation. Request validation,
 request-head encoding, and synchronous host resolution finish before the method returns. Awaiting

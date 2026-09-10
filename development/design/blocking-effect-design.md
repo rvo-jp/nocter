@@ -96,12 +96,15 @@ ownership-bearing datagram. The distinct `NetworkConnectionTryReceiveEvent` and
 empty channel to explicit result availability. Reactor readiness is therefore a wake signal and
 optimization, not an unchecked precondition required to keep future drive nonblocking.
 
-Implicit connection and listener destruction uses a separate ownership-consuming disposal role.
-Its invocation copies the closed owner record into runtime storage, submits exactly one private
-cleanup worker to a global concurrent queue, and returns. Only that worker performs blocking event
-drain and the serial callback-queue barrier. Accepted connections already queued for a listener
-are transferred to the same disposal boundary, so neither cancellation nor listener teardown can
-forget retained provider ownership.
+Every terminal connection and listener path uses one ownership-consuming disposal role. Explicit
+close, failed setup or transfer, observed cancellation, and implicit destruction atomically remove
+the owner from its source value before invoking that role. The invocation copies the closed owner
+record into runtime storage, submits exactly one private cleanup worker to a global concurrent
+queue, and returns. Only that worker performs blocking event drain and the serial callback-queue
+barrier. Accepted connections already queued for a listener are transferred to the same disposal
+boundary, so no terminal path can forget retained provider ownership or accidentally wait on an
+executor thread. Public wrappers use ordinary structural field destruction instead of repeating
+the provider lifecycle.
 
 ## Standard-Library Migration Inventory
 

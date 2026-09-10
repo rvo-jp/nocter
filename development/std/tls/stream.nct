@@ -265,8 +265,3 @@ instance TlsStream {
         return
     }
 }
-
-noalloc drop TlsStream(&+self) {
-    self.connection.close()
-    return
-}

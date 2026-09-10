@@ -93,18 +93,6 @@ pub(/) noalloc func connection_local_address(owner: &NetworkOwner): NetworkAddre
 #target: "arm64-darwin"
 pub(/) noalloc func connection_remote_address(owner: &NetworkOwner): NetworkAddress?
 
-/// Requests idempotent connection cancellation.
-#target: "arm64-darwin"
-pub(/) noalloc func connection_cancel(owner: &+NetworkOwner): void
-
-/// Crosses the serial callback-queue release fence.
-#target: "arm64-darwin"
-pub(/) noalloc func connection_release_barrier(owner: &+NetworkOwner): void
-
-/// Releases a cancelled, quiesced owner.
-#target: "arm64-darwin"
-pub(/) noalloc func connection_release(owner: NetworkOwner): void
-
 /// Transfers an owner to nonblocking asynchronous terminal cleanup.
 #target: "arm64-darwin"
 pub(/) noalloc func connection_dispose(owner: NetworkOwner): void
@@ -132,18 +120,6 @@ pub(/) noalloc func listener_try_next_event(owner: &+NetworkOwner): NetworkListe
 /// Returns the effective local port of a running listener.
 #target: "arm64-darwin"
 pub(/) noalloc func listener_port(owner: &NetworkOwner): u16
-
-/// Requests provider cancellation for one listener.
-#target: "arm64-darwin"
-pub(/) noalloc func listener_cancel(owner: &+NetworkOwner): void
-
-/// Waits until every listener callback has returned after final cancellation.
-#target: "arm64-darwin"
-pub(/) noalloc func listener_release_barrier(owner: &+NetworkOwner): void
-
-/// Releases one quiesced listener owner.
-#target: "arm64-darwin"
-pub(/) noalloc func listener_release(owner: NetworkOwner): void
 
 /// Transfers a listener owner to nonblocking asynchronous terminal cleanup.
 #target: "arm64-darwin"

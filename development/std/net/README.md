@@ -85,10 +85,11 @@ beyond the lifetime of that parent storage.
 
 Native provider objects and callback descriptors are never exposed. A successful constructor,
 connection, or acceptance transfers one closed provider owner into one move-only public value.
-Explicit `close` is terminal and idempotent; destruction cancels and releases a still-open owner at
-most once. Cancellation first observes the provider's final state and crosses its serial callback-
-queue barrier, so no callback can retain or access a released owner. `shutdown` changes the selected
-stream direction without releasing ownership.
+Explicit `close` is terminal and idempotent; destruction transfers a still-open owner through the
+same exact-once disposal boundary. That transfer returns without waiting. A private cleanup worker
+requests cancellation, drains ownership-bearing events, crosses the serial callback-queue barrier,
+and then releases native state, so no callback can retain or access a released owner. `shutdown`
+changes the selected stream direction without releasing ownership.
 
 TCP operations are synchronous. `connect_with_timeout` bounds connection establishment.
 `set_read_timeout` and `set_write_timeout` bound later stream operations, while

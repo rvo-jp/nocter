@@ -44,52 +44,6 @@ noalloc func stream_connection_from_owner(
     }
 }
 
-noalloc func close_connection_owner(owner: NetworkOwner): void {
-    var active = move owner
-    darwin.connection_cancel(&+active)
-    var cancelled = false
-    while !cancelled {
-        match darwin.connection_next_event(&+active, ptr.from_addr(1), 0) {
-            NetworkConnectionEvent.state(state) {
-                match move state {
-                    NetworkConnectionState.cancelled { cancelled = true }
-                    _ {}
-                }
-            }
-            _ {}
-        }
-    }
-    darwin.connection_release_barrier(&+active)
-    darwin.connection_release(move active)
-    return
-}
-
-noalloc func close_initialized_connection_owner(owner: NetworkOwner): void {
-    var active = move owner
-    darwin.connection_start(&+active)
-    close_connection_owner(move active)
-    return
-}
-
-noalloc func release_cancelled_connection_owner(owner: NetworkOwner): void {
-    var cancelled = move owner
-    darwin.connection_release_barrier(&+cancelled)
-    darwin.connection_release(move cancelled)
-    return
-}
-
-noalloc func close_stream_connection(connection: &+StreamConnection): void {
-    let previous = ptr.replace_value(
-        &+connection.ownership,
-        StreamConnectionOwnership.closed,
-    )
-    match move previous {
-        StreamConnectionOwnership.open(owner) { close_connection_owner(move owner) }
-        StreamConnectionOwnership.closed {}
-    }
-    return
-}
-
 noalloc func dispose_stream_connection(connection: &+StreamConnection): void {
     let previous = ptr.replace_value(
         &+connection.ownership,
@@ -102,25 +56,11 @@ noalloc func dispose_stream_connection(connection: &+StreamConnection): void {
     return
 }
 
-noalloc func release_cancelled_stream_connection(connection: &+StreamConnection): void {
-    let previous = ptr.replace_value(
-        &+connection.ownership,
-        StreamConnectionOwnership.closed,
-    )
-    match move previous {
-        StreamConnectionOwnership.open(owner) {
-            release_cancelled_connection_owner(move owner)
-        }
-        StreamConnectionOwnership.closed {}
-    }
-    return
-}
-
 noalloc func failed_connection(
     owner: NetworkOwner,
     failure: NetworkFailure,
 ): StreamConnectionAttempt {
-    close_connection_owner(move owner)
+    darwin.connection_dispose(move owner)
     return StreamConnectionAttempt.failed(move failure)
 }
 
@@ -142,7 +82,7 @@ noalloc func require_application_protocol(
                 StreamConnectionOwnership.closed { false }
             }
             if matches { return StreamConnectionAttempt.ready(move active) }
-            active.close()
+            dispose_stream_connection(&+active)
             return StreamConnectionAttempt.failed(
                 NetworkFailure.tls_application_protocol_mismatch,
             )
@@ -180,7 +120,7 @@ noalloc func start_stream_connection_before(
                 ))
             }
             StreamConnectProgress.cancelled {
-                release_cancelled_connection_owner(move active)
+                darwin.connection_dispose(move active)
                 return StreamConnectionAttempt.failed(NetworkFailure.closed)
             }
             StreamConnectProgress.failed(failure) {
@@ -336,15 +276,15 @@ noalloc func complete_stream_write(
             return UnitAttempt.ready
         }
         StreamWriteProgress.pending {
-            close_stream_connection(connection)
+            dispose_stream_connection(connection)
             return UnitAttempt.failed(NetworkFailure.invalid_target_result)
         }
         StreamWriteProgress.cancelled {
-            release_cancelled_stream_connection(connection)
+            dispose_stream_connection(connection)
             return UnitAttempt.failed(NetworkFailure.closed)
         }
         StreamWriteProgress.failed(failure) {
-            close_stream_connection(connection)
+            dispose_stream_connection(connection)
             return UnitAttempt.failed(move failure)
         }
     }
@@ -390,15 +330,15 @@ instance StreamConnection {
                 return TransferAttempt.ready(count)
             }
             StreamReadProgress.pending {
-                close_stream_connection(self)
+                dispose_stream_connection(self)
                 return TransferAttempt.failed(NetworkFailure.invalid_target_result)
             }
             StreamReadProgress.cancelled {
-                release_cancelled_stream_connection(self)
+                dispose_stream_connection(self)
                 return TransferAttempt.failed(NetworkFailure.closed)
             }
             StreamReadProgress.failed(failure) {
-                close_stream_connection(self)
+                dispose_stream_connection(self)
                 return TransferAttempt.failed(move failure)
             }
         }
@@ -483,7 +423,7 @@ instance StreamConnection {
     }
 
     noalloc method &+self.close(): void {
-        close_stream_connection(self)
+        dispose_stream_connection(self)
         return
     }
 }

@@ -213,9 +213,3 @@ instance Response {
         return
     }
 }
-
-noalloc drop Response(&+self) {
-    self.stream.close()
-    self.complete = true
-    return
-}

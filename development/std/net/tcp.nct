@@ -148,11 +148,6 @@ instance TcpStream {
     }
 }
 
-noalloc drop TcpStream(&+self) {
-    self.connection.close()
-    return
-}
-
 construct TcpListener {
     noalloc func bind(address: SocketAddress): Self! {
         match net.listen_stream(substrate_address(&address)) {
@@ -194,9 +189,4 @@ instance TcpListener {
         self.listener.close()
         return
     }
-}
-
-noalloc drop TcpListener(&+self) {
-    self.listener.close()
-    return
 }

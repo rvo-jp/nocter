@@ -122,7 +122,7 @@ async func start_stream_connection_async_before(
                 return StreamConnectionAttempt.ready(move connection)
             }
             StreamConnectProgress.cancelled {
-                release_cancelled_stream_connection(&+connection)
+                dispose_stream_connection(&+connection)
                 return StreamConnectionAttempt.failed(NetworkFailure.closed)
             }
             StreamConnectProgress.failed(failure) {
@@ -185,7 +185,7 @@ async func read_stream_async_before(
             }
             StreamReadProgress.cancelled {
                 pending.disarm()
-                release_cancelled_stream_connection(pending.connection)
+                dispose_stream_connection(pending.connection)
                 return TransferAttempt.failed(NetworkFailure.closed)
             }
             StreamReadProgress.failed(failure) {
@@ -249,7 +249,7 @@ async func write_stream_async_before(
             }
             StreamWriteProgress.cancelled {
                 pending.disarm()
-                release_cancelled_stream_connection(pending.connection)
+                dispose_stream_connection(pending.connection)
                 return UnitAttempt.failed(NetworkFailure.closed)
             }
             StreamWriteProgress.failed(failure) {

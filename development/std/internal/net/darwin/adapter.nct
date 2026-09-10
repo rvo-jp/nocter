@@ -384,24 +384,6 @@ noalloc func connection_remote_address(owner: &NetworkOwner): NetworkAddress? {
 }
 
 #target: "arm64-darwin"
-noalloc func connection_cancel(owner: &+NetworkOwner): void {
-    network_connection_request_cancel_raw(owner)
-    return
-}
-
-#target: "arm64-darwin"
-noalloc func connection_release_barrier(owner: &+NetworkOwner): void {
-    network_connection_release_barrier_raw(owner)
-    return
-}
-
-#target: "arm64-darwin"
-noalloc func connection_release(owner: NetworkOwner): void {
-    network_connection_release_raw(move owner)
-    return
-}
-
-#target: "arm64-darwin"
 noalloc func connection_dispose(owner: NetworkOwner): void {
     network_connection_dispose_raw(move owner)
     return
@@ -472,24 +454,6 @@ noalloc func listener_try_next_event(owner: &+NetworkOwner): NetworkListenerEven
 #target: "arm64-darwin"
 noalloc func listener_port(owner: &NetworkOwner): u16 {
     return network_listener_port_raw(owner)
-}
-
-#target: "arm64-darwin"
-noalloc func listener_cancel(owner: &+NetworkOwner): void {
-    network_listener_request_cancel_raw(owner)
-    return
-}
-
-#target: "arm64-darwin"
-noalloc func listener_release_barrier(owner: &+NetworkOwner): void {
-    network_listener_release_barrier_raw(owner)
-    return
-}
-
-#target: "arm64-darwin"
-noalloc func listener_release(owner: NetworkOwner): void {
-    network_listener_release_raw(move owner)
-    return
 }
 
 #target: "arm64-darwin"

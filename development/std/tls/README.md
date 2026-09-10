@@ -45,14 +45,14 @@ already accepted by the provider remains observable.
 
 Read and write timeout configuration has the same fixed monotonic-deadline meaning as `TcpStream`.
 Timeouts do not restart after provider progress. Directional shutdown updates the common provider
-stream state. Explicit `close` is terminal and idempotent. Destruction cancels and releases an open
-stream once; release occurs only after the final provider state and serial callback-queue barrier
-have both been observed.
+stream state. Explicit `close` is terminal and idempotent. Close and destruction transfer an open
+stream once to private cleanup; that transfer returns before the worker observes the final provider
+state, crosses the serial callback-queue barrier, and releases native resources.
 
 Asynchronous establishment, reads, and writes use the same ordered provider event descriptor as
 their synchronous counterparts. They suspend the executor instead of blocking its thread. Dropping
 an unfinished computation cancels its registered wait, while dropping or closing the resulting
-stream follows the same terminal provider-state and callback-queue barrier as synchronous use.
+stream transfers ownership through the same nonwaiting cleanup boundary.
 
 ## Failures
 
