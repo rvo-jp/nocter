@@ -45,6 +45,7 @@ mod darwin_network_connection_transfer;
 mod darwin_network_event_error;
 mod darwin_network_listener;
 mod darwin_network_listener_event;
+mod darwin_network_listener_port;
 mod darwin_network_owner;
 mod darwin_network_owner_creation;
 mod darwin_network_owner_event;
@@ -163,6 +164,7 @@ pub use darwin_network_listener::{
 pub use darwin_network_listener_event::{
     Arm64DarwinNetworkListenerEventError, Arm64DarwinNetworkListenerEventTarget,
 };
+pub use darwin_network_listener_port::Arm64DarwinNetworkListenerPortError;
 pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,
     emit_darwin_network_owner_guard, emit_darwin_network_owner_initialize,

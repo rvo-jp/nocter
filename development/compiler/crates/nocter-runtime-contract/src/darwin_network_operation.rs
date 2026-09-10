@@ -71,6 +71,7 @@ pub enum DarwinNetworkAdapterOperation {
     BeginReceive,
     BeginSend,
     CopyAddress,
+    ListenerPort,
     ReceiveEvent,
     RequestCancel,
     ObserveFinalState,
@@ -88,6 +89,7 @@ impl DarwinNetworkAdapterOperation {
         Self::BeginReceive,
         Self::BeginSend,
         Self::CopyAddress,
+        Self::ListenerPort,
         Self::ReceiveEvent,
         Self::RequestCancel,
         Self::ObserveFinalState,
@@ -108,6 +110,7 @@ impl DarwinNetworkAdapterOperation {
             | Self::BeginReceive
             | Self::BeginSend
             | Self::CopyAddress
+            | Self::ListenerPort
             | Self::ReceiveEvent
             | Self::RequestCancel
             | Self::ObserveFinalState
@@ -210,7 +213,8 @@ impl DarwinNetworkOwner {
                 | State::Quiesced,
             )
             | (Operation::ReceiveEvent, _, State::Running | State::CancelRequested)
-            | (Operation::CopyAddress, Kind::Connection, State::Running) => self.state,
+            | (Operation::CopyAddress, Kind::Connection, State::Running)
+            | (Operation::ListenerPort, Kind::Listener, State::Running) => self.state,
             (Operation::BeginReceive | Operation::BeginSend, Kind::Connection, State::Running) => {
                 State::Running
             }
@@ -495,6 +499,15 @@ mod tests {
             listener.observe_event(Event::AcceptedConnection).unwrap(),
             listener
         );
+        assert_eq!(listener.apply(Operation::ListenerPort).unwrap(), listener);
+        let connection = DarwinNetworkOwner::create(Operation::CreateOutboundConnection)
+            .unwrap()
+            .apply(Operation::Start)
+            .unwrap();
+        assert!(matches!(
+            connection.apply(Operation::ListenerPort),
+            Err(DarwinNetworkOperationError::InvalidState { .. })
+        ));
     }
 
     #[test]
