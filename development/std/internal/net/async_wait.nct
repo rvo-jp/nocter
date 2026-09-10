@@ -1,0 +1,19 @@
+//! Executor-aware waiting for one native readiness descriptor.
+
+see ./deadline.nct
+
+use /internal/task
+
+func await_native_descriptor_before(
+    descriptor: usize,
+    writable: bool,
+    deadline: &OperationDeadline,
+): async bool {
+    if deadline_expired(deadline) { return false }
+    let counter = async_wait_counter(deadline) otherwise {
+        await task.wait_descriptor_ready(descriptor, writable)
+        return true
+    }
+    await task.wait_descriptor_ready_or_deadline(descriptor, writable, counter)
+    return !deadline_expired(deadline)
+}

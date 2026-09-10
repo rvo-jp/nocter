@@ -15,9 +15,12 @@ use /internal/net/model.{
 use /time.Duration
 
 see ./descriptor.nct
+see ./async_wait.nct
 see ./async_descriptor.nct
 see ./deadline.nct
 see ./connection.nct
+see ./connection_events.nct
+see ./async_connection.nct
 see ./resolver.nct
 
 pub(/) enum NetworkFailure {
@@ -42,12 +45,45 @@ pub(/) noalloc func connect_stream(
     timeout: Duration?,
 ): StreamConnectionAttempt
 
+/// Connects one provider-backed stream without blocking the executor thread.
+pub(/) func connect_stream_async(address: NetworkAddress): async StreamConnectionAttempt
+
+/// Connects one provider-backed stream asynchronously until the relative timeout expires.
+pub(/) func connect_stream_async_with_timeout(
+    address: NetworkAddress,
+    timeout: Duration,
+): async StreamConnectionAttempt
+
+/// Connects asynchronously without restarting one shared candidate deadline.
+pub(/) func connect_stream_async_before(
+    address: NetworkAddress,
+    deadline: &+ConnectionDeadline,
+): async StreamConnectionAttempt
+
 instance StreamConnection {
     /// Reads one provider chunk, returning zero at clean peer completion.
     pub(/) noalloc method &+self.read(buffer: &+[u8]): TransferAttempt
 
     /// Sends the complete byte view or returns one normalized failure.
     pub(/) noalloc method &+self.write(bytes: &[u8]): UnitAttempt
+
+    /// Reads one provider chunk without blocking the executor thread.
+    pub(/) method &+self.read_async(buffer: &+[u8]): async TransferAttempt
+
+    /// Reads asynchronously until the relative timeout expires.
+    pub(/) method &+self.read_async_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): async TransferAttempt
+
+    /// Sends the complete byte view without blocking the executor thread.
+    pub(/) method &+self.write_async(bytes: &[u8]): async UnitAttempt
+
+    /// Sends asynchronously until the complete view is accepted or the timeout expires.
+    pub(/) method &+self.write_async_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): async UnitAttempt
 
     /// Reports the effective logical local address.
     pub(/) noalloc method &self.local_address(): AddressAttempt

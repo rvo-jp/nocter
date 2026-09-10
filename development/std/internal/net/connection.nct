@@ -3,6 +3,7 @@
 see ./index.nct
 see ./deadline.nct
 see ./descriptor.nct
+see ./connection_events.nct
 
 use /internal/net/darwin
 use /internal/net/model.{
@@ -10,7 +11,6 @@ use /internal/net/model.{
     NetworkConnectionEvent,
     NetworkConnectionState,
     NetworkOwner,
-    NetworkProviderFailure,
 }
 use /internal/ptr
 use /ptr as public_ptr
@@ -29,14 +29,17 @@ struct StreamConnection {
     read_complete: bool
 }
 
-enum StreamReadOperation {
-    ready(count: usize, complete: bool)
-    failed(failure: NetworkFailure)
-}
-
-noalloc func provider_failure(failure: NetworkProviderFailure?): NetworkFailure {
-    let value = move failure otherwise { return NetworkFailure.invalid_target_result }
-    return NetworkFailure.provider(move value)
+noalloc func stream_connection_from_owner(
+    owner: NetworkOwner,
+    event_descriptor: usize,
+): StreamConnection {
+    return StreamConnection {
+        ownership: StreamConnectionOwnership.open(move owner),
+        event_descriptor: event_descriptor,
+        read_timeout_value: none,
+        write_timeout_value: none,
+        read_complete: false,
+    }
 }
 
 noalloc func close_connection_owner(owner: NetworkOwner): void {
@@ -98,32 +101,20 @@ noalloc func connect_stream_before(
             }
             UnitAttempt.ready {}
         }
-        match darwin.connection_next_event(&+owner, ptr.from_addr(1), 0) {
-            NetworkConnectionEvent.state(state) {
-                match move state {
-                    NetworkConnectionState.preparing {}
-                    NetworkConnectionState.waiting {}
-                    NetworkConnectionState.ready {
-                        return StreamConnectionAttempt.ready(StreamConnection {
-                            ownership: StreamConnectionOwnership.open(move owner),
-                            event_descriptor: descriptor,
-                            read_timeout_value: none,
-                            write_timeout_value: none,
-                            read_complete: false,
-                        })
-                    }
-                    NetworkConnectionState.failed(failure) {
-                        return failed_connection(move owner, provider_failure(move failure))
-                    }
-                    NetworkConnectionState.cancelled {
-                        darwin.connection_release_barrier(&+owner)
-                        darwin.connection_release(move owner)
-                        return StreamConnectionAttempt.failed(NetworkFailure.closed)
-                    }
-                }
+        match reduce_connect_event(darwin.connection_next_event(
+            &+owner,
+            ptr.from_addr(1),
+            0,
+        )) {
+            StreamConnectProgress.pending {}
+            StreamConnectProgress.ready {
+                return StreamConnectionAttempt.ready(stream_connection_from_owner(
+                    move owner,
+                    descriptor,
+                ))
             }
-            _ {
-                return failed_connection(move owner, NetworkFailure.invalid_target_result)
+            StreamConnectProgress.failed(failure) {
+                return failed_connection(move owner, move failure)
             }
         }
     }
@@ -143,45 +134,32 @@ noalloc func read_open_connection(
     event_descriptor: usize,
     timeout: Duration?,
     buffer: &+[u8],
-): StreamReadOperation {
+): StreamReadProgress {
     let maximum = u32.from_u64(buffer.len() as u64) otherwise {
-        return StreamReadOperation.failed(NetworkFailure.invalid_target_result)
+        return StreamReadProgress.failed(NetworkFailure.invalid_target_result)
     }
     darwin.connection_begin_receive(owner, maximum)
     let deadline = operation_deadline(timeout)
     while true {
         match wait_readable(event_descriptor, &deadline) {
-            UnitAttempt.failed(failure) { return StreamReadOperation.failed(move failure) }
+            UnitAttempt.failed(failure) { return StreamReadProgress.failed(move failure) }
             UnitAttempt.ready {}
         }
-        match darwin.connection_next_event(
+        match reduce_read_event(darwin.connection_next_event(
             owner,
             public_ptr.from_ref_mut(&+buffer[0]),
             buffer.len(),
-        ) {
-            NetworkConnectionEvent.state(state) {
-                match move state {
-                    NetworkConnectionState.preparing {}
-                    NetworkConnectionState.waiting {}
-                    NetworkConnectionState.ready {}
-                    NetworkConnectionState.failed(failure) {
-                        return StreamReadOperation.failed(provider_failure(move failure))
-                    }
-                    NetworkConnectionState.cancelled {
-                        return StreamReadOperation.failed(NetworkFailure.closed)
-                    }
-                }
+        )) {
+            StreamReadProgress.pending {}
+            StreamReadProgress.ready(count, complete) {
+                return StreamReadProgress.ready(count, complete)
             }
-            NetworkConnectionEvent.received(count, complete, failure) {
-                let provider = move failure otherwise {
-                    return StreamReadOperation.ready(count, complete)
-                }
-                return StreamReadOperation.failed(NetworkFailure.provider(move provider))
+            StreamReadProgress.failed(failure) {
+                return StreamReadProgress.failed(move failure)
             }
-            _ { return StreamReadOperation.failed(NetworkFailure.invalid_target_result) }
         }
     }
-    return StreamReadOperation.failed(NetworkFailure.invalid_target_result)
+    return StreamReadProgress.failed(NetworkFailure.invalid_target_result)
 }
 
 noalloc func write_open_connection(
@@ -200,25 +178,10 @@ noalloc func write_open_connection(
             UnitAttempt.failed(failure) { return UnitAttempt.failed(move failure) }
             UnitAttempt.ready {}
         }
-        match darwin.connection_next_event(owner, ptr.from_addr(1), 0) {
-            NetworkConnectionEvent.state(state) {
-                match move state {
-                    NetworkConnectionState.preparing {}
-                    NetworkConnectionState.waiting {}
-                    NetworkConnectionState.ready {}
-                    NetworkConnectionState.failed(failure) {
-                        return UnitAttempt.failed(provider_failure(move failure))
-                    }
-                    NetworkConnectionState.cancelled {
-                        return UnitAttempt.failed(NetworkFailure.closed)
-                    }
-                }
-            }
-            NetworkConnectionEvent.sent(failure) {
-                let provider = move failure otherwise { return UnitAttempt.ready }
-                return UnitAttempt.failed(NetworkFailure.provider(move provider))
-            }
-            _ { return UnitAttempt.failed(NetworkFailure.invalid_target_result) }
+        match reduce_write_event(darwin.connection_next_event(owner, ptr.from_addr(1), 0)) {
+            StreamWriteProgress.pending {}
+            StreamWriteProgress.ready { return UnitAttempt.ready }
+            StreamWriteProgress.failed(failure) { return UnitAttempt.failed(move failure) }
         }
     }
     return UnitAttempt.failed(NetworkFailure.invalid_target_result)
@@ -238,15 +201,19 @@ instance StreamConnection {
                 )
             }
             StreamConnectionOwnership.closed {
-                StreamReadOperation.failed(NetworkFailure.closed)
+                StreamReadProgress.failed(NetworkFailure.closed)
             }
         }
         match move operation {
-            StreamReadOperation.ready(count, complete) {
+            StreamReadProgress.ready(count, complete) {
                 if complete { self.read_complete = true }
                 return TransferAttempt.ready(count)
             }
-            StreamReadOperation.failed(failure) {
+            StreamReadProgress.pending {
+                close_stream_connection(self)
+                return TransferAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+            StreamReadProgress.failed(failure) {
                 close_stream_connection(self)
                 return TransferAttempt.failed(move failure)
             }

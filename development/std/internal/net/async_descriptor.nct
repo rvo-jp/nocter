@@ -3,11 +3,11 @@
 see ./index.nct
 see ./descriptor.nct
 see ./deadline.nct
+see ./async_wait.nct
 
 use /internal/net/darwin
 use /internal/net/darwin.{RawAcceptAttempt, RawDescriptorAttempt, RawTransferAttempt, RawUnitAttempt}
 use /internal/net/model.NetworkAddress
-use /internal/task
 use /time.Duration
 
 func await_descriptor_before(
@@ -15,13 +15,7 @@ func await_descriptor_before(
     writable: bool,
     deadline: &OperationDeadline,
 ): async bool {
-    if deadline_expired(deadline) { return false }
-    let counter = async_wait_counter(deadline) otherwise {
-        await task.wait_descriptor_ready(descriptor.fd, writable)
-        return true
-    }
-    await task.wait_descriptor_ready_or_deadline(descriptor.fd, writable, counter)
-    return true
+    return await await_native_descriptor_before(descriptor.fd, writable, deadline)
 }
 
 func finish_connect_async(

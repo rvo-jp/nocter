@@ -1,0 +1,99 @@
+//! Provider-independent reduction of ordered stream callback events.
+
+see ./index.nct
+
+use /internal/net/model.{
+    NetworkConnectionEvent,
+    NetworkConnectionState,
+    NetworkProviderFailure,
+}
+
+enum StreamConnectProgress {
+    pending
+    ready
+    failed(failure: NetworkFailure)
+}
+
+enum StreamReadProgress {
+    pending
+    ready(count: usize, complete: bool)
+    failed(failure: NetworkFailure)
+}
+
+enum StreamWriteProgress {
+    pending
+    ready
+    failed(failure: NetworkFailure)
+}
+
+noalloc func provider_failure(failure: NetworkProviderFailure?): NetworkFailure {
+    let value = move failure otherwise { return NetworkFailure.invalid_target_result }
+    return NetworkFailure.provider(move value)
+}
+
+noalloc func reduce_connect_event(event: NetworkConnectionEvent): StreamConnectProgress {
+    match move event {
+        NetworkConnectionEvent.state(state) {
+            match move state {
+                NetworkConnectionState.preparing { return StreamConnectProgress.pending }
+                NetworkConnectionState.waiting { return StreamConnectProgress.pending }
+                NetworkConnectionState.ready { return StreamConnectProgress.ready }
+                NetworkConnectionState.failed(failure) {
+                    return StreamConnectProgress.failed(provider_failure(move failure))
+                }
+                NetworkConnectionState.cancelled {
+                    return StreamConnectProgress.failed(NetworkFailure.closed)
+                }
+            }
+        }
+        _ { return StreamConnectProgress.failed(NetworkFailure.invalid_target_result) }
+    }
+}
+
+noalloc func reduce_read_event(event: NetworkConnectionEvent): StreamReadProgress {
+    match move event {
+        NetworkConnectionEvent.state(state) {
+            match move state {
+                NetworkConnectionState.preparing { return StreamReadProgress.pending }
+                NetworkConnectionState.waiting { return StreamReadProgress.pending }
+                NetworkConnectionState.ready { return StreamReadProgress.pending }
+                NetworkConnectionState.failed(failure) {
+                    return StreamReadProgress.failed(provider_failure(move failure))
+                }
+                NetworkConnectionState.cancelled {
+                    return StreamReadProgress.failed(NetworkFailure.closed)
+                }
+            }
+        }
+        NetworkConnectionEvent.received(count, complete, failure) {
+            let value = move failure otherwise {
+                return StreamReadProgress.ready(count, complete)
+            }
+            return StreamReadProgress.failed(NetworkFailure.provider(move value))
+        }
+        _ { return StreamReadProgress.failed(NetworkFailure.invalid_target_result) }
+    }
+}
+
+noalloc func reduce_write_event(event: NetworkConnectionEvent): StreamWriteProgress {
+    match move event {
+        NetworkConnectionEvent.state(state) {
+            match move state {
+                NetworkConnectionState.preparing { return StreamWriteProgress.pending }
+                NetworkConnectionState.waiting { return StreamWriteProgress.pending }
+                NetworkConnectionState.ready { return StreamWriteProgress.pending }
+                NetworkConnectionState.failed(failure) {
+                    return StreamWriteProgress.failed(provider_failure(move failure))
+                }
+                NetworkConnectionState.cancelled {
+                    return StreamWriteProgress.failed(NetworkFailure.closed)
+                }
+            }
+        }
+        NetworkConnectionEvent.sent(failure) {
+            let value = move failure otherwise { return StreamWriteProgress.ready }
+            return StreamWriteProgress.failed(NetworkFailure.provider(move value))
+        }
+        _ { return StreamWriteProgress.failed(NetworkFailure.invalid_target_result) }
+    }
+}

@@ -760,6 +760,82 @@ func main(): i32 {
 }
 "#;
 
+const PROVIDER_ASYNC_STREAM_TEST_MAIN: &str = r#"
+func main(): async i32 {
+    var listener = match listen_tcp(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+        DescriptorAttempt.ready(descriptor) { move descriptor }
+        DescriptorAttempt.failed(_) { return 1 }
+    }
+    let address = match listener.local_address() {
+        AddressAttempt.ready(value) { value }
+        AddressAttempt.failed(_) { return 2 }
+    }
+    var client = match await connect_stream_async_with_timeout(
+        address,
+        Duration.from_seconds(1),
+    ) {
+        StreamConnectionAttempt.ready(connection) { move connection }
+        StreamConnectionAttempt.failed(_) { return 3 }
+    }
+    var server = match listener.accept_tcp() {
+        AcceptAttempt.ready(descriptor, _) { move descriptor }
+        AcceptAttempt.failed(_) { return 4 }
+    }
+    match await client.write_async_with_timeout(
+        "ping".bytes(),
+        Duration.from_seconds(1),
+    ) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) { return 5 }
+    }
+    var request: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    let request_len = match server.read_stream(&+request) {
+        TransferAttempt.ready(count) { count }
+        TransferAttempt.failed(_) { return 6 }
+    }
+    if request_len != 4 || request[0] != 112 || request[3] != 103 { return 7 }
+    match server.write_stream("pong".bytes()) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) { return 8 }
+    }
+    var response: Vec<u8> = Vec [
+        u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
+    ]
+    let response_len = match await client.read_async_with_timeout(
+        &+response,
+        Duration.from_seconds(1),
+    ) {
+        TransferAttempt.ready(count) { count }
+        TransferAttempt.failed(_) { return 9 }
+    }
+    if response_len != 4 || response[0] != 112 || response[3] != 103 { return 10 }
+    var waiting: Vec<u8> = Vec [u8.truncate(0)]
+    match await client.read_async_with_timeout(
+        &+waiting,
+        Duration.from_milliseconds(2),
+    ) {
+        TransferAttempt.ready(_) { return 11 }
+        TransferAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.timed_out {}
+                _ { return 12 }
+            }
+        }
+    }
+    match client.write("closed".bytes()) {
+        UnitAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.closed { return 0 }
+                _ { return 13 }
+            }
+        }
+        _ { return 14 }
+    }
+}
+"#;
+
 struct TempPackage(PathBuf);
 
 impl TempPackage {
@@ -3046,6 +3122,55 @@ fn public_async_tcp_crosses_the_complete_native_session() {
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_status(image.image(), &package_root.0, "async-tcp", 0);
+}
+
+#[test]
+fn provider_async_stream_policy_crosses_the_complete_native_session() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
+    root_source.push_str(
+        "\n#executable: { name: \"provider-async-stream\", module: \"./internal/net\" }\n",
+    );
+    let net_index_path = standard_root.join("internal/net/index.nct");
+    let mut net_index_source = fs::read_to_string(&net_index_path).unwrap();
+    net_index_source = net_index_source.replacen(
+        "use /time.Duration\n",
+        "use /time.Duration\nuse /vec.Vec\n",
+        1,
+    );
+    net_index_source.push_str(PROVIDER_ASYNC_STREAM_TEST_MAIN);
+    let mut overlay = SourceOverlay::builder();
+    overlay
+        .insert_source(
+            standard_root.join("index.nct"),
+            SourceOverride::new(root_source.into_bytes()),
+        )
+        .unwrap();
+    overlay
+        .insert_source(
+            net_index_path,
+            SourceOverride::new(net_index_source.into_bytes()),
+        )
+        .unwrap();
+    let unit = discover(DiscoveryRequest::declared(
+        CompilationTarget::Arm64Darwin,
+        package_graph_with_overlay(
+            vec![resolved_standard(&standard_root, &standard_package)],
+            overlay.finish(),
+        ),
+        vec![
+            ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
+            ModuleIdentity::new(standard_package.clone(), ["internal", "net"]),
+        ],
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    let output = TempPackage::new();
+    execute_native_status(image.image(), &output.0, "provider-async-stream", 0);
 }
 
 #[test]

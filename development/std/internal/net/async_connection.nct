@@ -1,0 +1,236 @@
+//! Cancellation-safe asynchronous byte-stream policy over provider events.
+
+see ./index.nct
+see ./connection.nct
+see ./connection_events.nct
+see ./deadline.nct
+see ./async_wait.nct
+
+use /internal/net/darwin
+use /internal/net/model.NetworkAddress
+use /internal/ptr
+use /ptr as public_ptr
+use /time.Duration
+
+struct PendingStreamOperation {
+    connection: &+StreamConnection
+    armed: bool
+}
+
+construct PendingStreamOperation {
+    noalloc func new(connection: &+StreamConnection): Self {
+        return PendingStreamOperation { connection: connection, armed: true }
+    }
+}
+
+instance PendingStreamOperation {
+    noalloc method &+self.disarm(): void {
+        self.armed = false
+        return
+    }
+}
+
+noalloc drop PendingStreamOperation(&+self) {
+    if self.armed {
+        close_stream_connection(self.connection)
+        self.armed = false
+    }
+    return
+}
+
+func connect_stream_async(address: NetworkAddress): async StreamConnectionAttempt {
+    var deadline = connection_deadline(none)
+    return await connect_stream_async_before(address, &+deadline)
+}
+
+func connect_stream_async_with_timeout(
+    address: NetworkAddress,
+    timeout: Duration,
+): async StreamConnectionAttempt {
+    var deadline = connection_deadline(timeout)
+    return await connect_stream_async_before(address, &+deadline)
+}
+
+func connect_stream_async_before(
+    address: NetworkAddress,
+    deadline: &+ConnectionDeadline,
+): async StreamConnectionAttempt {
+    if !claim_connection_attempt(deadline) {
+        return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
+    }
+    var owner = darwin.connection_create(&address) otherwise {
+        return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+    darwin.connection_start(&+owner)
+    let descriptor = darwin.connection_event_descriptor(&owner)
+    var connection = stream_connection_from_owner(move owner, descriptor)
+    while true {
+        if !await await_native_descriptor_before(descriptor, false, &deadline.operation) {
+            connection.close()
+            return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
+        }
+        let progress = match &+connection.ownership {
+            StreamConnectionOwnership.open(active) {
+                reduce_connect_event(darwin.connection_next_event(
+                    active,
+                    ptr.from_addr(1),
+                    0,
+                ))
+            }
+            StreamConnectionOwnership.closed {
+                StreamConnectProgress.failed(NetworkFailure.closed)
+            }
+        }
+        match move progress {
+            StreamConnectProgress.pending {}
+            StreamConnectProgress.ready {
+                return StreamConnectionAttempt.ready(move connection)
+            }
+            StreamConnectProgress.failed(failure) {
+                connection.close()
+                return StreamConnectionAttempt.failed(move failure)
+            }
+        }
+    }
+    connection.close()
+    return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
+}
+
+func read_stream_async_before(
+    connection: &+StreamConnection,
+    buffer: &+[u8],
+    deadline: &OperationDeadline,
+): async TransferAttempt {
+    if connection.read_complete { return TransferAttempt.ready(0) }
+    if buffer.len() == 0 { return TransferAttempt.ready(0) }
+    let maximum = u32.from_u64(buffer.len() as u64) otherwise {
+        return TransferAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+    var pending = PendingStreamOperation.new(connection)
+    match &+pending.connection.ownership {
+        StreamConnectionOwnership.open(owner) {
+            darwin.connection_begin_receive(owner, maximum)
+        }
+        StreamConnectionOwnership.closed {
+            pending.disarm()
+            return TransferAttempt.failed(NetworkFailure.closed)
+        }
+    }
+    while true {
+        if !await await_native_descriptor_before(
+            pending.connection.event_descriptor,
+            false,
+            deadline,
+        ) {
+            return TransferAttempt.failed(NetworkFailure.timed_out)
+        }
+        let progress = match &+pending.connection.ownership {
+            StreamConnectionOwnership.open(owner) {
+                reduce_read_event(darwin.connection_next_event(
+                    owner,
+                    public_ptr.from_ref_mut(&+buffer[0]),
+                    buffer.len(),
+                ))
+            }
+            StreamConnectionOwnership.closed {
+                StreamReadProgress.failed(NetworkFailure.closed)
+            }
+        }
+        match move progress {
+            StreamReadProgress.pending {}
+            StreamReadProgress.ready(count, complete) {
+                if complete { pending.connection.read_complete = true }
+                pending.disarm()
+                return TransferAttempt.ready(count)
+            }
+            StreamReadProgress.failed(failure) {
+                return TransferAttempt.failed(move failure)
+            }
+        }
+    }
+    return TransferAttempt.failed(NetworkFailure.invalid_target_result)
+}
+
+func write_stream_async_before(
+    connection: &+StreamConnection,
+    bytes: &[u8],
+    deadline: &OperationDeadline,
+): async UnitAttempt {
+    if bytes.len() == 0 { return UnitAttempt.ready }
+    var pending = PendingStreamOperation.new(connection)
+    match &+pending.connection.ownership {
+        StreamConnectionOwnership.open(owner) {
+            if !darwin.connection_begin_send(
+                owner,
+                public_ptr.from_ref(&bytes[0]),
+                bytes.len(),
+            ) {
+                return UnitAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+        }
+        StreamConnectionOwnership.closed {
+            pending.disarm()
+            return UnitAttempt.failed(NetworkFailure.closed)
+        }
+    }
+    while true {
+        if !await await_native_descriptor_before(
+            pending.connection.event_descriptor,
+            false,
+            deadline,
+        ) {
+            return UnitAttempt.failed(NetworkFailure.timed_out)
+        }
+        let progress = match &+pending.connection.ownership {
+            StreamConnectionOwnership.open(owner) {
+                reduce_write_event(darwin.connection_next_event(
+                    owner,
+                    ptr.from_addr(1),
+                    0,
+                ))
+            }
+            StreamConnectionOwnership.closed {
+                StreamWriteProgress.failed(NetworkFailure.closed)
+            }
+        }
+        match move progress {
+            StreamWriteProgress.pending {}
+            StreamWriteProgress.ready {
+                pending.disarm()
+                return UnitAttempt.ready
+            }
+            StreamWriteProgress.failed(failure) {
+                return UnitAttempt.failed(move failure)
+            }
+        }
+    }
+    return UnitAttempt.failed(NetworkFailure.invalid_target_result)
+}
+
+instance StreamConnection {
+    method &+self.read_async(buffer: &+[u8]): async TransferAttempt {
+        let deadline = operation_deadline(self.read_timeout_value)
+        return await read_stream_async_before(self, buffer, &deadline)
+    }
+
+    method &+self.read_async_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): async TransferAttempt {
+        let deadline = operation_deadline(timeout)
+        return await read_stream_async_before(self, buffer, &deadline)
+    }
+
+    method &+self.write_async(bytes: &[u8]): async UnitAttempt {
+        let deadline = operation_deadline(self.write_timeout_value)
+        return await write_stream_async_before(self, bytes, &deadline)
+    }
+
+    method &+self.write_async_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): async UnitAttempt {
+        let deadline = operation_deadline(timeout)
+        return await write_stream_async_before(self, bytes, &deadline)
+    }
+}
