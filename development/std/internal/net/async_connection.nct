@@ -64,6 +64,25 @@ func connect_stream_async_before(
     return await start_stream_connection_async_before(move owner, &deadline.operation)
 }
 
+func connect_tls_stream_async_before(
+    address: NetworkAddress,
+    server_name: &str,
+    application_protocol: *u8,
+    deadline: &+ConnectionDeadline,
+): async StreamConnectionAttempt {
+    if !claim_connection_attempt(deadline) {
+        return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
+    }
+    let owner = darwin.tls_connection_create(
+        &address,
+        server_name.ptr(),
+        application_protocol,
+    ) otherwise {
+        return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+    return await start_stream_connection_async_before(move owner, &deadline.operation)
+}
+
 func start_stream_connection_async_before(
     owner: NetworkOwner,
     deadline: &OperationDeadline,

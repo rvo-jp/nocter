@@ -1,0 +1,106 @@
+//! Asynchronous TLS establishment and transfer over the common provider event channel.
+
+see ./index.nct
+see ./stream.nct
+
+use /internal/net as substrate
+use /internal/net.{
+    ConnectionDeadline,
+    StreamConnectionAttempt,
+    TransferAttempt,
+    UnitAttempt,
+}
+use /internal/ptr
+use /net as net
+use /net.SocketAddress
+use /string.String
+use /time.Duration
+use /vec.Vec
+
+func connect_candidates_async(
+    server_name: String,
+    addresses: Vec<SocketAddress>,
+    connection_deadline: ConnectionDeadline,
+): async TlsStream! {
+    var owned_server_name = move server_name
+    var candidates = move addresses
+    var deadline = move connection_deadline
+    let server_text: &str = &owned_server_name
+    let no_application_protocol: *u8 = ptr.from_addr(0)
+    var offset: usize = 0
+    var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
+    while offset < candidates.len() {
+        let address = candidates[offset]
+        match await substrate.connect_tls_stream_async_before(
+            net.substrate_address(&address),
+            server_text,
+            no_application_protocol,
+            &+deadline,
+        ) {
+            StreamConnectionAttempt.ready(connection) {
+                return TlsStream { connection: move connection }
+            }
+            StreamConnectionAttempt.failed(failure) {
+                last_failure = net.network_error(move failure)
+            }
+        }
+        offset += 1
+    }
+    return last_failure.context("every resolved address failed TLS authentication")
+}
+
+func connect_async(host: &str, port: u16): (async TlsStream!)! {
+    let deadline = substrate.connection_deadline(none)
+    let addresses = net.resolve(host, port)?
+    var server_name = String.copy(host)
+    server_name.push('\u{0}')
+    return connect_candidates_async(move server_name, move addresses, move deadline)
+}
+
+func connect_async_with_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+): (async TlsStream!)! {
+    let deadline = substrate.connection_deadline(timeout)
+    let addresses = net.resolve(host, port)?
+    var server_name = String.copy(host)
+    server_name.push('\u{0}')
+    return connect_candidates_async(move server_name, move addresses, move deadline)
+}
+
+instance TlsStream {
+    method &+self.read_async(buffer: &+[u8]): async usize! {
+        match await self.connection.read_async(buffer) {
+            TransferAttempt.ready(count) { return count }
+            TransferAttempt.failed(failure) { return net.network_error(move failure) }
+        }
+    }
+
+    method &+self.read_async_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): async usize! {
+        match await self.connection.read_async_with_timeout(buffer, timeout) {
+            TransferAttempt.ready(count) { return count }
+            TransferAttempt.failed(failure) { return net.network_error(move failure) }
+        }
+    }
+
+    method &+self.write_async(bytes: &[u8]): async void! {
+        match await self.connection.write_async(bytes) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return net.network_error(move failure) }
+        }
+    }
+
+    method &+self.write_async_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): async void! {
+        match await self.connection.write_async_with_timeout(bytes, timeout) {
+            UnitAttempt.ready { return }
+            UnitAttempt.failed(failure) { return net.network_error(move failure) }
+        }
+    }
+}

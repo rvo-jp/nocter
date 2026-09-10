@@ -8,6 +8,7 @@ use /net.{SocketAddress, TcpShutdown}
 use /time.Duration
 
 see ./stream.nct
+see ./async_stream.nct
 
 /// One uniquely owned authenticated TLS client byte stream.
 pub struct TlsStream
@@ -19,6 +20,16 @@ construct TlsStream {
     /// Resolves and authenticates candidates without restarting `timeout` for each address.
     pub func connect_with_timeout(host: &str, port: u16, timeout: Duration): Self!
 }
+
+/// Resolves synchronously, then authenticates candidates without blocking the executor thread.
+pub func connect_async(host: &str, port: u16): (async TlsStream!)!
+
+/// Resolves synchronously, then authenticates candidates before one fixed timeout.
+pub func connect_async_with_timeout(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+): (async TlsStream!)!
 
 instance TlsStream {
     impl Reader
@@ -47,4 +58,22 @@ instance TlsStream {
 
     /// Cancels provider progress and releases the stream exactly once.
     pub noalloc method &+self.close(): void
+
+    /// Reads one decrypted provider chunk without blocking the executor thread.
+    pub method &+self.read_async(buffer: &+[u8]): async usize!
+
+    /// Reads asynchronously until the fixed relative timeout expires.
+    pub method &+self.read_async_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): async usize!
+
+    /// Sends the complete plaintext view without blocking the executor thread.
+    pub method &+self.write_async(bytes: &[u8]): async void!
+
+    /// Sends asynchronously until completion or the fixed relative timeout expires.
+    pub method &+self.write_async_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): async void!
 }

@@ -2485,7 +2485,7 @@ fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
-fn public_tls_rejects_a_plain_local_peer_through_the_complete_native_session() {
+fn public_tls_sync_and_async_reject_a_plain_local_peer() {
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::thread;
@@ -2500,18 +2500,32 @@ fn public_tls_rejects_a_plain_local_peer_through_the_complete_native_session() {
         "main.nct",
         &format!(
             "use std/time.Duration\n\
+             use std/tls as tls\n\
              use std/tls.TlsStream\n\
              \n\
-             func main(): i32 {{\n\
+             func rejects_sync(): bool {{\n\
                  let _stream = TlsStream.connect_with_timeout(\n\
                      \"localhost\",\n\
                      {port},\n\
                      Duration.from_seconds(1),\n\
                  ) catch failure {{\n\
-                     if failure.has_code(\"std.net.tls_failed\") {{ return 0 }}\n\
-                     return 2\n\
+                     return failure.has_code(\"std.net.tls_failed\")\n\
                  }}\n\
-                 return 1\n\
+                 return false\n\
+             }}\n\
+             \n\
+             func main(): async i32 {{\n\
+                 if !rejects_sync() {{ return 1 }}\n\
+                 let pending = tls.connect_async_with_timeout(\n\
+                     \"localhost\",\n\
+                     {port},\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch _ {{ return 2 }}\n\
+                 let _stream = await pending catch failure {{\n\
+                     if failure.has_code(\"std.net.tls_failed\") {{ return 0 }}\n\
+                     return 3\n\
+                 }}\n\
+                 return 4\n\
              }}\n"
         ),
     );
@@ -2527,11 +2541,13 @@ fn public_tls_rejects_a_plain_local_peer_through_the_complete_native_session() {
     let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
 
     let server = thread::spawn(move || {
-        let (mut stream, _) = fixture.accept().unwrap();
-        let mut client_hello = [0_u8; 512];
-        assert_ne!(stream.read(&mut client_hello).unwrap(), 0);
-        stream.write_all(b"this is not a TLS record").unwrap();
-        thread::sleep(Duration::from_millis(100));
+        for _ in 0..2 {
+            let (mut stream, _) = fixture.accept().unwrap();
+            let mut client_hello = [0_u8; 512];
+            assert_ne!(stream.read(&mut client_hello).unwrap(), 0);
+            stream.write_all(b"this is not a TLS record").unwrap();
+            thread::sleep(Duration::from_millis(100));
+        }
     });
     execute_native_status(image.image(), &package_root.0, "tls-plain-peer", 0);
     server.join().unwrap();

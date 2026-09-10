@@ -12,6 +12,11 @@ system trust store. The host text remains the authentication identity even when 
 back between IPv6 and IPv4 candidates. TLS 1.2 is the minimum accepted protocol version; the
 operating-system provider may negotiate a newer version.
 
+`tls.connect_async` and `tls.connect_async_with_timeout` perform resolution before returning a
+deferred computation. Resolution failure therefore belongs to the outer result; authentication or
+transport failure after the computation starts belongs to the awaited result. The timeout variant
+starts one monotonic deadline before resolution and preserves it across every address candidate.
+
 The numeric connection address is never used as an implicit replacement for the requested
 authentication name. Native endpoints, trust objects, provider status values, callbacks, and
 Security.framework records do not cross the standard-library boundary.
@@ -28,6 +33,11 @@ Timeouts do not restart after provider progress. Directional shutdown updates th
 stream state. Explicit `close` is terminal and idempotent. Destruction cancels and releases an open
 stream once; release occurs only after the final provider state and serial callback-queue barrier
 have both been observed.
+
+Asynchronous establishment, reads, and writes use the same ordered provider event descriptor as
+their synchronous counterparts. They suspend the executor instead of blocking its thread. Dropping
+an unfinished computation cancels its registered wait, while dropping or closing the resulting
+stream follows the same terminal provider-state and callback-queue barrier as synchronous use.
 
 ## Failures
 

@@ -92,6 +92,14 @@ pub(/) func connect_stream_async_before(
     deadline: &+ConnectionDeadline,
 ): async StreamConnectionAttempt
 
+/// Authenticates one TLS stream asynchronously through the shared provider event channel.
+pub(/) func connect_tls_stream_async_before(
+    address: NetworkAddress,
+    server_name: &str,
+    application_protocol: *u8,
+    deadline: &+ConnectionDeadline,
+): async StreamConnectionAttempt
+
 /// Binds and starts one provider-backed stream listener.
 pub(/) noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt
 
