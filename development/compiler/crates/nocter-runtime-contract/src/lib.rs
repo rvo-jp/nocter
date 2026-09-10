@@ -11,6 +11,8 @@ mod darwin_network_address;
 mod darwin_network_import;
 mod darwin_network_operation;
 mod darwin_network_owner;
+mod darwin_tls;
+mod darwin_tls_import;
 mod environment;
 mod import;
 mod primitive;
@@ -37,6 +39,8 @@ pub use darwin_network_owner::{
     DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerField,
     DarwinNetworkOwnerResourceFamily,
 };
+pub use darwin_tls::DarwinTlsConfigurationAbiSchema;
+pub use darwin_tls_import::DarwinTlsAdapterFunction;
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{
     RuntimeDataImport, RuntimeFunctionImport, RuntimeImport, RuntimeImportError,
