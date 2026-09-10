@@ -77,12 +77,12 @@ noalloc blocking func write(file: &+File, bytes: &[u8]): void! {
 }
 
 instance File {
-    noalloc blocking method &+self.write(bytes: &[u8]): void! {
+    noalloc blocking method &+self.write_blocking(bytes: &[u8]): void! {
         write(self, bytes)?
         return
     }
 
-    noalloc method &+self.flush(): void! {
+    noalloc method &+self.flush_blocking(): void! {
         require_open(self)?
         return
     }

@@ -26,7 +26,7 @@ blocking func main(): i32! {
     }
     let path = Utf8Path.new(requested)?
     var file = File.open(&path)?
-    let text = file.read_to_string()?
+    let text = file.read_to_string_blocking()?
     let report = report_module.analyze(&text, needle)
     print_report(&report)?
     return 0

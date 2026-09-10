@@ -34,7 +34,7 @@ instance StringSink {
 
 instance WriterSink<W> where W impl Writer {
     blocking method &+self.emit(bytes: &[u8]): void! {
-        self.destination.write(bytes)?
+        self.destination.write_blocking(bytes)?
         return
     }
 }

@@ -152,7 +152,7 @@ instance File {
         return
     }
 
-    blocking method &+self.read(buffer: &+[u8]): usize! {
+    blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
         return read(self, buffer)?
     }
 }

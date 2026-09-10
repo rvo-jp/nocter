@@ -70,20 +70,20 @@ test standard_input_wrappers_do_not_own_the_process_descriptor {
     var closed = stdin()
     closed.close()
     var empty: Vec<u8> = Vec.empty()
-    let _ = closed.read(&+empty) catch failure {
+    let _ = closed.read_blocking(&+empty) catch failure {
         if !failure.has_code("std.io.closed") {
             return error.new("std.io.test", "closed stdin wrapper returned the wrong failure")
         }
 
         var after_close = stdin()
-        if after_close.read(&+empty)? != 0 {
+        if after_close.read_blocking(&+empty)? != 0 {
             return error.new("std.io.test", "zero-capacity stdin read returned bytes")
         }
         after_close.close()
 
         drop_stdin_wrapper()
         var after_drop = stdin()
-        if after_drop.read(&+empty)? != 0 {
+        if after_drop.read_blocking(&+empty)? != 0 {
             return error.new("std.io.test", "stdin descriptor changed after wrapper drop")
         }
         return

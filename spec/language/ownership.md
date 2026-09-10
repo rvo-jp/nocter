@@ -73,24 +73,24 @@ Method receiver borrows are automatic:
 
 ```nct
 instance File {
-    pub method &+self.write_text(text: &str): void! {
+    pub blocking method &+self.write_text_blocking(text: &str): void! {
         ...
     }
 }
 
-file.write_text("hello")?
+file.write_text_blocking("hello")?
 ```
 
 The method call above creates a temporary readwrite borrow of `file` for the call. This does not enable UFCS-style calls:
 
 ```nct
-File.write_text(&+file, "hello") // error
+File.write_text_blocking(&+file, "hello") // error
 ```
 
 A newly created owned temporary may be used as a readwrite receiver for one method call:
 
 ```nct
-(File.open(path)?).write_text("hello")?
+(File.open(path)?).write_text_blocking("hello")?
 ```
 
 The temporary receiver is dropped according to the statement-end temporary rules in [Control Flow](control-flow.md#evaluation-order-and-temporaries).
@@ -174,8 +174,8 @@ Rules:
 Parameters are immutable bindings inside the function body.
 
 ```nct
-func create(name: String, count: i32, out: &+File): User! {
-    out.write_text(&name as &str)?
+blocking func create(name: String, count: i32, out: &+File): User! {
+    out.write_text_blocking(&name as &str)?
 
     return User {
         name: move name,

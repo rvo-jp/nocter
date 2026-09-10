@@ -205,12 +205,12 @@ async func connect_endpoint_async(
     }
 }
 
-async func connect_host_async(host: &str, port: u16): TcpStream! {
+async func connect_host(host: &str, port: u16): TcpStream! {
     let endpoint = host_endpoint(host, port)?
     return await connect_endpoint_async(move endpoint, none)?
 }
 
-async func connect_host_async_with_timeout(
+async func connect_host_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
@@ -220,13 +220,13 @@ async func connect_host_async_with_timeout(
 }
 
 construct TcpStream {
-    blocking func connect_host(host: &str, port: u16): Self! {
+    blocking func connect_host_blocking(host: &str, port: u16): Self! {
         var deadline = substrate.connection_deadline(none)
         let addresses = resolve(host, port)?
         return connect_resolved(&addresses, &+deadline)
     }
 
-    blocking func connect_host_with_timeout(
+    blocking func connect_host_with_timeout_blocking(
         host: &str,
         port: u16,
         timeout: Duration,

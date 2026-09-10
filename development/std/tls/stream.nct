@@ -66,7 +66,7 @@ func http1_application_protocol(): String {
 }
 
 construct TlsStream {
-    blocking func connect(host: &str, port: u16): Self! {
+    blocking func connect_blocking(host: &str, port: u16): Self! {
         var deadline = substrate.connection_deadline(none)
         let addresses = net.resolve(host, port)?
         return connect_candidates(
@@ -79,7 +79,11 @@ construct TlsStream {
         )
     }
 
-    blocking func connect_with_timeout(host: &str, port: u16, timeout: Duration): Self! {
+    blocking func connect_with_timeout_blocking(
+        host: &str,
+        port: u16,
+        timeout: Duration,
+    ): Self! {
         var deadline = substrate.connection_deadline(timeout)
         let addresses = net.resolve(host, port)?
         return connect_candidates(
@@ -92,7 +96,7 @@ construct TlsStream {
         )
     }
 
-    blocking func connect_with_trust_anchor(
+    blocking func connect_with_trust_anchor_blocking(
         host: &str,
         port: u16,
         trust_anchor: &TrustAnchor,
@@ -110,7 +114,7 @@ construct TlsStream {
         )
     }
 
-    blocking func connect_with_trust_anchor_and_timeout(
+    blocking func connect_with_trust_anchor_and_timeout_blocking(
         host: &str,
         port: u16,
         trust_anchor: &TrustAnchor,
@@ -130,7 +134,7 @@ construct TlsStream {
     }
 }
 
-blocking func connect_http1(host: &str, port: u16): TlsStream! {
+blocking func connect_http1_blocking(host: &str, port: u16): TlsStream! {
     var deadline = substrate.connection_deadline(none)
     let addresses = net.resolve(host, port)?
     let protocol = http1_application_protocol()
@@ -144,7 +148,7 @@ blocking func connect_http1(host: &str, port: u16): TlsStream! {
     )
 }
 
-blocking func connect_http1_with_timeout(
+blocking func connect_http1_with_timeout_blocking(
     host: &str,
     port: u16,
     timeout: Duration,
@@ -162,7 +166,7 @@ blocking func connect_http1_with_timeout(
     )
 }
 
-blocking func connect_http1_with_trust_anchor(
+blocking func connect_http1_with_trust_anchor_blocking(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
@@ -181,7 +185,7 @@ blocking func connect_http1_with_trust_anchor(
     )
 }
 
-blocking func connect_http1_with_trust_anchor_and_timeout(
+blocking func connect_http1_with_trust_anchor_and_timeout_blocking(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
@@ -202,14 +206,14 @@ blocking func connect_http1_with_trust_anchor_and_timeout(
 }
 
 instance TlsStream {
-    noalloc blocking method &+self.read(buffer: &+[u8]): usize! {
+    noalloc blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
         match self.connection.read(buffer) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return net.network_error(move failure) }
         }
     }
 
-    noalloc blocking method &+self.write(bytes: &[u8]): void! {
+    noalloc blocking method &+self.write_blocking(bytes: &[u8]): void! {
         match self.connection.write(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return net.network_error(move failure) }

@@ -10,22 +10,22 @@ func loopback(): SocketAddress {
 }
 
 blocking func run(): i32! {
-    var listener = TcpListener.bind(loopback())?
+    var listener = TcpListener.bind_blocking(loopback())?
     let listening_address = listener.local_address()?
-    var client = TcpStream.connect_with_timeout(
+    var client = TcpStream.connect_with_timeout_blocking(
         listening_address,
         Duration.from_seconds(1),
     )?
-    let accepted = listener.accept()?
+    let accepted = listener.accept_blocking()?
     var server = move accepted.0
-    client.write("ping".bytes())?
+    client.write_blocking("ping".bytes())?
     var tcp_bytes: Vec<u8> = Vec [
         u8.truncate(0),
         u8.truncate(0),
         u8.truncate(0),
         u8.truncate(0),
     ]
-    let tcp_len = server.read(&+tcp_bytes)?
+    let tcp_len = server.read_blocking(&+tcp_bytes)?
     if tcp_len != 4 {
         return error.new("network-loopback.tcp", "TCP changed the message length")
     }

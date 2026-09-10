@@ -2251,9 +2251,9 @@ mod tests {
             "    let url = Url.parse(\"http://localhost/\")?\n",
             "    let request = Request.get(move url)?\n",
             "    let client = Client.new()\n",
-            "    var response = client.send(move request)?\n",
+            "    var response = client.send_blocking(move request)?\n",
             "    let code = response.status().code()\n",
-            "    let body = response.read_to_end()?\n",
+            "    let body = response.read_to_end_blocking()?\n",
             "    return\n",
             "}\n",
         )
@@ -2285,7 +2285,8 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("pub blocking method &Client.send(request: Request): Response!"),
+            response
+                .contains("pub blocking method &Client.send_blocking(request: Request): Response!"),
             "{response}"
         );
         assert!(!response.contains("limits_value"), "{response}");
@@ -2305,7 +2306,7 @@ mod tests {
         ));
         let response = signature.response().unwrap();
         assert!(
-            response.contains("blocking method &Client.send(request: Request): Response!"),
+            response.contains("blocking method &Client.send_blocking(request: Request): Response!"),
             "{response}"
         );
         assert!(response.contains("\"activeParameter\":0"), "{response}");
@@ -2442,7 +2443,7 @@ mod tests {
         }
         assert!(hints.issue().is_none(), "{:?}", hints.issue());
 
-        let incomplete = text.replace("client.send(move request)", "client.");
+        let incomplete = text.replace("client.send_blocking(move request)", "client.");
         let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
         assert_eq!(
             changed.analysis().unwrap().snapshot().unwrap().status(),
@@ -2452,8 +2453,8 @@ mod tests {
         let response = completion.response().unwrap();
         for method in [
             "send",
-            "send_async",
-            "send_async_with_timeout",
+            "send_blocking",
+            "send_with_timeout_blocking",
             "send_with_timeout",
             "with_trust_anchor",
         ] {
@@ -2476,9 +2477,9 @@ mod tests {
             "    let request = Request.post(move url)?\n",
             "    let client = Client.new()\n",
             "    let timeout = Duration.from_seconds(1)\n",
-            "    let pending = client.send_async_with_timeout(move request, timeout)\n",
+            "    let pending = client.send_with_timeout(move request, timeout)\n",
             "    var response = await pending?\n",
-            "    let body = await response.read_to_string_async_with_timeout(timeout)?\n",
+            "    let body = await response.read_to_string_with_timeout(timeout)?\n",
             "    return\n",
             "}\n",
         )
@@ -2505,15 +2506,15 @@ mod tests {
             snapshot.diagnostics()
         );
 
-        let (send_line, send_character) = source_position(text, "send_async_with_timeout");
+        let (send_line, send_character) = source_position(text, "send_with_timeout");
         let send_hover = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{send_line},\"character\":{}}}}}}}",
             send_character + 5,
         ));
         let response = send_hover.response().unwrap();
-        assert!(response.contains("send_async_with_timeout"), "{response}");
+        assert!(response.contains("send_with_timeout"), "{response}");
         assert!(
-            response.contains("async method &Client.send_async_with_timeout"),
+            response.contains("async method &Client.send_with_timeout"),
             "{response}"
         );
         assert!(response.contains("): Response!"), "{response}");
@@ -2532,15 +2533,14 @@ mod tests {
             send_definition.issue()
         );
 
-        let (read_line, read_character) =
-            source_position(text, "read_to_string_async_with_timeout");
+        let (read_line, read_character) = source_position(text, "read_to_string_with_timeout");
         let read_hover = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{read_line},\"character\":{}}}}}}}",
             read_character + 5,
         ));
         let response = read_hover.response().unwrap();
         assert!(
-            response.contains("read_to_string_async_with_timeout"),
+            response.contains("read_to_string_with_timeout"),
             "{response}"
         );
         assert!(response.contains("async method"), "{response}");
@@ -2579,10 +2579,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = async_http_source();
-        let incomplete = text.replace(
-            "response.read_to_string_async_with_timeout(timeout)",
-            "response.",
-        );
+        let incomplete = text.replace("response.read_to_string_with_timeout(timeout)", "response.");
         let opened = set_completion_document(&mut server, &uri, &incomplete, 1);
         assert_eq!(
             opened.analysis().unwrap().snapshot().unwrap().status(),
@@ -2598,12 +2595,15 @@ mod tests {
         );
         let response = completion.response().unwrap();
         for method in [
-            "read_async",
-            "read_async_with_timeout",
-            "read_to_end_async",
-            "read_to_end_async_with_timeout",
-            "read_to_string_async",
-            "read_to_string_async_with_timeout",
+            "read",
+            "read_blocking",
+            "read_to_end",
+            "read_to_end_blocking",
+            "read_to_end_with_timeout",
+            "read_to_string",
+            "read_to_string_blocking",
+            "read_to_string_with_timeout",
+            "read_with_timeout",
         ] {
             assert!(
                 response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
@@ -2630,7 +2630,7 @@ mod tests {
             "use std/net\n",
             "blocking func main(): void! {\n",
             "    let addresses = net.resolve(\"localhost\", 80)?\n",
-            "    let stream = net.TcpStream.connect_host(\"localhost\", 80)?\n",
+            "    let stream = net.TcpStream.connect_host_blocking(\"localhost\", 80)?\n",
             "    return\n",
             "}\n",
         );
@@ -2660,12 +2660,12 @@ mod tests {
         assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
         let signature = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":58}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":3,\"character\":67}}}}}}"
         ));
         let response = signature.response().unwrap();
         assert!(
             response.contains(
-                "blocking func TcpStream.connect_host(host: &str, port: u16): TcpStream!"
+                "blocking func TcpStream.connect_host_blocking(host: &str, port: u16): TcpStream!"
             ),
             "{response}"
         );
@@ -2673,7 +2673,7 @@ mod tests {
         assert!(signature.issue().is_none(), "{:?}", signature.issue());
 
         let incomplete = text.replace(
-            "net.TcpStream.connect_host(\"localhost\", 80)",
+            "net.TcpStream.connect_host_blocking(\"localhost\", 80)",
             "net.TcpStream.",
         );
         let changed = set_completion_document(&mut server, &uri, &incomplete, 2);
@@ -2683,7 +2683,11 @@ mod tests {
         );
         let completion = request_completion(&mut server, &uri, 5, 3, 31);
         let response = completion.response().unwrap();
-        for constructor in ["connect", "connect_with_timeout", "connect_host"] {
+        for constructor in [
+            "connect_blocking",
+            "connect_host_blocking",
+            "connect_with_timeout_blocking",
+        ] {
             assert!(
                 response.contains(&format!("\"label\":\"{constructor}\",\"kind\":4")),
                 "{response}"

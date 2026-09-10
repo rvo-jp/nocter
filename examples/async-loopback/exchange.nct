@@ -13,11 +13,11 @@ func loopback(): SocketAddress {
 
 async func run(): i32! {
     let timeout = Duration.from_seconds(1)
-    var listener = await net.bind_tcp_async(loopback())?
+    var listener = await net.bind_tcp(loopback())?
     let listening_address = listener.local_address()?
     let connection = await task.join(
-        net.connect_tcp_async_with_timeout(listening_address, timeout),
-        listener.accept_async_with_timeout(timeout),
+        net.connect_tcp_with_timeout(listening_address, timeout),
+        listener.accept_with_timeout(timeout),
     )
     let client_result = move connection.0
     let accepted_result = move connection.1
@@ -32,8 +32,8 @@ async func run(): i32! {
         u8.truncate(0),
     ]
     let transfer = task.join(
-        client.write_async_with_timeout("ping".bytes(), timeout),
-        server.read_async_with_timeout(&+bytes, timeout),
+        client.write_with_timeout("ping".bytes(), timeout),
+        server.read_with_timeout(&+bytes, timeout),
     )
     let transferred = await transfer
     let write_result = move transferred.0

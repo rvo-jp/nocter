@@ -119,7 +119,7 @@ if path.len() == 0 {
 
 ```nct
 instance File {
-    pub method &+self.write_text(text: &str): void! {
+    pub blocking method &+self.write_text_blocking(text: &str): void! {
         ...
     }
 }
@@ -290,7 +290,7 @@ count += 1
 let home = maybe_home otherwise { "/tmp" }
 let label = if is_ready { "ready" } else { "waiting" }
 let byte = bytes[i]
-file.write_text("hello")
+file.write_text_blocking("hello")
 
 let total = left
     + right

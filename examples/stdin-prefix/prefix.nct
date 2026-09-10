@@ -27,9 +27,9 @@ blocking func prefix_lines(prefix: &str): void! {
     var input = BufReader.new(io.stdin())
     var output = io.stdout()
     var line = String.empty()
-    while input.read_line_into(&+line)? {
-        output.write_text(prefix)?
-        output.write_line(&line)?
+    while input.read_line_into_blocking(&+line)? {
+        output.write_text_blocking(prefix)?
+        output.write_line_blocking(&line)?
     }
     return
 }

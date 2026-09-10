@@ -249,7 +249,7 @@ func read_all(
         return error.new("app.open_failed", "failed to open input")
     }
 
-    let text = file.read_to_string() catch _ {
+    let text = file.read_to_string_blocking() catch _ {
         return error.new("app.read_failed", "failed to read UTF-8 input")
     }
 

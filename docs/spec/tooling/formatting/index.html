@@ -211,7 +211,7 @@
     <span class="token-keyword">use</span><span class="token-operator">(</span>path<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 </code></pre><pre><code class="language-nct"><span class="token-keyword">instance</span> <span class="token-type">File</span> <span class="token-operator">{</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text_blocking</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
         <span class="token-operator">...</span>
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
@@ -288,7 +288,7 @@
 <span class="token-keyword">let</span> home <span class="token-operator">=</span> maybe_home <span class="token-keyword">otherwise</span> <span class="token-operator">{</span> <span class="token-string">"/tmp"</span> <span class="token-operator">}</span>
 <span class="token-keyword">let</span> label <span class="token-operator">=</span> <span class="token-keyword">if</span> is_ready <span class="token-operator">{</span> <span class="token-string">"ready"</span> <span class="token-operator">}</span> <span class="token-keyword">else</span> <span class="token-operator">{</span> <span class="token-string">"waiting"</span> <span class="token-operator">}</span>
 <span class="token-keyword">let</span> byte <span class="token-operator">=</span> bytes<span class="token-operator">[</span>i<span class="token-operator">]</span>
-file<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"hello"</span><span class="token-operator">)</span>
+file<span class="token-operator">.</span><span class="token-function">write_text_blocking</span><span class="token-operator">(</span><span class="token-string">"hello"</span><span class="token-operator">)</span>
 
 <span class="token-keyword">let</span> total <span class="token-operator">=</span> left
     <span class="token-operator">+</span> right

@@ -64,7 +64,7 @@ noalloc func stream_from_connection(connection: StreamConnection): TcpStream {
 }
 
 construct TcpStream {
-    noalloc blocking func connect(address: SocketAddress): Self! {
+    noalloc blocking func connect_blocking(address: SocketAddress): Self! {
         match net.connect_stream(substrate_address(&address), none) {
             StreamConnectionAttempt.ready(connection) {
                 return stream_from_connection(move connection)
@@ -73,7 +73,10 @@ construct TcpStream {
         }
     }
 
-    noalloc blocking func connect_with_timeout(address: SocketAddress, timeout: Duration): Self! {
+    noalloc blocking func connect_with_timeout_blocking(
+        address: SocketAddress,
+        timeout: Duration,
+    ): Self! {
         match net.connect_stream(substrate_address(&address), timeout) {
             StreamConnectionAttempt.ready(connection) {
                 return stream_from_connection(move connection)
@@ -84,14 +87,14 @@ construct TcpStream {
 }
 
 instance TcpStream {
-    noalloc blocking method &+self.read(buffer: &+[u8]): usize! {
+    noalloc blocking method &+self.read_blocking(buffer: &+[u8]): usize! {
         match self.connection.read(buffer) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    noalloc blocking method &+self.write(bytes: &[u8]): void! {
+    noalloc blocking method &+self.write_blocking(bytes: &[u8]): void! {
         match self.connection.write(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
@@ -149,7 +152,7 @@ instance TcpStream {
 }
 
 construct TcpListener {
-    noalloc blocking func bind(address: SocketAddress): Self! {
+    noalloc blocking func bind_blocking(address: SocketAddress): Self! {
         match net.listen_stream(substrate_address(&address)) {
             StreamListenerAttempt.ready(listener) {
                 return TcpListener { listener: move listener }
@@ -167,7 +170,7 @@ instance TcpListener {
         }
     }
 
-    noalloc blocking method &+self.accept(): (TcpStream, SocketAddress)! {
+    noalloc blocking method &+self.accept_blocking(): (TcpStream, SocketAddress)! {
         match self.listener.accept() {
             StreamListenerAcceptAttempt.ready(connection, peer) {
                 return (stream_from_connection(move connection), public_address(peer))

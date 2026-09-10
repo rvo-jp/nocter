@@ -20,10 +20,10 @@ construct BufReader {
 
 instance BufReader {
     /// Returns one owned line without its LF or immediately preceding CR.
-    pub blocking method &+self.read_line(): String?!
+    pub blocking method &+self.read_line_blocking(): String?!
 
     /// Replaces `destination` with one line and reports false only at clean end of stream.
-    pub blocking method &+self.read_line_into(destination: &+String): bool!
+    pub blocking method &+self.read_line_into_blocking(destination: &+String): bool!
 
     /// Closes the source and makes every later read observe end of stream.
     pub method &+self.close(): void

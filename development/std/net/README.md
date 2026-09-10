@@ -47,15 +47,16 @@ copies only its logical address, and owns the complete result list until destruc
 exactly once. Empty or malformed results and native resolver failures become stable `std.net.*`
 errors; native status codes and pointers are not observable.
 
-`TcpStream.connect_host` resolves and tries candidates in returned order.
-`TcpStream.connect_host_with_timeout` creates one monotonic deadline before resolution and does not
+`TcpStream.connect_host_blocking` resolves and tries candidates in returned order.
+`TcpStream.connect_host_with_timeout_blocking` creates one monotonic deadline before resolution
+and does not
 restart it for each candidate. The platform resolver is a synchronous operating-system service and
 cannot itself be interrupted by this timeout. Time spent resolving still consumes the deadline, so
 connection work cannot receive a fresh duration afterward. As with other zero-duration network
 operations, one immediate connection attempt is permitted and later candidates require remaining
 time. Both host constructors carry the resolver's `blocking` effect.
 
-`net.connect_host_async` and `net.connect_host_async_with_timeout` validate and copy NUL-terminated
+`net.connect_host` and `net.connect_host_with_timeout` validate and copy NUL-terminated
 host and decimal service text while their lazy computation is driven. Invalid input, provider
 resolution, and connection failure all belong to the single awaited `TcpStream!` result. Driving
 the future does not synchronously invoke the resolver or wait for socket readiness. The timeout
@@ -66,7 +67,7 @@ provider resolution, and connection.
 
 `TcpStream` is a uniquely owned byte stream implementing `Reader` and `Writer`. Connecting accepts
 one numeric `SocketAddress`, while the host constructors compose the separate resolution contract
-with ordered candidate connection. `net.connect_tcp_async` performs numeric connection without
+with ordered candidate connection. `net.connect_tcp` performs numeric connection without
 blocking the executor thread. Reads initialize at most the supplied mutable byte view and return
 zero at peer EOF. Writes complete the entire byte view or return a failure after any already-
 written prefix remains observable. Empty transfers follow the ordinary stream contracts.
@@ -76,11 +77,11 @@ kernel to select an available port; `local_address` reports the effective addres
 returns the connected peer address. IPv6 sockets are explicitly IPv6-only, so code serving both
 families owns one listener for each family.
 
-`TcpStream.read_async`, `TcpStream.write_async`, and `TcpListener.accept_async` use the same
+`TcpStream.read`, `TcpStream.write`, and `TcpListener.accept` use the same
 provider-backed owner, ordered event channel, and error substrate as the synchronous operations.
-`net.bind_tcp_async` also acquires its listener owner before suspending for provider readiness, so
+`net.bind_tcp` also acquires its listener owner before suspending for provider readiness, so
 cancellation cannot strand a partially initialized listener. The `_with_timeout` variants and
-`net.connect_tcp_async_with_timeout` bound one complete operation with an explicit `Duration`.
+`net.connect_tcp_with_timeout` bound one complete operation with an explicit `Duration`.
 They suspend on the provider event descriptor until ordered callback progress is available. A
 direct `await` retains each receiver and buffer borrow in stable parent-computation storage. The
 checked ownership model rejects moving the pending child computation beyond the lifetime of that
@@ -94,10 +95,11 @@ requests cancellation, drains ownership-bearing events, crosses the serial callb
 and then releases native state, so no callback can retain or access a released owner. `shutdown`
 changes the selected stream direction without releasing ownership.
 
-TCP operations are synchronous. `connect_with_timeout` bounds connection establishment.
-`set_read_timeout` and `set_write_timeout` bound later stream operations, while
-`set_accept_timeout` bounds listener acceptance. Passing absence to a setter restores unlimited
-waiting. The corresponding observation methods return the exact configured `Duration?`.
+Synchronous TCP twins end in `_blocking`. `connect_with_timeout_blocking` bounds connection
+establishment. `read_blocking`, `write_blocking`, and `accept_blocking` use the timeout configured
+by `set_read_timeout`, `set_write_timeout`, or `set_accept_timeout`. Passing absence to a setter
+restores unlimited waiting. The corresponding observation methods return the exact configured
+`Duration?`.
 
 These configured timeouts apply only to the synchronous operations. Asynchronous operations never
 inherit mutable timeout configuration: their ordinary forms wait without a deadline, and their

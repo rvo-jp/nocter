@@ -91,8 +91,9 @@ remain distinguishable through stable error codes.
 Host connection consumes one resolved sequence in order. It uses one optional monotonic deadline
 for the whole operation: resolution and failed address attempts cannot each restart the caller's
 duration. Each failed partial connection releases its descriptor before the next candidate. Empty
-results and complete candidate exhaustion have specified stable outcomes. `TcpStream.connect` for
-one numeric address remains the primitive public operation and is not reimplemented.
+results and complete candidate exhaustion have specified stable outcomes.
+`TcpStream.connect_blocking` for one numeric address remains the primitive synchronous public
+operation and is not reimplemented.
 
 ## URL Values
 

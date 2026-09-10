@@ -34,7 +34,7 @@ blocking func run(): i32 {
         report_failure(&failure) catch _ { return 2 }
         return 2
     }
-    output.write_text("\n") catch failure {
+    output.write_text_blocking("\n") catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
     }
@@ -43,16 +43,16 @@ blocking func run(): i32 {
 
 blocking func report_usage(): void! {
     var output = io.stderr()
-    output.write_text("usage: json-normalize PATH\n")?
+    output.write_text_blocking("usage: json-normalize PATH\n")?
     return
 }
 
 blocking func report_failure(failure: &error): void! {
     var output = io.stderr()
-    output.write_text("json-normalize: ")?
-    output.write_text(failure.code())?
-    output.write_text(": ")?
-    output.write_text(failure.message())?
-    output.write_text("\n")?
+    output.write_text_blocking("json-normalize: ")?
+    output.write_text_blocking(failure.code())?
+    output.write_text_blocking(": ")?
+    output.write_text_blocking(failure.message())?
+    output.write_text_blocking("\n")?
     return
 }

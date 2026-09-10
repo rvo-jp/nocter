@@ -18,7 +18,7 @@ async func read_http_transport_async(
     output: &+[u8],
     timeout: Duration?,
 ): usize! {
-    return await stream.read_async(output, timeout)?
+    return await stream.read(output, timeout)?
 }
 
 async func write_http_transport_async(
@@ -26,7 +26,7 @@ async func write_http_transport_async(
     bytes: &[u8],
     timeout: Duration?,
 ): void! {
-    await stream.write_async(bytes, timeout)?
+    await stream.write(bytes, timeout)?
     return
 }
 
@@ -163,11 +163,11 @@ async func read_response_body_async(
 }
 
 instance Client {
-    async method &self.send_async(request: Request): Response! {
+    async method &self.send(request: Request): Response! {
         return await send_request_async(self.limits_value, &self.trust, move request, none)?
     }
 
-    async method &self.send_async_with_timeout(
+    async method &self.send_with_timeout(
         request: Request,
         timeout: Duration,
     ): Response! {
@@ -176,11 +176,11 @@ instance Client {
 }
 
 instance Response {
-    async method &+self.read_async(output: &+[u8]): usize! {
+    async method &+self.read(output: &+[u8]): usize! {
         return await read_response_body_async(self, output, none)?
     }
 
-    async method &+self.read_async_with_timeout(
+    async method &+self.read_with_timeout(
         output: &+[u8],
         timeout: Duration,
     ): usize! {

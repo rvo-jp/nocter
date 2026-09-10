@@ -254,16 +254,19 @@ instance SocketAddress {
 
 construct TcpStream {
     /// Connects synchronously to one numeric socket address.
-    pub noalloc blocking func connect(address: SocketAddress): Self!
+    pub noalloc blocking func connect_blocking(address: SocketAddress): Self!
 
     /// Connects synchronously, returning `std.net.timed_out` when `timeout` expires.
-    pub noalloc blocking func connect_with_timeout(address: SocketAddress, timeout: Duration): Self!
+    pub noalloc blocking func connect_with_timeout_blocking(
+        address: SocketAddress,
+        timeout: Duration,
+    ): Self!
 
     /// Resolves `host` and connects to the first reachable address in system order.
-    pub blocking func connect_host(host: &str, port: u16): Self!
+    pub blocking func connect_host_blocking(host: &str, port: u16): Self!
 
     /// Resolves and connects without restarting `timeout` for each candidate.
-    pub blocking func connect_host_with_timeout(
+    pub blocking func connect_host_with_timeout_blocking(
         host: &str,
         port: u16,
         timeout: Duration,
@@ -274,19 +277,19 @@ construct TcpStream {
 pub blocking func resolve(host: &str, port: u16): Vec<SocketAddress>!
 
 /// Connects to one numeric address without blocking the executor thread.
-pub async func connect_tcp_async(address: SocketAddress): TcpStream!
+pub async func connect_tcp(address: SocketAddress): TcpStream!
 
 /// Connects asynchronously until the fixed relative timeout expires.
-pub async func connect_tcp_async_with_timeout(
+pub async func connect_tcp_with_timeout(
     address: SocketAddress,
     timeout: Duration,
 ): TcpStream!
 
 /// Validates, resolves, and connects one host while the future is driven.
-pub async func connect_host_async(host: &str, port: u16): TcpStream!
+pub async func connect_host(host: &str, port: u16): TcpStream!
 
 /// Validates, resolves, and connects through the provider before one future-owned fixed timeout.
-pub async func connect_host_async_with_timeout(
+pub async func connect_host_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
@@ -328,19 +331,19 @@ instance TcpStream {
     pub noalloc method &+self.close(): void
 
     /// Reads once without blocking the executor thread.
-    pub async method &+self.read_async(buffer: &+[u8]): usize!
+    pub async method &+self.read(buffer: &+[u8]): usize!
 
     /// Reads once asynchronously until the fixed relative timeout expires.
-    pub async method &+self.read_async_with_timeout(
+    pub async method &+self.read_with_timeout(
         buffer: &+[u8],
         timeout: Duration,
     ): usize!
 
     /// Writes the complete byte view without blocking the executor thread.
-    pub async method &+self.write_async(bytes: &[u8]): void!
+    pub async method &+self.write(bytes: &[u8]): void!
 
     /// Writes asynchronously until the complete view is sent or the fixed timeout expires.
-    pub async method &+self.write_async_with_timeout(
+    pub async method &+self.write_with_timeout(
         bytes: &[u8],
         timeout: Duration,
     ): void!
@@ -348,24 +351,24 @@ instance TcpStream {
 
 construct TcpListener {
     /// Binds one numeric address and starts listening with the platform's standard backlog.
-    pub noalloc blocking func bind(address: SocketAddress): Self!
+    pub noalloc blocking func bind_blocking(address: SocketAddress): Self!
 }
 
 /// Binds one numeric TCP listener without blocking the executor thread.
-pub async func bind_tcp_async(address: SocketAddress): TcpListener!
+pub async func bind_tcp(address: SocketAddress): TcpListener!
 
 instance TcpListener {
     /// Returns the effective local address, including a kernel-selected port.
     pub noalloc method &self.local_address(): SocketAddress!
 
     /// Accepts one connected stream and returns its peer address.
-    pub noalloc blocking method &+self.accept(): (TcpStream, SocketAddress)!
+    pub noalloc blocking method &+self.accept_blocking(): (TcpStream, SocketAddress)!
 
     /// Accepts one connection without blocking the executor thread.
-    pub async method &+self.accept_async(): (TcpStream, SocketAddress)!
+    pub async method &+self.accept(): (TcpStream, SocketAddress)!
 
     /// Accepts asynchronously until the fixed relative timeout expires.
-    pub async method &+self.accept_async_with_timeout(
+    pub async method &+self.accept_with_timeout(
         timeout: Duration,
     ): (TcpStream, SocketAddress)!
 

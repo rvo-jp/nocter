@@ -287,7 +287,7 @@ abort              = immediate process termination
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"app.open_failed"</span><span class="token-operator">,</span> <span class="token-string">"failed to open input"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
 
-    <span class="token-keyword">let</span> text <span class="token-operator">=</span> file<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> text <span class="token-operator">=</span> file<span class="token-operator">.</span><span class="token-function">read_to_string_blocking</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span>
         <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"app.read_failed"</span><span class="token-operator">,</span> <span class="token-string">"failed to read UTF-8 input"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
 

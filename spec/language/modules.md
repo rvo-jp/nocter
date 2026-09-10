@@ -90,7 +90,7 @@ use std/io.File
 use std/io
 
 blocking func write_message(file: &+File): void! {
-    file.write_text("ready\n")?
+    file.write_text_blocking("ready\n")?
     return
 }
 ```

@@ -2,17 +2,17 @@
 
 ## Current State
 
-Nocter v0.44.0 is published and externally audited. v0.45.0 Phases 0 and 1 are complete. Phase 2
-has established nonwaiting network disposal, provider-backed asynchronous host setup, an explicit
-synchronous resolver effect, exact primitive blocking validation, propagated synchronous
-standard-library contracts, and single-layer awaited failures for asynchronous host, TLS, and HTTP
-setup. The adopted model makes nonblocking drive a universal `future T` invariant and marks
-synchronous external waiting with the positive `blocking` callable effect.
+Nocter v0.44.0 is published and externally audited. v0.45.0 Phases 0 through 2 are complete.
+The standard library has nonwaiting network disposal, provider-backed asynchronous host setup, an
+explicit synchronous resolver effect, exact primitive blocking validation, propagated synchronous
+contracts, single-layer awaited failures, and canonical base names for asynchronous TCP, TLS, and
+HTTP operations. Synchronous twins consistently end in `_blocking`. The adopted model makes
+nonblocking drive a universal `future T` invariant and marks synchronous external waiting with the
+positive `blocking` callable effect.
 
 ## Next Work
 
-Finish Phase 2 API normalization from the closed effect inventory, then begin structured task
-composition in Phase 3. Follow the phases and gates in the [v0.45.0
+Begin structured task composition in Phase 3. Follow the phases and gates in the [v0.45.0
 milestone](history/milestones/v0.45.0.md).
 
 Preserve every published tag and asset, including v0.44.0.

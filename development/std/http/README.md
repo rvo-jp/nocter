@@ -26,33 +26,34 @@ or destroyed.
 request, and `set_text_body` copies the exact UTF-8 bytes. These conveniences do not infer a
 `Content-Type`, select an encoding, or bypass the reserved-field policy applied by `Client`.
 
-`Client.send` opens one plain or authenticated connection and returns a uniquely owned `Response`.
-One private transport sum owns that choice; request encoding, final-head parsing, body framing, and
-the public response cursor operate on the sum rather than branching on the URL scheme. Ordinary
+`Client.send_blocking` opens one plain or authenticated connection and returns a uniquely owned
+`Response`. One private transport sum owns that choice; request encoding, final-head parsing, body
+framing, and the public response cursor operate on the sum rather than branching on the URL scheme. Ordinary
 informational responses are consumed before the final response is exposed; protocol-switching
 status 101 is rejected because the API does not transfer the upgraded stream. `Response` exposes
 the final status and fields and implements `Reader` for decoded body bytes. Completion, decoding or
 network failure, explicit `close`, and destruction of an unfinished response all transfer the
 connection through its exact-once nonwaiting disposal boundary. There is no pooling, redirect
-following, request replay, decompression, or connection reuse. `send` and `send_with_timeout` are
-explicitly `blocking`; their synchronous transport setup uses the synchronous system resolver.
+following, request replay, decompression, or connection reuse. `send_blocking` and
+`send_with_timeout_blocking` are explicitly `blocking`; their synchronous transport setup uses the
+synchronous system resolver.
 
-`Client.send_async` returns one lazy computation with one `Response!` outcome. Request validation,
+`Client.send` returns one lazy computation with one `Response!` outcome. Request validation,
 request-head encoding, owned host-endpoint construction, provider resolution, connection, complete
 request transmission, and final-response-head reception all occur while that computation is driven
 without blocking the executor thread. Dropping it releases the captured request before setup or
 cancels the connection or stream it uniquely owns after setup begins.
 
-`Response.read_async` uses the selected asynchronous transport while advancing the same decoder,
-pending bytes, completion flag, and uniquely owned stream used by `read`. Synchronous and
+`Response.read` uses the selected asynchronous transport while advancing the same decoder,
+pending bytes, completion flag, and uniquely owned stream used by `read_blocking`. Synchronous and
 asynchronous reads cannot form independent cursors or concurrently consume one response. Their
 transport loops share one body progress operation, so EOF and decoding decisions are not
 reimplemented by either adapter.
 
-`read_to_end_async` repeatedly consumes that same asynchronous cursor into owned bytes, while
-`read_to_string_async` additionally validates the completed bytes as UTF-8. Their timeout-bearing
-forms delegate every needed read to `read_async_with_timeout`; the duration therefore remains a
-per-input idle timeout rather than becoming a whole-body deadline. Collection remains bounded by
+`read_to_end` repeatedly consumes that same asynchronous cursor into owned bytes, while
+`read_to_string` additionally validates the completed bytes as UTF-8. Their timeout-bearing forms
+delegate every needed read to `read_with_timeout`; the duration therefore remains a per-input idle
+timeout rather than becoming a whole-body deadline. Collection remains bounded by
 the `Limits` selected by the client and introduces no second body decoder.
 
 Whole-body collection consumes the response cursor as it progresses. Destroying a collector after
@@ -60,14 +61,14 @@ one or more completed chunk reads discards its owned prefix and does not rewind 
 Transport, framing, timeout, or final UTF-8 validation failure returns no partial collection;
 UTF-8 failure occurs after the complete body has been consumed.
 
-`send_async_with_timeout` applies its `Duration` to the existing shared connection deadline, each
+`send_with_timeout` applies its `Duration` to the existing shared connection deadline, each
 complete request-head or request-body write, and each idle wait for more response-head input. The
 connection deadline starts when the lazy computation begins and covers provider resolution and
 connection; retaining the computation before awaiting it does not consume or restart that
 deadline. Receiving head bytes begins a new idle interval. The timeout is not a deadline for the
 complete response.
 
-`read_async_with_timeout` bounds the idle interval before the next transport input needed by one
+`read_with_timeout` bounds the idle interval before the next transport input needed by one
 body-read call. Buffered decoded bytes return immediately. Each received framing or body fragment
 begins another idle interval when further input is required. A timeout is a terminal network
 failure for that response and closes its stream, matching synchronous response-read failure.
@@ -78,8 +79,9 @@ Destroying a body-read computation instead releases its exclusive borrow and lea
 owner intact; a later read may continue from the same decoder state. HTTP stores neither task IDs
 nor timer registrations.
 
-`send_with_timeout` applies one duration to the host-connection deadline and then as the timeout of
-each stream read and write operation. It is not a wall-clock deadline for the complete response.
+`send_with_timeout_blocking` applies one duration to the host-connection deadline and then as the
+timeout of each stream read and write operation. It is not a wall-clock deadline for the complete
+response.
 
 `Method` preserves the exact case-sensitive token. `HeaderName` accepts the HTTP token alphabet,
 stores one lowercase canonical spelling, and hashes that canonical identity. `HeaderValue` stores exact bytes after removing wire

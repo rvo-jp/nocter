@@ -44,23 +44,23 @@ instance Metadata {
 
 blocking func read(path: &str): Vec<u8>! {
     var file = File.open(path)?
-    return file.read_to_end()?
+    return file.read_to_end_blocking()?
 }
 
 blocking func read_to_string(path: &str): String! {
     var file = File.open(path)?
-    return file.read_to_string()?
+    return file.read_to_string_blocking()?
 }
 
 blocking func write(path: &str, value: &[u8]): void! {
     var file = File.create(path)?
-    file.write(value)?
+    file.write_blocking(value)?
     return
 }
 
 blocking func write_text(path: &str, text: &str): void! {
     var file = File.create(path)?
-    file.write_text(text)?
+    file.write_text_blocking(text)?
     return
 }
 

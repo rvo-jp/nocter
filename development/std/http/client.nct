@@ -31,7 +31,7 @@ blocking func read_response_head(
             FinalResponseHeadAttempt.failed(failure) { return move failure }
             FinalResponseHeadAttempt.incomplete(next) {
                 decoder = move next
-                let received = stream.read(&+scratch) catch failure {
+                let received = stream.read_blocking(&+scratch) catch failure {
                     return failure.context("while reading the HTTP response head")
                 }
                 if received == 0 { return premature_eof() }
@@ -47,12 +47,12 @@ blocking func send_over_transport(
 ): Response! {
     var owned = move prepared
     var connection = move stream
-    connection.write(&owned.encoded) catch failure {
+    connection.write_blocking(&owned.encoded) catch failure {
         return failure.context("while writing the HTTP request head")
     }
     if owned.request.body_value.len() != 0 {
         let body: &[u8] = &owned.request.body_value
-        connection.write(body) catch failure {
+        connection.write_blocking(body) catch failure {
             return failure.context("while writing the HTTP request body")
         }
     }
@@ -125,7 +125,7 @@ instance Client {
         }
     }
 
-    blocking method &self.send(request: Request): Response! {
+    blocking method &self.send_blocking(request: Request): Response! {
         let prepared = prepare_request(move request, self.limits_value)?
         let stream = connect_client_transport(
             &prepared.request.url_value,
@@ -137,7 +137,10 @@ instance Client {
         return send_over_transport(move prepared, move stream)?
     }
 
-    blocking method &self.send_with_timeout(request: Request, timeout: Duration): Response! {
+    blocking method &self.send_with_timeout_blocking(
+        request: Request,
+        timeout: Duration,
+    ): Response! {
         let prepared = prepare_request(move request, self.limits_value)?
         let stream = connect_client_transport(
             &prepared.request.url_value,
@@ -159,7 +162,7 @@ instance Response {
         return self.head.headers()
     }
 
-    blocking method &+self.read(output: &+[u8]): usize! {
+    blocking method &+self.read_blocking(output: &+[u8]): usize! {
         if self.complete || output.len() == 0 { return 0 }
         loop {
             match advance_response_body(self, output, false) {
@@ -174,7 +177,7 @@ instance Response {
                     return failure.context("while decoding the HTTP response body")
                 }
                 ResponseBodyAttempt.input {
-                    let received = self.stream.read(&+self.scratch) catch failure {
+                    let received = self.stream.read_blocking(&+self.scratch) catch failure {
                         self.stream.close()
                         self.complete = true
                         return failure.context("while reading the HTTP response body")

@@ -24,29 +24,29 @@ blocking func fetch(source: &str): void! {
     let url = Url.parse(source)?
     let request = Request.get(move url)?
     let client = Client.new()
-    var response = client.send_with_timeout(move request, Duration.from_seconds(5))?
+    var response = client.send_with_timeout_blocking(move request, Duration.from_seconds(5))?
     let status = response.status().code().to_string()
-    let body = response.read_to_end()?
+    let body = response.read_to_end_blocking()?
     var output = io.stdout()
-    output.write_text("HTTP ")?
-    output.write_text(&status)?
-    output.write_text("\n")?
-    output.write(&body)?
+    output.write_text_blocking("HTTP ")?
+    output.write_text_blocking(&status)?
+    output.write_text_blocking("\n")?
+    output.write_blocking(&body)?
     return
 }
 
 blocking func report_usage(): void! {
     var output = io.stderr()
-    output.write_text("usage: http-get URL\n")?
+    output.write_text_blocking("usage: http-get URL\n")?
     return
 }
 
 blocking func report_failure(failure: &error): void! {
     var output = io.stderr()
-    output.write_text("http-get: ")?
-    output.write_text(failure.code())?
-    output.write_text(": ")?
-    output.write_text(failure.message())?
-    output.write_text("\n")?
+    output.write_text_blocking("http-get: ")?
+    output.write_text_blocking(failure.code())?
+    output.write_text_blocking(": ")?
+    output.write_text_blocking(failure.message())?
+    output.write_text_blocking("\n")?
     return
 }

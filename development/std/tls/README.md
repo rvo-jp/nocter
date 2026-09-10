@@ -6,12 +6,12 @@ behavior shared by those declarations.
 
 ## Client Authentication
 
-`TlsStream.connect` resolves one non-empty ASCII host through `std/net`, tries the resulting
-numeric addresses in system order, and authenticates the requested host against the operating
-system trust store. The host text remains the authentication identity even when connection falls
-back between IPv6 and IPv4 candidates. TLS 1.2 is the minimum accepted protocol version; the
-operating-system provider may negotiate a newer version. Every synchronous host constructor is
-explicitly `blocking` because this path uses the synchronous system resolver.
+`TlsStream.connect_blocking` resolves one non-empty ASCII host through `std/net`, tries the
+resulting numeric addresses in system order, and authenticates the requested host against the
+operating system trust store. The host text remains the authentication identity even when
+connection falls back between IPv6 and IPv4 candidates. TLS 1.2 is the minimum accepted protocol
+version; the operating-system provider may negotiate a newer version. Every synchronous host
+constructor is explicitly `blocking` because this path uses the synchronous system resolver.
 
 `TrustAnchor.from_der` copies one non-empty DER certificate. The custom-trust connection
 operations add that certificate to the operating-system roots; they do not replace system trust or
@@ -21,7 +21,7 @@ construction. The asynchronous operations capture the supplied anchor borrow and
 while the deferred computation is driven. The ordinary borrow checker therefore keeps the anchor
 alive until that computation is awaited or destroyed.
 
-`tls.connect_async` and `tls.connect_async_with_timeout` validate and retain the host endpoint while
+`tls.connect` and `tls.connect_with_timeout` validate and retain the host endpoint while
 their deferred computation is driven. Invalid host input, provider resolution, authentication, and
 transport failure all belong to the single awaited `TlsStream!` result. The timeout variant starts
 one monotonic deadline when the future begins and preserves it across validation, provider

@@ -17,7 +17,7 @@ test tcp_accept_timeout_round_trips_and_reports_one_stable_error {
     if configured != timeout {
         return error.new("std.net.test", "accept timeout value changed")
     }
-    let _ = listener.accept() catch failure {
+    let _ = listener.accept_blocking() catch failure {
         if !failure.has_code("std.net.timed_out") {
             return error.new("std.net.test", "accept timeout lost its stable error")
         }
@@ -31,8 +31,8 @@ test tcp_accept_timeout_round_trips_and_reports_one_stable_error {
 test tcp_connect_and_read_share_finite_timeout_policy {
     var listener = loopback_listener()?
     let address = listener.local_address()?
-    var client = TcpStream.connect_with_timeout(address, Duration.from_seconds(1))?
-    let accepted = listener.accept()?
+    var client = TcpStream.connect_with_timeout_blocking(address, Duration.from_seconds(1))?
+    let accepted = listener.accept_blocking()?
     var server = move accepted.0
     let timeout = Duration.from_milliseconds(2)
     server.set_read_timeout(timeout)
@@ -47,7 +47,7 @@ test tcp_connect_and_read_share_finite_timeout_policy {
         return error.new("std.net.test", "stream timeout value changed")
     }
     var byte: Vec<u8> = Vec [u8.truncate(0)]
-    let _ = server.read(&+byte) catch failure {
+    let _ = server.read_blocking(&+byte) catch failure {
         if !failure.has_code("std.net.timed_out") {
             return error.new("std.net.test", "stream read timeout lost its stable error")
         }

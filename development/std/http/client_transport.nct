@@ -27,22 +27,22 @@ blocking func connect_secure_client_transport(
     match trust {
         ClientTrust.system {
             let finite = timeout otherwise {
-                return ClientTransport.secure(tls.connect_http1(url.host(), url.port())?)
+                return ClientTransport.secure(tls.connect_http1_blocking(url.host(), url.port())?)
             }
-            var stream = tls.connect_http1_with_timeout(url.host(), url.port(), finite)?
+            var stream = tls.connect_http1_with_timeout_blocking(url.host(), url.port(), finite)?
             stream.set_read_timeout(finite)
             stream.set_write_timeout(finite)
             return ClientTransport.secure(move stream)
         }
         ClientTrust.additional(anchor) {
             let finite = timeout otherwise {
-                return ClientTransport.secure(tls.connect_http1_with_trust_anchor(
+                return ClientTransport.secure(tls.connect_http1_with_trust_anchor_blocking(
                     url.host(),
                     url.port(),
                     anchor,
                 )?)
             }
-            var stream = tls.connect_http1_with_trust_anchor_and_timeout(
+            var stream = tls.connect_http1_with_trust_anchor_and_timeout_blocking(
                 url.host(),
                 url.port(),
                 anchor,
@@ -63,9 +63,13 @@ blocking func connect_client_transport(
     match url.scheme() {
         UrlScheme.http {
             let finite = timeout otherwise {
-                return ClientTransport.plain(TcpStream.connect_host(url.host(), url.port())?)
+                return ClientTransport.plain(TcpStream.connect_host_blocking(
+                    url.host(), url.port(),
+                )?)
             }
-            var stream = TcpStream.connect_host_with_timeout(url.host(), url.port(), finite)?
+            var stream = TcpStream.connect_host_with_timeout_blocking(
+                url.host(), url.port(), finite,
+            )?
             stream.set_read_timeout(finite)
             stream.set_write_timeout(finite)
             return ClientTransport.plain(move stream)
@@ -84,11 +88,11 @@ async func connect_secure_client_transport_async(
     match trust {
         ClientTrust.system {
             let finite = timeout otherwise {
-                return ClientTransport.secure(await tls.connect_http1_async(
+                return ClientTransport.secure(await tls.connect_http1(
                     url.host(), url.port(),
                 )?)
             }
-            return ClientTransport.secure(await tls.connect_http1_async_with_timeout(
+            return ClientTransport.secure(await tls.connect_http1_with_timeout(
                 url.host(),
                 url.port(),
                 finite,
@@ -96,14 +100,14 @@ async func connect_secure_client_transport_async(
         }
         ClientTrust.additional(anchor) {
             let finite = timeout otherwise {
-                return ClientTransport.secure(await tls.connect_http1_async_with_trust_anchor(
+                return ClientTransport.secure(await tls.connect_http1_with_trust_anchor(
                     url.host(),
                     url.port(),
                     anchor,
                 )?)
             }
             return ClientTransport.secure(
-                await tls.connect_http1_async_with_trust_anchor_and_timeout(
+                await tls.connect_http1_with_trust_anchor_and_timeout(
                     url.host(),
                     url.port(),
                     anchor,
@@ -122,11 +126,11 @@ async func connect_client_transport_async(
     match url.scheme() {
         UrlScheme.http {
             let finite = timeout otherwise {
-                return ClientTransport.plain(await net.connect_host_async(
+                return ClientTransport.plain(await net.connect_host(
                     url.host(), url.port(),
                 )?)
             }
-            return ClientTransport.plain(await net.connect_host_async_with_timeout(
+            return ClientTransport.plain(await net.connect_host_with_timeout(
                 url.host(),
                 url.port(),
                 finite,
@@ -139,49 +143,49 @@ async func connect_client_transport_async(
 }
 
 instance ClientTransport {
-    noalloc blocking method &+self.read(output: &+[u8]): usize! {
+    noalloc blocking method &+self.read_blocking(output: &+[u8]): usize! {
         match self {
-            ClientTransport.plain(stream) { return stream.read(output)? }
-            ClientTransport.secure(stream) { return stream.read(output)? }
+            ClientTransport.plain(stream) { return stream.read_blocking(output)? }
+            ClientTransport.secure(stream) { return stream.read_blocking(output)? }
         }
     }
 
-    noalloc blocking method &+self.write(bytes: &[u8]): void! {
+    noalloc blocking method &+self.write_blocking(bytes: &[u8]): void! {
         match self {
-            ClientTransport.plain(stream) { return stream.write(bytes)? }
-            ClientTransport.secure(stream) { return stream.write(bytes)? }
+            ClientTransport.plain(stream) { return stream.write_blocking(bytes)? }
+            ClientTransport.secure(stream) { return stream.write_blocking(bytes)? }
         }
     }
 
-    async method &+self.read_async(output: &+[u8], timeout: Duration?): usize! {
+    async method &+self.read(output: &+[u8], timeout: Duration?): usize! {
         match self {
             ClientTransport.plain(stream) {
-                let finite = timeout otherwise { return await stream.read_async(output)? }
-                return await stream.read_async_with_timeout(output, finite)?
+                let finite = timeout otherwise { return await stream.read(output)? }
+                return await stream.read_with_timeout(output, finite)?
             }
             ClientTransport.secure(stream) {
-                let finite = timeout otherwise { return await stream.read_async(output)? }
-                return await stream.read_async_with_timeout(output, finite)?
+                let finite = timeout otherwise { return await stream.read(output)? }
+                return await stream.read_with_timeout(output, finite)?
             }
         }
     }
 
-    async method &+self.write_async(bytes: &[u8], timeout: Duration?): void! {
+    async method &+self.write(bytes: &[u8], timeout: Duration?): void! {
         match self {
             ClientTransport.plain(stream) {
                 let finite = timeout otherwise {
-                    await stream.write_async(bytes)?
+                    await stream.write(bytes)?
                     return
                 }
-                await stream.write_async_with_timeout(bytes, finite)?
+                await stream.write_with_timeout(bytes, finite)?
                 return
             }
             ClientTransport.secure(stream) {
                 let finite = timeout otherwise {
-                    await stream.write_async(bytes)?
+                    await stream.write(bytes)?
                     return
                 }
-                await stream.write_async_with_timeout(bytes, finite)?
+                await stream.write_with_timeout(bytes, finite)?
                 return
             }
         }

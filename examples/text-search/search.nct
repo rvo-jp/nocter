@@ -126,7 +126,7 @@ blocking func search_file(output: &+BufWriter, needle: &str, path: &SearchPath):
     var line_number: usize = 1
     var matched = false
     while true {
-        let present = reader.read_line_into(&+line) catch failure {
+        let present = reader.read_line_into_blocking(&+line) catch failure {
             let context = String.concat("cannot read ", &path.display)
             return failure.context(&context)
         }
@@ -150,27 +150,27 @@ blocking func write_match(
     line: &str,
 ): void! {
     let number = line_number.to_string()
-    output.write_text(path)?
-    output.write_text(":")?
-    output.write_text(&number)?
-    output.write_text(":")?
-    output.write_text(line)?
-    output.write_text("\n")?
+    output.write_text_blocking(path)?
+    output.write_text_blocking(":")?
+    output.write_text_blocking(&number)?
+    output.write_text_blocking(":")?
+    output.write_text_blocking(line)?
+    output.write_text_blocking("\n")?
     return
 }
 
 blocking func report_usage(): void! {
     var output = io.stderr()
-    output.write_text("usage: text-search NEEDLE ROOT\n")?
+    output.write_text_blocking("usage: text-search NEEDLE ROOT\n")?
     return
 }
 
 blocking func report_failure(failure: &error): void! {
     var output = io.stderr()
-    output.write_text("text-search: ")?
-    output.write_text(failure.code())?
-    output.write_text(": ")?
-    output.write_text(failure.message())?
-    output.write_text("\n")?
+    output.write_text_blocking("text-search: ")?
+    output.write_text_blocking(failure.code())?
+    output.write_text_blocking(": ")?
+    output.write_text_blocking(failure.message())?
+    output.write_text_blocking("\n")?
     return
 }

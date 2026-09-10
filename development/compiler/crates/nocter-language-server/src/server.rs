@@ -1941,7 +1941,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/io/buffer.BufReader\\nblocking func inspect(reader: &+BufReader): void! {{\\n    let _line = reader.read_line()?\\n    return\\n}}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/io/buffer.BufReader\\nblocking func inspect(reader: &+BufReader): void! {{\\n    let _line = reader.read_line_blocking()?\\n    return\\n}}\\n\"}}}}}}"
         ));
 
         let completion = server.receive(&format!(
@@ -1949,11 +1949,11 @@ mod tests {
         ));
         let response = completion.response().unwrap();
         assert!(
-            response.contains("\"label\":\"read_line\",\"kind\":2"),
+            response.contains("\"label\":\"read_line_blocking\",\"kind\":2"),
             "{response}"
         );
         assert!(
-            response.contains("\"label\":\"read_line_into\",\"kind\":2"),
+            response.contains("\"label\":\"read_line_into_blocking\",\"kind\":2"),
             "{response}"
         );
         assert!(completion.issue().is_none(), "{:?}", completion.issue());
@@ -1971,7 +1971,9 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("pub blocking method &+self.read_line(): String?!"))
+            .find(|(_, line)| {
+                line.contains("pub blocking method &+self.read_line_blocking(): String?!")
+            })
             .unwrap();
         let character = source_line.find("read_line").unwrap();
         let hover = server.receive(&format!(
@@ -1981,7 +1983,7 @@ mod tests {
         let response = hover.response().unwrap();
         assert!(
             response.contains(
-                "```nocter\\npub blocking method &+BufReader.read_line(): String?!\\n```"
+                "```nocter\\npub blocking method &+BufReader.read_line_blocking(): String?!\\n```"
             ),
             "{response}"
         );

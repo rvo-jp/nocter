@@ -44,7 +44,7 @@ is driven. The asynchronous path never invokes the synchronous system resolver.
 The operation therefore has one recoverable failure layer:
 
 ```nct
-let pending = client.send_async(move request)
+let pending = client.send(move request)
 var response = await move pending?
 ```
 
@@ -67,8 +67,8 @@ the private representation is generalized.
 
 The timeout-bearing synchronous and asynchronous APIs apply a duration to connection and
 individual I/O progress. A whole-request deadline is a different contract and must not be inferred
-from those names. `send_async_with_timeout` delegates its connection deadline and each write or
-response-head idle wait to async TCP. `read_async_with_timeout` supplies the same explicit idle
+from those names. `send_with_timeout` delegates its connection deadline and each write or
+response-head idle wait to async TCP. `read_with_timeout` supplies the same explicit idle
 timeout for response-body transport input. HTTP does not implement a second timer or readiness
 race.
 

@@ -258,19 +258,22 @@ instance Client {
     pub method self.with_trust_anchor(trust_anchor: TrustAnchor): Self
 
     /// Sends one request over one new connection and returns its final response.
-    pub blocking method &self.send(request: Request): Response!
+    pub blocking method &self.send_blocking(request: Request): Response!
 
     /// Lazily validates, resolves, connects, sends, and receives without blocking the executor.
-    pub async method &self.send_async(request: Request): Response!
+    pub async method &self.send(request: Request): Response!
 
     /// Performs each asynchronous transport operation with an explicit timeout.
-    pub async method &self.send_async_with_timeout(
+    pub async method &self.send_with_timeout(
         request: Request,
         timeout: Duration,
     ): Response!
 
     /// Sends with one connection deadline and per-operation stream timeouts.
-    pub blocking method &self.send_with_timeout(request: Request, timeout: Duration): Response!
+    pub blocking method &self.send_with_timeout_blocking(
+        request: Request,
+        timeout: Duration,
+    ): Response!
 }
 
 /// One uniquely owned response body stream and its parsed response head.
@@ -286,28 +289,28 @@ instance Response {
     pub noalloc method &self.headers(): &Headers from self
 
     /// Reads at most `output.len()` decoded response-body bytes, possibly waiting for input.
-    pub blocking method &+self.read(output: &+[u8]): usize!
+    pub blocking method &+self.read_blocking(output: &+[u8]): usize!
 
     /// Reads at most `output.len()` decoded response-body bytes without blocking the executor.
-    pub async method &+self.read_async(output: &+[u8]): usize!
+    pub async method &+self.read(output: &+[u8]): usize!
 
     /// Reads at most `output.len()` decoded bytes with an idle timeout for needed input.
-    pub async method &+self.read_async_with_timeout(
+    pub async method &+self.read_with_timeout(
         output: &+[u8],
         timeout: Duration,
     ): usize!
 
     /// Reads the complete decoded body into independently owned byte storage.
-    pub async method &+self.read_to_end_async(): Vec<u8>!
+    pub async method &+self.read_to_end(): Vec<u8>!
 
     /// Reads the complete decoded body and validates it as UTF-8.
-    pub async method &+self.read_to_string_async(): String!
+    pub async method &+self.read_to_string(): String!
 
     /// Reads the complete decoded body with a fresh idle timeout for each needed input fragment.
-    pub async method &+self.read_to_end_async_with_timeout(timeout: Duration): Vec<u8>!
+    pub async method &+self.read_to_end_with_timeout(timeout: Duration): Vec<u8>!
 
     /// Reads and validates the complete UTF-8 body with per-fragment idle timeouts.
-    pub async method &+self.read_to_string_async_with_timeout(timeout: Duration): String!
+    pub async method &+self.read_to_string_with_timeout(timeout: Duration): String!
 
     /// Closes the owned connection; later reads report end of stream.
     pub noalloc method &+self.close(): void

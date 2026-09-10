@@ -70,7 +70,7 @@ async func connect_with_options_async(
     )?
 }
 
-async func connect_async(host: &str, port: u16): TlsStream! {
+async func connect(host: &str, port: u16): TlsStream! {
     return await connect_with_options_async(
         host,
         port,
@@ -80,7 +80,7 @@ async func connect_async(host: &str, port: u16): TlsStream! {
     )?
 }
 
-async func connect_async_with_timeout(
+async func connect_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
@@ -94,7 +94,7 @@ async func connect_async_with_timeout(
     )?
 }
 
-async func connect_async_with_trust_anchor(
+async func connect_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
@@ -108,7 +108,7 @@ async func connect_async_with_trust_anchor(
     )?
 }
 
-async func connect_async_with_trust_anchor_and_timeout(
+async func connect_with_trust_anchor_and_timeout(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
@@ -123,7 +123,7 @@ async func connect_async_with_trust_anchor_and_timeout(
     )?
 }
 
-async func connect_http1_async(host: &str, port: u16): TlsStream! {
+async func connect_http1(host: &str, port: u16): TlsStream! {
     let application_protocol = http1_application_protocol()
     return await connect_with_options_async(
         host,
@@ -134,7 +134,7 @@ async func connect_http1_async(host: &str, port: u16): TlsStream! {
     )?
 }
 
-async func connect_http1_async_with_timeout(
+async func connect_http1_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
@@ -149,7 +149,7 @@ async func connect_http1_async_with_timeout(
     )?
 }
 
-async func connect_http1_async_with_trust_anchor(
+async func connect_http1_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
@@ -164,7 +164,7 @@ async func connect_http1_async_with_trust_anchor(
     )?
 }
 
-async func connect_http1_async_with_trust_anchor_and_timeout(
+async func connect_http1_with_trust_anchor_and_timeout(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
@@ -181,14 +181,14 @@ async func connect_http1_async_with_trust_anchor_and_timeout(
 }
 
 instance TlsStream {
-    async method &+self.read_async(buffer: &+[u8]): usize! {
+    async method &+self.read(buffer: &+[u8]): usize! {
         match await self.connection.read_async(buffer) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return net.network_error(move failure) }
         }
     }
 
-    async method &+self.read_async_with_timeout(
+    async method &+self.read_with_timeout(
         buffer: &+[u8],
         timeout: Duration,
     ): usize! {
@@ -198,14 +198,14 @@ instance TlsStream {
         }
     }
 
-    async method &+self.write_async(bytes: &[u8]): void! {
+    async method &+self.write(bytes: &[u8]): void! {
         match await self.connection.write_async(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return net.network_error(move failure) }
         }
     }
 
-    async method &+self.write_async_with_timeout(
+    async method &+self.write_with_timeout(
         bytes: &[u8],
         timeout: Duration,
     ): void! {

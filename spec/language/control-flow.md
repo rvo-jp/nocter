@@ -346,7 +346,7 @@ before the `if` when the body must retain it.
 A method receiver borrow lasts only for the call unless the method returns a value whose type carries a borrow-like lifetime tracked by the compiler.
 
 ```nct
-file.write_text("hello")?
+file.write_text_blocking("hello")?
 ```
 
 The call above creates a temporary readwrite borrow of `file` for the duration of the call and ends that borrow after the call.
@@ -354,10 +354,12 @@ The call above creates a temporary readwrite borrow of `file` for the duration o
 Fallible temporary receivers must make each fallible step explicit:
 
 ```nct
-(File.open(path)?).write_text("hello")?
+(File.open(path)?).write_text_blocking("hello")?
 ```
 
-If `File.open(path)` fails, no `File` temporary exists. If `write_text` fails, the temporary `File` produced by `File.open(path)` is dropped before the failure propagates. If `write_text` succeeds, the temporary `File` is dropped at the end of the statement.
+If `File.open(path)` fails, no `File` temporary exists. If `write_text_blocking` fails, the
+temporary `File` produced by `File.open(path)` is dropped before the failure propagates. If
+`write_text_blocking` succeeds, the temporary `File` is dropped at the end of the statement.
 
 ## Loops
 

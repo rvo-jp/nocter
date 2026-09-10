@@ -66,7 +66,7 @@ blocking func refill(reader: &+BufReader): usize! {
         reader.buffer.push(0)
         initialized += 1
     }
-    let received = reader.source.read(&+reader.buffer) catch failure {
+    let received = reader.source.read_blocking(&+reader.buffer) catch failure {
         terminate_reader(reader)
         return move failure
     }
@@ -156,11 +156,11 @@ func terminate_reader(reader: &+BufReader): void {
 }
 
 instance BufReader {
-    blocking method &+self.read_line(): String?! {
+    blocking method &+self.read_line_blocking(): String?! {
         return read_line(self)
     }
 
-    blocking method &+self.read_line_into(destination: &+String): bool! {
+    blocking method &+self.read_line_into_blocking(destination: &+String): bool! {
         return read_line_into(self, destination)?
     }
 
@@ -169,7 +169,7 @@ instance BufReader {
         return
     }
 
-    blocking method &+self.read(destination: &+[u8]): usize! {
+    blocking method &+self.read_blocking(destination: &+[u8]): usize! {
         return read(self, destination)?
     }
 }
@@ -223,12 +223,12 @@ blocking func flush(writer: &+BufWriter): void! {
     if writer.buffer.len() == 0 {
         return
     }
-    writer.destination.write(&writer.buffer) catch failure {
+    writer.destination.write_blocking(&writer.buffer) catch failure {
         terminate_writer(writer)
         return move failure
     }
     writer.buffer.clear()
-    writer.destination.flush() catch failure {
+    writer.destination.flush_blocking() catch failure {
         terminate_writer(writer)
         return move failure
     }
@@ -257,12 +257,12 @@ instance BufWriter {
         return
     }
 
-    blocking method &+self.write(bytes: &[u8]): void! {
+    blocking method &+self.write_blocking(bytes: &[u8]): void! {
         write(self, bytes)?
         return
     }
 
-    blocking method &+self.flush(): void! {
+    blocking method &+self.flush_blocking(): void! {
         flush(self)?
         return
     }

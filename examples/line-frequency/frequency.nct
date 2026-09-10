@@ -17,7 +17,7 @@ blocking func run(): i32! {
     }
     let path = Utf8Path.new(requested)?
     var file = File.open(&path)?
-    let text = file.read_to_string()?
+    let text = file.read_to_string_blocking()?
 
     var frequencies: Map<String, usize> = Map.empty()
     var unique: Set<String> = Set.empty()

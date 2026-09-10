@@ -9,7 +9,7 @@ fn network_loopback_public_contract_drives_navigation_and_calls() {
     let source = root.join("exchange.nct");
     let (mut server, text) = open_package_source(&root, &source);
 
-    let (bind_line, bind_source) = source_line(&text, "TcpListener.bind");
+    let (bind_line, bind_source) = source_line(&text, "TcpListener.bind_blocking");
     let bind_character = bind_source.find("bind").unwrap();
     let hover = server.receive(&position_request(
         2,
@@ -21,7 +21,7 @@ fn network_loopback_public_contract_drives_navigation_and_calls() {
     let response = hover.response().unwrap();
     assert!(
         response.contains(
-            "pub noalloc blocking func TcpListener.bind(address: SocketAddress): TcpListener!"
+            "pub noalloc blocking func TcpListener.bind_blocking(address: SocketAddress): TcpListener!"
         ),
         "{response}"
     );
@@ -182,8 +182,8 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     assert!(response.contains("pub struct BufWriter"), "{response}");
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
 
-    let (line_read_line, line_read_source) = source_line(&text, "reader.read_line_into");
-    let line_read_character = line_read_source.find("read_line_into").unwrap();
+    let (line_read_line, line_read_source) = source_line(&text, "reader.read_line_into_blocking");
+    let line_read_character = line_read_source.find("read_line_into_blocking").unwrap();
     let hover = server.receive(&position_request(
         5,
         "textDocument/hover",
@@ -194,7 +194,7 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let response = hover.response().unwrap();
     assert!(
         response.contains(
-            "pub blocking method &+BufReader.read_line_into(destination: &+String): bool!"
+            "pub blocking method &+BufReader.read_line_into_blocking(destination: &+String): bool!"
         ),
         "{response}"
     );
@@ -269,7 +269,7 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
     assert!(!response.contains("WriterSink"), "{response}");
     assert!(signature.issue().is_none(), "{:?}", signature.issue());
 
-    let incomplete = text.replace("output.write_text(\"\\n\")", "output.");
+    let incomplete = text.replace("output.write_text_blocking(\"\\n\")", "output.");
     let mut incomplete_json = String::new();
     nocter_json::write_string(&mut incomplete_json, &incomplete);
     let changed = server.receive(&format!(
@@ -290,7 +290,7 @@ fn json_normalize_uses_public_json_editor_semantics_end_to_end() {
         completion_character,
     ));
     let response = completion.response().unwrap();
-    for method in ["write", "write_text", "flush"] {
+    for method in ["flush_blocking", "write_blocking", "write_text_blocking"] {
         assert!(
             response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
             "{response}"
@@ -547,8 +547,8 @@ fn stdin_prefix_uses_public_process_and_input_editor_semantics_end_to_end() {
     assert!(!response.contains("input.nct"), "{response}");
     assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
-    let (read_line, read_source) = source_line(&text, "input.read_line_into");
-    let read_character = read_source.find("read_line_into").unwrap();
+    let (read_line, read_source) = source_line(&text, "input.read_line_into_blocking");
+    let read_character = read_source.find("read_line_into_blocking").unwrap();
     let hover = server.receive(&position_request(
         4,
         "textDocument/hover",
@@ -559,7 +559,7 @@ fn stdin_prefix_uses_public_process_and_input_editor_semantics_end_to_end() {
     let response = hover.response().unwrap();
     assert!(
         response.contains(
-            "pub blocking method &+BufReader.read_line_into(destination: &+String): bool!"
+            "pub blocking method &+BufReader.read_line_into_blocking(destination: &+String): bool!"
         ),
         "{response}"
     );

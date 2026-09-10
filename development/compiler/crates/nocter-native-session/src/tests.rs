@@ -54,7 +54,7 @@ construct RecordingWriter {
     }
 }
 instance RecordingWriter {
-    method &+self.write(bytes: &[u8]): void! {
+    method &+self.write_blocking(bytes: &[u8]): void! {
         if self.write_count >= self.failure_at {
             return error.new("test.destination", "destination rejected JSON bytes")
         }
@@ -129,7 +129,7 @@ construct RecordingWriter {
     }
 }
 instance RecordingWriter {
-    method &+self.write(bytes: &[u8]): void! {
+    method &+self.write_blocking(bytes: &[u8]): void! {
         if self.writes >= self.failure_at {
             return error.new("test.destination", "destination rejected line bytes")
         }
@@ -141,8 +141,8 @@ instance RecordingWriter {
 }
 test line_adapter_preserves_exact_and_empty_lines {
     var writer = RecordingWriter.accepting()
-    writer.write_line("alpha")?
-    writer.write_line("")?
+    writer.write_line_blocking("alpha")?
+    writer.write_line_blocking("")?
     if writer.text() != "alpha\n\n" {
         return error.new("test.output", "Writer line adapter changed its exact bytes")
     }
@@ -150,7 +150,7 @@ test line_adapter_preserves_exact_and_empty_lines {
 }
 test line_adapter_returns_failure_after_observable_prefix {
     var writer = RecordingWriter.failing_after(1)
-    writer.write_line("prefix") catch failure {
+    writer.write_line_blocking("prefix") catch failure {
         if !failure.has_code("test.destination") || writer.text() != "prefix" {
             return error.new("test.failure", "Writer line failure or prefix changed")
         }
@@ -1853,27 +1853,27 @@ blocking func check_lines(): i32! {
     var line = String.with_capacity(64)
     let original_capacity = line.capacity()
 
-    if !reader.read_line_into(&+line)? || (&line as &str) != "" { return 1 }
-    if !reader.read_line_into(&+line)? || (&line as &str) != "alpha" { return 2 }
-    if !reader.read_line_into(&+line)? || (&line as &str) != "lone\rbeta" { return 3 }
-    if !reader.read_line_into(&+line)? || (&line as &str) != "😀 split" { return 4 }
-    let final_line = reader.read_line()? otherwise { return 5 }
+    if !reader.read_line_into_blocking(&+line)? || (&line as &str) != "" { return 1 }
+    if !reader.read_line_into_blocking(&+line)? || (&line as &str) != "alpha" { return 2 }
+    if !reader.read_line_into_blocking(&+line)? || (&line as &str) != "lone\rbeta" { return 3 }
+    if !reader.read_line_into_blocking(&+line)? || (&line as &str) != "😀 split" { return 4 }
+    let final_line = reader.read_line_blocking()? otherwise { return 5 }
     if (&final_line as &str) != "final" { return 6 }
-    if reader.read_line_into(&+line)? { return 7 }
+    if reader.read_line_into_blocking(&+line)? { return 7 }
     if (&line as &str) != "" { return 8 }
     if line.capacity() != original_capacity { return 9 }
-    let _after_eof = reader.read_line()? otherwise { return 0 }
+    let _after_eof = reader.read_line_blocking()? otherwise { return 0 }
     return 10
 }
 
 blocking func check_invalid_utf8(): i32! {
     var reader = BufReader.with_capacity(File.open("invalid.txt")?, 2)
     var line = String.copy("sentinel")
-    if !reader.read_line_into(&+line)? || (&line as &str) != "good" { return 1 }
-    let _present = reader.read_line_into(&+line) catch failure {
+    if !reader.read_line_into_blocking(&+line)? || (&line as &str) != "good" { return 1 }
+    let _present = reader.read_line_into_blocking(&+line) catch failure {
         if !failure.has_code("std.string.invalid_utf8") { return 2 }
         if (&line as &str) != "" { return 3 }
-        let _after_failure = reader.read_line()? otherwise { return 0 }
+        let _after_failure = reader.read_line_blocking()? otherwise { return 0 }
         return 4
     }
     return 5
@@ -1881,12 +1881,12 @@ blocking func check_invalid_utf8(): i32! {
 
 blocking func check_zero_capacity_and_close(): i32! {
     var reader = BufReader.with_capacity(File.open("single.txt")?, 0)
-    let line = reader.read_line()? otherwise { return 1 }
+    let line = reader.read_line_blocking()? otherwise { return 1 }
     if (&line as &str) != "z" { return 2 }
-    let _after_eof = reader.read_line()? otherwise {
+    let _after_eof = reader.read_line_blocking()? otherwise {
         var closed = BufReader.new(File.open("single.txt")?)
         closed.close()
-        let _after_close = closed.read_line()? otherwise { return 0 }
+        let _after_close = closed.read_line_blocking()? otherwise { return 0 }
         return 3
     }
     return 4
@@ -1895,12 +1895,12 @@ blocking func check_zero_capacity_and_close(): i32! {
 blocking func check_closed_output(): i32! {
     var file = File.create("closed-file.txt")?
     file.close()
-    file.write_text("not written") catch failure {
+    file.write_text_blocking("not written") catch failure {
         if !failure.has_code("std.io.closed") { return 1 }
         var writer = BufWriter.with_capacity(File.create("writer.txt")?, 0)
-        writer.write_text("abc")?
+        writer.write_text_blocking("abc")?
         writer.close()?
-        writer.write_text("not written") catch writer_failure {
+        writer.write_text_blocking("not written") catch writer_failure {
             if !writer_failure.has_code("std.io.closed") { return 2 }
             return 0
         }
@@ -1960,23 +1960,23 @@ func drop_stdin_wrapper(): void {
 
 blocking func main(): i32! {
     var input = io.stdin()
-    let bytes = input.read_to_end()?
+    let bytes = input.read_to_end_blocking()?
     if bytes.len() != 7 { return 1 }
     if bytes[0] != 97 || bytes[1] != 108 || bytes[2] != 112 { return 2 }
     if bytes[3] != 104 || bytes[4] != 97 || bytes[5] != 10 || bytes[6] != 255 { return 3 }
 
     input.close()
     var empty: Vec<u8> = Vec.empty()
-    let _ = input.read(&+empty) catch closed_failure {
+    let _ = input.read_blocking(&+empty) catch closed_failure {
         if !closed_failure.has_code("std.io.closed") { return 4 }
 
         var after_close = io.stdin()
-        if after_close.read(&+empty)? != 0 { return 5 }
+        if after_close.read_blocking(&+empty)? != 0 { return 5 }
         after_close.close()
 
         drop_stdin_wrapper()
         var after_drop = io.stdin()
-        if after_drop.read(&+empty)? != 0 { return 6 }
+        if after_drop.read_blocking(&+empty)? != 0 { return 6 }
         return 42
     }
     return 7
@@ -2019,16 +2019,16 @@ blocking func main(): i32! {
     var line = String.with_capacity(64)
     let original_capacity = line.capacity()
 
-    if !input.read_line_into(&+line)? || (&line as &str) != "" { return 1 }
-    if !input.read_line_into(&+line)? || (&line as &str) != "alpha" { return 2 }
-    if !input.read_line_into(&+line)? || (&line as &str) != "lone\rbeta" { return 3 }
-    if !input.read_line_into(&+line)? || (&line as &str) != "😀 split" { return 4 }
-    let final_line = input.read_line()? otherwise { return 5 }
+    if !input.read_line_into_blocking(&+line)? || (&line as &str) != "" { return 1 }
+    if !input.read_line_into_blocking(&+line)? || (&line as &str) != "alpha" { return 2 }
+    if !input.read_line_into_blocking(&+line)? || (&line as &str) != "lone\rbeta" { return 3 }
+    if !input.read_line_into_blocking(&+line)? || (&line as &str) != "😀 split" { return 4 }
+    let final_line = input.read_line_blocking()? otherwise { return 5 }
     if (&final_line as &str) != "final" { return 6 }
-    if input.read_line_into(&+line)? { return 7 }
+    if input.read_line_into_blocking(&+line)? { return 7 }
     if (&line as &str) != "" { return 8 }
     if line.capacity() != original_capacity { return 9 }
-    let _after_eof = input.read_line()? otherwise { return 42 }
+    let _after_eof = input.read_line_blocking()? otherwise { return 42 }
     return 10
 }
 "#,
@@ -2460,10 +2460,10 @@ fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
                  let url = Url.parse(\"http://localhost:{port}/from-fixture?q=1\") catch _ {{ return 1 }}\n\
                  let request = Request.get(move url) catch _ {{ return 2 }}\n\
                  let client = Client.new()\n\
-                 var response = client.send(move request) catch _ {{ return 3 }}\n\
+                 var response = client.send_blocking(move request) catch _ {{ return 3 }}\n\
                  if response.status().code() != 200 {{ return 4 }}\n\
                  let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 5 }}\n\
-                 let body = response.read_to_string() catch _ {{ return 6 }}\n\
+                 let body = response.read_to_string_blocking() catch _ {{ return 6 }}\n\
                  if body != \"fixture\" {{ return 7 }}\n\
                  return 0\n\
              }}\n"
@@ -2567,7 +2567,7 @@ fn plain_tls_rejection_source(port: u16, asynchronous: bool) -> String {
          use std/url.Url\n\
          \n\
          blocking func rejects_sync(): bool {{\n\
-             let _stream = TlsStream.connect_with_timeout(\n\
+             let _stream = TlsStream.connect_with_timeout_blocking(\n\
                  \"localhost\",\n\
                  {port},\n\
                  Duration.from_seconds(1),\n\
@@ -2582,7 +2582,7 @@ fn plain_tls_rejection_source(port: u16, asynchronous: bool) -> String {
              let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
                  return false\n\
              }}) catch _ {{ return false }}\n\
-             let _response = client.send_with_timeout(\n\
+             let _response = client.send_with_timeout_blocking(\n\
                  move request,\n\
                  Duration.from_seconds(1),\n\
              ) catch failure {{\n\
@@ -2592,7 +2592,7 @@ fn plain_tls_rejection_source(port: u16, asynchronous: bool) -> String {
          }}\n\
          \n\
          async func rejects_async(): bool {{\n\
-             let pending = tls.connect_async_with_timeout(\n\
+             let pending = tls.connect_with_timeout(\n\
                  \"localhost\",\n\
                  {port},\n\
                  Duration.from_seconds(1),\n\
@@ -2608,7 +2608,7 @@ fn plain_tls_rejection_source(port: u16, asynchronous: bool) -> String {
              let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
                  return false\n\
              }}) catch _ {{ return false }}\n\
-             let pending_response = client.send_async_with_timeout(\n\
+             let pending_response = client.send_with_timeout(\n\
                  move request,\n\
                  Duration.from_seconds(1),\n\
              )\n\
@@ -2620,7 +2620,7 @@ fn plain_tls_rejection_source(port: u16, asynchronous: bool) -> String {
          \n\
          blocking func rejects_invalid_custom_anchor(): bool {{\n\
              let anchor = TrustAnchor.from_der(\"x\".bytes()) catch _ {{ return false }}\n\
-             let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+             let _stream = TlsStream.connect_with_trust_anchor_and_timeout_blocking(\n\
                  \"localhost\",\n\
                  {port},\n\
                  &anchor,\n\
@@ -2690,7 +2690,7 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
          use std/url.Url\n\
          \n\
          blocking func sync_tls_times_out(timeout: Duration): bool {{\n\
-             let _stream = TlsStream.connect_with_timeout(\n\
+             let _stream = TlsStream.connect_with_timeout_blocking(\n\
                  \"localhost\",\n\
                  {port},\n\
                  timeout,\n\
@@ -2699,7 +2699,7 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
          }}\n\
          \n\
          async func async_tls_times_out(timeout: Duration): bool {{\n\
-             let pending = tls.connect_async_with_timeout(\n\
+             let pending = tls.connect_with_timeout(\n\
                  \"localhost\",\n\
                  {port},\n\
                  timeout,\n\
@@ -2713,7 +2713,7 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
          blocking func sync_https_times_out(client: &Client, timeout: Duration): bool {{\n\
              let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
-             let _response = client.send_with_timeout(move request, timeout) catch failure {{\n\
+             let _response = client.send_with_timeout_blocking(move request, timeout) catch failure {{\n\
                  return failure.has_code(\"std.net.timed_out\")\n\
              }}\n\
              return false\n\
@@ -2722,7 +2722,7 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
          async func async_https_times_out(client: &Client, timeout: Duration): bool {{\n\
              let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
-             let pending = client.send_async_with_timeout(\n\
+             let pending = client.send_with_timeout(\n\
                  move request,\n\
                  timeout,\n\
              )\n\
@@ -3041,13 +3041,13 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     let standard_root = compiler_root.join("../std");
     let sync_main = format!(
         "blocking func main(): i32 {{\n\
-             let _system = TlsStream.connect_with_timeout(\n\
+             let _system = TlsStream.connect_with_timeout_blocking(\n\
                  \"localhost\", {port}, Duration.from_seconds(1),\n\
              ) catch failure {{\n\
                  if !failure.has_code(\"std.net.tls_failed\") {{ return 1 }}\n\
                  let certificate = fs.read(\"root-cert.der\") catch _ {{ return 2 }}\n\
                  let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 3 }}\n\
-                 var stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                 var stream = TlsStream.connect_with_trust_anchor_and_timeout_blocking(\n\
                      \"localhost\", {port}, &anchor, Duration.from_seconds(1),\n\
                  ) catch _ {{ return 4 }}\n\
                  stream.close()\n\
@@ -3074,14 +3074,14 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
              use std/vec.Vec\n\
              \n\
              blocking func rejects_mismatched_name(anchor: &TrustAnchor): bool {{\n\
-                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout_blocking(\n\
                      \"127.0.0.1\", {port}, anchor, Duration.from_seconds(1),\n\
                  ) catch failure {{ return failure.has_code(\"std.net.tls_failed\") }}\n\
                  return false\n\
              }}\n\
              \n\
              async func accepts_asynchronously(anchor: &TrustAnchor): bool {{\n\
-                 let pending = tls.connect_async_with_trust_anchor_and_timeout(\n\
+                 let pending = tls.connect_with_trust_anchor_and_timeout(\n\
                      \"localhost\", {port}, anchor, Duration.from_seconds(1),\n\
                  )\n\
                  var stream = await pending catch _ {{ return false }}\n\
@@ -3128,7 +3128,7 @@ fn custom_trust_does_not_override_certificate_validity() {
              blocking func main(): i32 {{\n\
                  let certificate = fs.read(\"root-cert.der\") catch _ {{ return 1 }}\n\
                  let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
-                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout_blocking(\n\
                      \"localhost\", {port}, &anchor, Duration.from_seconds(1),\n\
                  ) catch failure {{\n\
                      if failure.has_code(\"std.net.tls_failed\") {{ return 0 }}\n\
@@ -3197,7 +3197,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
              blocking func accepts_sync(client: &Client): i32 {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return 1 }}\n\
                  let request = Request.get(move url) catch _ {{ return 2 }}\n\
-                 var response = client.send_with_timeout(\n\
+                 var response = client.send_with_timeout_blocking(\n\
                      move request,\n\
                      Duration.from_seconds(1),\n\
                  ) catch failure {{\n\
@@ -3216,7 +3216,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
              async func accepts_async(client: &Client): bool {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
                  let request = Request.get(move url) catch _ {{ return false }}\n\
-                 let pending = client.send_async_with_timeout(\n\
+                 let pending = client.send_with_timeout(\n\
                      move request,\n\
                      Duration.from_seconds(1),\n\
                  )\n\
@@ -3285,7 +3285,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
              blocking func rejects_sync(client: &Client): bool {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
                  let request = Request.get(move url) catch _ {{ return false }}\n\
-                 var response = client.send_with_timeout(\n\
+                 var response = client.send_with_timeout_blocking(\n\
                      move request,\n\
                      Duration.from_seconds(1),\n\
                  ) catch failure {{ return failure.has_code(\"std.net.tls_failed\") }}\n\
@@ -3296,7 +3296,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
              async func rejects_async(client: &Client): bool {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
                  let request = Request.get(move url) catch _ {{ return false }}\n\
-                 let pending = client.send_async_with_timeout(\n\
+                 let pending = client.send_with_timeout(\n\
                      move request,\n\
                      Duration.from_seconds(1),\n\
                  )\n\
@@ -3348,11 +3348,11 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
                  request.append_header_text(\"X-Request\", \"phase3\") catch _ {{ return 3 }}\n\
                  request.set_text_body(\"payload\")\n\
                  let client = Client.new()\n\
-                 let pending = client.send_async(move request)\n\
+                 let pending = client.send(move request)\n\
                  var response = await pending catch _ {{ return 5 }}\n\
                  if response.status().code() != 200 {{ return 6 }}\n\
                  let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 7 }}\n\
-                 let text = await response.read_to_string_async() catch _ {{ return 8 }}\n\
+                 let text = await response.read_to_string() catch _ {{ return 8 }}\n\
                  if text != \"fragmented\" {{ return 9 }}\n\
                  return 0\n\
              }}\n"
@@ -3423,7 +3423,7 @@ fn async_http_timeout_source(port: u16) -> String {
          \n\
          async func head_times_out(client: &Client, url: Url, timeout: Duration): bool {{\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
-             let pending = client.send_async_with_timeout(\n\
+             let pending = client.send_with_timeout(\n\
                  move request,\n\
                  timeout,\n\
              )\n\
@@ -3435,15 +3435,15 @@ fn async_http_timeout_source(port: u16) -> String {
          \n\
          async func body_times_out(client: &Client, url: Url, timeout: Duration): bool {{\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
-             let pending = client.send_async_with_timeout(\n\
+             let pending = client.send_with_timeout(\n\
                  move request,\n\
                  Duration.from_seconds(1),\n\
              )\n\
              var response = await pending catch _ {{ return false }}\n\
              var buffer: Vec<u8> = Vec [u8.truncate(0)]\n\
-             let abandoned = response.read_async(&+buffer)\n\
+             let abandoned = response.read(&+buffer)\n\
              drop abandoned\n\
-             let _body = await response.read_to_end_async_with_timeout(timeout) catch failure {{\n\
+             let _body = await response.read_to_end_with_timeout(timeout) catch failure {{\n\
                  return failure.has_code(\"std.net.timed_out\")\n\
              }}\n\
              return false\n\
@@ -3451,7 +3451,7 @@ fn async_http_timeout_source(port: u16) -> String {
          \n\
          async func truncated_peer_fails(client: &Client, url: Url): bool {{\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
-             let pending = client.send_async_with_timeout(\n\
+             let pending = client.send_with_timeout(\n\
                  move request,\n\
                  Duration.from_seconds(1),\n\
              )\n\
@@ -3462,12 +3462,12 @@ fn async_http_timeout_source(port: u16) -> String {
                  u8.truncate(0),\n\
                  u8.truncate(0),\n\
              ]\n\
-             let first = await response.read_async_with_timeout(\n\
+             let first = await response.read_with_timeout(\n\
                  &+buffer,\n\
                  Duration.from_seconds(1),\n\
              ) catch _ {{ return false }}\n\
              if first != 2 {{ return false }}\n\
-             let _second = await response.read_async_with_timeout(\n\
+             let _second = await response.read_with_timeout(\n\
                  &+buffer,\n\
                  Duration.from_seconds(1),\n\
              ) catch failure {{\n\
@@ -3481,7 +3481,7 @@ fn async_http_timeout_source(port: u16) -> String {
              let abandoned_request = Request.get(\n\
                  Url.parse(\"http://localhost:{port}/abandoned\") catch _ {{ return 1 }},\n\
              ) catch _ {{ return 2 }}\n\
-             let abandoned = client.send_async(move abandoned_request)\n\
+             let abandoned = client.send(move abandoned_request)\n\
              drop abandoned\n\
              let short = Duration.from_milliseconds(20)\n\
              let head_url = Url.parse(\"http://localhost:{port}/head\") catch _ {{ return 4 }}\n\
@@ -3588,7 +3588,7 @@ fn public_async_http_request_body_observes_write_backpressure_timeout() {
                  var request = Request.new(Method.post(), move url) catch _ {{ return 2 }}\n\
                  request.set_body(move body)\n\
                  let client = Client.new()\n\
-                 let pending = client.send_async_with_timeout(\n\
+                 let pending = client.send_with_timeout(\n\
                      move request,\n\
                      Duration.from_milliseconds(20),\n\
                  )\n\
@@ -3985,29 +3985,29 @@ fn public_async_tcp_crosses_the_complete_native_session() {
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
              )\n\
-             var listener = await net.bind_tcp_async(address)?\n\
+             var listener = await net.bind_tcp(address)?\n\
              let listening = listener.local_address()?\n\
              let connection = await task.join(\n\
-                 net.connect_tcp_async(listening),\n\
-                 listener.accept_async(),\n\
+                 net.connect_tcp(listening),\n\
+                 listener.accept(),\n\
              )\n\
              let client_result = move connection.0\n\
              let accepted_result = move connection.1\n\
              var client = move client_result?\n\
              let accepted = move accepted_result?\n\
              var server = move accepted.0\n\
-             await client.write_async(\"ping\".bytes())?\n\
+             await client.write(\"ping\".bytes())?\n\
              var buffer: Vec<u8> = Vec [\n\
                  u8.truncate(0),\n\
                  u8.truncate(0),\n\
                  u8.truncate(0),\n\
                  u8.truncate(0),\n\
              ]\n\
-             let count = await server.read_async(&+buffer)?\n\
+             let count = await server.read(&+buffer)?\n\
              if count != 4 || buffer[0] != 112 || buffer[1] != 105\n\
                  || buffer[2] != 110 || buffer[3] != 103 { return 1 }\n\
              server.close()\n\
-             if await client.read_async(&+buffer)? != 0 { return 2 }\n\
+             if await client.read(&+buffer)? != 0 { return 2 }\n\
              return 0\n\
          }\n",
     );
@@ -4138,18 +4138,18 @@ fn public_async_tcp_timeout_races_readiness_in_the_native_session() {
                  0,\n\
              )\n\
              let generous = Duration.from_seconds(1)\n\
-             var listener = await net.bind_tcp_async(address)?\n\
+             var listener = await net.bind_tcp(address)?\n\
              let listening = listener.local_address()?\n\
-             var client = await net.connect_tcp_async_with_timeout(listening, generous)?\n\
-             let accepted = await listener.accept_async_with_timeout(generous)?\n\
+             var client = await net.connect_tcp_with_timeout(listening, generous)?\n\
+             let accepted = await listener.accept_with_timeout(generous)?\n\
              var server = move accepted.0\n\
-             await client.write_async_with_timeout(\"ok\".bytes(), generous)?\n\
+             await client.write_with_timeout(\"ok\".bytes(), generous)?\n\
              var buffer: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0)]\n\
-             let count = await server.read_async_with_timeout(&+buffer, generous)?\n\
+             let count = await server.read_with_timeout(&+buffer, generous)?\n\
              if count != 2 || buffer[0] != 111 || buffer[1] != 107 { return 1 }\n\
              var outgoing: Vec<u8> = Vec.with_capacity(4194304)\n\
              while outgoing.len() < 4194304 { outgoing.push(u8.truncate(120)) }\n\
-             await client.write_async_with_timeout(\n\
+             await client.write_with_timeout(\n\
                  &outgoing,\n\
                  Duration.from_milliseconds(2),\n\
              ) catch failure {\n\
@@ -4188,13 +4188,13 @@ fn public_async_tcp_idle_read_observes_its_deadline() {
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
              )\n\
-             var listener = await net.bind_tcp_async(address)?\n\
+             var listener = await net.bind_tcp(address)?\n\
              let listening = listener.local_address()?\n\
-             var client = await net.connect_tcp_async(listening)?\n\
-             let accepted = await listener.accept_async()?\n\
+             var client = await net.connect_tcp(listening)?\n\
+             let accepted = await listener.accept()?\n\
              var server = move accepted.0\n\
              var waiting: Vec<u8> = Vec [u8.truncate(0)]\n\
-             let _count = await server.read_async_with_timeout(\n\
+             let _count = await server.read_with_timeout(\n\
                  &+waiting,\n\
                  Duration.from_milliseconds(2),\n\
              ) catch failure {\n\
@@ -4230,7 +4230,7 @@ fn public_async_host_connection_uses_one_awaited_result() {
          use std/vec.Vec\n\
          \n\
          async func rejects_invalid_host(): bool {\n\
-             let _stream = await net.connect_host_async(\"\", 80) catch failure {\n\
+             let _stream = await net.connect_host(\"\", 80) catch failure {\n\
                  return failure.has_code(\"std.net.invalid_host\")\n\
              }\n\
              return false\n\
@@ -4242,26 +4242,26 @@ fn public_async_host_connection_uses_one_awaited_result() {
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
              )\n\
-             var listener = await net.bind_tcp_async(address)?\n\
+             var listener = await net.bind_tcp(address)?\n\
              let listening = listener.local_address()?\n\
-             let pending = net.connect_host_async_with_timeout(\n\
+             let pending = net.connect_host_with_timeout(\n\
                  \"localhost\",\n\
                  listening.port(),\n\
                  Duration.from_seconds(1),\n\
              )\n\
              var client = await pending?\n\
-             let accepted = await listener.accept_async_with_timeout(\n\
+             let accepted = await listener.accept_with_timeout(\n\
                  Duration.from_seconds(1),\n\
              )?\n\
              var server = move accepted.0\n\
-             await client.write_async(\"host\".bytes())?\n\
+             await client.write(\"host\".bytes())?\n\
              var buffer: Vec<u8> = Vec [\n\
                  u8.truncate(0),\n\
                  u8.truncate(0),\n\
                  u8.truncate(0),\n\
                  u8.truncate(0),\n\
              ]\n\
-             let count = await server.read_async(&+buffer)?\n\
+             let count = await server.read(&+buffer)?\n\
              if count != 4 || buffer[0] != 104 || buffer[1] != 111\n\
                  || buffer[2] != 115 || buffer[3] != 116 { return 2 }\n\
              return 0\n\
