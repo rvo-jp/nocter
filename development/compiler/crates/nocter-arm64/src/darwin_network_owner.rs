@@ -19,6 +19,7 @@ pub struct Arm64DarwinNetworkOwnerResources {
     serial_queue: Arm64Register,
     event_reader: Arm64Register,
     event_writer: Arm64Register,
+    callback_context: Option<Arm64Register>,
 }
 
 impl Arm64DarwinNetworkOwnerResources {
@@ -34,7 +35,15 @@ impl Arm64DarwinNetworkOwnerResources {
             serial_queue,
             event_reader,
             event_writer,
+            callback_context: None,
         }
+    }
+
+    /// Attaches one compiler-owned heap context whose lifetime is bounded by this owner.
+    #[must_use]
+    pub const fn with_callback_context(mut self, allocation: Arm64Register) -> Self {
+        self.callback_context = Some(allocation);
+        self
     }
 }
 
@@ -53,21 +62,26 @@ pub fn emit_darwin_network_owner_initialize(
     resources: Arm64DarwinNetworkOwnerResources,
 ) -> Result<(), Arm64DarwinNetworkOwnerError> {
     validate_owner_register(owner)?;
-    let resource_registers = [
-        resources.native_object,
-        resources.serial_queue,
-        resources.event_reader,
-        resources.event_writer,
-    ];
-    for (index, resource) in resource_registers.iter().copied().enumerate() {
+    let mut resource_registers = Vec::with_capacity(5);
+    for resource in [
+        Some(resources.native_object),
+        Some(resources.serial_queue),
+        Some(resources.event_reader),
+        Some(resources.event_writer),
+        resources.callback_context,
+    ]
+    .into_iter()
+    .flatten()
+    {
         if resource == owner {
             return Err(Arm64DarwinNetworkOwnerError::AliasedResource(owner));
         }
-        if resource_registers[..index].contains(&resource) {
+        if resource_registers.contains(&resource) {
             return Err(Arm64DarwinNetworkOwnerError::DuplicateResourceRegister(
                 resource,
             ));
         }
+        resource_registers.push(resource);
     }
     let schema = DarwinNetworkOwnerAbiSchema::ARM64_DARWIN;
     for (field, source) in [
@@ -80,6 +94,12 @@ pub fn emit_darwin_network_owner_initialize(
         (DarwinNetworkOwnerField::EventWriter, resources.event_writer),
     ] {
         store(code, owner, field_offset(schema, field)?, source);
+    }
+    let context_offset = field_offset(schema, DarwinNetworkOwnerField::CallbackContext)?;
+    if let Some(source) = resources.callback_context {
+        store(code, owner, context_offset, source);
+    } else {
+        store_zero(code, owner, context_offset);
     }
     immediate(code, x(8), DarwinNetworkOwnerState::Initialized.code())?;
     store(
@@ -170,19 +190,33 @@ pub fn emit_darwin_network_owner_release(
     for field in DarwinNetworkOwnerAbiSchema::RELEASE_ORDER {
         let offset = field_offset(schema, *field)?;
         load(code, x(0), owner, offset);
-        let role = match field.resource_family() {
+        match field.resource_family() {
             DarwinNetworkOwnerResourceFamily::NetworkObject => {
-                DarwinNetworkAdapterFunction::NetworkRelease
+                call(
+                    code,
+                    imports.function(DarwinNetworkAdapterFunction::NetworkRelease),
+                );
             }
             DarwinNetworkOwnerResourceFamily::DispatchObject => {
-                DarwinNetworkAdapterFunction::DispatchRelease
+                call(
+                    code,
+                    imports.function(DarwinNetworkAdapterFunction::DispatchRelease),
+                );
             }
-            DarwinNetworkOwnerResourceFamily::FileDescriptor => DarwinNetworkAdapterFunction::Close,
+            DarwinNetworkOwnerResourceFamily::FileDescriptor => {
+                call(code, imports.function(DarwinNetworkAdapterFunction::Close));
+            }
+            DarwinNetworkOwnerResourceFamily::HeapAllocation => {
+                let released = code.create_label();
+                compare_immediate(code, x(0), 0)?;
+                code.branch_conditional(released, Arm64BranchCondition::Equal);
+                call(code, imports.function(DarwinNetworkAdapterFunction::Free));
+                code.bind(released)?;
+            }
             DarwinNetworkOwnerResourceFamily::Value => {
                 return Err(Arm64DarwinNetworkOwnerError::InvalidReleaseField(*field));
             }
-        };
-        call(code, imports.function(role));
+        }
         store_zero(code, owner, offset);
     }
     immediate(code, x(8), next.code())?;
@@ -396,7 +430,8 @@ mod tests {
 
     use super::{
         Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,
-        emit_darwin_network_owner_initialize, emit_darwin_network_owner_transition,
+        emit_darwin_network_owner_initialize, emit_darwin_network_owner_release,
+        emit_darwin_network_owner_transition,
     };
     use crate::{
         Arm64CodeBuilder, Arm64DarwinNetworkAdapterImports, Arm64ProgramBuilder, Arm64Register,
@@ -418,6 +453,18 @@ mod tests {
                 20
             )))
         );
+        let duplicate_context = Arm64DarwinNetworkOwnerResources::new(x(20), x(21), x(22), x(23))
+            .with_callback_context(x(22));
+        assert_eq!(
+            emit_darwin_network_owner_initialize(
+                &mut Arm64CodeBuilder::new(),
+                x(19),
+                duplicate_context,
+            ),
+            Err(Arm64DarwinNetworkOwnerError::DuplicateResourceRegister(x(
+                22
+            )))
+        );
         assert_eq!(
             emit_darwin_network_owner_transition(
                 &mut Arm64CodeBuilder::new(),
@@ -431,6 +478,23 @@ mod tests {
             ))
         );
         assert_eq!(DarwinNetworkOwnerState::Released.code(), 5);
+    }
+
+    #[test]
+    fn owner_release_accepts_the_optional_heap_cleanup_family() {
+        let mut program = Arm64ProgramBuilder::new();
+        let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
+        let mut code = Arm64CodeBuilder::new();
+
+        emit_darwin_network_owner_release(
+            &mut code,
+            x(19),
+            DarwinNetworkOwnerKind::Connection,
+            &imports,
+        )
+        .unwrap();
+
+        code.finish().unwrap();
     }
 
     fn x(number: u8) -> Arm64Register {

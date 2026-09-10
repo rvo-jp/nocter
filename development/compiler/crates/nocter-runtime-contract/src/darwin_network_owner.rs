@@ -5,6 +5,7 @@ pub enum DarwinNetworkOwnerField {
     SerialQueue,
     EventReader,
     EventWriter,
+    CallbackContext,
     Lifecycle,
 }
 
@@ -14,6 +15,7 @@ impl DarwinNetworkOwnerField {
         Self::SerialQueue,
         Self::EventReader,
         Self::EventWriter,
+        Self::CallbackContext,
         Self::Lifecycle,
     ];
 
@@ -26,6 +28,7 @@ impl DarwinNetworkOwnerField {
             Self::EventReader | Self::EventWriter => {
                 DarwinNetworkOwnerResourceFamily::FileDescriptor
             }
+            Self::CallbackContext => DarwinNetworkOwnerResourceFamily::HeapAllocation,
             Self::Lifecycle => DarwinNetworkOwnerResourceFamily::Value,
         }
     }
@@ -37,6 +40,7 @@ pub enum DarwinNetworkOwnerResourceFamily {
     NetworkObject,
     DispatchObject,
     FileDescriptor,
+    HeapAllocation,
     Value,
 }
 
@@ -90,28 +94,31 @@ impl DarwinNetworkOwnerCreateStatus {
 /// Fixed native record shared by connection and listener adapter owners on ARM64 Darwin.
 ///
 /// Temporary endpoint, parameter, Block, dispatch-data, path, and error objects are deliberately
-/// absent. The operation that creates or consumes them must also dispose of them, so an owner has
-/// one bounded terminal release plan.
+/// absent. The optional callback-context allocation is the one compiler-owned context that may be
+/// captured by provider callbacks; its lifetime is therefore tied to the provider object instead
+/// of to the operation that creates it. An owner still has one bounded terminal release plan.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DarwinNetworkOwnerAbiSchema {
-    offsets: [u64; 5],
+    offsets: [u64; 6],
     size: u64,
     alignment: u64,
 }
 
 impl DarwinNetworkOwnerAbiSchema {
     pub const ARM64_DARWIN: Self = Self {
-        offsets: [0, 8, 16, 24, 32],
-        size: 40,
+        offsets: [0, 8, 16, 24, 32, 40],
+        size: 48,
         alignment: 8,
     };
 
     /// Terminal cleanup order after the checked lifecycle reaches `quiesced`.
     ///
-    /// The native object is released first, then the serial queue, then the writer and reader ends
-    /// of the callback channel. Lifecycle is an inline value and requires no cleanup.
+    /// The native object is released first so it disposes provider-owned callback blocks. Any heap
+    /// context captured by those blocks is then freed before the serial queue and callback channel
+    /// are released. Lifecycle is an inline value and requires no cleanup.
     pub const RELEASE_ORDER: &'static [DarwinNetworkOwnerField] = &[
         DarwinNetworkOwnerField::NativeObject,
+        DarwinNetworkOwnerField::CallbackContext,
         DarwinNetworkOwnerField::SerialQueue,
         DarwinNetworkOwnerField::EventWriter,
         DarwinNetworkOwnerField::EventReader,
@@ -146,7 +153,7 @@ mod tests {
         for (index, field) in DarwinNetworkOwnerField::ALL.iter().copied().enumerate() {
             assert_eq!(schema.offset(field), (index as u64) * 8);
         }
-        assert_eq!(schema.size(), 40);
+        assert_eq!(schema.size(), 48);
         assert_eq!(schema.alignment(), 8);
         assert_eq!(
             DarwinNetworkOwnerAbiSchema::RELEASE_ORDER
@@ -156,6 +163,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 DarwinNetworkOwnerResourceFamily::NetworkObject,
+                DarwinNetworkOwnerResourceFamily::HeapAllocation,
                 DarwinNetworkOwnerResourceFamily::DispatchObject,
                 DarwinNetworkOwnerResourceFamily::FileDescriptor,
                 DarwinNetworkOwnerResourceFamily::FileDescriptor,

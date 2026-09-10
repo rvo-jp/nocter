@@ -24,7 +24,7 @@ pub struct DarwinNetworkConnectionEventObservationAbiSchema {
 /// Provider-object-opaque listener observation with an optional compiler-owned connection.
 ///
 /// The first four words contain `(kind, state-or-adoption-status, error-domain, error-code)`.
-/// The final 48 bytes are the fixed optional representation: a one-byte tag, alignment padding,
+/// The final 56 bytes are the fixed optional representation: a one-byte tag, alignment padding,
 /// and one [`DarwinNetworkOwnerAbiSchema`](crate::DarwinNetworkOwnerAbiSchema) payload. A retained
 /// native connection therefore never crosses this ABI.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -43,7 +43,7 @@ impl DarwinNetworkListenerEventObservationAbiSchema {
         value_offsets: [8, 16, 24],
         accepted_tag_offset: 32,
         accepted_owner_offset: 40,
-        size: 80,
+        size: 88,
         alignment: 8,
     };
 
@@ -495,8 +495,8 @@ mod tests {
         assert_eq!(schema.value_offset(3), None);
         assert_eq!(schema.accepted_tag_offset(), 32);
         assert_eq!(schema.accepted_owner_offset(), 40);
-        assert_eq!(schema.accepted_optional_size(), 48);
-        assert_eq!(schema.size(), 80);
+        assert_eq!(schema.accepted_optional_size(), 56);
+        assert_eq!(schema.size(), 88);
         assert_eq!(schema.alignment(), 8);
     }
 

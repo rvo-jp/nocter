@@ -10,6 +10,7 @@ pub enum DarwinNetworkAdapterFunction {
     Receive,
     Close,
     Abort,
+    Free,
     ErrorAddress,
     DispatchQueueCreate,
     DispatchAsync,
@@ -53,6 +54,7 @@ impl DarwinNetworkAdapterFunction {
         Self::Receive,
         Self::Close,
         Self::Abort,
+        Self::Free,
         Self::ErrorAddress,
         Self::DispatchQueueCreate,
         Self::DispatchAsync,
@@ -101,6 +103,7 @@ impl DarwinNetworkAdapterFunction {
             Self::Receive => (RuntimeLibraryIdentity::DarwinSystem, "_recv"),
             Self::Close => (RuntimeLibraryIdentity::DarwinSystem, "_close"),
             Self::Abort => (RuntimeLibraryIdentity::DarwinSystem, "_abort"),
+            Self::Free => (RuntimeLibraryIdentity::DarwinSystem, "_free"),
             Self::ErrorAddress => (RuntimeLibraryIdentity::DarwinSystem, "___error"),
             Self::DispatchQueueCreate => (
                 RuntimeLibraryIdentity::DarwinSystem,
