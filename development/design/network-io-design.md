@@ -1,33 +1,37 @@
 # Network I/O Boundary
 
-This document defines the cross-responsibility contract for synchronous network I/O. It is the
-adopted implementation design for v0.39.0; implemented availability remains defined by the exact
+This document defines the current cross-responsibility contract for network I/O. It began as the
+v0.39.0 synchronous design and includes the later asynchronous and provider-backed TCP migration;
+implemented availability remains defined by the exact
 checked declarations in `development/std/net/index.nct` and the behavior guide assigned by
 `development/std/README.md`.
 
 ## Purpose
 
-Network I/O crosses value semantics, descriptor ownership, blocking policy, target-specific ABI
-layout, stable errors, and native syscalls. Those decisions must not be rediscovered independently
-by TCP, UDP, a target adapter, and the compiler.
+Network I/O crosses value semantics, provider and descriptor ownership, callback progress,
+blocking policy, target-specific ABI layout, stable errors, and native services. Those decisions
+must not be rediscovered independently by TCP, UDP, a target adapter, and the compiler.
 
-The foundation therefore has four authorities:
+The foundation therefore has five authorities:
 
 1. `std/net` owns public address, stream, listener, datagram, timeout, and error behavior.
-2. a package-private network substrate owns descriptor state and one deadline-driven synchronous
-   operation policy shared by TCP and UDP;
-3. `std/internal/os` owns target-independent raw operating-system error classifications;
-4. the selected target adapter owns syscall numbers, socket constants, and the byte layout of
-   native socket-address and polling records.
+2. a package-private stream policy owns TCP connection/listener state, ordered provider-event
+   reduction, synchronous/asynchronous progress, and terminal cleanup;
+3. a package-private datagram policy owns the UDP descriptor and readiness engine;
+4. `std/internal/os` owns target-independent raw operating-system error classifications;
+5. the selected target adapter owns provider objects, callback ABIs, syscalls, native constants,
+   and the byte layout of native records.
 
-The compiler supplies ordinary primitive-call and pointer capabilities. It does not know about
-sockets, address families, ports, or target socket structures.
+Closed runtime roles and target contracts expose only the fixed operations required by these
+policies. CheckedProgram, MIR, and general Machine lowering do not interpret sockets, address
+families, ports, provider objects, or target record structures.
 
 ## Scope
 
-v0.39.0 provides numeric IPv4 and IPv6 addresses, TCP client and listener operations, UDP
-datagrams, and synchronous deadlines. It deliberately excludes name resolution, URL parsing,
-HTTP, TLS, asynchronous readiness, and a public nonblocking socket mode.
+The current layer provides numeric IPv4 and IPv6 addresses, system host resolution, synchronous
+and asynchronous TCP client/listener operations, UDP datagrams, and monotonic deadlines. URL and
+HTTP build above this layer. TLS composes with the same provider owner in its own design boundary.
+Asynchronous UDP and a public nonblocking socket mode remain excluded.
 
 All release qualification uses loopback communication. Normal compilation and tests must not
 depend on an external network service.
@@ -59,23 +63,26 @@ Equality and hashing use the address family and exact address bytes; socket addr
 use the port. Any public ordering contract compares the same logical values and never native
 structure padding.
 
-## Descriptor Ownership
+## Transport Ownership
 
-Every public socket wrapper owns one descriptor state with two terminal categories: open and
-closed. A successful constructor transfers exactly one open descriptor into exactly one wrapper.
-Moving the wrapper transfers that ownership. Copying is forbidden.
+Every public network wrapper is move-only and owns exactly one private transport state. TCP streams
+and listeners own an opaque provider record; UDP sockets own one descriptor. A successful
+constructor transfers that owner into exactly one wrapper. Moving the wrapper transfers ownership;
+copying is forbidden.
 
-Explicit close is terminal even when the operating system reports failure. Destruction closes an
-open descriptor at most once, ignores close failure, and never retries a failed close: after an
-interrupted close, descriptor reuse makes a retry unsafe. Operations on a closed wrapper return one
-stable closed-socket error.
+Explicit close is terminal and idempotent. A TCP close requests provider cancellation, consumes the
+typed terminal state, crosses the serial callback-queue barrier, and only then releases the provider,
+queue, channel, and callback resources. Destruction performs the same sequence for an open owner.
+Operations on a closed wrapper return one stable closed-socket error.
 
-Every partial constructor records descriptor ownership immediately. A later failure closes every
-owned descriptor before returning. No raw descriptor may escape into a public value and no public
-operation may infer ownership from an integer sentinel.
+UDP destruction closes an open descriptor at most once and never retries a failed close: descriptor
+reuse makes such a retry unsafe. Every partial constructor records ownership immediately and
+releases each acquired resource on failure. No provider object, callback pointer, event descriptor,
+or socket descriptor escapes into a public value, and no operation infers ownership from an integer
+sentinel.
 
-Descriptors are close-on-exec. Stream writes cannot terminate the process through `SIGPIPE`; the
-target adapter supplies the target-specific socket policy needed to uphold that guarantee.
+UDP descriptors are close-on-exec. Provider-backed TCP writes cannot terminate the process through
+`SIGPIPE`. The target adapter supplies both guarantees without exposing their native mechanisms.
 
 IPv6 listeners are IPv6-only in v0.39.0. Code requiring both families creates one listener per
 family. This avoids making platform-dependent IPv4-mapped address defaults part of the public
@@ -87,18 +94,18 @@ contract.
 
 - A read returns zero only after clean peer EOF or for an empty destination buffer.
 - A successful write consumes the complete supplied buffer.
-- A lower-level partial write is retried by the shared stream operation; if a later error occurs,
-  the error is returned after the already-written prefix remains observable.
-- Interrupted operations retry while their deadline still permits progress.
+- A provider send copies the supplied view into provider-owned storage before the source borrow
+  ends; completion is observed through the connection's ordered event channel.
 - Local shutdown and terminal close have distinct states. Shutdown prevents the selected direction
-  without releasing descriptor ownership; close releases ownership.
+  without releasing the provider owner; close releases ownership after the cancellation fence.
 
 `TcpListener.accept` returns a newly owned `TcpStream` and the peer `SocketAddress`. Binding port
 zero is supported, and a listener can report its effective local address. Tests and applications
 therefore do not need to predict an unused port.
 
-Connection establishment, acceptance, reads, and writes all use the same synchronous readiness and
-deadline substrate. A protocol wrapper does not implement its own retry or elapsed-time loop.
+Connection establishment, acceptance, reads, and writes all use the same provider owner, ordered
+event reduction, and deadline policy in synchronous and asynchronous calls. A protocol wrapper does
+not implement its own callback, retry, or elapsed-time loop.
 
 ## UDP Semantics
 
@@ -118,19 +125,17 @@ rules.
 
 The public API is synchronous and may block. v0.39.0 therefore does not introduce `noblock`.
 
-Internally, every potentially waiting operation is expressed as one state transition plus an
-optional absolute monotonic deadline. Relative public durations are converted to an absolute
-deadline once at the operation boundary. Retries after interruption or partial progress reuse that
-deadline; they do not restart the requested timeout.
+Internally, every potentially waiting operation uses an optional absolute monotonic deadline.
+Relative public durations are converted once at the operation boundary. Provider events, readiness
+interruptions, partial datagram progress, and ordered connection candidates reuse that deadline;
+none restart the requested timeout.
 
-The shared substrate is the sole authority for:
+The package-private policies are the sole authorities for:
 
-- placing a descriptor in the internal mode required by deadline-aware operation;
-- classifying immediate success, progress, readiness wait, timeout, interruption, and terminal
-  failure;
-- polling the target adapter;
+- reducing target events and descriptor results into logical progress or terminal failure;
+- waiting on the provider event channel or UDP descriptor;
 - recomputing remaining time from the monotonic clock; and
-- restoring no public platform-specific timeout state.
+- maintaining configured synchronous timeout state without exposing platform socket options.
 
 An absent deadline means wait without a time limit. A zero duration performs the operation only if
 it can make immediate progress. Expiration returns one stable timeout error. Wall-clock adjustments
@@ -159,10 +164,12 @@ contract.
 
 ## Target and ABI Boundary
 
-The target adapter exposes operations over logical inputs and explicitly sized mutable byte regions.
-It alone owns:
+The target adapter exposes closed operations over logical inputs, opaque owners, and explicitly
+sized mutable byte regions. It alone owns:
 
-- syscall numbers and invocation arity;
+- provider imports, object retain/release, fixed Block signatures, and callback record layout;
+- provider connection/listener construction, dispatch queues, and terminal callback barriers;
+- syscall numbers and invocation arity for the UDP descriptor substrate;
 - native address-family, socket-type, protocol, shutdown, option, and event constants;
 - native socket-address length, alignment, discriminant placement, port byte order, and address
   byte placement;
@@ -170,14 +177,14 @@ It alone owns:
 - target raw-error decoding; and
 - target mechanisms for close-on-exec and suppressed broken-pipe signals.
 
-The package-private network substrate may request an address record, socket operation, or readiness
-wait only through that adapter contract. It cannot write offsets into an opaque native record or
-compare target constants. The adapter cannot decide public timeout, retry, truncation, ownership,
-or error-code policy.
+The package-private network policies request only complete adapter operations. They cannot write
+offsets into an opaque native record, compare provider states or target constants, retain native
+objects, or construct callbacks. The adapter cannot decide public timeout, candidate ordering,
+datagram truncation, or stable error-code policy.
 
-Generic primitive roles remain the only compiler/runtime boundary. If a target operation fits the
-existing primitive pointer and integer contract, adding it must not add socket vocabulary to
-CheckedProgram, MIR, MachineProgram, or native lowering.
+Closed primitive roles and runtime-storage roles are the only compiler/runtime boundary. Target
+closure validates their exact signatures and ownership shape; higher compiler representations
+transport already resolved calls and opaque storage without reconstructing network meaning.
 
 ## Responsibility Matrix
 
@@ -185,10 +192,11 @@ CheckedProgram, MIR, MachineProgram, or native lowering.
 |---|---|---|
 | Public types, methods, and stable errors | `std/net` contract | applications, compiler checking, editor presentation |
 | Address text grammar and canonical generation | `std/net` address implementation | parsing, formatting, `Format` |
-| Descriptor state and cleanup | private network substrate | TCP and UDP wrappers |
-| Retry, readiness, and absolute deadline policy | private network substrate | connect, accept, stream I/O, datagram I/O |
+| TCP provider state, event reduction, and cleanup | private stream policy | TCP wrappers |
+| UDP descriptor state, readiness, and cleanup | private datagram policy | UDP wrapper |
+| Absolute deadline policy | private network substrate | connect, accept, stream I/O, datagram I/O |
 | Target-independent raw error kind | `std/internal/os` | public I/O policy modules |
-| Native socket and polling layouts | selected target adapter | private network substrate |
+| Provider ABI, native socket, callback, and polling layouts | selected target adapter | private network policies |
 | Source meaning and callable guarantees | compiler semantic pipeline | CLI, LSP, executable lowering |
 | Generic syscall execution | runtime primitive roles and target lowering | selected target adapter |
 
@@ -200,10 +208,10 @@ offsets, or a later representation.
 Each implementation phase must preserve these invariants:
 
 - one public declaration authority and one implementation of each observable rule;
-- one owned descriptor state per public socket value;
+- one opaque provider owner per TCP value and one descriptor owner per UDP value;
 - one address parser and one canonical generator per address family;
 - one target conversion between logical addresses and native records;
-- one monotonic deadline and retry engine shared by TCP and UDP;
+- one monotonic deadline representation consumed by both transport policies;
 - one raw-error classification followed by one public error mapping;
 - no external-network dependency in ordinary tests;
 - no compiler or editor-only network meaning; and
@@ -212,8 +220,8 @@ Each implementation phase must preserve these invariants:
 ## Non-goals
 
 - DNS and service-name resolution
-- URL, HTTP, WebSocket, or TLS protocols
-- asynchronous I/O, readiness streams, or a public nonblocking mode
+- URL, HTTP, WebSocket, or TLS protocol policy
+- asynchronous UDP, readiness streams, or a public nonblocking mode
 - multicast, broadcast, ancillary data, interface enumeration, or IPv6 zones
 - Unix-domain or raw sockets
 - platform-native socket structures in public APIs

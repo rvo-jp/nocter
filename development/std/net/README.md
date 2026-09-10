@@ -76,20 +76,19 @@ returns the connected peer address. IPv6 sockets are explicitly IPv6-only, so co
 families owns one listener for each family.
 
 `TcpStream.read_async`, `TcpStream.write_async`, and `TcpListener.accept_async` use the same
-nonblocking descriptor, ownership, and error substrate as the synchronous operations. Their
+provider-backed owner, ordered event channel, and error substrate as the synchronous operations. Their
 `_with_timeout` variants and `net.connect_tcp_async_with_timeout` bound one complete operation with
-an explicit `Duration`. They retry interruption immediately and suspend only when the descriptor
-cannot make progress. A direct `await` retains each receiver and buffer borrow in stable parent-
+an explicit `Duration`. They suspend on the provider event descriptor until ordered callback
+progress is available. A direct `await` retains each receiver and buffer borrow in stable parent-
 computation storage. The checked ownership model rejects moving the pending child computation
 beyond the lifetime of that parent storage.
 
-Socket descriptors are never exposed. A successful constructor or asynchronous connection
-transfers one descriptor into one move-only public value. Explicit `close` is terminal and
-idempotent; destruction closes a still-open descriptor at most once. Cancelling an unfinished
-asynchronous connection destroys its owned descriptor through the ordinary computation cleanup
-contract. `shutdown` changes the selected stream direction without releasing the descriptor.
-Stream writes cannot terminate the process through `SIGPIPE`, and owned descriptors do not leak
-across process execution.
+Native provider objects and callback descriptors are never exposed. A successful constructor,
+connection, or acceptance transfers one closed provider owner into one move-only public value.
+Explicit `close` is terminal and idempotent; destruction cancels and releases a still-open owner at
+most once. Cancellation first observes the provider's final state and crosses its serial callback-
+queue barrier, so no callback can retain or access a released owner. `shutdown` changes the selected
+stream direction without releasing ownership.
 
 TCP operations are synchronous. `connect_with_timeout` bounds connection establishment.
 `set_read_timeout` and `set_write_timeout` bound later stream operations, while
@@ -103,10 +102,10 @@ readiness and its monotonic deadline in one runtime wait set. Waking either inte
 other registration before the operation retries, so no stale timer remains attached to the task.
 The implementation never calls a blocking adapter on the executor thread.
 
-The implementation uses nonblocking descriptors internally only to centralize interruption,
-readiness, and deadline handling; this does not expose a public nonblocking mode. Public failures
-use stable `std.net.*` codes rather than native errno values. The stable categories include closed
-sockets, timeout, connection refusal, connection reset or abort, address conflict or
+TCP uses a closed provider adapter and UDP uses nonblocking datagram descriptors; neither substrate
+creates a public nonblocking mode. Public failures use stable `std.net.*` codes rather than native
+provider or errno values. The stable categories include closed sockets, timeout, connection refusal,
+connection reset or abort, address conflict or
 unavailability, unreachable networks, permission denial, broken pipes, oversized datagrams,
 unsupported operations, and invalid target results.
 

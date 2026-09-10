@@ -26,16 +26,17 @@ A provider is acceptable only if it can uphold all of these requirements:
 - TLS 1.2 at minimum, with any TLS 1.3 claim backed by an API contract and a native test;
 - ALPN configuration and inspection sufficient to require `http/1.1`;
 - one terminal release of every native TLS and trust object;
-- logical progress results that distinguish complete, need-readable, need-writable, clean EOF, and
-  stable failure without leaking provider status codes;
-- cancellation that removes any outstanding readiness interest before releasing the stream; and
-- composition with Nocter's existing descriptor, monotonic-deadline, reactor, and HTTP ownership
+- logical ordered events that distinguish establishment, transfer completion, clean EOF, and stable
+  failure without leaking provider status codes;
+- cancellation that observes the terminal provider state and callback-queue quiescence before
+  releasing the stream; and
+- composition with Nocter's monotonic-deadline, reactor, and HTTP ownership
   authorities.
 
 The provider owns record protection, handshake state, certificate-path evaluation, hostname
 verification, and provider error classification. `std/tls` owns public values and stable Nocter
-errors. TCP owns the descriptor. The reactor owns readiness registration. HTTP owns protocol
-syntax and response framing.
+errors. The private stream policy owns provider connection state. The reactor owns readiness
+registration for the callback event channel. HTTP owns protocol syntax and response framing.
 
 ## Darwin Provider Selection
 
@@ -63,11 +64,11 @@ completion callbacks together with TLS. It cannot wrap Nocter's existing connect
 through a public SDK contract. Adopting it only for HTTPS would therefore create a second DNS, TCP,
 deadline, cancellation, and reactor model.
 
-Network.framework will therefore replace the complete public TCP stream and listener substrate
-before HTTPS is enabled. The descriptor implementation remains qualification evidence until the
-migration is complete, then is removed rather than retained as a compatibility path. Numeric
-address values and the explicit resolver remain independent value services. UDP remains on its
-datagram-specific descriptor substrate because it neither constructs nor backs a TCP stream.
+Network.framework therefore replaces the complete public TCP stream and listener substrate before
+HTTPS is enabled. The superseded descriptor stream policy is removed rather than retained as a
+compatibility path. Numeric address values and the explicit resolver remain independent value
+services. UDP remains on its datagram-specific descriptor substrate because it neither constructs
+nor backs a TCP stream.
 
 This choice preserves Nocter's low-dependency distribution contract. Network.framework,
 Security.framework, CoreFoundation.framework, libdispatch, and the Blocks runtime are operating-

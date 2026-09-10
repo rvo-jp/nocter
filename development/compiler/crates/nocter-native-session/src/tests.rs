@@ -762,9 +762,9 @@ func main(): i32 {
 
 const PROVIDER_ASYNC_STREAM_TEST_MAIN: &str = r#"
 func main(): async i32 {
-    var listener = match listen_tcp(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
-        DescriptorAttempt.ready(descriptor) { move descriptor }
-        DescriptorAttempt.failed(_) { return 1 }
+    var listener = match listen_stream(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+        StreamListenerAttempt.ready(ready_listener) { move ready_listener }
+        StreamListenerAttempt.failed(_) { return 1 }
     }
     let address = match listener.local_address() {
         AddressAttempt.ready(value) { value }
@@ -777,9 +777,9 @@ func main(): async i32 {
         StreamConnectionAttempt.ready(connection) { move connection }
         StreamConnectionAttempt.failed(_) { return 3 }
     }
-    var server = match listener.accept_tcp() {
-        AcceptAttempt.ready(descriptor, _) { move descriptor }
-        AcceptAttempt.failed(_) { return 4 }
+    var server = match listener.accept() {
+        StreamListenerAcceptAttempt.ready(connection, _) { move connection }
+        StreamListenerAcceptAttempt.failed(_) { return 4 }
     }
     match await client.write_async_with_timeout(
         "ping".bytes(),
@@ -791,12 +791,12 @@ func main(): async i32 {
     var request: Vec<u8> = Vec [
         u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
     ]
-    let request_len = match server.read_stream(&+request) {
+    let request_len = match server.read(&+request) {
         TransferAttempt.ready(count) { count }
         TransferAttempt.failed(_) { return 6 }
     }
     if request_len != 4 || request[0] != 112 || request[3] != 103 { return 7 }
-    match server.write_stream("pong".bytes()) {
+    match server.write("pong".bytes()) {
         UnitAttempt.ready {}
         UnitAttempt.failed(_) { return 8 }
     }
@@ -2366,7 +2366,7 @@ fn standard_network_contract_crosses_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 31);
+    assert_eq!(case_count, 29);
 }
 
 #[test]

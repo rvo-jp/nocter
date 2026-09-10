@@ -452,6 +452,9 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">u32</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Converts an unsigned value when it is representable as `u32`.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_u64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-type">u64</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
+
     <span class="token-comment">/// Converts an integral binary64 value when it is representable as `u32`.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">from_f64</span><span class="token-operator">(</span>value<span class="token-operator">:</span> f64<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">?</span>
 

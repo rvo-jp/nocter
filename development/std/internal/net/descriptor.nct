@@ -1,15 +1,13 @@
-//! Shared descriptor ownership, interruption retry, readiness, and stream progress.
+//! UDP descriptor ownership, interruption retry, readiness, and datagram progress.
 
 see ./index.nct
 see ./deadline.nct
 
 use /internal/net/darwin
 use /internal/net/darwin.{
-    RawAcceptAttempt,
     RawAddressAttempt,
     RawDatagramAttempt,
     RawDescriptorAttempt,
-    RawTransferAttempt,
     RawUnitAttempt,
     RawWaitAttempt,
 }
@@ -109,14 +107,17 @@ noalloc func wait_writable(fd: usize, deadline: &OperationDeadline): UnitAttempt
     return invalid_unit()
 }
 
-noalloc func finish_connect(fd: usize, deadline: &OperationDeadline): UnitAttempt {
+noalloc func finish_datagram_peer_selection(
+    fd: usize,
+    deadline: &OperationDeadline,
+): UnitAttempt {
     match wait_writable(fd, deadline) {
         UnitAttempt.ready {}
         UnitAttempt.failed(failure) { return UnitAttempt.failed(move failure) }
     }
     if deadline_expired(deadline) { return timeout_unit() }
     while true {
-        match darwin.finish_connect_once(fd) {
+        match darwin.finish_datagram_peer_selection_once(fd) {
             RawUnitAttempt.ready { return UnitAttempt.ready }
             RawUnitAttempt.interrupted {
                 if deadline_expired(deadline) { return timeout_unit() }
@@ -132,19 +133,23 @@ noalloc func finish_connect(fd: usize, deadline: &OperationDeadline): UnitAttemp
     return invalid_unit()
 }
 
-noalloc func connect_address(
+noalloc func select_datagram_peer(
     fd: usize,
     address: &NetworkAddress,
     deadline: &OperationDeadline,
 ): UnitAttempt {
     while true {
-        match darwin.connect_once(fd, address) {
+        match darwin.select_datagram_peer_once(fd, address) {
             RawUnitAttempt.ready { return UnitAttempt.ready }
             RawUnitAttempt.interrupted {
                 if deadline_expired(deadline) { return timeout_unit() }
             }
-            RawUnitAttempt.in_progress { return finish_connect(fd, deadline) }
-            RawUnitAttempt.would_block { return finish_connect(fd, deadline) }
+            RawUnitAttempt.in_progress {
+                return finish_datagram_peer_selection(fd, deadline)
+            }
+            RawUnitAttempt.would_block {
+                return finish_datagram_peer_selection(fd, deadline)
+            }
             RawUnitAttempt.failed(failure) {
                 return UnitAttempt.failed(failure_from_raw(failure))
             }
@@ -166,71 +171,6 @@ noalloc func bind_address(fd: usize, address: &NetworkAddress): UnitAttempt {
         }
     }
     return invalid_unit()
-}
-
-noalloc func connect_tcp(
-    address: NetworkAddress,
-    timeout: Duration?,
-): DescriptorAttempt {
-    var deadline = connection_deadline(timeout)
-    return connect_tcp_before(address, &+deadline)
-}
-
-noalloc func connect_tcp_before(
-    address: NetworkAddress,
-    deadline: &+ConnectionDeadline,
-): DescriptorAttempt {
-    if !claim_connection_attempt(deadline) {
-        return DescriptorAttempt.failed(NetworkFailure.timed_out)
-    }
-    let fd = match darwin.create_tcp(address.family) {
-        RawDescriptorAttempt.ready(value) { value }
-        RawDescriptorAttempt.failed(failure) {
-            return DescriptorAttempt.failed(failure_from_raw(failure))
-        }
-        RawDescriptorAttempt.malformed {
-            return DescriptorAttempt.failed(NetworkFailure.invalid_target_result)
-        }
-    }
-    var descriptor = descriptor_from_raw(fd)
-    match connect_address(descriptor.fd, &address, &deadline.operation) {
-        UnitAttempt.ready { return DescriptorAttempt.ready(move descriptor) }
-        UnitAttempt.failed(failure) {
-            return fail_created(&+descriptor, move failure)
-        }
-    }
-}
-
-noalloc func listen_tcp(address: NetworkAddress): DescriptorAttempt {
-    let fd = match darwin.create_tcp(address.family) {
-        RawDescriptorAttempt.ready(value) { value }
-        RawDescriptorAttempt.failed(failure) {
-            return DescriptorAttempt.failed(failure_from_raw(failure))
-        }
-        RawDescriptorAttempt.malformed {
-            return DescriptorAttempt.failed(NetworkFailure.invalid_target_result)
-        }
-    }
-    var descriptor = descriptor_from_raw(fd)
-    match bind_address(descriptor.fd, &address) {
-        UnitAttempt.ready {}
-        UnitAttempt.failed(failure) {
-            return fail_created(&+descriptor, move failure)
-        }
-    }
-    while true {
-        match darwin.listen_once(descriptor.fd) {
-            RawUnitAttempt.ready { return DescriptorAttempt.ready(move descriptor) }
-            RawUnitAttempt.interrupted {}
-            RawUnitAttempt.failed(failure) {
-                return fail_created(&+descriptor, failure_from_raw(failure))
-            }
-            _ {
-                return fail_created(&+descriptor, NetworkFailure.invalid_target_result)
-            }
-        }
-    }
-    return fail_created(&+descriptor, NetworkFailure.invalid_target_result)
 }
 
 noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt {
@@ -293,96 +233,6 @@ noalloc func descriptor_is_open(descriptor: &SocketDescriptor): bool {
 }
 
 instance SocketDescriptor {
-    noalloc method &self.accept_tcp(): AcceptAttempt {
-        if !descriptor_is_open(self) { return AcceptAttempt.failed(NetworkFailure.closed) }
-        let deadline = operation_deadline(self.read_timeout_value)
-        var first_attempt = true
-        while true {
-            if !first_attempt && deadline_expired(&deadline) {
-                return AcceptAttempt.failed(NetworkFailure.timed_out)
-            }
-            first_attempt = false
-            match darwin.accept_once(self.fd) {
-                RawAcceptAttempt.ready(fd, peer) {
-                    return AcceptAttempt.ready(descriptor_from_raw(fd), peer)
-                }
-                RawAcceptAttempt.interrupted {}
-                RawAcceptAttempt.would_block {
-                    match wait_readable(self.fd, &deadline) {
-                        UnitAttempt.ready {}
-                        UnitAttempt.failed(value) { return AcceptAttempt.failed(move value) }
-                    }
-                }
-                RawAcceptAttempt.failed(value) {
-                    return AcceptAttempt.failed(failure_from_raw(value))
-                }
-                RawAcceptAttempt.malformed {
-                    return AcceptAttempt.failed(NetworkFailure.invalid_target_result)
-                }
-            }
-        }
-        return AcceptAttempt.failed(NetworkFailure.invalid_target_result)
-    }
-
-    noalloc method &self.read_stream(buffer: &+[u8]): TransferAttempt {
-        if !descriptor_is_open(self) { return TransferAttempt.failed(NetworkFailure.closed) }
-        if buffer.len() == 0 { return TransferAttempt.ready(0) }
-        let deadline = operation_deadline(self.read_timeout_value)
-        var first_attempt = true
-        while true {
-            if !first_attempt && deadline_expired(&deadline) {
-                return TransferAttempt.failed(NetworkFailure.timed_out)
-            }
-            first_attempt = false
-            match darwin.read_once(self.fd, buffer) {
-                RawTransferAttempt.ready(count) { return TransferAttempt.ready(count) }
-                RawTransferAttempt.end { return TransferAttempt.ready(0) }
-                RawTransferAttempt.interrupted {}
-                RawTransferAttempt.would_block {
-                    match wait_readable(self.fd, &deadline) {
-                        UnitAttempt.ready {}
-                        UnitAttempt.failed(value) { return TransferAttempt.failed(move value) }
-                    }
-                }
-                RawTransferAttempt.failed(value) {
-                    return TransferAttempt.failed(failure_from_raw(value))
-                }
-                RawTransferAttempt.malformed {
-                    return TransferAttempt.failed(NetworkFailure.invalid_target_result)
-                }
-            }
-        }
-        return TransferAttempt.failed(NetworkFailure.invalid_target_result)
-    }
-
-    noalloc method &self.write_stream(bytes: &[u8]): UnitAttempt {
-        if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
-        if bytes.len() == 0 { return UnitAttempt.ready }
-        let deadline = operation_deadline(self.write_timeout_value)
-        var first_attempt = true
-        var offset: usize = 0
-        while offset < bytes.len() {
-            if !first_attempt && deadline_expired(&deadline) { return timeout_unit() }
-            first_attempt = false
-            match darwin.write_once(self.fd, bytes, offset) {
-                RawTransferAttempt.ready(count) { offset += count }
-                RawTransferAttempt.interrupted {}
-                RawTransferAttempt.would_block {
-                    match wait_writable(self.fd, &deadline) {
-                        UnitAttempt.ready {}
-                        UnitAttempt.failed(value) { return UnitAttempt.failed(move value) }
-                    }
-                }
-                RawTransferAttempt.failed(value) {
-                    return UnitAttempt.failed(failure_from_raw(value))
-                }
-                RawTransferAttempt.end { return invalid_unit() }
-                RawTransferAttempt.malformed { return invalid_unit() }
-            }
-        }
-        return UnitAttempt.ready
-    }
-
     noalloc method &self.local_address(): AddressAttempt {
         if !descriptor_is_open(self) { return AddressAttempt.failed(NetworkFailure.closed) }
         while true {
@@ -417,30 +267,10 @@ instance SocketDescriptor {
         return AddressAttempt.failed(NetworkFailure.invalid_target_result)
     }
 
-    noalloc method &self.shutdown(direction: NetworkShutdown): UnitAttempt {
-        if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
-        let native: usize = match direction {
-            NetworkShutdown.read { 0 }
-            NetworkShutdown.write { 1 }
-            NetworkShutdown.both { 2 }
-        }
-        while true {
-            match darwin.shutdown_once(self.fd, native) {
-                RawUnitAttempt.ready { return UnitAttempt.ready }
-                RawUnitAttempt.interrupted {}
-                RawUnitAttempt.failed(value) {
-                    return UnitAttempt.failed(failure_from_raw(value))
-                }
-                _ { return invalid_unit() }
-            }
-        }
-        return invalid_unit()
-    }
-
     noalloc method &self.connect_udp(address: NetworkAddress): UnitAttempt {
         if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
         let deadline = operation_deadline(self.write_timeout_value)
-        return connect_address(self.fd, &address, &deadline)
+        return select_datagram_peer(self.fd, &address, &deadline)
     }
 
     noalloc method &self.send_datagram(bytes: &[u8]): UnitAttempt {

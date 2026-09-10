@@ -236,25 +236,6 @@ pub(/) enum RawWaitAttempt {
 }
 
 #target: "arm64-darwin"
-pub(/) enum RawTransferAttempt {
-    ready(count: usize)
-    end
-    interrupted
-    would_block
-    failed(error: OSError)
-    malformed
-}
-
-#target: "arm64-darwin"
-pub(/) enum RawAcceptAttempt {
-    ready(fd: usize, peer: NetworkAddress)
-    interrupted
-    would_block
-    failed(error: OSError)
-    malformed
-}
-
-#target: "arm64-darwin"
 pub(/) enum RawAddressAttempt {
     ready(address: NetworkAddress)
     interrupted
@@ -290,31 +271,19 @@ instance RawResolverResults {
 }
 
 #target: "arm64-darwin"
-pub(/) noalloc func create_tcp(family: NetworkFamily): RawDescriptorAttempt
-
-#target: "arm64-darwin"
 pub(/) noalloc func create_udp(family: NetworkFamily): RawDescriptorAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func connect_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
+pub(/) noalloc func select_datagram_peer_once(
+    fd: usize,
+    address: &NetworkAddress,
+): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func finish_connect_once(fd: usize): RawUnitAttempt
+pub(/) noalloc func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
-
-#target: "arm64-darwin"
-pub(/) noalloc func listen_once(fd: usize): RawUnitAttempt
-
-#target: "arm64-darwin"
-pub(/) noalloc func accept_once(fd: usize): RawAcceptAttempt
-
-#target: "arm64-darwin"
-pub(/) noalloc func read_once(fd: usize, buffer: &+[u8]): RawTransferAttempt
-
-#target: "arm64-darwin"
-pub(/) noalloc func write_once(fd: usize, bytes: &[u8], offset: usize): RawTransferAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt
@@ -349,9 +318,6 @@ pub(/) noalloc func local_address_once(fd: usize): RawAddressAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func peer_address_once(fd: usize): RawAddressAttempt
-
-#target: "arm64-darwin"
-pub(/) noalloc func shutdown_once(fd: usize, direction: usize): RawUnitAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func close_once(fd: usize): void

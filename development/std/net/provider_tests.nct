@@ -4,12 +4,12 @@ see ./index.nct
 see ./errors.nct
 
 use /internal/net.{
-    AcceptAttempt,
     AddressAttempt,
-    DescriptorAttempt,
     NetworkFailure,
     NetworkShutdown,
     StreamConnectionAttempt,
+    StreamListenerAcceptAttempt,
+    StreamListenerAttempt,
     TransferAttempt,
     UnitAttempt,
 }
@@ -18,9 +18,9 @@ use /internal/net/model.{NetworkAddress, NetworkFamily}
 use /vec.Vec
 
 test provider_stream_policy_owns_transfer_eof_and_terminal_close {
-    var listener = match internal_net.listen_tcp(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
-        DescriptorAttempt.ready(descriptor) { move descriptor }
-        DescriptorAttempt.failed(failure) {
+    var listener = match internal_net.listen_stream(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+        StreamListenerAttempt.ready(ready_listener) { move ready_listener }
+        StreamListenerAttempt.failed(failure) {
             return network_error(move failure)
         }
     }
@@ -36,9 +36,9 @@ test provider_stream_policy_owns_transfer_eof_and_terminal_close {
             return error.new("std.net.test", "provider-policy connection failed")
         }
     }
-    let accepted = match listener.accept_tcp() {
-        AcceptAttempt.ready(descriptor, peer) { (move descriptor, peer) }
-        AcceptAttempt.failed(_) {
+    let accepted = match listener.accept() {
+        StreamListenerAcceptAttempt.ready(connection, peer) { (move connection, peer) }
+        StreamListenerAcceptAttempt.failed(_) {
             return error.new("std.net.test", "provider-policy accept failed")
         }
     }
@@ -59,7 +59,7 @@ test provider_stream_policy_owns_transfer_eof_and_terminal_close {
         u8.truncate(0),
         u8.truncate(0),
     ]
-    let request_len = match server.read_stream(&+request) {
+    let request_len = match server.read(&+request) {
         TransferAttempt.ready(count) { count }
         TransferAttempt.failed(_) {
             return error.new("std.net.test", "provider-policy peer read failed")
@@ -70,7 +70,7 @@ test provider_stream_policy_owns_transfer_eof_and_terminal_close {
         return error.new("std.net.test", "provider-policy send bytes changed")
     }
 
-    match server.write_stream("pong".bytes()) {
+    match server.write("pong".bytes()) {
         UnitAttempt.ready {}
         UnitAttempt.failed(_) {
             return error.new("std.net.test", "provider-policy peer send failed")

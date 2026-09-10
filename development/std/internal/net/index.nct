@@ -20,7 +20,6 @@ use /time.Duration
 
 see ./descriptor.nct
 see ./async_wait.nct
-see ./async_descriptor.nct
 see ./deadline.nct
 see ./connection.nct
 see ./connection_events.nct
@@ -174,11 +173,6 @@ pub(/) enum DescriptorAttempt {
     failed(failure: NetworkFailure)
 }
 
-pub(/) enum AcceptAttempt {
-    ready(descriptor: SocketDescriptor, peer: NetworkAddress)
-    failed(failure: NetworkFailure)
-}
-
 pub(/) enum AddressAttempt {
     ready(address: NetworkAddress)
     failed(failure: NetworkFailure)
@@ -215,57 +209,18 @@ pub(/) enum NetworkShutdown {
     both
 }
 
-/// Creates and synchronously connects one configured TCP descriptor.
-pub(/) noalloc func connect_tcp(
-    address: NetworkAddress,
-    timeout: Duration?,
-): DescriptorAttempt
-
-/// Creates and asynchronously connects one configured TCP descriptor.
-pub(/) func connect_tcp_async(address: NetworkAddress): async DescriptorAttempt
-
-/// Creates and asynchronously connects until the fixed relative timeout expires.
-pub(/) func connect_tcp_async_with_timeout(
-    address: NetworkAddress,
-    timeout: Duration,
-): async DescriptorAttempt
-
-/// Creates and connects asynchronously without restarting one shared candidate deadline.
-pub(/) func connect_tcp_async_before(
-    address: NetworkAddress,
-    deadline: &+ConnectionDeadline,
-): async DescriptorAttempt
-
 /// Creates one deadline before a multi-candidate connection operation begins.
 pub(/) noalloc func connection_deadline(timeout: Duration?): ConnectionDeadline
-
-/// Creates and connects one TCP descriptor without restarting `deadline`.
-pub(/) noalloc func connect_tcp_before(
-    address: NetworkAddress,
-    deadline: &+ConnectionDeadline,
-): DescriptorAttempt
 
 instance ResolverResults {
     /// Returns the next usable logical address without exposing a target record.
     pub(/) noalloc method &+self.next(): ResolverNext
 }
 
-/// Creates, binds, and starts listening on one configured TCP descriptor.
-pub(/) noalloc func listen_tcp(address: NetworkAddress): DescriptorAttempt
-
 /// Creates and binds one configured UDP descriptor.
 pub(/) noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt
 
 instance SocketDescriptor {
-    /// Accepts one configured TCP descriptor and its logical peer address.
-    pub(/) noalloc method &self.accept_tcp(): AcceptAttempt
-
-    /// Accepts without blocking the executor thread.
-    pub(/) method &self.accept_tcp_async(): async AcceptAttempt
-
-    /// Accepts asynchronously until the fixed relative timeout expires.
-    pub(/) method &self.accept_tcp_async_with_timeout(timeout: Duration): async AcceptAttempt
-
     /// Replaces the finite read-side operation timeout; absence permits an unlimited wait.
     pub(/) noalloc method &+self.set_read_timeout(timeout: Duration?): void
 
@@ -278,38 +233,11 @@ instance SocketDescriptor {
     /// Returns the configured write-side operation timeout.
     pub(/) noalloc method &self.write_timeout(): Duration?
 
-    /// Reads once after transparently handling interruption and readiness waits.
-    pub(/) noalloc method &self.read_stream(buffer: &+[u8]): TransferAttempt
-
-    /// Reads once without blocking the executor thread.
-    pub(/) method &self.read_stream_async(buffer: &+[u8]): async TransferAttempt
-
-    /// Reads once asynchronously until the fixed relative timeout expires.
-    pub(/) method &self.read_stream_async_with_timeout(
-        buffer: &+[u8],
-        timeout: Duration,
-    ): async TransferAttempt
-
-    /// Writes the complete byte view after transparently handling partial progress.
-    pub(/) noalloc method &self.write_stream(bytes: &[u8]): UnitAttempt
-
-    /// Writes the complete byte view without blocking the executor thread.
-    pub(/) method &self.write_stream_async(bytes: &[u8]): async UnitAttempt
-
-    /// Writes asynchronously until the complete view is sent or the fixed timeout expires.
-    pub(/) method &self.write_stream_async_with_timeout(
-        bytes: &[u8],
-        timeout: Duration,
-    ): async UnitAttempt
-
     /// Reports the effective logical local address.
     pub(/) noalloc method &self.local_address(): AddressAttempt
 
     /// Reports the connected logical peer address.
     pub(/) noalloc method &self.peer_address(): AddressAttempt
-
-    /// Shuts down selected connected-stream directions without releasing ownership.
-    pub(/) noalloc method &self.shutdown(direction: NetworkShutdown): UnitAttempt
 
     /// Connects this datagram socket to one peer without changing ownership.
     pub(/) noalloc method &self.connect_udp(address: NetworkAddress): UnitAttempt
