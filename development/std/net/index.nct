@@ -332,6 +332,9 @@ construct TcpListener {
     pub noalloc func bind(address: SocketAddress): Self!
 }
 
+/// Binds one numeric TCP listener without blocking the executor thread.
+pub async func bind_tcp_async(address: SocketAddress): TcpListener!
+
 instance TcpListener {
     /// Returns the effective local address, including a kernel-selected port.
     pub noalloc method &self.local_address(): SocketAddress!

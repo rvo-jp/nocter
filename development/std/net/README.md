@@ -76,12 +76,14 @@ returns the connected peer address. IPv6 sockets are explicitly IPv6-only, so co
 families owns one listener for each family.
 
 `TcpStream.read_async`, `TcpStream.write_async`, and `TcpListener.accept_async` use the same
-provider-backed owner, ordered event channel, and error substrate as the synchronous operations. Their
-`_with_timeout` variants and `net.connect_tcp_async_with_timeout` bound one complete operation with
-an explicit `Duration`. They suspend on the provider event descriptor until ordered callback
-progress is available. A direct `await` retains each receiver and buffer borrow in stable parent-
-computation storage. The checked ownership model rejects moving the pending child computation
-beyond the lifetime of that parent storage.
+provider-backed owner, ordered event channel, and error substrate as the synchronous operations.
+`net.bind_tcp_async` also acquires its listener owner before suspending for provider readiness, so
+cancellation cannot strand a partially initialized listener. The `_with_timeout` variants and
+`net.connect_tcp_async_with_timeout` bound one complete operation with an explicit `Duration`.
+They suspend on the provider event descriptor until ordered callback progress is available. A
+direct `await` retains each receiver and buffer borrow in stable parent-computation storage. The
+checked ownership model rejects moving the pending child computation beyond the lifetime of that
+parent storage.
 
 Native provider objects and callback descriptors are never exposed. A successful constructor,
 connection, or acceptance transfers one closed provider owner into one move-only public value.

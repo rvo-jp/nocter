@@ -2,6 +2,7 @@ see ./index.nct
 
 use std/http.{Client, Request}
 use std/io
+use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener}
 use std/string.String
 use std/task
@@ -65,7 +66,7 @@ async func serve_once(
 
 async func run(): i32! {
     let timeout = Duration.from_seconds(1)
-    var listener = TcpListener.bind(loopback())?
+    var listener = await net.bind_tcp_async(loopback())?
     let address = listener.local_address()?
     let port = address.port().to_string()
     let url_text = String.concat("http://127.0.0.1:", &port, "/echo")

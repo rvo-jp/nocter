@@ -9,8 +9,68 @@ see ./deadline.nct
 see ./listener.nct
 
 use /internal/net/darwin
-use /internal/net/model.{NetworkListenerEvent, NetworkListenerState, NetworkOwner}
+use /internal/net/model.{NetworkAddress, NetworkListenerEvent, NetworkListenerState, NetworkOwner}
 use /time.Duration
+
+async func listen_stream_async(address: NetworkAddress): StreamListenerAttempt {
+    var owner = darwin.listener_create(&address) otherwise {
+        return StreamListenerAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+    darwin.listener_start(&+owner)
+    let descriptor = darwin.listener_event_descriptor(&owner)
+    var listener = stream_listener_from_owner(move owner, descriptor, address)
+    let deadline = operation_deadline(none)
+    while true {
+        let _ = await await_native_descriptor_before(descriptor, false, &deadline)
+        let event = match &+listener.ownership {
+            StreamListenerOwnership.open(active) {
+                darwin.listener_try_next_event(active) otherwise { continue }
+            }
+            StreamListenerOwnership.closed {
+                return StreamListenerAttempt.failed(NetworkFailure.closed)
+            }
+        }
+        match move event {
+            NetworkListenerEvent.state(state) {
+                match move state {
+                    NetworkListenerState.waiting {}
+                    NetworkListenerState.ready {
+                        let port = match &listener.ownership {
+                            StreamListenerOwnership.open(active) { darwin.listener_port(active) }
+                            StreamListenerOwnership.closed {
+                                return StreamListenerAttempt.failed(NetworkFailure.closed)
+                            }
+                        }
+                        listener.local_address_value = effective_listener_address(address, port)
+                        return StreamListenerAttempt.ready(move listener)
+                    }
+                    NetworkListenerState.failed(failure) {
+                        let normalized = provider_failure(move failure)
+                        dispose_stream_listener(&+listener)
+                        return StreamListenerAttempt.failed(move normalized)
+                    }
+                    NetworkListenerState.cancelled {
+                        dispose_stream_listener(&+listener)
+                        return StreamListenerAttempt.failed(NetworkFailure.closed)
+                    }
+                }
+            }
+            NetworkListenerEvent.accepted(connection) {
+                darwin.connection_dispose(move connection)
+            }
+            NetworkListenerEvent.adoption_failed(_) {
+                dispose_stream_listener(&+listener)
+                return StreamListenerAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+            NetworkListenerEvent.malformed {
+                dispose_stream_listener(&+listener)
+                return StreamListenerAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+        }
+    }
+    dispose_stream_listener(&+listener)
+    return StreamListenerAttempt.failed(NetworkFailure.invalid_target_result)
+}
 
 async func accepted_stream_async_before(
     owner: NetworkOwner,

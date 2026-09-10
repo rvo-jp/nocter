@@ -8,6 +8,7 @@ use /internal/net
 use /internal/net.{
     StreamConnectionAttempt,
     StreamListenerAcceptAttempt,
+    StreamListenerAttempt,
     TransferAttempt,
     UnitAttempt,
 }
@@ -67,6 +68,15 @@ instance TcpStream {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
         }
+    }
+}
+
+async func bind_tcp_async(address: SocketAddress): TcpListener! {
+    match await net.listen_stream_async(substrate_address(&address)) {
+        StreamListenerAttempt.ready(listener) {
+            return TcpListener { listener: move listener }
+        }
+        StreamListenerAttempt.failed(failure) { return network_error(move failure) }
     }
 }
 

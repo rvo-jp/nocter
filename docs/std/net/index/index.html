@@ -520,6 +520,9 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">bind</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
+<span class="token-comment">/// Binds one numeric TCP listener without blocking the executor thread.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">func</span> <span class="token-function">bind_tcp_async</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TcpListener</span><span class="token-operator">!</span>
+
 <span class="token-keyword">instance</span> <span class="token-type">TcpListener</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Returns the effective local address, including a kernel-selected port.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>

@@ -108,6 +108,9 @@ pub(/) async func connect_tls_stream_async_before(
 /// Binds and starts one provider-backed stream listener.
 pub(/) noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt
 
+/// Binds and starts one provider-backed stream listener without blocking the executor thread.
+pub(/) async func listen_stream_async(address: NetworkAddress): StreamListenerAttempt
+
 instance StreamConnection {
     /// Reads one provider chunk, returning zero at clean peer completion.
     pub(/) noalloc method &+self.read(buffer: &+[u8]): TransferAttempt
