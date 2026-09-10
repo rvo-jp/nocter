@@ -77,6 +77,24 @@ fn repeated_loop_move_is_rejected_at_the_fixed_point() {
 }
 
 #[test]
+fn owned_pattern_temporary_at_loop_body_result_is_consumed_each_iteration() {
+    check(
+        "struct Owned { value: i32 }\n\
+         enum Event {\n    ready\n    failed(value: Owned)\n}\n\
+         func inspect(condition: bool): void {\n\
+             while condition {\n\
+                 match Event.failed(Owned { value: 1 }) {\n\
+                     Event.ready {}\n\
+                     Event.failed(_) {}\n\
+                 }\n\
+             }\n\
+             return\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn loop_exit_joins_zero_iteration_and_break_states() {
     check(
         "struct Owned {\n    value: i32\n}\n\

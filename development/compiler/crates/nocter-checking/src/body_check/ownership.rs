@@ -524,11 +524,22 @@ impl OwnershipAnalyzer<'_> {
             self.record_cleanup(*statement, CleanupTiming::AtStatementEnd, actions);
             state.forget_temporaries_except(&retained_temporaries);
         }
+        let result_retained_temporaries = state.temporary_identities();
         if reaches && let Some(result) = result {
             reaches = self.visit(result, state)?;
         }
         if reaches {
-            let mut actions = self.scope_lifetime_cleanup(scope, state)?;
+            let mut actions = Vec::new();
+            let completes_loop_iteration = self
+                .loops
+                .last()
+                .is_some_and(|frame| frame.body_scope == scope);
+            if completes_loop_iteration && result.is_some() {
+                actions
+                    .extend(self.temporary_cleanup_actions(state, &result_retained_temporaries)?);
+                state.forget_temporaries_except(&result_retained_temporaries);
+            }
+            actions.extend(self.scope_lifetime_cleanup(scope, state)?);
             if self.scopes.len() == 1 {
                 let mut temporary_actions = self.temporary_cleanup_actions(state, &[])?;
                 temporary_actions.append(&mut actions);
