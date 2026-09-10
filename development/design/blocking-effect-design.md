@@ -1,0 +1,126 @@
+# Blocking Effect Boundary
+
+This document owns the compiler boundary that carries the public
+[`blocking` effect and universal future drive invariant](../../spec/language/asynchronous-computations.md)
+from declarations through checking. It does not redefine which source programs are valid, list
+crate internals, or assign standard-library signatures.
+
+## Independent Facts
+
+One callable has three orthogonal facts:
+
+| Fact | Meaning | Initial owner |
+|---|---|---|
+| execution | invocation is immediate or creates deferred work | declaration lowering |
+| allocation guarantee | invocation is proven not to request Nocter allocator storage | declaration contract plus checked effect proof |
+| blocking effect | invocation may synchronously wait for external progress | authored contract plus checked effect proof |
+
+Result provenance and computation-capture provenance remain separate from all three. No stage may
+infer one fact from another, from a result type, or from a source name such as `_async`.
+
+`future T` has one representation and one drive-safety invariant. The invariant is not an optional
+fact attached to a particular future value. This prevents a local binding, aggregate field,
+generic parameter, return, or task combinator from erasing whether the executor may safely drive
+the computation.
+
+## Closed Effect Flow
+
+Declaration lowering records authored `blocking` separately from `CallableExecution`. Checking
+builds one body-relation graph from already selected calls, interface dispatch, callable witnesses,
+and ownership-owned cleanup dependencies. A least fixed point classifies each callable, closure,
+and drop body as nonblocking or possibly blocking.
+
+The fixed point has only positive propagation: a blocking primitive, blocking bodyless contract,
+or edge to a possibly blocking target makes its owner possibly blocking. Recursive groups are
+therefore independent of traversal order. The result validates:
+
+- every public unqualified callable contract;
+- every asynchronous body;
+- every literal, operator, coercion, expansion, and drop body;
+- every callable witness viewed through a nonblocking structural contract;
+- every interface implementation against its selected requirement.
+
+A private source-backed helper may omit `blocking`; its complete body supplies the proof consumed
+by direct callers. Bodyless declarations and callable parameters have no implementation proof and
+must expose the effect in their contract. A public contract/private implementation pair preserves
+the authored effect exactly, while a nonblocking inherent method may safely implement a `blocking`
+interface requirement.
+
+The immutable checked effect table is the last blocking-classification product. MIR, Machine,
+ARM64, the executor, LSP, and documentation presentation cannot inspect operations or names to
+recompute it. MIR receives only accepted call and future edges. Editor features receive authored
+contract facts and, when explicitly requested, checked implementation evidence through semantic
+queries.
+
+## Primitive Authority
+
+`nocter-runtime-contract` owns two distinct facts for every closed primitive role:
+
+1. whether invoking the primitive may synchronously wait;
+2. for a role that constructs a future, whether every resume and cancellation entry satisfies the
+   universal drive invariant.
+
+Target contract validation compares source modifiers with the first fact and requires the second
+fact for every primitive result whose outer structural type is `future`. Later target and native
+lowering consume the selected role without reopening either decision.
+
+The v0.45.0 migration inventory classifies current roles as follows:
+
+| Classification | Current roles | Required action |
+|---|---|---|
+| generic possibly-blocking entry | `Syscall0` through `Syscall6`, `SyscallPair0` | mark invocation blocking; never infer safety from the runtime syscall number |
+| synchronous external barrier | `NetworkConnectionReleaseBarrier`, `NetworkListenerReleaseBarrier` | mark blocking and remove from any asynchronous drive/cancellation path before Phase 2 closes |
+| drive-safe future constructor | `DescriptorReadiness`, `DescriptorReadinessOrDeadline`, `MonotonicDeadline`, `TaskJoin` | certify constructor-call effect and future-drive safety separately |
+| instantiated cleanup | `DropValueAtPointer` | consume the ownership-selected drop dependency rather than assigning a universal primitive blocking fact |
+| closed nonwaiting operation | every remaining current role | certify nonblocking invocation; adding a role requires an explicit classification |
+
+The generic syscall classification is intentionally conservative. If a public API needs a precise
+nonblocking contract for a target operation currently hidden behind `SyscallN`, it must gain a
+closed semantic primitive role or be expressed through an already certified operation. Checking
+must not special-case constant syscall numbers, standard-module paths, or wrapper names.
+
+## Standard-Library Migration Inventory
+
+The following current families contain synchronous external waits and must expose or propagate
+`blocking` before their public names are normalized:
+
+| Family | Waiting boundary |
+|---|---|
+| `std/fs` and file-backed `std/io` | file open, metadata, directory enumeration, read, and write |
+| terminal and stream `std/io` | descriptor read/write and input waits |
+| `std/time.sleep` | clock progress |
+| `std/process` | fork/exec reporting, pipe progress, polling, and child completion |
+| synchronous `std/net` | resolution, connect, accept, descriptor transfer, and configured timeout waits |
+| synchronous `std/tls` and `std/http` | the underlying resolver, connection, transfer, and timeout paths |
+
+Pure formatting, in-memory buffering, URL parsing, HTTP codec work, calendar conversion,
+monotonic-counter reads, and collection operations do not become blocking merely because a caller
+may eventually pass their output to I/O. Interface abstractions such as `Reader` and `Writer` must
+state the effect admitted by their requirement; a generic algorithm cannot infer nonblocking
+behavior from a concrete witness that has already been erased behind a blocking contract.
+
+The Network.framework release barrier is the one current runtime operation known to synchronously
+wait inside lifecycle cleanup. Phase 2 must replace that cleanup transition with reactor-visible
+completion or another drive-safe ownership protocol before an async future can own the resource.
+Annotating the barrier and continuing to invoke it while driving or cancelling a future would
+document the defect rather than fix it.
+
+## Rejected Models
+
+- `noblock async func` loses its guarantee when invocation produces plain `future T`.
+- `noblock future T` creates two future kinds and makes generic task composition carry an avoidable
+  effect dimension.
+- treating every `async` spelling or `_async` name as proof lets body and primitive behavior bypass
+  checking.
+- classifying emitted syscalls in ARM64 would move a semantic decision downstream and disagree with
+  editor analysis.
+- assuming implicit destruction is nonblocking would leave cancellation safety dependent on callers
+  remembering an unstated precondition.
+
+## Phase Boundary
+
+Phase 0 closes the public contract and this inventory. Phase 1 may change syntax, model, lowering,
+checking, and presentation contracts together, but it must establish the effect table before any
+standard-library API is renamed. Phase 2 then migrates primitive and library declarations from the
+closed inventory. This order prevents names from claiming nonblocking behavior before the compiler
+can prove it.

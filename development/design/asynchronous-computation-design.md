@@ -8,8 +8,10 @@ order and qualification evidence.
 
 `async` is the explicit execution modifier for a deferred function or method. `future T` is the
 separate owning structural type for one deferred computation that will eventually produce `T`.
-Neither is an interface, hidden thread, or synonym for nonblocking execution. An asynchronous
-producer is written explicitly:
+Neither is an interface or hidden thread. Every structural future is safe to drive without a
+synchronous external wait; the separate
+[blocking-effect boundary](blocking-effect-design.md) owns how checking proves that invariant. An
+asynchronous producer is written explicitly:
 
 ```nct
 async func fetch(url: Url): String!
@@ -264,15 +266,16 @@ observable and deterministic.
 
 ## Independent Guarantees
 
-`async`, `future`, and a future `noblock` guarantee answer different questions:
+`async` says that invocation creates deferred work whose body may suspend. `future T` owns that
+work and guarantees that driving it does not synchronously wait for external progress. An immediate
+callable may instead expose the positive `blocking` effect. The effect proof and primitive
+classification belong to the [blocking-effect boundary](blocking-effect-design.md), not this frame
+and executor contract.
 
-- `async` says that a function or method invocation creates deferred work whose body may suspend;
-- `future T` is the owned value representing that work and its eventual `T` output;
-- `noblock` will say that executing a callable cannot block its operating-system thread.
-
-An asynchronous computation may initially contain blocking work, although doing so can stall a
-single-threaded executor. A synchronous callable may be nonblocking. Neither fact implies the
-other, and the type checker must not synthesize one guarantee from the other.
+This drive invariant does not imply bounded work, allocation freedom, or real-time suitability. A
+computation may allocate or perform long CPU work without synchronously waiting. The checker must
+keep execution, allocation, blocking behavior, and provenance as independent facts even though it
+rejects a blocking edge inside deferred execution.
 
 Under the initial uniform allocation-backed representation, a deferred producer cannot satisfy
 `noalloc`: invocation must create its computation. Allocation performed later by the deferred body
@@ -287,6 +290,7 @@ representation-independent allocation contract exists; it must not be hidden beh
 | `future T` syntax and precedence | syntax tree | declaration lowering, formatter, source projection |
 | Structural future type identity | type store | checking, presentation, executable closure |
 | Immediate or deferred callable execution | checked declaration | body checking, call checking, lowering, tooling |
+| Callable blocking effect and future drive proof | checked effect authority | validation, semantic queries |
 | Compiler-owned computation construction | selected primitive role and target lowering | native lifecycle helper |
 | Immediate or deferred process entry | executable entry selection | process-root MIR, native process adapter |
 | Captured argument origins | checked invocation contract | region checking, frame lowering |

@@ -8,6 +8,7 @@ the milestone itself, while publication evidence belongs in
 
 ## Recent Milestones
 
+- [v0.45.0: Enforceable Asynchronous I/O and Structured Tasks](v0.45.0.md)
 - [v0.44.0: Explicit Asynchronous Producers and Future Values](v0.44.0.md)
 - [v0.44.0 Release Preparation](v0.44.0-release-preparation.md)
 - [v0.43.0: Authenticated TLS and HTTPS](v0.43.0.md)

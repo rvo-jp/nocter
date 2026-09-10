@@ -90,6 +90,7 @@ Reserved keyword tokens:
 as
 async
 await
+blocking
 break
 catch
 const

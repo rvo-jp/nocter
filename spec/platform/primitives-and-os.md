@@ -45,6 +45,19 @@ unknown primitive effect. The checker consumes the registry fact through declara
 uses the same callable-effect authority as ordinary bodies; the backend does not reinterpret the
 modifier.
 
+A primitive function writes `blocking` when invoking it may synchronously wait for external
+progress. The closed primitive registry certifies that effect for the exact declaration role; a
+source modifier cannot downgrade an unknown or blocking primitive to nonblocking. A generic raw
+system-call primitive is conservatively blocking because a runtime syscall number, descriptor, or
+flag is not proof that the operation cannot wait. A distinct exact primitive role may be certified
+nonblocking only when its target contract and every admitted input preserve that property.
+
+A compiler-owned primitive that constructs `future T` has a separate drive-safety obligation. Its
+constructor invocation may itself be `blocking`, but every resume and cancellation entry reachable
+through the returned future must satisfy the universal nonblocking drive invariant. Primitive
+selection owns both facts once; checking and lowering consume them without classifying source names
+or emitted operations again.
+
 Every named built-in type has one `primitive type` declaration selected by exact source identity.
 That declaration's module owns ordinary source-defined instances and construction for the type:
 `char` is declared and owned by `std/char`, `str` by `std/str`, `error` by `std/error`, and boolean

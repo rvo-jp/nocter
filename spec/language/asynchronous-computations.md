@@ -24,6 +24,26 @@ producer body. Awaiting it starts or resumes execution. Destroying an unfinished
 and releases its initialized captures exactly once. Destroying a completed but unconsumed future
 destroys its stored output exactly once.
 
+## Nonblocking Drive Invariant
+
+Every `future T` is safe to drive on an executor thread. One drive step may compute, complete, or
+publish readiness and deadline interests before suspending. It cannot synchronously wait for an
+external actor, resource, clock, process, thread, or contended lock to make progress. This
+invariant belongs to the structural future type, so storing, returning, joining, or otherwise
+moving a future cannot erase it.
+
+Suspension is not blocking. `await` transfers control after the awaited future publishes its
+interests; a nonblocking syscall may report that it would wait and cause the computation to publish
+the corresponding readiness interest. By contrast, a blocking descriptor operation, synchronous
+name lookup, file operation, sleep, process wait, thread join, or waiting lock acquisition cannot
+run while a future is being driven.
+
+The invariant does not promise a time bound. Allocation, CPU-intensive work, and a loop with no
+suspension are not synchronous external waits, although each may still make an application
+unsuitable for latency-sensitive use. `noalloc` remains the independent allocation guarantee. A
+future real-time contract would additionally require bounded work and target-specific latency
+evidence and is not implied here.
+
 ## Producer Declarations
 
 `async` is a declaration modifier. It makes an ordinary function or method a deferred producer:
@@ -58,6 +78,11 @@ execution kind. Constructors, literals, coercions, operators, drop declarations,
 closures, and primitive functions do not admit the modifier in the initial model. A primitive or
 ordinary immediate function may return `future T` when it constructs or transfers a future value
 directly.
+
+An asynchronous body is checked against the nonblocking drive invariant. It may call a private
+source-backed helper whose complete body is proven nonblocking, but it cannot reach a `blocking`
+callable directly, through interface dispatch, through a callback, or through implicit
+destruction. The `blocking async` spelling is invalid rather than creating a second kind of future.
 
 A structural callable type describes invocation behavior through its result type. For example,
 `func(Input): future Output` is an immediately invoked callable that returns a future. It does not
@@ -170,7 +195,29 @@ task and does not start a hidden global executor from synchronous code. Scheduli
 future into a scope-owned task; normal scope exit joins remaining children, and exceptional exit
 cancels them.
 
-`async` describes a producer body that may suspend. It does not promise that the body avoids
-blocking its operating-system thread. A future `noblock` guarantee will express that independent
-property. Under the initial allocation-backed representation, an `async` producer cannot satisfy
-`noalloc`; immediate `noalloc` code may still move, store, or return an already-created future.
+`async` describes a producer body that may suspend; the produced structural future supplies the
+nonblocking drive invariant. Under the initial allocation-backed representation, an `async`
+producer cannot satisfy `noalloc`; immediate `noalloc` code may still move, store, or return an
+already-created future.
+
+## Synchronous Blocking Effect
+
+An immediate callable that may synchronously wait writes `blocking`:
+
+```nct
+pub blocking func read_line_blocking(): String!
+pub noalloc blocking func sleep_blocking(duration: Duration): void!
+```
+
+The modifier is an admission and an API warning, not a claim that every invocation necessarily
+waits. An unqualified public function, construction function, method, or interface requirement
+promises that no reachable execution path waits synchronously. A source-backed private helper may
+omit the modifier and have its complete effect inferred; callers consume that checked effect rather
+than assuming safety from the missing source word. Public contract/private body pairs write the
+same modifier on both sides.
+
+Blocking behavior is transitive through direct calls, selected methods, interface dispatch,
+callable values, and destruction. Literals, coercions, operators, expansion, and drop declarations
+cannot be marked `blocking`; an implementation that reaches a blocking operation is invalid. A
+nonblocking callable may be substituted where a `blocking` callable is accepted, while the reverse
+would discard a required guarantee.

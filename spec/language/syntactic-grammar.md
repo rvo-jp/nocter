@@ -243,12 +243,13 @@ parameter. Other declaration forms reject the modifier.
 ## Functions, Primitive Types, and Aliases
 
 ```text
-FunctionDeclaration = Visibility? NoAllocModifier? AsyncModifier? "func" Name GenericParameters? Parameters
+FunctionDeclaration = Visibility? NoAllocModifier? BlockingModifier? AsyncModifier? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
-                    | Visibility? NoAllocModifier? "primitive" "func" Name GenericParameters? Parameters
+                    | Visibility? NoAllocModifier? BlockingModifier? "primitive" "func" Name GenericParameters? Parameters
                       CallableTail
 
 NoAllocModifier = "noalloc"
+BlockingModifier = "blocking"
 AsyncModifier = "async"
 
 PrimitiveTypeDeclaration = Visibility? "primitive" "type" PrimitiveTypeName
@@ -265,10 +266,12 @@ whether the latter is valid. Semantic toolchain validation restricts `PrimitiveT
 exact closed built-in declaration selected for that source token; accepting a syntactic `Name`
 here does not create an open user-defined primitive-type facility.
 
-`async` is admitted only on an ordinary function. Its canonical position follows `noalloc` and
-precedes `func`; it has no primitive-function production. Combining `async` with `noalloc` is a
-semantic error. The modifier declares deferred execution and is independent of the callable's
-result type.
+`blocking` admits synchronous waiting by an immediate function or primitive function. Its
+canonical position follows `noalloc` and precedes `async` or `primitive`. An unqualified public
+function does not admit synchronous waiting. `async` is admitted only on an ordinary function. Its
+canonical position follows `blocking` and precedes `func`; it has no primitive-function
+production. Combining `async` with either `noalloc` or `blocking` is a semantic error. The `async`
+modifier declares deferred execution and is independent of the callable's result type.
 
 ## Structs and Enums
 
@@ -311,8 +314,8 @@ InterfaceMember = AssociatedTypeDeclaration
 AssociatedTypeDeclaration = "pub" "type" Name InterfaceBounds?
 InterfaceBounds = "impl" InterfaceApplication ("+" InterfaceApplication)*
 
-PublicInterfaceMethod = "pub" NoAllocModifier? AsyncModifier? "default"? MethodSignature CallableBody
-ImplementationInterfaceMethod = NoAllocModifier? AsyncModifier? "default" MethodSignature Block
+PublicInterfaceMethod = "pub" NoAllocModifier? BlockingModifier? AsyncModifier? "default"? MethodSignature CallableBody
+ImplementationInterfaceMethod = NoAllocModifier? BlockingModifier? AsyncModifier? "default" MethodSignature Block
 ```
 
 An interface contract member always writes bare `pub`; it cannot narrow its visibility
@@ -320,9 +323,11 @@ independently from the interface. A method without `default` is a bodyless requi
 with `default` is reusable behavior and either carries a block inline or omits it as an eligible
 root contract. The matching private interface fragment writes `default method` without visibility
 and must carry the body. A block on a method without `default` is invalid.
-`async` has the same canonical position and execution meaning as on a function. An interface
-requirement and its implementation must either both carry it or both omit it. Combining `async`
-with `noalloc` is invalid.
+`blocking` and `async` have the same canonical positions and meanings as on a function. An
+interface requirement and its private contract body must agree on both modifiers. A nonblocking
+inherent method may satisfy a `blocking` interface requirement, but a blocking method cannot
+satisfy an unqualified requirement. Combining `async` with either `noalloc` or `blocking` is
+invalid.
 Fields, operators, coercions, construction entries, drop declarations, and tests have no interface
 member production.
 
@@ -335,7 +340,7 @@ ConstructDeclaration = "construct" DeclarationTypePattern
 ConstructBody = "{" newline* ConstructMember
                 (newline+ ConstructMember)* newline* "}"
 
-ConstructMember = Visibility? NoAllocModifier? ConstructionFunction
+ConstructMember = Visibility? NoAllocModifier? BlockingModifier? ConstructionFunction
                 | Visibility? NoAllocModifier? LiteralDeclaration
 
 ConstructionFunction = "func" Name GenericParameters? Parameters
@@ -371,7 +376,7 @@ InstanceMember = InherentMethod
                | IndexOperator
                | ExpansionOperator
 
-InherentMethod = Visibility? NoAllocModifier? AsyncModifier? MethodSignature CallableBody
+InherentMethod = Visibility? NoAllocModifier? BlockingModifier? AsyncModifier? MethodSignature CallableBody
 
 InterfaceImplementation = "impl" InterfaceApplication
 
@@ -383,7 +388,9 @@ AssociatedTypeBinding = "." Name "=" Type
 MethodSignature = "method" Receiver "." Name GenericParameters? Parameters CallableTail
 Receiver = "&" "self" | "&+" "self" | "self"
 
-An inherent `async` method follows the same execution and `noalloc` rules as an `async` function.
+An inherent method follows the same `blocking`, `async`, and `noalloc` rules as a function.
+Literals, coercions, operators, expansion, and destruction have no `blocking` production and must
+remain nonblocking because they may be invoked implicitly.
 
 CoercionDeclaration = Visibility? NoAllocModifier? "coerce" BorrowReceiver "as" Type
                       CoercionProvenance? CallableBody
@@ -527,7 +534,7 @@ FixedArrayType = "[" Type ";" Expression "]"
 GroupedType = "(" Type ")"
 TupleType = "(" Type "," Type ("," Type)* ","? ")"
 
-CallableType = NoAllocModifier? CallableCapability "func" "(" List(CallableParameter) ")"
+CallableType = NoAllocModifier? BlockingModifier? CallableCapability "func" "(" List(CallableParameter) ")"
                ":" Type ProvenanceClause?
 CallableCapability = ("&" | "&+")?
 CallableParameter = "..."? (Type | Name ":" Type)

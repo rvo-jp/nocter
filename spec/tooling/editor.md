@@ -118,6 +118,11 @@ signature-help, completion, and callable-type presentation. Tools do not synthes
 an unqualified callable merely because its current body is inferred allocation-free. Internal
 effect summaries are proof evidence, not additional source syntax.
 
+An authored `blocking` effect is likewise source-visible in normalized declaration, hover,
+signature-help, completion, and callable-type presentation. Tools do not add `blocking` to a
+private helper merely because body analysis proves that effect; a feature that explains
+implementation behavior may present the checked effect separately from normalized source syntax.
+
 Declaration owners are shown when they disambiguate a member. Type hover presents the nominal type
 declaration and its documentation; it does not append the type's construction functions or typed
 literals. A struct body is shown only when the complete representation and every field are visible

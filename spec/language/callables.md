@@ -299,6 +299,23 @@ allocation-free closure may satisfy either the guaranteed contract or an otherwi
 unqualified contract. Erasing the guarantee is one-way; an unqualified callable value cannot be
 used where `noalloc` is required merely because its hidden witness once had that property.
 
+Synchronous waiting is a separate callable effect. A structural callable that may synchronously
+wait writes `blocking` after any `noalloc` guarantee and before its capability:
+
+```nct
+blocking func(): void
+noalloc blocking &func(Request): Response!
+blocking &+func(&+[u8]): usize!
+```
+
+An otherwise identical nonblocking callable may be used where a `blocking` callable is accepted;
+the reverse conversion is invalid. A bodyless callable, primitive, or interface requirement has no
+implementation proof and therefore exposes blocking behavior only through the explicit modifier.
+A source-backed private helper or closure may have its blocking effect inferred from its complete
+body, but that proof cannot be recovered after conversion to a `blocking` callable contract.
+`blocking` is incompatible with `async`: every value of type `future T` must remain safe to drive
+without synchronously waiting for external progress.
+
 The invocation surface is identical for all three capabilities: `callback(arguments)`. There are
 no user-visible `call`, `call_mut`, or `call_once` methods. Closure calls are statically specialized
 to their generated target.

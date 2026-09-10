@@ -2,16 +2,16 @@
 
 ## Current State
 
-Nocter v0.44.0 is published and externally audited. It separates the `async` producer modifier from
-the structural `future T` value type without retaining the old `async T` spelling or result-driven
-execution inference. The public asset is byte-identical to the retained qualified archive built
-from release-content commit `2409fb55d11eccb00d82f655128df024fdcbcda4`.
+Nocter v0.44.0 is published and externally audited. v0.45.0 Phase 0 is complete. The adopted model
+makes nonblocking drive a universal `future T` invariant and marks synchronous external waiting
+with the positive `blocking` callable effect. It does not introduce `noblock` or a second future
+type.
 
 ## Next Work
 
-Plan the next milestone only when requested. A later asynchronous API phase may evaluate `_async`
-naming and a separately enforceable `noblock` guarantee, but neither should be changed without a
-public source-design decision and practical standard-library evidence.
+Implement Phase 1 as one syntax-to-checking authority replacement. Establish one checked blocking
+effect before changing standard-library API names. Follow the phases and gates in the
+[v0.45.0 milestone](history/milestones/v0.45.0.md).
 
 Preserve every published tag and asset, including v0.44.0.
 

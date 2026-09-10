@@ -26,7 +26,8 @@ public contract.
 
 ## Contract Status
 
-The working tree specifies the published v0.44.0 contract. The
+The working tree specifies the in-development v0.45.0 contract. The published v0.44.0 contract
+remains available from its repository tag. The
 [release index](../releases/README.md) owns publication status, downloads, and version summaries;
 repository tags preserve the exact specification for earlier releases.
 

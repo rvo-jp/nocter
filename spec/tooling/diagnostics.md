@@ -358,6 +358,9 @@ Source-backed checked-body diagnostics:
   in its selected `f32` or `f64` type.
 - `E0415`: `await` appears outside an `async` function or method body.
 - `E0416`: `await` does not consume an owned `future T` value.
+- `E0417`: a callable whose contract is nonblocking can reach a synchronous external wait, a
+  `blocking` callable, an unproved bodyless callable, or blocking destruction. Every asynchronous
+  body is subject to this rule because all `future T` values share the nonblocking drive invariant.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

@@ -35,6 +35,7 @@ under `development/history/`, not in current design documents.
 - [Network I/O Boundary](network-io-design.md)
 - [Internet Client Foundation](internet-client-design.md)
 - [Asynchronous Computation Boundary](asynchronous-computation-design.md)
+- [Blocking Effect Boundary](blocking-effect-design.md)
 - [Asynchronous HTTP Client Boundary](asynchronous-http-client-design.md)
 - [Secure Transport Boundary](secure-transport-design.md)
 
