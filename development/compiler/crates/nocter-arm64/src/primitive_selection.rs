@@ -158,6 +158,7 @@ pub(crate) fn select(
         | PrimitiveRole::MonotonicDeadline
         | PrimitiveRole::TaskJoin => select_async_primitive(operation, target, selected),
         PrimitiveRole::NetworkConnectionCreate
+        | PrimitiveRole::NetworkTlsConnectionCreate
         | PrimitiveRole::NetworkConnectionStart
         | PrimitiveRole::NetworkConnectionEventDescriptor
         | PrimitiveRole::NetworkConnectionBeginReceive
@@ -200,7 +201,8 @@ fn select_network_primitive(
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
         ],
-        PrimitiveRole::NetworkConnectionReceiveEvent => &[
+        PrimitiveRole::NetworkTlsConnectionCreate
+        | PrimitiveRole::NetworkConnectionReceiveEvent => &[
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
@@ -232,6 +234,7 @@ fn select_network_primitive(
     }
     let valid_result = match target.role() {
         PrimitiveRole::NetworkConnectionCreate
+        | PrimitiveRole::NetworkTlsConnectionCreate
         | PrimitiveRole::NetworkConnectionReceiveEvent
         | PrimitiveRole::NetworkListenerCreate
         | PrimitiveRole::NetworkListenerReceiveEvent => {

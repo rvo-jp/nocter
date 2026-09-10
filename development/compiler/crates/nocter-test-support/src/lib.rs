@@ -356,6 +356,8 @@ use /internal/net/model.NetworkOwner
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
 #target: \"arm64-darwin\"
+noalloc primitive func network_tls_connection_create_raw(address: *u8, server_name: *u8, application_protocol: *u8): NetworkOwner? from static
+#target: \"arm64-darwin\"
 noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_event_descriptor_raw(owner: &NetworkOwner): usize

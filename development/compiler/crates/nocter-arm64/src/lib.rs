@@ -53,6 +53,7 @@ mod darwin_network_owner_lifecycle;
 mod darwin_network_primitive_targets;
 mod darwin_tls_adapter;
 mod darwin_tls_callback;
+mod darwin_tls_connection;
 mod destruction_selection;
 mod encode;
 mod error_code;
@@ -176,12 +177,16 @@ pub use darwin_network_owner_event::Arm64DarwinNetworkOwnerEventError;
 pub use darwin_network_owner_lifecycle::{
     Arm64DarwinNetworkOwnerLifecycleError, Arm64DarwinNetworkOwnerLifecycleTargets,
 };
+pub(crate) use darwin_network_primitive_targets::Arm64DarwinNetworkPrimitiveAbis;
 pub use darwin_network_primitive_targets::{
     Arm64DarwinNetworkPrimitive, Arm64DarwinNetworkPrimitiveError,
     Arm64DarwinNetworkPrimitiveTargets,
 };
 pub use darwin_tls_adapter::Arm64DarwinTlsAdapterImports;
 pub use darwin_tls_callback::{Arm64DarwinTlsCallbackError, add_darwin_tls_configuration_callback};
+pub use darwin_tls_connection::{
+    Arm64DarwinTlsConnectionError, add_darwin_tls_connection_create_target,
+};
 pub use encode::Arm64EncodingError;
 pub use frame::{
     Arm64FrameLayout, Arm64FrameLayoutBuilder, Arm64FrameLayoutError, Arm64FrameObject,

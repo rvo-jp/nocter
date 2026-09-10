@@ -2,7 +2,7 @@ use std::fmt;
 
 use nocter_runtime_contract::{
     DarwinNetworkAdapterData, DarwinNetworkAdapterFunction, DarwinNetworkCallbackRole,
-    DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerKind,
+    DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerKind, DarwinTlsConfigurationAbiSchema,
 };
 
 use crate::darwin_network_connection_address::add_darwin_network_connection_address_targets;
@@ -29,8 +29,19 @@ use crate::{
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
     add_darwin_network_state_callback, add_darwin_pointer_capture_block_descriptor,
-    emit_darwin_network_owner_initialize,
+    emit_darwin_network_owner_initialize, load_darwin_stack_block_address,
+    materialize_darwin_pointer_capture_stack_block,
 };
+
+/// Parameter construction selected once when one native connection constructor is emitted.
+#[derive(Clone, Copy)]
+pub(crate) enum Arm64DarwinConnectionParameters {
+    Plain,
+    Tls {
+        callback: Arm64FunctionId,
+        block: crate::Arm64DarwinBlockDescriptorId,
+    },
+}
 
 /// Native entries and fixed Block metadata for plain outbound connections.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -111,9 +122,14 @@ pub fn add_darwin_plain_connection_targets(
         imports,
     )?;
     let queue_label = program.add_data(b"nocter.network.connection\0".as_slice(), 1)?;
-    let create = program.declare_function();
-    let code = connection_create_code(imports, state_callback, state_block, queue_label)?;
-    program.define_function(create, code.finish()?)?;
+    let create = add_darwin_connection_create_target(
+        program,
+        imports,
+        state_callback,
+        state_block,
+        queue_label,
+        Arm64DarwinConnectionParameters::Plain,
+    )?;
     let adopt_accepted = add_darwin_accepted_connection_adoption_target(
         program,
         imports,
@@ -143,6 +159,27 @@ pub fn add_darwin_plain_connection_targets(
     })
 }
 
+/// Adds one connection constructor while retaining a single owner-publication and cleanup path.
+pub(crate) fn add_darwin_connection_create_target(
+    program: &mut Arm64ProgramBuilder,
+    imports: &Arm64DarwinNetworkAdapterImports,
+    state_callback: Arm64FunctionId,
+    state_block: crate::Arm64DarwinBlockDescriptorId,
+    queue_label: crate::Arm64DataId,
+    parameters: Arm64DarwinConnectionParameters,
+) -> Result<Arm64FunctionId, Arm64DarwinNetworkConnectionError> {
+    let target = program.declare_function();
+    let code = connection_create_code(
+        imports,
+        state_callback,
+        state_block,
+        queue_label,
+        parameters,
+    )?;
+    program.define_function(target, code.finish()?)?;
+    Ok(target)
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "the success path and its reverse-order cleanup ladder must remain visible together"
@@ -152,20 +189,22 @@ fn connection_create_code(
     state_callback: Arm64FunctionId,
     state_block: crate::Arm64DarwinBlockDescriptorId,
     queue_label: crate::Arm64DataId,
+    parameters: Arm64DarwinConnectionParameters,
 ) -> Result<Arm64CodeBuilder, Arm64DarwinNetworkConnectionError> {
-    const FRAME_SIZE: u16 = 144;
+    const FRAME_SIZE: u16 = 192;
     const BLOCK_OFFSET: u32 = 16;
     let saved = [
-        (x(19), 64),
-        (x(20), 72),
-        (x(21), 80),
-        (x(22), 88),
-        (x(23), 96),
-        (x(24), 104),
-        (x(25), 112),
-        (x(26), 120),
-        (x(27), 128),
-        (x(30), 136),
+        (x(19), 96),
+        (x(20), 104),
+        (x(21), 112),
+        (x(22), 120),
+        (x(23), 128),
+        (x(24), 136),
+        (x(25), 144),
+        (x(26), 152),
+        (x(27), 160),
+        (x(28), 168),
+        (x(30), 176),
     ];
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract, FRAME_SIZE);
@@ -174,6 +213,8 @@ fn connection_create_code(
     }
     move_register(&mut code, x(19), x(0));
     move_register(&mut code, x(20), x(1));
+    move_register(&mut code, x(28), x(2));
+    store_stack(&mut code, x(3), 80);
 
     let channel_ready = code.create_label();
     let queue_ready = code.create_label();
@@ -221,20 +262,7 @@ fn connection_create_code(
     code.bind(endpoint_ready)?;
     move_register(&mut code, x(24), x(0));
 
-    emit_darwin_network_load_imported_object(
-        &mut code,
-        imports.data(DarwinNetworkAdapterData::DisableProtocolConfiguration),
-        x(0),
-    );
-    emit_darwin_network_load_imported_object(
-        &mut code,
-        imports.data(DarwinNetworkAdapterData::DefaultProtocolConfiguration),
-        x(1),
-    );
-    call(
-        &mut code,
-        imports.function(DarwinNetworkAdapterFunction::ParametersCreateSecureTcp),
-    );
+    emit_connection_parameters(&mut code, imports, parameters)?;
     compare_zero(&mut code, x(0));
     code.branch_conditional(parameters_ready, Arm64BranchCondition::NotEqual);
     status(
@@ -309,6 +337,99 @@ fn connection_create_code(
         link: false,
     });
     Ok(code)
+}
+
+fn emit_connection_parameters(
+    code: &mut Arm64CodeBuilder,
+    network: &Arm64DarwinNetworkAdapterImports,
+    parameters: Arm64DarwinConnectionParameters,
+) -> Result<(), Arm64DarwinNetworkConnectionError> {
+    match parameters {
+        Arm64DarwinConnectionParameters::Plain => {
+            emit_darwin_network_load_imported_object(
+                code,
+                network.data(DarwinNetworkAdapterData::DisableProtocolConfiguration),
+                x(0),
+            );
+        }
+        Arm64DarwinConnectionParameters::Tls { callback, block } => {
+            const CONFIGURATION_OFFSET: u32 = 16;
+            const CONFIGURATION_BLOCK_OFFSET: u32 = 40;
+            let schema = DarwinTlsConfigurationAbiSchema::ARM64_DARWIN;
+            store_stack(
+                code,
+                x(28),
+                CONFIGURATION_OFFSET + offset(schema.server_name_offset())?,
+            );
+            load_stack(code, x(8), 80);
+            store_stack(
+                code,
+                x(8),
+                CONFIGURATION_OFFSET + offset(schema.application_protocol_offset())?,
+            );
+            store_zero_stack(
+                code,
+                CONFIGURATION_OFFSET + offset(schema.configured_offset())?,
+            );
+            stack_address(code, CONFIGURATION_OFFSET, x(8));
+            materialize_darwin_pointer_capture_stack_block(
+                code,
+                CONFIGURATION_BLOCK_OFFSET,
+                network.data(DarwinNetworkAdapterData::StackBlockClass),
+                callback,
+                block,
+                x(8),
+                x(9),
+            )?;
+            load_darwin_stack_block_address(code, CONFIGURATION_BLOCK_OFFSET, x(0))?;
+            emit_darwin_network_load_imported_object(
+                code,
+                network.data(DarwinNetworkAdapterData::DefaultProtocolConfiguration),
+                x(1),
+            );
+            call(
+                code,
+                network.function(DarwinNetworkAdapterFunction::ParametersCreateSecureTcp),
+            );
+            move_register(code, x(25), x(0));
+            let configured = code.create_label();
+            let complete = code.create_label();
+            compare_zero(code, x(25));
+            code.branch_conditional(complete, Arm64BranchCondition::Equal);
+            load_stack(
+                code,
+                x(8),
+                CONFIGURATION_OFFSET + offset(schema.configured_offset())?,
+            );
+            compare_zero(code, x(8));
+            code.branch_conditional(configured, Arm64BranchCondition::NotEqual);
+            move_register(code, x(0), x(25));
+            call(
+                code,
+                network.function(DarwinNetworkAdapterFunction::NetworkRelease),
+            );
+            immediate(code, x(25), 0)?;
+            code.branch(complete, false);
+            code.bind(configured)?;
+            code.bind(complete)?;
+            move_register(code, x(0), x(25));
+            return Ok(());
+        }
+    }
+    emit_darwin_network_load_imported_object(
+        code,
+        network.data(DarwinNetworkAdapterData::DefaultProtocolConfiguration),
+        x(1),
+    );
+    call(
+        code,
+        network.function(DarwinNetworkAdapterFunction::ParametersCreateSecureTcp),
+    );
+    Ok(())
+}
+
+fn offset(value: u64) -> Result<u32, Arm64DarwinNetworkConnectionError> {
+    u32::try_from(value).map_err(|_| Arm64DarwinNetworkConnectionError::ContractLayout)
 }
 
 fn status(
@@ -390,6 +511,27 @@ fn load_stack(code: &mut Arm64CodeBuilder, destination: Arm64Register, offset: u
         destination: Arm64DataRegister::General(destination),
         base: Arm64BaseRegister::StackPointer,
         offset,
+    });
+}
+
+fn store_zero_stack(code: &mut Arm64CodeBuilder, offset: u32) {
+    code.append(Arm64Instruction::StoreUnsigned {
+        size: Arm64LoadStoreSize::Double,
+        source: Arm64DataRegister::Zero,
+        base: Arm64BaseRegister::StackPointer,
+        offset,
+    });
+}
+
+fn stack_address(code: &mut Arm64CodeBuilder, offset: u32, destination: Arm64Register) {
+    code.append(Arm64Instruction::AddSubtractImmediate {
+        size: Arm64DataSize::Bits64,
+        operation: Arm64AddSubtract::Add,
+        set_flags: false,
+        destination: Arm64AddSubtractDestination::General(destination),
+        source: Arm64BaseRegister::StackPointer,
+        immediate: u16::try_from(offset).expect("closed connection frame offset fits ARM64 add"),
+        shift_12: false,
     });
 }
 

@@ -64,6 +64,7 @@ impl DarwinNetworkOwnerState {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DarwinNetworkAdapterOperation {
     CreateOutboundConnection,
+    CreateSecureOutboundConnection,
     CreateListener,
     AdoptAcceptedConnection,
     Start,
@@ -82,6 +83,7 @@ pub enum DarwinNetworkAdapterOperation {
 impl DarwinNetworkAdapterOperation {
     pub const ALL: &'static [Self] = &[
         Self::CreateOutboundConnection,
+        Self::CreateSecureOutboundConnection,
         Self::CreateListener,
         Self::AdoptAcceptedConnection,
         Self::Start,
@@ -101,9 +103,9 @@ impl DarwinNetworkAdapterOperation {
     #[must_use]
     pub const fn created_owner(self) -> Option<DarwinNetworkOwnerKind> {
         match self {
-            Self::CreateOutboundConnection | Self::AdoptAcceptedConnection => {
-                Some(DarwinNetworkOwnerKind::Connection)
-            }
+            Self::CreateOutboundConnection
+            | Self::CreateSecureOutboundConnection
+            | Self::AdoptAcceptedConnection => Some(DarwinNetworkOwnerKind::Connection),
             Self::CreateListener => Some(DarwinNetworkOwnerKind::Listener),
             Self::Start
             | Self::EventDescriptor
@@ -228,6 +230,7 @@ impl DarwinNetworkOwner {
             (Operation::Release, _, State::Quiesced) => State::Released,
             (
                 Operation::CreateOutboundConnection
+                | Operation::CreateSecureOutboundConnection
                 | Operation::CreateListener
                 | Operation::AdoptAcceptedConnection,
                 _,
@@ -422,6 +425,7 @@ mod tests {
                 .filter(|operation| operation.created_owner().is_some())
                 .eq([
                     Operation::CreateOutboundConnection,
+                    Operation::CreateSecureOutboundConnection,
                     Operation::CreateListener,
                     Operation::AdoptAcceptedConnection,
                 ])

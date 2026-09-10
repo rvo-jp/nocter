@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use nocter_machine::{MachineCallTarget, MachineOperationKind, MachinePrimitiveTarget};
-use nocter_runtime_contract::{PrimitiveRole, RuntimeAbiIdentity};
+use nocter_machine::{MachineCallTarget, MachineOperationKind};
+use nocter_runtime_contract::RuntimeAbiIdentity;
 
 use crate::{
-    Arm64AsyncPrimitiveTargets, Arm64DarwinNetworkPrimitiveError,
+    Arm64AsyncPrimitiveTargets, Arm64DarwinNetworkPrimitiveAbis, Arm64DarwinNetworkPrimitiveError,
     Arm64DarwinNetworkPrimitiveTargets, Arm64ProgramBuilder,
 };
 
@@ -24,10 +24,7 @@ impl Arm64PrimitiveTargets {
         builder: &mut Arm64ProgramBuilder,
     ) -> Result<Self, Arm64DarwinNetworkPrimitiveError> {
         let mut roles = BTreeSet::new();
-        let mut network_create = None;
-        let mut network_receive_event = None;
-        let mut listener_create = None;
-        let mut listener_receive_event = None;
+        let mut network_abis = Arm64DarwinNetworkPrimitiveAbis::default();
         for target in machine.functions().flat_map(|(_, function)| {
             function.body().operations().filter_map(|(_, operation)| {
                 let MachineOperationKind::Call(call) = operation.kind() else {
@@ -40,21 +37,7 @@ impl Arm64PrimitiveTargets {
             })
         }) {
             roles.insert(target.role());
-            match target.role() {
-                PrimitiveRole::NetworkConnectionCreate => {
-                    remember_unique_abi(machine, &mut network_create, target)?;
-                }
-                PrimitiveRole::NetworkConnectionReceiveEvent => {
-                    remember_unique_abi(machine, &mut network_receive_event, target)?;
-                }
-                PrimitiveRole::NetworkListenerCreate => {
-                    remember_unique_abi(machine, &mut listener_create, target)?;
-                }
-                PrimitiveRole::NetworkListenerReceiveEvent => {
-                    remember_unique_abi(machine, &mut listener_receive_event, target)?;
-                }
-                _ => {}
-            }
+            network_abis.remember(machine, target)?;
         }
         if roles
             .iter()
@@ -70,10 +53,7 @@ impl Arm64PrimitiveTargets {
             network: Arm64DarwinNetworkPrimitiveTargets::declare(
                 machine,
                 &roles,
-                network_create,
-                network_receive_event,
-                listener_create,
-                listener_receive_event,
+                network_abis,
                 builder,
             )?,
         })
@@ -86,19 +66,4 @@ impl Arm64PrimitiveTargets {
     pub(crate) const fn network(self) -> Option<Arm64DarwinNetworkPrimitiveTargets> {
         self.network
     }
-}
-
-fn remember_unique_abi<'a>(
-    machine: &nocter_machine::MachineProgram,
-    slot: &mut Option<&'a MachinePrimitiveTarget>,
-    target: &'a MachinePrimitiveTarget,
-) -> Result<(), Arm64DarwinNetworkPrimitiveError> {
-    if let Some(existing) = *slot {
-        if machine.primitive_abi(existing) != machine.primitive_abi(target) {
-            return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
-        }
-    } else {
-        *slot = Some(target);
-    }
-    Ok(())
 }

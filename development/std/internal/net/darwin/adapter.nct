@@ -212,6 +212,20 @@ noalloc func connection_create(address: &NetworkAddress): NetworkOwner? {
 }
 
 #target: "arm64-darwin"
+noalloc func tls_connection_create(
+    address: &NetworkAddress,
+    server_name: *u8,
+    application_protocol: *u8,
+): NetworkOwner? {
+    let native = native_address(address)
+    return network_tls_connection_create_raw(
+        ptr.from_ref(&native.bytes[0]),
+        server_name,
+        application_protocol,
+    )?
+}
+
+#target: "arm64-darwin"
 noalloc func connection_start(owner: &+NetworkOwner): void {
     network_connection_start_raw(owner)
     return

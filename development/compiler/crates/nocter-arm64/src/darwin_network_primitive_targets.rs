@@ -15,16 +15,18 @@ use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinNetworkAdapterImports,
     Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
-    Arm64DarwinNetworkListenerError, Arm64DarwinNetworkListenerTargets, Arm64DataRegister,
-    Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder,
-    Arm64ProgramError, Arm64Register, add_darwin_plain_connection_targets,
-    add_darwin_plain_listener_targets,
+    Arm64DarwinNetworkListenerError, Arm64DarwinNetworkListenerTargets,
+    Arm64DarwinTlsConnectionError, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
+    Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
+    add_darwin_plain_connection_targets, add_darwin_plain_listener_targets,
+    add_darwin_tls_connection_create_target,
 };
 
 /// One source primitive in the closed plain-connection adapter family.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Arm64DarwinNetworkPrimitive {
     Create,
+    TlsCreate,
     Start,
     EventDescriptor,
     BeginReceive,
@@ -45,10 +47,46 @@ pub enum Arm64DarwinNetworkPrimitive {
     ListenerRelease,
 }
 
+/// The source ABIs whose aggregate result layouts must be known while declaring native targets.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Arm64DarwinNetworkPrimitiveAbis<'program> {
+    connection_create: Option<&'program MachinePrimitiveTarget>,
+    tls_connection_create: Option<&'program MachinePrimitiveTarget>,
+    connection_receive_event: Option<&'program MachinePrimitiveTarget>,
+    listener_create: Option<&'program MachinePrimitiveTarget>,
+    listener_receive_event: Option<&'program MachinePrimitiveTarget>,
+}
+
+impl<'program> Arm64DarwinNetworkPrimitiveAbis<'program> {
+    pub(crate) fn remember(
+        &mut self,
+        machine: &nocter_machine::MachineProgram,
+        target: &'program MachinePrimitiveTarget,
+    ) -> Result<(), Arm64DarwinNetworkPrimitiveError> {
+        let slot = match target.role() {
+            PrimitiveRole::NetworkConnectionCreate => &mut self.connection_create,
+            PrimitiveRole::NetworkTlsConnectionCreate => &mut self.tls_connection_create,
+            PrimitiveRole::NetworkConnectionReceiveEvent => &mut self.connection_receive_event,
+            PrimitiveRole::NetworkListenerCreate => &mut self.listener_create,
+            PrimitiveRole::NetworkListenerReceiveEvent => &mut self.listener_receive_event,
+            _ => return Ok(()),
+        };
+        if let Some(existing) = *slot {
+            if machine.primitive_abi(existing) != machine.primitive_abi(target) {
+                return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
+            }
+        } else {
+            *slot = Some(target);
+        }
+        Ok(())
+    }
+}
+
 impl Arm64DarwinNetworkPrimitive {
     pub(crate) const fn from_role(role: PrimitiveRole) -> Option<Self> {
         match role {
             PrimitiveRole::NetworkConnectionCreate => Some(Self::Create),
+            PrimitiveRole::NetworkTlsConnectionCreate => Some(Self::TlsCreate),
             PrimitiveRole::NetworkConnectionStart => Some(Self::Start),
             PrimitiveRole::NetworkConnectionEventDescriptor => Some(Self::EventDescriptor),
             PrimitiveRole::NetworkConnectionBeginReceive => Some(Self::BeginReceive),
@@ -76,6 +114,7 @@ impl Arm64DarwinNetworkPrimitive {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64DarwinNetworkPrimitiveTargets {
     source_connection_create: Option<Arm64FunctionId>,
+    source_tls_connection_create: Option<Arm64FunctionId>,
     source_listener_create: Option<Arm64FunctionId>,
     connection: Arm64DarwinNetworkConnectionTargets,
     listener: Option<Arm64DarwinNetworkListenerTargets>,
@@ -85,10 +124,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
     pub(crate) fn declare(
         machine: &nocter_machine::MachineProgram,
         roles: &BTreeSet<PrimitiveRole>,
-        connection_create: Option<&MachinePrimitiveTarget>,
-        connection_receive_event: Option<&MachinePrimitiveTarget>,
-        listener_create: Option<&MachinePrimitiveTarget>,
-        listener_receive_event: Option<&MachinePrimitiveTarget>,
+        abis: Arm64DarwinNetworkPrimitiveAbis<'_>,
         builder: &mut Arm64ProgramBuilder,
     ) -> Result<Option<Self>, Arm64DarwinNetworkPrimitiveError> {
         if !roles
@@ -100,13 +136,27 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         }
         let imports = Arm64DarwinNetworkAdapterImports::declare(builder)?;
         let connection = add_darwin_plain_connection_targets(builder, &imports)?;
-        validate_connection_event_result(machine, roles, connection_receive_event)?;
-        let source_connection_create = connection_create
+        validate_connection_event_result(machine, roles, abis.connection_receive_event)?;
+        let source_connection_create = abis
+            .connection_create
             .map(|target| {
-                let layout = creation_layout(machine, target)?;
+                let layout = creation_layout(machine, target, 1)?;
                 let wrapper = builder.declare_function();
-                builder
-                    .define_function(wrapper, source_create_code(connection.create(), layout)?)?;
+                builder.define_function(
+                    wrapper,
+                    source_create_code(connection.create(), layout, 1)?,
+                )?;
+                Ok::<Arm64FunctionId, Arm64DarwinNetworkPrimitiveError>(wrapper)
+            })
+            .transpose()?;
+        let source_tls_connection_create = abis
+            .tls_connection_create
+            .map(|target| {
+                let layout = creation_layout(machine, target, 3)?;
+                let production =
+                    add_darwin_tls_connection_create_target(builder, &imports, connection)?;
+                let wrapper = builder.declare_function();
+                builder.define_function(wrapper, source_create_code(production, layout, 3)?)?;
                 Ok::<Arm64FunctionId, Arm64DarwinNetworkPrimitiveError>(wrapper)
             })
             .transpose()?;
@@ -118,12 +168,13 @@ impl Arm64DarwinNetworkPrimitiveTargets {
                 add_darwin_plain_listener_targets(builder, &imports, connection.adopt_accepted())
             })
             .transpose()?;
-        validate_listener_event_result(machine, roles, listener_receive_event)?;
-        let source_listener_create = match (listener_create, listener) {
+        validate_listener_event_result(machine, roles, abis.listener_receive_event)?;
+        let source_listener_create = match (abis.listener_create, listener) {
             (Some(target), Some(listener)) => {
-                let layout = creation_layout(machine, target)?;
+                let layout = creation_layout(machine, target, 1)?;
                 let wrapper = builder.declare_function();
-                builder.define_function(wrapper, source_create_code(listener.create(), layout)?)?;
+                builder
+                    .define_function(wrapper, source_create_code(listener.create(), layout, 1)?)?;
                 Some(wrapper)
             }
             (None, _) => None,
@@ -131,6 +182,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         };
         Ok(Some(Self {
             source_connection_create,
+            source_tls_connection_create,
             source_listener_create,
             connection,
             listener,
@@ -143,6 +195,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         let events = self.connection.events();
         match primitive {
             Arm64DarwinNetworkPrimitive::Create => self.source_connection_create,
+            Arm64DarwinNetworkPrimitive::TlsCreate => self.source_tls_connection_create,
             Arm64DarwinNetworkPrimitive::Start => Some(lifecycle.start()),
             Arm64DarwinNetworkPrimitive::EventDescriptor => Some(events.descriptor()),
             Arm64DarwinNetworkPrimitive::BeginReceive => {
@@ -214,22 +267,28 @@ struct CreationLayout {
 fn creation_layout(
     machine: &nocter_machine::MachineProgram,
     target: &MachinePrimitiveTarget,
+    argument_words: u8,
 ) -> Result<CreationLayout, Arm64DarwinNetworkPrimitiveError> {
     let abi = machine
         .primitive_abi(target)
         .ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
-    let [argument] = abi.arguments() else {
-        return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
-    };
-    if argument.class() != (MachineValueClass::Direct { words: 1 })
-        || !matches!(
-            argument.location(),
-            Some(MachineArgumentLocation::Registers(registers))
-                if registers.first() == 0 && registers.words() == 1
-        )
-        || abi.pack().is_some()
-        || abi.stack_argument_size() != 0
+    if abi.arguments().len() != usize::from(argument_words)
+        || abi
+            .arguments()
+            .iter()
+            .zip(0u8..)
+            .any(|(argument, register)| {
+                argument.class() != (MachineValueClass::Direct { words: 1 })
+                    || !matches!(
+                        argument.location(),
+                        Some(MachineArgumentLocation::Registers(registers))
+                            if registers.first() == register && registers.words() == 1
+                    )
+            })
     {
+        return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
+    }
+    if abi.pack().is_some() || abi.stack_argument_size() != 0 {
         return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
     }
     let MachineResultAbi::Value(result) = abi.result() else {
@@ -397,16 +456,21 @@ fn validate_listener_event_result(
 fn source_create_code(
     production: Arm64FunctionId,
     layout: CreationLayout,
+    argument_words: u8,
 ) -> Result<crate::Arm64Code, Arm64DarwinNetworkPrimitiveError> {
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract);
-    for (register, offset) in [(x(19), 0), (x(20), 8), (x(30), 16)] {
+    for (register, offset) in [(x(19), 0), (x(30), 8)] {
         store_stack(&mut code, register, offset);
     }
+    for register in 0..argument_words {
+        store_stack(&mut code, x(register), 16 + u32::from(register) * 8);
+    }
     move_register(&mut code, x(19), x(8));
-    move_register(&mut code, x(20), x(0));
     add_immediate(&mut code, x(0), x(19), layout.payload_offset);
-    move_register(&mut code, x(1), x(20));
+    for register in 0..argument_words {
+        load_stack(&mut code, x(register + 1), 16 + u32::from(register) * 8);
+    }
     call_function(&mut code, production);
     compare_immediate(
         &mut code,
@@ -421,7 +485,7 @@ fn source_create_code(
     code.bind(absent)?;
     store_immediate(&mut code, x(19), layout.tag_offset, layout.absent_tag)?;
     code.bind(complete)?;
-    for (register, offset) in [(x(19), 0), (x(20), 8), (x(30), 16)] {
+    for (register, offset) in [(x(19), 0), (x(30), 8)] {
         load_stack(&mut code, register, offset);
     }
     adjust_stack(&mut code, Arm64AddSubtract::Add);
@@ -498,7 +562,7 @@ fn adjust_stack(code: &mut Arm64CodeBuilder, operation: Arm64AddSubtract) {
         set_flags: false,
         destination: Arm64AddSubtractDestination::StackPointer,
         source: Arm64BaseRegister::StackPointer,
-        immediate: 32,
+        immediate: 48,
         shift_12: false,
     });
 }
@@ -546,6 +610,7 @@ pub enum Arm64DarwinNetworkPrimitiveError {
     ResultLayout,
     Connection(Arm64DarwinNetworkConnectionError),
     Listener(Arm64DarwinNetworkListenerError),
+    Tls(Arm64DarwinTlsConnectionError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -561,6 +626,7 @@ impl std::error::Error for Arm64DarwinNetworkPrimitiveError {
         match self {
             Self::Connection(error) => Some(error),
             Self::Listener(error) => Some(error),
+            Self::Tls(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::PrimitiveAbi | Self::ResultLayout => None,
@@ -577,6 +643,12 @@ impl From<Arm64DarwinNetworkConnectionError> for Arm64DarwinNetworkPrimitiveErro
 impl From<Arm64DarwinNetworkListenerError> for Arm64DarwinNetworkPrimitiveError {
     fn from(error: Arm64DarwinNetworkListenerError) -> Self {
         Self::Listener(error)
+    }
+}
+
+impl From<Arm64DarwinTlsConnectionError> for Arm64DarwinNetworkPrimitiveError {
+    fn from(error: Arm64DarwinTlsConnectionError) -> Self {
+        Self::Tls(error)
     }
 }
 
