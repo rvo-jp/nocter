@@ -35,7 +35,7 @@ fn define_connection_entry(
     program: &mut Arm64ProgramBuilder,
     entry: Arm64FunctionId,
     create: Arm64FunctionId,
-    lifecycle: nocter_arm64::Arm64DarwinNetworkConnectionLifecycleTargets,
+    lifecycle: nocter_arm64::Arm64DarwinNetworkOwnerLifecycleTargets,
     events: nocter_arm64::Arm64DarwinNetworkConnectionEventTargets,
     address: nocter_arm64::Arm64DataId,
 ) {
