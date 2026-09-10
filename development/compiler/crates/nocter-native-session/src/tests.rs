@@ -836,91 +836,52 @@ func main(): async i32 {
 }
 "#;
 
-const PROVIDER_LISTENER_LIFECYCLE_TEST_MAIN: &str = r"
-func main(): i32 {
-    let address = NetworkAddress.ipv4([127, 0, 0, 1], 0)
-    var owner = darwin.listener_create(&address) otherwise {
-        return 1
+const PROVIDER_LISTENER_POLICY_TEST_MAIN: &str = r"
+func main(): async i32 {
+    var listener = match listen_stream(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+        StreamListenerAttempt.ready(value) { move value }
+        StreamListenerAttempt.failed(_) { return 1 }
     }
-    darwin.listener_start(&+owner)
-    var ready = false
-    while !ready {
-        match darwin.listener_next_event(&+owner) {
-            NetworkListenerEvent.state(state) {
-                match move state {
-                    NetworkListenerState.waiting {}
-                    NetworkListenerState.ready { ready = true }
-                    NetworkListenerState.failed(_) { return 2 }
-                    NetworkListenerState.cancelled { return 3 }
-                }
+    let address = match listener.local_address() {
+        AddressAttempt.ready(value) { value }
+        AddressAttempt.failed(_) { return 2 }
+    }
+    if address.port == 0 { return 3 }
+    match await listener.accept_async_with_timeout(Duration.from_milliseconds(2)) {
+        StreamListenerAcceptAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.timed_out {}
+                _ { return 4 }
             }
-            _ { return 4 }
         }
+        StreamListenerAcceptAttempt.ready(_, _) { return 5 }
     }
-    if darwin.listener_event_descriptor(&owner) > 2147483647 { return 5 }
-    let port = darwin.listener_port(&owner)
-    if port == 0 { return 7 }
-    var client = match connect_stream(NetworkAddress.ipv4([127, 0, 0, 1], port), none) {
+    var client = match await connect_stream_async_with_timeout(
+        address,
+        Duration.from_seconds(1),
+    ) {
         StreamConnectionAttempt.ready(connection) { move connection }
-        StreamConnectionAttempt.failed(_) { return 8 }
+        StreamConnectionAttempt.failed(_) { return 6 }
     }
-    var accepted_ready = false
-    while !accepted_ready {
-        match darwin.listener_next_event(&+owner) {
-            NetworkListenerEvent.state(state) {
-                match move state {
-                    NetworkListenerState.failed(_) { return 9 }
-                    NetworkListenerState.cancelled { return 10 }
-                    _ {}
-                }
+    let accepted = match await listener.accept_async_with_timeout(Duration.from_seconds(1)) {
+        StreamListenerAcceptAttempt.ready(connection, peer) { (move connection, peer) }
+        StreamListenerAcceptAttempt.failed(_) { return 7 }
+    }
+    var server = move accepted.0
+    if accepted.1.port == 0 { return 8 }
+    client.close()
+    server.close()
+    listener.close()
+    listener.close()
+    match listener.accept() {
+        StreamListenerAcceptAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.closed { return 0 }
+                _ { return 9 }
             }
-            NetworkListenerEvent.accepted(accepted) {
-                var accepted_owner = move accepted
-                darwin.connection_start(&+accepted_owner)
-                var connection_ready = false
-                while !connection_ready {
-                    match darwin.connection_next_event(
-                        &+accepted_owner,
-                        ptr.from_addr(1),
-                        0,
-                    ) {
-                        NetworkConnectionEvent.state(state) {
-                            match move state {
-                                NetworkConnectionState.ready { connection_ready = true }
-                                NetworkConnectionState.failed(_) { return 11 }
-                                NetworkConnectionState.cancelled { return 12 }
-                                _ {}
-                            }
-                        }
-                        _ { return 13 }
-                    }
-                }
-                let accepted_descriptor = darwin.connection_event_descriptor(&accepted_owner)
-                var server = stream_connection_from_owner(move accepted_owner, accepted_descriptor)
-                client.close()
-                server.close()
-                accepted_ready = true
-            }
-            NetworkListenerEvent.adoption_failed(_) { return 14 }
-            NetworkListenerEvent.malformed { return 15 }
         }
+        StreamListenerAcceptAttempt.ready(_, _) { return 10 }
     }
-    darwin.listener_cancel(&+owner)
-    var cancelled = false
-    while !cancelled {
-        match darwin.listener_next_event(&+owner) {
-            NetworkListenerEvent.state(state) {
-                match move state {
-                    NetworkListenerState.cancelled { cancelled = true }
-                    _ {}
-                }
-            }
-            _ {}
-        }
-    }
-    darwin.listener_release_barrier(&+owner)
-    darwin.listener_release(move owner)
-    return 0
 }
 ";
 
@@ -3262,7 +3223,7 @@ fn provider_async_stream_policy_crosses_the_complete_native_session() {
 }
 
 #[test]
-fn provider_listener_lifecycle_crosses_the_complete_native_session() {
+fn provider_listener_policy_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();
     let standard_package = PackageIdentity::new("toolchain:std");
@@ -3271,12 +3232,7 @@ fn provider_listener_lifecycle_crosses_the_complete_native_session() {
         .push_str("\n#executable: { name: \"provider-listener\", module: \"./internal/net\" }\n");
     let net_index_path = standard_root.join("internal/net/index.nct");
     let mut net_index_source = fs::read_to_string(&net_index_path).unwrap();
-    net_index_source = net_index_source.replacen(
-        "use /time.Duration\n",
-        "use /time.Duration\nuse /internal/net/darwin\nuse /internal/ptr\n",
-        1,
-    );
-    net_index_source.push_str(PROVIDER_LISTENER_LIFECYCLE_TEST_MAIN);
+    net_index_source.push_str(PROVIDER_LISTENER_POLICY_TEST_MAIN);
     let mut overlay = SourceOverlay::builder();
     overlay
         .insert_source(

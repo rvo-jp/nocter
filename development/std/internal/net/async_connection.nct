@@ -7,7 +7,7 @@ see ./deadline.nct
 see ./async_wait.nct
 
 use /internal/net/darwin
-use /internal/net/model.NetworkAddress
+use /internal/net/model.{NetworkAddress, NetworkOwner}
 use /internal/ptr
 use /ptr as public_ptr
 use /time.Duration
@@ -58,14 +58,22 @@ func connect_stream_async_before(
     if !claim_connection_attempt(deadline) {
         return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
     }
-    var owner = darwin.connection_create(&address) otherwise {
+    let owner = darwin.connection_create(&address) otherwise {
         return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
     }
-    darwin.connection_start(&+owner)
-    let descriptor = darwin.connection_event_descriptor(&owner)
-    var connection = stream_connection_from_owner(move owner, descriptor)
+    return await start_stream_connection_async_before(move owner, &deadline.operation)
+}
+
+func start_stream_connection_async_before(
+    owner: NetworkOwner,
+    deadline: &OperationDeadline,
+): async StreamConnectionAttempt {
+    var initialized_owner = move owner
+    darwin.connection_start(&+initialized_owner)
+    let descriptor = darwin.connection_event_descriptor(&initialized_owner)
+    var connection = stream_connection_from_owner(move initialized_owner, descriptor)
     while true {
-        if !await await_native_descriptor_before(descriptor, false, &deadline.operation) {
+        if !await await_native_descriptor_before(descriptor, false, deadline) {
             connection.close()
             return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
         }
@@ -85,6 +93,10 @@ func connect_stream_async_before(
             StreamConnectProgress.pending {}
             StreamConnectProgress.ready {
                 return StreamConnectionAttempt.ready(move connection)
+            }
+            StreamConnectProgress.cancelled {
+                release_cancelled_stream_connection(&+connection)
+                return StreamConnectionAttempt.failed(NetworkFailure.closed)
             }
             StreamConnectProgress.failed(failure) {
                 connection.close()
@@ -143,6 +155,11 @@ func read_stream_async_before(
                 pending.disarm()
                 return TransferAttempt.ready(count)
             }
+            StreamReadProgress.cancelled {
+                pending.disarm()
+                release_cancelled_stream_connection(pending.connection)
+                return TransferAttempt.failed(NetworkFailure.closed)
+            }
             StreamReadProgress.failed(failure) {
                 return TransferAttempt.failed(move failure)
             }
@@ -198,6 +215,11 @@ func write_stream_async_before(
             StreamWriteProgress.ready {
                 pending.disarm()
                 return UnitAttempt.ready
+            }
+            StreamWriteProgress.cancelled {
+                pending.disarm()
+                release_cancelled_stream_connection(pending.connection)
+                return UnitAttempt.failed(NetworkFailure.closed)
             }
             StreamWriteProgress.failed(failure) {
                 return UnitAttempt.failed(move failure)

@@ -11,18 +11,21 @@ use /internal/net/model.{
 enum StreamConnectProgress {
     pending
     ready
+    cancelled
     failed(failure: NetworkFailure)
 }
 
 enum StreamReadProgress {
     pending
     ready(count: usize, complete: bool)
+    cancelled
     failed(failure: NetworkFailure)
 }
 
 enum StreamWriteProgress {
     pending
     ready
+    cancelled
     failed(failure: NetworkFailure)
 }
 
@@ -41,9 +44,7 @@ noalloc func reduce_connect_event(event: NetworkConnectionEvent): StreamConnectP
                 NetworkConnectionState.failed(failure) {
                     return StreamConnectProgress.failed(provider_failure(move failure))
                 }
-                NetworkConnectionState.cancelled {
-                    return StreamConnectProgress.failed(NetworkFailure.closed)
-                }
+                NetworkConnectionState.cancelled { return StreamConnectProgress.cancelled }
             }
         }
         _ { return StreamConnectProgress.failed(NetworkFailure.invalid_target_result) }
@@ -60,9 +61,7 @@ noalloc func reduce_read_event(event: NetworkConnectionEvent): StreamReadProgres
                 NetworkConnectionState.failed(failure) {
                     return StreamReadProgress.failed(provider_failure(move failure))
                 }
-                NetworkConnectionState.cancelled {
-                    return StreamReadProgress.failed(NetworkFailure.closed)
-                }
+                NetworkConnectionState.cancelled { return StreamReadProgress.cancelled }
             }
         }
         NetworkConnectionEvent.received(count, complete, failure) {
@@ -85,9 +84,7 @@ noalloc func reduce_write_event(event: NetworkConnectionEvent): StreamWriteProgr
                 NetworkConnectionState.failed(failure) {
                     return StreamWriteProgress.failed(provider_failure(move failure))
                 }
-                NetworkConnectionState.cancelled {
-                    return StreamWriteProgress.failed(NetworkFailure.closed)
-                }
+                NetworkConnectionState.cancelled { return StreamWriteProgress.cancelled }
             }
         }
         NetworkConnectionEvent.sent(failure) {

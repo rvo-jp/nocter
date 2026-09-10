@@ -1,0 +1,282 @@
+//! Provider-independent synchronous stream-listener policy.
+
+see ./index.nct
+see ./connection.nct
+see ./connection_events.nct
+see ./deadline.nct
+see ./descriptor.nct
+
+use /internal/net/darwin
+use /internal/net/model.{
+    NetworkAddress,
+    NetworkListenerEvent,
+    NetworkListenerState,
+    NetworkOwner,
+}
+use /internal/ptr
+use /time.Duration
+
+enum StreamListenerOwnership {
+    open(owner: NetworkOwner)
+    closed
+}
+
+struct StreamListener {
+    ownership: StreamListenerOwnership
+    event_descriptor: usize
+    local_address_value: NetworkAddress
+    accept_timeout_value: Duration?
+}
+
+noalloc func stream_listener_from_owner(
+    owner: NetworkOwner,
+    event_descriptor: usize,
+    local_address: NetworkAddress,
+): StreamListener {
+    return StreamListener {
+        ownership: StreamListenerOwnership.open(move owner),
+        event_descriptor: event_descriptor,
+        local_address_value: local_address,
+        accept_timeout_value: none,
+    }
+}
+
+noalloc func effective_listener_address(address: NetworkAddress, port: u16): NetworkAddress {
+    return NetworkAddress { family: address.family, bytes: address.bytes, port: port }
+}
+
+noalloc func close_listener_owner(owner: NetworkOwner): void {
+    var active = move owner
+    darwin.listener_cancel(&+active)
+    var cancelled = false
+    while !cancelled {
+        match darwin.listener_next_event(&+active) {
+            NetworkListenerEvent.state(state) {
+                match move state {
+                    NetworkListenerState.cancelled { cancelled = true }
+                    _ {}
+                }
+            }
+            NetworkListenerEvent.accepted(connection) {
+                close_initialized_connection_owner(move connection)
+            }
+            NetworkListenerEvent.adoption_failed(_) {}
+            NetworkListenerEvent.malformed {}
+        }
+    }
+    darwin.listener_release_barrier(&+active)
+    darwin.listener_release(move active)
+    return
+}
+
+noalloc func release_cancelled_listener_owner(owner: NetworkOwner): void {
+    var cancelled = move owner
+    darwin.listener_release_barrier(&+cancelled)
+    darwin.listener_release(move cancelled)
+    return
+}
+
+noalloc func close_stream_listener(listener: &+StreamListener): void {
+    let previous = ptr.replace_value(
+        &+listener.ownership,
+        StreamListenerOwnership.closed,
+    )
+    match move previous {
+        StreamListenerOwnership.open(owner) { close_listener_owner(move owner) }
+        StreamListenerOwnership.closed {}
+    }
+    return
+}
+
+noalloc func release_cancelled_stream_listener(listener: &+StreamListener): void {
+    let previous = ptr.replace_value(
+        &+listener.ownership,
+        StreamListenerOwnership.closed,
+    )
+    match move previous {
+        StreamListenerOwnership.open(owner) {
+            release_cancelled_listener_owner(move owner)
+        }
+        StreamListenerOwnership.closed {}
+    }
+    return
+}
+
+noalloc func failed_listener(
+    owner: NetworkOwner,
+    failure: NetworkFailure,
+): StreamListenerAttempt {
+    close_listener_owner(move owner)
+    return StreamListenerAttempt.failed(move failure)
+}
+
+noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt {
+    var owner = darwin.listener_create(&address) otherwise {
+        return StreamListenerAttempt.failed(NetworkFailure.invalid_target_result)
+    }
+    darwin.listener_start(&+owner)
+    let descriptor = darwin.listener_event_descriptor(&owner)
+    let deadline = operation_deadline(none)
+    while true {
+        match wait_readable(descriptor, &deadline) {
+            UnitAttempt.failed(failure) {
+                return failed_listener(move owner, move failure)
+            }
+            UnitAttempt.ready {}
+        }
+        match darwin.listener_next_event(&+owner) {
+            NetworkListenerEvent.state(state) {
+                match move state {
+                    NetworkListenerState.waiting {}
+                    NetworkListenerState.ready {
+                        let local = effective_listener_address(
+                            address,
+                            darwin.listener_port(&owner),
+                        )
+                        return StreamListenerAttempt.ready(stream_listener_from_owner(
+                            move owner,
+                            descriptor,
+                            local,
+                        ))
+                    }
+                    NetworkListenerState.failed(failure) {
+                        return failed_listener(
+                            move owner,
+                            provider_failure(move failure),
+                        )
+                    }
+                    NetworkListenerState.cancelled {
+                        release_cancelled_listener_owner(move owner)
+                        return StreamListenerAttempt.failed(NetworkFailure.closed)
+                    }
+                }
+            }
+            NetworkListenerEvent.accepted(connection) {
+                close_initialized_connection_owner(move connection)
+            }
+            NetworkListenerEvent.adoption_failed(_) {
+                return failed_listener(
+                    move owner,
+                    NetworkFailure.invalid_target_result,
+                )
+            }
+            NetworkListenerEvent.malformed {
+                return failed_listener(
+                    move owner,
+                    NetworkFailure.invalid_target_result,
+                )
+            }
+        }
+    }
+    return failed_listener(move owner, NetworkFailure.invalid_target_result)
+}
+
+noalloc func accepted_stream_before(
+    owner: NetworkOwner,
+    deadline: &OperationDeadline,
+): StreamListenerAcceptAttempt {
+    match start_stream_connection_before(move owner, deadline) {
+        StreamConnectionAttempt.ready(connection) {
+            var ready = move connection
+            match ready.peer_address() {
+                AddressAttempt.ready(peer) {
+                    return StreamListenerAcceptAttempt.ready(move ready, peer)
+                }
+                AddressAttempt.failed(failure) {
+                    ready.close()
+                    return StreamListenerAcceptAttempt.failed(move failure)
+                }
+            }
+        }
+        StreamConnectionAttempt.failed(failure) {
+            return StreamListenerAcceptAttempt.failed(move failure)
+        }
+    }
+}
+
+noalloc func accept_stream_before(
+    listener: &+StreamListener,
+    deadline: &OperationDeadline,
+): StreamListenerAcceptAttempt {
+    while true {
+        if listener.ownership is StreamListenerOwnership.closed {
+            return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
+        }
+        match wait_readable(listener.event_descriptor, deadline) {
+            UnitAttempt.failed(failure) {
+                return StreamListenerAcceptAttempt.failed(move failure)
+            }
+            UnitAttempt.ready {}
+        }
+        let event = match &+listener.ownership {
+            StreamListenerOwnership.open(owner) { darwin.listener_next_event(owner) }
+            StreamListenerOwnership.closed {
+                return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
+            }
+        }
+        match move event {
+            NetworkListenerEvent.state(state) {
+                match move state {
+                    NetworkListenerState.waiting {}
+                    NetworkListenerState.ready {}
+                    NetworkListenerState.failed(failure) {
+                        let normalized = provider_failure(move failure)
+                        close_stream_listener(listener)
+                        return StreamListenerAcceptAttempt.failed(move normalized)
+                    }
+                    NetworkListenerState.cancelled {
+                        release_cancelled_stream_listener(listener)
+                        return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
+                    }
+                }
+            }
+            NetworkListenerEvent.accepted(owner) {
+                return accepted_stream_before(move owner, deadline)
+            }
+            NetworkListenerEvent.adoption_failed(_) {
+                return StreamListenerAcceptAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+            NetworkListenerEvent.malformed {
+                return StreamListenerAcceptAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+        }
+    }
+    return StreamListenerAcceptAttempt.failed(NetworkFailure.invalid_target_result)
+}
+
+instance StreamListener {
+    noalloc method &self.local_address(): AddressAttempt {
+        match &self.ownership {
+            StreamListenerOwnership.open(_) {
+                return AddressAttempt.ready(self.local_address_value)
+            }
+            StreamListenerOwnership.closed {
+                return AddressAttempt.failed(NetworkFailure.closed)
+            }
+        }
+    }
+
+    noalloc method &+self.accept(): StreamListenerAcceptAttempt {
+        let deadline = operation_deadline(self.accept_timeout_value)
+        return accept_stream_before(self, &deadline)
+    }
+
+    noalloc method &+self.set_accept_timeout(timeout: Duration?): void {
+        self.accept_timeout_value = timeout
+        return
+    }
+
+    noalloc method &self.accept_timeout(): Duration? {
+        return self.accept_timeout_value
+    }
+
+    noalloc method &+self.close(): void {
+        close_stream_listener(self)
+        return
+    }
+}
+
+noalloc drop StreamListener(&+self) {
+    close_stream_listener(self)
+    return
+}

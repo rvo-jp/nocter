@@ -25,6 +25,8 @@ see ./deadline.nct
 see ./connection.nct
 see ./connection_events.nct
 see ./async_connection.nct
+see ./listener.nct
+see ./async_listener.nct
 see ./resolver.nct
 
 pub(/) enum NetworkFailure {
@@ -40,6 +42,19 @@ pub(/) struct StreamConnection
 
 pub(/) enum StreamConnectionAttempt {
     ready(connection: StreamConnection)
+    failed(failure: NetworkFailure)
+}
+
+/// One uniquely owned provider-backed stream listener.
+pub(/) struct StreamListener
+
+pub(/) enum StreamListenerAttempt {
+    ready(listener: StreamListener)
+    failed(failure: NetworkFailure)
+}
+
+pub(/) enum StreamListenerAcceptAttempt {
+    ready(connection: StreamConnection, peer: NetworkAddress)
     failed(failure: NetworkFailure)
 }
 
@@ -63,6 +78,9 @@ pub(/) func connect_stream_async_before(
     address: NetworkAddress,
     deadline: &+ConnectionDeadline,
 ): async StreamConnectionAttempt
+
+/// Binds and starts one provider-backed stream listener.
+pub(/) noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt
 
 instance StreamConnection {
     /// Reads one provider chunk, returning zero at clean peer completion.
@@ -108,6 +126,31 @@ instance StreamConnection {
     pub(/) noalloc method &self.write_timeout(): Duration?
 
     /// Cancels and releases the provider owner at most once.
+    pub(/) noalloc method &+self.close(): void
+}
+
+instance StreamListener {
+    /// Returns the effective local address, including a provider-selected port.
+    pub(/) noalloc method &self.local_address(): AddressAttempt
+
+    /// Accepts and starts one provider-backed stream connection.
+    pub(/) noalloc method &+self.accept(): StreamListenerAcceptAttempt
+
+    /// Accepts one connection without blocking the executor thread.
+    pub(/) method &+self.accept_async(): async StreamListenerAcceptAttempt
+
+    /// Accepts asynchronously until one fixed relative timeout expires.
+    pub(/) method &+self.accept_async_with_timeout(
+        timeout: Duration,
+    ): async StreamListenerAcceptAttempt
+
+    /// Replaces the finite accept timeout; absence permits an unlimited wait.
+    pub(/) noalloc method &+self.set_accept_timeout(timeout: Duration?): void
+
+    /// Returns the configured accept timeout.
+    pub(/) noalloc method &self.accept_timeout(): Duration?
+
+    /// Cancels and releases the provider listener at most once.
     pub(/) noalloc method &+self.close(): void
 }
 

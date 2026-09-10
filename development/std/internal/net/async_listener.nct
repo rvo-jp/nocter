@@ -1,0 +1,101 @@
+//! Executor-aware stream-listener acceptance over provider events.
+
+see ./index.nct
+see ./async_connection.nct
+see ./async_wait.nct
+see ./connection.nct
+see ./connection_events.nct
+see ./deadline.nct
+see ./listener.nct
+
+use /internal/net/darwin
+use /internal/net/model.{NetworkListenerEvent, NetworkListenerState, NetworkOwner}
+use /time.Duration
+
+func accepted_stream_async_before(
+    owner: NetworkOwner,
+    deadline: &OperationDeadline,
+): async StreamListenerAcceptAttempt {
+    match await start_stream_connection_async_before(move owner, deadline) {
+        StreamConnectionAttempt.ready(connection) {
+            var ready = move connection
+            match ready.peer_address() {
+                AddressAttempt.ready(peer) {
+                    return StreamListenerAcceptAttempt.ready(move ready, peer)
+                }
+                AddressAttempt.failed(failure) {
+                    ready.close()
+                    return StreamListenerAcceptAttempt.failed(move failure)
+                }
+            }
+        }
+        StreamConnectionAttempt.failed(failure) {
+            return StreamListenerAcceptAttempt.failed(move failure)
+        }
+    }
+}
+
+func accept_stream_async_before(
+    listener: &+StreamListener,
+    deadline: &OperationDeadline,
+): async StreamListenerAcceptAttempt {
+    while true {
+        if listener.ownership is StreamListenerOwnership.closed {
+            return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
+        }
+        if !await await_native_descriptor_before(
+            listener.event_descriptor,
+            false,
+            deadline,
+        ) {
+            return StreamListenerAcceptAttempt.failed(NetworkFailure.timed_out)
+        }
+        let event = match &+listener.ownership {
+            StreamListenerOwnership.open(owner) { darwin.listener_next_event(owner) }
+            StreamListenerOwnership.closed {
+                return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
+            }
+        }
+        match move event {
+            NetworkListenerEvent.state(state) {
+                match move state {
+                    NetworkListenerState.waiting {}
+                    NetworkListenerState.ready {}
+                    NetworkListenerState.failed(failure) {
+                        let normalized = provider_failure(move failure)
+                        close_stream_listener(listener)
+                        return StreamListenerAcceptAttempt.failed(move normalized)
+                    }
+                    NetworkListenerState.cancelled {
+                        release_cancelled_stream_listener(listener)
+                        return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
+                    }
+                }
+            }
+            NetworkListenerEvent.accepted(owner) {
+                return await accepted_stream_async_before(move owner, deadline)
+            }
+            NetworkListenerEvent.adoption_failed(_) {
+                return StreamListenerAcceptAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+            NetworkListenerEvent.malformed {
+                return StreamListenerAcceptAttempt.failed(NetworkFailure.invalid_target_result)
+            }
+        }
+    }
+    return StreamListenerAcceptAttempt.failed(NetworkFailure.invalid_target_result)
+}
+
+instance StreamListener {
+    method &+self.accept_async(): async StreamListenerAcceptAttempt {
+        let deadline = operation_deadline(self.accept_timeout_value)
+        return await accept_stream_async_before(self, &deadline)
+    }
+
+    method &+self.accept_async_with_timeout(
+        timeout: Duration,
+    ): async StreamListenerAcceptAttempt {
+        let deadline = operation_deadline(timeout)
+        return await accept_stream_async_before(self, &deadline)
+    }
+}
