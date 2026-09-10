@@ -2933,6 +2933,35 @@ fn create_local_tls_fixture(configuration_root: &Path, output_root: &Path) {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn create_expired_local_tls_certificate(configuration_root: &Path, output_root: &Path) {
+    use std::process::Command;
+
+    std::fs::write(output_root.join("index.txt"), []).unwrap();
+    std::fs::write(output_root.join("serial"), b"1001\n").unwrap();
+    let output = Command::new("/usr/bin/openssl")
+        .current_dir(output_root)
+        .args(["ca", "-batch", "-config"])
+        .arg(configuration_root.join("expired.cnf"))
+        .args([
+            "-startdate",
+            "20000101000000Z",
+            "-enddate",
+            "20000102000000Z",
+            "-in",
+            "localhost.csr",
+            "-out",
+            "expired-localhost-cert.pem",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "expired OpenSSL fixture generation failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     use std::net::TcpListener;
@@ -3003,6 +3032,57 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     let target = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
     execute_native_status(image.image(), &package_root.0, "tls-custom-trust", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn custom_trust_does_not_override_certificate_validity() {
+    use std::net::TcpListener;
+
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = reservation.local_addr().unwrap().port();
+    drop(reservation);
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
+    let package_root = TempPackage::new();
+    create_local_tls_fixture(&fixture_root, &package_root.0);
+    create_expired_local_tls_certificate(&fixture_root, &package_root.0);
+    let certificate = package_root.0.join("expired-localhost-cert.pem");
+    let key = package_root.0.join("localhost-key.pem");
+    let _server = start_local_tls_server(port, &certificate, &key);
+
+    let standard_root = compiler_root.join("../std");
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/fs\n\
+             use std/time.Duration\n\
+             use std/tls.{{TlsStream, TrustAnchor}}\n\
+             \n\
+             func main(): i32 {{\n\
+                 let certificate = fs.read(\"root-cert.der\") catch _ {{ return 1 }}\n\
+                 let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
+                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                     \"localhost\", {port}, &anchor, Duration.from_seconds(1),\n\
+                 ) catch failure {{\n\
+                     if failure.has_code(\"std.net.tls_failed\") {{ return 0 }}\n\
+                     return 3\n\
+                 }}\n\
+                 return 4\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "tls-expired-certificate", 0);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
