@@ -29,12 +29,27 @@ macro_rules! closed_role_enum {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct PrimitiveEffects {
     may_allocate: bool,
+    may_block: bool,
+    returns_drive_safe_future: bool,
 }
 
 impl PrimitiveEffects {
     #[must_use]
     pub const fn may_allocate(self) -> bool {
         self.may_allocate
+    }
+
+    /// Whether invocation may synchronously wait for progress outside the current thread.
+    #[must_use]
+    pub const fn may_block(self) -> bool {
+        self.may_block
+    }
+
+    /// Whether a primitive returning `future T` certifies every drive and cancellation entry as
+    /// nonblocking.
+    #[must_use]
+    pub const fn returns_drive_safe_future(self) -> bool {
+        self.returns_drive_safe_future
     }
 }
 
@@ -332,6 +347,28 @@ impl PrimitiveRole {
                     | Self::MonotonicDeadline
                     | Self::TaskJoin
             ),
+            may_block: matches!(
+                self,
+                Self::NetworkConnectionReceiveEvent
+                    | Self::NetworkConnectionReleaseBarrier
+                    | Self::NetworkListenerReceiveEvent
+                    | Self::NetworkListenerReleaseBarrier
+                    | Self::Syscall0
+                    | Self::SyscallPair0
+                    | Self::Syscall1
+                    | Self::Syscall2
+                    | Self::Syscall3
+                    | Self::Syscall4
+                    | Self::Syscall5
+                    | Self::Syscall6
+            ),
+            returns_drive_safe_future: matches!(
+                self,
+                Self::DescriptorReadiness
+                    | Self::DescriptorReadinessOrDeadline
+                    | Self::MonotonicDeadline
+                    | Self::TaskJoin
+            ),
         }
     }
 
@@ -507,6 +544,50 @@ mod tests {
             effectful,
             vec![
                 PrimitiveRole::DropValueAtPointer,
+                PrimitiveRole::DescriptorReadiness,
+                PrimitiveRole::DescriptorReadinessOrDeadline,
+                PrimitiveRole::MonotonicDeadline,
+                PrimitiveRole::TaskJoin,
+            ]
+        );
+    }
+
+    #[test]
+    fn blocking_effects_are_owned_by_the_closed_primitive_roles() {
+        let effectful = PrimitiveRole::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.effects().may_block())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            effectful,
+            vec![
+                PrimitiveRole::NetworkConnectionReceiveEvent,
+                PrimitiveRole::NetworkConnectionReleaseBarrier,
+                PrimitiveRole::NetworkListenerReceiveEvent,
+                PrimitiveRole::NetworkListenerReleaseBarrier,
+                PrimitiveRole::Syscall0,
+                PrimitiveRole::SyscallPair0,
+                PrimitiveRole::Syscall1,
+                PrimitiveRole::Syscall2,
+                PrimitiveRole::Syscall3,
+                PrimitiveRole::Syscall4,
+                PrimitiveRole::Syscall5,
+                PrimitiveRole::Syscall6,
+            ]
+        );
+    }
+
+    #[test]
+    fn drive_safe_future_constructors_are_explicitly_certified() {
+        let certified = PrimitiveRole::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.effects().returns_drive_safe_future())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            certified,
+            vec![
                 PrimitiveRole::DescriptorReadiness,
                 PrimitiveRole::DescriptorReadinessOrDeadline,
                 PrimitiveRole::MonotonicDeadline,

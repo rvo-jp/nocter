@@ -16,7 +16,8 @@ public source-level imports.
 ## Internal Responsibilities
 
 - primitive role identities
-- closed positive effect evidence for primitive roles
+- closed allocation and synchronous-blocking evidence for primitive roles
+- explicit drive-safety certificates for primitive roles that construct `future T`
 - kind-preserving trusted function/data symbol identities and operating-system library identities,
   without concrete loader paths
 - finite target-service roles, target identity, calling convention, and fixed foreign ABI classes
