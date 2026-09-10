@@ -821,6 +821,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 TypeContract::readwrite(network_owner()),
                 byte_pointer(),
                 usize(),
+                boolean(),
             ],
             boolean(),
             private,

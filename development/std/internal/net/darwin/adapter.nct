@@ -246,8 +246,14 @@ noalloc func connection_begin_send(
     owner: &+NetworkOwner,
     bytes: *u8,
     len: usize,
+    final: bool,
 ): bool {
-    return network_connection_begin_send_raw(owner, bytes, len)
+    return network_connection_begin_send_raw(owner, bytes, len, final)
+}
+
+#target: "arm64-darwin"
+noalloc func connection_begin_final_send(owner: &+NetworkOwner): bool {
+    return network_connection_begin_send_raw(owner, internal_ptr.from_addr(1), 0, true)
 }
 
 #target: "arm64-darwin"

@@ -362,7 +362,7 @@ noalloc primitive func network_connection_event_descriptor_raw(owner: &NetworkOw
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_begin_receive_raw(owner: &+NetworkOwner, maximum_length: u32): void
 #target: \"arm64-darwin\"
-noalloc primitive func network_connection_begin_send_raw(owner: &+NetworkOwner, bytes: *u8, len: usize): bool
+noalloc primitive func network_connection_begin_send_raw(owner: &+NetworkOwner, bytes: *u8, len: usize, final: bool): bool
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_receive_event_raw(owner: &+NetworkOwner, destination: *u8, capacity: usize): (usize, usize, usize, usize, usize)
 #target: \"arm64-darwin\"

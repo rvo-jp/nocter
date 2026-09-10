@@ -159,7 +159,7 @@ fn begin_send_code(
     callback: Arm64FunctionId,
     descriptor: Arm64DarwinBlockDescriptorId,
 ) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionTransferError> {
-    const FRAME_SIZE: u16 = 112;
+    const FRAME_SIZE: u16 = 128;
     const BLOCK_OFFSET: u32 = 16;
     let saved = [
         (x(19), 64),
@@ -167,7 +167,8 @@ fn begin_send_code(
         (x(21), 80),
         (x(22), 88),
         (x(23), 96),
-        (x(30), 104),
+        (x(24), 104),
+        (x(30), 112),
     ];
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract, FRAME_SIZE);
@@ -177,6 +178,7 @@ fn begin_send_code(
     move_register(&mut code, x(19), x(0));
     move_register(&mut code, x(20), x(1));
     move_register(&mut code, x(21), x(2));
+    move_register(&mut code, x(24), x(3));
     emit_darwin_network_owner_guard(
         &mut code,
         x(19),
@@ -224,11 +226,23 @@ fn begin_send_code(
         DarwinNetworkOwnerField::NativeObject,
     )?;
     move_register(&mut code, x(1), x(22));
+    let default_context = code.create_label();
+    let context_ready = code.create_label();
+    compare_zero(&mut code, x(24));
+    code.branch_conditional(default_context, Arm64BranchCondition::Equal);
+    load_imported_object(
+        &mut code,
+        imports.data(DarwinNetworkAdapterData::FinalMessageContext),
+        x(2),
+    );
+    code.branch(context_ready, false);
+    code.bind(default_context)?;
     load_imported_object(
         &mut code,
         imports.data(DarwinNetworkAdapterData::DefaultMessageContext),
         x(2),
     );
+    code.bind(context_ready)?;
     immediate(&mut code, x(3), 1)?;
     load_darwin_stack_block_address(&mut code, BLOCK_OFFSET, x(4))?;
     call(

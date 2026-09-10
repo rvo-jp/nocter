@@ -194,8 +194,13 @@ fn select_network_primitive(
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
         ],
-        PrimitiveRole::NetworkConnectionBeginSend
-        | PrimitiveRole::NetworkConnectionReceiveEvent => &[
+        PrimitiveRole::NetworkConnectionBeginSend => &[
+            MachineValueClass::Direct { words: 1 },
+            MachineValueClass::Direct { words: 1 },
+            MachineValueClass::Direct { words: 1 },
+            MachineValueClass::Direct { words: 1 },
+        ],
+        PrimitiveRole::NetworkConnectionReceiveEvent => &[
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },

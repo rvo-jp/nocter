@@ -869,6 +869,17 @@ func main(): async i32 {
     }
     var server = move accepted.0
     if accepted.1.port == 0 { return 8 }
+    match server.shutdown(NetworkShutdown.write) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) { return 9 }
+    }
+    var end: Vec<u8> = Vec [u8.truncate(0)]
+    match await client.read_async_with_timeout(&+end, Duration.from_seconds(1)) {
+        TransferAttempt.ready(count) {
+            if count != 0 { return 10 }
+        }
+        TransferAttempt.failed(_) { return 11 }
+    }
     client.close()
     server.close()
     listener.close()
@@ -877,10 +888,10 @@ func main(): async i32 {
         StreamListenerAcceptAttempt.failed(failure) {
             match move failure {
                 NetworkFailure.closed { return 0 }
-                _ { return 9 }
+                _ { return 12 }
             }
         }
-        StreamListenerAcceptAttempt.ready(_, _) { return 10 }
+        StreamListenerAcceptAttempt.ready(_, _) { return 13 }
     }
 }
 ";
@@ -3232,6 +3243,11 @@ fn provider_listener_policy_crosses_the_complete_native_session() {
         .push_str("\n#executable: { name: \"provider-listener\", module: \"./internal/net\" }\n");
     let net_index_path = standard_root.join("internal/net/index.nct");
     let mut net_index_source = fs::read_to_string(&net_index_path).unwrap();
+    net_index_source = net_index_source.replacen(
+        "use /time.Duration\n",
+        "use /time.Duration\nuse /vec.Vec\n",
+        1,
+    );
     net_index_source.push_str(PROVIDER_LISTENER_POLICY_TEST_MAIN);
     let mut overlay = SourceOverlay::builder();
     overlay

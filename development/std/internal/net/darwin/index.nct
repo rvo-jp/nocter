@@ -44,7 +44,12 @@ pub(/) noalloc func connection_begin_send(
     owner: &+NetworkOwner,
     bytes: *u8,
     len: usize,
+    final: bool,
 ): bool
+
+/// Submits an empty final message to close the provider write side.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_begin_final_send(owner: &+NetworkOwner): bool
 
 /// Consumes and normalizes one ordered callback event.
 #target: "arm64-darwin"
@@ -133,6 +138,7 @@ noalloc primitive func network_connection_begin_send_raw(
     owner: &+NetworkOwner,
     bytes: *u8,
     len: usize,
+    final: bool,
 ): bool
 
 /// Receives one ordered connection event and consumes all provider ownership carried by it.

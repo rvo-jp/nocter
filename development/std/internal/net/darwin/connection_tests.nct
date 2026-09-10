@@ -173,7 +173,12 @@ test plain_connection_transfers_bytes_through_one_ordered_event_channel {
     }
 
     let request = "ping".bytes()
-    if !network_connection_begin_send_raw(&+owner, ptr.from_ref(&request[0]), request.len()) {
+    if !network_connection_begin_send_raw(
+        &+owner,
+        ptr.from_ref(&request[0]),
+        request.len(),
+        false,
+    ) {
         release_test_connection(move owner)
         close_once(server)
         close_once(listener)

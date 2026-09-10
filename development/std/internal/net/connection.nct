@@ -27,6 +27,7 @@ struct StreamConnection {
     read_timeout_value: Duration?
     write_timeout_value: Duration?
     read_complete: bool
+    write_complete: bool
 }
 
 noalloc func stream_connection_from_owner(
@@ -39,6 +40,7 @@ noalloc func stream_connection_from_owner(
         read_timeout_value: none,
         write_timeout_value: none,
         read_complete: false,
+        write_complete: false,
     }
 }
 
@@ -210,12 +212,37 @@ noalloc func write_open_connection(
     bytes: &[u8],
 ): StreamWriteProgress {
     if bytes.len() == 0 { return StreamWriteProgress.ready }
-    if !darwin.connection_begin_send(owner, public_ptr.from_ref(&bytes[0]), bytes.len()) {
+    if !darwin.connection_begin_send(
+        owner,
+        public_ptr.from_ref(&bytes[0]),
+        bytes.len(),
+        false,
+    ) {
         return StreamWriteProgress.failed(NetworkFailure.invalid_target_result)
     }
     let deadline = operation_deadline(timeout)
+    return wait_for_stream_write(owner, event_descriptor, &deadline)
+}
+
+noalloc func finish_open_connection_write(
+    owner: &+NetworkOwner,
+    event_descriptor: usize,
+    timeout: Duration?,
+): StreamWriteProgress {
+    if !darwin.connection_begin_final_send(owner) {
+        return StreamWriteProgress.failed(NetworkFailure.invalid_target_result)
+    }
+    let deadline = operation_deadline(timeout)
+    return wait_for_stream_write(owner, event_descriptor, &deadline)
+}
+
+noalloc func wait_for_stream_write(
+    owner: &+NetworkOwner,
+    event_descriptor: usize,
+    deadline: &OperationDeadline,
+): StreamWriteProgress {
     while true {
-        match wait_readable(event_descriptor, &deadline) {
+        match wait_readable(event_descriptor, deadline) {
             UnitAttempt.failed(failure) { return StreamWriteProgress.failed(move failure) }
             UnitAttempt.ready {}
         }
@@ -229,6 +256,48 @@ noalloc func write_open_connection(
         }
     }
     return StreamWriteProgress.failed(NetworkFailure.invalid_target_result)
+}
+
+noalloc func complete_stream_write(
+    connection: &+StreamConnection,
+    progress: StreamWriteProgress,
+    final: bool,
+): UnitAttempt {
+    match move progress {
+        StreamWriteProgress.ready {
+            if final { connection.write_complete = true }
+            return UnitAttempt.ready
+        }
+        StreamWriteProgress.pending {
+            close_stream_connection(connection)
+            return UnitAttempt.failed(NetworkFailure.invalid_target_result)
+        }
+        StreamWriteProgress.cancelled {
+            release_cancelled_stream_connection(connection)
+            return UnitAttempt.failed(NetworkFailure.closed)
+        }
+        StreamWriteProgress.failed(failure) {
+            close_stream_connection(connection)
+            return UnitAttempt.failed(move failure)
+        }
+    }
+}
+
+noalloc func shutdown_stream_write(connection: &+StreamConnection): UnitAttempt {
+    if connection.write_complete { return UnitAttempt.ready }
+    let progress = match &+connection.ownership {
+        StreamConnectionOwnership.open(owner) {
+            finish_open_connection_write(
+                owner,
+                connection.event_descriptor,
+                connection.write_timeout_value,
+            )
+        }
+        StreamConnectionOwnership.closed {
+            StreamWriteProgress.failed(NetworkFailure.closed)
+        }
+    }
+    return complete_stream_write(connection, move progress, true)
 }
 
 instance StreamConnection {
@@ -269,6 +338,7 @@ instance StreamConnection {
     }
 
     noalloc method &+self.write(bytes: &[u8]): UnitAttempt {
+        if self.write_complete { return UnitAttempt.failed(NetworkFailure.closed) }
         let operation = match &+self.ownership {
             StreamConnectionOwnership.open(owner) {
                 write_open_connection(
@@ -282,21 +352,7 @@ instance StreamConnection {
                 StreamWriteProgress.failed(NetworkFailure.closed)
             }
         }
-        match move operation {
-            StreamWriteProgress.ready { return UnitAttempt.ready }
-            StreamWriteProgress.pending {
-                close_stream_connection(self)
-                return UnitAttempt.failed(NetworkFailure.invalid_target_result)
-            }
-            StreamWriteProgress.cancelled {
-                release_cancelled_stream_connection(self)
-                return UnitAttempt.failed(NetworkFailure.closed)
-            }
-            StreamWriteProgress.failed(failure) {
-                close_stream_connection(self)
-                return UnitAttempt.failed(move failure)
-            }
-        }
+        return complete_stream_write(self, move operation, false)
     }
 
     noalloc method &self.local_address(): AddressAttempt {
@@ -343,6 +399,20 @@ instance StreamConnection {
 
     noalloc method &self.write_timeout(): Duration? {
         return self.write_timeout_value
+    }
+
+    noalloc method &+self.shutdown(direction: NetworkShutdown): UnitAttempt {
+        match direction {
+            NetworkShutdown.read {
+                self.read_complete = true
+                return UnitAttempt.ready
+            }
+            NetworkShutdown.write { return shutdown_stream_write(self) }
+            NetworkShutdown.both {
+                self.read_complete = true
+                return shutdown_stream_write(self)
+            }
+        }
     }
 
     noalloc method &+self.close(): void {

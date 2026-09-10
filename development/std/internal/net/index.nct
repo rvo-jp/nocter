@@ -125,6 +125,9 @@ instance StreamConnection {
     /// Returns the configured write-side operation timeout.
     pub(/) noalloc method &self.write_timeout(): Duration?
 
+    /// Shuts down selected local stream directions without releasing ownership.
+    pub(/) noalloc method &+self.shutdown(direction: NetworkShutdown): UnitAttempt
+
     /// Cancels and releases the provider owner at most once.
     pub(/) noalloc method &+self.close(): void
 }
