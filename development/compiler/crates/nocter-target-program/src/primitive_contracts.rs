@@ -905,6 +905,18 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::NetworkConnectionTryReceiveEvent => make(
+            0,
+            vec![
+                TypeContract::readwrite(network_owner()),
+                byte_pointer(),
+                usize(),
+            ],
+            TypeContract::tuple(vec![usize(), usize(), usize(), usize(), usize(), usize()]),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::NetworkConnectionCopyLocalAddress
         | PrimitiveRole::NetworkConnectionCopyRemoteAddress => make(
             0,
@@ -926,6 +938,21 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             0,
             vec![TypeContract::readwrite(network_owner())],
             TypeContract::tuple(vec![
+                usize(),
+                usize(),
+                usize(),
+                usize(),
+                TypeContract::optional(network_owner()),
+            ]),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::NetworkListenerTryReceiveEvent => make(
+            0,
+            vec![TypeContract::readwrite(network_owner())],
+            TypeContract::tuple(vec![
+                usize(),
                 usize(),
                 usize(),
                 usize(),

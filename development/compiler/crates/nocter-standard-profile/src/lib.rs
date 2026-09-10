@@ -269,6 +269,9 @@ pub const fn bundled_primitive_source_location(
         Role::NetworkConnectionBeginReceive => (DARWIN_NET, NET_BEGIN_RECEIVE),
         Role::NetworkConnectionBeginSend => (DARWIN_NET, NET_BEGIN_SEND),
         Role::NetworkConnectionReceiveEvent => (DARWIN_NET, NET_RECEIVE_EVENT),
+        Role::NetworkConnectionTryReceiveEvent => {
+            (DARWIN_NET, "network_connection_try_receive_event_raw")
+        }
         Role::NetworkConnectionCopyLocalAddress => (DARWIN_NET, NET_COPY_LOCAL_ADDRESS),
         Role::NetworkConnectionCopyRemoteAddress => (DARWIN_NET, NET_COPY_REMOTE_ADDRESS),
         Role::NetworkConnectionRequestCancel => (DARWIN_NET, NET_REQUEST_CANCEL),
@@ -280,6 +283,9 @@ pub const fn bundled_primitive_source_location(
             (DARWIN_NET, "network_listener_event_descriptor_raw")
         }
         Role::NetworkListenerReceiveEvent => (DARWIN_NET, "network_listener_receive_event_raw"),
+        Role::NetworkListenerTryReceiveEvent => {
+            (DARWIN_NET, "network_listener_try_receive_event_raw")
+        }
         Role::NetworkListenerPort => (DARWIN_NET, "network_listener_port_raw"),
         Role::NetworkListenerRequestCancel => (DARWIN_NET, "network_listener_request_cancel_raw"),
         Role::NetworkListenerReleaseBarrier => (DARWIN_NET, "network_listener_release_barrier_raw"),

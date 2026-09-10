@@ -51,7 +51,9 @@ async func accept_stream_async_before(
             return StreamListenerAcceptAttempt.failed(NetworkFailure.timed_out)
         }
         let event = match &+listener.ownership {
-            StreamListenerOwnership.open(owner) { darwin.listener_next_event(owner) }
+            StreamListenerOwnership.open(owner) {
+                darwin.listener_try_next_event(owner) otherwise { continue }
+            }
             StreamListenerOwnership.closed {
                 return StreamListenerAcceptAttempt.failed(NetworkFailure.closed)
             }

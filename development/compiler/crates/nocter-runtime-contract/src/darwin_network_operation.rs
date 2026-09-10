@@ -74,6 +74,7 @@ pub enum DarwinNetworkAdapterOperation {
     CopyAddress,
     ListenerPort,
     ReceiveEvent,
+    TryReceiveEvent,
     RequestCancel,
     ObserveFinalState,
     CompleteReleaseBarrier,
@@ -93,6 +94,7 @@ impl DarwinNetworkAdapterOperation {
         Self::CopyAddress,
         Self::ListenerPort,
         Self::ReceiveEvent,
+        Self::TryReceiveEvent,
         Self::RequestCancel,
         Self::ObserveFinalState,
         Self::CompleteReleaseBarrier,
@@ -114,6 +116,7 @@ impl DarwinNetworkAdapterOperation {
             | Self::CopyAddress
             | Self::ListenerPort
             | Self::ReceiveEvent
+            | Self::TryReceiveEvent
             | Self::RequestCancel
             | Self::ObserveFinalState
             | Self::CompleteReleaseBarrier
@@ -215,6 +218,11 @@ impl DarwinNetworkOwner {
                 | State::Quiesced,
             )
             | (Operation::ReceiveEvent, _, State::Running | State::CancelRequested)
+            | (
+                Operation::TryReceiveEvent,
+                _,
+                State::Initialized | State::Running | State::CancelRequested,
+            )
             | (Operation::CopyAddress, Kind::Connection, State::Running)
             | (Operation::ListenerPort, Kind::Listener, State::Running) => self.state,
             (Operation::BeginReceive | Operation::BeginSend, Kind::Connection, State::Running) => {

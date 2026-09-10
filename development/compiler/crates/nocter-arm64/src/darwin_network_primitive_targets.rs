@@ -6,9 +6,9 @@ use nocter_machine::{
     MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::{
-    DarwinNetworkConnectionEventObservationAbiSchema,
-    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkOwnerAbiSchema,
-    DarwinNetworkOwnerCreateStatus, PrimitiveRole,
+    DarwinNetworkConnectionEventObservationAbiSchema, DarwinNetworkConnectionEventPollAbiSchema,
+    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerEventPollAbiSchema,
+    DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus, PrimitiveRole,
 };
 
 use crate::{
@@ -34,6 +34,7 @@ pub enum Arm64DarwinNetworkPrimitive {
     BeginReceive,
     BeginSend,
     ReceiveEvent,
+    TryReceiveEvent,
     CopyLocalAddress,
     CopyRemoteAddress,
     RequestCancel,
@@ -43,6 +44,7 @@ pub enum Arm64DarwinNetworkPrimitive {
     ListenerStart,
     ListenerEventDescriptor,
     ListenerReceiveEvent,
+    ListenerTryReceiveEvent,
     ListenerPort,
     ListenerRequestCancel,
     ListenerReleaseBarrier,
@@ -55,8 +57,10 @@ pub(crate) struct Arm64DarwinNetworkPrimitiveAbis<'program> {
     connection_create: Option<&'program MachinePrimitiveTarget>,
     tls_connection_create: Option<&'program MachinePrimitiveTarget>,
     connection_receive_event: Option<&'program MachinePrimitiveTarget>,
+    connection_try_receive_event: Option<&'program MachinePrimitiveTarget>,
     listener_create: Option<&'program MachinePrimitiveTarget>,
     listener_receive_event: Option<&'program MachinePrimitiveTarget>,
+    listener_try_receive_event: Option<&'program MachinePrimitiveTarget>,
 }
 
 impl<'program> Arm64DarwinNetworkPrimitiveAbis<'program> {
@@ -69,8 +73,12 @@ impl<'program> Arm64DarwinNetworkPrimitiveAbis<'program> {
             PrimitiveRole::NetworkConnectionCreate => &mut self.connection_create,
             PrimitiveRole::NetworkTlsConnectionCreate => &mut self.tls_connection_create,
             PrimitiveRole::NetworkConnectionReceiveEvent => &mut self.connection_receive_event,
+            PrimitiveRole::NetworkConnectionTryReceiveEvent => {
+                &mut self.connection_try_receive_event
+            }
             PrimitiveRole::NetworkListenerCreate => &mut self.listener_create,
             PrimitiveRole::NetworkListenerReceiveEvent => &mut self.listener_receive_event,
+            PrimitiveRole::NetworkListenerTryReceiveEvent => &mut self.listener_try_receive_event,
             _ => return Ok(()),
         };
         if let Some(existing) = *slot {
@@ -97,6 +105,7 @@ impl Arm64DarwinNetworkPrimitive {
             PrimitiveRole::NetworkConnectionBeginReceive => Some(Self::BeginReceive),
             PrimitiveRole::NetworkConnectionBeginSend => Some(Self::BeginSend),
             PrimitiveRole::NetworkConnectionReceiveEvent => Some(Self::ReceiveEvent),
+            PrimitiveRole::NetworkConnectionTryReceiveEvent => Some(Self::TryReceiveEvent),
             PrimitiveRole::NetworkConnectionCopyLocalAddress => Some(Self::CopyLocalAddress),
             PrimitiveRole::NetworkConnectionCopyRemoteAddress => Some(Self::CopyRemoteAddress),
             PrimitiveRole::NetworkConnectionRequestCancel => Some(Self::RequestCancel),
@@ -106,6 +115,7 @@ impl Arm64DarwinNetworkPrimitive {
             PrimitiveRole::NetworkListenerStart => Some(Self::ListenerStart),
             PrimitiveRole::NetworkListenerEventDescriptor => Some(Self::ListenerEventDescriptor),
             PrimitiveRole::NetworkListenerReceiveEvent => Some(Self::ListenerReceiveEvent),
+            PrimitiveRole::NetworkListenerTryReceiveEvent => Some(Self::ListenerTryReceiveEvent),
             PrimitiveRole::NetworkListenerPort => Some(Self::ListenerPort),
             PrimitiveRole::NetworkListenerRequestCancel => Some(Self::ListenerRequestCancel),
             PrimitiveRole::NetworkListenerReleaseBarrier => Some(Self::ListenerReleaseBarrier),
@@ -147,6 +157,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         .then(|| Arm64DarwinTlsAdapterImports::declare(builder))
         .transpose()?;
         validate_connection_event_result(machine, roles, abis.connection_receive_event)?;
+        validate_connection_event_poll_result(machine, roles, abis.connection_try_receive_event)?;
         let source_connection_create = abis
             .connection_create
             .map(|target| {
@@ -194,6 +205,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             })
             .transpose()?;
         validate_listener_event_result(machine, roles, abis.listener_receive_event)?;
+        validate_listener_event_poll_result(machine, roles, abis.listener_try_receive_event)?;
         let source_listener_create = match (abis.listener_create, listener) {
             (Some(target), Some(listener)) => {
                 let layout = creation_layout(machine, target, 1)?;
@@ -234,6 +246,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
                 Some(self.connection.transfers().begin_send())
             }
             Arm64DarwinNetworkPrimitive::ReceiveEvent => Some(events.receive()),
+            Arm64DarwinNetworkPrimitive::TryReceiveEvent => Some(events.try_receive()),
             Arm64DarwinNetworkPrimitive::CopyLocalAddress => {
                 Some(self.connection.addresses().local())
             }
@@ -254,7 +267,10 @@ impl Arm64DarwinNetworkPrimitiveTargets {
                 .map(Arm64DarwinNetworkListenerTargets::event_descriptor),
             Arm64DarwinNetworkPrimitive::ListenerReceiveEvent => self
                 .listener
-                .map(|listener| listener.receive_event().function()),
+                .map(|listener| listener.receive_event().receive()),
+            Arm64DarwinNetworkPrimitive::ListenerTryReceiveEvent => self
+                .listener
+                .map(|listener| listener.receive_event().try_receive()),
             Arm64DarwinNetworkPrimitive::ListenerPort => {
                 self.listener.map(Arm64DarwinNetworkListenerTargets::port)
             }
@@ -278,6 +294,7 @@ const fn is_listener_role(role: PrimitiveRole) -> bool {
             | PrimitiveRole::NetworkListenerStart
             | PrimitiveRole::NetworkListenerEventDescriptor
             | PrimitiveRole::NetworkListenerReceiveEvent
+            | PrimitiveRole::NetworkListenerTryReceiveEvent
             | PrimitiveRole::NetworkListenerPort
             | PrimitiveRole::NetworkListenerRequestCancel
             | PrimitiveRole::NetworkListenerReleaseBarrier
@@ -474,6 +491,125 @@ fn validate_listener_event_result(
         || elements[4].offset().checked_add(*payload_offset) != Some(schema.accepted_owner_offset())
         || optional.size() != schema.accepted_optional_size()
         || optional.alignment() != schema.alignment()
+        || owner_layout.size() != owner_schema.size()
+        || owner_layout.alignment() != owner_schema.alignment()
+    {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    }
+    Ok(())
+}
+
+fn validate_connection_event_poll_result(
+    machine: &nocter_machine::MachineProgram,
+    roles: &BTreeSet<PrimitiveRole>,
+    target: Option<&MachinePrimitiveTarget>,
+) -> Result<(), Arm64DarwinNetworkPrimitiveError> {
+    if !roles.contains(&PrimitiveRole::NetworkConnectionTryReceiveEvent) {
+        return Ok(());
+    }
+    let target = target.ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
+    let abi = machine
+        .primitive_abi(target)
+        .ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
+    let MachineResultAbi::Value(result) = abi.result() else {
+        return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
+    };
+    let layout = machine
+        .layouts()
+        .get(result.ty())
+        .ok_or(Arm64DarwinNetworkPrimitiveError::ResultLayout)?;
+    let MachineLayoutKind::Tuple { elements } = layout.kind() else {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    };
+    let poll = DarwinNetworkConnectionEventPollAbiSchema::ARM64_DARWIN;
+    let observation = poll.observation();
+    if result.class() != MachineValueClass::Indirect
+        || result.location()
+            != (MachineResultLocation::CallerStorage {
+                pointer_register: 8,
+            })
+        || elements.len() != 6
+        || elements[0].offset() != poll.available_offset()
+        || elements[1].offset() != observation.kind_offset()
+        || elements
+            .iter()
+            .skip(2)
+            .enumerate()
+            .any(|(lane, element)| observation.value_offset(lane) != Some(element.offset()))
+        || layout.size() != poll.size()
+        || layout.alignment() != poll.alignment()
+    {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    }
+    Ok(())
+}
+
+fn validate_listener_event_poll_result(
+    machine: &nocter_machine::MachineProgram,
+    roles: &BTreeSet<PrimitiveRole>,
+    target: Option<&MachinePrimitiveTarget>,
+) -> Result<(), Arm64DarwinNetworkPrimitiveError> {
+    if !roles.contains(&PrimitiveRole::NetworkListenerTryReceiveEvent) {
+        return Ok(());
+    }
+    let target = target.ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
+    let abi = machine
+        .primitive_abi(target)
+        .ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
+    let MachineResultAbi::Value(result) = abi.result() else {
+        return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
+    };
+    let layout = machine
+        .layouts()
+        .get(result.ty())
+        .ok_or(Arm64DarwinNetworkPrimitiveError::ResultLayout)?;
+    let MachineLayoutKind::Tuple { elements } = layout.kind() else {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    };
+    let poll = DarwinNetworkListenerEventPollAbiSchema::ARM64_DARWIN;
+    let observation = poll.observation();
+    if result.class() != MachineValueClass::Indirect
+        || result.location()
+            != (MachineResultLocation::CallerStorage {
+                pointer_register: 8,
+            })
+        || elements.len() != 6
+        || elements[0].offset() != poll.available_offset()
+        || elements[1].offset() != observation.kind_offset()
+        || elements[2..5]
+            .iter()
+            .enumerate()
+            .any(|(lane, element)| observation.value_offset(lane) != Some(element.offset()))
+        || elements[5].offset() != observation.accepted_tag_offset()
+        || layout.size() != poll.size()
+        || layout.alignment() != poll.alignment()
+    {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    }
+    let optional = machine
+        .layouts()
+        .get(elements[5].ty())
+        .ok_or(Arm64DarwinNetworkPrimitiveError::ResultLayout)?;
+    let MachineLayoutKind::Outcome {
+        kind: nocter_machine::MachineOutcomeKind::Optional,
+        tag_offset,
+        payload_offset,
+        primary: Some(owner),
+        alternate: None,
+    } = optional.kind()
+    else {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    };
+    let owner_layout = machine
+        .layouts()
+        .get(*owner)
+        .ok_or(Arm64DarwinNetworkPrimitiveError::ResultLayout)?;
+    let owner_schema = DarwinNetworkOwnerAbiSchema::ARM64_DARWIN;
+    if elements[5].offset().checked_add(*tag_offset) != Some(observation.accepted_tag_offset())
+        || elements[5].offset().checked_add(*payload_offset)
+            != Some(observation.accepted_owner_offset())
+        || optional.size() != observation.accepted_optional_size()
+        || optional.alignment() != observation.alignment()
         || owner_layout.size() != owner_schema.size()
         || owner_layout.alignment() != owner_schema.alignment()
     {

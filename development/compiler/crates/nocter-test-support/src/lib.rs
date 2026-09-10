@@ -383,6 +383,8 @@ noalloc primitive func network_connection_begin_send_raw(owner: &+NetworkOwner, 
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_receive_event_raw(owner: &+NetworkOwner, destination: *u8, capacity: usize): (usize, usize, usize, usize, usize)
 #target: \"arm64-darwin\"
+noalloc primitive func network_connection_try_receive_event_raw(owner: &+NetworkOwner, destination: *u8, capacity: usize): (usize, usize, usize, usize, usize, usize)
+#target: \"arm64-darwin\"
 noalloc primitive func network_connection_copy_local_address_raw(owner: &NetworkOwner, destination: *u8): usize
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_copy_remote_address_raw(owner: &NetworkOwner, destination: *u8): usize
@@ -400,6 +402,8 @@ noalloc primitive func network_listener_start_raw(owner: &+NetworkOwner): void
 noalloc primitive func network_listener_event_descriptor_raw(owner: &NetworkOwner): usize
 #target: \"arm64-darwin\"
 noalloc primitive func network_listener_receive_event_raw(owner: &+NetworkOwner): (usize, usize, usize, usize, NetworkOwner?) from static
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_try_receive_event_raw(owner: &+NetworkOwner): (usize, usize, usize, usize, usize, NetworkOwner?) from static
 #target: \"arm64-darwin\"
 noalloc primitive func network_listener_port_raw(owner: &NetworkOwner): u16
 #target: \"arm64-darwin\"

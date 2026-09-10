@@ -3,8 +3,9 @@ use std::fmt;
 use nocter_runtime_contract::{
     DarwinNetworkAdapterFunction, DarwinNetworkAdapterOperation,
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkConnectionEventObservationAbiSchema,
-    DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkOwnerAbiSchema,
-    DarwinNetworkOwnerField, DarwinNetworkOwnerKind,
+    DarwinNetworkConnectionEventPollAbiSchema, DarwinNetworkConnectionState,
+    DarwinNetworkEventKind, DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerField,
+    DarwinNetworkOwnerKind,
 };
 
 use crate::darwin_network_owner_event::add_darwin_network_owner_event_descriptor_target;
@@ -16,8 +17,8 @@ use crate::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerEventError, Arm64DataRegister,
     Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder,
     Arm64ProgramError, Arm64Register, emit_darwin_network_consume_error,
-    emit_darwin_network_event_receive_to_pointer, emit_darwin_network_owner_guard,
-    emit_darwin_network_owner_transition,
+    emit_darwin_network_event_receive_to_pointer, emit_darwin_network_event_try_receive_to_pointer,
+    emit_darwin_network_owner_guard, emit_darwin_network_owner_transition,
 };
 
 /// Native callable targets for observing and consuming connection events.
@@ -25,6 +26,7 @@ use crate::{
 pub struct Arm64DarwinNetworkConnectionEventTargets {
     descriptor: Arm64FunctionId,
     receive: Arm64FunctionId,
+    try_receive: Arm64FunctionId,
 }
 
 impl Arm64DarwinNetworkConnectionEventTargets {
@@ -36,6 +38,11 @@ impl Arm64DarwinNetworkConnectionEventTargets {
     #[must_use]
     pub const fn receive(self) -> Arm64FunctionId {
         self.receive
+    }
+
+    #[must_use]
+    pub const fn try_receive(self) -> Arm64FunctionId {
+        self.try_receive
     }
 }
 
@@ -63,10 +70,24 @@ pub(crate) fn add_darwin_network_connection_event_targets(
         DarwinNetworkOwnerKind::Connection,
     )?;
     let receive = program.declare_function();
-    program.define_function(receive, receive_code(imports)?)?;
+    program.define_function(
+        receive,
+        receive_code(
+            imports,
+            DarwinNetworkConnectionEventObservationAbiSchema::ARM64_DARWIN,
+            None,
+        )?,
+    )?;
+    let poll = DarwinNetworkConnectionEventPollAbiSchema::ARM64_DARWIN;
+    let try_receive = program.declare_function();
+    program.define_function(
+        try_receive,
+        receive_code(imports, poll.observation(), Some(poll.available_offset()))?,
+    )?;
     Ok(Arm64DarwinNetworkConnectionEventTargets {
         descriptor,
         receive,
+        try_receive,
     })
 }
 
@@ -76,6 +97,8 @@ pub(crate) fn add_darwin_network_connection_event_targets(
 )]
 fn receive_code(
     imports: &Arm64DarwinNetworkAdapterImports,
+    observation: DarwinNetworkConnectionEventObservationAbiSchema,
+    availability_offset: Option<u64>,
 ) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionEventError> {
     const FRAME_SIZE: u16 = 160;
     const SAVED: [(Arm64Register, u32); 11] = [
@@ -92,7 +115,6 @@ fn receive_code(
         (x(30), 152),
     ];
     let schema = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
-    let observation = DarwinNetworkConnectionEventObservationAbiSchema::ARM64_DARWIN;
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract, FRAME_SIZE);
     for (register, offset) in SAVED {
@@ -106,9 +128,17 @@ fn receive_code(
         &mut code,
         x(19),
         DarwinNetworkOwnerKind::Connection,
-        DarwinNetworkAdapterOperation::ReceiveEvent,
+        if availability_offset.is_some() {
+            DarwinNetworkAdapterOperation::TryReceiveEvent
+        } else {
+            DarwinNetworkAdapterOperation::ReceiveEvent
+        },
         imports,
     )?;
+    clear_observation(&mut code, x(28), observation)?;
+    if let Some(offset) = availability_offset {
+        store_zero_at(&mut code, x(28), offset)?;
+    }
     load_owner_field(
         &mut code,
         x(21),
@@ -116,9 +146,24 @@ fn receive_code(
         DarwinNetworkOwnerField::EventReader,
     )?;
     stack_address(&mut code, x(20), 0);
-    emit_darwin_network_event_receive_to_pointer(&mut code, imports.channel(), x(21), x(20))?;
-
-    clear_observation(&mut code, x(28), observation)?;
+    let no_event = availability_offset.map(|_| code.create_label());
+    if let Some(offset) = availability_offset {
+        emit_darwin_network_event_try_receive_to_pointer(
+            &mut code,
+            imports.channel(),
+            x(21),
+            x(20),
+            x(22),
+        )?;
+        store_at(&mut code, x(28), offset, x(22))?;
+        compare_immediate(&mut code, x(22), 0)?;
+        code.branch_conditional(
+            no_event.expect("poll mode owns the no-event label"),
+            Arm64BranchCondition::Equal,
+        );
+    } else {
+        emit_darwin_network_event_receive_to_pointer(&mut code, imports.channel(), x(21), x(20))?;
+    }
     load_event_field(&mut code, x(21), x(20), schema.kind_offset())?;
     store_at(&mut code, x(28), observation.kind_offset(), x(21))?;
 
@@ -156,6 +201,9 @@ fn receive_code(
     consume_send_event(&mut code, imports, schema, observation)?;
     code.bind(complete)?;
     clear_event(&mut code, x(20), schema)?;
+    if let Some(no_event) = no_event {
+        code.bind(no_event)?;
+    }
     for (register, offset) in SAVED {
         load_stack(&mut code, register, offset);
     }
@@ -744,5 +792,7 @@ mod tests {
         let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
         let targets = add_darwin_network_connection_event_targets(&mut program, &imports).unwrap();
         assert_ne!(targets.descriptor(), targets.receive());
+        assert_ne!(targets.descriptor(), targets.try_receive());
+        assert_ne!(targets.receive(), targets.try_receive());
     }
 }

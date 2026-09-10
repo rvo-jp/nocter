@@ -72,6 +72,7 @@ The v0.45.0 migration inventory classifies current roles as follows:
 |---|---|---|
 | generic possibly-blocking entry | `Syscall0` through `Syscall6`, `SyscallPair0` | mark invocation blocking; never infer safety from the runtime syscall number |
 | synchronous external barrier | `NetworkConnectionReleaseBarrier`, `NetworkListenerReleaseBarrier` | mark blocking and remove from any asynchronous drive/cancellation path before Phase 2 closes |
+| synchronous callback receive | `NetworkConnectionReceiveEvent`, `NetworkListenerReceiveEvent` | retain for explicitly blocking policy only; asynchronous policy uses the distinct nonblocking try-receive roles |
 | drive-safe future constructor | `DescriptorReadiness`, `DescriptorReadinessOrDeadline`, `MonotonicDeadline`, `TaskJoin` | certify constructor-call effect and future-drive safety separately |
 | instantiated cleanup | `DropValueAtPointer` | consume the ownership-selected drop dependency rather than assigning a universal primitive blocking fact |
 | closed nonwaiting operation | every remaining current role | certify nonblocking invocation; adding a role requires an explicit classification |
@@ -88,6 +89,12 @@ numbers, fixed native layouts, and result normalization now have one target-back
 source no longer uses runtime syscall values to identify them. This migration is intentionally
 separate from the remaining network lifecycle work: a narrower primitive role cannot make a
 synchronous release barrier safe inside future cancellation.
+
+Network callback receipt follows the same rule. The blocking receive roles require one complete
+ownership-bearing datagram. The distinct `NetworkConnectionTryReceiveEvent` and
+`NetworkListenerTryReceiveEvent` roles use a target-owned nonblocking receive flag and normalize an
+empty channel to explicit result availability. Reactor readiness is therefore a wake signal and
+optimization, not an unchecked precondition required to keep future drive nonblocking.
 
 ## Standard-Library Migration Inventory
 

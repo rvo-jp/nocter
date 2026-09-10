@@ -26,8 +26,10 @@ pub use darwin_block::DarwinBlockAbiSchema;
 pub use darwin_network::{
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole, DarwinNetworkChannelIoContract,
     DarwinNetworkChannelIoOutcome, DarwinNetworkConnectionEventObservationAbiSchema,
-    DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkEventPayload,
-    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerState,
+    DarwinNetworkConnectionEventPollAbiSchema, DarwinNetworkConnectionState,
+    DarwinNetworkEventKind, DarwinNetworkEventPayload,
+    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerEventPollAbiSchema,
+    DarwinNetworkListenerState,
 };
 pub use darwin_network_address::DarwinNetworkSocketAddressAbiSchema;
 pub use darwin_network_import::{DarwinNetworkAdapterData, DarwinNetworkAdapterFunction};

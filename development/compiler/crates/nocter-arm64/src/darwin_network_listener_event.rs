@@ -3,9 +3,9 @@ use std::fmt;
 use nocter_runtime_contract::{
     DarwinNetworkAdapterFunction, DarwinNetworkAdapterOperation,
     DarwinNetworkCallbackEventAbiSchema, DarwinNetworkEventKind,
-    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerState,
-    DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerField,
-    DarwinNetworkOwnerKind,
+    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerEventPollAbiSchema,
+    DarwinNetworkListenerState, DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus,
+    DarwinNetworkOwnerField, DarwinNetworkOwnerKind,
 };
 
 use crate::{
@@ -15,18 +15,26 @@ use crate::{
     Arm64DarwinNetworkErrorConsumptionError, Arm64DarwinNetworkOwnerError, Arm64DataRegister,
     Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder,
     Arm64ProgramError, Arm64Register, emit_darwin_network_consume_error,
-    emit_darwin_network_event_receive_to_pointer, emit_darwin_network_owner_guard,
-    emit_darwin_network_owner_transition,
+    emit_darwin_network_event_receive_to_pointer, emit_darwin_network_event_try_receive_to_pointer,
+    emit_darwin_network_owner_guard, emit_darwin_network_owner_transition,
 };
 
 /// The sole native target that consumes listener events into source-owned values.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Arm64DarwinNetworkListenerEventTarget(Arm64FunctionId);
+pub struct Arm64DarwinNetworkListenerEventTargets {
+    receive: Arm64FunctionId,
+    try_receive: Arm64FunctionId,
+}
 
-impl Arm64DarwinNetworkListenerEventTarget {
+impl Arm64DarwinNetworkListenerEventTargets {
     #[must_use]
-    pub const fn function(self) -> Arm64FunctionId {
-        self.0
+    pub const fn receive(self) -> Arm64FunctionId {
+        self.receive
+    }
+
+    #[must_use]
+    pub const fn try_receive(self) -> Arm64FunctionId {
+        self.try_receive
     }
 }
 
@@ -44,10 +52,34 @@ pub(crate) fn add_darwin_network_listener_event_target(
     program: &mut Arm64ProgramBuilder,
     imports: &Arm64DarwinNetworkAdapterImports,
     adoption: Arm64DarwinAcceptedConnectionAdoptionTarget,
-) -> Result<Arm64DarwinNetworkListenerEventTarget, Arm64DarwinNetworkListenerEventError> {
-    let target = program.declare_function();
-    program.define_function(target, receive_code(imports, adoption)?.finish()?)?;
-    Ok(Arm64DarwinNetworkListenerEventTarget(target))
+) -> Result<Arm64DarwinNetworkListenerEventTargets, Arm64DarwinNetworkListenerEventError> {
+    let receive = program.declare_function();
+    program.define_function(
+        receive,
+        receive_code(
+            imports,
+            adoption,
+            DarwinNetworkListenerEventObservationAbiSchema::ARM64_DARWIN,
+            None,
+        )?
+        .finish()?,
+    )?;
+    let poll = DarwinNetworkListenerEventPollAbiSchema::ARM64_DARWIN;
+    let try_receive = program.declare_function();
+    program.define_function(
+        try_receive,
+        receive_code(
+            imports,
+            adoption,
+            poll.observation(),
+            Some(poll.available_offset()),
+        )?
+        .finish()?,
+    )?;
+    Ok(Arm64DarwinNetworkListenerEventTargets {
+        receive,
+        try_receive,
+    })
 }
 
 #[allow(
@@ -57,6 +89,8 @@ pub(crate) fn add_darwin_network_listener_event_target(
 fn receive_code(
     imports: &Arm64DarwinNetworkAdapterImports,
     adoption: Arm64DarwinAcceptedConnectionAdoptionTarget,
+    observation: DarwinNetworkListenerEventObservationAbiSchema,
+    availability_offset: Option<u64>,
 ) -> Result<Arm64CodeBuilder, Arm64DarwinNetworkListenerEventError> {
     const FRAME_SIZE: u16 = 112;
     let saved = [
@@ -70,7 +104,6 @@ fn receive_code(
         (x(30), 104),
     ];
     let event = DarwinNetworkCallbackEventAbiSchema::ARM64_DARWIN;
-    let observation = DarwinNetworkListenerEventObservationAbiSchema::ARM64_DARWIN;
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract, FRAME_SIZE);
     for (register, offset) in saved {
@@ -82,9 +115,17 @@ fn receive_code(
         &mut code,
         x(19),
         DarwinNetworkOwnerKind::Listener,
-        DarwinNetworkAdapterOperation::ReceiveEvent,
+        if availability_offset.is_some() {
+            DarwinNetworkAdapterOperation::TryReceiveEvent
+        } else {
+            DarwinNetworkAdapterOperation::ReceiveEvent
+        },
         imports,
     )?;
+    clear_observation(&mut code, x(28), observation)?;
+    if let Some(offset) = availability_offset {
+        store_zero_at(&mut code, x(28), offset)?;
+    }
     load_owner_field(
         &mut code,
         x(21),
@@ -92,9 +133,24 @@ fn receive_code(
         DarwinNetworkOwnerField::EventReader,
     )?;
     stack_address(&mut code, x(20), 0);
-    emit_darwin_network_event_receive_to_pointer(&mut code, imports.channel(), x(21), x(20))?;
-
-    clear_observation(&mut code, x(28), observation)?;
+    let no_event = availability_offset.map(|_| code.create_label());
+    if let Some(offset) = availability_offset {
+        emit_darwin_network_event_try_receive_to_pointer(
+            &mut code,
+            imports.channel(),
+            x(21),
+            x(20),
+            x(22),
+        )?;
+        store_at(&mut code, x(28), offset, x(22))?;
+        compare_immediate(&mut code, x(22), 0)?;
+        code.branch_conditional(
+            no_event.expect("poll mode owns the no-event label"),
+            Arm64BranchCondition::Equal,
+        );
+    } else {
+        emit_darwin_network_event_receive_to_pointer(&mut code, imports.channel(), x(21), x(20))?;
+    }
     immediate(&mut code, x(21), 1)?;
     store_at(&mut code, x(28), observation.accepted_tag_offset(), x(21))?;
     load_event_field(&mut code, x(21), x(20), event.kind_offset())?;
@@ -143,6 +199,9 @@ fn receive_code(
 
     code.bind(complete)?;
     clear_event(&mut code, x(20), event)?;
+    if let Some(no_event) = no_event {
+        code.bind(no_event)?;
+    }
     for (register, offset) in saved {
         load_stack(&mut code, register, offset);
     }

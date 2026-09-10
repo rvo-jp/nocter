@@ -21,6 +21,18 @@ pub struct DarwinNetworkConnectionEventObservationAbiSchema {
     alignment: u64,
 }
 
+/// Nonblocking connection-event observation with an explicit availability word.
+///
+/// Keeping availability in the result makes an empty callback channel an ordinary result rather
+/// than a hidden synchronous wait. No source or Machine consumer owns the Darwin receive flags or
+/// errno classification that establishes this guarantee.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinNetworkConnectionEventPollAbiSchema {
+    available_offset: u64,
+    observation: DarwinNetworkConnectionEventObservationAbiSchema,
+    size: u64,
+}
+
 /// Provider-object-opaque listener observation with an optional compiler-owned connection.
 ///
 /// The first four words contain `(kind, state-or-adoption-status, error-domain, error-code)`.
@@ -35,6 +47,49 @@ pub struct DarwinNetworkListenerEventObservationAbiSchema {
     accepted_owner_offset: u64,
     size: u64,
     alignment: u64,
+}
+
+/// Nonblocking listener-event observation with an explicit availability word.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DarwinNetworkListenerEventPollAbiSchema {
+    available_offset: u64,
+    observation: DarwinNetworkListenerEventObservationAbiSchema,
+    size: u64,
+}
+
+impl DarwinNetworkListenerEventPollAbiSchema {
+    pub const ARM64_DARWIN: Self = Self {
+        available_offset: 0,
+        observation: DarwinNetworkListenerEventObservationAbiSchema {
+            kind_offset: 8,
+            value_offsets: [16, 24, 32],
+            accepted_tag_offset: 40,
+            accepted_owner_offset: 48,
+            size: 96,
+            alignment: 8,
+        },
+        size: 96,
+    };
+
+    #[must_use]
+    pub const fn available_offset(self) -> u64 {
+        self.available_offset
+    }
+
+    #[must_use]
+    pub const fn observation(self) -> DarwinNetworkListenerEventObservationAbiSchema {
+        self.observation
+    }
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.observation.alignment
+    }
 }
 
 impl DarwinNetworkListenerEventObservationAbiSchema {
@@ -120,11 +175,46 @@ impl DarwinNetworkConnectionEventObservationAbiSchema {
     }
 }
 
+impl DarwinNetworkConnectionEventPollAbiSchema {
+    pub const ARM64_DARWIN: Self = Self {
+        available_offset: 0,
+        observation: DarwinNetworkConnectionEventObservationAbiSchema {
+            kind_offset: 8,
+            value_offsets: [16, 24, 32, 40],
+            size: 48,
+            alignment: 8,
+        },
+        size: 48,
+    };
+
+    #[must_use]
+    pub const fn available_offset(self) -> u64 {
+        self.available_offset
+    }
+
+    #[must_use]
+    pub const fn observation(self) -> DarwinNetworkConnectionEventObservationAbiSchema {
+        self.observation
+    }
+
+    #[must_use]
+    pub const fn size(self) -> u64 {
+        self.size
+    }
+
+    #[must_use]
+    pub const fn alignment(self) -> u64 {
+        self.observation.alignment
+    }
+}
+
 /// The fixed callback-channel transfer rule for the supported Darwin target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DarwinNetworkChannelIoContract {
     complete_count: i64,
     interrupted_errno: i32,
+    unavailable_errno: i32,
+    nonblocking_receive_flags: i32,
 }
 
 impl DarwinNetworkChannelIoContract {
@@ -133,6 +223,8 @@ impl DarwinNetworkChannelIoContract {
             .size
             .cast_signed(),
         interrupted_errno: 4,
+        unavailable_errno: 35,
+        nonblocking_receive_flags: 0x80,
     };
 
     #[must_use]
@@ -143,6 +235,16 @@ impl DarwinNetworkChannelIoContract {
     #[must_use]
     pub const fn interrupted_errno(self) -> i32 {
         self.interrupted_errno
+    }
+
+    #[must_use]
+    pub const fn unavailable_errno(self) -> i32 {
+        self.unavailable_errno
+    }
+
+    #[must_use]
+    pub const fn nonblocking_receive_flags(self) -> i32 {
+        self.nonblocking_receive_flags
     }
 
     /// Classifies one `send` or `recv` result without permitting short event records.
@@ -156,6 +258,20 @@ impl DarwinNetworkChannelIoContract {
             DarwinNetworkChannelIoOutcome::Fatal
         }
     }
+
+    /// Classifies a nonblocking receive without weakening the exact-record requirement.
+    #[must_use]
+    pub const fn classify_nonblocking(
+        self,
+        result: i64,
+        errno: i32,
+    ) -> DarwinNetworkChannelIoOutcome {
+        if result == -1 && errno == self.unavailable_errno {
+            DarwinNetworkChannelIoOutcome::Unavailable
+        } else {
+            self.classify(result, errno)
+        }
+    }
 }
 
 /// Closed callback-channel transfer outcomes understood by the native adapter.
@@ -163,6 +279,7 @@ impl DarwinNetworkChannelIoContract {
 pub enum DarwinNetworkChannelIoOutcome {
     Complete,
     Interrupted,
+    Unavailable,
     Fatal,
 }
 
@@ -435,8 +552,10 @@ mod tests {
     use super::{
         DarwinNetworkCallbackEventAbiSchema, DarwinNetworkCallbackRole,
         DarwinNetworkChannelIoContract, DarwinNetworkChannelIoOutcome,
-        DarwinNetworkConnectionState, DarwinNetworkEventKind, DarwinNetworkEventPayload,
-        DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerState,
+        DarwinNetworkConnectionEventPollAbiSchema, DarwinNetworkConnectionState,
+        DarwinNetworkEventKind, DarwinNetworkEventPayload,
+        DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkListenerEventPollAbiSchema,
+        DarwinNetworkListenerState,
     };
 
     #[test]
@@ -479,6 +598,15 @@ mod tests {
             channel.classify(-1, 9),
             DarwinNetworkChannelIoOutcome::Fatal
         );
+        assert_eq!(channel.nonblocking_receive_flags(), 0x80);
+        assert_eq!(
+            channel.classify_nonblocking(-1, channel.unavailable_errno()),
+            DarwinNetworkChannelIoOutcome::Unavailable
+        );
+        assert_eq!(
+            channel.classify_nonblocking(-1, channel.interrupted_errno()),
+            DarwinNetworkChannelIoOutcome::Interrupted
+        );
     }
 
     #[test]
@@ -504,6 +632,24 @@ mod tests {
         assert_eq!(schema.value_offset(4), None);
         assert_eq!(schema.size(), 40);
         assert_eq!(schema.alignment(), 8);
+    }
+
+    #[test]
+    fn event_poll_results_prefix_availability_without_exposing_native_objects() {
+        let connection = DarwinNetworkConnectionEventPollAbiSchema::ARM64_DARWIN;
+        assert_eq!(connection.available_offset(), 0);
+        assert_eq!(connection.observation().kind_offset(), 8);
+        assert_eq!(connection.observation().value_offset(3), Some(40));
+        assert_eq!(connection.size(), 48);
+        assert_eq!(connection.alignment(), 8);
+
+        let listener = DarwinNetworkListenerEventPollAbiSchema::ARM64_DARWIN;
+        assert_eq!(listener.available_offset(), 0);
+        assert_eq!(listener.observation().kind_offset(), 8);
+        assert_eq!(listener.observation().accepted_tag_offset(), 40);
+        assert_eq!(listener.observation().accepted_owner_offset(), 48);
+        assert_eq!(listener.size(), 96);
+        assert_eq!(listener.alignment(), 8);
     }
 
     #[test]

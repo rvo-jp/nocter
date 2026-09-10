@@ -303,42 +303,64 @@ noalloc func connection_provider_failure(domain: usize, code: usize): NetworkPro
 }
 
 #target: "arm64-darwin"
+noalloc func connection_event_from_words(
+    kind: usize,
+    first: usize,
+    second: usize,
+    third: usize,
+    fourth: usize,
+): NetworkConnectionEvent {
+    if kind == 0 {
+        let failure = connection_provider_failure(second, third)
+        if first == 1 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.waiting(move failure))
+        }
+        if first == 2 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.preparing)
+        }
+        if first == 3 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.ready)
+        }
+        if first == 4 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.failed(move failure))
+        }
+        if first == 5 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.cancelled)
+        }
+        return NetworkConnectionEvent.malformed
+    }
+    if kind == 1 {
+        return NetworkConnectionEvent.received(
+            first,
+            second == 1,
+            connection_provider_failure(third, fourth),
+        )
+    }
+    if kind == 2 {
+        return NetworkConnectionEvent.sent(connection_provider_failure(first, second))
+    }
+    return NetworkConnectionEvent.malformed
+}
+
+#target: "arm64-darwin"
 noalloc func connection_next_event(
     owner: &+NetworkOwner,
     destination: *u8,
     capacity: usize,
 ): NetworkConnectionEvent {
     let event = network_connection_receive_event_raw(owner, destination, capacity)
-    if event.0 == 0 {
-        let failure = connection_provider_failure(event.2, event.3)
-        if event.1 == 1 {
-            return NetworkConnectionEvent.state(NetworkConnectionState.waiting(move failure))
-        }
-        if event.1 == 2 {
-            return NetworkConnectionEvent.state(NetworkConnectionState.preparing)
-        }
-        if event.1 == 3 {
-            return NetworkConnectionEvent.state(NetworkConnectionState.ready)
-        }
-        if event.1 == 4 {
-            return NetworkConnectionEvent.state(NetworkConnectionState.failed(move failure))
-        }
-        if event.1 == 5 {
-            return NetworkConnectionEvent.state(NetworkConnectionState.cancelled)
-        }
-        return NetworkConnectionEvent.malformed
-    }
-    if event.0 == 1 {
-        return NetworkConnectionEvent.received(
-            event.1,
-            event.2 == 1,
-            connection_provider_failure(event.3, event.4),
-        )
-    }
-    if event.0 == 2 {
-        return NetworkConnectionEvent.sent(connection_provider_failure(event.1, event.2))
-    }
-    return NetworkConnectionEvent.malformed
+    return connection_event_from_words(event.0, event.1, event.2, event.3, event.4)
+}
+
+#target: "arm64-darwin"
+noalloc func connection_try_next_event(
+    owner: &+NetworkOwner,
+    destination: *u8,
+    capacity: usize,
+): NetworkConnectionEvent? {
+    let event = network_connection_try_receive_event_raw(owner, destination, capacity)
+    if event.0 == 0 { return none }
+    return connection_event_from_words(event.1, event.2, event.3, event.4, event.5)
 }
 
 #target: "arm64-darwin"
@@ -397,30 +419,48 @@ noalloc func listener_event_descriptor(owner: &NetworkOwner): usize {
 }
 
 #target: "arm64-darwin"
-noalloc func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent {
-    let event = network_listener_receive_event_raw(owner)
-    if event.0 == 3 {
-        let failure = connection_provider_failure(event.2, event.3)
-        if event.1 == 1 {
+noalloc func listener_event_from_words(
+    kind: usize,
+    first: usize,
+    error_domain: usize,
+    error_code: usize,
+    accepted_owner: NetworkOwner?,
+): NetworkListenerEvent {
+    if kind == 3 {
+        let failure = connection_provider_failure(error_domain, error_code)
+        if first == 1 {
             return NetworkListenerEvent.state(NetworkListenerState.waiting)
         }
-        if event.1 == 2 {
+        if first == 2 {
             return NetworkListenerEvent.state(NetworkListenerState.ready)
         }
-        if event.1 == 3 {
+        if first == 3 {
             return NetworkListenerEvent.state(NetworkListenerState.failed(move failure))
         }
-        if event.1 == 4 {
+        if first == 4 {
             return NetworkListenerEvent.state(NetworkListenerState.cancelled)
         }
         return NetworkListenerEvent.malformed
     }
-    if event.0 == 4 {
-        if event.1 != 0 { return NetworkListenerEvent.adoption_failed(event.1) }
-        let accepted = move event.4 otherwise { return NetworkListenerEvent.malformed }
+    if kind == 4 {
+        if first != 0 { return NetworkListenerEvent.adoption_failed(first) }
+        let accepted = move accepted_owner otherwise { return NetworkListenerEvent.malformed }
         return NetworkListenerEvent.accepted(move accepted)
     }
     return NetworkListenerEvent.malformed
+}
+
+#target: "arm64-darwin"
+noalloc func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent {
+    let event = network_listener_receive_event_raw(owner)
+    return listener_event_from_words(event.0, event.1, event.2, event.3, move event.4)
+}
+
+#target: "arm64-darwin"
+noalloc func listener_try_next_event(owner: &+NetworkOwner): NetworkListenerEvent? {
+    let event = network_listener_try_receive_event_raw(owner)
+    if event.0 == 0 { return none }
+    return listener_event_from_words(event.1, event.2, event.3, event.4, move event.5)
 }
 
 #target: "arm64-darwin"

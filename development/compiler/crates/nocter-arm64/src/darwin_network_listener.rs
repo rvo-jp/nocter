@@ -20,7 +20,7 @@ use crate::{
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinAcceptedConnectionAdoptionTarget,
     Arm64DarwinBlockDescriptorId, Arm64DarwinBlockError, Arm64DarwinNetworkAdapterImports,
     Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkListenerEventError,
-    Arm64DarwinNetworkListenerEventTarget, Arm64DarwinNetworkListenerPortError,
+    Arm64DarwinNetworkListenerEventTargets, Arm64DarwinNetworkListenerPortError,
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerEventError,
     Arm64DarwinNetworkOwnerLifecycleError, Arm64DarwinNetworkOwnerLifecycleTargets,
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
@@ -38,7 +38,7 @@ pub struct Arm64DarwinNetworkListenerTargets {
     state_block: Arm64DarwinBlockDescriptorId,
     accept_block: Arm64DarwinBlockDescriptorId,
     event_descriptor: Arm64FunctionId,
-    receive_event: Arm64DarwinNetworkListenerEventTarget,
+    receive_event: Arm64DarwinNetworkListenerEventTargets,
     port: Arm64FunctionId,
     lifecycle: Arm64DarwinNetworkOwnerLifecycleTargets,
 }
@@ -75,7 +75,7 @@ impl Arm64DarwinNetworkListenerTargets {
     }
 
     #[must_use]
-    pub const fn receive_event(self) -> Arm64DarwinNetworkListenerEventTarget {
+    pub const fn receive_event(self) -> Arm64DarwinNetworkListenerEventTargets {
         self.receive_event
     }
 
@@ -527,7 +527,8 @@ mod tests {
             targets.state_callback(),
             targets.accept_callback(),
             targets.event_descriptor(),
-            targets.receive_event().function(),
+            targets.receive_event().receive(),
+            targets.receive_event().try_receive(),
             targets.port(),
             lifecycle.start(),
             lifecycle.request_cancel(),

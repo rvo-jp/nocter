@@ -77,6 +77,14 @@ pub(/) noalloc func connection_next_event(
     capacity: usize,
 ): NetworkConnectionEvent
 
+/// Attempts to consume one ordered callback event without waiting for an empty channel.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_try_next_event(
+    owner: &+NetworkOwner,
+    destination: *u8,
+    capacity: usize,
+): NetworkConnectionEvent?
+
 /// Returns the effective local address without exposing a provider endpoint.
 #target: "arm64-darwin"
 pub(/) noalloc func connection_local_address(owner: &NetworkOwner): NetworkAddress?
@@ -112,6 +120,10 @@ pub(/) noalloc func listener_event_descriptor(owner: &NetworkOwner): usize
 /// Consumes and normalizes one ordered listener event.
 #target: "arm64-darwin"
 pub(/) noalloc func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent
+
+/// Attempts to consume one ordered listener event without waiting for an empty channel.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_try_next_event(owner: &+NetworkOwner): NetworkListenerEvent?
 
 /// Returns the effective local port of a running listener.
 #target: "arm64-darwin"
@@ -184,6 +196,14 @@ noalloc primitive func network_connection_receive_event_raw(
     capacity: usize,
 ): (usize, usize, usize, usize, usize)
 
+/// Attempts one event receive and prefixes the observation with an availability word.
+#target: "arm64-darwin"
+noalloc primitive func network_connection_try_receive_event_raw(
+    owner: &+NetworkOwner,
+    destination: *u8,
+    capacity: usize,
+): (usize, usize, usize, usize, usize, usize)
+
 /// Copies the current effective local address into a 28-byte caller-owned native record.
 #target: "arm64-darwin"
 noalloc primitive func network_connection_copy_local_address_raw(
@@ -227,6 +247,12 @@ noalloc primitive func network_listener_event_descriptor_raw(owner: &NetworkOwne
 noalloc primitive func network_listener_receive_event_raw(
     owner: &+NetworkOwner,
 ): (usize, usize, usize, usize, NetworkOwner?) from static
+
+/// Attempts one listener event receive and prefixes the observation with availability.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_try_receive_event_raw(
+    owner: &+NetworkOwner,
+): (usize, usize, usize, usize, usize, NetworkOwner?) from static
 
 /// Returns the effective local port assigned to a running provider listener.
 #target: "arm64-darwin"

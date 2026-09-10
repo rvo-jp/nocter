@@ -3,7 +3,10 @@ use nocter_arm64::{
     Arm64CodeBuilder, Arm64DarwinNetworkAdapterImports, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64Program, Arm64ProgramBuilder, add_darwin_plain_connection_targets,
 };
-use nocter_runtime_contract::{DarwinNetworkConnectionState, DarwinNetworkOwnerCreateStatus};
+use nocter_runtime_contract::{
+    DarwinNetworkConnectionEventPollAbiSchema, DarwinNetworkConnectionState,
+    DarwinNetworkOwnerCreateStatus,
+};
 
 use super::network_callback::{adjust_stack, immediate, load, move_register, stack_address, x};
 use crate::MachOImage;
@@ -58,6 +61,27 @@ fn define_connection_entry(
     immediate(&mut code, x(16), 1);
     code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
     code.bind(created).unwrap();
+    move_register(&mut code, x(0), x(26));
+    immediate(&mut code, x(1), 0);
+    immediate(&mut code, x(2), 0);
+    stack_address(&mut code, OBSERVATION_OFFSET, x(8));
+    call_function(&mut code, events.try_receive());
+    load(
+        &mut code,
+        x(27),
+        OBSERVATION_OFFSET
+            + u32::try_from(
+                DarwinNetworkConnectionEventPollAbiSchema::ARM64_DARWIN.available_offset(),
+            )
+            .unwrap(),
+    );
+    let empty = code.create_label();
+    compare_immediate(&mut code, x(27), 0);
+    code.branch_conditional(empty, Arm64BranchCondition::Equal);
+    immediate(&mut code, x(0), 3);
+    immediate(&mut code, x(16), 1);
+    code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
+    code.bind(empty).unwrap();
     move_register(&mut code, x(0), x(26));
     call_function(&mut code, lifecycle.start());
     move_register(&mut code, x(0), x(26));

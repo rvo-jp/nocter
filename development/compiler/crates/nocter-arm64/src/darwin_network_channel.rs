@@ -58,6 +58,7 @@ pub fn emit_darwin_network_event_send(
         imports.send,
         writer,
         EventAddress::stack(event_stack_offset)?,
+        None,
     )
 }
 
@@ -82,6 +83,7 @@ pub fn emit_darwin_network_event_receive(
         imports.receive,
         reader,
         EventAddress::stack(event_stack_offset)?,
+        None,
     )
 }
 
@@ -111,6 +113,41 @@ pub fn emit_darwin_network_event_receive_to_pointer(
         imports.receive,
         reader,
         EventAddress::Register(destination),
+        None,
+    )
+}
+
+/// Attempts one exact event receive without waiting for an empty callback channel.
+///
+/// `available` is set to one after a complete record and zero when Darwin reports `EAGAIN`.
+/// Interrupted receives retry; short records and all other failures remain fatal. The target-owned
+/// flag and errno policy is what makes this operation suitable after fallible reactor readiness.
+///
+/// # Errors
+///
+/// Rejects volatile descriptor, destination, or availability registers and invalid labels.
+pub fn emit_darwin_network_event_try_receive_to_pointer(
+    code: &mut Arm64CodeBuilder,
+    imports: Arm64DarwinNetworkChannelImports,
+    reader: Arm64Register,
+    destination: Arm64Register,
+    available: Arm64Register,
+) -> Result<(), Arm64DarwinNetworkChannelError> {
+    if !(19..=28).contains(&destination.number()) {
+        return Err(Arm64DarwinNetworkChannelError::VolatileEventRegister(
+            destination,
+        ));
+    }
+    if !(19..=28).contains(&available.number()) {
+        return Err(Arm64DarwinNetworkChannelError::VolatileAvailabilityRegister(available));
+    }
+    emit_transfer(
+        code,
+        imports,
+        imports.receive,
+        reader,
+        EventAddress::Register(destination),
+        Some(available),
     )
 }
 
@@ -151,6 +188,7 @@ fn emit_transfer(
     transfer: Arm64FunctionImportId,
     descriptor: Arm64Register,
     event: EventAddress,
+    availability: Option<Arm64Register>,
 ) -> Result<(), Arm64DarwinNetworkChannelError> {
     if !(19..=28).contains(&descriptor.number()) {
         return Err(Arm64DarwinNetworkChannelError::VolatileDescriptorRegister(
@@ -162,19 +200,25 @@ fn emit_transfer(
         .map_err(|_| Arm64DarwinNetworkChannelError::ContractLayout)?;
     let interrupted_errno = u16::try_from(io.interrupted_errno())
         .map_err(|_| Arm64DarwinNetworkChannelError::ContractLayout)?;
+    let unavailable_errno = u16::try_from(io.unavailable_errno())
+        .map_err(|_| Arm64DarwinNetworkChannelError::ContractLayout)?;
+    let flags = availability.map_or(0, |_| io.nonblocking_receive_flags());
+    let flags = u16::try_from(flags).map_err(|_| Arm64DarwinNetworkChannelError::ContractLayout)?;
     let retry = code.create_label();
+    let received = code.create_label();
     let complete = code.create_label();
+    let unavailable = availability.map(|_| code.create_label());
     let fatal = code.create_label();
 
     code.bind(retry)?;
     move_register(code, register(0), descriptor);
     event.emit(code);
     move_immediate(code, register(2), complete_count);
-    move_immediate(code, register(3), 0);
+    move_immediate(code, register(3), flags);
     call_import(code, transfer);
 
     compare_immediate(code, register(0), complete_count);
-    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    code.branch_conditional(received, Arm64BranchCondition::Equal);
     compare_negative_one(code, register(0));
     code.branch_conditional(fatal, Arm64BranchCondition::NotEqual);
     call_import(code, imports.error_address);
@@ -186,9 +230,22 @@ fn emit_transfer(
     });
     compare_immediate(code, register(8), interrupted_errno);
     code.branch_conditional(retry, Arm64BranchCondition::Equal);
+    if let Some(unavailable) = unavailable {
+        compare_immediate(code, register(8), unavailable_errno);
+        code.branch_conditional(unavailable, Arm64BranchCondition::Equal);
+    }
 
     code.bind(fatal)?;
     call_import(code, imports.abort);
+    if let (Some(availability), Some(unavailable)) = (availability, unavailable) {
+        code.bind(unavailable)?;
+        move_immediate(code, availability, 0);
+        code.branch(complete, false);
+    }
+    code.bind(received)?;
+    if let Some(availability) = availability {
+        move_immediate(code, availability, 1);
+    }
     code.bind(complete)?;
     Ok(())
 }
@@ -256,6 +313,7 @@ pub enum Arm64DarwinNetworkChannelError {
     StackOffset(u32),
     VolatileDescriptorRegister(Arm64Register),
     VolatileEventRegister(Arm64Register),
+    VolatileAvailabilityRegister(Arm64Register),
     ContractLayout,
     Program(Arm64ProgramError),
     Code(Arm64CodeError),
@@ -275,6 +333,7 @@ impl std::error::Error for Arm64DarwinNetworkChannelError {
             Self::StackOffset(_)
             | Self::VolatileDescriptorRegister(_)
             | Self::VolatileEventRegister(_)
+            | Self::VolatileAvailabilityRegister(_)
             | Self::ContractLayout => None,
         }
     }
@@ -297,6 +356,7 @@ mod tests {
     use super::{
         Arm64DarwinNetworkChannelError, Arm64DarwinNetworkChannelImports,
         emit_darwin_network_event_receive_to_pointer, emit_darwin_network_event_send,
+        emit_darwin_network_event_try_receive_to_pointer,
     };
     use crate::{Arm64CodeBuilder, Arm64ProgramBuilder, Arm64Register};
 
@@ -319,6 +379,17 @@ mod tests {
                 Arm64Register::new(0).unwrap()
             ))
         );
+
+        let mut polling = Arm64CodeBuilder::new();
+        emit_darwin_network_event_try_receive_to_pointer(
+            &mut polling,
+            first,
+            Arm64Register::new(19).unwrap(),
+            Arm64Register::new(20).unwrap(),
+            Arm64Register::new(21).unwrap(),
+        )
+        .unwrap();
+        polling.finish().unwrap();
 
         let mut invalid_destination = Arm64CodeBuilder::new();
         assert_eq!(

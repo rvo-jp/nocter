@@ -171,6 +171,7 @@ pub(crate) fn select(
         | PrimitiveRole::NetworkConnectionBeginReceive
         | PrimitiveRole::NetworkConnectionBeginSend
         | PrimitiveRole::NetworkConnectionReceiveEvent
+        | PrimitiveRole::NetworkConnectionTryReceiveEvent
         | PrimitiveRole::NetworkConnectionCopyLocalAddress
         | PrimitiveRole::NetworkConnectionCopyRemoteAddress
         | PrimitiveRole::NetworkConnectionRequestCancel
@@ -180,6 +181,7 @@ pub(crate) fn select(
         | PrimitiveRole::NetworkListenerStart
         | PrimitiveRole::NetworkListenerEventDescriptor
         | PrimitiveRole::NetworkListenerReceiveEvent
+        | PrimitiveRole::NetworkListenerTryReceiveEvent
         | PrimitiveRole::NetworkListenerPort
         | PrimitiveRole::NetworkListenerRequestCancel
         | PrimitiveRole::NetworkListenerReleaseBarrier
@@ -210,7 +212,8 @@ fn select_network_primitive(
             MachineValueClass::Direct { words: 1 },
         ],
         PrimitiveRole::NetworkTlsConnectionCreate => NETWORK_TLS_CREATE_ARGUMENTS,
-        PrimitiveRole::NetworkConnectionReceiveEvent => &[
+        PrimitiveRole::NetworkConnectionReceiveEvent
+        | PrimitiveRole::NetworkConnectionTryReceiveEvent => &[
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
@@ -244,8 +247,10 @@ fn select_network_primitive(
         PrimitiveRole::NetworkConnectionCreate
         | PrimitiveRole::NetworkTlsConnectionCreate
         | PrimitiveRole::NetworkConnectionReceiveEvent
+        | PrimitiveRole::NetworkConnectionTryReceiveEvent
         | PrimitiveRole::NetworkListenerCreate
-        | PrimitiveRole::NetworkListenerReceiveEvent => {
+        | PrimitiveRole::NetworkListenerReceiveEvent
+        | PrimitiveRole::NetworkListenerTryReceiveEvent => {
             matches!(
                 target.abi().result(),
                 MachineResultAbi::Value(result)

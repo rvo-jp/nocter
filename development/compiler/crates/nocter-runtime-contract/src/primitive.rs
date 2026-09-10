@@ -162,6 +162,7 @@ closed_role_enum! {
         NetworkConnectionBeginReceive,
         NetworkConnectionBeginSend,
         NetworkConnectionReceiveEvent,
+        NetworkConnectionTryReceiveEvent,
         NetworkConnectionCopyLocalAddress,
         NetworkConnectionCopyRemoteAddress,
         NetworkConnectionRequestCancel,
@@ -171,6 +172,7 @@ closed_role_enum! {
         NetworkListenerStart,
         NetworkListenerEventDescriptor,
         NetworkListenerReceiveEvent,
+        NetworkListenerTryReceiveEvent,
         NetworkListenerPort,
         NetworkListenerRequestCancel,
         NetworkListenerReleaseBarrier,
@@ -288,6 +290,7 @@ impl PrimitiveRole {
             | Self::NetworkConnectionBeginReceive
             | Self::NetworkConnectionBeginSend
             | Self::NetworkConnectionReceiveEvent
+            | Self::NetworkConnectionTryReceiveEvent
             | Self::NetworkConnectionCopyLocalAddress
             | Self::NetworkConnectionCopyRemoteAddress
             | Self::NetworkConnectionRequestCancel
@@ -297,6 +300,7 @@ impl PrimitiveRole {
             | Self::NetworkListenerStart
             | Self::NetworkListenerEventDescriptor
             | Self::NetworkListenerReceiveEvent
+            | Self::NetworkListenerTryReceiveEvent
             | Self::NetworkListenerPort
             | Self::NetworkListenerRequestCancel
             | Self::NetworkListenerReleaseBarrier
@@ -320,6 +324,7 @@ impl PrimitiveRole {
             Self::NetworkListenerStart => "network_listener_start",
             Self::NetworkListenerEventDescriptor => "network_listener_event_descriptor",
             Self::NetworkListenerReceiveEvent => "network_listener_receive_event",
+            Self::NetworkListenerTryReceiveEvent => "network_listener_try_receive_event",
             Self::NetworkListenerPort => "network_listener_port",
             Self::NetworkListenerRequestCancel => "network_listener_request_cancel",
             Self::NetworkListenerReleaseBarrier => "network_listener_release_barrier",
@@ -340,6 +345,7 @@ impl PrimitiveRole {
             Self::NetworkConnectionBeginReceive => "network_connection_begin_receive",
             Self::NetworkConnectionBeginSend => "network_connection_begin_send",
             Self::NetworkConnectionReceiveEvent => "network_connection_receive_event",
+            Self::NetworkConnectionTryReceiveEvent => "network_connection_try_receive_event",
             Self::NetworkConnectionCopyLocalAddress => "network_connection_copy_local_address",
             Self::NetworkConnectionCopyRemoteAddress => "network_connection_copy_remote_address",
             Self::NetworkConnectionRequestCancel => "network_connection_request_cancel",

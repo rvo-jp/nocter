@@ -145,7 +145,7 @@ pub use darwin_network_callback::{
 pub use darwin_network_channel::{
     Arm64DarwinNetworkChannelError, Arm64DarwinNetworkChannelImports,
     emit_darwin_network_event_receive, emit_darwin_network_event_receive_to_pointer,
-    emit_darwin_network_event_send,
+    emit_darwin_network_event_send, emit_darwin_network_event_try_receive_to_pointer,
 };
 pub use darwin_network_connection::{
     Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
@@ -170,7 +170,7 @@ pub use darwin_network_listener::{
     add_darwin_plain_listener_targets,
 };
 pub use darwin_network_listener_event::{
-    Arm64DarwinNetworkListenerEventError, Arm64DarwinNetworkListenerEventTarget,
+    Arm64DarwinNetworkListenerEventError, Arm64DarwinNetworkListenerEventTargets,
 };
 pub use darwin_network_listener_port::Arm64DarwinNetworkListenerPortError;
 pub use darwin_network_owner::{
