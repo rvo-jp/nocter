@@ -17,7 +17,8 @@ syntax, source ranges, declaration storage, editor features, or machine layout.
 - dependency-light capability-evidence identities owned by checking authorities
 - deterministic symbols and package identities
 - structural type interning and projections
-- structural callable capabilities and authored guarantee identity
+- structural callable capabilities and independent authored allocation/nonblocking guarantee
+  identity
 - exact-lineage type transactions
 - persistent closure identity sequences
 

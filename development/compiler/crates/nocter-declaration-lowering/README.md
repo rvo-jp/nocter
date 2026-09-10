@@ -24,8 +24,8 @@ does not check callable bodies.
 - canonical source-domain and body-import rebinding for reused declarations
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization
-- one-way binding of authored callable execution and guarantees into declaration and
-  structural-type contracts
+- one-way binding of authored callable execution and allocation/nonblocking guarantees into
+  declaration and structural-type contracts
 - construction-time binding of inherited associated names before declaration capability freeze
 - declaration surfaces and contract/definition joins
 - primitive, trusted target-service, runtime-storage, builtin, standard-role, and package-target

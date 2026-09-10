@@ -475,12 +475,12 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     let root_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "see ./implementation.nct\n\npub noalloc func select<T>(value: &T): &T from value\n",
+        "see ./implementation.nct\n\npub noalloc blocking func select<T>(value: &T): &T from value\n",
     );
     let implementation_id = add_source(
         &mut sources,
         "/app/implementation.nct",
-        "see ./index.nct\n\nnoalloc func select<T>(value: &T): &T from value { return }\n",
+        "see ./index.nct\n\nnoalloc blocking func select<T>(value: &T): &T from value { return }\n",
     );
     let app_manifest = parse_source(&sources, app_manifest_id, ParseGoal::SourceFile);
     let std_manifest = parse_source(&sources, std_manifest_id, ParseGoal::SourceFile);
@@ -531,6 +531,10 @@ fn joins_contract_parameters_and_implementation_body_into_one_identity() {
     assert_eq!(
         callable.guarantees().allocation(),
         nocter_model::AllocationGuarantee::NoAllocation
+    );
+    assert_eq!(
+        callable.guarantees().nonblocking(),
+        nocter_model::NonblockingGuarantee::Unspecified
     );
     let parameter = callable.parameters()[0];
     let body = callable.body().unwrap();

@@ -250,6 +250,13 @@ fn validate_value_positions(
                     TypeValidityRule::NoAllocationAsyncCallable.diagnostic(origin),
                 ));
             }
+            if callable.guarantees().nonblocking()
+                == nocter_model::NonblockingGuarantee::Unspecified
+            {
+                return Err(DeclarationTypeValidityError::Rule(
+                    TypeValidityRule::BlockingAsyncCallable.diagnostic(origin),
+                ));
+            }
         }
         validate_position(
             types,

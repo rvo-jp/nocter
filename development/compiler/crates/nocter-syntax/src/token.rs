@@ -124,6 +124,7 @@ keywords! {
     As => "as",
     Async => "async",
     Await => "await",
+    Blocking => "blocking",
     Break => "break",
     Catch => "catch",
     Continue => "continue",

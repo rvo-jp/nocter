@@ -45,6 +45,7 @@ pub enum BodyRule {
     InvalidOpaqueWitness,
     InvalidArgumentPackUse,
     NoAllocationContractViolation,
+    BlockingContractViolation,
     UnknownTupleElement,
     AwaitOutsideDeferredBody,
     InvalidAwaitOperand,
@@ -94,6 +95,7 @@ impl BodyRule {
         Self::InvalidOpaqueWitness,
         Self::InvalidArgumentPackUse,
         Self::NoAllocationContractViolation,
+        Self::BlockingContractViolation,
         Self::UnknownTupleElement,
         Self::AwaitOutsideDeferredBody,
         Self::InvalidAwaitOperand,
@@ -144,6 +146,7 @@ impl BodyRule {
             Self::InvalidOpaqueWitness => DiagnosticCode::E0408,
             Self::InvalidArgumentPackUse => DiagnosticCode::E0409,
             Self::NoAllocationContractViolation => DiagnosticCode::E0411,
+            Self::BlockingContractViolation => DiagnosticCode::E0417,
             Self::UnknownTupleElement => DiagnosticCode::E0413,
             Self::AwaitOutsideDeferredBody => DiagnosticCode::E0415,
             Self::InvalidAwaitOperand => DiagnosticCode::E0416,
@@ -191,6 +194,10 @@ impl BodyRule {
             Self::NoAllocationContractViolation => (
                 "operation may allocate inside a `noalloc` contract",
                 "remove the allocation path or remove `noalloc` from the callable contract",
+            ),
+            Self::BlockingContractViolation => (
+                "operation may synchronously wait inside a nonblocking contract",
+                "remove the blocking path or declare the immediate callable `blocking`",
             ),
             Self::AwaitOutsideDeferredBody => (
                 "`await` is outside a deferred callable body",

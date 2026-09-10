@@ -40,11 +40,13 @@ therefore independent of traversal order. The result validates:
 - every callable witness viewed through a nonblocking structural contract;
 - every interface implementation against its selected requirement.
 
-A private source-backed helper may omit `blocking`; its complete body supplies the proof consumed
-by direct callers. Bodyless declarations and callable parameters have no implementation proof and
-must expose the effect in their contract. A public contract/private implementation pair preserves
-the authored effect exactly, while a nonblocking inherent method may safely implement a `blocking`
-interface requirement.
+Every named callable, including a private source-backed helper, exposes blocking behavior in its
+contract. Checking proves an unqualified body nonblocking, while `blocking` admits either result.
+This makes direct calls and stored callable values consume the same declaration fact instead of
+making a declaration type depend on later body inference. Closure bodies remain inferred against
+their required structural callable contracts. A public contract/private implementation pair
+preserves the authored effect exactly, while a nonblocking inherent method may safely implement a
+`blocking` interface requirement.
 
 The immutable checked effect table is the last blocking-classification product. MIR, Machine,
 ARM64, the executor, LSP, and documentation presentation cannot inspect operations or names to

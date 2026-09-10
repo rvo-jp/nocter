@@ -12,6 +12,7 @@ pub enum TypeValidityRule {
     UnavailableAssociatedProjection,
     AmbiguousAssociatedProjection,
     NoAllocationAsyncCallable,
+    BlockingAsyncCallable,
 }
 
 impl TypeValidityRule {
@@ -25,6 +26,7 @@ impl TypeValidityRule {
         Self::UnavailableAssociatedProjection,
         Self::AmbiguousAssociatedProjection,
         Self::NoAllocationAsyncCallable,
+        Self::BlockingAsyncCallable,
     ];
 
     #[must_use]
@@ -39,6 +41,7 @@ impl TypeValidityRule {
             Self::UnavailableAssociatedProjection => DiagnosticCode::E0367,
             Self::AmbiguousAssociatedProjection => DiagnosticCode::E0368,
             Self::NoAllocationAsyncCallable => DiagnosticCode::E0374,
+            Self::BlockingAsyncCallable => DiagnosticCode::E0418,
         }
     }
 
@@ -79,6 +82,10 @@ impl TypeValidityRule {
             Self::NoAllocationAsyncCallable => (
                 "an asynchronous producer cannot promise `noalloc`",
                 "remove `noalloc`; creating the owning computation requires storage",
+            ),
+            Self::BlockingAsyncCallable => (
+                "an asynchronous producer cannot admit synchronous blocking",
+                "remove `blocking`; driving every `future T` must remain nonblocking",
             ),
         };
         SourceDiagnostic::new(self.code(), message, primary, [], Some(help))

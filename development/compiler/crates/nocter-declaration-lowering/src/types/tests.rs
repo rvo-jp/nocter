@@ -94,7 +94,7 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
     let app_id = add_source(
         &mut sources,
         "/app/index.nct",
-        "type Callback<T> = &+func(left: &T, right: &T): &T from right | left\n",
+        "type Callback<T> = noalloc blocking &+func(left: &T, right: &T): &T from right | left\n",
     );
     let std_root_id = add_source(
         &mut sources,
@@ -134,6 +134,14 @@ fn normalizes_explicit_callable_origins_to_parameter_positions() {
     };
 
     assert_eq!(callable.capability(), CallableCapability::ReadWrite);
+    assert_eq!(
+        callable.guarantees().allocation(),
+        nocter_model::AllocationGuarantee::NoAllocation
+    );
+    assert_eq!(
+        callable.guarantees().nonblocking(),
+        nocter_model::NonblockingGuarantee::Unspecified
+    );
     assert_eq!(callable.parameters().len(), 2);
     assert_eq!(
         callable.explicit_origins(),

@@ -164,11 +164,16 @@ fn callable_guarantees(
 ) -> Result<CallableGuarantees, HeaderDefinitionError> {
     let tree = projection::tree(types, declaration)?;
     let root = surface_node(types, declaration)?;
+    let guarantees = if syntax::direct_node(tree, root, NodeKind::NoAllocationModifier).is_some() {
+        CallableGuarantees::no_allocation()
+    } else {
+        CallableGuarantees::default()
+    };
     Ok(
-        if syntax::direct_node(tree, root, NodeKind::NoAllocationModifier).is_some() {
-            CallableGuarantees::no_allocation()
+        if syntax::direct_node(tree, root, NodeKind::BlockingModifier).is_some() {
+            guarantees.admit_blocking()
         } else {
-            CallableGuarantees::default()
+            guarantees
         },
     )
 }

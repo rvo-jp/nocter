@@ -109,6 +109,9 @@ fn targetable_kind(parser: &Parser<'_>) -> Option<DeclarationKind> {
     if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::NoAlloc) {
         cursor += 1;
     }
+    if parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Blocking) {
+        cursor += 1;
+    }
     let asynchronous = parser.tokens[cursor].kind() == TokenKind::Keyword(Keyword::Async);
     if asynchronous {
         cursor += 1;
@@ -193,6 +196,7 @@ fn function(parser: &mut Parser<'_>, primitive: bool) {
     let marker = parser.start();
     optional_visibility(parser);
     optional_noalloc(parser);
+    optional_blocking(parser);
     optional_async(parser);
     if primitive {
         parser.expect_keyword(Keyword::Primitive);
@@ -278,6 +282,14 @@ pub(super) fn optional_async(parser: &mut Parser<'_>) {
         let modifier = parser.start();
         parser.bump();
         parser.complete(modifier, NodeKind::AsyncModifier);
+    }
+}
+
+pub(super) fn optional_blocking(parser: &mut Parser<'_>) {
+    if parser.at_keyword(Keyword::Blocking) {
+        let modifier = parser.start();
+        parser.bump();
+        parser.complete(modifier, NodeKind::BlockingModifier);
     }
 }
 

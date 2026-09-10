@@ -22,8 +22,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
 - lexing and token subdivision
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation
 - event-based parsing and flat tree construction
-- structural callable modifiers, including authored `noalloc` and `async`, without effect or
-  execution interpretation
+- structural callable modifiers, including authored `noalloc`, `blocking`, and `async`, without
+  effect or execution interpretation
 - syntax diagnostics and missing/error elements
 - structural navigation and documentation extraction
 - value-free floating-literal decimal/suffix decomposition shared by semantic consumers

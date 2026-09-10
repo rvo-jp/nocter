@@ -16,6 +16,16 @@ fn check(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckEr
     check_prepared_program(&input, prepared)
 }
 
+fn check_standard(source: &str) -> Result<crate::CheckedProgramOutput, crate::BodyCheckError> {
+    let fixture = Fixture::with_standard("", source);
+    let input = fixture.input(false);
+    let lowered = lower_compile_unit_declarations(&input).unwrap();
+    let (program, frontend_bindings, source_index) = lowered.into_checking_parts();
+    let prepared =
+        prepare_program_checking(&input, program, &frontend_bindings, source_index).unwrap();
+    check_prepared_program(&input, prepared)
+}
+
 const TEXT_DECLARATIONS: &str = r#"
 struct Text {}
 construct Text {
@@ -61,6 +71,66 @@ fn source_backed_unmarked_helpers_can_be_proven_allocation_free() {
         "func helper(value: i32): i32 { return value + 1 }\nnoalloc func valid(value: i32): i32 { return helper(value) }\n",
     )
     .unwrap();
+}
+
+#[test]
+fn blocking_effects_propagate_through_the_existing_call_graph() {
+    let error = check_standard(
+        "blocking primitive func wait_raw(): void\n\
+         blocking func helper(): void { wait_raw() }\n\
+         func invalid(): void { helper() }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::BlockingContractViolation));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0417");
+
+    check_standard(
+        "blocking primitive func wait_raw(): void\n\
+         blocking func helper(): void { wait_raw() }\n\
+         blocking func valid(): void { helper() }\n",
+    )
+    .unwrap();
+}
+
+#[test]
+fn asynchronous_bodies_and_destruction_are_always_nonblocking() {
+    let error = check_standard(
+        "blocking primitive func wait_raw(): void\n\
+         async func invalid(): void { wait_raw() }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::BlockingContractViolation));
+
+    let error = check_standard(
+        "blocking primitive func wait_raw(): void\n\
+         struct Resource {}\n\
+         drop Resource(&+self) { wait_raw() }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::BlockingContractViolation));
+}
+
+#[test]
+fn closure_blocking_is_checked_against_its_structural_contract() {
+    check_standard(
+        "blocking primitive func wait_raw(): void\n\
+         blocking func valid(): void {\n\
+             let callback: blocking func(): void = () { wait_raw() }\n\
+             callback()\n\
+         }\n",
+    )
+    .unwrap();
+
+    let error = check_standard(
+        "blocking primitive func wait_raw(): void\n\
+         func invalid(): void {\n\
+             let callback: func(): void = () { wait_raw() }\n\
+             callback()\n\
+         }\n",
+    )
+    .unwrap_err();
+    assert_eq!(error.rule(), Some(BodyRule::BlockingContractViolation));
 }
 
 #[test]

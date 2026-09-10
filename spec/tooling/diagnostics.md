@@ -361,6 +361,8 @@ Source-backed checked-body diagnostics:
 - `E0417`: a callable whose contract is nonblocking can reach a synchronous external wait, a
   `blocking` callable, an unproved bodyless callable, or blocking destruction. Every asynchronous
   body is subject to this rule because all `future T` values share the nonblocking drive invariant.
+- `E0418`: an asynchronous callable is declared `blocking`; every `future T` must remain safe to
+  drive without synchronously waiting for external progress.
 
 `E0388`, `E0389`, and `E0390` cover both absence and ambiguity where their operation admits
 candidates. None reports a declaration selected only by source order.

@@ -469,6 +469,37 @@ fn parses_async_only_as_a_function_or_method_modifier() {
 }
 
 #[test]
+fn parses_blocking_on_explicit_callable_surfaces() {
+    let tree = assert_syntax_ok(
+        "pub blocking func read(): String! { return failure() }\n\
+         pub noalloc blocking primitive func sleep_raw(value: u64): void\n\
+         interface Source { pub blocking method &self.read(): String!\n\
+         pub noalloc blocking default method &self.wait(): void }\n\
+         construct Value { pub blocking func open(): Self }\n\
+         instance Value { pub blocking async method &+self.read(): String! }\n\
+         type Callback = noalloc blocking &func(): void\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::BlockingModifier)
+            .count(),
+        7
+    );
+
+    for source in [
+        "blocking pub func invalid(): void {}\n",
+        "primitive blocking func invalid(): void\n",
+        "construct Value { blocking literal \"\"(text: &str): Self }\n",
+        "instance Value { blocking coerce &self as &str }\n",
+        "blocking drop Value(&+self) {}\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
+    }
+}
+
+#[test]
 fn rejects_noncanonical_noalloc_placement() {
     for source in [
         "noalloc pub func invalid(): void {}\n",

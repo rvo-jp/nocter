@@ -483,6 +483,29 @@ fn bundled_standard_noalloc_contract_is_usable_from_an_application() {
 }
 
 #[test]
+fn blocking_callable_contract_is_presented_from_semantic_authority() {
+    let tree = TempTree::new();
+    let source_text = "pub noalloc blocking func wait(): void { return }\n";
+    let (source_path, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(71));
+    assert_eq!(snapshot.status(), AnalysisStatus::Complete);
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str() == source_path.to_str().unwrap())
+        .unwrap();
+    let offset = ByteOffset::new(u32::try_from(source_text.find("wait").unwrap()).unwrap());
+    let subject = snapshot
+        .semantic_subject(source.id(), offset)
+        .unwrap()
+        .expect("wait has no semantic subject");
+
+    assert_eq!(
+        subject.presentation().code(),
+        "pub noalloc blocking func wait(): void"
+    );
+}
+
+#[test]
 fn bundled_standard_allocation_reaches_an_application_noalloc_contract() {
     let tree = TempTree::new();
     let (_, snapshot) = bundled_snapshot(

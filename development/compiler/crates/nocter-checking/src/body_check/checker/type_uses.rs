@@ -441,13 +441,20 @@ impl BodyChecker<'_, '_> {
         } else {
             None
         };
+        let guarantees = if direct_node(self.tree(), node, NodeKind::NoAllocationModifier).is_some()
+        {
+            nocter_model::CallableGuarantees::no_allocation()
+        } else {
+            nocter_model::CallableGuarantees::default()
+        };
+        let guarantees = if direct_node(self.tree(), node, NodeKind::BlockingModifier).is_some() {
+            guarantees.admit_blocking()
+        } else {
+            guarantees
+        };
         let contract = CallableContract::new(
             capability,
-            if direct_node(self.tree(), node, NodeKind::NoAllocationModifier).is_some() {
-                nocter_model::CallableGuarantees::no_allocation()
-            } else {
-                nocter_model::CallableGuarantees::default()
-            },
+            guarantees,
             parameters,
             pack.map(nocter_model::ArgumentPack::Values),
             result,

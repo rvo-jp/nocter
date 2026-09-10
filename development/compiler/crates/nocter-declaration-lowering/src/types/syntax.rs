@@ -330,6 +330,11 @@ fn bind_callable(
     } else {
         CallableGuarantees::default()
     };
+    let guarantees = if direct_node(tree, node, NodeKind::BlockingModifier).is_some() {
+        guarantees.admit_blocking()
+    } else {
+        guarantees
+    };
     let parameters_node = direct_node(tree, node, NodeKind::CallableParameters)
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
     let mut parameters = Vec::new();

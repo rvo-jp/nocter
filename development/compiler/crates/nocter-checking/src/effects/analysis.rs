@@ -3,11 +3,11 @@ use std::collections::{BTreeMap, HashSet};
 use nocter_declarations::{BodyOwner, DeclarationGraph};
 use nocter_model::{
     AllocationGuarantee, ArenaBuilder, BodyNodeId, CallableGuarantees, CallableId, ClosureId,
-    DropId, LoopId, PlaceId,
+    DropId, LoopId, NonblockingGuarantee, PlaceId,
 };
 use nocter_toolchain_contract::StandardDeclarationRole;
 
-use super::{AllocationEffect, EffectTable};
+use super::{AllocationEffect, BlockingEffect, CallableEffects, EffectTable};
 use crate::body_relations::BodyRelationCatalog;
 use crate::{
     AggregateConstruction, AllocationSelection, ArgumentPackSegment, BodyCheckInternalError,
@@ -40,9 +40,9 @@ struct RootFacts {
 }
 
 struct Summaries {
-    callables: BTreeMap<CallableId, AllocationEffect>,
-    closures: BTreeMap<ClosureId, AllocationEffect>,
-    drops: BTreeMap<DropId, AllocationEffect>,
+    callables: BTreeMap<CallableId, CallableEffects>,
+    closures: BTreeMap<ClosureId, CallableEffects>,
+    drops: BTreeMap<DropId, CallableEffects>,
 }
 
 pub(super) fn analyze_program(
@@ -56,15 +56,10 @@ pub(super) fn analyze_program(
     loop {
         let mut changed = false;
         for (root, root_facts) in &facts {
-            if effect_cause(root_facts, &summaries).is_none() {
-                continue;
-            }
+            let reachable = inferred_effects(root_facts, &summaries);
             let slot =
                 summary_mut(&mut summaries, *root).ok_or(BodyCheckInternalError::EffectAnalysis)?;
-            if !slot.may_allocate() {
-                *slot = AllocationEffect::MayAllocate;
-                changed = true;
-            }
+            changed |= slot.include(reachable);
         }
         if !changed {
             break;
@@ -118,24 +113,20 @@ fn initial_summaries(graph: &DeclarationGraph, closures: &ClosureTable) -> Summa
         .map(|(callable, declaration)| {
             (
                 callable,
-                if declaration.body().is_some() || guaranteed_noalloc(declaration.guarantees()) {
-                    AllocationEffect::NoAllocation
-                } else {
-                    AllocationEffect::MayAllocate
-                },
+                bodyless_effects(declaration.body().is_none(), declaration.guarantees()),
             )
         })
         .collect();
     let closure_summaries = closures
         .definitions()
         .iter()
-        .map(|(closure, _)| (closure, AllocationEffect::NoAllocation))
+        .map(|(closure, _)| (closure, CallableEffects::default()))
         .collect();
     let drop_summaries = graph
         .declarations()
         .drops()
         .iter()
-        .map(|(drop, _)| (drop, AllocationEffect::NoAllocation))
+        .map(|(drop, _)| (drop, CallableEffects::default()))
         .collect();
     Summaries {
         callables,
@@ -144,44 +135,107 @@ fn initial_summaries(graph: &DeclarationGraph, closures: &ClosureTable) -> Summa
     }
 }
 
-fn effect_cause(facts: &RootFacts, summaries: &Summaries) -> Option<BodyNodeId> {
+fn bodyless_effects(bodyless: bool, guarantees: CallableGuarantees) -> CallableEffects {
+    if !bodyless {
+        return CallableEffects::default();
+    }
+    CallableEffects::new(
+        if guaranteed_noalloc(guarantees) {
+            AllocationEffect::NoAllocation
+        } else {
+            AllocationEffect::MayAllocate
+        },
+        if guaranteed_nonblocking(guarantees) {
+            BlockingEffect::Nonblocking
+        } else {
+            BlockingEffect::MayBlock
+        },
+    )
+}
+
+fn inferred_effects(facts: &RootFacts, summaries: &Summaries) -> CallableEffects {
+    let mut effects = CallableEffects::new(
+        if facts.direct_allocation.is_some() {
+            AllocationEffect::MayAllocate
+        } else {
+            AllocationEffect::NoAllocation
+        },
+        BlockingEffect::Nonblocking,
+    );
+    for (_, target) in &facts.calls {
+        effects.include(target_effects(target, summaries));
+    }
+    effects
+}
+
+fn allocation_cause(facts: &RootFacts, summaries: &Summaries) -> Option<BodyNodeId> {
     facts.direct_allocation.or_else(|| {
         facts.calls.iter().find_map(|(node, target)| {
-            target_effect(target, summaries)
+            target_effects(target, summaries)
+                .allocation()
                 .may_allocate()
                 .then_some(*node)
         })
     })
 }
 
-fn target_effect(target: &EffectTarget, summaries: &Summaries) -> AllocationEffect {
+fn blocking_cause(facts: &RootFacts, summaries: &Summaries) -> Option<BodyNodeId> {
+    facts.calls.iter().find_map(|(node, target)| {
+        target_effects(target, summaries)
+            .blocking()
+            .may_block()
+            .then_some(*node)
+    })
+}
+
+fn target_effects(target: &EffectTarget, summaries: &Summaries) -> CallableEffects {
     match target {
-        EffectTarget::Callable(callable) => summaries
-            .callables
-            .get(callable)
-            .copied()
-            .unwrap_or(AllocationEffect::MayAllocate),
-        EffectTarget::Closure(closure) => summaries
-            .closures
-            .get(closure)
-            .copied()
-            .unwrap_or(AllocationEffect::MayAllocate),
-        EffectTarget::Drop(drop) => summaries
-            .drops
-            .get(drop)
-            .copied()
-            .unwrap_or(AllocationEffect::MayAllocate),
-        EffectTarget::Contract(guarantees) => {
+        EffectTarget::Callable(callable) => {
+            summaries
+                .callables
+                .get(callable)
+                .copied()
+                .unwrap_or(CallableEffects::new(
+                    AllocationEffect::MayAllocate,
+                    BlockingEffect::MayBlock,
+                ))
+        }
+        EffectTarget::Closure(closure) => {
+            summaries
+                .closures
+                .get(closure)
+                .copied()
+                .unwrap_or(CallableEffects::new(
+                    AllocationEffect::MayAllocate,
+                    BlockingEffect::MayBlock,
+                ))
+        }
+        EffectTarget::Drop(drop) => {
+            summaries
+                .drops
+                .get(drop)
+                .copied()
+                .unwrap_or(CallableEffects::new(
+                    AllocationEffect::MayAllocate,
+                    BlockingEffect::MayBlock,
+                ))
+        }
+        EffectTarget::Contract(guarantees) => CallableEffects::new(
             if guaranteed_noalloc(*guarantees) {
                 AllocationEffect::NoAllocation
             } else {
                 AllocationEffect::MayAllocate
-            }
-        }
+            },
+            if guaranteed_nonblocking(*guarantees) {
+                BlockingEffect::Nonblocking
+            } else {
+                BlockingEffect::MayBlock
+            },
+        ),
     }
 }
 
-fn summary_mut(summaries: &mut Summaries, root: Root) -> Option<&mut AllocationEffect> {
+fn summary_mut(summaries: &mut Summaries, root: Root) -> Option<&mut CallableEffects> {
     match root {
         Root::Callable(callable) => summaries.callables.get_mut(&callable),
         Root::Closure(closure) => summaries.closures.get_mut(&closure),
@@ -197,79 +251,101 @@ fn validate_contracts(
     summaries: &Summaries,
 ) -> Result<(), BodyRelationError> {
     for (callable, declaration) in graph.declarations().callables().iter() {
-        if !guaranteed_noalloc(declaration.guarantees())
-            || !summaries
-                .callables
-                .get(&callable)
-                .copied()
-                .ok_or(BodyCheckInternalError::EffectAnalysis)?
-                .may_allocate()
-        {
-            continue;
-        }
-        let body = declaration
-            .body()
+        let effects = summaries
+            .callables
+            .get(&callable)
+            .copied()
             .ok_or(BodyCheckInternalError::EffectAnalysis)?;
-        return contract_error(
-            inputs,
-            body,
-            effect_cause(
-                facts
-                    .get(&Root::Callable(callable))
+        let Some(body) = declaration.body() else {
+            continue;
+        };
+        let root_facts = facts
+            .get(&Root::Callable(callable))
+            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+        if guaranteed_noalloc(declaration.guarantees()) && effects.allocation().may_allocate() {
+            return contract_error(
+                inputs,
+                body,
+                allocation_cause(root_facts, summaries)
                     .ok_or(BodyCheckInternalError::EffectAnalysis)?,
-                summaries,
-            )
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?,
-        );
+                BodyRule::NoAllocationContractViolation,
+            );
+        }
+        if guaranteed_nonblocking(declaration.guarantees()) && effects.blocking().may_block() {
+            return contract_error(
+                inputs,
+                body,
+                blocking_cause(root_facts, summaries)
+                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                BodyRule::BlockingContractViolation,
+            );
+        }
     }
     for (drop, declaration) in graph.declarations().drops().iter() {
-        if !guaranteed_noalloc(declaration.guarantees())
-            || !summaries
-                .drops
-                .get(&drop)
-                .copied()
-                .ok_or(BodyCheckInternalError::EffectAnalysis)?
-                .may_allocate()
-        {
-            continue;
-        }
-        return contract_error(
-            inputs,
-            declaration.body(),
-            effect_cause(
-                facts
-                    .get(&Root::Drop(drop))
+        let effects = summaries
+            .drops
+            .get(&drop)
+            .copied()
+            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+        let root_facts = facts
+            .get(&Root::Drop(drop))
+            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+        if guaranteed_noalloc(declaration.guarantees()) && effects.allocation().may_allocate() {
+            return contract_error(
+                inputs,
+                declaration.body(),
+                allocation_cause(root_facts, summaries)
                     .ok_or(BodyCheckInternalError::EffectAnalysis)?,
-                summaries,
-            )
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?,
-        );
+                BodyRule::NoAllocationContractViolation,
+            );
+        }
+        if effects.blocking().may_block() {
+            return contract_error(
+                inputs,
+                declaration.body(),
+                blocking_cause(root_facts, summaries)
+                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                BodyRule::BlockingContractViolation,
+            );
+        }
     }
     for (closure, definition) in closures.definitions().iter() {
-        if !definition
+        let effects = summaries
+            .closures
+            .get(&closure)
+            .copied()
+            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+        let root_facts = facts
+            .get(&Root::Closure(closure))
+            .ok_or(BodyCheckInternalError::EffectAnalysis)?;
+        if definition
             .callable_requirements()
             .iter()
             .any(|contract| guaranteed_noalloc(contract.guarantees()))
-            || !summaries
-                .closures
-                .get(&closure)
-                .copied()
-                .ok_or(BodyCheckInternalError::EffectAnalysis)?
-                .may_allocate()
+            && effects.allocation().may_allocate()
         {
-            continue;
-        }
-        return contract_error(
-            inputs,
-            definition.owner(),
-            effect_cause(
-                facts
-                    .get(&Root::Closure(closure))
+            return contract_error(
+                inputs,
+                definition.owner(),
+                allocation_cause(root_facts, summaries)
                     .ok_or(BodyCheckInternalError::EffectAnalysis)?,
-                summaries,
-            )
-            .ok_or(BodyCheckInternalError::EffectAnalysis)?,
-        );
+                BodyRule::NoAllocationContractViolation,
+            );
+        }
+        if definition
+            .callable_requirements()
+            .iter()
+            .any(|contract| guaranteed_nonblocking(contract.guarantees()))
+            && effects.blocking().may_block()
+        {
+            return contract_error(
+                inputs,
+                definition.owner(),
+                blocking_cause(root_facts, summaries)
+                    .ok_or(BodyCheckInternalError::EffectAnalysis)?,
+                BodyRule::BlockingContractViolation,
+            );
+        }
     }
     Ok(())
 }
@@ -278,9 +354,9 @@ fn contract_error(
     inputs: &BodyRelationCatalog<'_>,
     body: nocter_model::BodyId,
     node: BodyNodeId,
+    rule: BodyRule,
 ) -> Result<(), BodyRelationError> {
     let input = inputs.get(body)?;
-    let rule = BodyRule::NoAllocationContractViolation;
     Err(input.reject(rule, node))
 }
 
@@ -312,6 +388,10 @@ fn freeze(summaries: Summaries) -> Result<EffectTable, BodyRelationError> {
 
 const fn guaranteed_noalloc(guarantees: CallableGuarantees) -> bool {
     matches!(guarantees.allocation(), AllocationGuarantee::NoAllocation)
+}
+
+const fn guaranteed_nonblocking(guarantees: CallableGuarantees) -> bool {
+    matches!(guarantees.nonblocking(), NonblockingGuarantee::Nonblocking)
 }
 
 struct Collector<'program> {

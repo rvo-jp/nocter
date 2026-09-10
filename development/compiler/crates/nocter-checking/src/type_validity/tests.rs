@@ -49,16 +49,27 @@ fn invalid_type_positions_have_distinct_rules() {
 
 #[test]
 fn asynchronous_producer_restrictions_have_source_rules() {
-    let fixture = Fixture::new("noalloc async func impossible(): i32 { return 1 }\n");
-    let input = fixture.input(false);
-    let lowered = lower_compile_unit_declarations(&input).unwrap();
-    let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
-    let (graph, types, _admission) = program.into_parts();
-    let error =
-        validate_declaration_types(&graph, types.store(), source_index.diagnostic_origins())
-            .unwrap_err();
+    for (source, expected) in [
+        (
+            "noalloc async func impossible(): i32 { return 1 }\n",
+            "E0374",
+        ),
+        (
+            "blocking async func impossible(): i32 { return 1 }\n",
+            "E0418",
+        ),
+    ] {
+        let fixture = Fixture::new(source);
+        let input = fixture.input(false);
+        let lowered = lower_compile_unit_declarations(&input).unwrap();
+        let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();
+        let (graph, types, _admission) = program.into_parts();
+        let error =
+            validate_declaration_types(&graph, types.store(), source_index.diagnostic_origins())
+                .unwrap_err();
 
-    assert_eq!(error.source_diagnostic().unwrap().code(), "E0374");
+        assert_eq!(error.source_diagnostic().unwrap().code(), expected);
+    }
 }
 
 #[test]

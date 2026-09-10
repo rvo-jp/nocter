@@ -309,10 +309,10 @@ blocking &+func(&+[u8]): usize!
 ```
 
 An otherwise identical nonblocking callable may be used where a `blocking` callable is accepted;
-the reverse conversion is invalid. A bodyless callable, primitive, or interface requirement has no
-implementation proof and therefore exposes blocking behavior only through the explicit modifier.
-A source-backed private helper or closure may have its blocking effect inferred from its complete
-body, but that proof cannot be recovered after conversion to a `blocking` callable contract.
+the reverse conversion is invalid. Every named callable exposes blocking behavior only through the
+explicit modifier, including a source-backed private helper. This keeps its callable-value type and
+direct-call behavior identical without making declaration types depend on later body analysis.
+Closure bodies are checked against the structural callable contracts required at their use sites.
 `blocking` is incompatible with `async`: every value of type `future T` must remain safe to drive
 without synchronously waiting for external progress.
 

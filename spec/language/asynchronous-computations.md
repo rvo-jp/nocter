@@ -79,8 +79,8 @@ closures, and primitive functions do not admit the modifier in the initial model
 ordinary immediate function may return `future T` when it constructs or transfers a future value
 directly.
 
-An asynchronous body is checked against the nonblocking drive invariant. It may call a private
-source-backed helper whose complete body is proven nonblocking, but it cannot reach a `blocking`
+An asynchronous body is checked against the nonblocking drive invariant. It may call any helper
+whose callable contract is nonblocking, but it cannot reach a `blocking`
 callable directly, through interface dispatch, through a callback, or through implicit
 destruction. The `blocking async` spelling is invalid rather than creating a second kind of future.
 
@@ -210,11 +210,10 @@ pub noalloc blocking func sleep_blocking(duration: Duration): void!
 ```
 
 The modifier is an admission and an API warning, not a claim that every invocation necessarily
-waits. An unqualified public function, construction function, method, or interface requirement
-promises that no reachable execution path waits synchronously. A source-backed private helper may
-omit the modifier and have its complete effect inferred; callers consume that checked effect rather
-than assuming safety from the missing source word. Public contract/private body pairs write the
-same modifier on both sides.
+waits. Every unqualified named function, construction function, method, primitive, or interface
+requirement promises that no reachable execution path waits synchronously. This rule also applies
+to private helpers, so a declaration has the same effect when called directly or stored as a
+callable value. Public contract/private body pairs write the same modifier on both sides.
 
 Blocking behavior is transitive through direct calls, selected methods, interface dispatch,
 callable values, and destruction. Literals, coercions, operators, expansion, and drop declarations

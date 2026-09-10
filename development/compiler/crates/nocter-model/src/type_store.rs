@@ -145,10 +145,24 @@ pub enum AllocationGuarantee {
     NoAllocation,
 }
 
+/// Whether a callable contract guarantees absence of synchronous external waiting.
+///
+/// Source spells the weaker contract positively as `blocking`; keeping the semantic relation as a
+/// guarantee makes weakening directional in the same way as `noalloc`.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum NonblockingGuarantee {
+    /// Calling the value does not synchronously wait for external progress.
+    #[default]
+    Nonblocking,
+    /// The contract admits synchronous waiting.
+    Unspecified,
+}
+
 /// Source-level guarantees that participate in structural callable identity.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct CallableGuarantees {
     allocation: AllocationGuarantee,
+    nonblocking: NonblockingGuarantee,
 }
 
 impl CallableGuarantees {
@@ -156,12 +170,25 @@ impl CallableGuarantees {
     pub const fn no_allocation() -> Self {
         Self {
             allocation: AllocationGuarantee::NoAllocation,
+            nonblocking: NonblockingGuarantee::Nonblocking,
         }
+    }
+
+    /// Returns the same guarantees while admitting synchronous external waiting.
+    #[must_use]
+    pub const fn admit_blocking(mut self) -> Self {
+        self.nonblocking = NonblockingGuarantee::Unspecified;
+        self
     }
 
     #[must_use]
     pub const fn allocation(self) -> AllocationGuarantee {
         self.allocation
+    }
+
+    #[must_use]
+    pub const fn nonblocking(self) -> NonblockingGuarantee {
+        self.nonblocking
     }
 
     /// Whether a value carrying these guarantees can be used through `expected`.
@@ -171,12 +198,19 @@ impl CallableGuarantees {
     /// while the inverse would make an unproved promise.
     #[must_use]
     pub const fn can_weaken_to(self, expected: Self) -> bool {
-        match expected.allocation {
+        let allocation = match expected.allocation {
             AllocationGuarantee::Unspecified => true,
             AllocationGuarantee::NoAllocation => {
                 matches!(self.allocation, AllocationGuarantee::NoAllocation)
             }
-        }
+        };
+        let nonblocking = match expected.nonblocking {
+            NonblockingGuarantee::Unspecified => true,
+            NonblockingGuarantee::Nonblocking => {
+                matches!(self.nonblocking, NonblockingGuarantee::Nonblocking)
+            }
+        };
+        allocation && nonblocking
     }
 }
 
@@ -736,7 +770,7 @@ mod tests {
     }
 
     #[test]
-    fn callable_allocation_guarantee_participates_in_structural_identity() {
+    fn callable_guarantees_participate_in_structural_identity_and_weaken_directionally() {
         let base = TypeAuthority::new();
         let mut types = base.transaction();
         let result = types.builtin(BuiltinType::Void);
@@ -758,11 +792,25 @@ mod tests {
             ResultProvenance::empty(),
         )
         .unwrap();
+        let blocking = CallableContract::new(
+            CallableCapability::Owned,
+            CallableGuarantees::default().admit_blocking(),
+            [],
+            None,
+            result,
+            ResultProvenance::empty(),
+        )
+        .unwrap();
 
-        assert_ne!(
-            types.intern(TypeKind::Callable(ordinary)).unwrap(),
-            types.intern(TypeKind::Callable(noalloc)).unwrap()
-        );
+        let ordinary_id = types.intern(TypeKind::Callable(ordinary.clone())).unwrap();
+        let noalloc_id = types.intern(TypeKind::Callable(noalloc.clone())).unwrap();
+        let blocking_id = types.intern(TypeKind::Callable(blocking.clone())).unwrap();
+        assert_ne!(ordinary_id, noalloc_id);
+        assert_ne!(ordinary_id, blocking_id);
+        assert!(ordinary.can_weaken_to(&blocking));
+        assert!(!blocking.can_weaken_to(&ordinary));
+        assert!(noalloc.can_weaken_to(&ordinary));
+        assert!(!ordinary.can_weaken_to(&noalloc));
     }
 
     #[test]

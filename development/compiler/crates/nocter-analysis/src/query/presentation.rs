@@ -1300,6 +1300,9 @@ impl<'a> Renderer<'a> {
         if guarantees.allocation() == nocter_model::AllocationGuarantee::NoAllocation {
             self.output.push_str("noalloc ");
         }
+        if guarantees.nonblocking() == nocter_model::NonblockingGuarantee::Unspecified {
+            self.output.push_str("blocking ");
+        }
     }
 
     fn record_parameter(&mut self, start: usize) {

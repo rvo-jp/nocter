@@ -601,8 +601,7 @@ fn compatible_signature(
         || !execution_matches
         || expected.parameters().len() != actual.parameters().len()
         || expected.generic_parameters().len() != actual.generic_parameters().len()
-        || expected.guarantees().allocation() == nocter_model::AllocationGuarantee::NoAllocation
-            && actual.guarantees().allocation() != nocter_model::AllocationGuarantee::NoAllocation
+        || !actual.guarantees().can_weaken_to(expected.guarantees())
     {
         return Ok(None);
     }

@@ -130,7 +130,7 @@ pub use copyability::{
     CopyCondition, Copyability, CopyabilityBuildError, CopyabilityError, CopyabilityRule,
     CopyabilityTable,
 };
-pub use effects::{AllocationEffect, EffectTable};
+pub use effects::{AllocationEffect, BlockingEffect, CallableEffects, EffectTable};
 pub use enum_pattern_completion::{EnumPatternCompletionCandidate, EnumPatternCompletionError};
 pub use expected::{
     ExpectedBase, ExpectedEvidence, ExpectedTypeError, ExpectedTypePlan, OutcomeLayer,
