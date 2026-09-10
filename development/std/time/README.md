@@ -94,30 +94,30 @@ calendar domain.
 
 The module namespace owns the blocking sleep operation declared in [`index.nct`](index.nct).
 
-`sleep` returns only after the monotonic elapsed time since entry is at least `duration`, unless an
-OS failure other than interruption is returned. A zero duration returns immediately. A positive
-duration below the target wait resolution is rounded up so that it cannot become a zero wait.
-Oversleep is permitted.
+`sleep_blocking` returns only after the monotonic elapsed time since entry is at least `duration`,
+unless an OS failure other than interruption is returned. A zero duration returns immediately. A
+positive duration below the target wait resolution is rounded up so that it cannot become a zero
+wait. Oversleep is permitted.
 
 An interrupted target wait is not a public failure. The implementation remeasures monotonic elapsed
 time, subtracts it from the requested duration, and waits for the remainder. It does not trust a
 target-mutated timeout structure as the remaining-time authority. Another target error returns the
 built-in error code `std.time.sleep_failed`.
 
-`noalloc` guarantees only the absence of Nocter allocator requests. `sleep` blocks the current
-thread and may perform target operations. This API does not imply `noblock`, `notrap`, `realtime`,
-or another undeclared guarantee.
+`noalloc` guarantees only the absence of Nocter allocator requests. `sleep_blocking` carries the
+positive `blocking` effect because it waits on the current thread. This API does not imply
+`notrap`, `realtime`, or another undeclared guarantee.
 
-## Asynchronous Delay
+## Asynchronous Sleep
 
-`delay` accepts a `Duration` by value and returns a lazy `future void` computation. Calling it does
+`sleep` accepts a `Duration` by value and returns a lazy `future void` computation. Calling it does
 not wait. Awaiting it completes only after at least the requested monotonic duration has elapsed;
 destroying the unfinished computation cancels its pending deadline. A zero duration completes on
 its first execution without publishing a wait interest.
 
 The value parameter is intentional. `Duration` is a small copyable value, so the child computation
-does not need to retain a caller loan merely to remember a delay interval. Constructing the
-computation may allocate, so `delay` does not promise `noalloc`.
+does not need to retain a caller loan merely to remember a sleep interval. Constructing the
+computation may allocate, so `sleep` does not promise `noalloc`.
 
 The implementation converts each positive duration segment to target counter ticks with upward
 rounding. It waits in bounded one-day segments, preserving arbitrarily large `Duration` values
@@ -128,14 +128,15 @@ may split a segment into additional waits but cannot complete it early. Overslee
 
 The compiler target contract provides only the closed facts needed to read a monotonic counter,
 read its fixed frequency, compute a wrap-aware counter delta, construct one opaque deadline
-computation, and perform generic target syscalls. Package-internal time services are the sole
+computation, and perform one closed timeout wait. Package-internal time services are the sole
 semantic adapter over those primitives; public time and network implementations cannot bind the
 raw roles independently. The target contract does not construct `Duration`, `SystemTime`, or
 `UtcDateTime`; implement duration segmentation, sleep policy, or calendar arithmetic; classify
 public errors; or expose target time structures to user code.
 
-Target-specific standard-library adapters own raw wall-clock and wait ABI layouts plus one target
-operation. The target-independent `std/time` implementation owns normalization,
+The compiler target backend owns the raw timeout ABI layout and syscall identity. Target-specific
+standard-library adapters own wall-clock representation and translate the closed timeout result.
+The target-independent `std/time` implementation owns normalization,
 counter-to-duration conversion, rounding, chunking, interruption retry, and public failure policy.
 Neither layer may rediscover the other layer's facts from source spelling or machine instructions.
 

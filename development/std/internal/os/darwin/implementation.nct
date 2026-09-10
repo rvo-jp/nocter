@@ -144,9 +144,6 @@ const STDOUT_FD: usize = 1
 const STDERR_FD: usize = 2
 
 #target: "arm64-darwin"
-const SYS_SELECT: usize = 0x0200005d
-
-#target: "arm64-darwin"
 const OPEN_READ_ONLY: usize = 0
 
 #target: "arm64-darwin"

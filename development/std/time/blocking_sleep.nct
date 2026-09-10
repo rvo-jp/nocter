@@ -1,4 +1,4 @@
-//! Target-independent sleep policy over one portable timeout attempt.
+//! Target-independent blocking-sleep policy over one portable timeout attempt.
 
 see ./index.nct
 see ./duration.nct
@@ -32,7 +32,7 @@ noalloc func wait_request(remaining: &Duration): WaitRequest {
     return WaitRequest { seconds: seconds, microseconds: microseconds }
 }
 
-noalloc func sleep(duration: &Duration): void! {
+noalloc blocking func sleep_blocking(duration: &Duration): void! {
     if duration.is_zero() { return }
     let start = Instant.now()
     while true {

@@ -141,6 +141,8 @@ closed_role_enum! {
         MonotonicCounterFrequency,
         /// Computes `later - earlier` in the counter's wrapping 64-bit domain.
         MonotonicCounterDelta,
+        /// Performs one target timeout wait attempt and returns its target error code.
+        TimeoutWait,
         /// Creates one lazy computation that becomes completable after descriptor readiness.
         DescriptorReadiness,
         /// Creates one lazy computation that becomes completable after descriptor readiness or a
@@ -270,6 +272,7 @@ impl PrimitiveRole {
             Self::MonotonicCounterRead => "monotonic_counter_read",
             Self::MonotonicCounterFrequency => "monotonic_counter_frequency",
             Self::MonotonicCounterDelta => "monotonic_counter_delta",
+            Self::TimeoutWait => "timeout_wait",
             Self::DescriptorReadiness => "descriptor_readiness",
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
@@ -361,7 +364,8 @@ impl PrimitiveRole {
             ),
             may_block: matches!(
                 self,
-                Self::NetworkConnectionReceiveEvent
+                Self::TimeoutWait
+                    | Self::NetworkConnectionReceiveEvent
                     | Self::NetworkConnectionReleaseBarrier
                     | Self::NetworkListenerReceiveEvent
                     | Self::NetworkListenerReleaseBarrier
@@ -574,6 +578,7 @@ mod tests {
         assert_eq!(
             effectful,
             vec![
+                PrimitiveRole::TimeoutWait,
                 PrimitiveRole::NetworkConnectionReceiveEvent,
                 PrimitiveRole::NetworkConnectionReleaseBarrier,
                 PrimitiveRole::NetworkListenerReceiveEvent,

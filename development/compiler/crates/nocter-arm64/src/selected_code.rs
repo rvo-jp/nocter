@@ -363,6 +363,9 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinEntropySeedFill => {
             crate::system_primitive_code::emit_entropy_seed_fill(code)
         }
+        Arm64SelectedInstruction::DarwinTimeoutWait => {
+            crate::darwin_timeout_code::emit_timeout_wait(code)
+        }
         Arm64SelectedInstruction::ReadMonotonicCounter => {
             // CNTVCT_EL0 is not self-synchronizing on the baseline ARM64 target. Treat the
             // primitive as an ordered time observation rather than a bare register read so a

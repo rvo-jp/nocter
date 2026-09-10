@@ -3713,7 +3713,7 @@ fn standard_time_value_contract_crosses_native_tests() {
 }
 
 #[test]
-fn standard_async_delay_crosses_the_complete_native_session() {
+fn standard_async_sleep_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
@@ -3724,7 +3724,7 @@ fn standard_async_delay_crosses_the_complete_native_session() {
          async func main(): i32 {\n\
              let duration = time.Duration.from_milliseconds(30)\n\
              let start = time.Instant.now()\n\
-             await time.delay(duration)\n\
+             await time.sleep(duration)\n\
              if start.elapsed() < duration { return 1 }\n\
              return 0\n\
          }\n",
@@ -3739,7 +3739,7 @@ fn standard_async_delay_crosses_the_complete_native_session() {
     .unwrap();
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
-    execute_native_status(image.image(), &package_root.0, "async-delay", 0);
+    execute_native_status(image.image(), &package_root.0, "async-sleep", 0);
 }
 
 #[test]
@@ -3754,7 +3754,7 @@ fn structured_async_join_crosses_the_complete_native_session() {
          \n\
          async func number(value: i32): i32 { return value }\n\
          async func delayed_number(value: i32, milliseconds: u64): i32 {\n\
-             await time.delay(time.Duration.from_milliseconds(milliseconds))\n\
+             await time.sleep(time.Duration.from_milliseconds(milliseconds))\n\
              return value\n\
          }\n\
          \n\
@@ -3808,7 +3808,7 @@ fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
          struct Counter { value: i32 }\n\
          \n\
          async func read_after_delay(counter: &Counter): i32 {\n\
-             await time.delay(time.Duration.from_milliseconds(20))\n\
+             await time.sleep(time.Duration.from_milliseconds(20))\n\
              return counter.value\n\
          }\n\
          \n\
@@ -3858,7 +3858,7 @@ fn large_async_output_staging_preserves_the_consume_entry() {
          }\n\
          \n\
          async func hold(payload: Payload): Payload {\n\
-             await time.delay(time.Duration.from_milliseconds(20))\n\
+             await time.sleep(time.Duration.from_milliseconds(20))\n\
              return move payload\n\
          }\n\
          \n\

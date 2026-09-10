@@ -51,6 +51,7 @@ mod darwin_network_owner_creation;
 mod darwin_network_owner_event;
 mod darwin_network_owner_lifecycle;
 mod darwin_network_primitive_targets;
+mod darwin_timeout_code;
 mod darwin_tls_adapter;
 mod darwin_tls_callback;
 mod darwin_tls_connection;

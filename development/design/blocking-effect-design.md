@@ -81,12 +81,13 @@ nonblocking contract for a target operation currently hidden behind `SyscallN`, 
 closed semantic primitive role or be expressed through an already certified operation. Checking
 must not special-case constant syscall numbers, standard-module paths, or wrapper names.
 
-Phase 2 has moved allocator page mapping, page release, descriptor close, and hash-seed filling to
-the closed `MemoryMap`, `MemoryUnmap`, `DescriptorClose`, and `EntropySeedFill` roles. Their Darwin
-numbers, fixed mapping flags, and result normalization now have one target-backend owner; standard
-source no longer uses runtime syscall values to identify them. This migration is intentionally
-separate from the remaining network lifecycle work: a narrower primitive role cannot make a
-synchronous release barrier safe inside future cancellation.
+Phase 2 has moved allocator page mapping, page release, descriptor close, hash-seed filling, and
+timeout waiting to the closed `MemoryMap`, `MemoryUnmap`, `DescriptorClose`, `EntropySeedFill`, and
+`TimeoutWait` roles. Their Darwin numbers, fixed mapping or timeout layouts, and result
+normalization now have one target-backend owner; standard source no longer uses runtime syscall
+values to identify them. This migration is intentionally separate from the remaining network
+lifecycle work: a narrower primitive role cannot make a synchronous release barrier safe inside
+future cancellation.
 
 ## Standard-Library Migration Inventory
 

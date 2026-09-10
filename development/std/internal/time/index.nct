@@ -33,7 +33,11 @@ pub(/) noalloc func monotonic_delta(earlier: u64, later: u64): u64
 pub(/) async func wait_until(deadline: u64): void
 
 /// Performs one blocking timeout wait without deciding retry or remaining-time policy.
-pub(/) noalloc func wait_once(seconds: u64, microseconds: u64): WaitStatus
+pub(/) noalloc blocking func wait_once(seconds: u64, microseconds: u64): WaitStatus
+
+/// Performs one normalized Darwin timeout wait and returns zero or the target error code.
+#target: "arm64-darwin"
+noalloc blocking primitive func timeout_wait_raw(seconds: u64, microseconds: u64): i32
 
 /// Observes one normalized Unix wall-clock value or reports target failure.
 pub(/) noalloc func wall_clock_now(): WallClockAttempt

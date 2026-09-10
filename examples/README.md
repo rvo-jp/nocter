@@ -78,7 +78,7 @@ nocter run examples/tuples.nct
 
 [elapsed.nct](elapsed.nct) measures one monotonic interval and blocks for a normalized `Duration`.
 It demonstrates that `std/time` keeps target counter values and wait details behind its public
-`Instant`, `Duration`, and `time.sleep` contracts.
+`Instant`, `Duration`, and `time.sleep_blocking` contracts.
 
 ```sh
 nocter check examples/elapsed.nct

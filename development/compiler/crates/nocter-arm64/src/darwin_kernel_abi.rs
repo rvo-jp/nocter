@@ -12,6 +12,7 @@ pub(crate) enum DarwinSystemCall {
     MemoryUnmap,
     MemoryMap,
     Poll,
+    Select,
 }
 
 impl DarwinSystemCall {
@@ -24,6 +25,7 @@ impl DarwinSystemCall {
             Self::MemoryUnmap => 0x0200_0049,
             Self::MemoryMap => 0x0200_00c5,
             Self::Poll => 0x0200_00e6,
+            Self::Select => 0x0200_005d,
         }
     }
 }
@@ -78,6 +80,16 @@ impl DarwinPollAbi {
     pub(crate) const MAX_COUNT: u64 = u32::MAX as u64;
 }
 
+/// Darwin's five-argument `select` timeout ABI.
+pub(crate) struct DarwinSelectAbi;
+
+impl DarwinSelectAbi {
+    pub(crate) const TIMEOUT_ARGUMENT_INDEX: u8 = 4;
+    pub(crate) const TIMEVAL_SIZE: u64 = 16;
+    pub(crate) const SECONDS_OFFSET: u64 = 0;
+    pub(crate) const MICROSECONDS_OFFSET: u64 = 8;
+}
+
 /// Stable Darwin process descriptors used by compiler-owned diagnostics.
 pub(crate) struct DarwinProcessAbi;
 
@@ -107,6 +119,7 @@ mod tests {
             DarwinSystemCall::MemoryUnmap,
             DarwinSystemCall::MemoryMap,
             DarwinSystemCall::Poll,
+            DarwinSystemCall::Select,
         ];
         for (index, call) in calls.iter().enumerate() {
             assert!(
@@ -115,5 +128,13 @@ mod tests {
                     .all(|other| call.number() != other.number())
             );
         }
+    }
+
+    #[test]
+    fn select_timeout_layout_names_the_fifth_argument() {
+        assert_eq!(DarwinSelectAbi::TIMEOUT_ARGUMENT_INDEX, 4);
+        assert_eq!(DarwinSelectAbi::TIMEVAL_SIZE, 16);
+        assert_eq!(DarwinSelectAbi::SECONDS_OFFSET, 0);
+        assert_eq!(DarwinSelectAbi::MICROSECONDS_OFFSET, 8);
     }
 }

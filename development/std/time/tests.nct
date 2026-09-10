@@ -1,7 +1,7 @@
 //! Duration contract tests.
 
 see ./index.nct
-see ./async_delay.nct
+see ./async_sleep.nct
 use /internal/time
 use /testing
 use /mem
@@ -30,16 +30,16 @@ test duration_units_share_one_normal_form {
     return
 }
 
-test asynchronous_delay_steps_are_bounded_and_round_ticks_up {
+test asynchronous_sleep_steps_are_bounded_and_round_ticks_up {
     let large = Duration.from_seconds(100000)
-    let bounded = async_delay_step(&large)
+    let bounded = async_sleep_step(&large)
     testing.assert(bounded.whole_seconds() == 86400)?
     testing.assert(bounded.subsecond_nanoseconds() == 0)?
 
     let half_second = Duration.from_nanoseconds(500000000)
-    testing.assert(async_delay_ticks(&half_second, 10) == 5)?
+    testing.assert(async_sleep_ticks(&half_second, 10) == 5)?
     let sub_tick = Duration.from_nanoseconds(1)
-    testing.assert(async_delay_ticks(&sub_tick, 1) == 1)?
+    testing.assert(async_sleep_ticks(&sub_tick, 1) == 1)?
     return
 }
 
@@ -258,11 +258,11 @@ test target_counter_contract_has_a_bounded_frequency_and_wrapping_delta {
 
 test sleep_zero_returns_and_positive_wait_does_not_finish_early {
     let zero = Duration.from_seconds(0)
-    sleep(&zero)?
+    sleep_blocking(&zero)?
 
     let requested = Duration.from_milliseconds(2)
     let start = Instant.now()
-    sleep(&requested)?
+    sleep_blocking(&requested)?
     if start.elapsed() < requested {
         return error.new("std.time.test", "sleep returned before its requested duration")
     }

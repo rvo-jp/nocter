@@ -22,6 +22,7 @@ pub(super) fn select(
         }
         PrimitiveRole::DescriptorClose => select_descriptor_close(operation, target, selected),
         PrimitiveRole::EntropySeedFill => select_entropy_seed_fill(operation, target, selected),
+        PrimitiveRole::TimeoutWait => select_timeout_wait(operation, target, selected),
         PrimitiveRole::ProcessExit => select_exit(operation, target, selected),
         PrimitiveRole::MonotonicCounterRead | PrimitiveRole::MonotonicCounterFrequency => {
             select_counter_read(operation, target, selected)
@@ -40,6 +41,17 @@ pub(super) fn select(
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
+}
+
+fn select_timeout_wait(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 2)?;
+    validate_direct_result(operation, target, 1)?;
+    selected.push(Arm64SelectedInstruction::DarwinTimeoutWait);
+    Ok(())
 }
 
 fn select_entropy_seed_fill(

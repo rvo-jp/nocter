@@ -263,6 +263,8 @@ pub enum Arm64SelectedInstruction {
     DarwinDescriptorClose,
     /// Fills one 64-bit value from the target entropy source and returns its errno.
     DarwinEntropySeedFill,
+    /// Performs one Darwin `select` timeout and returns zero or its errno.
+    DarwinTimeoutWait,
     ReadMonotonicCounter,
     ReadMonotonicCounterFrequency,
     /// Calls the compiler-owned descriptor-readiness computation constructor.

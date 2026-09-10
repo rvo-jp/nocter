@@ -141,6 +141,7 @@ pub(crate) fn select(
         | PrimitiveRole::MemoryUnmap
         | PrimitiveRole::DescriptorClose
         | PrimitiveRole::EntropySeedFill
+        | PrimitiveRole::TimeoutWait
         | PrimitiveRole::ProcessExit
         | PrimitiveRole::MonotonicCounterRead
         | PrimitiveRole::MonotonicCounterFrequency

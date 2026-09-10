@@ -186,15 +186,15 @@
                 <span class="markdown-path-text">/std/time/index.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Durations, monotonic and wall clocks, blocking sleep, and asynchronous delay.</span>
+                <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Durations, monotonic and wall clocks, asynchronous sleep, and explicit blocking sleep.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>duration<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>async_delay<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>async_sleep<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>blocking_sleep<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>instant<span class="token-operator">.</span>nct
-<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>sleep<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>system_time<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>tests<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>utc_calendar<span class="token-operator">.</span>nct
@@ -331,11 +331,11 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">operator</span> <span class="token-operator">(</span><span class="token-operator">&amp;</span>self <span class="token-operator">&lt;</span> other<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Self</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span>
 <span class="token-operator">}</span>
 
-<span class="token-comment">/// Blocks the current thread until at least `duration` has elapsed.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">sleep</span><span class="token-operator">(</span>duration<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-
 <span class="token-comment">/// Produces a lazy computation that completes after at least `duration` has elapsed.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">func</span> <span class="token-function">delay</span><span class="token-operator">(</span>duration<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">func</span> <span class="token-function">sleep</span><span class="token-operator">(</span>duration<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
+
+<span class="token-comment">/// Blocks the current thread until at least `duration` has elapsed.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">sleep_blocking</span><span class="token-operator">(</span>duration<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 </code></pre>
             </div>
         </main>

@@ -1,12 +1,12 @@
-//! Durations, monotonic and wall clocks, blocking sleep, and asynchronous delay.
+//! Durations, monotonic and wall clocks, asynchronous sleep, and explicit blocking sleep.
 
 use /mem.TryAllocator
 use /string.String
 
 see ./duration.nct
-see ./async_delay.nct
+see ./async_sleep.nct
+see ./blocking_sleep.nct
 see ./instant.nct
-see ./sleep.nct
 see ./system_time.nct
 see ./tests.nct
 see ./utc_calendar.nct
@@ -143,8 +143,8 @@ instance UtcDateTime {
     pub noalloc operator (&self < other: &Self): bool
 }
 
-/// Blocks the current thread until at least `duration` has elapsed.
-pub noalloc func sleep(duration: &Duration): void!
-
 /// Produces a lazy computation that completes after at least `duration` has elapsed.
-pub async func delay(duration: Duration): void
+pub async func sleep(duration: Duration): void
+
+/// Blocks the current thread until at least `duration` has elapsed.
+pub noalloc blocking func sleep_blocking(duration: &Duration): void!

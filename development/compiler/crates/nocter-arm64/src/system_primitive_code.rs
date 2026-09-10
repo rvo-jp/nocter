@@ -59,6 +59,13 @@ pub(crate) fn emit_entropy_seed_fill(
         code,
         crate::darwin_kernel_abi::DarwinSystemCall::GetEntropy,
     );
+    emit_errno_result(code)
+}
+
+/// Translates Darwin's carry convention into a single zero-or-errno result in `x0`.
+pub(crate) fn emit_errno_result(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
     let complete = code.create_label();
     code.branch_conditional(complete, Arm64BranchCondition::CarrySet);
     crate::frame_access::load_immediate(code, argument(0), 0, Arm64DataSize::Bits64);

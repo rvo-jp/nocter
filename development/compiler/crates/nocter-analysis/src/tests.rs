@@ -534,10 +534,10 @@ fn monotonic_time_contract_drives_hover_navigation_and_completion() {
     let source_text = concat!(
         "use std/time\n",
         "use std/time.{Duration, Instant}\n",
-        "func pause(): void! {\n",
+        "blocking func pause(): void! {\n",
         "    let duration = Duration.from_milliseconds(1)\n",
         "    let start = Instant.now()\n",
-        "    time.sleep(&duration)?\n",
+        "    time.sleep_blocking(&duration)?\n",
         "    let _ = start.elapsed()\n",
         "    return\n",
         "}\n",
@@ -559,10 +559,10 @@ fn monotonic_time_contract_drives_hover_navigation_and_completion() {
     let sleep = snapshot
         .semantic_subject(source.id(), sleep_offset)
         .unwrap()
-        .expect("time.sleep has no semantic subject");
+        .expect("time.sleep_blocking has no semantic subject");
     assert_eq!(
         sleep.presentation().code(),
-        "pub noalloc func sleep(duration: &Duration): void!"
+        "pub noalloc blocking func sleep_blocking(duration: &Duration): void!"
     );
     let definitions = snapshot
         .semantic_definition(source.id(), sleep_offset)
@@ -588,7 +588,7 @@ fn monotonic_time_contract_drives_hover_navigation_and_completion() {
             .unwrap()
             .name()
             .as_str()
-            .ends_with("/std/time/sleep.nct")
+            .ends_with("/std/time/blocking_sleep.nct")
     );
 
     let elapsed_offset =

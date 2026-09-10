@@ -252,6 +252,7 @@ pub const fn bundled_primitive_source_location(
         Role::MonotonicCounterRead => (&["internal", "time"], "monotonic_counter_raw"),
         Role::MonotonicCounterFrequency => (&["internal", "time"], "monotonic_frequency_raw"),
         Role::MonotonicCounterDelta => (&["internal", "time"], "monotonic_delta_raw"),
+        Role::TimeoutWait => (&["internal", "time"], "timeout_wait_raw"),
         Role::DescriptorReadiness => (INTERNAL_TASK, "descriptor_readiness_raw"),
         Role::DescriptorReadinessOrDeadline => (INTERNAL_TASK, READINESS_OR_DEADLINE),
         Role::MonotonicDeadline => (&["internal", "time"], "monotonic_deadline_raw"),

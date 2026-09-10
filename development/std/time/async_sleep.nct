@@ -1,15 +1,15 @@
-//! Nonblocking duration policy over the compiler-owned monotonic deadline computation.
+//! Nonblocking sleep policy over the compiler-owned monotonic deadline computation.
 
 see ./index.nct
 see ./duration.nct
 use /internal/time
 
-const ASYNC_DELAY_MAX_STEP_SECONDS: u64 = 86400
-const ASYNC_DELAY_NANOSECONDS_PER_SECOND: u64 = 1000000000
+const ASYNC_SLEEP_MAX_STEP_SECONDS: u64 = 86400
+const ASYNC_SLEEP_NANOSECONDS_PER_SECOND: u64 = 1000000000
 
-noalloc func async_delay_step(remaining: &Duration): Duration {
-    if remaining.whole_seconds() >= ASYNC_DELAY_MAX_STEP_SECONDS {
-        return Duration.from_seconds(ASYNC_DELAY_MAX_STEP_SECONDS)
+noalloc func async_sleep_step(remaining: &Duration): Duration {
+    if remaining.whole_seconds() >= ASYNC_SLEEP_MAX_STEP_SECONDS {
+        return Duration.from_seconds(ASYNC_SLEEP_MAX_STEP_SECONDS)
     }
     return normalized_duration(
         remaining.whole_seconds(),
@@ -17,25 +17,25 @@ noalloc func async_delay_step(remaining: &Duration): Duration {
     )
 }
 
-noalloc func async_delay_ticks(step: &Duration, frequency: u64): u64 {
+noalloc func async_sleep_ticks(step: &Duration, frequency: u64): u64 {
     let whole = step.whole_seconds() * frequency
     let product = step.subsecond_nanoseconds() * frequency
-    var fractional = product / ASYNC_DELAY_NANOSECONDS_PER_SECOND
-    if product % ASYNC_DELAY_NANOSECONDS_PER_SECOND != 0 {
+    var fractional = product / ASYNC_SLEEP_NANOSECONDS_PER_SECOND
+    if product % ASYNC_SLEEP_NANOSECONDS_PER_SECOND != 0 {
         fractional += 1
     }
     return whole + fractional
 }
 
-async func delay(duration: Duration): void {
+async func sleep(duration: Duration): void {
     var remaining = normalized_duration(
         duration.whole_seconds(),
         duration.subsecond_nanoseconds(),
     )
     while !remaining.is_zero() {
-        let step = async_delay_step(&remaining)
+        let step = async_sleep_step(&remaining)
         let frequency = time.monotonic_frequency()
-        let ticks = async_delay_ticks(&step, frequency)
+        let ticks = async_sleep_ticks(&step, frequency)
         let deadline = time.monotonic_counter().wrapping_add(ticks)
         await time.wait_until(deadline)
         remaining = remaining.checked_sub(&step) otherwise { return }
