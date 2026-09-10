@@ -152,11 +152,11 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         let source_tls_connection_create = abis
             .tls_connection_create
             .map(|target| {
-                let layout = creation_layout(machine, target, 3)?;
+                let layout = creation_layout(machine, target, 5)?;
                 let production =
                     add_darwin_tls_connection_create_target(builder, &imports, connection)?;
                 let wrapper = builder.declare_function();
-                builder.define_function(wrapper, source_create_code(production, layout, 3)?)?;
+                builder.define_function(wrapper, source_create_code(production, layout, 5)?)?;
                 Ok::<Arm64FunctionId, Arm64DarwinNetworkPrimitiveError>(wrapper)
             })
             .transpose()?;

@@ -1,6 +1,6 @@
-use nocter_runtime_contract::DarwinTlsAdapterFunction;
+use nocter_runtime_contract::{DarwinTlsAdapterData, DarwinTlsAdapterFunction};
 
-use crate::{Arm64FunctionImportId, Arm64ProgramBuilder, Arm64ProgramError};
+use crate::{Arm64DataImportId, Arm64FunctionImportId, Arm64ProgramBuilder, Arm64ProgramError};
 
 /// Capability-scoped loader dependencies for TLS configuration.
 ///
@@ -9,6 +9,7 @@ use crate::{Arm64FunctionImportId, Arm64ProgramBuilder, Arm64ProgramError};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arm64DarwinTlsAdapterImports {
     functions: Box<[(DarwinTlsAdapterFunction, Arm64FunctionImportId)]>,
+    data: Box<[(DarwinTlsAdapterData, Arm64DataImportId)]>,
 }
 
 impl Arm64DarwinTlsAdapterImports {
@@ -24,7 +25,13 @@ impl Arm64DarwinTlsAdapterImports {
             .map(|role| Ok((role, program.add_function_import(role.import())?)))
             .collect::<Result<Vec<_>, Arm64ProgramError>>()?
             .into_boxed_slice();
-        Ok(Self { functions })
+        let data = DarwinTlsAdapterData::ALL
+            .iter()
+            .copied()
+            .map(|role| Ok((role, program.add_data_import(role.import())?)))
+            .collect::<Result<Vec<_>, Arm64ProgramError>>()?
+            .into_boxed_slice();
+        Ok(Self { functions, data })
     }
 
     /// Returns the unique loader slot assigned to one TLS role.
@@ -39,12 +46,25 @@ impl Arm64DarwinTlsAdapterImports {
             .find_map(|(candidate, target)| (*candidate == role).then_some(*target))
             .expect("complete Darwin TLS function catalog")
     }
+
+    /// Returns the unique loader slot assigned to one TLS data role.
+    ///
+    /// # Panics
+    ///
+    /// Only if this privately constructed value violates its complete-catalog invariant.
+    #[must_use]
+    pub fn data(&self, role: DarwinTlsAdapterData) -> Arm64DataImportId {
+        self.data
+            .iter()
+            .find_map(|(candidate, target)| (*candidate == role).then_some(*target))
+            .expect("complete Darwin TLS data catalog")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use nocter_runtime_contract::{
-        DarwinTlsAdapterFunction, RuntimeImport, RuntimeLibraryIdentity,
+        DarwinTlsAdapterData, DarwinTlsAdapterFunction, RuntimeImport, RuntimeLibraryIdentity,
     };
 
     use super::Arm64DarwinTlsAdapterImports;
@@ -58,6 +78,9 @@ mod tests {
         assert_eq!(first, second);
         for role in DarwinTlsAdapterFunction::ALL {
             assert_eq!(first.function(*role), second.function(*role));
+        }
+        for role in DarwinTlsAdapterData::ALL {
+            assert_eq!(first.data(*role), second.data(*role));
         }
 
         let entry = program.declare_function();
@@ -86,6 +109,12 @@ mod tests {
                 .iter()
                 .copied()
                 .map(|role| RuntimeImport::from(role.import()))
+                .chain(
+                    DarwinTlsAdapterData::ALL
+                        .iter()
+                        .copied()
+                        .map(|role| RuntimeImport::from(role.import())),
+                )
                 .collect::<Vec<_>>()
         );
     }

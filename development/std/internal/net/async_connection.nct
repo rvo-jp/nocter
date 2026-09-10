@@ -68,6 +68,8 @@ func connect_tls_stream_async_before(
     address: NetworkAddress,
     server_name: &str,
     application_protocol: *u8,
+    trust_anchor: *u8,
+    trust_anchor_len: usize,
     deadline: &+ConnectionDeadline,
 ): async StreamConnectionAttempt {
     if !claim_connection_attempt(deadline) {
@@ -77,6 +79,8 @@ func connect_tls_stream_async_before(
         &address,
         server_name.ptr(),
         application_protocol,
+        trust_anchor,
+        trust_anchor_len,
     ) otherwise {
         return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
     }

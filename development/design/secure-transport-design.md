@@ -171,9 +171,12 @@ path endpoints, provider errors, and fixed message contexts. Exact Block signatu
 state, receive, send, listener state, and accepted-connection callbacks are likewise closed runtime
 roles. A source-level primitive cannot choose a different loader symbol or callback signature.
 
-Connection and listener owners share one fixed five-word native record: provider object, serial
-queue, event reader, event writer, and lifecycle tag. Endpoint, parameter, Block, dispatch-data,
-path, and error objects are operation-local and cannot silently acquire a second owner lifetime.
+Connection and listener owners share one fixed six-word native record: provider object, serial
+queue, event reader, event writer, optional callback context, and lifecycle tag. The context slot is
+null for plain connections and listeners. TLS custom trust uses it for one copied DER record whose
+lifetime is shared by every provider-owned verification Block. Endpoint, parameter, Block,
+dispatch-data, path, and error objects are otherwise operation-local and cannot silently acquire a
+second owner lifetime.
 ARM64 initializes the record only after all resources exist, derives every legal transition from
 the runtime operation authority, checks the current tag in generated code, and permits terminal
 cleanup only from `quiesced`. Cleanup clears each resource slot and ends in `released`, so a second
@@ -193,4 +196,23 @@ The source-to-Machine boundary names this storage through the private standard d
 closed `NetworkOwner` runtime-storage role. Target closure removes its empty source representation,
 and Machine obtains size and alignment only from the ABI contract above. Standard source therefore
 controls visibility and unique ownership while it cannot restate, construct, or project any of the
-five native fields.
+six native fields.
+
+## Custom Trust Ownership
+
+Custom trust extends the TLS constructor rather than introducing a second connection primitive.
+System trust supplies a null anchor pointer and zero length. A custom connection supplies borrowed
+DER bytes; the compiler target checks the pair, allocates one `[length, bytes...]` record, and copies
+the bytes before Network.framework can retain a callback. The source borrow therefore ends when the
+constructor returns, while the copied record remains owned by the connection.
+
+The TLS configuration callback installs one fixed verify Block on the connection's serial queue.
+For each provider verification request, that Block copies the underlying `SecTrustRef`, constructs
+temporary CoreFoundation data, certificate, and array values, augments rather than replaces the
+system anchors, evaluates the provider-created hostname policy, releases all temporaries, and calls
+the provider completion exactly once. The provider may invoke this Block more than once; it observes
+only the immutable copied record.
+
+Terminal release first crosses the final-state and same-queue barrier. It then releases the native
+connection, which disposes its copied Blocks, before freeing the captured DER record. This order is
+owned by the runtime owner schema rather than repeated by TLS cleanup code.

@@ -40,6 +40,7 @@ pub(crate) enum Arm64DarwinConnectionParameters {
     Tls {
         callback: Arm64FunctionId,
         block: crate::Arm64DarwinBlockDescriptorId,
+        trust_context_create: Arm64FunctionId,
     },
 }
 
@@ -191,20 +192,20 @@ fn connection_create_code(
     queue_label: crate::Arm64DataId,
     parameters: Arm64DarwinConnectionParameters,
 ) -> Result<Arm64CodeBuilder, Arm64DarwinNetworkConnectionError> {
-    const FRAME_SIZE: u16 = 192;
+    const FRAME_SIZE: u16 = 224;
     const BLOCK_OFFSET: u32 = 16;
     let saved = [
-        (x(19), 96),
-        (x(20), 104),
-        (x(21), 112),
-        (x(22), 120),
-        (x(23), 128),
-        (x(24), 136),
-        (x(25), 144),
-        (x(26), 152),
-        (x(27), 160),
-        (x(28), 168),
-        (x(30), 176),
+        (x(19), 128),
+        (x(20), 136),
+        (x(21), 144),
+        (x(22), 152),
+        (x(23), 160),
+        (x(24), 168),
+        (x(25), 176),
+        (x(26), 184),
+        (x(27), 192),
+        (x(28), 200),
+        (x(30), 216),
     ];
     let mut code = Arm64CodeBuilder::new();
     adjust_stack(&mut code, Arm64AddSubtract::Subtract, FRAME_SIZE);
@@ -213,8 +214,12 @@ fn connection_create_code(
     }
     move_register(&mut code, x(19), x(0));
     move_register(&mut code, x(20), x(1));
-    move_register(&mut code, x(28), x(2));
-    store_stack(&mut code, x(3), 80);
+    immediate(&mut code, x(28), 0)?;
+    if matches!(parameters, Arm64DarwinConnectionParameters::Tls { .. }) {
+        for (register, offset) in [(x(2), 96), (x(3), 104), (x(4), 112), (x(5), 120)] {
+            store_stack(&mut code, register, offset);
+        }
+    }
 
     let channel_ready = code.create_label();
     let queue_ready = code.create_label();
@@ -222,6 +227,7 @@ fn connection_create_code(
     let parameters_ready = code.create_label();
     let connection_ready = code.create_label();
     let cleanup_parameters = code.create_label();
+    let cleanup_context = code.create_label();
     let cleanup_endpoint = code.create_label();
     let cleanup_queue = code.create_label();
     let cleanup_channel = code.create_label();
@@ -262,6 +268,30 @@ fn connection_create_code(
     code.bind(endpoint_ready)?;
     move_register(&mut code, x(24), x(0));
 
+    if let Arm64DarwinConnectionParameters::Tls {
+        trust_context_create,
+        ..
+    } = parameters
+    {
+        let context_ready = code.create_label();
+        let context_complete = code.create_label();
+        load_stack(&mut code, x(1), 120);
+        compare_zero(&mut code, x(1));
+        code.branch_conditional(context_complete, Arm64BranchCondition::Equal);
+        load_stack(&mut code, x(0), 112);
+        call_function(&mut code, trust_context_create);
+        compare_zero(&mut code, x(0));
+        code.branch_conditional(context_ready, Arm64BranchCondition::NotEqual);
+        status(
+            &mut code,
+            DarwinNetworkOwnerCreateStatus::CallbackContextUnavailable,
+        )?;
+        code.branch(cleanup_endpoint, false);
+        code.bind(context_ready)?;
+        move_register(&mut code, x(28), x(0));
+        code.bind(context_complete)?;
+    }
+
     emit_connection_parameters(&mut code, imports, parameters)?;
     compare_zero(&mut code, x(0));
     code.branch_conditional(parameters_ready, Arm64BranchCondition::NotEqual);
@@ -269,7 +299,7 @@ fn connection_create_code(
         &mut code,
         DarwinNetworkOwnerCreateStatus::ParametersUnavailable,
     )?;
-    code.branch(cleanup_endpoint, false);
+    code.branch(cleanup_context, false);
     code.bind(parameters_ready)?;
     move_register(&mut code, x(25), x(0));
 
@@ -308,16 +338,19 @@ fn connection_create_code(
     );
     emit_darwin_network_release_network_object(&mut code, imports, x(25));
     emit_darwin_network_release_network_object(&mut code, imports, x(24));
-    emit_darwin_network_owner_initialize(
-        &mut code,
-        x(19),
-        Arm64DarwinNetworkOwnerResources::new(x(26), x(23), x(21), x(22)),
-    )?;
+    let owner_resources = Arm64DarwinNetworkOwnerResources::new(x(26), x(23), x(21), x(22));
+    let owner_resources = match parameters {
+        Arm64DarwinConnectionParameters::Plain => owner_resources,
+        Arm64DarwinConnectionParameters::Tls { .. } => owner_resources.with_callback_context(x(28)),
+    };
+    emit_darwin_network_owner_initialize(&mut code, x(19), owner_resources)?;
     status(&mut code, DarwinNetworkOwnerCreateStatus::Created)?;
     code.branch(complete, false);
 
     code.bind(cleanup_parameters)?;
     emit_darwin_network_release_network_object(&mut code, imports, x(25));
+    code.bind(cleanup_context)?;
+    emit_optional_heap_release(&mut code, imports, x(28))?;
     code.bind(cleanup_endpoint)?;
     emit_darwin_network_release_network_object(&mut code, imports, x(24));
     code.bind(cleanup_queue)?;
@@ -352,20 +385,33 @@ fn emit_connection_parameters(
                 x(0),
             );
         }
-        Arm64DarwinConnectionParameters::Tls { callback, block } => {
+        Arm64DarwinConnectionParameters::Tls {
+            callback, block, ..
+        } => {
             const CONFIGURATION_OFFSET: u32 = 16;
-            const CONFIGURATION_BLOCK_OFFSET: u32 = 40;
+            const CONFIGURATION_BLOCK_OFFSET: u32 = 56;
             let schema = DarwinTlsConfigurationAbiSchema::ARM64_DARWIN;
+            load_stack(code, x(8), 96);
             store_stack(
                 code,
-                x(28),
+                x(8),
                 CONFIGURATION_OFFSET + offset(schema.server_name_offset())?,
             );
-            load_stack(code, x(8), 80);
+            load_stack(code, x(8), 104);
             store_stack(
                 code,
                 x(8),
                 CONFIGURATION_OFFSET + offset(schema.application_protocol_offset())?,
+            );
+            store_stack(
+                code,
+                x(28),
+                CONFIGURATION_OFFSET + offset(schema.trust_context_offset())?,
+            );
+            store_stack(
+                code,
+                x(23),
+                CONFIGURATION_OFFSET + offset(schema.verify_queue_offset())?,
             );
             store_zero_stack(
                 code,
@@ -550,6 +596,28 @@ fn call(code: &mut Arm64CodeBuilder, target: crate::Arm64FunctionImportId) {
         target: x(16),
         link: true,
     });
+}
+
+fn call_function(code: &mut Arm64CodeBuilder, target: Arm64FunctionId) {
+    code.load_function_address(target, x(16));
+    code.append(Arm64Instruction::BranchRegister {
+        target: x(16),
+        link: true,
+    });
+}
+
+fn emit_optional_heap_release(
+    code: &mut Arm64CodeBuilder,
+    imports: &Arm64DarwinNetworkAdapterImports,
+    allocation: Arm64Register,
+) -> Result<(), Arm64DarwinNetworkConnectionError> {
+    let complete = code.create_label();
+    compare_zero(code, allocation);
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    move_register(code, x(0), allocation);
+    call(code, imports.function(DarwinNetworkAdapterFunction::Free));
+    code.bind(complete)?;
+    Ok(())
 }
 
 #[derive(Debug)]

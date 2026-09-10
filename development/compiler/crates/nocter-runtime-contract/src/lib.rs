@@ -39,8 +39,10 @@ pub use darwin_network_owner::{
     DarwinNetworkOwnerAbiSchema, DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerField,
     DarwinNetworkOwnerResourceFamily,
 };
-pub use darwin_tls::DarwinTlsConfigurationAbiSchema;
-pub use darwin_tls_import::DarwinTlsAdapterFunction;
+pub use darwin_tls::{
+    DarwinTlsCallbackRole, DarwinTlsConfigurationAbiSchema, DarwinTlsTrustAnchorAbiSchema,
+};
+pub use darwin_tls_import::{DarwinTlsAdapterData, DarwinTlsAdapterFunction};
 pub use environment::{RuntimeEnvironment, RuntimeEnvironmentError};
 pub use import::{
     RuntimeDataImport, RuntimeFunctionImport, RuntimeImport, RuntimeImportError,

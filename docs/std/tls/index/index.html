@@ -194,12 +194,24 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>net<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">SocketAddress</span><span class="token-operator">,</span> <span class="token-type">TcpShutdown</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-type">Duration</span>
-
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>trust_anchor<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>stream<span class="token-operator">.</span>nct
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>async_stream<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// One uniquely owned authenticated TLS client byte stream.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">TlsStream</span>
+
+<span class="token-comment">/// One owned DER certificate added to, rather than substituted for, the system trust store.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">TrustAnchor</span>
+
+<span class="token-keyword">construct</span> <span class="token-type">TrustAnchor</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Copies one non-empty DER-encoded X.509 certificate.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">from_der</span><span class="token-operator">(</span>certificate<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-keyword">instance</span> <span class="token-type">TrustAnchor</span> <span class="token-operator">{</span>
+    <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span> from self
+<span class="token-operator">}</span>
 
 <span class="token-keyword">construct</span> <span class="token-type">TlsStream</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Resolves `host` and connects to the first authenticated address in system order.</span>
@@ -207,6 +219,21 @@
 
     <span class="token-comment">/// Resolves and authenticates candidates without restarting `timeout` for each address.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_with_timeout</span><span class="token-operator">(</span>host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span> timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Authenticates with the system trust store plus one caller-supplied root certificate.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_with_trust_anchor</span><span class="token-operator">(</span>
+        host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+        port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
+        trust_anchor<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">TrustAnchor</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Authenticates with an additional root without restarting the fixed timeout per address.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_with_trust_anchor_and_timeout</span><span class="token-operator">(</span>
+        host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+        port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
+        trust_anchor<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">TrustAnchor</span><span class="token-operator">,</span>
+        timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
+    <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Resolves synchronously, then authenticates candidates without blocking the executor thread.</span>
@@ -216,6 +243,21 @@
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_async_with_timeout</span><span class="token-operator">(</span>
     host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
+    timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Resolves synchronously, then authenticates asynchronously with one additional root.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_async_with_trust_anchor</span><span class="token-operator">(</span>
+    host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+    port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
+    trust_anchor<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">TrustAnchor</span><span class="token-operator">,</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
+
+<span class="token-comment">/// Authenticates asynchronously with an additional root before one fixed timeout.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">connect_async_with_trust_anchor_and_timeout</span><span class="token-operator">(</span>
+    host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
+    port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">,</span>
+    trust_anchor<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">TrustAnchor</span><span class="token-operator">,</span>
     timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
 

@@ -779,7 +779,13 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::NetworkTlsConnectionCreate => make(
             0,
-            vec![byte_pointer(), byte_pointer(), byte_pointer()],
+            vec![
+                byte_pointer(),
+                byte_pointer(),
+                byte_pointer(),
+                byte_pointer(),
+                usize(),
+            ],
             TypeContract::optional(network_owner()),
             private,
             arm64_darwin,

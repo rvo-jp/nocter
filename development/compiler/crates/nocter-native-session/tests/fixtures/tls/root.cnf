@@ -1,0 +1,13 @@
+[req]
+distinguished_name = subject
+x509_extensions = certificate
+prompt = no
+
+[subject]
+CN = Nocter Test Root
+
+[certificate]
+basicConstraints = critical,CA:TRUE,pathlen:0
+keyUsage = critical,keyCertSign,cRLSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always

@@ -169,7 +169,6 @@ pub enum DarwinNetworkChannelIoOutcome {
 /// Fixed Block roles admitted by the Darwin Network adapter.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum DarwinNetworkCallbackRole {
-    ConfigureProtocol,
     ConnectionState,
     ConnectionReceive,
     ConnectionSend,
@@ -179,7 +178,6 @@ pub enum DarwinNetworkCallbackRole {
 
 impl DarwinNetworkCallbackRole {
     pub const ALL: &'static [Self] = &[
-        Self::ConfigureProtocol,
         Self::ConnectionState,
         Self::ConnectionReceive,
         Self::ConnectionSend,
@@ -191,7 +189,6 @@ impl DarwinNetworkCallbackRole {
     #[must_use]
     pub const fn block_signature(self) -> &'static [u8] {
         match self {
-            Self::ConfigureProtocol => b"v16@?0^{nw_protocol_options=}8\0",
             Self::ConnectionState | Self::ListenerState => b"v20@?0i8^{nw_error=}12\0",
             Self::ConnectionReceive => {
                 b"v36@?0^{dispatch_data_s=}8^{nw_content_context=}16B24^{nw_error=}28\0"
@@ -204,7 +201,6 @@ impl DarwinNetworkCallbackRole {
     #[must_use]
     pub const fn event_kind(self) -> Option<DarwinNetworkEventKind> {
         match self {
-            Self::ConfigureProtocol => None,
             Self::ConnectionState => Some(DarwinNetworkEventKind::ConnectionState),
             Self::ConnectionReceive => Some(DarwinNetworkEventKind::ReceiveCompletion),
             Self::ConnectionSend => Some(DarwinNetworkEventKind::SendCompletion),
@@ -452,7 +448,6 @@ mod tests {
         assert_eq!(schema.payload_offset(4), None);
 
         let events = [
-            None,
             Some(DarwinNetworkEventKind::ConnectionState),
             Some(DarwinNetworkEventKind::ReceiveCompletion),
             Some(DarwinNetworkEventKind::SendCompletion),

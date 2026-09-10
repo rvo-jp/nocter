@@ -6,9 +6,11 @@ use nocter_runtime_contract::{
 
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
-    Arm64CodeBuilder, Arm64CodeError, Arm64DarwinTlsAdapterImports, Arm64DataRegister,
-    Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide,
-    Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
+    Arm64CodeBuilder, Arm64CodeError, Arm64DarwinBlockDescriptorId, Arm64DarwinBlockError,
+    Arm64DarwinTlsAdapterImports, Arm64DataImportId, Arm64DataRegister, Arm64DataSize,
+    Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64MoveWide, Arm64ProgramBuilder,
+    Arm64ProgramError, Arm64Register, load_darwin_stack_block_address,
+    materialize_darwin_pointer_capture_stack_block,
 };
 
 /// Adds the fixed synchronous TLS-parameter configuration callback.
@@ -24,13 +26,16 @@ use crate::{
 pub fn add_darwin_tls_configuration_callback(
     program: &mut Arm64ProgramBuilder,
     imports: &Arm64DarwinTlsAdapterImports,
+    stack_block_class: Arm64DataImportId,
+    verify_callback: Arm64FunctionId,
+    verify_block: Arm64DarwinBlockDescriptorId,
 ) -> Result<Arm64FunctionId, Arm64DarwinTlsCallbackError> {
     let target = program.declare_function();
     let mut code = Arm64CodeBuilder::new();
     let schema = DarwinTlsConfigurationAbiSchema::ARM64_DARWIN;
     let block = DarwinBlockAbiSchema::ARM64_DARWIN;
-    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 64);
-    for (register, offset) in [(x(19), 32), (x(20), 40), (x(21), 48), (x(30), 56)] {
+    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 96);
+    for (register, offset) in [(x(19), 48), (x(20), 56), (x(21), 64), (x(30), 88)] {
         store_stack(&mut code, register, offset);
     }
     load_from(&mut code, x(19), x(0), offset(block.captures_offset())?);
@@ -84,6 +89,14 @@ pub fn add_darwin_tls_configuration_callback(
     );
 
     code.bind(configured)?;
+    emit_custom_trust_configuration(
+        &mut code,
+        imports,
+        schema,
+        stack_block_class,
+        verify_callback,
+        verify_block,
+    )?;
     move_register(&mut code, x(0), x(20));
     call(
         &mut code,
@@ -100,16 +113,48 @@ pub fn add_darwin_tls_configuration_callback(
         imports.function(DarwinTlsAdapterFunction::SecurityRelease),
     );
     code.bind(complete)?;
-    for (register, offset) in [(x(19), 32), (x(20), 40), (x(21), 48), (x(30), 56)] {
+    for (register, offset) in [(x(19), 48), (x(20), 56), (x(21), 64), (x(30), 88)] {
         load_stack(&mut code, register, offset);
     }
-    adjust_stack(&mut code, Arm64AddSubtract::Add, 64);
+    adjust_stack(&mut code, Arm64AddSubtract::Add, 96);
     code.append(Arm64Instruction::BranchRegister {
         target: x(30),
         link: false,
     });
     program.define_function(target, code.finish()?)?;
     Ok(target)
+}
+
+fn emit_custom_trust_configuration(
+    code: &mut Arm64CodeBuilder,
+    imports: &Arm64DarwinTlsAdapterImports,
+    schema: DarwinTlsConfigurationAbiSchema,
+    stack_block_class: Arm64DataImportId,
+    verify_callback: Arm64FunctionId,
+    verify_block: Arm64DarwinBlockDescriptorId,
+) -> Result<(), Arm64DarwinTlsCallbackError> {
+    load_from(code, x(21), x(19), offset(schema.trust_context_offset())?);
+    let complete = code.create_label();
+    compare_zero(code, x(21));
+    code.branch_conditional(complete, Arm64BranchCondition::Equal);
+    materialize_darwin_pointer_capture_stack_block(
+        code,
+        0,
+        stack_block_class,
+        verify_callback,
+        verify_block,
+        x(21),
+        x(8),
+    )?;
+    move_register(code, x(0), x(20));
+    load_darwin_stack_block_address(code, 0, x(1))?;
+    load_from(code, x(2), x(19), offset(schema.verify_queue_offset())?);
+    call(
+        code,
+        imports.function(DarwinTlsAdapterFunction::SetVerifyBlock),
+    );
+    code.bind(complete)?;
+    Ok(())
 }
 
 fn offset(value: u64) -> Result<u32, Arm64DarwinTlsCallbackError> {
@@ -218,6 +263,7 @@ fn call(code: &mut Arm64CodeBuilder, target: crate::Arm64FunctionImportId) {
 #[derive(Debug)]
 pub enum Arm64DarwinTlsCallbackError {
     ContractLayout,
+    Block(Arm64DarwinBlockError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -231,6 +277,7 @@ impl fmt::Display for Arm64DarwinTlsCallbackError {
 impl std::error::Error for Arm64DarwinTlsCallbackError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Block(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::ContractLayout => None,
@@ -244,6 +291,12 @@ impl From<Arm64CodeError> for Arm64DarwinTlsCallbackError {
     }
 }
 
+impl From<Arm64DarwinBlockError> for Arm64DarwinTlsCallbackError {
+    fn from(error: Arm64DarwinBlockError) -> Self {
+        Self::Block(error)
+    }
+}
+
 impl From<Arm64ProgramError> for Arm64DarwinTlsCallbackError {
     fn from(error: Arm64ProgramError) -> Self {
         Self::Program(error)
@@ -252,13 +305,32 @@ impl From<Arm64ProgramError> for Arm64DarwinTlsCallbackError {
 
 #[cfg(test)]
 mod tests {
+    use nocter_runtime_contract::{DarwinNetworkAdapterData, DarwinTlsCallbackRole};
+
     use super::add_darwin_tls_configuration_callback;
-    use crate::{Arm64DarwinTlsAdapterImports, Arm64ProgramBuilder};
+    use crate::{
+        Arm64DarwinNetworkAdapterImports, Arm64DarwinTlsAdapterImports, Arm64ProgramBuilder,
+        add_darwin_pointer_capture_block_descriptor, add_darwin_tls_verify_callback,
+    };
 
     #[test]
     fn configuration_callback_uses_the_capability_scoped_imports() {
         let mut program = Arm64ProgramBuilder::new();
+        let network = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
         let imports = Arm64DarwinTlsAdapterImports::declare(&mut program).unwrap();
-        add_darwin_tls_configuration_callback(&mut program, &imports).unwrap();
+        let verify_callback = add_darwin_tls_verify_callback(&mut program, &imports).unwrap();
+        let verify_block = add_darwin_pointer_capture_block_descriptor(
+            &mut program,
+            DarwinTlsCallbackRole::VerifyTrust.block_signature(),
+        )
+        .unwrap();
+        add_darwin_tls_configuration_callback(
+            &mut program,
+            &imports,
+            network.data(DarwinNetworkAdapterData::StackBlockClass),
+            verify_callback,
+            verify_block,
+        )
+        .unwrap();
     }
 }

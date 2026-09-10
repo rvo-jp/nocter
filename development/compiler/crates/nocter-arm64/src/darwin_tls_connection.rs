@@ -1,6 +1,6 @@
 use std::fmt;
 
-use nocter_runtime_contract::DarwinNetworkCallbackRole;
+use nocter_runtime_contract::{DarwinNetworkAdapterData, DarwinTlsCallbackRole};
 
 use crate::darwin_network_connection::{
     Arm64DarwinConnectionParameters, add_darwin_connection_create_target,
@@ -10,6 +10,7 @@ use crate::{
     Arm64DarwinNetworkConnectionTargets, Arm64DarwinTlsAdapterImports, Arm64DarwinTlsCallbackError,
     Arm64FunctionId, Arm64ProgramBuilder, Arm64ProgramError,
     add_darwin_pointer_capture_block_descriptor, add_darwin_tls_configuration_callback,
+    add_darwin_tls_trust_context_create_target, add_darwin_tls_verify_callback,
 };
 
 /// Adds the TLS-only connection constructor over the common connection owner lifecycle.
@@ -27,11 +28,23 @@ pub fn add_darwin_tls_connection_create_target(
     connection: Arm64DarwinNetworkConnectionTargets,
 ) -> Result<Arm64FunctionId, Arm64DarwinTlsConnectionError> {
     let tls = Arm64DarwinTlsAdapterImports::declare(program)?;
-    let callback = add_darwin_tls_configuration_callback(program, &tls)?;
+    let verify_callback = add_darwin_tls_verify_callback(program, &tls)?;
+    let verify_block = add_darwin_pointer_capture_block_descriptor(
+        program,
+        DarwinTlsCallbackRole::VerifyTrust.block_signature(),
+    )?;
+    let callback = add_darwin_tls_configuration_callback(
+        program,
+        &tls,
+        network.data(DarwinNetworkAdapterData::StackBlockClass),
+        verify_callback,
+        verify_block,
+    )?;
     let block = add_darwin_pointer_capture_block_descriptor(
         program,
-        DarwinNetworkCallbackRole::ConfigureProtocol.block_signature(),
+        DarwinTlsCallbackRole::ConfigureProtocol.block_signature(),
     )?;
+    let trust_context_create = add_darwin_tls_trust_context_create_target(program, &tls)?;
     let queue_label = program.add_data(b"nocter.network.tls.connection\0".as_slice(), 1)?;
     add_darwin_connection_create_target(
         program,
@@ -39,7 +52,11 @@ pub fn add_darwin_tls_connection_create_target(
         connection.state_callback(),
         connection.state_block(),
         queue_label,
-        Arm64DarwinConnectionParameters::Tls { callback, block },
+        Arm64DarwinConnectionParameters::Tls {
+            callback,
+            block,
+            trust_context_create,
+        },
     )
     .map_err(Into::into)
 }
@@ -48,6 +65,7 @@ pub fn add_darwin_tls_connection_create_target(
 pub enum Arm64DarwinTlsConnectionError {
     Block(Arm64DarwinBlockError),
     Callback(Arm64DarwinTlsCallbackError),
+    TrustContext(crate::Arm64DarwinTlsTrustContextError),
     Connection(Arm64DarwinNetworkConnectionError),
     Program(Arm64ProgramError),
 }
@@ -63,6 +81,7 @@ impl std::error::Error for Arm64DarwinTlsConnectionError {
         match self {
             Self::Block(error) => Some(error),
             Self::Callback(error) => Some(error),
+            Self::TrustContext(error) => Some(error),
             Self::Connection(error) => Some(error),
             Self::Program(error) => Some(error),
         }
@@ -78,6 +97,12 @@ impl From<Arm64DarwinBlockError> for Arm64DarwinTlsConnectionError {
 impl From<Arm64DarwinTlsCallbackError> for Arm64DarwinTlsConnectionError {
     fn from(error: Arm64DarwinTlsCallbackError) -> Self {
         Self::Callback(error)
+    }
+}
+
+impl From<crate::Arm64DarwinTlsTrustContextError> for Arm64DarwinTlsConnectionError {
+    fn from(error: crate::Arm64DarwinTlsTrustContextError) -> Self {
+        Self::TrustContext(error)
     }
 }
 

@@ -16,6 +16,7 @@ use /internal/ptr
 use /io.{Reader, Writer}
 use /net as net
 use /net.{SocketAddress, TcpShutdown}
+use /ptr as public_ptr
 use /string.String
 use /time.Duration
 
@@ -27,6 +28,8 @@ func connect_candidates(
     host: &str,
     addresses: &[SocketAddress],
     application_protocol: *u8,
+    trust_anchor: *u8,
+    trust_anchor_len: usize,
     deadline: &+ConnectionDeadline,
 ): TlsStream! {
     var server_name = String.copy(host)
@@ -40,6 +43,8 @@ func connect_candidates(
             net.substrate_address(&address),
             server_text.ptr(),
             application_protocol,
+            trust_anchor,
+            trust_anchor_len,
             deadline,
         ) {
             StreamConnectionAttempt.ready(connection) {
@@ -64,13 +69,64 @@ construct TlsStream {
     func connect(host: &str, port: u16): Self! {
         var deadline = substrate.connection_deadline(none)
         let addresses = net.resolve(host, port)?
-        return connect_candidates(host, &addresses, ptr.from_addr(0), &+deadline)
+        return connect_candidates(
+            host,
+            &addresses,
+            ptr.from_addr(0),
+            ptr.from_addr(0),
+            0,
+            &+deadline,
+        )
     }
 
     func connect_with_timeout(host: &str, port: u16, timeout: Duration): Self! {
         var deadline = substrate.connection_deadline(timeout)
         let addresses = net.resolve(host, port)?
-        return connect_candidates(host, &addresses, ptr.from_addr(0), &+deadline)
+        return connect_candidates(
+            host,
+            &addresses,
+            ptr.from_addr(0),
+            ptr.from_addr(0),
+            0,
+            &+deadline,
+        )
+    }
+
+    func connect_with_trust_anchor(
+        host: &str,
+        port: u16,
+        trust_anchor: &TrustAnchor,
+    ): Self! {
+        var deadline = substrate.connection_deadline(none)
+        let addresses = net.resolve(host, port)?
+        let bytes = trust_anchor.bytes()
+        return connect_candidates(
+            host,
+            &addresses,
+            ptr.from_addr(0),
+            public_ptr.from_ref(&bytes[0]),
+            bytes.len(),
+            &+deadline,
+        )
+    }
+
+    func connect_with_trust_anchor_and_timeout(
+        host: &str,
+        port: u16,
+        trust_anchor: &TrustAnchor,
+        timeout: Duration,
+    ): Self! {
+        var deadline = substrate.connection_deadline(timeout)
+        let addresses = net.resolve(host, port)?
+        let bytes = trust_anchor.bytes()
+        return connect_candidates(
+            host,
+            &addresses,
+            ptr.from_addr(0),
+            public_ptr.from_ref(&bytes[0]),
+            bytes.len(),
+            &+deadline,
+        )
     }
 }
 
@@ -78,7 +134,14 @@ func connect_http1(host: &str, port: u16): TlsStream! {
     var deadline = substrate.connection_deadline(none)
     let addresses = net.resolve(host, port)?
     let protocol = http1_application_protocol()
-    return connect_candidates(host, &addresses, protocol.ptr(), &+deadline)
+    return connect_candidates(
+        host,
+        &addresses,
+        protocol.ptr(),
+        ptr.from_addr(0),
+        0,
+        &+deadline,
+    )
 }
 
 func connect_http1_with_timeout(
@@ -89,7 +152,14 @@ func connect_http1_with_timeout(
     var deadline = substrate.connection_deadline(timeout)
     let addresses = net.resolve(host, port)?
     let protocol = http1_application_protocol()
-    return connect_candidates(host, &addresses, protocol.ptr(), &+deadline)
+    return connect_candidates(
+        host,
+        &addresses,
+        protocol.ptr(),
+        ptr.from_addr(0),
+        0,
+        &+deadline,
+    )
 }
 
 instance TlsStream {

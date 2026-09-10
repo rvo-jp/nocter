@@ -1,0 +1,27 @@
+//! Owned custom trust-anchor bytes independent of provider-native certificate values.
+
+see ./index.nct
+
+use /vec.Vec
+
+struct TrustAnchor {
+    der: Vec<u8>
+}
+
+construct TrustAnchor {
+    func from_der(certificate: &[u8]): Self! {
+        if certificate.len() == 0 {
+            return error.new(
+                "std.tls.invalid_trust_anchor",
+                "a TLS trust anchor must contain DER certificate bytes",
+            )
+        }
+        return TrustAnchor { der: Vec.from_slice(certificate) }
+    }
+}
+
+instance TrustAnchor {
+    noalloc method &self.bytes(): &[u8] from self {
+        return &self.der
+    }
+}

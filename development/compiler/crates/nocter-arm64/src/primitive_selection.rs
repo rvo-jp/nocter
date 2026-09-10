@@ -201,8 +201,8 @@ fn select_network_primitive(
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
         ],
-        PrimitiveRole::NetworkTlsConnectionCreate
-        | PrimitiveRole::NetworkConnectionReceiveEvent => &[
+        PrimitiveRole::NetworkTlsConnectionCreate => NETWORK_TLS_CREATE_ARGUMENTS,
+        PrimitiveRole::NetworkConnectionReceiveEvent => &[
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
@@ -284,6 +284,14 @@ fn select_network_primitive(
     ));
     Ok(())
 }
+
+const NETWORK_TLS_CREATE_ARGUMENTS: &[MachineValueClass] = &[
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+    MachineValueClass::Direct { words: 1 },
+];
 
 fn select_typed_view(
     operation: MachineOperationId,

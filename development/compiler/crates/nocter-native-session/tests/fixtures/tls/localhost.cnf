@@ -1,0 +1,25 @@
+[req]
+distinguished_name = subject
+req_extensions = request
+prompt = no
+
+[subject]
+CN = localhost
+
+[certificate]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @names
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid,issuer
+
+[request]
+basicConstraints = critical,CA:FALSE
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @names
+subjectKeyIdentifier = hash
+
+[names]
+DNS.1 = localhost

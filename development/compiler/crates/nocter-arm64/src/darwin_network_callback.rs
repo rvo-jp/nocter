@@ -32,8 +32,7 @@ pub fn add_darwin_network_state_callback(
             role.event_kind()
                 .ok_or(Arm64DarwinNetworkCallbackError::UnsupportedRole(role))?
         }
-        DarwinNetworkCallbackRole::ConfigureProtocol
-        | DarwinNetworkCallbackRole::ConnectionReceive
+        DarwinNetworkCallbackRole::ConnectionReceive
         | DarwinNetworkCallbackRole::ConnectionSend
         | DarwinNetworkCallbackRole::ListenerAccept => {
             return Err(Arm64DarwinNetworkCallbackError::UnsupportedRole(role));
@@ -103,8 +102,7 @@ pub fn add_darwin_network_state_callback(
 ///
 /// # Errors
 ///
-/// Rejects a configuration or state role and propagates code, channel, and program construction
-/// errors.
+/// Rejects a state role and propagates code, channel, and program construction errors.
 pub fn add_darwin_network_completion_callback(
     program: &mut Arm64ProgramBuilder,
     role: DarwinNetworkCallbackRole,
@@ -115,9 +113,7 @@ pub fn add_darwin_network_completion_callback(
         DarwinNetworkCallbackRole::ConnectionReceive => receive_callback(imports)?,
         DarwinNetworkCallbackRole::ConnectionSend => send_callback(imports)?,
         DarwinNetworkCallbackRole::ListenerAccept => accepted_connection_callback(imports)?,
-        DarwinNetworkCallbackRole::ConfigureProtocol
-        | DarwinNetworkCallbackRole::ConnectionState
-        | DarwinNetworkCallbackRole::ListenerState => {
+        DarwinNetworkCallbackRole::ConnectionState | DarwinNetworkCallbackRole::ListenerState => {
             return Err(Arm64DarwinNetworkCallbackError::UnsupportedRole(role));
         }
     };

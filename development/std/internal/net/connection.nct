@@ -167,6 +167,8 @@ noalloc func connect_tls_stream_before(
     address: NetworkAddress,
     server_name: *u8,
     application_protocol: *u8,
+    trust_anchor: *u8,
+    trust_anchor_len: usize,
     deadline: &+ConnectionDeadline,
 ): StreamConnectionAttempt {
     if !claim_connection_attempt(deadline) {
@@ -176,6 +178,8 @@ noalloc func connect_tls_stream_before(
         &address,
         server_name,
         application_protocol,
+        trust_anchor,
+        trust_anchor_len,
     ) otherwise {
         return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
     }

@@ -216,12 +216,16 @@ noalloc func tls_connection_create(
     address: &NetworkAddress,
     server_name: *u8,
     application_protocol: *u8,
+    trust_anchor: *u8,
+    trust_anchor_len: usize,
 ): NetworkOwner? {
     let native = native_address(address)
     return network_tls_connection_create_raw(
         ptr.from_ref(&native.bytes[0]),
         server_name,
         application_protocol,
+        trust_anchor,
+        trust_anchor_len,
     )?
 }
 

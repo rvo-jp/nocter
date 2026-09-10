@@ -2489,7 +2489,7 @@ fn serve_plain_tls_peers_and_require_https_alpn(fixture: &std::net::TcpListener)
     use std::thread;
     use std::time::Duration;
 
-    for connection_index in 0..4 {
+    for connection_index in 0..5 {
         let (mut stream, _) = fixture.accept().unwrap();
         let mut record_header = [0_u8; 5];
         stream.read_exact(&mut record_header).unwrap();
@@ -2500,7 +2500,7 @@ fn serve_plain_tls_peers_and_require_https_alpn(fixture: &std::net::TcpListener)
         let record_len = usize::from(u16::from_be_bytes([record_header[3], record_header[4]]));
         let mut client_hello = vec![0_u8; record_len];
         stream.read_exact(&mut client_hello).unwrap();
-        if connection_index >= 2 {
+        if connection_index == 2 || connection_index == 3 {
             assert!(
                 client_hello
                     .windows(b"http/1.1".len())
@@ -2530,7 +2530,7 @@ fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
             "use std/http.{{Client, Request}}\n\
              use std/time.Duration\n\
              use std/tls as tls\n\
-             use std/tls.TlsStream\n\
+             use std/tls.{{TlsStream, TrustAnchor}}\n\
              use std/url.Url\n\
              \n\
              func rejects_sync(): bool {{\n\
@@ -2585,11 +2585,25 @@ fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
                  return false\n\
              }}\n\
              \n\
+             func rejects_invalid_custom_anchor(): bool {{\n\
+                 let anchor = TrustAnchor.from_der(\"x\".bytes()) catch _ {{ return false }}\n\
+                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                     \"localhost\",\n\
+                     {port},\n\
+                     &anchor,\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch failure {{\n\
+                     return failure.has_code(\"std.net.tls_failed\")\n\
+                 }}\n\
+                 return false\n\
+             }}\n\
+             \n\
              func main(): async i32 {{\n\
                  if !rejects_sync() {{ return 1 }}\n\
                  if !await rejects_async() {{ return 2 }}\n\
                  if !rejects_https_sync() {{ return 3 }}\n\
                  if !await rejects_https_async() {{ return 4 }}\n\
+                 if !rejects_invalid_custom_anchor() {{ return 5 }}\n\
                  return 0\n\
              }}\n"
         ),
@@ -2608,6 +2622,192 @@ fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
     let server = thread::spawn(move || serve_plain_tls_peers_and_require_https_alpn(&fixture));
     execute_native_status(image.image(), &package_root.0, "tls-plain-peer", 0);
     server.join().unwrap();
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+struct LocalTlsServer(std::process::Child);
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+impl Drop for LocalTlsServer {
+    fn drop(&mut self) {
+        let _ = self.0.kill();
+        let _ = self.0.wait();
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn start_local_tls_server(port: u16, certificate: &Path, key: &Path) -> LocalTlsServer {
+    use std::process::Stdio;
+    use std::thread;
+    use std::time::Duration;
+
+    let child = std::process::Command::new("/usr/bin/openssl")
+        .args([
+            "s_server",
+            "-accept",
+            &port.to_string(),
+            "-cert",
+            certificate.to_str().unwrap(),
+            "-key",
+            key.to_str().unwrap(),
+            "-quiet",
+            "-www",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut server = LocalTlsServer(child);
+    for _ in 0..100 {
+        assert!(
+            server.0.try_wait().unwrap().is_none(),
+            "local TLS server exited"
+        );
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            return server;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    panic!("local TLS server did not start");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn create_local_tls_fixture(configuration_root: &Path, output_root: &Path) {
+    use std::process::Command;
+
+    fn run(command: &mut Command) {
+        let output = command.output().unwrap();
+        assert!(
+            output.status.success(),
+            "OpenSSL fixture generation failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let root_key = output_root.join("root-key.pem");
+    let root_certificate = output_root.join("root-cert.pem");
+    let leaf_key = output_root.join("localhost-key.pem");
+    let leaf_request = output_root.join("localhost.csr");
+    let leaf_certificate = output_root.join("localhost-cert.pem");
+    let root_der = output_root.join("root-cert.der");
+    let root_configuration = configuration_root.join("root.cnf");
+    let leaf_configuration = configuration_root.join("localhost.cnf");
+
+    run(Command::new("/usr/bin/openssl")
+        .args([
+            "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "365",
+        ])
+        .args(["-sha256", "-config"])
+        .arg(&root_configuration)
+        .arg("-keyout")
+        .arg(&root_key)
+        .arg("-out")
+        .arg(&root_certificate));
+    run(Command::new("/usr/bin/openssl")
+        .args(["req", "-newkey", "rsa:2048", "-nodes", "-sha256", "-config"])
+        .arg(&leaf_configuration)
+        .arg("-keyout")
+        .arg(&leaf_key)
+        .arg("-out")
+        .arg(&leaf_request));
+    run(Command::new("/usr/bin/openssl")
+        .args(["x509", "-req", "-in"])
+        .arg(&leaf_request)
+        .arg("-CA")
+        .arg(&root_certificate)
+        .arg("-CAkey")
+        .arg(&root_key)
+        .args([
+            "-CAcreateserial",
+            "-set_serial",
+            "1000",
+            "-days",
+            "300",
+            "-sha256",
+        ])
+        .arg("-extfile")
+        .arg(&leaf_configuration)
+        .args(["-extensions", "certificate", "-out"])
+        .arg(&leaf_certificate));
+    run(Command::new("/usr/bin/openssl")
+        .args(["x509", "-in"])
+        .arg(&root_certificate)
+        .args(["-outform", "der", "-out"])
+        .arg(&root_der));
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
+    use std::net::TcpListener;
+
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = reservation.local_addr().unwrap().port();
+    drop(reservation);
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
+    let package_root = TempPackage::new();
+    create_local_tls_fixture(&fixture_root, &package_root.0);
+    let certificate = package_root.0.join("localhost-cert.pem");
+    let key = package_root.0.join("localhost-key.pem");
+    let _server = start_local_tls_server(port, &certificate, &key);
+
+    let standard_root = compiler_root.join("../std");
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/fs\n\
+             use std/time.Duration\n\
+             use std/tls as tls\n\
+             use std/tls.{{TlsStream, TrustAnchor}}\n\
+             \n\
+             func rejects_mismatched_name(anchor: &TrustAnchor): bool {{\n\
+                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                     \"127.0.0.1\", {port}, anchor, Duration.from_seconds(1),\n\
+                 ) catch failure {{ return failure.has_code(\"std.net.tls_failed\") }}\n\
+                 return false\n\
+             }}\n\
+             \n\
+             func accepts_asynchronously(anchor: &TrustAnchor): async bool {{\n\
+                 let pending = tls.connect_async_with_trust_anchor_and_timeout(\n\
+                     \"localhost\", {port}, anchor, Duration.from_seconds(1),\n\
+                 ) catch _ {{ return false }}\n\
+                 var stream = await pending catch _ {{ return false }}\n\
+                 stream.close()\n\
+                 return true\n\
+             }}\n\
+             \n\
+             func main(): async i32 {{\n\
+                 let _system = TlsStream.connect_with_timeout(\n\
+                     \"localhost\", {port}, Duration.from_seconds(1),\n\
+                 ) catch failure {{\n\
+                     if !failure.has_code(\"std.net.tls_failed\") {{ return 1 }}\n\
+                     let certificate = fs.read(\"root-cert.der\") catch _ {{ return 2 }}\n\
+                     let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 3 }}\n\
+                     var stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                         \"localhost\", {port}, &anchor, Duration.from_seconds(1),\n\
+                     ) catch _ {{ return 4 }}\n\
+                     stream.close()\n\
+                     if !rejects_mismatched_name(&anchor) {{ return 5 }}\n\
+                     if !await accepts_asynchronously(&anchor) {{ return 6 }}\n\
+                     return 0\n\
+                 }}\n\
+                 return 7\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "tls-custom-trust", 0);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

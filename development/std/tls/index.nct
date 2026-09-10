@@ -6,12 +6,24 @@
 use /io.{Reader, Writer}
 use /net.{SocketAddress, TcpShutdown}
 use /time.Duration
-
+see ./trust_anchor.nct
 see ./stream.nct
 see ./async_stream.nct
 
 /// One uniquely owned authenticated TLS client byte stream.
 pub struct TlsStream
+
+/// One owned DER certificate added to, rather than substituted for, the system trust store.
+pub struct TrustAnchor
+
+construct TrustAnchor {
+    /// Copies one non-empty DER-encoded X.509 certificate.
+    pub func from_der(certificate: &[u8]): Self!
+}
+
+instance TrustAnchor {
+    pub(/) noalloc method &self.bytes(): &[u8] from self
+}
 
 construct TlsStream {
     /// Resolves `host` and connects to the first authenticated address in system order.
@@ -19,6 +31,21 @@ construct TlsStream {
 
     /// Resolves and authenticates candidates without restarting `timeout` for each address.
     pub func connect_with_timeout(host: &str, port: u16, timeout: Duration): Self!
+
+    /// Authenticates with the system trust store plus one caller-supplied root certificate.
+    pub func connect_with_trust_anchor(
+        host: &str,
+        port: u16,
+        trust_anchor: &TrustAnchor,
+    ): Self!
+
+    /// Authenticates with an additional root without restarting the fixed timeout per address.
+    pub func connect_with_trust_anchor_and_timeout(
+        host: &str,
+        port: u16,
+        trust_anchor: &TrustAnchor,
+        timeout: Duration,
+    ): Self!
 }
 
 /// Resolves synchronously, then authenticates candidates without blocking the executor thread.
@@ -28,6 +55,21 @@ pub func connect_async(host: &str, port: u16): (async TlsStream!)!
 pub func connect_async_with_timeout(
     host: &str,
     port: u16,
+    timeout: Duration,
+): (async TlsStream!)!
+
+/// Resolves synchronously, then authenticates asynchronously with one additional root.
+pub func connect_async_with_trust_anchor(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+): (async TlsStream!)!
+
+/// Authenticates asynchronously with an additional root before one fixed timeout.
+pub func connect_async_with_trust_anchor_and_timeout(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
     timeout: Duration,
 ): (async TlsStream!)!
 

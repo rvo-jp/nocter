@@ -53,6 +53,7 @@ pub enum DarwinNetworkOwnerCreateStatus {
     EndpointUnavailable,
     ParametersUnavailable,
     NativeOwnerUnavailable,
+    CallbackContextUnavailable,
 }
 
 impl DarwinNetworkOwnerCreateStatus {
@@ -63,6 +64,7 @@ impl DarwinNetworkOwnerCreateStatus {
         Self::EndpointUnavailable,
         Self::ParametersUnavailable,
         Self::NativeOwnerUnavailable,
+        Self::CallbackContextUnavailable,
     ];
 
     #[must_use]
@@ -74,6 +76,7 @@ impl DarwinNetworkOwnerCreateStatus {
             Self::EndpointUnavailable => 3,
             Self::ParametersUnavailable => 4,
             Self::NativeOwnerUnavailable => 5,
+            Self::CallbackContextUnavailable => 6,
         }
     }
 
@@ -86,6 +89,7 @@ impl DarwinNetworkOwnerCreateStatus {
             3 => Some(Self::EndpointUnavailable),
             4 => Some(Self::ParametersUnavailable),
             5 => Some(Self::NativeOwnerUnavailable),
+            6 => Some(Self::CallbackContextUnavailable),
             _ => None,
         }
     }
@@ -183,6 +187,6 @@ mod tests {
                 Some(status)
             );
         }
-        assert_eq!(DarwinNetworkOwnerCreateStatus::from_code(6), None);
+        assert_eq!(DarwinNetworkOwnerCreateStatus::from_code(7), None);
     }
 }

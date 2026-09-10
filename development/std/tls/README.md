@@ -12,6 +12,13 @@ system trust store. The host text remains the authentication identity even when 
 back between IPv6 and IPv4 candidates. TLS 1.2 is the minimum accepted protocol version; the
 operating-system provider may negotiate a newer version.
 
+`TrustAnchor.from_der` copies one non-empty DER certificate. The custom-trust connection
+operations add that certificate to the operating-system roots; they do not replace system trust or
+disable hostname authentication. Certificate parsing and path validation occur during connection,
+so malformed non-empty DER is reported as `std.net.tls_failed`, not during byte ownership
+construction. The asynchronous operations copy the anchor into the deferred computation and do not
+borrow the caller's `TrustAnchor` after returning.
+
 `tls.connect_async` and `tls.connect_async_with_timeout` perform resolution before returning a
 deferred computation. Resolution failure therefore belongs to the outer result; authentication or
 transport failure after the computation starts belongs to the awaited result. The timeout variant
