@@ -23,7 +23,7 @@ pub(/) enum NetworkProviderFailure {
 /// Provider-independent progress states for one connection owner.
 pub(/) enum NetworkConnectionState {
     preparing
-    waiting
+    waiting(failure: NetworkProviderFailure?)
     ready
     failed(failure: NetworkProviderFailure?)
     cancelled

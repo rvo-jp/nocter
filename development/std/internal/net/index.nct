@@ -64,6 +64,12 @@ pub(/) noalloc func connect_stream(
     timeout: Duration?,
 ): StreamConnectionAttempt
 
+/// Connects synchronously without restarting one shared candidate deadline.
+pub(/) noalloc func connect_stream_before(
+    address: NetworkAddress,
+    deadline: &+ConnectionDeadline,
+): StreamConnectionAttempt
+
 /// Connects one provider-backed stream without blocking the executor thread.
 pub(/) func connect_stream_async(address: NetworkAddress): async StreamConnectionAttempt
 

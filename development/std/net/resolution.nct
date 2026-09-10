@@ -8,9 +8,9 @@ see ./values.nct
 use /internal/mem as internal_mem
 use /internal/net as substrate
 use /internal/net.{
-    DescriptorAttempt,
     ConnectionDeadline,
     ResolveAttempt,
+    StreamConnectionAttempt,
 }
 use /internal/net/model.{ResolverFailure, ResolverNext}
 use /mem as mem_module
@@ -189,11 +189,11 @@ noalloc func connect_resolved(
     var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
     while offset < addresses.len() {
         let address = addresses[offset]
-        match substrate.connect_tcp_before(substrate_address(&address), deadline) {
-            DescriptorAttempt.ready(descriptor) {
-                return stream_from_descriptor(move descriptor)
+        match substrate.connect_stream_before(substrate_address(&address), deadline) {
+            StreamConnectionAttempt.ready(ready_connection) {
+                return stream_from_connection(move ready_connection)
             }
-            DescriptorAttempt.failed(failure) {
+            StreamConnectionAttempt.failed(failure) {
                 last_failure = network_error(move failure)
             }
         }
@@ -211,14 +211,14 @@ func connect_resolved_async(
     var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
     while offset < addresses.len() {
         let address = addresses[offset]
-        match await substrate.connect_tcp_async_before(
+        match await substrate.connect_stream_async_before(
             substrate_address(&address),
             &+deadline,
         ) {
-            DescriptorAttempt.ready(descriptor) {
-                return stream_from_descriptor(move descriptor)
+            StreamConnectionAttempt.ready(ready_connection) {
+                return stream_from_connection(move ready_connection)
             }
-            DescriptorAttempt.failed(failure) {
+            StreamConnectionAttempt.failed(failure) {
                 last_failure = network_error(move failure)
             }
         }

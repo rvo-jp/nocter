@@ -5,15 +5,20 @@ see ./errors.nct
 see ./tcp.nct
 
 use /internal/net
-use /internal/net.{AcceptAttempt, DescriptorAttempt, TransferAttempt, UnitAttempt}
+use /internal/net.{
+    StreamConnectionAttempt,
+    StreamListenerAcceptAttempt,
+    TransferAttempt,
+    UnitAttempt,
+}
 use /time.Duration
 
 func connect_tcp_async(address: SocketAddress): async TcpStream! {
-    match await net.connect_tcp_async(substrate_address(&address)) {
-        DescriptorAttempt.ready(descriptor) {
-            return stream_from_descriptor(move descriptor)
+    match await net.connect_stream_async(substrate_address(&address)) {
+        StreamConnectionAttempt.ready(connection) {
+            return stream_from_connection(move connection)
         }
-        DescriptorAttempt.failed(failure) { return network_error(move failure) }
+        StreamConnectionAttempt.failed(failure) { return network_error(move failure) }
     }
 }
 
@@ -21,17 +26,17 @@ func connect_tcp_async_with_timeout(
     address: SocketAddress,
     timeout: Duration,
 ): async TcpStream! {
-    match await net.connect_tcp_async_with_timeout(substrate_address(&address), timeout) {
-        DescriptorAttempt.ready(descriptor) {
-            return stream_from_descriptor(move descriptor)
+    match await net.connect_stream_async_with_timeout(substrate_address(&address), timeout) {
+        StreamConnectionAttempt.ready(connection) {
+            return stream_from_connection(move connection)
         }
-        DescriptorAttempt.failed(failure) { return network_error(move failure) }
+        StreamConnectionAttempt.failed(failure) { return network_error(move failure) }
     }
 }
 
 instance TcpStream {
     method &+self.read_async(buffer: &+[u8]): async usize! {
-        match await self.descriptor.read_stream_async(buffer) {
+        match await self.connection.read_async(buffer) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return network_error(move failure) }
         }
@@ -41,14 +46,14 @@ instance TcpStream {
         buffer: &+[u8],
         timeout: Duration,
     ): async usize! {
-        match await self.descriptor.read_stream_async_with_timeout(buffer, timeout) {
+        match await self.connection.read_async_with_timeout(buffer, timeout) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
     method &+self.write_async(bytes: &[u8]): async void! {
-        match await self.descriptor.write_stream_async(bytes) {
+        match await self.connection.write_async(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
         }
@@ -58,7 +63,7 @@ instance TcpStream {
         bytes: &[u8],
         timeout: Duration,
     ): async void! {
-        match await self.descriptor.write_stream_async_with_timeout(bytes, timeout) {
+        match await self.connection.write_async_with_timeout(bytes, timeout) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
         }
@@ -67,22 +72,22 @@ instance TcpStream {
 
 instance TcpListener {
     method &+self.accept_async(): async (TcpStream, SocketAddress)! {
-        match await self.descriptor.accept_tcp_async() {
-            AcceptAttempt.ready(descriptor, peer) {
-                return (stream_from_descriptor(move descriptor), public_address(peer))
+        match await self.listener.accept_async() {
+            StreamListenerAcceptAttempt.ready(connection, peer) {
+                return (stream_from_connection(move connection), public_address(peer))
             }
-            AcceptAttempt.failed(failure) { return network_error(move failure) }
+            StreamListenerAcceptAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
     method &+self.accept_async_with_timeout(
         timeout: Duration,
     ): async (TcpStream, SocketAddress)! {
-        match await self.descriptor.accept_tcp_async_with_timeout(timeout) {
-            AcceptAttempt.ready(descriptor, peer) {
-                return (stream_from_descriptor(move descriptor), public_address(peer))
+        match await self.listener.accept_async_with_timeout(timeout) {
+            StreamListenerAcceptAttempt.ready(connection, peer) {
+                return (stream_from_connection(move connection), public_address(peer))
             }
-            AcceptAttempt.failed(failure) { return network_error(move failure) }
+            StreamListenerAcceptAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 }

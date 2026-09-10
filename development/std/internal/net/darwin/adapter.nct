@@ -293,7 +293,7 @@ noalloc func connection_next_event(
     if event.0 == 0 {
         let failure = connection_provider_failure(event.2, event.3)
         if event.1 == 1 {
-            return NetworkConnectionEvent.state(NetworkConnectionState.waiting)
+            return NetworkConnectionEvent.state(NetworkConnectionState.waiting(move failure))
         }
         if event.1 == 2 {
             return NetworkConnectionEvent.state(NetworkConnectionState.preparing)

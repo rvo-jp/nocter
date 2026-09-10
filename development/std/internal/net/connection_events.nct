@@ -39,7 +39,9 @@ noalloc func reduce_connect_event(event: NetworkConnectionEvent): StreamConnectP
         NetworkConnectionEvent.state(state) {
             match move state {
                 NetworkConnectionState.preparing { return StreamConnectProgress.pending }
-                NetworkConnectionState.waiting { return StreamConnectProgress.pending }
+                NetworkConnectionState.waiting(failure) {
+                    return StreamConnectProgress.failed(provider_failure(move failure))
+                }
                 NetworkConnectionState.ready { return StreamConnectProgress.ready }
                 NetworkConnectionState.failed(failure) {
                     return StreamConnectProgress.failed(provider_failure(move failure))
@@ -56,7 +58,7 @@ noalloc func reduce_read_event(event: NetworkConnectionEvent): StreamReadProgres
         NetworkConnectionEvent.state(state) {
             match move state {
                 NetworkConnectionState.preparing { return StreamReadProgress.pending }
-                NetworkConnectionState.waiting { return StreamReadProgress.pending }
+                NetworkConnectionState.waiting(_) { return StreamReadProgress.pending }
                 NetworkConnectionState.ready { return StreamReadProgress.pending }
                 NetworkConnectionState.failed(failure) {
                     return StreamReadProgress.failed(provider_failure(move failure))
@@ -79,7 +81,7 @@ noalloc func reduce_write_event(event: NetworkConnectionEvent): StreamWriteProgr
         NetworkConnectionEvent.state(state) {
             match move state {
                 NetworkConnectionState.preparing { return StreamWriteProgress.pending }
-                NetworkConnectionState.waiting { return StreamWriteProgress.pending }
+                NetworkConnectionState.waiting(_) { return StreamWriteProgress.pending }
                 NetworkConnectionState.ready { return StreamWriteProgress.pending }
                 NetworkConnectionState.failed(failure) {
                     return StreamWriteProgress.failed(provider_failure(move failure))
