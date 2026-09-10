@@ -48,30 +48,30 @@ construct TlsStream {
     ): Self!
 }
 
-/// Retains one host endpoint, then resolves and authenticates while the future is driven.
-pub func connect_async(host: &str, port: u16): (future TlsStream!)!
+/// Validates, resolves, and authenticates one host while the future is driven.
+pub async func connect_async(host: &str, port: u16): TlsStream!
 
 /// Resolves and authenticates through the provider before one future-owned fixed timeout.
-pub func connect_async_with_timeout(
+pub async func connect_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (future TlsStream!)!
+): TlsStream!
 
 /// Resolves and authenticates asynchronously with one retained additional root.
-pub func connect_async_with_trust_anchor(
+pub async func connect_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (future TlsStream!)!
+): TlsStream!
 
 /// Authenticates asynchronously with an additional root before one fixed timeout.
-pub func connect_async_with_trust_anchor_and_timeout(
+pub async func connect_async_with_trust_anchor_and_timeout(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (future TlsStream!)!
+): TlsStream!
 
 /// Opens one package-internal TLS stream that requires negotiated HTTP/1.1.
 pub(/) blocking func connect_http1(host: &str, port: u16): TlsStream!
@@ -98,30 +98,30 @@ pub(/) blocking func connect_http1_with_trust_anchor_and_timeout(
     timeout: Duration,
 ): TlsStream!
 
-/// Retains one endpoint and returns a package-internal HTTP/1.1 TLS computation.
-pub(/) func connect_http1_async(host: &str, port: u16): (future TlsStream!)!
+/// Validates, resolves, and opens one package-internal HTTP/1.1 TLS stream asynchronously.
+pub(/) async func connect_http1_async(host: &str, port: u16): TlsStream!
 
 /// Resolves and authenticates HTTP/1.1 TLS before a future-owned fixed timeout.
-pub(/) func connect_http1_async_with_timeout(
+pub(/) async func connect_http1_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (future TlsStream!)!
+): TlsStream!
 
 /// Returns one package-internal HTTP/1.1 computation with an additional trust root.
-pub(/) func connect_http1_async_with_trust_anchor(
+pub(/) async func connect_http1_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (future TlsStream!)!
+): TlsStream!
 
 /// Returns one custom-trust HTTP/1.1 computation bounded by a fixed timeout.
-pub(/) func connect_http1_async_with_trust_anchor_and_timeout(
+pub(/) async func connect_http1_async_with_trust_anchor_and_timeout(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (future TlsStream!)!
+): TlsStream!
 
 instance TlsStream {
     impl Reader

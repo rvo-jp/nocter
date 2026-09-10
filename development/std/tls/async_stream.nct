@@ -54,130 +54,130 @@ async func connect_endpoint_async(
     }
 }
 
-func begin_connect_async(
+async func connect_with_options_async(
     host: &str,
     port: u16,
     application_protocol: String,
     trust_anchor: Vec<u8>,
     timeout: Duration?,
-): (future TlsStream!)! {
+): TlsStream! {
     let endpoint = net.host_endpoint(host, port)?
-    return connect_endpoint_async(
+    return await connect_endpoint_async(
         move endpoint,
         move application_protocol,
         move trust_anchor,
         timeout,
-    )
+    )?
 }
 
-func connect_async(host: &str, port: u16): (future TlsStream!)! {
-    return begin_connect_async(
+async func connect_async(host: &str, port: u16): TlsStream! {
+    return await connect_with_options_async(
         host,
         port,
         String.empty(),
         Vec.empty(),
         none,
-    )
+    )?
 }
 
-func connect_async_with_timeout(
+async func connect_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (future TlsStream!)! {
-    return begin_connect_async(
+): TlsStream! {
+    return await connect_with_options_async(
         host,
         port,
         String.empty(),
         Vec.empty(),
         timeout,
-    )
+    )?
 }
 
-func connect_async_with_trust_anchor(
+async func connect_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (future TlsStream!)! {
-    return begin_connect_async(
+): TlsStream! {
+    return await connect_with_options_async(
         host,
         port,
         String.empty(),
         Vec.from_slice(trust_anchor.bytes()),
         none,
-    )
+    )?
 }
 
-func connect_async_with_trust_anchor_and_timeout(
+async func connect_async_with_trust_anchor_and_timeout(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (future TlsStream!)! {
-    return begin_connect_async(
+): TlsStream! {
+    return await connect_with_options_async(
         host,
         port,
         String.empty(),
         Vec.from_slice(trust_anchor.bytes()),
         timeout,
-    )
+    )?
 }
 
-func connect_http1_async(host: &str, port: u16): (future TlsStream!)! {
+async func connect_http1_async(host: &str, port: u16): TlsStream! {
     let application_protocol = http1_application_protocol()
-    return begin_connect_async(
+    return await connect_with_options_async(
         host,
         port,
         move application_protocol,
         Vec.empty(),
         none,
-    )
+    )?
 }
 
-func connect_http1_async_with_timeout(
+async func connect_http1_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (future TlsStream!)! {
+): TlsStream! {
     let application_protocol = http1_application_protocol()
-    return begin_connect_async(
+    return await connect_with_options_async(
         host,
         port,
         move application_protocol,
         Vec.empty(),
         timeout,
-    )
+    )?
 }
 
-func connect_http1_async_with_trust_anchor(
+async func connect_http1_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (future TlsStream!)! {
+): TlsStream! {
     let application_protocol = http1_application_protocol()
-    return begin_connect_async(
+    return await connect_with_options_async(
         host,
         port,
         move application_protocol,
         Vec.from_slice(trust_anchor.bytes()),
         none,
-    )
+    )?
 }
 
-func connect_http1_async_with_trust_anchor_and_timeout(
+async func connect_http1_async_with_trust_anchor_and_timeout(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (future TlsStream!)! {
+): TlsStream! {
     let application_protocol = http1_application_protocol()
-    return begin_connect_async(
+    return await connect_with_options_async(
         host,
         port,
         move application_protocol,
         Vec.from_slice(trust_anchor.bytes()),
         timeout,
-    )
+    )?
 }
 
 instance TlsStream {

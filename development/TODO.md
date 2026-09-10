@@ -4,9 +4,10 @@
 
 Nocter v0.44.0 is published and externally audited. v0.45.0 Phases 0 and 1 are complete. Phase 2
 has established nonwaiting network disposal, provider-backed asynchronous host setup, an explicit
-synchronous resolver effect, exact primitive blocking validation, and propagated synchronous
-standard-library contracts. The adopted model makes nonblocking drive a universal `future T`
-invariant and marks synchronous external waiting with the positive `blocking` callable effect.
+synchronous resolver effect, exact primitive blocking validation, propagated synchronous
+standard-library contracts, and single-layer awaited failures for asynchronous host, TLS, and HTTP
+setup. The adopted model makes nonblocking drive a universal `future T` invariant and marks
+synchronous external waiting with the positive `blocking` callable effect.
 
 ## Next Work
 

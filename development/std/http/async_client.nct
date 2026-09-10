@@ -58,32 +58,30 @@ async func read_response_head_async(
     }
 }
 
-async func send_after_connect(
+async func send_prepared_request_async(
     prepared: PreparedRequest,
-    pending_connection: future ClientTransport!,
+    connection: ClientTransport,
     timeout: Duration?,
 ): Response! {
     var owned = move prepared
-    var connection = await pending_connection catch failure {
-        return failure.context("while connecting the HTTP request")
-    }
-    await write_http_transport_async(&+connection, &owned.encoded, timeout) catch failure {
+    var stream = move connection
+    await write_http_transport_async(&+stream, &owned.encoded, timeout) catch failure {
         return failure.context("while writing the HTTP request head")
     }
     if owned.request.body_value.len() != 0 {
         let body: &[u8] = &owned.request.body_value
-        await write_http_transport_async(&+connection, body, timeout) catch failure {
+        await write_http_transport_async(&+stream, body, timeout) catch failure {
             return failure.context("while writing the HTTP request body")
         }
     }
     let parsed = await read_response_head_async(
-        &+connection,
+        &+stream,
         owned.request.head_value.request_method(),
         owned.limits,
         timeout,
     )?
     return response_from_parts(
-        move connection,
+        move stream,
         move parsed.head,
         move parsed.decoder,
         move parsed.pending,
@@ -91,21 +89,21 @@ async func send_after_connect(
     )
 }
 
-func begin_async_send(
+async func send_request_async(
     limits: Limits,
     trust: &ClientTrust,
     request: Request,
     timeout: Duration?,
-): (future Response!)! {
+): Response! {
     let prepared = prepare_request(move request, limits)?
-    let pending_connection = begin_client_transport_async(
+    let connection = await connect_client_transport_async(
         &prepared.request.url_value,
         trust,
         timeout,
     ) catch failure {
         return failure.context("while resolving the HTTP request host")
     }
-    return send_after_connect(move prepared, move pending_connection, timeout)
+    return await send_prepared_request_async(move prepared, move connection, timeout)?
 }
 
 async func read_response_body_async(
@@ -165,15 +163,15 @@ async func read_response_body_async(
 }
 
 instance Client {
-    method &self.send_async(request: Request): (future Response!)! {
-        return begin_async_send(self.limits_value, &self.trust, move request, none)
+    async method &self.send_async(request: Request): Response! {
+        return await send_request_async(self.limits_value, &self.trust, move request, none)?
     }
 
-    method &self.send_async_with_timeout(
+    async method &self.send_async_with_timeout(
         request: Request,
         timeout: Duration,
-    ): (future Response!)! {
-        return begin_async_send(self.limits_value, &self.trust, move request, timeout)
+    ): Response! {
+        return await send_request_async(self.limits_value, &self.trust, move request, timeout)?
     }
 }
 

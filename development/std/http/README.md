@@ -17,8 +17,9 @@ does not transfer tunnel ownership.
 to the operating-system trust store for HTTPS. It does not replace system roots or disable hostname
 authentication. Calling the method again replaces the client's previous additional root. Plain
 HTTP ignores this TLS policy. The synchronous connection copies the root before returning from the
-TLS constructor, and the asynchronous send computation owns its copy, so neither transport borrows
-the client or its `TrustAnchor` while network work is pending.
+TLS constructor. An asynchronous send captures the client borrow, then copies the root while its
+computation is driven; the borrow checker keeps the client alive until that computation is awaited
+or destroyed.
 
 `Request.get`, `Request.head`, and `Request.post` are named constructors over the same validated
 `Request.new` operation. `append_header_text` validates both textual components before mutating the
@@ -36,12 +37,11 @@ connection through its exact-once nonwaiting disposal boundary. There is no pool
 following, request replay, decompression, or connection reuse. `send` and `send_with_timeout` are
 explicitly `blocking`; their synchronous transport setup uses the synchronous system resolver.
 
-`Client.send_async` has an immediate outer result and a lazy inner computation. Request validation,
-request-head encoding, and owned host-endpoint construction finish before the method returns.
-Awaiting the inner computation asks the operating-system provider to resolve and connect the host,
-then writes the complete request and receives the final response head without blocking the executor
-thread. Dropping that computation cancels the connection or stream it uniquely owns through the
-ordinary async lifecycle.
+`Client.send_async` returns one lazy computation with one `Response!` outcome. Request validation,
+request-head encoding, owned host-endpoint construction, provider resolution, connection, complete
+request transmission, and final-response-head reception all occur while that computation is driven
+without blocking the executor thread. Dropping it releases the captured request before setup or
+cancels the connection or stream it uniquely owns after setup begins.
 
 `Response.read_async` uses the selected asynchronous transport while advancing the same decoder,
 pending bytes, completion flag, and uniquely owned stream used by `read`. Synchronous and

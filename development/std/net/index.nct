@@ -282,15 +282,15 @@ pub async func connect_tcp_async_with_timeout(
     timeout: Duration,
 ): TcpStream!
 
-/// Validates and retains one host endpoint, then resolves and connects while the future is driven.
-pub func connect_host_async(host: &str, port: u16): (future TcpStream!)!
+/// Validates, resolves, and connects one host while the future is driven.
+pub async func connect_host_async(host: &str, port: u16): TcpStream!
 
-/// Resolves and connects through the provider before one future-owned fixed timeout.
-pub func connect_host_async_with_timeout(
+/// Validates, resolves, and connects through the provider before one future-owned fixed timeout.
+pub async func connect_host_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (future TcpStream!)!
+): TcpStream!
 
 /// Resolves using recoverable result storage from `allocator`.
 pub blocking func try_resolve(

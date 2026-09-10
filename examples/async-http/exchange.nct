@@ -74,7 +74,7 @@ async func run(): i32! {
     request.append_header_text("X-Example", "client")?
     request.set_text_body("ping")
     let client = Client.new()
-    let response = client.send_async_with_timeout(move request, timeout)?
+    let response = client.send_async_with_timeout(move request, timeout)
     let exchanged = await task.join(
         move response,
         serve_once(move listener, timeout),

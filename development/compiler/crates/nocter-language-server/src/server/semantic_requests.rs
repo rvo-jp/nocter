@@ -2476,7 +2476,7 @@ mod tests {
             "    let request = Request.post(move url)?\n",
             "    let client = Client.new()\n",
             "    let timeout = Duration.from_seconds(1)\n",
-            "    let pending = client.send_async_with_timeout(move request, timeout)?\n",
+            "    let pending = client.send_async_with_timeout(move request, timeout)\n",
             "    var response = await pending?\n",
             "    let body = await response.read_to_string_async_with_timeout(timeout)?\n",
             "    return\n",
@@ -2512,7 +2512,11 @@ mod tests {
         ));
         let response = send_hover.response().unwrap();
         assert!(response.contains("send_async_with_timeout"), "{response}");
-        assert!(response.contains("(future Response!)!"), "{response}");
+        assert!(
+            response.contains("async method &Client.send_async_with_timeout"),
+            "{response}"
+        );
+        assert!(response.contains("): Response!"), "{response}");
         assert!(send_hover.issue().is_none(), "{:?}", send_hover.issue());
 
         let send_definition = server.receive(&format!(

@@ -56,12 +56,11 @@ operations, one immediate connection attempt is permitted and later candidates r
 time. Both host constructors carry the resolver's `blocking` effect.
 
 `net.connect_host_async` and `net.connect_host_async_with_timeout` validate and copy NUL-terminated
-host and decimal service text before returning. Invalid input is the outer failure. Success
-produces one lazy `future TcpStream!`; driving it asks the operating-system network provider to
-resolve and connect the host without synchronously invoking the resolver or waiting for socket
-readiness. The timeout form starts its single deadline when the future begins and retains that
-deadline across provider resolution and connection. A typical call therefore uses `?` once when
-creating the computation and once after `await`.
+host and decimal service text while their lazy computation is driven. Invalid input, provider
+resolution, and connection failure all belong to the single awaited `TcpStream!` result. Driving
+the future does not synchronously invoke the resolver or wait for socket readiness. The timeout
+form starts its single deadline when the future begins and retains that deadline across validation,
+provider resolution, and connection.
 
 ## TCP Streams and Listeners
 

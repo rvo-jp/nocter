@@ -2596,7 +2596,7 @@ fn plain_tls_rejection_source(port: u16, asynchronous: bool) -> String {
                  \"localhost\",\n\
                  {port},\n\
                  Duration.from_seconds(1),\n\
-             ) catch _ {{ return false }}\n\
+             )\n\
              let _stream = await pending catch failure {{\n\
                  return failure.has_code(\"std.net.tls_failed\")\n\
              }}\n\
@@ -2611,7 +2611,7 @@ fn plain_tls_rejection_source(port: u16, asynchronous: bool) -> String {
              let pending_response = client.send_async_with_timeout(\n\
                  move request,\n\
                  Duration.from_seconds(1),\n\
-             ) catch _ {{ return false }}\n\
+             )\n\
              let _response = await pending_response catch failure {{\n\
                  return failure.has_code(\"std.net.tls_failed\")\n\
              }}\n\
@@ -2703,7 +2703,7 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
                  \"localhost\",\n\
                  {port},\n\
                  timeout,\n\
-             ) catch _ {{ return false }}\n\
+             )\n\
              let _stream = await pending catch failure {{\n\
                  return failure.has_code(\"std.net.timed_out\")\n\
              }}\n\
@@ -2725,7 +2725,7 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
              let pending = client.send_async_with_timeout(\n\
                  move request,\n\
                  timeout,\n\
-             ) catch _ {{ return false }}\n\
+             )\n\
              let _response = await pending catch failure {{\n\
                  return failure.has_code(\"std.net.timed_out\")\n\
              }}\n\
@@ -3083,7 +3083,7 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
              async func accepts_asynchronously(anchor: &TrustAnchor): bool {{\n\
                  let pending = tls.connect_async_with_trust_anchor_and_timeout(\n\
                      \"localhost\", {port}, anchor, Duration.from_seconds(1),\n\
-                 ) catch _ {{ return false }}\n\
+                 )\n\
                  var stream = await pending catch _ {{ return false }}\n\
                  stream.close()\n\
                  return true\n\
@@ -3219,7 +3219,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
                  let pending = client.send_async_with_timeout(\n\
                      move request,\n\
                      Duration.from_seconds(1),\n\
-                 ) catch _ {{ return false }}\n\
+                 )\n\
                  var response = await pending catch _ {{ return false }}\n\
                  let accepted = response.status().code() == 200\n\
                  response.close()\n\
@@ -3299,7 +3299,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
                  let pending = client.send_async_with_timeout(\n\
                      move request,\n\
                      Duration.from_seconds(1),\n\
-                 ) catch _ {{ return false }}\n\
+                 )\n\
                  var response = await pending catch failure {{\n\
                      return failure.has_code(\"std.net.tls_failed\")\n\
                  }}\n\
@@ -3348,7 +3348,7 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
                  request.append_header_text(\"X-Request\", \"phase3\") catch _ {{ return 3 }}\n\
                  request.set_text_body(\"payload\")\n\
                  let client = Client.new()\n\
-                 let pending = client.send_async(move request) catch _ {{ return 4 }}\n\
+                 let pending = client.send_async(move request)\n\
                  var response = await pending catch _ {{ return 5 }}\n\
                  if response.status().code() != 200 {{ return 6 }}\n\
                  let _fixture = response.headers().first(\"x-fixture\") otherwise {{ return 7 }}\n\
@@ -3426,7 +3426,7 @@ fn async_http_timeout_source(port: u16) -> String {
              let pending = client.send_async_with_timeout(\n\
                  move request,\n\
                  timeout,\n\
-             ) catch _ {{ return false }}\n\
+             )\n\
              let _response = await pending catch failure {{\n\
                  return failure.has_code(\"std.net.timed_out\")\n\
              }}\n\
@@ -3438,7 +3438,7 @@ fn async_http_timeout_source(port: u16) -> String {
              let pending = client.send_async_with_timeout(\n\
                  move request,\n\
                  Duration.from_seconds(1),\n\
-             ) catch _ {{ return false }}\n\
+             )\n\
              var response = await pending catch _ {{ return false }}\n\
              var buffer: Vec<u8> = Vec [u8.truncate(0)]\n\
              let abandoned = response.read_async(&+buffer)\n\
@@ -3454,7 +3454,7 @@ fn async_http_timeout_source(port: u16) -> String {
              let pending = client.send_async_with_timeout(\n\
                  move request,\n\
                  Duration.from_seconds(1),\n\
-             ) catch _ {{ return false }}\n\
+             )\n\
              var response = await pending catch _ {{ return false }}\n\
              var buffer: Vec<u8> = Vec [\n\
                  u8.truncate(0),\n\
@@ -3481,7 +3481,7 @@ fn async_http_timeout_source(port: u16) -> String {
              let abandoned_request = Request.get(\n\
                  Url.parse(\"http://localhost:{port}/abandoned\") catch _ {{ return 1 }},\n\
              ) catch _ {{ return 2 }}\n\
-             let abandoned = client.send_async(move abandoned_request) catch _ {{ return 3 }}\n\
+             let abandoned = client.send_async(move abandoned_request)\n\
              drop abandoned\n\
              let short = Duration.from_milliseconds(20)\n\
              let head_url = Url.parse(\"http://localhost:{port}/head\") catch _ {{ return 4 }}\n\
@@ -3591,7 +3591,7 @@ fn public_async_http_request_body_observes_write_backpressure_timeout() {
                  let pending = client.send_async_with_timeout(\n\
                      move request,\n\
                      Duration.from_milliseconds(20),\n\
-                 ) catch _ {{ return 3 }}\n\
+                 )\n\
                  let _response = await pending catch failure {{\n\
                      if failure.has_code(\"std.net.timed_out\")\n\
                          && failure.message() == \"while writing the HTTP request body\" {{\n\
@@ -4219,7 +4219,7 @@ fn public_async_tcp_idle_read_observes_its_deadline() {
 }
 
 #[test]
-fn public_async_host_connection_preserves_its_two_stage_contract() {
+fn public_async_host_connection_uses_one_awaited_result() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
@@ -4229,7 +4229,15 @@ fn public_async_host_connection_preserves_its_two_stage_contract() {
          use std/time.Duration\n\
          use std/vec.Vec\n\
          \n\
+         async func rejects_invalid_host(): bool {\n\
+             let _stream = await net.connect_host_async(\"\", 80) catch failure {\n\
+                 return failure.has_code(\"std.net.invalid_host\")\n\
+             }\n\
+             return false\n\
+         }\n\
+         \n\
          async func main(): i32! {\n\
+             if !await rejects_invalid_host() { return 1 }\n\
              let address = net.SocketAddress.new(\n\
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
@@ -4240,7 +4248,7 @@ fn public_async_host_connection_preserves_its_two_stage_contract() {
                  \"localhost\",\n\
                  listening.port(),\n\
                  Duration.from_seconds(1),\n\
-             )?\n\
+             )\n\
              var client = await pending?\n\
              let accepted = await listener.accept_async_with_timeout(\n\
                  Duration.from_seconds(1),\n\
@@ -4255,7 +4263,7 @@ fn public_async_host_connection_preserves_its_two_stage_contract() {
              ]\n\
              let count = await server.read_async(&+buffer)?\n\
              if count != 4 || buffer[0] != 104 || buffer[1] != 111\n\
-                 || buffer[2] != 115 || buffer[3] != 116 { return 1 }\n\
+                 || buffer[2] != 115 || buffer[3] != 116 { return 2 }\n\
              return 0\n\
          }\n",
     );

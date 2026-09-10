@@ -34,23 +34,22 @@ close descriptors. Synchronous and asynchronous orchestration supply bytes to it
 its explicit `incomplete`, `ready`, or `failed` result. The codec remains the sole authority for
 HTTP syntax and body framing.
 
-## Immediate and Deferred Work
+## Deferred Work
 
-The asynchronous request operation returns `(future Response!)!`, not `future Response!`.
-Request validation and encoding happen before the outer result succeeds. Host resolution also
-remains immediate because the current system resolver is synchronous and must never run on the
-single-threaded executor. The returned lazy computation owns the resolved candidates and performs
-connection, complete request transmission, and final-response-head reception through async TCP.
+The asynchronous request operation is an `async` method whose invocation returns
+`future Response!`. Request validation, encoding, provider-backed host resolution, connection,
+complete request transmission, and final-response-head reception all occur while that computation
+is driven. The asynchronous path never invokes the synchronous system resolver.
 
-This split is observable and intentional:
+The operation therefore has one recoverable failure layer:
 
 ```nct
-let pending = client.send_async(move request)?
+let pending = client.send_async(move request)
 var response = await move pending?
 ```
 
-Failure before `pending` exists cannot leave a computation or descriptor. Destruction of an
-unstarted or suspended computation cancels its owned connection attempt or stream through the
+Destruction of an unstarted computation releases its captured request and client borrow.
+Destruction after connection has begun cancels its owned connection attempt or stream through the
 ordinary async lifecycle.
 
 ## Response Ownership

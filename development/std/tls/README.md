@@ -17,14 +17,15 @@ explicitly `blocking` because this path uses the synchronous system resolver.
 operations add that certificate to the operating-system roots; they do not replace system trust or
 disable hostname authentication. Certificate parsing and path validation occur during connection,
 so malformed non-empty DER is reported as `std.net.tls_failed`, not during byte ownership
-construction. The asynchronous operations copy the anchor into the deferred computation and do not
-borrow the caller's `TrustAnchor` after returning.
+construction. The asynchronous operations capture the supplied anchor borrow and copy its bytes
+while the deferred computation is driven. The ordinary borrow checker therefore keeps the anchor
+alive until that computation is awaited or destroyed.
 
-`tls.connect_async` and `tls.connect_async_with_timeout` validate and retain the host endpoint before
-returning a deferred computation. Invalid host input belongs to the outer result. Provider
-resolution, authentication, and transport failure belong to the awaited result. The timeout
-variant starts one monotonic deadline when the future begins and preserves it across provider
-resolution and authentication. These operations do not call the synchronous resolver.
+`tls.connect_async` and `tls.connect_async_with_timeout` validate and retain the host endpoint while
+their deferred computation is driven. Invalid host input, provider resolution, authentication, and
+transport failure all belong to the single awaited `TlsStream!` result. The timeout variant starts
+one monotonic deadline when the future begins and preserves it across validation, provider
+resolution, and authentication. These operations do not call the synchronous resolver.
 
 The `std/http` client selects this authenticated transport for `https` URLs. Its
 `with_trust_anchor` policy carries one additional root through the TLS-owned connection boundary;

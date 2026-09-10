@@ -205,18 +205,18 @@ async func connect_endpoint_async(
     }
 }
 
-func connect_host_async(host: &str, port: u16): (future TcpStream!)! {
+async func connect_host_async(host: &str, port: u16): TcpStream! {
     let endpoint = host_endpoint(host, port)?
-    return connect_endpoint_async(move endpoint, none)
+    return await connect_endpoint_async(move endpoint, none)?
 }
 
-func connect_host_async_with_timeout(
+async func connect_host_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (future TcpStream!)! {
+): TcpStream! {
     let endpoint = host_endpoint(host, port)?
-    return connect_endpoint_async(move endpoint, timeout)
+    return await connect_endpoint_async(move endpoint, timeout)?
 }
 
 construct TcpStream {
