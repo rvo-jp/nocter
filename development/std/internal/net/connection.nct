@@ -112,6 +112,35 @@ noalloc func failed_connection(
     return StreamConnectionAttempt.failed(move failure)
 }
 
+noalloc func require_application_protocol(
+    attempt: StreamConnectionAttempt,
+    application_protocol: *u8,
+): StreamConnectionAttempt {
+    if public_ptr.addr(application_protocol) == 0 { return move attempt }
+    match move attempt {
+        StreamConnectionAttempt.ready(connection) {
+            var active = move connection
+            let matches = match &active.ownership {
+                StreamConnectionOwnership.open(owner) {
+                    darwin.tls_connection_matches_application_protocol(
+                        owner,
+                        application_protocol,
+                    )
+                }
+                StreamConnectionOwnership.closed { false }
+            }
+            if matches { return StreamConnectionAttempt.ready(move active) }
+            active.close()
+            return StreamConnectionAttempt.failed(
+                NetworkFailure.tls_application_protocol_mismatch,
+            )
+        }
+        StreamConnectionAttempt.failed(failure) {
+            return StreamConnectionAttempt.failed(move failure)
+        }
+    }
+}
+
 noalloc func start_stream_connection_before(
     owner: NetworkOwner,
     deadline: &OperationDeadline,
@@ -183,7 +212,10 @@ noalloc func connect_tls_stream_before(
     ) otherwise {
         return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
     }
-    return start_stream_connection_before(move owner, &deadline.operation)
+    return require_application_protocol(
+        start_stream_connection_before(move owner, &deadline.operation),
+        application_protocol,
+    )
 }
 
 noalloc func connect_stream(

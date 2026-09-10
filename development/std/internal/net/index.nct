@@ -33,6 +33,7 @@ pub(/) enum NetworkFailure {
     provider(value: NetworkProviderFailure)
     closed
     timed_out
+    tls_application_protocol_mismatch
     invalid_target_result
 }
 

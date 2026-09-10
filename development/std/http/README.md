@@ -9,8 +9,9 @@ codec remains independent of sockets, descriptors, DNS, executor state, and conn
 canonical `Host`, `Connection: close`, and one computed `Content-Length`. Callers cannot supply
 those fields or `Transfer-Encoding`, so request framing has one authority. `http` selects a plain
 provider stream and `https` selects a TLS stream authenticated for the URL host against the
-operating-system trust store. HTTPS advertises only the `http/1.1` ALPN protocol. CONNECT is
-rejected because the API does not transfer tunnel ownership.
+operating-system trust store. HTTPS advertises only the `http/1.1` ALPN protocol and rejects a
+connection unless the server negotiates that exact value. CONNECT is rejected because the API
+does not transfer tunnel ownership.
 
 `Client.new().with_trust_anchor(move anchor)` returns a client policy that adds one owned DER root
 to the operating-system trust store for HTTPS. It does not replace system roots or disable hostname

@@ -358,6 +358,8 @@ noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner
 #target: \"arm64-darwin\"
 noalloc primitive func network_tls_connection_create_raw(address: *u8, server_name: *u8, application_protocol: *u8, trust_anchor: *u8, trust_anchor_len: usize): NetworkOwner? from static
 #target: \"arm64-darwin\"
+noalloc primitive func network_tls_connection_matches_application_protocol_raw(owner: &NetworkOwner, application_protocol: *u8): bool
+#target: \"arm64-darwin\"
 noalloc primitive func network_connection_start_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_event_descriptor_raw(owner: &NetworkOwner): usize

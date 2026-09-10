@@ -129,6 +129,7 @@ closed_role_enum! {
         TaskJoin,
         NetworkConnectionCreate,
         NetworkTlsConnectionCreate,
+        NetworkTlsConnectionMatchesApplicationProtocol,
         NetworkConnectionStart,
         NetworkConnectionEventDescriptor,
         NetworkConnectionBeginReceive,
@@ -248,6 +249,7 @@ impl PrimitiveRole {
             Self::TaskJoin => "task_join",
             Self::NetworkConnectionCreate
             | Self::NetworkTlsConnectionCreate
+            | Self::NetworkTlsConnectionMatchesApplicationProtocol
             | Self::NetworkConnectionStart
             | Self::NetworkConnectionEventDescriptor
             | Self::NetworkConnectionBeginReceive
@@ -297,6 +299,9 @@ impl PrimitiveRole {
         match self {
             Self::NetworkConnectionCreate => "network_connection_create",
             Self::NetworkTlsConnectionCreate => "network_tls_connection_create",
+            Self::NetworkTlsConnectionMatchesApplicationProtocol => {
+                "network_tls_connection_matches_application_protocol"
+            }
             Self::NetworkConnectionStart => "network_connection_start",
             Self::NetworkConnectionEventDescriptor => "network_connection_event_descriptor",
             Self::NetworkConnectionBeginReceive => "network_connection_begin_receive",

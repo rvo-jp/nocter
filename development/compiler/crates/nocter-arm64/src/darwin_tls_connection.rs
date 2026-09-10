@@ -25,17 +25,17 @@ use crate::{
 pub fn add_darwin_tls_connection_create_target(
     program: &mut Arm64ProgramBuilder,
     network: &Arm64DarwinNetworkAdapterImports,
+    tls: &Arm64DarwinTlsAdapterImports,
     connection: Arm64DarwinNetworkConnectionTargets,
 ) -> Result<Arm64FunctionId, Arm64DarwinTlsConnectionError> {
-    let tls = Arm64DarwinTlsAdapterImports::declare(program)?;
-    let verify_callback = add_darwin_tls_verify_callback(program, &tls)?;
+    let verify_callback = add_darwin_tls_verify_callback(program, tls)?;
     let verify_block = add_darwin_pointer_capture_block_descriptor(
         program,
         DarwinTlsCallbackRole::VerifyTrust.block_signature(),
     )?;
     let callback = add_darwin_tls_configuration_callback(
         program,
-        &tls,
+        tls,
         network.data(DarwinNetworkAdapterData::StackBlockClass),
         verify_callback,
         verify_block,
@@ -44,7 +44,7 @@ pub fn add_darwin_tls_connection_create_target(
         program,
         DarwinTlsCallbackRole::ConfigureProtocol.block_signature(),
     )?;
-    let trust_context_create = add_darwin_tls_trust_context_create_target(program, &tls)?;
+    let trust_context_create = add_darwin_tls_trust_context_create_target(program, tls)?;
     let queue_label = program.add_data(b"nocter.network.tls.connection\0".as_slice(), 1)?;
     add_darwin_connection_create_target(
         program,
@@ -131,9 +131,11 @@ mod tests {
     fn secure_creation_extends_one_plain_connection_family_with_security_imports() {
         let mut program = Arm64ProgramBuilder::new();
         let network = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
+        let tls = crate::Arm64DarwinTlsAdapterImports::declare(&mut program).unwrap();
         let connection = add_darwin_plain_connection_targets(&mut program, &network).unwrap();
         let secure =
-            add_darwin_tls_connection_create_target(&mut program, &network, connection).unwrap();
+            add_darwin_tls_connection_create_target(&mut program, &network, &tls, connection)
+                .unwrap();
         assert_ne!(secure, connection.create());
 
         let entry = program.declare_function();

@@ -159,6 +159,7 @@ pub(crate) fn select(
         | PrimitiveRole::TaskJoin => select_async_primitive(operation, target, selected),
         PrimitiveRole::NetworkConnectionCreate
         | PrimitiveRole::NetworkTlsConnectionCreate
+        | PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol
         | PrimitiveRole::NetworkConnectionStart
         | PrimitiveRole::NetworkConnectionEventDescriptor
         | PrimitiveRole::NetworkConnectionBeginReceive
@@ -191,7 +192,8 @@ fn select_network_primitive(
     let expected_arguments: &[MachineValueClass] = match target.role() {
         PrimitiveRole::NetworkConnectionCopyLocalAddress
         | PrimitiveRole::NetworkConnectionCopyRemoteAddress
-        | PrimitiveRole::NetworkConnectionBeginReceive => &[
+        | PrimitiveRole::NetworkConnectionBeginReceive
+        | PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol => &[
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
         ],
@@ -248,6 +250,7 @@ fn select_network_primitive(
         }
         PrimitiveRole::NetworkConnectionEventDescriptor
         | PrimitiveRole::NetworkConnectionBeginSend
+        | PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol
         | PrimitiveRole::NetworkConnectionCopyLocalAddress
         | PrimitiveRole::NetworkConnectionCopyRemoteAddress
         | PrimitiveRole::NetworkListenerEventDescriptor

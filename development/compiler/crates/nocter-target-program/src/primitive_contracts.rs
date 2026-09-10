@@ -791,6 +791,14 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol => make(
+            0,
+            vec![TypeContract::readonly(network_owner()), byte_pointer()],
+            boolean(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::NetworkConnectionStart
         | PrimitiveRole::NetworkConnectionRequestCancel
         | PrimitiveRole::NetworkConnectionReleaseBarrier

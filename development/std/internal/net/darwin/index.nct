@@ -34,6 +34,13 @@ pub(/) noalloc func tls_connection_create(
     trust_anchor_len: usize,
 ): NetworkOwner?
 
+/// Returns whether an established TLS connection negotiated the required application protocol.
+#target: "arm64-darwin"
+pub(/) noalloc func tls_connection_matches_application_protocol(
+    owner: &NetworkOwner,
+    application_protocol: *u8,
+): bool
+
 /// Starts callbacks and provider progress for a connection owner.
 #target: "arm64-darwin"
 pub(/) noalloc func connection_start(owner: &+NetworkOwner): void
@@ -135,6 +142,13 @@ noalloc primitive func network_tls_connection_create_raw(
     trust_anchor: *u8,
     trust_anchor_len: usize,
 ): NetworkOwner? from static
+
+/// Compares one established connection's negotiated TLS protocol without exposing metadata.
+#target: "arm64-darwin"
+noalloc primitive func network_tls_connection_matches_application_protocol_raw(
+    owner: &NetworkOwner,
+    application_protocol: *u8,
+): bool
 
 /// Starts callbacks and provider progress for an initialized connection owner.
 #target: "arm64-darwin"

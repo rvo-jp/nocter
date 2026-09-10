@@ -26,8 +26,11 @@ starts one monotonic deadline before resolution and preserves it across every ad
 
 The `std/http` client selects this authenticated transport for `https` URLs. Its
 `with_trust_anchor` policy carries one additional root through the TLS-owned connection boundary;
-plain HTTP does not inspect it. HTTP request and response parsing remain transport-independent;
-selecting system or custom trust does not introduce a second HTTP codec or response-body cursor.
+plain HTTP does not inspect it. The HTTP-specific TLS entry advertises only `http/1.1` and requires
+the provider's negotiated application protocol to equal that value before exposing the stream.
+Missing or different ALPN is a TLS failure. HTTP request and response parsing remain
+transport-independent; selecting system or custom trust does not introduce a second HTTP codec or
+response-body cursor.
 
 The numeric connection address is never used as an implicit replacement for the requested
 authentication name. Native endpoints, trust objects, provider status values, callbacks, and

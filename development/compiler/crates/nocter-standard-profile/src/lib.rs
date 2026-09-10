@@ -254,6 +254,10 @@ pub const fn bundled_primitive_source_location(
         Role::TaskJoin => (&["task"], "join"),
         Role::NetworkConnectionCreate => (DARWIN_NET, "network_connection_create_raw"),
         Role::NetworkTlsConnectionCreate => (DARWIN_NET, "network_tls_connection_create_raw"),
+        Role::NetworkTlsConnectionMatchesApplicationProtocol => (
+            DARWIN_NET,
+            "network_tls_connection_matches_application_protocol_raw",
+        ),
         Role::NetworkConnectionStart => (DARWIN_NET, "network_connection_start_raw"),
         Role::NetworkConnectionEventDescriptor => (DARWIN_NET, NET_EVENT_DESCRIPTOR),
         Role::NetworkConnectionBeginReceive => (DARWIN_NET, NET_BEGIN_RECEIVE),

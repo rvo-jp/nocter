@@ -261,7 +261,7 @@
     timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">(</span><span class="token-keyword">async</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span><span class="token-operator">)</span><span class="token-operator">!</span>
 
-<span class="token-comment">/// Opens one package-internal TLS stream that advertises only HTTP/1.1.</span>
+<span class="token-comment">/// Opens one package-internal TLS stream that requires negotiated HTTP/1.1.</span>
 <span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">func</span> <span class="token-function">connect_http1</span><span class="token-operator">(</span>host<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> port<span class="token-operator">:</span> <span class="token-type">u16</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">TlsStream</span><span class="token-operator">!</span>
 
 <span class="token-comment">/// Opens one package-internal HTTP/1.1 TLS stream before a fixed timeout.</span>

@@ -2740,25 +2740,32 @@ impl Drop for LocalTlsServer {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn start_local_tls_server(port: u16, certificate: &Path, key: &Path) -> LocalTlsServer {
+fn start_local_tls_server(
+    port: u16,
+    certificate: &Path,
+    key: &Path,
+    advertise_http1: bool,
+) -> LocalTlsServer {
     use std::process::Stdio;
     use std::thread;
     use std::time::Duration;
 
-    let child = std::process::Command::new("/usr/bin/openssl")
-        .args([
-            "s_server",
-            "-accept",
-            &port.to_string(),
-            "-cert",
-            certificate.to_str().unwrap(),
-            "-key",
-            key.to_str().unwrap(),
-            "-alpn",
-            "http/1.1",
-            "-quiet",
-            "-www",
-        ])
+    let mut command = std::process::Command::new("/usr/bin/openssl");
+    command.args([
+        "s_server",
+        "-accept",
+        &port.to_string(),
+        "-cert",
+        certificate.to_str().unwrap(),
+        "-key",
+        key.to_str().unwrap(),
+        "-quiet",
+        "-www",
+    ]);
+    if advertise_http1 {
+        command.args(["-alpn", "http/1.1"]);
+    }
+    let child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -2975,7 +2982,7 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     create_local_tls_fixture(&fixture_root, &package_root.0);
     let certificate = package_root.0.join("localhost-cert.pem");
     let key = package_root.0.join("localhost-key.pem");
-    let _server = start_local_tls_server(port, &certificate, &key);
+    let _server = start_local_tls_server(port, &certificate, &key, true);
 
     let standard_root = compiler_root.join("../std");
     package_root.source(
@@ -3049,7 +3056,7 @@ fn custom_trust_does_not_override_certificate_validity() {
     create_expired_local_tls_certificate(&fixture_root, &package_root.0);
     let certificate = package_root.0.join("expired-localhost-cert.pem");
     let key = package_root.0.join("localhost-key.pem");
-    let _server = start_local_tls_server(port, &certificate, &key);
+    let _server = start_local_tls_server(port, &certificate, &key, true);
 
     let standard_root = compiler_root.join("../std");
     package_root.source(
@@ -3166,6 +3173,80 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
     let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
     execute_native_status(image.image(), &package_root.0, "https-custom-trust", 0);
     server.finish();
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn https_requires_the_negotiated_http1_application_protocol() {
+    use std::net::TcpListener;
+
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = reservation.local_addr().unwrap().port();
+    drop(reservation);
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
+    let package_root = TempPackage::new();
+    create_local_tls_fixture(&fixture_root, &package_root.0);
+    let certificate = package_root.0.join("localhost-cert.pem");
+    let key = package_root.0.join("localhost-key.pem");
+    let _server = start_local_tls_server(port, &certificate, &key, false);
+
+    let standard_root = compiler_root.join("../std");
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/fs\n\
+             use std/http.{{Client, Request}}\n\
+             use std/time.Duration\n\
+             use std/tls.TrustAnchor\n\
+             use std/url.Url\n\
+             \n\
+             func rejects_sync(client: &Client): bool {{\n\
+                 let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
+                 let request = Request.get(move url) catch _ {{ return false }}\n\
+                 var response = client.send_with_timeout(\n\
+                     move request,\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch failure {{ return failure.has_code(\"std.net.tls_failed\") }}\n\
+                 response.close()\n\
+                 return false\n\
+             }}\n\
+             \n\
+             func rejects_async(client: &Client): async bool {{\n\
+                 let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
+                 let request = Request.get(move url) catch _ {{ return false }}\n\
+                 let pending = client.send_async_with_timeout(\n\
+                     move request,\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch _ {{ return false }}\n\
+                 var response = await pending catch failure {{\n\
+                     return failure.has_code(\"std.net.tls_failed\")\n\
+                 }}\n\
+                 response.close()\n\
+                 return false\n\
+             }}\n\
+             \n\
+             func main(): async i32 {{\n\
+                 let certificate = fs.read(\"root-cert.der\") catch _ {{ return 1 }}\n\
+                 let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
+                 let client = Client.new().with_trust_anchor(move anchor)\n\
+                 if !rejects_sync(&client) {{ return 3 }}\n\
+                 if !await rejects_async(&client) {{ return 4 }}\n\
+                 return 0\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "https-alpn-required", 0);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

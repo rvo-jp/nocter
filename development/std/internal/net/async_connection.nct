@@ -84,7 +84,10 @@ func connect_tls_stream_async_before(
     ) otherwise {
         return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
     }
-    return await start_stream_connection_async_before(move owner, &deadline.operation)
+    return require_application_protocol(
+        await start_stream_connection_async_before(move owner, &deadline.operation),
+        application_protocol,
+    )
 }
 
 func start_stream_connection_async_before(

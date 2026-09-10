@@ -8,7 +8,12 @@ use crate::{RuntimeDataImport, RuntimeFunctionImport, RuntimeLibraryIdentity};
 pub enum DarwinTlsAdapterFunction {
     Malloc,
     MemoryCopy,
+    StringCompare,
     CopySecurityProtocolOptions,
+    CopyTlsDefinition,
+    ConnectionCopyProtocolMetadata,
+    CopySecurityProtocolMetadata,
+    GetNegotiatedProtocol,
     SetServerName,
     AddApplicationProtocol,
     SetMinimumProtocolVersion,
@@ -48,7 +53,12 @@ impl DarwinTlsAdapterFunction {
     pub const ALL: &'static [Self] = &[
         Self::Malloc,
         Self::MemoryCopy,
+        Self::StringCompare,
         Self::CopySecurityProtocolOptions,
+        Self::CopyTlsDefinition,
+        Self::ConnectionCopyProtocolMetadata,
+        Self::CopySecurityProtocolMetadata,
+        Self::GetNegotiatedProtocol,
         Self::SetServerName,
         Self::AddApplicationProtocol,
         Self::SetMinimumProtocolVersion,
@@ -69,9 +79,26 @@ impl DarwinTlsAdapterFunction {
         let (library, symbol) = match self {
             Self::Malloc => (RuntimeLibraryIdentity::DarwinSystem, "_malloc"),
             Self::MemoryCopy => (RuntimeLibraryIdentity::DarwinSystem, "_memcpy"),
+            Self::StringCompare => (RuntimeLibraryIdentity::DarwinSystem, "_strcmp"),
             Self::CopySecurityProtocolOptions => (
                 RuntimeLibraryIdentity::DarwinNetwork,
                 "_nw_tls_copy_sec_protocol_options",
+            ),
+            Self::CopyTlsDefinition => (
+                RuntimeLibraryIdentity::DarwinNetwork,
+                "_nw_protocol_copy_tls_definition",
+            ),
+            Self::ConnectionCopyProtocolMetadata => (
+                RuntimeLibraryIdentity::DarwinNetwork,
+                "_nw_connection_copy_protocol_metadata",
+            ),
+            Self::CopySecurityProtocolMetadata => (
+                RuntimeLibraryIdentity::DarwinNetwork,
+                "_nw_tls_copy_sec_protocol_metadata",
+            ),
+            Self::GetNegotiatedProtocol => (
+                RuntimeLibraryIdentity::DarwinSecurity,
+                "_sec_protocol_metadata_get_negotiated_protocol",
             ),
             Self::SetServerName => (
                 RuntimeLibraryIdentity::DarwinSecurity,

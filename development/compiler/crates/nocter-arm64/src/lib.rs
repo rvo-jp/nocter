@@ -54,6 +54,7 @@ mod darwin_network_primitive_targets;
 mod darwin_tls_adapter;
 mod darwin_tls_callback;
 mod darwin_tls_connection;
+mod darwin_tls_protocol;
 mod darwin_tls_trust_context;
 mod darwin_tls_verify_callback;
 mod destruction_selection;
@@ -189,6 +190,8 @@ pub use darwin_tls_callback::{Arm64DarwinTlsCallbackError, add_darwin_tls_config
 pub use darwin_tls_connection::{
     Arm64DarwinTlsConnectionError, add_darwin_tls_connection_create_target,
 };
+pub use darwin_tls_protocol::Arm64DarwinTlsProtocolError;
+pub(crate) use darwin_tls_protocol::add_darwin_tls_application_protocol_match_target;
 pub use darwin_tls_trust_context::Arm64DarwinTlsTrustContextError;
 pub(crate) use darwin_tls_trust_context::add_darwin_tls_trust_context_create_target;
 pub(crate) use darwin_tls_verify_callback::add_darwin_tls_verify_callback;

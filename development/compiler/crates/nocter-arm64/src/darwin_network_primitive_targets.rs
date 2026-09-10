@@ -16,9 +16,10 @@ use crate::{
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinNetworkAdapterImports,
     Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
     Arm64DarwinNetworkListenerError, Arm64DarwinNetworkListenerTargets,
-    Arm64DarwinTlsConnectionError, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
-    Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
-    add_darwin_plain_connection_targets, add_darwin_plain_listener_targets,
+    Arm64DarwinTlsAdapterImports, Arm64DarwinTlsConnectionError, Arm64DarwinTlsProtocolError,
+    Arm64DataRegister, Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize,
+    Arm64ProgramBuilder, Arm64ProgramError, Arm64Register, add_darwin_plain_connection_targets,
+    add_darwin_plain_listener_targets, add_darwin_tls_application_protocol_match_target,
     add_darwin_tls_connection_create_target,
 };
 
@@ -27,6 +28,7 @@ use crate::{
 pub enum Arm64DarwinNetworkPrimitive {
     Create,
     TlsCreate,
+    TlsApplicationProtocolMatches,
     Start,
     EventDescriptor,
     BeginReceive,
@@ -87,6 +89,9 @@ impl Arm64DarwinNetworkPrimitive {
         match role {
             PrimitiveRole::NetworkConnectionCreate => Some(Self::Create),
             PrimitiveRole::NetworkTlsConnectionCreate => Some(Self::TlsCreate),
+            PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol => {
+                Some(Self::TlsApplicationProtocolMatches)
+            }
             PrimitiveRole::NetworkConnectionStart => Some(Self::Start),
             PrimitiveRole::NetworkConnectionEventDescriptor => Some(Self::EventDescriptor),
             PrimitiveRole::NetworkConnectionBeginReceive => Some(Self::BeginReceive),
@@ -115,6 +120,7 @@ impl Arm64DarwinNetworkPrimitive {
 pub struct Arm64DarwinNetworkPrimitiveTargets {
     source_connection_create: Option<Arm64FunctionId>,
     source_tls_connection_create: Option<Arm64FunctionId>,
+    tls_application_protocol_matches: Option<Arm64FunctionId>,
     source_listener_create: Option<Arm64FunctionId>,
     connection: Arm64DarwinNetworkConnectionTargets,
     listener: Option<Arm64DarwinNetworkListenerTargets>,
@@ -136,6 +142,10 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         }
         let imports = Arm64DarwinNetworkAdapterImports::declare(builder)?;
         let connection = add_darwin_plain_connection_targets(builder, &imports)?;
+        let tls = (abis.tls_connection_create.is_some()
+            || roles.contains(&PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol))
+        .then(|| Arm64DarwinTlsAdapterImports::declare(builder))
+        .transpose()?;
         validate_connection_event_result(machine, roles, abis.connection_receive_event)?;
         let source_connection_create = abis
             .connection_create
@@ -153,11 +163,26 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             .tls_connection_create
             .map(|target| {
                 let layout = creation_layout(machine, target, 5)?;
+                let tls = tls
+                    .as_ref()
+                    .ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
                 let production =
-                    add_darwin_tls_connection_create_target(builder, &imports, connection)?;
+                    add_darwin_tls_connection_create_target(builder, &imports, tls, connection)?;
                 let wrapper = builder.declare_function();
                 builder.define_function(wrapper, source_create_code(production, layout, 5)?)?;
                 Ok::<Arm64FunctionId, Arm64DarwinNetworkPrimitiveError>(wrapper)
+            })
+            .transpose()?;
+        let tls_application_protocol_matches = roles
+            .contains(&PrimitiveRole::NetworkTlsConnectionMatchesApplicationProtocol)
+            .then(|| {
+                add_darwin_tls_application_protocol_match_target(
+                    builder,
+                    &imports,
+                    tls.as_ref()
+                        .ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?,
+                )
+                .map_err(Arm64DarwinNetworkPrimitiveError::from)
             })
             .transpose()?;
         let listener = roles
@@ -183,6 +208,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         Ok(Some(Self {
             source_connection_create,
             source_tls_connection_create,
+            tls_application_protocol_matches,
             source_listener_create,
             connection,
             listener,
@@ -196,6 +222,9 @@ impl Arm64DarwinNetworkPrimitiveTargets {
         match primitive {
             Arm64DarwinNetworkPrimitive::Create => self.source_connection_create,
             Arm64DarwinNetworkPrimitive::TlsCreate => self.source_tls_connection_create,
+            Arm64DarwinNetworkPrimitive::TlsApplicationProtocolMatches => {
+                self.tls_application_protocol_matches
+            }
             Arm64DarwinNetworkPrimitive::Start => Some(lifecycle.start()),
             Arm64DarwinNetworkPrimitive::EventDescriptor => Some(events.descriptor()),
             Arm64DarwinNetworkPrimitive::BeginReceive => {
@@ -611,6 +640,7 @@ pub enum Arm64DarwinNetworkPrimitiveError {
     Connection(Arm64DarwinNetworkConnectionError),
     Listener(Arm64DarwinNetworkListenerError),
     Tls(Arm64DarwinTlsConnectionError),
+    TlsProtocol(Arm64DarwinTlsProtocolError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -627,6 +657,7 @@ impl std::error::Error for Arm64DarwinNetworkPrimitiveError {
             Self::Connection(error) => Some(error),
             Self::Listener(error) => Some(error),
             Self::Tls(error) => Some(error),
+            Self::TlsProtocol(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::PrimitiveAbi | Self::ResultLayout => None,
@@ -649,6 +680,12 @@ impl From<Arm64DarwinNetworkListenerError> for Arm64DarwinNetworkPrimitiveError 
 impl From<Arm64DarwinTlsConnectionError> for Arm64DarwinNetworkPrimitiveError {
     fn from(error: Arm64DarwinTlsConnectionError) -> Self {
         Self::Tls(error)
+    }
+}
+
+impl From<Arm64DarwinTlsProtocolError> for Arm64DarwinNetworkPrimitiveError {
+    fn from(error: Arm64DarwinTlsProtocolError) -> Self {
+        Self::TlsProtocol(error)
     }
 }
 
