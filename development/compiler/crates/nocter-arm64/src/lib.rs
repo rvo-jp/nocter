@@ -48,6 +48,7 @@ mod darwin_network_listener_event;
 mod darwin_network_listener_port;
 mod darwin_network_owner;
 mod darwin_network_owner_creation;
+mod darwin_network_owner_disposal;
 mod darwin_network_owner_event;
 mod darwin_network_owner_lifecycle;
 mod darwin_network_primitive_targets;
@@ -177,6 +178,9 @@ pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,
     emit_darwin_network_owner_guard, emit_darwin_network_owner_initialize,
     emit_darwin_network_owner_release, emit_darwin_network_owner_transition,
+};
+pub use darwin_network_owner_disposal::{
+    Arm64DarwinNetworkOwnerDisposalError, Arm64DarwinNetworkOwnerDisposalTarget,
 };
 pub use darwin_network_owner_event::Arm64DarwinNetworkOwnerEventError;
 pub use darwin_network_owner_lifecycle::{

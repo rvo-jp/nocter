@@ -402,6 +402,12 @@ noalloc func connection_release(owner: NetworkOwner): void {
 }
 
 #target: "arm64-darwin"
+noalloc func connection_dispose(owner: NetworkOwner): void {
+    network_connection_dispose_raw(move owner)
+    return
+}
+
+#target: "arm64-darwin"
 noalloc func listener_create(address: &NetworkAddress): NetworkOwner? {
     let native = native_address(address)
     return network_listener_create_raw(ptr.from_ref(&native.bytes[0]))?
@@ -483,6 +489,12 @@ noalloc func listener_release_barrier(owner: &+NetworkOwner): void {
 #target: "arm64-darwin"
 noalloc func listener_release(owner: NetworkOwner): void {
     network_listener_release_raw(move owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func listener_dispose(owner: NetworkOwner): void {
+    network_listener_dispose_raw(move owner)
     return
 }
 

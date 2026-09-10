@@ -105,6 +105,10 @@ pub(/) noalloc func connection_release_barrier(owner: &+NetworkOwner): void
 #target: "arm64-darwin"
 pub(/) noalloc func connection_release(owner: NetworkOwner): void
 
+/// Transfers an owner to nonblocking asynchronous terminal cleanup.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_dispose(owner: NetworkOwner): void
+
 /// Creates one provider listener for a logical local address.
 #target: "arm64-darwin"
 pub(/) noalloc func listener_create(address: &NetworkAddress): NetworkOwner?
@@ -140,6 +144,10 @@ pub(/) noalloc func listener_release_barrier(owner: &+NetworkOwner): void
 /// Releases one quiesced listener owner.
 #target: "arm64-darwin"
 pub(/) noalloc func listener_release(owner: NetworkOwner): void
+
+/// Transfers a listener owner to nonblocking asynchronous terminal cleanup.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_dispose(owner: NetworkOwner): void
 
 /// Creates an unstarted plain connection over one complete native socket address.
 #target: "arm64-darwin"
@@ -230,6 +238,10 @@ noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOw
 #target: "arm64-darwin"
 noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
 
+/// Consumes an owner and submits terminal cleanup without waiting for provider progress.
+#target: "arm64-darwin"
+noalloc primitive func network_connection_dispose_raw(owner: NetworkOwner): void
+
 /// Creates one provider listener for a native socket address.
 #target: "arm64-darwin"
 noalloc primitive func network_listener_create_raw(address: *u8): NetworkOwner? from static
@@ -269,6 +281,10 @@ noalloc primitive func network_listener_release_barrier_raw(owner: &+NetworkOwne
 /// Releases one quiesced provider listener owner.
 #target: "arm64-darwin"
 noalloc primitive func network_listener_release_raw(owner: NetworkOwner): void
+
+/// Consumes a listener owner and submits terminal cleanup without waiting for provider progress.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_dispose_raw(owner: NetworkOwner): void
 
 #target: "arm64-darwin"
 pub(/) enum RawDescriptorAttempt {

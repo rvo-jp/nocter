@@ -40,6 +40,7 @@ pub enum Arm64DarwinNetworkPrimitive {
     RequestCancel,
     ReleaseBarrier,
     Release,
+    Dispose,
     ListenerCreate,
     ListenerStart,
     ListenerEventDescriptor,
@@ -49,6 +50,7 @@ pub enum Arm64DarwinNetworkPrimitive {
     ListenerRequestCancel,
     ListenerReleaseBarrier,
     ListenerRelease,
+    ListenerDispose,
 }
 
 /// The source ABIs whose aggregate result layouts must be known while declaring native targets.
@@ -111,6 +113,7 @@ impl Arm64DarwinNetworkPrimitive {
             PrimitiveRole::NetworkConnectionRequestCancel => Some(Self::RequestCancel),
             PrimitiveRole::NetworkConnectionReleaseBarrier => Some(Self::ReleaseBarrier),
             PrimitiveRole::NetworkConnectionRelease => Some(Self::Release),
+            PrimitiveRole::NetworkConnectionDispose => Some(Self::Dispose),
             PrimitiveRole::NetworkListenerCreate => Some(Self::ListenerCreate),
             PrimitiveRole::NetworkListenerStart => Some(Self::ListenerStart),
             PrimitiveRole::NetworkListenerEventDescriptor => Some(Self::ListenerEventDescriptor),
@@ -120,6 +123,7 @@ impl Arm64DarwinNetworkPrimitive {
             PrimitiveRole::NetworkListenerRequestCancel => Some(Self::ListenerRequestCancel),
             PrimitiveRole::NetworkListenerReleaseBarrier => Some(Self::ListenerReleaseBarrier),
             PrimitiveRole::NetworkListenerRelease => Some(Self::ListenerRelease),
+            PrimitiveRole::NetworkListenerDispose => Some(Self::ListenerDispose),
             _ => None,
         }
     }
@@ -201,7 +205,12 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             .copied()
             .any(is_listener_role)
             .then(|| {
-                add_darwin_plain_listener_targets(builder, &imports, connection.adopt_accepted())
+                add_darwin_plain_listener_targets(
+                    builder,
+                    &imports,
+                    connection.adopt_accepted(),
+                    connection.disposal().dispose(),
+                )
             })
             .transpose()?;
         validate_listener_event_result(machine, roles, abis.listener_receive_event)?;
@@ -258,6 +267,7 @@ impl Arm64DarwinNetworkPrimitiveTargets {
                 Some(lifecycle.complete_release_barrier())
             }
             Arm64DarwinNetworkPrimitive::Release => Some(lifecycle.release()),
+            Arm64DarwinNetworkPrimitive::Dispose => Some(self.connection.disposal().dispose()),
             Arm64DarwinNetworkPrimitive::ListenerCreate => self.source_listener_create,
             Arm64DarwinNetworkPrimitive::ListenerStart => {
                 self.listener.map(|listener| listener.lifecycle().start())
@@ -283,6 +293,9 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             Arm64DarwinNetworkPrimitive::ListenerRelease => {
                 self.listener.map(|listener| listener.lifecycle().release())
             }
+            Arm64DarwinNetworkPrimitive::ListenerDispose => {
+                self.listener.map(|listener| listener.disposal().dispose())
+            }
         }
     }
 }
@@ -299,6 +312,7 @@ const fn is_listener_role(role: PrimitiveRole) -> bool {
             | PrimitiveRole::NetworkListenerRequestCancel
             | PrimitiveRole::NetworkListenerReleaseBarrier
             | PrimitiveRole::NetworkListenerRelease
+            | PrimitiveRole::NetworkListenerDispose
     )
 }
 

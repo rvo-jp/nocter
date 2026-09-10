@@ -926,7 +926,10 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::NetworkConnectionRelease | PrimitiveRole::NetworkListenerRelease => make(
+        PrimitiveRole::NetworkConnectionRelease
+        | PrimitiveRole::NetworkConnectionDispose
+        | PrimitiveRole::NetworkListenerRelease
+        | PrimitiveRole::NetworkListenerDispose => make(
             0,
             vec![network_owner()],
             void(),

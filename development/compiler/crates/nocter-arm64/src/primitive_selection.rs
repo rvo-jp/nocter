@@ -177,6 +177,7 @@ pub(crate) fn select(
         | PrimitiveRole::NetworkConnectionRequestCancel
         | PrimitiveRole::NetworkConnectionReleaseBarrier
         | PrimitiveRole::NetworkConnectionRelease
+        | PrimitiveRole::NetworkConnectionDispose
         | PrimitiveRole::NetworkListenerCreate
         | PrimitiveRole::NetworkListenerStart
         | PrimitiveRole::NetworkListenerEventDescriptor
@@ -185,7 +186,8 @@ pub(crate) fn select(
         | PrimitiveRole::NetworkListenerPort
         | PrimitiveRole::NetworkListenerRequestCancel
         | PrimitiveRole::NetworkListenerReleaseBarrier
-        | PrimitiveRole::NetworkListenerRelease => {
+        | PrimitiveRole::NetworkListenerRelease
+        | PrimitiveRole::NetworkListenerDispose => {
             select_network_primitive(operation, target, selected)
         }
     }
@@ -197,7 +199,38 @@ fn select_network_primitive(
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
     validate_type_arguments(operation, target, 0)?;
-    let expected_arguments: &[MachineValueClass] = match target.role() {
+    let expected_arguments = network_expected_arguments(target.role());
+    if target.abi().arguments().len() != expected_arguments.len()
+        || target
+            .abi()
+            .arguments()
+            .iter()
+            .zip(expected_arguments)
+            .zip(0u8..)
+            .any(|((argument, expected_class), index)| {
+                argument.class() != *expected_class
+                    || !matches!(
+                        argument.location(),
+                        Some(MachineArgumentLocation::Registers(registers))
+                            if registers.first() == index && registers.words() == 1
+                    )
+            })
+        || target.abi().pack().is_some()
+        || target.abi().stack_argument_size() != 0
+        || !network_result_is_valid(target)
+    {
+        return Err(Arm64SelectionError::PrimitiveCall(operation));
+    }
+    let primitive = crate::Arm64DarwinNetworkPrimitive::from_role(target.role())
+        .ok_or(Arm64SelectionError::PrimitiveCall(operation))?;
+    selected.push(Arm64SelectedInstruction::CallDarwinNetworkPrimitive(
+        primitive,
+    ));
+    Ok(())
+}
+
+fn network_expected_arguments(role: PrimitiveRole) -> &'static [MachineValueClass] {
+    match role {
         PrimitiveRole::NetworkConnectionCopyLocalAddress
         | PrimitiveRole::NetworkConnectionCopyRemoteAddress
         | PrimitiveRole::NetworkConnectionBeginReceive
@@ -218,32 +251,16 @@ fn select_network_primitive(
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
         ],
-        PrimitiveRole::NetworkConnectionRelease | PrimitiveRole::NetworkListenerRelease => {
-            &[MachineValueClass::Indirect]
-        }
+        PrimitiveRole::NetworkConnectionRelease
+        | PrimitiveRole::NetworkConnectionDispose
+        | PrimitiveRole::NetworkListenerRelease
+        | PrimitiveRole::NetworkListenerDispose => &[MachineValueClass::Indirect],
         _ => &[MachineValueClass::Direct { words: 1 }],
-    };
-    if target.abi().arguments().len() != expected_arguments.len()
-        || target
-            .abi()
-            .arguments()
-            .iter()
-            .zip(expected_arguments)
-            .zip(0u8..)
-            .any(|((argument, expected_class), index)| {
-                argument.class() != *expected_class
-                    || !matches!(
-                        argument.location(),
-                        Some(MachineArgumentLocation::Registers(registers))
-                            if registers.first() == index && registers.words() == 1
-                    )
-            })
-        || target.abi().pack().is_some()
-        || target.abi().stack_argument_size() != 0
-    {
-        return Err(Arm64SelectionError::PrimitiveCall(operation));
     }
-    let valid_result = match target.role() {
+}
+
+fn network_result_is_valid(target: Arm64PrimitiveTarget<'_>) -> bool {
+    match target.role() {
         PrimitiveRole::NetworkConnectionCreate
         | PrimitiveRole::NetworkTlsConnectionCreate
         | PrimitiveRole::NetworkConnectionReceiveEvent
@@ -280,23 +297,16 @@ fn select_network_primitive(
         | PrimitiveRole::NetworkConnectionRequestCancel
         | PrimitiveRole::NetworkConnectionReleaseBarrier
         | PrimitiveRole::NetworkConnectionRelease
+        | PrimitiveRole::NetworkConnectionDispose
         | PrimitiveRole::NetworkListenerStart
         | PrimitiveRole::NetworkListenerRequestCancel
         | PrimitiveRole::NetworkListenerReleaseBarrier
-        | PrimitiveRole::NetworkListenerRelease => {
+        | PrimitiveRole::NetworkListenerRelease
+        | PrimitiveRole::NetworkListenerDispose => {
             target.abi().result() == MachineResultAbi::Completion
         }
         _ => false,
-    };
-    if !valid_result {
-        return Err(Arm64SelectionError::PrimitiveCall(operation));
     }
-    let primitive = crate::Arm64DarwinNetworkPrimitive::from_role(target.role())
-        .ok_or(Arm64SelectionError::PrimitiveCall(operation))?;
-    selected.push(Arm64SelectedInstruction::CallDarwinNetworkPrimitive(
-        primitive,
-    ));
-    Ok(())
 }
 
 const NETWORK_TLS_CREATE_ARGUMENTS: &[MachineValueClass] = &[

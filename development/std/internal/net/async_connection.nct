@@ -32,7 +32,7 @@ instance PendingStreamOperation {
 
 noalloc drop PendingStreamOperation(&+self) {
     if self.armed {
-        close_stream_connection(self.connection)
+        dispose_stream_connection(self.connection)
         self.armed = false
     }
     return
@@ -100,7 +100,7 @@ async func start_stream_connection_async_before(
     var connection = stream_connection_from_owner(move initialized_owner, descriptor)
     while true {
         if !await await_native_descriptor_before(descriptor, false, deadline) {
-            connection.close()
+            dispose_stream_connection(&+connection)
             return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
         }
         let progress = match &+connection.ownership {
@@ -126,12 +126,12 @@ async func start_stream_connection_async_before(
                 return StreamConnectionAttempt.failed(NetworkFailure.closed)
             }
             StreamConnectProgress.failed(failure) {
-                connection.close()
+                dispose_stream_connection(&+connection)
                 return StreamConnectionAttempt.failed(move failure)
             }
         }
     }
-    connection.close()
+    dispose_stream_connection(&+connection)
     return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
 }
 

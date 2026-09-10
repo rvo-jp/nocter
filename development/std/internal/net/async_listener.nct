@@ -24,7 +24,7 @@ async func accepted_stream_async_before(
                     return StreamListenerAcceptAttempt.ready(move ready, peer)
                 }
                 AddressAttempt.failed(failure) {
-                    ready.close()
+                    dispose_stream_connection(&+ready)
                     return StreamListenerAcceptAttempt.failed(move failure)
                 }
             }
@@ -65,7 +65,7 @@ async func accept_stream_async_before(
                     NetworkListenerState.ready {}
                     NetworkListenerState.failed(failure) {
                         let normalized = provider_failure(move failure)
-                        close_stream_listener(listener)
+                        dispose_stream_listener(listener)
                         return StreamListenerAcceptAttempt.failed(move normalized)
                     }
                     NetworkListenerState.cancelled {

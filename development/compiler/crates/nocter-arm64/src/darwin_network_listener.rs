@@ -13,6 +13,7 @@ use crate::darwin_network_owner_creation::{
     emit_darwin_network_load_imported_object, emit_darwin_network_release_dispatch_object,
     emit_darwin_network_release_network_object, emit_darwin_network_set_owner_queue,
 };
+use crate::darwin_network_owner_disposal::add_darwin_network_listener_disposal_target;
 use crate::darwin_network_owner_event::add_darwin_network_owner_event_descriptor_target;
 use crate::darwin_network_owner_lifecycle::add_darwin_network_owner_lifecycle_targets;
 use crate::{
@@ -21,6 +22,7 @@ use crate::{
     Arm64DarwinBlockDescriptorId, Arm64DarwinBlockError, Arm64DarwinNetworkAdapterImports,
     Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkListenerEventError,
     Arm64DarwinNetworkListenerEventTargets, Arm64DarwinNetworkListenerPortError,
+    Arm64DarwinNetworkOwnerDisposalError, Arm64DarwinNetworkOwnerDisposalTarget,
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerEventError,
     Arm64DarwinNetworkOwnerLifecycleError, Arm64DarwinNetworkOwnerLifecycleTargets,
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
@@ -41,6 +43,7 @@ pub struct Arm64DarwinNetworkListenerTargets {
     receive_event: Arm64DarwinNetworkListenerEventTargets,
     port: Arm64FunctionId,
     lifecycle: Arm64DarwinNetworkOwnerLifecycleTargets,
+    disposal: Arm64DarwinNetworkOwnerDisposalTarget,
 }
 
 impl Arm64DarwinNetworkListenerTargets {
@@ -88,6 +91,11 @@ impl Arm64DarwinNetworkListenerTargets {
     pub const fn lifecycle(self) -> Arm64DarwinNetworkOwnerLifecycleTargets {
         self.lifecycle
     }
+
+    #[must_use]
+    pub const fn disposal(self) -> Arm64DarwinNetworkOwnerDisposalTarget {
+        self.disposal
+    }
 }
 
 /// Adds the fixed plain listener constructor, callbacks, event descriptor, and terminal lifecycle.
@@ -103,6 +111,7 @@ pub fn add_darwin_plain_listener_targets(
     program: &mut Arm64ProgramBuilder,
     imports: &Arm64DarwinNetworkAdapterImports,
     adopt_accepted: Arm64DarwinAcceptedConnectionAdoptionTarget,
+    connection_dispose: Arm64FunctionId,
 ) -> Result<Arm64DarwinNetworkListenerTargets, Arm64DarwinNetworkListenerError> {
     let state_block = add_darwin_pointer_capture_block_descriptor(
         program,
@@ -147,6 +156,13 @@ pub fn add_darwin_plain_listener_targets(
         DarwinNetworkAdapterFunction::ListenerStart,
         DarwinNetworkAdapterFunction::ListenerCancel,
     )?;
+    let disposal = add_darwin_network_listener_disposal_target(
+        program,
+        imports,
+        lifecycle,
+        receive_event,
+        connection_dispose,
+    )?;
     Ok(Arm64DarwinNetworkListenerTargets {
         create,
         state_callback,
@@ -157,6 +173,7 @@ pub fn add_darwin_plain_listener_targets(
         receive_event,
         port,
         lifecycle,
+        disposal,
     })
 }
 
@@ -459,6 +476,7 @@ pub enum Arm64DarwinNetworkListenerError {
     Event(Arm64DarwinNetworkListenerEventError),
     Port(Arm64DarwinNetworkListenerPortError),
     Lifecycle(Arm64DarwinNetworkOwnerLifecycleError),
+    Disposal(Arm64DarwinNetworkOwnerDisposalError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -479,6 +497,7 @@ impl std::error::Error for Arm64DarwinNetworkListenerError {
             Self::Event(error) => Some(error),
             Self::Port(error) => Some(error),
             Self::Lifecycle(error) => Some(error),
+            Self::Disposal(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::ContractLayout => None,
@@ -503,6 +522,7 @@ convert_error!(Arm64DarwinNetworkOwnerEventError, OwnerEvent);
 convert_error!(Arm64DarwinNetworkListenerEventError, Event);
 convert_error!(Arm64DarwinNetworkListenerPortError, Port);
 convert_error!(Arm64DarwinNetworkOwnerLifecycleError, Lifecycle);
+convert_error!(Arm64DarwinNetworkOwnerDisposalError, Disposal);
 convert_error!(Arm64CodeError, Code);
 convert_error!(Arm64ProgramError, Program);
 
@@ -518,9 +538,13 @@ mod tests {
         let mut program = Arm64ProgramBuilder::new();
         let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
         let connection = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
-        let targets =
-            add_darwin_plain_listener_targets(&mut program, &imports, connection.adopt_accepted())
-                .unwrap();
+        let targets = add_darwin_plain_listener_targets(
+            &mut program,
+            &imports,
+            connection.adopt_accepted(),
+            connection.disposal().dispose(),
+        )
+        .unwrap();
         let lifecycle = targets.lifecycle();
         let functions = [
             targets.create(),
@@ -534,6 +558,8 @@ mod tests {
             lifecycle.request_cancel(),
             lifecycle.complete_release_barrier(),
             lifecycle.release(),
+            targets.disposal().dispose(),
+            targets.disposal().worker(),
         ];
         for (index, function) in functions.iter().enumerate() {
             assert!(!functions[..index].contains(function));

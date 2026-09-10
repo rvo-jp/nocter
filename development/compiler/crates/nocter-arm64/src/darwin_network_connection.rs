@@ -15,6 +15,7 @@ use crate::darwin_network_owner_creation::{
     emit_darwin_network_load_imported_object, emit_darwin_network_release_dispatch_object,
     emit_darwin_network_release_network_object, emit_darwin_network_set_owner_queue,
 };
+use crate::darwin_network_owner_disposal::add_darwin_network_connection_disposal_target;
 use crate::darwin_network_owner_lifecycle::add_darwin_network_owner_lifecycle_targets;
 
 use crate::{
@@ -24,7 +25,8 @@ use crate::{
     Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkConnectionAddressError,
     Arm64DarwinNetworkConnectionAddressTargets, Arm64DarwinNetworkConnectionEventError,
     Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionTransferError,
-    Arm64DarwinNetworkConnectionTransferTargets, Arm64DarwinNetworkOwnerError,
+    Arm64DarwinNetworkConnectionTransferTargets, Arm64DarwinNetworkOwnerDisposalError,
+    Arm64DarwinNetworkOwnerDisposalTarget, Arm64DarwinNetworkOwnerError,
     Arm64DarwinNetworkOwnerLifecycleError, Arm64DarwinNetworkOwnerLifecycleTargets,
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
@@ -53,6 +55,7 @@ pub struct Arm64DarwinNetworkConnectionTargets {
     state_block: crate::Arm64DarwinBlockDescriptorId,
     lifecycle: Arm64DarwinNetworkOwnerLifecycleTargets,
     events: Arm64DarwinNetworkConnectionEventTargets,
+    disposal: Arm64DarwinNetworkOwnerDisposalTarget,
     addresses: Arm64DarwinNetworkConnectionAddressTargets,
     transfers: Arm64DarwinNetworkConnectionTransferTargets,
 }
@@ -86,6 +89,11 @@ impl Arm64DarwinNetworkConnectionTargets {
     #[must_use]
     pub const fn events(self) -> Arm64DarwinNetworkConnectionEventTargets {
         self.events
+    }
+
+    #[must_use]
+    pub const fn disposal(self) -> Arm64DarwinNetworkOwnerDisposalTarget {
+        self.disposal
     }
 
     #[must_use]
@@ -146,6 +154,8 @@ pub fn add_darwin_plain_connection_targets(
         DarwinNetworkAdapterFunction::ConnectionCancel,
     )?;
     let events = add_darwin_network_connection_event_targets(program, imports)?;
+    let disposal =
+        add_darwin_network_connection_disposal_target(program, imports, lifecycle, events)?;
     let addresses = add_darwin_network_connection_address_targets(program, imports)?;
     let transfers = add_darwin_network_connection_transfer_targets(program, imports)?;
     Ok(Arm64DarwinNetworkConnectionTargets {
@@ -155,6 +165,7 @@ pub fn add_darwin_plain_connection_targets(
         state_block,
         lifecycle,
         events,
+        disposal,
         addresses,
         transfers,
     })
@@ -628,6 +639,7 @@ pub enum Arm64DarwinNetworkConnectionError {
     Owner(Arm64DarwinNetworkOwnerError),
     Lifecycle(Arm64DarwinNetworkOwnerLifecycleError),
     Event(Arm64DarwinNetworkConnectionEventError),
+    Disposal(Arm64DarwinNetworkOwnerDisposalError),
     Address(Arm64DarwinNetworkConnectionAddressError),
     Transfer(Arm64DarwinNetworkConnectionTransferError),
     Adoption(Arm64DarwinConnectionAdoptionError),
@@ -652,6 +664,7 @@ impl std::error::Error for Arm64DarwinNetworkConnectionError {
             Self::Owner(error) => Some(error),
             Self::Lifecycle(error) => Some(error),
             Self::Event(error) => Some(error),
+            Self::Disposal(error) => Some(error),
             Self::Address(error) => Some(error),
             Self::Transfer(error) => Some(error),
             Self::Adoption(error) => Some(error),
@@ -677,6 +690,7 @@ convert_error!(Arm64DarwinNetworkCallbackError, Callback);
 convert_error!(Arm64DarwinNetworkOwnerError, Owner);
 convert_error!(Arm64DarwinNetworkOwnerLifecycleError, Lifecycle);
 convert_error!(Arm64DarwinNetworkConnectionEventError, Event);
+convert_error!(Arm64DarwinNetworkOwnerDisposalError, Disposal);
 convert_error!(Arm64DarwinNetworkConnectionAddressError, Address);
 convert_error!(Arm64DarwinNetworkConnectionTransferError, Transfer);
 convert_error!(Arm64DarwinConnectionAdoptionError, Adoption);
@@ -695,5 +709,7 @@ mod tests {
         let targets = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
         assert_ne!(targets.create(), targets.state_callback());
         assert_ne!(targets.create(), targets.adopt_accepted().function());
+        assert_ne!(targets.disposal().dispose(), targets.disposal().worker());
+        assert_ne!(targets.create(), targets.disposal().dispose());
     }
 }

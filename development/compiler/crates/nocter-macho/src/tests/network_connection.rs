@@ -4,8 +4,8 @@ use nocter_arm64::{
     Arm64Instruction, Arm64Program, Arm64ProgramBuilder, add_darwin_plain_connection_targets,
 };
 use nocter_runtime_contract::{
-    DarwinNetworkConnectionEventPollAbiSchema, DarwinNetworkConnectionState,
-    DarwinNetworkOwnerCreateStatus,
+    DarwinNetworkAdapterFunction, DarwinNetworkConnectionEventPollAbiSchema,
+    DarwinNetworkConnectionState, DarwinNetworkOwnerCreateStatus,
 };
 
 use super::network_callback::{adjust_stack, immediate, load, move_register, stack_address, x};
@@ -30,6 +30,61 @@ fn connection_lifecycle_program() -> Arm64Program {
         connection.events(),
         address,
     );
+    program.set_entry(entry).unwrap();
+    program.finish().unwrap()
+}
+
+fn connection_disposal_worker_program() -> Arm64Program {
+    let mut program = Arm64ProgramBuilder::new();
+    let entry = program.declare_function();
+    let address = program
+        .add_data(
+            [16, 2, 0, 1, 127, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0].as_slice(),
+            4,
+        )
+        .unwrap();
+    let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
+    let connection = add_darwin_plain_connection_targets(&mut program, &imports).unwrap();
+    let mut code = Arm64CodeBuilder::new();
+    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 16);
+    code.append(Arm64Instruction::StoreUnsigned {
+        size: nocter_arm64::Arm64LoadStoreSize::Double,
+        source: nocter_arm64::Arm64DataRegister::General(x(30)),
+        base: Arm64BaseRegister::StackPointer,
+        offset: 8,
+    });
+    immediate(&mut code, x(0), 48);
+    code.load_function_import(
+        imports.function(DarwinNetworkAdapterFunction::Malloc),
+        x(16),
+    );
+    code.append(Arm64Instruction::BranchRegister {
+        target: x(16),
+        link: true,
+    });
+    move_register(&mut code, x(26), x(0));
+    move_register(&mut code, x(0), x(26));
+    code.load_data_address(address, x(1));
+    call_function(&mut code, connection.create());
+    compare_immediate(
+        &mut code,
+        x(0),
+        DarwinNetworkOwnerCreateStatus::Created.code(),
+    );
+    let created = code.create_label();
+    code.branch_conditional(created, Arm64BranchCondition::Equal);
+    immediate(&mut code, x(0), 4);
+    immediate(&mut code, x(16), 1);
+    code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
+    code.bind(created).unwrap();
+    move_register(&mut code, x(0), x(26));
+    call_function(&mut code, connection.disposal().worker());
+    immediate(&mut code, x(0), 0);
+    immediate(&mut code, x(16), 1);
+    code.append(Arm64Instruction::SupervisorCall { immediate: 0x80 });
+    program
+        .define_function(entry, code.finish().unwrap())
+        .unwrap();
     program.set_entry(entry).unwrap();
     program.finish().unwrap()
 }
@@ -152,6 +207,24 @@ fn generated_image_releases_network_ownership_after_cancelled_and_queue_barrier(
     let image = MachOImage::build(&connection_lifecycle_program()).unwrap();
     let path = std::env::temp_dir().join(format!(
         "nocter-macho-network-lifecycle-test-{}",
+        std::process::id()
+    ));
+    std::fs::write(&path, image.bytes()).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let status = std::process::Command::new(&path).status().unwrap();
+    std::fs::remove_file(&path).unwrap();
+
+    assert_eq!(status.code(), Some(0));
+}
+
+#[test]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn generated_disposal_worker_drains_and_releases_a_connection_owner() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let image = MachOImage::build(&connection_disposal_worker_program()).unwrap();
+    let path = std::env::temp_dir().join(format!(
+        "nocter-macho-network-disposal-test-{}",
         std::process::id()
     ));
     std::fs::write(&path, image.bytes()).unwrap();

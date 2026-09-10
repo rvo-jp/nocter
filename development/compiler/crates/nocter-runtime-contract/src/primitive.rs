@@ -168,6 +168,7 @@ closed_role_enum! {
         NetworkConnectionRequestCancel,
         NetworkConnectionReleaseBarrier,
         NetworkConnectionRelease,
+        NetworkConnectionDispose,
         NetworkListenerCreate,
         NetworkListenerStart,
         NetworkListenerEventDescriptor,
@@ -177,6 +178,7 @@ closed_role_enum! {
         NetworkListenerRequestCancel,
         NetworkListenerReleaseBarrier,
         NetworkListenerRelease,
+        NetworkListenerDispose,
         Syscall0,
         /// Preserves both successful result words of one zero-argument target syscall.
         SyscallPair0,
@@ -295,7 +297,8 @@ impl PrimitiveRole {
             | Self::NetworkConnectionCopyRemoteAddress
             | Self::NetworkConnectionRequestCancel
             | Self::NetworkConnectionReleaseBarrier
-            | Self::NetworkConnectionRelease => self.network_connection_name(),
+            | Self::NetworkConnectionRelease
+            | Self::NetworkConnectionDispose => self.network_connection_name(),
             Self::NetworkListenerCreate
             | Self::NetworkListenerStart
             | Self::NetworkListenerEventDescriptor
@@ -304,7 +307,8 @@ impl PrimitiveRole {
             | Self::NetworkListenerPort
             | Self::NetworkListenerRequestCancel
             | Self::NetworkListenerReleaseBarrier
-            | Self::NetworkListenerRelease => self.network_listener_name(),
+            | Self::NetworkListenerRelease
+            | Self::NetworkListenerDispose => self.network_listener_name(),
             Self::Syscall0 => "syscall_0",
             Self::SyscallPair0 => "syscall_pair_0",
             Self::Syscall1 => "syscall_1",
@@ -329,6 +333,7 @@ impl PrimitiveRole {
             Self::NetworkListenerRequestCancel => "network_listener_request_cancel",
             Self::NetworkListenerReleaseBarrier => "network_listener_release_barrier",
             Self::NetworkListenerRelease => "network_listener_release",
+            Self::NetworkListenerDispose => "network_listener_dispose",
             _ => panic!("only listener roles use listener names"),
         }
     }
@@ -351,6 +356,7 @@ impl PrimitiveRole {
             Self::NetworkConnectionRequestCancel => "network_connection_request_cancel",
             Self::NetworkConnectionReleaseBarrier => "network_connection_release_barrier",
             Self::NetworkConnectionRelease => "network_connection_release",
+            Self::NetworkConnectionDispose => "network_connection_dispose",
             _ => panic!("only connection roles use connection names"),
         }
     }

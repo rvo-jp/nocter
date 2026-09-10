@@ -90,6 +90,18 @@ noalloc func close_stream_connection(connection: &+StreamConnection): void {
     return
 }
 
+noalloc func dispose_stream_connection(connection: &+StreamConnection): void {
+    let previous = ptr.replace_value(
+        &+connection.ownership,
+        StreamConnectionOwnership.closed,
+    )
+    match move previous {
+        StreamConnectionOwnership.open(owner) { darwin.connection_dispose(move owner) }
+        StreamConnectionOwnership.closed {}
+    }
+    return
+}
+
 noalloc func release_cancelled_stream_connection(connection: &+StreamConnection): void {
     let previous = ptr.replace_value(
         &+connection.ownership,
@@ -477,6 +489,6 @@ instance StreamConnection {
 }
 
 noalloc drop StreamConnection(&+self) {
-    close_stream_connection(self)
+    dispose_stream_connection(self)
     return
 }

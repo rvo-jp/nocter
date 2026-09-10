@@ -79,6 +79,7 @@ pub enum DarwinNetworkAdapterOperation {
     ObserveFinalState,
     CompleteReleaseBarrier,
     Release,
+    Dispose,
 }
 
 impl DarwinNetworkAdapterOperation {
@@ -99,6 +100,7 @@ impl DarwinNetworkAdapterOperation {
         Self::ObserveFinalState,
         Self::CompleteReleaseBarrier,
         Self::Release,
+        Self::Dispose,
     ];
 
     /// Returns the owner created by an operation with no prior owner.
@@ -120,7 +122,8 @@ impl DarwinNetworkAdapterOperation {
             | Self::RequestCancel
             | Self::ObserveFinalState
             | Self::CompleteReleaseBarrier
-            | Self::Release => None,
+            | Self::Release
+            | Self::Dispose => None,
         }
     }
 
@@ -219,7 +222,7 @@ impl DarwinNetworkOwner {
             )
             | (Operation::ReceiveEvent, _, State::Running | State::CancelRequested)
             | (
-                Operation::TryReceiveEvent,
+                Operation::TryReceiveEvent | Operation::Dispose,
                 _,
                 State::Initialized | State::Running | State::CancelRequested,
             )
