@@ -1,0 +1,126 @@
+//! Native contract tests for the package-internal provider-independent stream policy.
+
+see ./index.nct
+see ./errors.nct
+
+use /internal/net.{
+    AcceptAttempt,
+    AddressAttempt,
+    DescriptorAttempt,
+    NetworkFailure,
+    NetworkShutdown,
+    StreamConnectionAttempt,
+    TransferAttempt,
+    UnitAttempt,
+}
+use /internal/net as internal_net
+use /internal/net/model.{NetworkAddress, NetworkFamily}
+use /vec.Vec
+
+test provider_stream_policy_owns_transfer_eof_and_terminal_close {
+    var listener = match internal_net.listen_tcp(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+        DescriptorAttempt.ready(descriptor) { move descriptor }
+        DescriptorAttempt.failed(failure) {
+            return network_error(move failure)
+        }
+    }
+    let address = match listener.local_address() {
+        AddressAttempt.ready(value) { value }
+        AddressAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy listener address failed")
+        }
+    }
+    var client = match internal_net.connect_stream(address, none) {
+        StreamConnectionAttempt.ready(connection) { move connection }
+        StreamConnectionAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy connection failed")
+        }
+    }
+    let accepted = match listener.accept_tcp() {
+        AcceptAttempt.ready(descriptor, peer) { (move descriptor, peer) }
+        AcceptAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy accept failed")
+        }
+    }
+    var server = move accepted.0
+    if accepted.1.family is NetworkFamily.ipv6 {
+        return error.new("std.net.test", "provider-policy peer family changed")
+    }
+
+    match client.write("ping".bytes()) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy send failed")
+        }
+    }
+    var request: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let request_len = match server.read_stream(&+request) {
+        TransferAttempt.ready(count) { count }
+        TransferAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy peer read failed")
+        }
+    }
+    if request_len != 4 || request[0] != 112 || request[1] != 105
+        || request[2] != 110 || request[3] != 103 {
+        return error.new("std.net.test", "provider-policy send bytes changed")
+    }
+
+    match server.write_stream("pong".bytes()) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy peer send failed")
+        }
+    }
+    var response: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let response_len = match client.read(&+response) {
+        TransferAttempt.ready(count) { count }
+        TransferAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy receive failed")
+        }
+    }
+    if response_len != 4 || response[0] != 112 || response[1] != 111
+        || response[2] != 110 || response[3] != 103 {
+        return error.new("std.net.test", "provider-policy receive bytes changed")
+    }
+
+    match server.shutdown(NetworkShutdown.write) {
+        UnitAttempt.ready {}
+        UnitAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy peer shutdown failed")
+        }
+    }
+    var end: Vec<u8> = Vec [u8.truncate(0)]
+    match client.read(&+end) {
+        TransferAttempt.ready(count) {
+            if count != 0 {
+                return error.new("std.net.test", "provider-policy EOF carried bytes")
+            }
+        }
+        TransferAttempt.failed(_) {
+            return error.new("std.net.test", "provider-policy EOF became a failure")
+        }
+    }
+
+    client.close()
+    client.close()
+    match client.write("closed".bytes()) {
+        UnitAttempt.failed(failure) {
+            match move failure {
+                NetworkFailure.closed {}
+                _ { return error.new("std.net.test", "provider-policy close error changed") }
+            }
+        }
+        _ { return error.new("std.net.test", "provider-policy close was not terminal") }
+    }
+    return
+}

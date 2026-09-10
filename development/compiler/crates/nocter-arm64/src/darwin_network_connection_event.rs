@@ -344,6 +344,9 @@ fn copy_dispatch_data(
 
     load_stack(code, x(19), 40);
     load_stack(code, copied, 48);
+    let release = code.create_label();
+    compare_immediate(code, capacity, 0)?;
+    code.branch_conditional(release, Arm64BranchCondition::Equal);
     compare_register(code, copied, capacity);
     let fits = code.create_label();
     code.branch_conditional(fits, Arm64BranchCondition::UnsignedLowerOrSame);
@@ -352,6 +355,7 @@ fn copy_dispatch_data(
     abort(code, imports);
     code.bind(fits)?;
     copy_bytes(code, x(19), destination, copied)?;
+    code.bind(release)?;
     release_dispatch_data(code, imports, x(24));
     release_dispatch_data(code, imports, content);
     code.bind(complete)?;

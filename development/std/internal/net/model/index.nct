@@ -2,12 +2,39 @@
 
 see ./address.nct
 
+use /internal/os.OSErrorKind
+
 /// Opaque, uniquely owned storage for one compiler-selected stream or listener provider.
 pub(/) primitive type NetworkOwner
 
 pub(/) enum NetworkFamily {
     ipv4
     ipv6
+}
+
+/// One provider failure normalized before it crosses into stream policy.
+pub(/) enum NetworkProviderFailure {
+    os(kind: OSErrorKind, code: usize)
+    dns(code: usize)
+    tls(code: usize)
+    unknown(domain: usize, code: usize)
+}
+
+/// Provider-independent progress states for one connection owner.
+pub(/) enum NetworkConnectionState {
+    preparing
+    waiting
+    ready
+    failed(failure: NetworkProviderFailure?)
+    cancelled
+}
+
+/// One ownership-free event consumed from a connection's ordered callback channel.
+pub(/) enum NetworkConnectionEvent {
+    state(value: NetworkConnectionState)
+    received(count: usize, complete: bool, failure: NetworkProviderFailure?)
+    sent(failure: NetworkProviderFailure?)
+    malformed
 }
 
 /// One target-independent classification of a system resolver outcome.

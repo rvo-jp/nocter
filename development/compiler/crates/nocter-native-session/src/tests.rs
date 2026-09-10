@@ -2190,6 +2190,7 @@ fn standard_network_contract_crosses_native_tests() {
     let mut root_source = fs::read_to_string(standard_root.join("index.nct")).unwrap();
     root_source.push_str(concat!(
         "\n#test: { name: \"net\", module: \"./net\" }\n",
+        "#test: { name: \"net-stream-policy\", module: \"./internal/net\" }\n",
         "#test: { name: \"net-resolver-adapter\", module: \"./internal/net/darwin\" }\n",
     ));
     let mut overlay = SourceOverlay::builder();
@@ -2208,6 +2209,7 @@ fn standard_network_contract_crosses_native_tests() {
         vec![
             ModuleIdentity::new(standard_package.clone(), Vec::<&str>::new()),
             ModuleIdentity::new(standard_package.clone(), ["net"]),
+            ModuleIdentity::new(standard_package.clone(), ["internal", "net"]),
             ModuleIdentity::new(standard_package.clone(), ["internal", "net", "darwin"]),
         ],
         bundled_standard_toolchain(&standard_package),
@@ -2216,7 +2218,7 @@ fn standard_network_contract_crosses_native_tests() {
 
     let target = compile_for_test(unit);
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
-    assert_eq!(compiled.targets().len(), 2);
+    assert_eq!(compiled.targets().len(), 3);
     let output = TempPackage::new();
     let mut case_count = 0;
     for target in compiled.targets() {
@@ -2228,7 +2230,7 @@ fn standard_network_contract_crosses_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 30);
+    assert_eq!(case_count, 31);
 }
 
 #[test]

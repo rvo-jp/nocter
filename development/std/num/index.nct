@@ -264,6 +264,9 @@ construct u16 {
 }
 
 construct u32 {
+    /// Converts an unsigned value when it is representable as `u32`.
+    pub noalloc func from_u64(value: u64): Self?
+
     /// Converts an integral binary64 value when it is representable as `u32`.
     pub noalloc func from_f64(value: f64): Self?
 

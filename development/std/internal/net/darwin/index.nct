@@ -3,13 +3,75 @@
 //! Native address and poll layouts, socket constants, byte order, and raw syscall classification
 //! are confined to this module. Consumers receive closed logical attempts.
 
-use /internal/net/model.{NetworkAddress, NetworkFamily, NetworkOwner, ResolverFailure, ResolverNext}
+use /internal/net/model.{
+    NetworkAddress,
+    NetworkConnectionEvent,
+    NetworkFamily,
+    NetworkOwner,
+    ResolverFailure,
+    ResolverNext,
+}
 use /internal/os.OSError
 
 see ./adapter.nct
 see ./connection_tests.nct
 see ./resolver.nct
 see ./resolver_tests.nct
+
+/// Creates one unstarted provider connection from a logical numeric address.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_create(address: &NetworkAddress): NetworkOwner?
+
+/// Starts callbacks and provider progress for a connection owner.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_start(owner: &+NetworkOwner): void
+
+/// Returns the descriptor that becomes readable for each ordered callback event.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_event_descriptor(owner: &NetworkOwner): usize
+
+/// Starts one receive operation whose completion enters the ordered event channel.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_begin_receive(
+    owner: &+NetworkOwner,
+    maximum_length: u32,
+): void
+
+/// Starts one send after copying the source bytes into provider-owned storage.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_begin_send(
+    owner: &+NetworkOwner,
+    bytes: *u8,
+    len: usize,
+): bool
+
+/// Consumes and normalizes one ordered callback event.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_next_event(
+    owner: &+NetworkOwner,
+    destination: *u8,
+    capacity: usize,
+): NetworkConnectionEvent
+
+/// Returns the effective local address without exposing a provider endpoint.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_local_address(owner: &NetworkOwner): NetworkAddress?
+
+/// Returns the effective remote address without exposing a provider endpoint.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_remote_address(owner: &NetworkOwner): NetworkAddress?
+
+/// Requests idempotent connection cancellation.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_cancel(owner: &+NetworkOwner): void
+
+/// Crosses the serial callback-queue release fence.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_release_barrier(owner: &+NetworkOwner): void
+
+/// Releases a cancelled, quiesced owner.
+#target: "arm64-darwin"
+pub(/) noalloc func connection_release(owner: NetworkOwner): void
 
 /// Creates an unstarted plain connection over one complete native socket address.
 #target: "arm64-darwin"

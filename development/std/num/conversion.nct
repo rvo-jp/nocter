@@ -85,10 +85,14 @@ construct u16 {
 }
 
 construct u32 {
+    noalloc func from_u64(value: u64): Self? {
+        if value > 4294967295 { return none }
+        return u32_truncate_raw(value)
+    }
+
     noalloc func from_f64(value: f64): Self? {
         let whole = exact_u64_from_f64(value) otherwise { return none }
-        if whole > 4294967295 { return none }
-        return u32_truncate_raw(whole)
+        return u32.from_u64(whole)
     }
 }
 

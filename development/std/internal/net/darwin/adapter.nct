@@ -2,10 +2,17 @@
 
 see ./index.nct
 
-use /internal/net/model.{NetworkAddress, NetworkFamily, NetworkOwner}
+use /internal/net/model.{
+    NetworkAddress,
+    NetworkConnectionEvent,
+    NetworkConnectionState,
+    NetworkFamily,
+    NetworkOwner,
+    NetworkProviderFailure,
+}
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
-use /internal/os.OSError
+use /internal/os.{OSError, OSErrorKind}
 use /internal/ptr as internal_ptr
 use /ptr
 
@@ -207,8 +214,108 @@ noalloc func logical_address_from_pointer(pointer: *u8, len: usize): NetworkAddr
 }
 
 #target: "arm64-darwin"
-/// Returns the current effective local address without exposing a provider endpoint.
-noalloc func network_connection_local_address(owner: &NetworkOwner): NetworkAddress? {
+noalloc func connection_create(address: &NetworkAddress): NetworkOwner? {
+    let native = native_address(address)
+    return network_connection_create_raw(ptr.from_ref(&native.bytes[0]))?
+}
+
+#target: "arm64-darwin"
+noalloc func connection_start(owner: &+NetworkOwner): void {
+    network_connection_start_raw(owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func connection_event_descriptor(owner: &NetworkOwner): usize {
+    return network_connection_event_descriptor_raw(owner)
+}
+
+#target: "arm64-darwin"
+noalloc func connection_begin_receive(
+    owner: &+NetworkOwner,
+    maximum_length: u32,
+): void {
+    network_connection_begin_receive_raw(owner, maximum_length)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func connection_begin_send(
+    owner: &+NetworkOwner,
+    bytes: *u8,
+    len: usize,
+): bool {
+    return network_connection_begin_send_raw(owner, bytes, len)
+}
+
+#target: "arm64-darwin"
+noalloc func connection_provider_failure(domain: usize, code: usize): NetworkProviderFailure? {
+    if domain == 0 {
+        if code == 0 { return none }
+        return NetworkProviderFailure.unknown(domain, code)
+    }
+    if domain == 1 {
+        var kind = OSErrorKind.unknown
+        if code == 1 || code == 13 { kind = OSErrorKind.permission_denied }
+        if code == 22 { kind = OSErrorKind.invalid_input }
+        if code == 32 { kind = OSErrorKind.broken_pipe }
+        if code == 39 || code == 57 { kind = OSErrorKind.not_connected }
+        if code == 40 { kind = OSErrorKind.message_too_large }
+        if code == 48 { kind = OSErrorKind.address_in_use }
+        if code == 49 { kind = OSErrorKind.address_not_available }
+        if code == 50 || code == 51 { kind = OSErrorKind.network_unreachable }
+        if code == 53 { kind = OSErrorKind.connection_aborted }
+        if code == 54 { kind = OSErrorKind.connection_reset }
+        if code == 60 { kind = OSErrorKind.timed_out }
+        if code == 61 { kind = OSErrorKind.connection_refused }
+        return NetworkProviderFailure.os(kind, code)
+    }
+    if domain == 2 { return NetworkProviderFailure.dns(code) }
+    if domain == 3 { return NetworkProviderFailure.tls(code) }
+    return NetworkProviderFailure.unknown(domain, code)
+}
+
+#target: "arm64-darwin"
+noalloc func connection_next_event(
+    owner: &+NetworkOwner,
+    destination: *u8,
+    capacity: usize,
+): NetworkConnectionEvent {
+    let event = network_connection_receive_event_raw(owner, destination, capacity)
+    if event.0 == 0 {
+        let failure = connection_provider_failure(event.2, event.3)
+        if event.1 == 1 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.waiting)
+        }
+        if event.1 == 2 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.preparing)
+        }
+        if event.1 == 3 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.ready)
+        }
+        if event.1 == 4 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.failed(move failure))
+        }
+        if event.1 == 5 {
+            return NetworkConnectionEvent.state(NetworkConnectionState.cancelled)
+        }
+        return NetworkConnectionEvent.malformed
+    }
+    if event.0 == 1 {
+        return NetworkConnectionEvent.received(
+            event.1,
+            event.2 == 1,
+            connection_provider_failure(event.3, event.4),
+        )
+    }
+    if event.0 == 2 {
+        return NetworkConnectionEvent.sent(connection_provider_failure(event.1, event.2))
+    }
+    return NetworkConnectionEvent.malformed
+}
+
+#target: "arm64-darwin"
+noalloc func connection_local_address(owner: &NetworkOwner): NetworkAddress? {
     var native = empty_native_address()
     let length = network_connection_copy_local_address_raw(
         owner,
@@ -218,14 +325,31 @@ noalloc func network_connection_local_address(owner: &NetworkOwner): NetworkAddr
 }
 
 #target: "arm64-darwin"
-/// Returns the current effective remote address without exposing a provider endpoint.
-noalloc func network_connection_remote_address(owner: &NetworkOwner): NetworkAddress? {
+noalloc func connection_remote_address(owner: &NetworkOwner): NetworkAddress? {
     var native = empty_native_address()
     let length = network_connection_copy_remote_address_raw(
         owner,
         ptr.from_ref_mut(&+native.bytes[0]),
     )
     return logical_address(&native.bytes, length)
+}
+
+#target: "arm64-darwin"
+noalloc func connection_cancel(owner: &+NetworkOwner): void {
+    network_connection_request_cancel_raw(owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func connection_release_barrier(owner: &+NetworkOwner): void {
+    network_connection_release_barrier_raw(owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func connection_release(owner: NetworkOwner): void {
+    network_connection_release_raw(move owner)
+    return
 }
 
 #target: "arm64-darwin"

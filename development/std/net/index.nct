@@ -22,6 +22,7 @@ see ./tcp.nct
 see ./async_tcp.nct
 see ./errors.nct
 see ./tcp_tests.nct
+see ./provider_tests.nct
 see ./udp.nct
 see ./udp_tests.nct
 see ./timeout_tests.nct

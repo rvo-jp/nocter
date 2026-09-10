@@ -5,19 +5,70 @@
 //! records, constants, and syscalls; public network errors remain in `std/net`.
 
 use /internal/os.OSError
-use /internal/net/model.{NetworkAddress, NetworkFamily, ResolverFailure, ResolverNext}
+use /internal/net/model.{
+    NetworkAddress,
+    NetworkFamily,
+    NetworkProviderFailure,
+    ResolverFailure,
+    ResolverNext,
+}
 use /time.Duration
 
 see ./descriptor.nct
 see ./async_descriptor.nct
 see ./deadline.nct
+see ./connection.nct
 see ./resolver.nct
 
 pub(/) enum NetworkFailure {
     os(value: OSError)
+    provider(value: NetworkProviderFailure)
     closed
     timed_out
     invalid_target_result
+}
+
+/// One uniquely owned provider-backed byte-stream connection.
+pub(/) struct StreamConnection
+
+pub(/) enum StreamConnectionAttempt {
+    ready(connection: StreamConnection)
+    failed(failure: NetworkFailure)
+}
+
+/// Connects one provider-backed stream with an optional relative timeout.
+pub(/) noalloc func connect_stream(
+    address: NetworkAddress,
+    timeout: Duration?,
+): StreamConnectionAttempt
+
+instance StreamConnection {
+    /// Reads one provider chunk, returning zero at clean peer completion.
+    pub(/) noalloc method &+self.read(buffer: &+[u8]): TransferAttempt
+
+    /// Sends the complete byte view or returns one normalized failure.
+    pub(/) noalloc method &+self.write(bytes: &[u8]): UnitAttempt
+
+    /// Reports the effective logical local address.
+    pub(/) noalloc method &self.local_address(): AddressAttempt
+
+    /// Reports the effective logical peer address.
+    pub(/) noalloc method &self.peer_address(): AddressAttempt
+
+    /// Replaces the finite read-side operation timeout.
+    pub(/) noalloc method &+self.set_read_timeout(timeout: Duration?): void
+
+    /// Returns the configured read-side operation timeout.
+    pub(/) noalloc method &self.read_timeout(): Duration?
+
+    /// Replaces the finite write-side operation timeout.
+    pub(/) noalloc method &+self.set_write_timeout(timeout: Duration?): void
+
+    /// Returns the configured write-side operation timeout.
+    pub(/) noalloc method &self.write_timeout(): Duration?
+
+    /// Cancels and releases the provider owner at most once.
+    pub(/) noalloc method &+self.close(): void
 }
 
 /// One uniquely owned socket descriptor with explicit terminal state.

@@ -83,12 +83,12 @@ test plain_connection_copies_effective_addresses_without_provider_ownership {
         close_once(listener)
         return error.new("std.net.test", "Network connection did not become ready")
     }
-    let local = network_connection_local_address(&owner) otherwise {
+    let local = connection_local_address(&owner) otherwise {
         release_test_connection(move owner)
         close_once(listener)
         return error.new("std.net.test", "effective local address was unavailable")
     }
-    let remote = network_connection_remote_address(&owner) otherwise {
+    let remote = connection_remote_address(&owner) otherwise {
         release_test_connection(move owner)
         close_once(listener)
         return error.new("std.net.test", "effective remote address was unavailable")

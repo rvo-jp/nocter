@@ -3,10 +3,11 @@
 see ./index.nct
 
 use /internal/net.NetworkFailure
+use /internal/net/model.NetworkProviderFailure
 use /internal/os.OSErrorKind
 
 noalloc func network_error(failure: NetworkFailure): error {
-    match failure {
+    match move failure {
         NetworkFailure.closed {
             return error.new("std.net.closed", "network socket is closed")
         }
@@ -16,53 +17,71 @@ noalloc func network_error(failure: NetworkFailure): error {
         NetworkFailure.invalid_target_result {
             return error.new("std.net.target_error", "network target returned an invalid result")
         }
+        NetworkFailure.provider(value) {
+            match move value {
+                NetworkProviderFailure.os(kind, _) { return network_error_from_kind(kind) }
+                NetworkProviderFailure.dns(_) {
+                    return error.new("std.net.name_resolution_failed", "name resolution failed")
+                }
+                NetworkProviderFailure.tls(_) {
+                    return error.new("std.net.tls_failed", "secure transport failed")
+                }
+                NetworkProviderFailure.unknown(_, _) {
+                    return error.new("std.net.os_error", "network provider failed")
+                }
+            }
+        }
         NetworkFailure.os(value) {
-            if value.kind is OSErrorKind.connection_aborted {
-                return error.new("std.net.connection_aborted", "connection was aborted")
-            }
-            if value.kind is OSErrorKind.connection_refused {
-                return error.new("std.net.connection_refused", "connection was refused")
-            }
-            if value.kind is OSErrorKind.connection_reset {
-                return error.new("std.net.connection_reset", "connection was reset")
-            }
-            if value.kind is OSErrorKind.not_connected {
-                return error.new("std.net.not_connected", "socket is not connected")
-            }
-            if value.kind is OSErrorKind.address_in_use {
-                return error.new("std.net.address_in_use", "socket address is already in use")
-            }
-            if value.kind is OSErrorKind.address_not_available {
-                return error.new("std.net.address_not_available", "socket address is unavailable")
-            }
-            if value.kind is OSErrorKind.network_unreachable {
-                return error.new("std.net.network_unreachable", "network is unreachable")
-            }
-            if value.kind is OSErrorKind.message_too_large {
-                return error.new("std.net.message_too_large", "datagram is too large")
-            }
-            if value.kind is OSErrorKind.permission_denied {
-                return error.new("std.net.permission_denied", "network operation was denied")
-            }
-            if value.kind is OSErrorKind.broken_pipe {
-                return error.new("std.net.broken_pipe", "connection no longer accepts writes")
-            }
-            if value.kind is OSErrorKind.timed_out {
-                return error.new("std.net.timed_out", "network operation timed out")
-            }
-            if value.kind is OSErrorKind.invalid_input {
-                return error.new("std.net.invalid_input", "invalid network operation")
-            }
-            if value.kind is OSErrorKind.unsupported {
-                return error.new("std.net.unsupported", "network operation is unsupported")
-            }
-            if value.kind is OSErrorKind.interrupted {
-                return error.new("std.net.interrupted", "network operation was interrupted")
-            }
-            if value.kind is OSErrorKind.would_block {
-                return error.new("std.net.would_block", "network operation would block")
-            }
-            return error.new("std.net.os_error", "network operation failed")
+            return network_error_from_kind(value.kind)
         }
     }
+}
+
+noalloc func network_error_from_kind(kind: OSErrorKind): error {
+    if kind is OSErrorKind.connection_aborted {
+        return error.new("std.net.connection_aborted", "connection was aborted")
+    }
+    if kind is OSErrorKind.connection_refused {
+        return error.new("std.net.connection_refused", "connection was refused")
+    }
+    if kind is OSErrorKind.connection_reset {
+        return error.new("std.net.connection_reset", "connection was reset")
+    }
+    if kind is OSErrorKind.not_connected {
+        return error.new("std.net.not_connected", "socket is not connected")
+    }
+    if kind is OSErrorKind.address_in_use {
+        return error.new("std.net.address_in_use", "socket address is already in use")
+    }
+    if kind is OSErrorKind.address_not_available {
+        return error.new("std.net.address_not_available", "socket address is unavailable")
+    }
+    if kind is OSErrorKind.network_unreachable {
+        return error.new("std.net.network_unreachable", "network is unreachable")
+    }
+    if kind is OSErrorKind.message_too_large {
+        return error.new("std.net.message_too_large", "datagram is too large")
+    }
+    if kind is OSErrorKind.permission_denied {
+        return error.new("std.net.permission_denied", "network operation was denied")
+    }
+    if kind is OSErrorKind.broken_pipe {
+        return error.new("std.net.broken_pipe", "connection no longer accepts writes")
+    }
+    if kind is OSErrorKind.timed_out {
+        return error.new("std.net.timed_out", "network operation timed out")
+    }
+    if kind is OSErrorKind.invalid_input {
+        return error.new("std.net.invalid_input", "invalid network operation")
+    }
+    if kind is OSErrorKind.unsupported {
+        return error.new("std.net.unsupported", "network operation is unsupported")
+    }
+    if kind is OSErrorKind.interrupted {
+        return error.new("std.net.interrupted", "network operation was interrupted")
+    }
+    if kind is OSErrorKind.would_block {
+        return error.new("std.net.would_block", "network operation would block")
+    }
+    return error.new("std.net.os_error", "network operation failed")
 }
