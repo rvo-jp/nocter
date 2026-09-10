@@ -4,6 +4,7 @@ use /hash.{Hash, HashState}
 use /io.Reader
 use /string.String
 use /time.Duration
+use /tls.TrustAnchor
 use /url.Url
 use /vec.Vec
 
@@ -253,6 +254,9 @@ construct Client {
 }
 
 instance Client {
+    /// Returns this policy with one additional TLS trust root.
+    pub method self.with_trust_anchor(trust_anchor: TrustAnchor): Self
+
     /// Sends one request over one new connection and returns its final response.
     pub method &self.send(request: Request): Response!
 

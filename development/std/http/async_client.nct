@@ -93,12 +93,14 @@ func send_after_connect(
 
 func begin_async_send(
     limits: Limits,
+    trust: &ClientTrust,
     request: Request,
     timeout: Duration?,
 ): (async Response!)! {
     let prepared = prepare_request(move request, limits)?
     let pending_connection = begin_client_transport_async(
         &prepared.request.url_value,
+        trust,
         timeout,
     ) catch failure {
         return failure.context("while resolving the HTTP request host")
@@ -164,14 +166,14 @@ func read_response_body_async(
 
 instance Client {
     method &self.send_async(request: Request): (async Response!)! {
-        return begin_async_send(self.limits_value, move request, none)
+        return begin_async_send(self.limits_value, &self.trust, move request, none)
     }
 
     method &self.send_async_with_timeout(
         request: Request,
         timeout: Duration,
     ): (async Response!)! {
-        return begin_async_send(self.limits_value, move request, timeout)
+        return begin_async_send(self.limits_value, &self.trust, move request, timeout)
     }
 }
 

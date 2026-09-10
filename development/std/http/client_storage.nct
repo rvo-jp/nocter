@@ -6,8 +6,14 @@ see ./index.nct
 see ./storage.nct
 see ./transport_buffer.nct
 
+use /tls.TrustAnchor
 use /url.Url
 use /vec.Vec
+
+enum ClientTrust {
+    system
+    additional(anchor: TrustAnchor)
+}
 
 struct Request {
     url_value: Url
@@ -17,6 +23,7 @@ struct Request {
 
 struct Client {
     limits_value: Limits
+    trust: ClientTrust
 }
 
 struct Response {
@@ -30,7 +37,7 @@ struct Response {
 }
 
 noalloc func client_from_limits(limits: Limits): Client {
-    return Client { limits_value: limits }
+    return Client { limits_value: limits, trust: ClientTrust.system }
 }
 
 func request_from_parts(url: Url, head: RequestHead): Request {

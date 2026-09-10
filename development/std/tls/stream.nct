@@ -162,6 +162,45 @@ func connect_http1_with_timeout(
     )
 }
 
+func connect_http1_with_trust_anchor(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+): TlsStream! {
+    var deadline = substrate.connection_deadline(none)
+    let addresses = net.resolve(host, port)?
+    let protocol = http1_application_protocol()
+    let bytes = trust_anchor.bytes()
+    return connect_candidates(
+        host,
+        &addresses,
+        protocol.ptr(),
+        public_ptr.from_ref(&bytes[0]),
+        bytes.len(),
+        &+deadline,
+    )
+}
+
+func connect_http1_with_trust_anchor_and_timeout(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+    timeout: Duration,
+): TlsStream! {
+    var deadline = substrate.connection_deadline(timeout)
+    let addresses = net.resolve(host, port)?
+    let protocol = http1_application_protocol()
+    let bytes = trust_anchor.bytes()
+    return connect_candidates(
+        host,
+        &addresses,
+        protocol.ptr(),
+        public_ptr.from_ref(&bytes[0]),
+        bytes.len(),
+        &+deadline,
+    )
+}
+
 instance TlsStream {
     noalloc method &+self.read(buffer: &+[u8]): usize! {
         match self.connection.read(buffer) {

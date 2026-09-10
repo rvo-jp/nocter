@@ -14,6 +14,7 @@ see ./transport_buffer.nct
 see ./values.nct
 
 use /time.Duration
+use /tls.TrustAnchor
 use /url.Url
 use /vec.Vec
 
@@ -117,9 +118,20 @@ construct Client {
 }
 
 instance Client {
+    method self.with_trust_anchor(trust_anchor: TrustAnchor): Self {
+        return Client {
+            limits_value: self.limits_value,
+            trust: ClientTrust.additional(move trust_anchor),
+        }
+    }
+
     method &self.send(request: Request): Response! {
         let prepared = prepare_request(move request, self.limits_value)?
-        let stream = connect_client_transport(&prepared.request.url_value, none) catch failure {
+        let stream = connect_client_transport(
+            &prepared.request.url_value,
+            &self.trust,
+            none,
+        ) catch failure {
             return failure.context("while connecting the HTTP request")
         }
         return send_over_transport(move prepared, move stream)?
@@ -129,6 +141,7 @@ instance Client {
         let prepared = prepare_request(move request, self.limits_value)?
         let stream = connect_client_transport(
             &prepared.request.url_value,
+            &self.trust,
             timeout,
         ) catch failure {
             return failure.context("while connecting the HTTP request")

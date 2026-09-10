@@ -2514,6 +2514,91 @@ fn serve_plain_tls_peers_and_require_https_alpn(fixture: &std::net::TcpListener)
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn plain_tls_rejection_source(port: u16) -> String {
+    format!(
+        "use std/http.{{Client, Request}}\n\
+         use std/time.Duration\n\
+         use std/tls as tls\n\
+         use std/tls.{{TlsStream, TrustAnchor}}\n\
+         use std/url.Url\n\
+         \n\
+         func rejects_sync(): bool {{\n\
+             let _stream = TlsStream.connect_with_timeout(\n\
+                 \"localhost\",\n\
+                 {port},\n\
+                 Duration.from_seconds(1),\n\
+             ) catch failure {{\n\
+                 return failure.has_code(\"std.net.tls_failed\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func rejects_https_sync(): bool {{\n\
+             let client = Client.new()\n\
+             let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
+                 return false\n\
+             }}) catch _ {{ return false }}\n\
+             let _response = client.send_with_timeout(\n\
+                 move request,\n\
+                 Duration.from_seconds(1),\n\
+             ) catch failure {{\n\
+                 return failure.has_code(\"std.net.tls_failed\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func rejects_async(): async bool {{\n\
+             let pending = tls.connect_async_with_timeout(\n\
+                 \"localhost\",\n\
+                 {port},\n\
+                 Duration.from_seconds(1),\n\
+             ) catch _ {{ return false }}\n\
+             let _stream = await pending catch failure {{\n\
+                 return failure.has_code(\"std.net.tls_failed\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func rejects_https_async(): async bool {{\n\
+             let client = Client.new()\n\
+             let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
+                 return false\n\
+             }}) catch _ {{ return false }}\n\
+             let pending_response = client.send_async_with_timeout(\n\
+                 move request,\n\
+                 Duration.from_seconds(1),\n\
+             ) catch _ {{ return false }}\n\
+             let _response = await pending_response catch failure {{\n\
+                 return failure.has_code(\"std.net.tls_failed\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func rejects_invalid_custom_anchor(): bool {{\n\
+             let anchor = TrustAnchor.from_der(\"x\".bytes()) catch _ {{ return false }}\n\
+             let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
+                 \"localhost\",\n\
+                 {port},\n\
+                 &anchor,\n\
+                 Duration.from_seconds(1),\n\
+             ) catch failure {{\n\
+                 return failure.has_code(\"std.net.tls_failed\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func main(): async i32 {{\n\
+             if !rejects_sync() {{ return 1 }}\n\
+             if !await rejects_async() {{ return 2 }}\n\
+             if !rejects_https_sync() {{ return 3 }}\n\
+             if !await rejects_https_async() {{ return 4 }}\n\
+             if !rejects_invalid_custom_anchor() {{ return 5 }}\n\
+             return 0\n\
+         }}\n"
+    )
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
     use std::net::TcpListener;
@@ -2524,90 +2609,7 @@ fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
-    package_root.source(
-        "main.nct",
-        &format!(
-            "use std/http.{{Client, Request}}\n\
-             use std/time.Duration\n\
-             use std/tls as tls\n\
-             use std/tls.{{TlsStream, TrustAnchor}}\n\
-             use std/url.Url\n\
-             \n\
-             func rejects_sync(): bool {{\n\
-                 let _stream = TlsStream.connect_with_timeout(\n\
-                     \"localhost\",\n\
-                     {port},\n\
-                     Duration.from_seconds(1),\n\
-                 ) catch failure {{\n\
-                     return failure.has_code(\"std.net.tls_failed\")\n\
-                 }}\n\
-                 return false\n\
-             }}\n\
-             \n\
-             func rejects_https_sync(): bool {{\n\
-                 let client = Client.new()\n\
-                 let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
-                     return false\n\
-                 }}) catch _ {{ return false }}\n\
-                 let _response = client.send_with_timeout(\n\
-                     move request,\n\
-                     Duration.from_seconds(1),\n\
-                 ) catch failure {{\n\
-                     return failure.has_code(\"std.net.tls_failed\")\n\
-                 }}\n\
-                 return false\n\
-             }}\n\
-             \n\
-             func rejects_async(): async bool {{\n\
-                 let pending = tls.connect_async_with_timeout(\n\
-                     \"localhost\",\n\
-                     {port},\n\
-                     Duration.from_seconds(1),\n\
-                 ) catch _ {{ return false }}\n\
-                 let _stream = await pending catch failure {{\n\
-                     return failure.has_code(\"std.net.tls_failed\")\n\
-                 }}\n\
-                 return false\n\
-             }}\n\
-             \n\
-             func rejects_https_async(): async bool {{\n\
-                 let client = Client.new()\n\
-                 let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
-                     return false\n\
-                 }}) catch _ {{ return false }}\n\
-                 let pending_response = client.send_async_with_timeout(\n\
-                     move request,\n\
-                     Duration.from_seconds(1),\n\
-                 ) catch _ {{ return false }}\n\
-                 let _response = await pending_response catch failure {{\n\
-                     return failure.has_code(\"std.net.tls_failed\")\n\
-                 }}\n\
-                 return false\n\
-             }}\n\
-             \n\
-             func rejects_invalid_custom_anchor(): bool {{\n\
-                 let anchor = TrustAnchor.from_der(\"x\".bytes()) catch _ {{ return false }}\n\
-                 let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
-                     \"localhost\",\n\
-                     {port},\n\
-                     &anchor,\n\
-                     Duration.from_seconds(1),\n\
-                 ) catch failure {{\n\
-                     return failure.has_code(\"std.net.tls_failed\")\n\
-                 }}\n\
-                 return false\n\
-             }}\n\
-             \n\
-             func main(): async i32 {{\n\
-                 if !rejects_sync() {{ return 1 }}\n\
-                 if !await rejects_async() {{ return 2 }}\n\
-                 if !rejects_https_sync() {{ return 3 }}\n\
-                 if !await rejects_https_async() {{ return 4 }}\n\
-                 if !rejects_invalid_custom_anchor() {{ return 5 }}\n\
-                 return 0\n\
-             }}\n"
-        ),
-    );
+    package_root.source("main.nct", &plain_tls_rejection_source(port));
     let standard_package = PackageIdentity::new("toolchain:std");
     let unit = discover(DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
@@ -2650,6 +2652,8 @@ fn start_local_tls_server(port: u16, certificate: &Path, key: &Path) -> LocalTls
             certificate.to_str().unwrap(),
             "-key",
             key.to_str().unwrap(),
+            "-alpn",
+            "http/1.1",
             "-quiet",
             "-www",
         ])
@@ -2670,6 +2674,95 @@ fn start_local_tls_server(port: u16, certificate: &Path, key: &Path) -> LocalTls
         thread::sleep(Duration::from_millis(10));
     }
     panic!("local TLS server did not start");
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+struct LocalTlsHttpServer {
+    child: std::process::Child,
+    exchange: Option<std::thread::JoinHandle<()>>,
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+impl LocalTlsHttpServer {
+    fn finish(mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        self.exchange.take().unwrap().join().unwrap();
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+impl Drop for LocalTlsHttpServer {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        if let Some(exchange) = self.exchange.take() {
+            let _ = exchange.join();
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn start_local_tls_http_server(
+    port: u16,
+    certificate: &Path,
+    key: &Path,
+    exchange_count: usize,
+) -> LocalTlsHttpServer {
+    use std::io::{Read, Write};
+    use std::process::Stdio;
+    use std::thread;
+    use std::time::Duration;
+
+    let mut child = std::process::Command::new("/usr/bin/openssl")
+        .args([
+            "s_server",
+            "-accept",
+            &port.to_string(),
+            "-cert",
+            certificate.to_str().unwrap(),
+            "-key",
+            key.to_str().unwrap(),
+            "-alpn",
+            "http/1.1",
+            "-quiet",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut server_input = child.stdin.take().unwrap();
+    let mut server_output = child.stdout.take().unwrap();
+    let exchange = thread::spawn(move || {
+        for _ in 0..exchange_count {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0_u8; 1];
+                server_output.read_exact(&mut byte).unwrap();
+                request.push(byte[0]);
+            }
+            server_input
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                .unwrap();
+            server_input.flush().unwrap();
+        }
+    });
+    let mut server = LocalTlsHttpServer {
+        child,
+        exchange: Some(exchange),
+    };
+    for _ in 0..100 {
+        assert!(
+            server.child.try_wait().unwrap().is_none(),
+            "local TLS HTTP server exited"
+        );
+        if std::net::TcpStream::connect(("127.0.0.1", port)).is_ok() {
+            return server;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    panic!("local TLS HTTP server did not start");
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -2808,6 +2901,89 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     let target = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
     execute_native_status(image.image(), &package_root.0, "tls-custom-trust", 0);
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
+    use std::net::TcpListener;
+
+    let reservation = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = reservation.local_addr().unwrap().port();
+    drop(reservation);
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fixture_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tls");
+    let package_root = TempPackage::new();
+    create_local_tls_fixture(&fixture_root, &package_root.0);
+    let certificate = package_root.0.join("localhost-cert.pem");
+    let key = package_root.0.join("localhost-key.pem");
+    let server = start_local_tls_http_server(port, &certificate, &key, 2);
+
+    let standard_root = compiler_root.join("../std");
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/fs\n\
+             use std/http.{{Client, Request}}\n\
+             use std/time.Duration\n\
+             use std/tls.TrustAnchor\n\
+             use std/url.Url\n\
+             \n\
+             func accepts_sync(client: &Client): i32 {{\n\
+                 let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return 1 }}\n\
+                 let request = Request.get(move url) catch _ {{ return 2 }}\n\
+                 var response = client.send_with_timeout(\n\
+                     move request,\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch failure {{\n\
+                     if failure.has_code(\"std.net.tls_failed\") {{ return 3 }}\n\
+                     if failure.has_code(\"std.net.timed_out\") {{ return 4 }}\n\
+                     if failure.has_code(\"std.http.premature_eof\") {{ return 5 }}\n\
+                     if failure.has_code(\"std.http.invalid_syntax\") {{ return 6 }}\n\
+                     return 7\n\
+                 }}\n\
+                 let accepted = response.status().code() == 200\n\
+                 response.close()\n\
+                 if accepted {{ return 0 }}\n\
+                 return 4\n\
+             }}\n\
+             \n\
+             func accepts_async(client: &Client): async bool {{\n\
+                 let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
+                 let request = Request.get(move url) catch _ {{ return false }}\n\
+                 let pending = client.send_async_with_timeout(\n\
+                     move request,\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch _ {{ return false }}\n\
+                 var response = await pending catch _ {{ return false }}\n\
+                 let accepted = response.status().code() == 200\n\
+                 response.close()\n\
+                 return accepted\n\
+             }}\n\
+             \n\
+             func main(): async i32 {{\n\
+                 let certificate = fs.read(\"root-cert.der\") catch _ {{ return 1 }}\n\
+                 let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
+                 let client = Client.new().with_trust_anchor(move anchor)\n\
+                 let sync_status = accepts_sync(&client)\n\
+                 if sync_status != 0 {{ return sync_status + 10 }}\n\
+                 if !await accepts_async(&client) {{ return 4 }}\n\
+                 return 0\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "https-custom-trust", 0);
+    server.finish();
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]

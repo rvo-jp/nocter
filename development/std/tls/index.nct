@@ -83,6 +83,21 @@ pub(/) func connect_http1_with_timeout(
     timeout: Duration,
 ): TlsStream!
 
+/// Opens one package-internal HTTP/1.1 stream with an additional trust root.
+pub(/) func connect_http1_with_trust_anchor(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+): TlsStream!
+
+/// Opens one package-internal custom-trust HTTP/1.1 stream before a fixed timeout.
+pub(/) func connect_http1_with_trust_anchor_and_timeout(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+    timeout: Duration,
+): TlsStream!
+
 /// Resolves immediately and returns one package-internal HTTP/1.1 TLS computation.
 pub(/) func connect_http1_async(host: &str, port: u16): (async TlsStream!)!
 
@@ -90,6 +105,21 @@ pub(/) func connect_http1_async(host: &str, port: u16): (async TlsStream!)!
 pub(/) func connect_http1_async_with_timeout(
     host: &str,
     port: u16,
+    timeout: Duration,
+): (async TlsStream!)!
+
+/// Returns one package-internal HTTP/1.1 computation with an additional trust root.
+pub(/) func connect_http1_async_with_trust_anchor(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+): (async TlsStream!)!
+
+/// Returns one custom-trust HTTP/1.1 computation bounded by a fixed timeout.
+pub(/) func connect_http1_async_with_trust_anchor_and_timeout(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
     timeout: Duration,
 ): (async TlsStream!)!
 

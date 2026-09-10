@@ -192,6 +192,7 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">Reader</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-type">Duration</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>tls<span class="token-operator">.</span><span class="token-type">TrustAnchor</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>url<span class="token-operator">.</span><span class="token-type">Url</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 
@@ -441,6 +442,9 @@
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Client</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Returns this policy with one additional TLS trust root.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">with_trust_anchor</span><span class="token-operator">(</span>trust_anchor<span class="token-operator">:</span> <span class="token-type">TrustAnchor</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Self</span>
+
     <span class="token-comment">/// Sends one request over one new connection and returns its final response.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">send</span><span class="token-operator">(</span>request<span class="token-operator">:</span> <span class="token-type">Request</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Response</span><span class="token-operator">!</span>
 

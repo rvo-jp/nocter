@@ -24,9 +24,10 @@ deferred computation. Resolution failure therefore belongs to the outer result; 
 transport failure after the computation starts belongs to the awaited result. The timeout variant
 starts one monotonic deadline before resolution and preserves it across every address candidate.
 
-The `std/http` client selects this authenticated transport for `https` URLs. HTTP request and
-response parsing remain transport-independent; selecting TLS does not introduce a second HTTP
-codec or response-body cursor.
+The `std/http` client selects this authenticated transport for `https` URLs. Its
+`with_trust_anchor` policy carries one additional root through the TLS-owned connection boundary;
+plain HTTP does not inspect it. HTTP request and response parsing remain transport-independent;
+selecting system or custom trust does not introduce a second HTTP codec or response-body cursor.
 
 The numeric connection address is never used as an implicit replacement for the requested
 authentication name. Native endpoints, trust objects, provider status values, callbacks, and

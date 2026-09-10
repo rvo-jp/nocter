@@ -168,6 +168,45 @@ func connect_http1_async_with_timeout(
     )
 }
 
+func connect_http1_async_with_trust_anchor(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+): (async TlsStream!)! {
+    let deadline = substrate.connection_deadline(none)
+    let addresses = net.resolve(host, port)?
+    var server_name = String.copy(host)
+    server_name.push('\u{0}')
+    let application_protocol = http1_application_protocol()
+    return connect_candidates_async(
+        move server_name,
+        move application_protocol,
+        Vec.from_slice(trust_anchor.bytes()),
+        move addresses,
+        move deadline,
+    )
+}
+
+func connect_http1_async_with_trust_anchor_and_timeout(
+    host: &str,
+    port: u16,
+    trust_anchor: &TrustAnchor,
+    timeout: Duration,
+): (async TlsStream!)! {
+    let deadline = substrate.connection_deadline(timeout)
+    let addresses = net.resolve(host, port)?
+    var server_name = String.copy(host)
+    server_name.push('\u{0}')
+    let application_protocol = http1_application_protocol()
+    return connect_candidates_async(
+        move server_name,
+        move application_protocol,
+        Vec.from_slice(trust_anchor.bytes()),
+        move addresses,
+        move deadline,
+    )
+}
+
 instance TlsStream {
     method &+self.read_async(buffer: &+[u8]): async usize! {
         match await self.connection.read_async(buffer) {

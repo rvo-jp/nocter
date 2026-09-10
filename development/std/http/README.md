@@ -12,6 +12,13 @@ provider stream and `https` selects a TLS stream authenticated for the URL host 
 operating-system trust store. HTTPS advertises only the `http/1.1` ALPN protocol. CONNECT is
 rejected because the API does not transfer tunnel ownership.
 
+`Client.new().with_trust_anchor(move anchor)` returns a client policy that adds one owned DER root
+to the operating-system trust store for HTTPS. It does not replace system roots or disable hostname
+authentication. Calling the method again replaces the client's previous additional root. Plain
+HTTP ignores this TLS policy. The synchronous connection copies the root before returning from the
+TLS constructor, and the asynchronous send computation owns its copy, so neither transport borrows
+the client or its `TrustAnchor` while network work is pending.
+
 `Request.get`, `Request.head`, and `Request.post` are named constructors over the same validated
 `Request.new` operation. `append_header_text` validates both textual components before mutating the
 request, and `set_text_body` copies the exact UTF-8 bytes. These conveniences do not infer a

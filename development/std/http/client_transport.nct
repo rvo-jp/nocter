@@ -1,5 +1,6 @@
 //! Private plain-or-authenticated transport boundary for one HTTP client exchange.
 
+see ./client_storage.nct
 see ./index.nct
 
 use /net as net
@@ -18,7 +19,47 @@ noalloc func plain_client_transport(stream: TcpStream): ClientTransport {
     return ClientTransport.plain(move stream)
 }
 
-func connect_client_transport(url: &Url, timeout: Duration?): ClientTransport! {
+func connect_secure_client_transport(
+    url: &Url,
+    trust: &ClientTrust,
+    timeout: Duration?,
+): ClientTransport! {
+    match trust {
+        ClientTrust.system {
+            let finite = timeout otherwise {
+                return ClientTransport.secure(tls.connect_http1(url.host(), url.port())?)
+            }
+            var stream = tls.connect_http1_with_timeout(url.host(), url.port(), finite)?
+            stream.set_read_timeout(finite)
+            stream.set_write_timeout(finite)
+            return ClientTransport.secure(move stream)
+        }
+        ClientTrust.additional(anchor) {
+            let finite = timeout otherwise {
+                return ClientTransport.secure(tls.connect_http1_with_trust_anchor(
+                    url.host(),
+                    url.port(),
+                    anchor,
+                )?)
+            }
+            var stream = tls.connect_http1_with_trust_anchor_and_timeout(
+                url.host(),
+                url.port(),
+                anchor,
+                finite,
+            )?
+            stream.set_read_timeout(finite)
+            stream.set_write_timeout(finite)
+            return ClientTransport.secure(move stream)
+        }
+    }
+}
+
+func connect_client_transport(
+    url: &Url,
+    trust: &ClientTrust,
+    timeout: Duration?,
+): ClientTransport! {
     match url.scheme() {
         UrlScheme.http {
             let finite = timeout otherwise {
@@ -30,13 +71,7 @@ func connect_client_transport(url: &Url, timeout: Duration?): ClientTransport! {
             return ClientTransport.plain(move stream)
         }
         UrlScheme.https {
-            let finite = timeout otherwise {
-                return ClientTransport.secure(tls.connect_http1(url.host(), url.port())?)
-            }
-            var stream = tls.connect_http1_with_timeout(url.host(), url.port(), finite)?
-            stream.set_read_timeout(finite)
-            stream.set_write_timeout(finite)
-            return ClientTransport.secure(move stream)
+            return connect_secure_client_transport(url, trust, timeout)
         }
     }
 }
@@ -49,8 +84,48 @@ func await_secure_client_transport(pending: async TlsStream!): async ClientTrans
     return ClientTransport.secure(await pending?)
 }
 
+func begin_secure_client_transport_async(
+    url: &Url,
+    trust: &ClientTrust,
+    timeout: Duration?,
+): (async ClientTransport!)! {
+    match trust {
+        ClientTrust.system {
+            let finite = timeout otherwise {
+                return await_secure_client_transport(tls.connect_http1_async(
+                    url.host(),
+                    url.port(),
+                )?)
+            }
+            return await_secure_client_transport(tls.connect_http1_async_with_timeout(
+                url.host(),
+                url.port(),
+                finite,
+            )?)
+        }
+        ClientTrust.additional(anchor) {
+            let finite = timeout otherwise {
+                return await_secure_client_transport(tls.connect_http1_async_with_trust_anchor(
+                    url.host(),
+                    url.port(),
+                    anchor,
+                )?)
+            }
+            return await_secure_client_transport(
+                tls.connect_http1_async_with_trust_anchor_and_timeout(
+                    url.host(),
+                    url.port(),
+                    anchor,
+                    finite,
+                )?,
+            )
+        }
+    }
+}
+
 func begin_client_transport_async(
     url: &Url,
+    trust: &ClientTrust,
     timeout: Duration?,
 ): (async ClientTransport!)! {
     match url.scheme() {
@@ -65,17 +140,7 @@ func begin_client_transport_async(
             )?)
         }
         UrlScheme.https {
-            let finite = timeout otherwise {
-                return await_secure_client_transport(tls.connect_http1_async(
-                    url.host(),
-                    url.port(),
-                )?)
-            }
-            return await_secure_client_transport(tls.connect_http1_async_with_timeout(
-                url.host(),
-                url.port(),
-                finite,
-            )?)
+            return begin_secure_client_transport_async(url, trust, timeout)
         }
     }
 }
