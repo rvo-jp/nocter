@@ -1366,9 +1366,9 @@ mod tests {
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = concat!(
             "use std/task\n",
-            "func left(): async i32 { return 1 }\n",
-            "func right(): async u64 { return 2 }\n",
-            "func main(): async i32 {\n",
+            "async func left(): i32 { return 1 }\n",
+            "async func right(): u64 { return 2 }\n",
+            "async func main(): i32 {\n",
             "    let pending = task.join(left(), right())\n",
             "    let outputs = await pending\n",
             "    if outputs.1 == 2 { return outputs.0 }\n",
@@ -1391,8 +1391,8 @@ mod tests {
         let response = hover.response().unwrap();
         assert!(
             response.contains(concat!(
-                "pub primitive func join<A, B>(first: async A, second: async B): ",
-                "async (A, B) from first | second"
+                "pub primitive func join<A, B>(first: future A, second: future B): ",
+                "future (A, B) from first | second"
             )),
             "{response}"
         );
@@ -1413,8 +1413,8 @@ mod tests {
         let response = signature.response().unwrap();
         assert!(
             response.contains(concat!(
-                "primitive func join<i32, u64>(first: async i32, second: async u64): ",
-                "async (i32, u64)"
+                "primitive func join<i32, u64>(first: future i32, second: future u64): ",
+                "future (i32, u64)"
             )),
             "{response}"
         );
@@ -1432,7 +1432,7 @@ mod tests {
             uri = uri,
         ));
         let response = hints.response().unwrap();
-        for label in [": async (i32, u64)", ": (i32, u64)"] {
+        for label in [": future (i32, u64)", ": (i32, u64)"] {
             assert!(
                 response.contains(&format!("\"label\":\"{label}\"")),
                 "{response}"
@@ -2471,7 +2471,7 @@ mod tests {
             "use std/http.{Client, Request}\n",
             "use std/time.Duration\n",
             "use std/url.Url\n",
-            "func main(): async void! {\n",
+            "async func main(): void! {\n",
             "    let url = Url.parse(\"http://localhost/\")?\n",
             "    let request = Request.post(move url)?\n",
             "    let client = Client.new()\n",
@@ -2512,7 +2512,7 @@ mod tests {
         ));
         let response = send_hover.response().unwrap();
         assert!(response.contains("send_async_with_timeout"), "{response}");
-        assert!(response.contains("(async Response!)!"), "{response}");
+        assert!(response.contains("(future Response!)!"), "{response}");
         assert!(send_hover.issue().is_none(), "{:?}", send_hover.issue());
 
         let send_definition = server.receive(&format!(
@@ -2539,7 +2539,8 @@ mod tests {
             response.contains("read_to_string_async_with_timeout"),
             "{response}"
         );
-        assert!(response.contains("async String!"), "{response}");
+        assert!(response.contains("async method"), "{response}");
+        assert!(response.contains(": String!"), "{response}");
         assert!(read_hover.issue().is_none(), "{:?}", read_hover.issue());
 
         let hints = server.receive(&format!(
@@ -2553,7 +2554,7 @@ mod tests {
             uri = uri,
         ));
         let response = hints.response().unwrap();
-        for label in [": async Response!", ": Response", ": String"] {
+        for label in [": future Response!", ": Response", ": String"] {
             assert!(
                 response.contains(&format!("\"label\":\"{label}\"")),
                 "{response}"

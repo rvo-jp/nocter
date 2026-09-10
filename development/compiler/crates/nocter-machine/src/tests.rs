@@ -23,9 +23,9 @@ mod destruction;
 fn structured_join_carries_machine_owned_tuple_placement() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/task\n\
-         func left(): async i32 { return 1 }\n\
-         func right(): async u64 { return 2 }\n\
-         func main(): async i32 {\n\
+         async func left(): i32 { return 1 }\n\
+         async func right(): u64 { return 2 }\n\
+         async func main(): i32 {\n\
              let joined = task.join(left(), right())\n\
              let outputs = await joined\n\
              return outputs.0\n\
@@ -63,8 +63,8 @@ fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() 
     let mir = lower_fixture(
         "struct Resource {}\n\
          drop Resource(&+self) { return }\n\
-         func ready(): async void { return }\n\
-         func hold(value: Resource): async Resource {\n\
+         async func ready(): void { return }\n\
+         async func hold(value: Resource): Resource {\n\
              await ready()\n\
              move value\n\
          }\n\
@@ -142,7 +142,7 @@ fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() 
 fn accepts_trivial_success_storage_in_fallible_async_destruction() {
     let mir = lower_fixture(
         "func fail(): i32! { return error.new(\"app.failure\", \"failed\") }\n\
-         func deferred(): async i32! { return fail()? }\n\
+         async func deferred(): i32! { return fail()? }\n\
          func main(): void {\n\
              let pending = deferred()\n\
              drop pending\n\

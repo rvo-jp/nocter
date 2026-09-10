@@ -294,7 +294,7 @@ pub enum TypeKind {
         referent: TypeId,
     },
     /// One lazy, single-use owning computation whose consumption produces the referenced type.
-    Async(TypeId),
+    Future(TypeId),
     Slice(TypeId),
     FixedArray {
         element: TypeId,
@@ -332,7 +332,7 @@ impl TypeKind {
             Self::AssociatedProjection { base, .. }
             | Self::Pointer(base)
             | Self::Borrow { referent: base, .. }
-            | Self::Async(base)
+            | Self::Future(base)
             | Self::Slice(base)
             | Self::FixedArray { element: base, .. }
             | Self::Optional(base)
@@ -561,7 +561,7 @@ impl TypeProperties {
             TypeKind::Tuple(elements) => children_concrete(elements.as_slice()),
             TypeKind::Pointer(base)
             | TypeKind::Borrow { referent: base, .. }
-            | TypeKind::Async(base)
+            | TypeKind::Future(base)
             | TypeKind::Slice(base)
             | TypeKind::FixedArray { element: base, .. }
             | TypeKind::Optional(base)
@@ -585,7 +585,7 @@ impl TypeProperties {
             | TypeKind::Opaque { .. }
             | TypeKind::Pointer(_)
             | TypeKind::Borrow { .. }
-            | TypeKind::Async(_)
+            | TypeKind::Future(_)
             | TypeKind::Slice(_)
             | TypeKind::Closure { .. }
             | TypeKind::Callable(_) => true,
@@ -702,14 +702,14 @@ mod tests {
     }
 
     #[test]
-    fn async_identity_is_structural_and_always_carries_storage() {
+    fn future_identity_is_structural_and_always_carries_storage() {
         let base = TypeAuthority::new();
         let mut types = base.transaction();
         let value = types.builtin(BuiltinType::I32);
-        let first = types.intern(TypeKind::Async(value)).unwrap();
-        let repeated = types.intern(TypeKind::Async(value)).unwrap();
+        let first = types.intern(TypeKind::Future(value)).unwrap();
+        let repeated = types.intern(TypeKind::Future(value)).unwrap();
         let optional = types.intern(TypeKind::Optional(value)).unwrap();
-        let distinct = types.intern(TypeKind::Async(optional)).unwrap();
+        let distinct = types.intern(TypeKind::Future(optional)).unwrap();
 
         assert_eq!(first, repeated);
         assert_ne!(first, distinct);

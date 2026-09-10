@@ -497,6 +497,12 @@ impl<'a> Renderer<'a> {
         let callable = declarations.callables().get(id)?;
         self.visibility(callable.site())?;
         self.callable_guarantees(callable.guarantees());
+        if matches!(
+            callable.execution(),
+            nocter_declarations::CallableExecution::Deferred { .. }
+        ) {
+            self.output.push_str("async ");
+        }
         if matches!(callable.owner(), CallableOwner::Interface(_)) && callable.body().is_some() {
             self.output.push_str("default ");
         }
@@ -549,7 +555,7 @@ impl<'a> Renderer<'a> {
         self.generic_parameters(callable.generic_parameters())?;
         self.parameters(callable.parameters())?;
         self.output.push_str(": ");
-        self.ty(callable.result())?;
+        self.ty(callable.execution().body_result(callable.result()))?;
         self.provenance(callable)?;
         self.requirements(callable.requirements())?;
         Some(())
@@ -1192,8 +1198,8 @@ impl<'a> Renderer<'a> {
                 });
                 self.prefix_type(*referent)?;
             }
-            TypeKind::Async(output) => {
-                self.output.push_str("async ");
+            TypeKind::Future(output) => {
+                self.output.push_str("future ");
                 self.ty(*output)?;
             }
             TypeKind::Slice(element) => {
@@ -1317,7 +1323,7 @@ impl<'a> Renderer<'a> {
     fn outcome_base_type(&mut self, id: TypeId) -> Option<()> {
         let grouped = matches!(
             self.types.get(id)?,
-            TypeKind::Async(_) | TypeKind::Callable(_)
+            TypeKind::Future(_) | TypeKind::Callable(_)
         );
         if grouped {
             self.output.push('(');

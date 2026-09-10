@@ -1,6 +1,6 @@
 use super::{
-    Parser, block, method_signature, optional_noalloc, optional_visibility, receiver, requirements,
-    types,
+    Parser, block, method_signature, optional_async, optional_noalloc, optional_visibility,
+    receiver, requirements, types,
 };
 use crate::{ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, Punctuation, TokenKind};
 
@@ -25,6 +25,11 @@ fn member(parser: &mut Parser<'_>) {
     }
     optional_visibility(parser);
     optional_noalloc(parser);
+    if parser.at_keyword(Keyword::Async)
+        && parser.nth_kind(1) == TokenKind::Keyword(Keyword::Method)
+    {
+        optional_async(parser);
+    }
     let kind = match parser.current_kind() {
         TokenKind::Keyword(Keyword::Method) => {
             method_signature(parser);

@@ -311,7 +311,7 @@ impl BodyChecker<'_, '_> {
             }
             NodeKind::PointerType
             | NodeKind::BorrowType
-            | NodeKind::AsyncType
+            | NodeKind::FutureType
             | NodeKind::SliceType
             | NodeKind::FixedArrayType
             | NodeKind::GroupedType => self.resolve_type_wrapper(node),
@@ -362,7 +362,7 @@ impl BodyChecker<'_, '_> {
                 },
                 referent: inner,
             },
-            NodeKind::AsyncType => TypeKind::Async(inner),
+            NodeKind::FutureType => TypeKind::Future(inner),
             NodeKind::SliceType => TypeKind::Slice(inner),
             NodeKind::FixedArrayType => {
                 let expression = direct_node(self.tree(), node, NodeKind::Expression)

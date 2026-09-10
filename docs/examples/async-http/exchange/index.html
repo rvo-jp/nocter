@@ -212,10 +212,10 @@
     <span class="token-keyword">return</span> <span class="token-keyword">true</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">serve_once</span><span class="token-operator">(</span>
+<span class="token-keyword">async</span> <span class="token-keyword">func</span> <span class="token-function">serve_once</span><span class="token-operator">(</span>
     listener<span class="token-operator">:</span> <span class="token-type">TcpListener</span><span class="token-operator">,</span>
     timeout<span class="token-operator">:</span> <span class="token-type">Duration</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> owner <span class="token-operator">=</span> <span class="token-keyword">move</span> listener
     <span class="token-keyword">let</span> accepted <span class="token-operator">=</span> <span class="token-keyword">await</span> owner<span class="token-operator">.</span><span class="token-function">accept_async_with_timeout</span><span class="token-operator">(</span>timeout<span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">var</span> stream <span class="token-operator">=</span> <span class="token-keyword">move</span> accepted<span class="token-operator">.</span><span class="token-number">0</span>
@@ -251,7 +251,7 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">async</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">async</span> <span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> timeout <span class="token-operator">=</span> <span class="token-type">Duration</span><span class="token-operator">.</span><span class="token-function">from_seconds</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> listener <span class="token-operator">=</span> <span class="token-type">TcpListener</span><span class="token-operator">.</span><span class="token-function">bind</span><span class="token-operator">(</span><span class="token-function">loopback</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">let</span> address <span class="token-operator">=</span> listener<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>

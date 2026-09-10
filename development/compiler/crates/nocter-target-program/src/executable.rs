@@ -786,7 +786,7 @@ fn runtime_type_table(
             TypeKind::Callable(_) => RuntimeType::Callable,
             TypeKind::Optional(payload) => RuntimeType::Optional(*payload),
             TypeKind::Fallible(payload) => RuntimeType::Fallible(*payload),
-            TypeKind::Async(output) => RuntimeType::Async(*output),
+            TypeKind::Future(output) => RuntimeType::Future(*output),
             TypeKind::Opaque { .. } => RuntimeType::Opaque,
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)

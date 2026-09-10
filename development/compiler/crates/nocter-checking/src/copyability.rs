@@ -440,7 +440,7 @@ impl CopyabilityTransaction {
             | TypeKind::Slice(_)
             | TypeKind::PackEntry { .. }
             | TypeKind::Callable(_)
-            | TypeKind::Async(_)
+            | TypeKind::Future(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. }
             | TypeKind::Opaque { .. }

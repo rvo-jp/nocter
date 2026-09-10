@@ -587,7 +587,18 @@ fn compatible_signature(
     owner_substitution: &TypeSubstitution,
     actual_substitution: &TypeSubstitution,
 ) -> Result<Option<InterfaceImplementationInputCorrespondence>, InterfaceImplementationBuildError> {
+    let execution_matches = matches!(
+        (expected.execution(), actual.execution()),
+        (
+            nocter_declarations::CallableExecution::Immediate,
+            nocter_declarations::CallableExecution::Immediate
+        ) | (
+            nocter_declarations::CallableExecution::Deferred { .. },
+            nocter_declarations::CallableExecution::Deferred { .. }
+        )
+    );
     if expected.kind() != actual.kind()
+        || !execution_matches
         || expected.parameters().len() != actual.parameters().len()
         || expected.generic_parameters().len() != actual.generic_parameters().len()
         || expected.guarantees().allocation() == nocter_model::AllocationGuarantee::NoAllocation

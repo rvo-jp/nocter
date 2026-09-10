@@ -459,7 +459,7 @@ impl Evaluator<'_> {
                 capability,
                 referent: self.result(&key, referent)?,
             },
-            BoundTypeKind::Async(output) => TypeKind::Async(self.result(&key, output)?),
+            BoundTypeKind::Future(output) => TypeKind::Future(self.result(&key, output)?),
             BoundTypeKind::Slice(element) => TypeKind::Slice(self.result(&key, element)?),
             BoundTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
                 element: self.result(&key, element)?,
@@ -859,7 +859,7 @@ fn dependencies(key: &EvaluationKey, kind: &BoundTypeKind) -> Vec<EvaluationKey>
         BoundTypeKind::AssociatedSelection { base, .. }
         | BoundTypeKind::Pointer(base)
         | BoundTypeKind::Borrow { referent: base, .. }
-        | BoundTypeKind::Async(base)
+        | BoundTypeKind::Future(base)
         | BoundTypeKind::Slice(base)
         | BoundTypeKind::FixedArray { element: base, .. }
         | BoundTypeKind::Optional(base)

@@ -15,7 +15,7 @@ coordinates, or checking internals.
 
 - declaration and member arenas
 - module, import, and prelude namespaces
-- callable guarantees, callable provenance, constant, and requirement contracts
+- callable execution, guarantees, provenance, constant, and requirement contracts
 - canonical interface dependency paths, `Self`-inheritance closure, and effective member identities
 - visibility and path contracts
 - accepted/recovery admission shapes
@@ -25,8 +25,8 @@ coordinates, or checking internals.
 - Builders reserve and define every identity exactly once before freeze.
 - Namespace lookup consumes frozen tables rather than iterating declarations.
 - A declaration identity never contains a source range or rendered name.
-- Authored callable guarantees are declaration data; consumers do not rediscover modifiers from
-  syntax.
+- Authored callable execution and guarantees are declaration data; consumers do not rediscover
+  modifiers from syntax or result shapes.
 - Invalid or incomplete graphs cannot be constructed as accepted programs.
 - An accepted immutable program may create owned checking branches without rebuilding declaration
   decisions; every branch preserves semantic IDs and the type-authority lineage.

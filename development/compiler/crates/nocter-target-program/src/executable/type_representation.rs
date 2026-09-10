@@ -90,7 +90,7 @@ pub(super) fn close_type_representations(
             | TypeKind::Callable(_)
             | TypeKind::Optional(_)
             | TypeKind::Fallible(_)
-            | TypeKind::Async(_) => None,
+            | TypeKind::Future(_) => None,
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. } => {
@@ -230,7 +230,7 @@ fn enqueue_structural_children(kind: &TypeKind, pending: &mut BTreeSet<TypeId>) 
         TypeKind::AssociatedProjection { base, .. }
         | TypeKind::Pointer(base)
         | TypeKind::Borrow { referent: base, .. }
-        | TypeKind::Async(base)
+        | TypeKind::Future(base)
         | TypeKind::Slice(base)
         | TypeKind::FixedArray { element: base, .. }
         | TypeKind::Optional(base)

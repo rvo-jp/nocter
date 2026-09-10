@@ -754,7 +754,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 if result.is_some()
                     || !matches!(
                         self.types.get(self.require_place(*place)?.ty()),
-                        Some(TypeKind::Async(_))
+                        Some(TypeKind::Future(_))
                     )
                 {
                     return Err(mismatch());
@@ -764,7 +764,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
                 computation,
                 destination,
             } => {
-                let Some(TypeKind::Async(output)) =
+                let Some(TypeKind::Future(output)) =
                     self.types.get(self.require_place(*computation)?.ty())
                 else {
                     return Err(mismatch());
@@ -1046,7 +1046,7 @@ impl<E: MirValidationEnvironment + ?Sized> ValidationContext<'_, E> {
         else {
             return Err(MirValidationError::InvalidRootTerminator(block));
         };
-        let Some(TypeKind::Async(output)) = self.types.get(self.value_type(computation)?) else {
+        let Some(TypeKind::Future(output)) = self.types.get(self.value_type(computation)?) else {
             return Err(MirValidationError::InvalidReturn(block));
         };
         let destination = self.require_block(resume.block())?;

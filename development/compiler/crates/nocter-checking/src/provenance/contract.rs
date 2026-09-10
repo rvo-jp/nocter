@@ -215,7 +215,7 @@ pub(crate) fn type_can_carry_loan(
             }
             Some(
                 TypeKind::Borrow { .. }
-                | TypeKind::Async(_)
+                | TypeKind::Future(_)
                 | TypeKind::InterfaceSelf(_)
                 | TypeKind::AssociatedProjection { .. }
                 | TypeKind::Opaque { .. }

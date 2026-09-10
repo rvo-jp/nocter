@@ -114,7 +114,7 @@ pub fn validate_type(
             TypeKind::Borrow { referent, .. } => {
                 pending.push((*referent, TypePosition::BorrowPointee));
             }
-            TypeKind::Async(output) => {
+            TypeKind::Future(output) => {
                 pending.push((*output, TypePosition::AsyncOutput));
             }
             TypeKind::Slice(element) => {

@@ -9,6 +9,6 @@
 
 see ./exchange.nct
 
-func main(): async i32! {
+async func main(): i32! {
     return await run()
 }

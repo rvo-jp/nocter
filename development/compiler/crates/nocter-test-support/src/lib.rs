@@ -300,9 +300,9 @@ const IO_SOURCE: &str = "pub func answer_for_test(): i32 { return 42 }\n";
 const TIME_SOURCE: &str = "";
 const TASK_SOURCE: &str = "\
 pub primitive func join<A, B>(
-    first: async A,
-    second: async B,
-): async (A, B) from first | second
+    first: future A,
+    second: future B,
+): future (A, B) from first | second
 ";
 const INTERNAL_TIME_SOURCE: &str = "\
 #target: \"arm64-darwin\"
@@ -312,10 +312,10 @@ noalloc primitive func monotonic_frequency_raw(): u64
 #target: \"arm64-darwin\"
 noalloc primitive func monotonic_delta_raw(earlier: u64, later: u64): u64
 #target: \"arm64-darwin\"
-primitive func monotonic_deadline_raw(deadline: u64): async void
+primitive func monotonic_deadline_raw(deadline: u64): future void
 pub noalloc func monotonic_counter_for_test(): u64 { return monotonic_counter_raw() }
 pub noalloc func monotonic_frequency_for_test(): u64 { return monotonic_frequency_raw() }
-pub func monotonic_deadline_for_test(deadline: u64): async void {
+pub async func monotonic_deadline_for_test(deadline: u64): void {
     await monotonic_deadline_raw(deadline)
     return
 }
@@ -325,25 +325,25 @@ const INTERNAL_TASK_SOURCE: &str = "\
 primitive func descriptor_readiness_raw(
     descriptor: usize,
     writable: bool,
-): async void
+): future void
 #target: \"arm64-darwin\"
 primitive func descriptor_readiness_or_deadline_raw(
     descriptor: usize,
     writable: bool,
     deadline: u64,
-): async void
-pub func descriptor_readiness_for_test(
+): future void
+pub async func descriptor_readiness_for_test(
     descriptor: usize,
     writable: bool,
-): async void {
+): void {
     await descriptor_readiness_raw(descriptor, writable)
     return
 }
-pub func descriptor_readiness_or_deadline_for_test(
+pub async func descriptor_readiness_or_deadline_for_test(
     descriptor: usize,
     writable: bool,
     deadline: u64,
-): async void {
+): void {
     await descriptor_readiness_or_deadline_raw(descriptor, writable, deadline)
     return
 }

@@ -12,7 +12,7 @@ func loopback(): SocketAddress {
     return SocketAddress.new(IpAddress.from_ipv4(Ipv4Address.loopback()), 0)
 }
 
-func run(): async i32! {
+async func run(): i32! {
     let timeout = Duration.from_seconds(1)
     var listener = TcpListener.bind(loopback())?
     let listening_address = listener.local_address()?

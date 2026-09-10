@@ -27,8 +27,9 @@ results. Protocol crates receive result values only.
   combinations.
 - Semantic highlighting joins exact semantic bindings with syntax-owned accepted scalar-literal
   tokens; it never decodes literal text or guesses unresolved names.
-- Presentation renders authored callable guarantees from declaration or structural-type contracts;
-  it never infers source modifiers from checked effects.
+- Presentation renders authored callable execution and guarantees from declaration or
+  structural-type contracts; it never infers source modifiers from result shapes or checked
+  effects.
 - Every semantic/source join uses one sealed generation.
 - Diagnostics are read from the sealed discovery or analyzed state and are not cloned into a
   parallel snapshot authority.

@@ -27,29 +27,34 @@ pub(super) fn define(
             | CallableKind::Method
             | CallableKind::ConstructionFunction
     );
-    let result = types
+    let body_result = types
         .callable_results
         .get(declaration.index())
         .copied()
         .flatten()
         .ok_or(HeaderDefinitionError::MissingCallableResult(declaration))?;
-    let result_kind = types
-        .namespaces
-        .imports
-        .generics
-        .headers
-        .reserved
-        .program
-        .types()
-        .get(result);
-    let execution = match (kind, result_kind) {
-        (CallableKind::Function | CallableKind::Method, Some(TypeKind::Async(output))) => {
-            CallableExecution::Deferred { output: *output }
+    let tree = projection::tree(types, declaration)?;
+    let root = surface_node(types, declaration)?;
+    let execution = if syntax::direct_node(tree, root, NodeKind::AsyncModifier).is_some() {
+        CallableExecution::Deferred {
+            output: body_result,
         }
-        (_, Some(_)) => CallableExecution::Immediate,
-        (_, None) => return Err(HeaderDefinitionError::MissingCallableResult(declaration)),
+    } else {
+        CallableExecution::Immediate
     };
-    let body_result = execution.body_result(result);
+    let result = match execution {
+        CallableExecution::Immediate => body_result,
+        CallableExecution::Deferred { output } => types
+            .namespaces
+            .imports
+            .generics
+            .headers
+            .reserved
+            .program
+            .types_mut()
+            .intern(TypeKind::Future(output))
+            .map_err(|_| HeaderDefinitionError::MissingCallableResult(declaration))?,
+    };
     let (contract, provenance_annotation) = provenance::contract(
         types,
         declaration,

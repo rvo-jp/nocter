@@ -194,11 +194,11 @@ impl BodyRule {
             ),
             Self::AwaitOutsideDeferredBody => (
                 "`await` is outside a deferred callable body",
-                "use `await` only inside a function or method whose outer result type is `async T`",
+                "use `await` only inside an `async` function or method",
             ),
             Self::InvalidAwaitOperand => (
                 "`await` operand is not an owned asynchronous computation",
-                "await an `async T` value that this expression owns",
+                "await a `future T` value that this expression owns",
             ),
             _ => self.operation_message(),
         }

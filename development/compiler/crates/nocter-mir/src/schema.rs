@@ -297,7 +297,7 @@ pub enum MirFunctionExecution {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MirFunction {
     item: ExecutableItemId,
-    /// The result observed by an invocation. For deferred bodies this is `async body_result`.
+    /// The result observed by an invocation. For deferred bodies this is `future body_result`.
     result: TypeId,
     execution: MirFunctionExecution,
     async_frame: Option<crate::MirAsyncFrame>,

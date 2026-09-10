@@ -1024,7 +1024,7 @@ fn machine_value_plan_uses_exact_call_crossing_facts() {
 #[test]
 fn instruction_selection_rejects_deferred_functions_at_the_execution_boundary() {
     let program = crate::test_support::lower_machine(
-        "func ready(): async void { return }\n\
+        "async func ready(): void { return }\n\
          func main(): void {\n\
              let pending = ready()\n\
              drop pending\n\
@@ -1052,7 +1052,7 @@ fn instruction_selection_rejects_deferred_functions_at_the_execution_boundary() 
 #[test]
 fn function_targets_declare_one_callable_and_closed_async_lifecycle_entries() {
     let program = crate::test_support::lower_machine(
-        "func ready(): async i32 { return 7 }\n\
+        "async func ready(): i32 { return 7 }\n\
          func immediate(): i32 { return 3 }\n\
          func main(): void {\n\
              let pending = ready()\n\
@@ -1134,9 +1134,9 @@ fn async_primitive_targets_follow_machine_dependencies() {
 fn lowers_structured_join_with_one_closed_native_lifecycle() {
     let machine = crate::test_support::lower_machine_with_standard_uses(
         "use std/task\n\
-         func left(): async i32 { return 1 }\n\
-         func right(): async u64 { return 2 }\n\
-         func main(): async i32 {\n\
+         async func left(): i32 { return 1 }\n\
+         async func right(): u64 { return 2 }\n\
+         async func main(): i32 {\n\
              let joined = task.join(left(), right())\n\
              let outputs = await joined\n\
              return outputs.0\n\
@@ -1188,8 +1188,8 @@ fn async_frame_layout_places_the_machine_field_union_once() {
     let program = crate::test_support::lower_machine(
         "struct Resource { value: i64 }\n\
          drop Resource(&+self) { return }\n\
-         func ready(): async i64 { return 1 }\n\
-         func hold(resource: Resource): async Resource {\n\
+         async func ready(): i64 { return 1 }\n\
+         async func hold(resource: Resource): Resource {\n\
              let observed = await ready()\n\
              if observed == 0 { return move resource }\n\
              return move resource\n\
@@ -1265,7 +1265,7 @@ fn async_frame_layout_places_the_machine_field_union_once() {
 #[test]
 fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
     let program = crate::test_support::lower_machine(
-        "func preserve(left: i64, right: f64): async i64 {\n\
+        "async func preserve(left: i64, right: f64): i64 {\n\
              if right == 0.0 { return left }\n\
              return left\n\
          }\n\
@@ -1345,8 +1345,8 @@ fn async_function_plan_maps_machine_initial_inputs_to_heap_ranges() {
 fn deferred_code_addresses_retained_stack_storage_in_the_persistent_frame() {
     let program = crate::test_support::lower_machine(
         "struct Counter { value: i32 }\n\
-         func read(counter: &Counter): async i32 { return counter.value }\n\
-         func parent(): async i32 {\n\
+         async func read(counter: &Counter): i32 { return counter.value }\n\
+         async func parent(): i32 {\n\
              let counter = Counter { value: 42 }\n\
              return await read(&counter)\n\
          }\n\
@@ -1397,8 +1397,8 @@ fn async_cancel_dispatches_suspended_child_and_generated_destruction() {
     let program = crate::test_support::lower_machine(
         "struct Resource { value: i64 }\n\
          drop Resource(&+self) { return }\n\
-         func ready(): async i64 { return 1 }\n\
-         func hold(resource: Resource): async Resource {\n\
+         async func ready(): i64 { return 1 }\n\
+         async func hold(resource: Resource): Resource {\n\
              let value = await ready()\n\
              if value == 0 { return move resource }\n\
              return move resource\n\
@@ -1458,7 +1458,7 @@ fn async_frame_retains_zero_sized_owned_output_for_completed_cleanup() {
     let program = crate::test_support::lower_machine(
         "struct Marker {}\n\
          drop Marker(&+self) { return }\n\
-         func ready(): async Marker { return Marker {} }\n\
+         async func ready(): Marker { return Marker {} }\n\
          func main(): void {\n\
              let pending = ready()\n\
              drop pending\n\
@@ -1490,7 +1490,7 @@ fn async_frame_retains_zero_sized_owned_output_for_completed_cleanup() {
 #[test]
 fn async_consume_supports_a_zero_sized_completed_output() {
     let program = crate::test_support::lower_machine(
-        "func ready(): async void { return }\n\
+        "async func ready(): void { return }\n\
          func main(): void {\n\
              let pending = ready()\n\
              drop pending\n\
@@ -1525,10 +1525,10 @@ fn async_constructor_materializes_stack_and_indirect_parameter_capture() {
              second: i64\n\
              third: i64\n\
          }\n\
-         func hold(\n\
+         async func hold(\n\
              a: i64, b: i64, c: i64, d: i64, e: i64,\n\
              f: i64, g: i64, h: i64, i: i64, payload: Payload,\n\
-         ): async i64 {\n\
+         ): i64 {\n\
              if payload.first == 0 { return i }\n\
              return a\n\
          }\n\
@@ -1571,8 +1571,8 @@ fn async_constructor_materializes_stack_and_indirect_parameter_capture() {
 #[test]
 fn async_frame_layout_captures_an_allocation_backed_pack_owner() {
     let program = crate::test_support::lower_machine(
-        "func ready(): async void { return }\n\
-         func count(...items: i32): async usize {\n\
+        "async func ready(): void { return }\n\
+         async func count(...items: i32): usize {\n\
              await ready()\n\
              return items.len()\n\
          }\n\
@@ -1615,12 +1615,12 @@ fn async_frame_layout_captures_an_allocation_backed_pack_owner() {
 #[test]
 fn deferred_pack_forwarding_transfers_one_allocation_owner() {
     let program = crate::test_support::lower_machine(
-        "func ready(): async void { return }\n\
-         func count(...items: i32): async usize {\n\
+        "async func ready(): void { return }\n\
+         async func count(...items: i32): usize {\n\
              await ready()\n\
              return items.len()\n\
          }\n\
-         func forward(...items: i32): async usize {\n\
+         async func forward(...items: i32): usize {\n\
              return await count(...items)\n\
          }\n\
          func main(): void {\n\
@@ -1661,8 +1661,8 @@ fn deferred_pack_forwarding_transfers_one_allocation_owner() {
 #[test]
 fn machine_value_plan_treats_suspend_as_a_call_boundary() {
     let program = crate::test_support::lower_machine(
-        "func ready(value: i64): async i64 { return value }\n\
-         func forward(): async i64 {\n\
+        "async func ready(value: i64): i64 { return value }\n\
+         async func forward(): i64 {\n\
              return await ready(19)\n\
          }\n\
          func main(): void {\n\
@@ -2030,8 +2030,8 @@ fn lowers_a_constant_process_through_selection_and_spill_materialization() {
 #[test]
 fn lowers_deferred_functions_with_complete_native_lifecycle_entries() {
     let machine = crate::test_support::lower_machine(
-        "func ready(value: i64): async i64 { return value }\n\
-         func forward(value: i64): async i64 {\n\
+        "async func ready(value: i64): i64 { return value }\n\
+         async func forward(value: i64): i64 {\n\
              let completed = await ready(value)\n\
              return completed + 1\n\
          }\n\
@@ -2053,7 +2053,7 @@ fn lowers_deferred_functions_with_complete_native_lifecycle_entries() {
 
 #[test]
 fn deferred_process_root_owns_one_native_wait_frame() {
-    let machine = crate::test_support::lower_machine("func main(): async i32 { return 7 }\n");
+    let machine = crate::test_support::lower_machine("async func main(): i32 { return 7 }\n");
     let root = machine
         .functions()
         .find_map(|(id, function)| {

@@ -69,7 +69,7 @@ fn lower_process_body(
     let process_output = match execution {
         ExecutableExecution::Immediate => result_type,
         ExecutableExecution::Deferred { output } => {
-            if !matches!(executable.types().get(result_type), Some(TypeKind::Async(actual)) if *actual == output)
+            if !matches!(executable.types().get(result_type), Some(TypeKind::Future(actual)) if *actual == output)
             {
                 return Err(MirLoweringError::InvalidRootItem(entry));
             }

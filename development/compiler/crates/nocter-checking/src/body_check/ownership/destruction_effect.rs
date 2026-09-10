@@ -152,7 +152,7 @@ impl<'program> DestructionEffectResolver<'program> {
             TypeKind::GenericParameter(_)
             | TypeKind::InterfaceSelf(_)
             | TypeKind::AssociatedProjection { .. }
-            | TypeKind::Async(_) => *unknown = true,
+            | TypeKind::Future(_) => *unknown = true,
             TypeKind::Opaque {
                 definition,
                 arguments,

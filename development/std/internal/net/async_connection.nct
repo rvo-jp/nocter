@@ -38,23 +38,23 @@ noalloc drop PendingStreamOperation(&+self) {
     return
 }
 
-func connect_stream_async(address: NetworkAddress): async StreamConnectionAttempt {
+async func connect_stream_async(address: NetworkAddress): StreamConnectionAttempt {
     var deadline = connection_deadline(none)
     return await connect_stream_async_before(address, &+deadline)
 }
 
-func connect_stream_async_with_timeout(
+async func connect_stream_async_with_timeout(
     address: NetworkAddress,
     timeout: Duration,
-): async StreamConnectionAttempt {
+): StreamConnectionAttempt {
     var deadline = connection_deadline(timeout)
     return await connect_stream_async_before(address, &+deadline)
 }
 
-func connect_stream_async_before(
+async func connect_stream_async_before(
     address: NetworkAddress,
     deadline: &+ConnectionDeadline,
-): async StreamConnectionAttempt {
+): StreamConnectionAttempt {
     if !claim_connection_attempt(deadline) {
         return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
     }
@@ -64,14 +64,14 @@ func connect_stream_async_before(
     return await start_stream_connection_async_before(move owner, &deadline.operation)
 }
 
-func connect_tls_stream_async_before(
+async func connect_tls_stream_async_before(
     address: NetworkAddress,
     server_name: &str,
     application_protocol: *u8,
     trust_anchor: *u8,
     trust_anchor_len: usize,
     deadline: &+ConnectionDeadline,
-): async StreamConnectionAttempt {
+): StreamConnectionAttempt {
     if !claim_connection_attempt(deadline) {
         return StreamConnectionAttempt.failed(NetworkFailure.timed_out)
     }
@@ -90,10 +90,10 @@ func connect_tls_stream_async_before(
     )
 }
 
-func start_stream_connection_async_before(
+async func start_stream_connection_async_before(
     owner: NetworkOwner,
     deadline: &OperationDeadline,
-): async StreamConnectionAttempt {
+): StreamConnectionAttempt {
     var initialized_owner = move owner
     darwin.connection_start(&+initialized_owner)
     let descriptor = darwin.connection_event_descriptor(&initialized_owner)
@@ -134,11 +134,11 @@ func start_stream_connection_async_before(
     return StreamConnectionAttempt.failed(NetworkFailure.invalid_target_result)
 }
 
-func read_stream_async_before(
+async func read_stream_async_before(
     connection: &+StreamConnection,
     buffer: &+[u8],
     deadline: &OperationDeadline,
-): async TransferAttempt {
+): TransferAttempt {
     if connection.read_complete { return TransferAttempt.ready(0) }
     if buffer.len() == 0 { return TransferAttempt.ready(0) }
     let maximum = u32.from_u64(buffer.len() as u64) otherwise {
@@ -194,11 +194,11 @@ func read_stream_async_before(
     return TransferAttempt.failed(NetworkFailure.invalid_target_result)
 }
 
-func write_stream_async_before(
+async func write_stream_async_before(
     connection: &+StreamConnection,
     bytes: &[u8],
     deadline: &OperationDeadline,
-): async UnitAttempt {
+): UnitAttempt {
     if connection.write_complete { return UnitAttempt.failed(NetworkFailure.closed) }
     if bytes.len() == 0 { return UnitAttempt.ready }
     var pending = PendingStreamOperation.new(connection)
@@ -258,28 +258,28 @@ func write_stream_async_before(
 }
 
 instance StreamConnection {
-    method &+self.read_async(buffer: &+[u8]): async TransferAttempt {
+    async method &+self.read_async(buffer: &+[u8]): TransferAttempt {
         let deadline = operation_deadline(self.read_timeout_value)
         return await read_stream_async_before(self, buffer, &deadline)
     }
 
-    method &+self.read_async_with_timeout(
+    async method &+self.read_async_with_timeout(
         buffer: &+[u8],
         timeout: Duration,
-    ): async TransferAttempt {
+    ): TransferAttempt {
         let deadline = operation_deadline(timeout)
         return await read_stream_async_before(self, buffer, &deadline)
     }
 
-    method &+self.write_async(bytes: &[u8]): async UnitAttempt {
+    async method &+self.write_async(bytes: &[u8]): UnitAttempt {
         let deadline = operation_deadline(self.write_timeout_value)
         return await write_stream_async_before(self, bytes, &deadline)
     }
 
-    method &+self.write_async_with_timeout(
+    async method &+self.write_async_with_timeout(
         bytes: &[u8],
         timeout: Duration,
-    ): async UnitAttempt {
+    ): UnitAttempt {
         let deadline = operation_deadline(timeout)
         return await write_stream_async_before(self, bytes, &deadline)
     }

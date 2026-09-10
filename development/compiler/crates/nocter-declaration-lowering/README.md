@@ -24,7 +24,8 @@ does not check callable bodies.
 - canonical source-domain and body-import rebinding for reused declarations
 - module namespaces, imports, visibility, and exports
 - generic and type-position normalization
-- one-way binding of authored callable guarantees into declaration and structural-type contracts
+- one-way binding of authored callable execution and guarantees into declaration and
+  structural-type contracts
 - construction-time binding of inherited associated names before declaration capability freeze
 - declaration surfaces and contract/definition joins
 - primitive, trusted target-service, runtime-storage, builtin, standard-role, and package-target
@@ -59,6 +60,8 @@ does not check callable bodies.
 - Contract and private definition joins use exact identities, not text matching downstream.
 - Public contracts and private bodies must retain the same authored guarantee fingerprint before
   either occurrence reaches semantic declaration storage.
+- Callable execution is derived only from the syntax-owned `async` modifier. Result normalization,
+  aliases, and generic substitution cannot classify or reclassify execution.
 - A derived associated binding resolves through bound prerequisite identities to the original
   declaration; lowering never creates an alias declaration for inheritance. The accepted
   declaration graph then freezes the effective identity so later stages do not repeat this binding.

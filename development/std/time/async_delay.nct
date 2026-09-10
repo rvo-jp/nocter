@@ -27,7 +27,7 @@ noalloc func async_delay_ticks(step: &Duration, frequency: u64): u64 {
     return whole + fractional
 }
 
-func delay(duration: Duration): async void {
+async func delay(duration: Duration): void {
     var remaining = normalized_duration(
         duration.whole_seconds(),
         duration.subsecond_nanoseconds(),

@@ -229,8 +229,8 @@ fn tuple_types_share_canonical_hover_and_recursive_binding_inlays() {
 fn async_declarations_and_values_share_canonical_semantic_presentation() {
     let tree = TempTree::new();
     let source_text = concat!(
-        "func produce(): async i32! { 1 }\n",
-        "func relay(): async i32! {\n",
+        "async func produce(): i32! { 1 }\n",
+        "async func relay(): i32! {\n",
         "    let pending = produce()\n",
         "    await pending?\n",
         "}\n",
@@ -257,7 +257,7 @@ fn async_declarations_and_values_share_canonical_semantic_presentation() {
         .unwrap();
     assert_eq!(
         declaration.presentation().code(),
-        "func produce(): async i32!"
+        "async func produce(): i32!"
     );
 
     let pending = source_text.find("pending").unwrap();
@@ -268,7 +268,7 @@ fn async_declarations_and_values_share_canonical_semantic_presentation() {
         )
         .unwrap()
         .unwrap();
-    assert_eq!(pending.presentation().code(), "let pending: async i32!");
+    assert_eq!(pending.presentation().code(), "let pending: future i32!");
 }
 
 #[test]
@@ -276,9 +276,9 @@ fn structured_async_join_projects_its_specialized_contract_and_output_types() {
     let tree = TempTree::new();
     let source_text = concat!(
         "use std/task\n",
-        "func left(): async i32 { return 1 }\n",
-        "func right(): async u64 { return 2 }\n",
-        "func main(): async i32 {\n",
+        "async func left(): i32 { return 1 }\n",
+        "async func right(): u64 { return 2 }\n",
+        "async func main(): i32 {\n",
         "    let pending = task.join(left(), right())\n",
         "    let outputs = await pending\n",
         "    if outputs.1 == 2 { return outputs.0 }\n",
@@ -307,8 +307,8 @@ fn structured_async_join_projects_its_specialized_contract_and_output_types() {
     assert_eq!(
         join.presentation().code(),
         concat!(
-            "pub primitive func join<A, B>(first: async A, second: async B): ",
-            "async (A, B) from first | second"
+            "pub primitive func join<A, B>(first: future A, second: future B): ",
+            "future (A, B) from first | second"
         )
     );
     let definitions = snapshot
@@ -334,7 +334,7 @@ fn structured_async_join_projects_its_specialized_contract_and_output_types() {
         .unwrap();
     assert_eq!(
         pending.presentation().code(),
-        "let pending: async (i32, u64)"
+        "let pending: future (i32, u64)"
     );
 
     let outputs_offset = source_text.find("outputs").unwrap();

@@ -49,7 +49,7 @@ fn invalid_type_positions_have_distinct_rules() {
 
 #[test]
 fn asynchronous_producer_restrictions_have_source_rules() {
-    let fixture = Fixture::new("noalloc func impossible(): async i32 { return 1 }\n");
+    let fixture = Fixture::new("noalloc async func impossible(): i32 { return 1 }\n");
     let input = fixture.input(false);
     let lowered = lower_compile_unit_declarations(&input).unwrap();
     let (program, _frontend_bindings, source_index) = lowered.into_checking_parts();

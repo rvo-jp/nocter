@@ -534,7 +534,7 @@ const fn is_prefix_parent(parent: Option<NodeKind>) -> bool {
                 | NodeKind::ReferenceExpression
                 | NodeKind::PointerType
                 | NodeKind::BorrowType
-                | NodeKind::AsyncType
+                | NodeKind::FutureType
                 | NodeKind::Receiver
                 | NodeKind::CoercionPredicate
                 | NodeKind::OperatorPredicate
@@ -599,13 +599,25 @@ mod tests {
     }
 
     #[test]
-    fn formats_async_type_precedence_without_changing_structure() {
+    fn preserves_canonical_async_modifier_placement() {
         let formatted = format(
-            "type Deferred=async String!\ntype ImmediateFailure=(async String)!\ntype Borrowed=&async String\n",
+            "pub async func fetch():String! { return request() }\ninstance Client { pub async method &+self.send():Response! }\n",
         );
         assert_eq!(
             formatted,
-            "type Deferred = async String!\n\ntype ImmediateFailure = (async String)!\n\ntype Borrowed = &async String\n"
+            "pub async func fetch(): String! { return request() }\n\ninstance Client { pub async method &+self.send(): Response! }\n"
+        );
+        assert_eq!(format(&formatted), formatted);
+    }
+
+    #[test]
+    fn formats_future_type_precedence_without_changing_structure() {
+        let formatted = format(
+            "type Deferred=future String!\ntype ImmediateFailure=(future String)!\ntype Borrowed=&future String\n",
+        );
+        assert_eq!(
+            formatted,
+            "type Deferred = future String!\n\ntype ImmediateFailure = (future String)!\n\ntype Borrowed = &future String\n"
         );
         assert_eq!(format(&formatted), formatted);
     }

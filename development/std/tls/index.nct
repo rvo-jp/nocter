@@ -49,21 +49,21 @@ construct TlsStream {
 }
 
 /// Resolves synchronously, then authenticates candidates without blocking the executor thread.
-pub func connect_async(host: &str, port: u16): (async TlsStream!)!
+pub func connect_async(host: &str, port: u16): (future TlsStream!)!
 
 /// Resolves synchronously, then authenticates candidates before one fixed timeout.
 pub func connect_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (async TlsStream!)!
+): (future TlsStream!)!
 
 /// Resolves synchronously, then authenticates asynchronously with one additional root.
 pub func connect_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (async TlsStream!)!
+): (future TlsStream!)!
 
 /// Authenticates asynchronously with an additional root before one fixed timeout.
 pub func connect_async_with_trust_anchor_and_timeout(
@@ -71,7 +71,7 @@ pub func connect_async_with_trust_anchor_and_timeout(
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (async TlsStream!)!
+): (future TlsStream!)!
 
 /// Opens one package-internal TLS stream that requires negotiated HTTP/1.1.
 pub(/) func connect_http1(host: &str, port: u16): TlsStream!
@@ -99,21 +99,21 @@ pub(/) func connect_http1_with_trust_anchor_and_timeout(
 ): TlsStream!
 
 /// Resolves immediately and returns one package-internal HTTP/1.1 TLS computation.
-pub(/) func connect_http1_async(host: &str, port: u16): (async TlsStream!)!
+pub(/) func connect_http1_async(host: &str, port: u16): (future TlsStream!)!
 
 /// Resolves immediately and authenticates HTTP/1.1 TLS before a fixed timeout.
 pub(/) func connect_http1_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (async TlsStream!)!
+): (future TlsStream!)!
 
 /// Returns one package-internal HTTP/1.1 computation with an additional trust root.
 pub(/) func connect_http1_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (async TlsStream!)!
+): (future TlsStream!)!
 
 /// Returns one custom-trust HTTP/1.1 computation bounded by a fixed timeout.
 pub(/) func connect_http1_async_with_trust_anchor_and_timeout(
@@ -121,7 +121,7 @@ pub(/) func connect_http1_async_with_trust_anchor_and_timeout(
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (async TlsStream!)!
+): (future TlsStream!)!
 
 instance TlsStream {
     impl Reader
@@ -152,20 +152,20 @@ instance TlsStream {
     pub noalloc method &+self.close(): void
 
     /// Reads one decrypted provider chunk without blocking the executor thread.
-    pub method &+self.read_async(buffer: &+[u8]): async usize!
+    pub async method &+self.read_async(buffer: &+[u8]): usize!
 
     /// Reads asynchronously until the fixed relative timeout expires.
-    pub method &+self.read_async_with_timeout(
+    pub async method &+self.read_async_with_timeout(
         buffer: &+[u8],
         timeout: Duration,
-    ): async usize!
+    ): usize!
 
     /// Sends the complete plaintext view without blocking the executor thread.
-    pub method &+self.write_async(bytes: &[u8]): async void!
+    pub async method &+self.write_async(bytes: &[u8]): void!
 
     /// Sends asynchronously until completion or the fixed relative timeout expires.
-    pub method &+self.write_async_with_timeout(
+    pub async method &+self.write_async_with_timeout(
         bytes: &[u8],
         timeout: Duration,
-    ): async void!
+    ): void!
 }

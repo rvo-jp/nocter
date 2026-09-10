@@ -194,7 +194,7 @@ fn executable_entry_accepts_the_six_process_results_from_a_deferred_main() {
         ("usize", "return 0", ProcessSuccessType::Usize, false),
         ("usize!", "return 0", ProcessSuccessType::Usize, true),
     ] {
-        let source = format!("func main(): async {result} {{ {body} }}\n");
+        let source = format!("async func main(): {result} {{ {body} }}\n");
         let target = build_target_program(&Fixture::with_app(&source));
         let (target_id, _) = target
             .checked()
@@ -231,11 +231,11 @@ fn executable_entry_rejects_missing_non_function_and_invalid_callable_contracts(
             Some(crate::EntryContractRule::ResultType),
         ),
         (
-            "func main(): async u64 { return 0 }\n",
+            "async func main(): u64 { return 0 }\n",
             Some(crate::EntryContractRule::ResultType),
         ),
         (
-            "func main(): (async i32)! { return error.new(\"app\", \"failure\") }\n",
+            "func main(): (future i32)! { return error.new(\"app\", \"failure\") }\n",
             Some(crate::EntryContractRule::ResultType),
         ),
     ];

@@ -81,7 +81,7 @@ pub(crate) fn validate_async_function(
             || resume.block() != state.resume()
             || !matches!(
                 environment.types().get(computation_type),
-                Some(TypeKind::Async(_))
+                Some(TypeKind::Future(_))
             )
             || state.fields().windows(2).any(|pair| pair[0] >= pair[1])
             || state

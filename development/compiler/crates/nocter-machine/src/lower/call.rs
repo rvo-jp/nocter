@@ -143,7 +143,7 @@ fn async_join_plan(
     signature: &MirCallSignature,
     context: ProgramLoweringContext<'_>,
 ) -> Result<crate::MachineAsyncJoinPlan, MachineProgramError> {
-    let Some(RuntimeType::Async(output)) = context.types.get(signature.result()) else {
+    let Some(RuntimeType::Future(output)) = context.types.get(signature.result()) else {
         return Err(MachineProgramError::InvalidAsyncJoin(operation));
     };
     let Some(RuntimeType::Tuple(elements)) = context.types.get(*output) else {

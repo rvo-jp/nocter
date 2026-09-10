@@ -342,7 +342,7 @@ impl ConcreteDispatchResolver<'_> {
                     },
                 ))
             }
-            TypeKind::Async(_) => Some(ConcreteDestructionPlan::new(
+            TypeKind::Future(_) => Some(ConcreteDestructionPlan::new(
                 ty,
                 ConcreteDestructionKind::Async,
             )),

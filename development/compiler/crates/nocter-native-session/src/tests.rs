@@ -761,7 +761,7 @@ func main(): i32 {
 "#;
 
 const PROVIDER_ASYNC_STREAM_TEST_MAIN: &str = r#"
-func main(): async i32 {
+async func main(): i32 {
     var listener = match listen_stream(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
         StreamListenerAttempt.ready(ready_listener) { move ready_listener }
         StreamListenerAttempt.failed(_) { return 1 }
@@ -837,7 +837,7 @@ func main(): async i32 {
 "#;
 
 const PROVIDER_LISTENER_POLICY_TEST_MAIN: &str = r"
-func main(): async i32 {
+async func main(): i32 {
     var listener = match listen_stream(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
         StreamListenerAttempt.ready(value) { move value }
         StreamListenerAttempt.failed(_) { return 1 }
@@ -2551,7 +2551,7 @@ fn plain_tls_rejection_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func rejects_async(): async bool {{\n\
+         async func rejects_async(): bool {{\n\
              let pending = tls.connect_async_with_timeout(\n\
                  \"localhost\",\n\
                  {port},\n\
@@ -2563,7 +2563,7 @@ fn plain_tls_rejection_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func rejects_https_async(): async bool {{\n\
+         async func rejects_https_async(): bool {{\n\
              let client = Client.new()\n\
              let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
                  return false\n\
@@ -2591,7 +2591,7 @@ fn plain_tls_rejection_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func main(): async i32 {{\n\
+         async func main(): i32 {{\n\
              if !rejects_sync() {{ return 1 }}\n\
              if !await rejects_async() {{ return 2 }}\n\
              if !rejects_https_sync() {{ return 3 }}\n\
@@ -2648,7 +2648,7 @@ fn tls_handshake_timeout_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func async_tls_times_out(timeout: Duration): async bool {{\n\
+         async func async_tls_times_out(timeout: Duration): bool {{\n\
              let pending = tls.connect_async_with_timeout(\n\
                  \"localhost\",\n\
                  {port},\n\
@@ -2669,7 +2669,7 @@ fn tls_handshake_timeout_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func async_https_times_out(client: &Client, timeout: Duration): async bool {{\n\
+         async func async_https_times_out(client: &Client, timeout: Duration): bool {{\n\
              let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
              let pending = client.send_async_with_timeout(\n\
@@ -2682,7 +2682,7 @@ fn tls_handshake_timeout_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func main(): async i32 {{\n\
+         async func main(): i32 {{\n\
              let timeout = Duration.from_milliseconds(20)\n\
              if !sync_tls_times_out(timeout) {{ return 1 }}\n\
              if !await async_tls_times_out(timeout) {{ return 2 }}\n\
@@ -3000,7 +3000,7 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
                  return false\n\
              }}\n\
              \n\
-             func accepts_asynchronously(anchor: &TrustAnchor): async bool {{\n\
+             async func accepts_asynchronously(anchor: &TrustAnchor): bool {{\n\
                  let pending = tls.connect_async_with_trust_anchor_and_timeout(\n\
                      \"localhost\", {port}, anchor, Duration.from_seconds(1),\n\
                  ) catch _ {{ return false }}\n\
@@ -3009,7 +3009,7 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
                  return true\n\
              }}\n\
              \n\
-             func main(): async i32 {{\n\
+             async func main(): i32 {{\n\
                  let _system = TlsStream.connect_with_timeout(\n\
                      \"localhost\", {port}, Duration.from_seconds(1),\n\
                  ) catch failure {{\n\
@@ -3137,7 +3137,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
                  return 4\n\
              }}\n\
              \n\
-             func accepts_async(client: &Client): async bool {{\n\
+             async func accepts_async(client: &Client): bool {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
                  let request = Request.get(move url) catch _ {{ return false }}\n\
                  let pending = client.send_async_with_timeout(\n\
@@ -3150,7 +3150,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
                  return accepted\n\
              }}\n\
              \n\
-             func main(): async i32 {{\n\
+             async func main(): i32 {{\n\
                  let certificate = fs.read(\"root-cert.der\") catch _ {{ return 1 }}\n\
                  let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
                  let client = Client.new().with_trust_anchor(move anchor)\n\
@@ -3212,7 +3212,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
                  return false\n\
              }}\n\
              \n\
-             func rejects_async(client: &Client): async bool {{\n\
+             async func rejects_async(client: &Client): bool {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
                  let request = Request.get(move url) catch _ {{ return false }}\n\
                  let pending = client.send_async_with_timeout(\n\
@@ -3226,7 +3226,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
                  return false\n\
              }}\n\
              \n\
-             func main(): async i32 {{\n\
+             async func main(): i32 {{\n\
                  let certificate = fs.read(\"root-cert.der\") catch _ {{ return 1 }}\n\
                  let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
                  let client = Client.new().with_trust_anchor(move anchor)\n\
@@ -3268,7 +3268,7 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
             "use std/http.{{Client, Request}}\n\
              use std/url.Url\n\
              \n\
-             func main(): async i32 {{\n\
+             async func main(): i32 {{\n\
                  let url = Url.parse(\"http://localhost:{port}/async?q=1\") catch _ {{ return 1 }}\n\
                  var request = Request.post(move url) catch _ {{ return 2 }}\n\
                  request.append_header_text(\"X-Request\", \"phase3\") catch _ {{ return 3 }}\n\
@@ -3347,7 +3347,7 @@ fn async_http_timeout_source(port: u16) -> String {
          use std/url.Url\n\
          use std/vec.Vec\n\
          \n\
-         func head_times_out(client: &Client, url: Url, timeout: Duration): async bool {{\n\
+         async func head_times_out(client: &Client, url: Url, timeout: Duration): bool {{\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
              let pending = client.send_async_with_timeout(\n\
                  move request,\n\
@@ -3359,7 +3359,7 @@ fn async_http_timeout_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func body_times_out(client: &Client, url: Url, timeout: Duration): async bool {{\n\
+         async func body_times_out(client: &Client, url: Url, timeout: Duration): bool {{\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
              let pending = client.send_async_with_timeout(\n\
                  move request,\n\
@@ -3375,7 +3375,7 @@ fn async_http_timeout_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func truncated_peer_fails(client: &Client, url: Url): async bool {{\n\
+         async func truncated_peer_fails(client: &Client, url: Url): bool {{\n\
              let request = Request.get(move url) catch _ {{ return false }}\n\
              let pending = client.send_async_with_timeout(\n\
                  move request,\n\
@@ -3402,7 +3402,7 @@ fn async_http_timeout_source(port: u16) -> String {
              return false\n\
          }}\n\
          \n\
-         func main(): async i32 {{\n\
+         async func main(): i32 {{\n\
              let client = Client.new()\n\
              let abandoned_request = Request.get(\n\
                  Url.parse(\"http://localhost:{port}/abandoned\") catch _ {{ return 1 }},\n\
@@ -3506,7 +3506,7 @@ fn public_async_http_request_body_observes_write_backpressure_timeout() {
              use std/url.Url\n\
              use std/vec.Vec\n\
              \n\
-             func main(): async i32 {{\n\
+             async func main(): i32 {{\n\
                  let body_text = \"{body_chunk}\".repeat(2048)\n\
                  let body_view: &str = &body_text\n\
                  let body = Vec.from_slice(body_view.bytes())\n\
@@ -3721,7 +3721,7 @@ fn standard_async_delay_crosses_the_complete_native_session() {
         "main.nct",
         "use std/time\n\
          \n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              let duration = time.Duration.from_milliseconds(30)\n\
              let start = time.Instant.now()\n\
              await time.delay(duration)\n\
@@ -3752,13 +3752,13 @@ fn structured_async_join_crosses_the_complete_native_session() {
         "use std/task\n\
          use std/time\n\
          \n\
-         func number(value: i32): async i32 { return value }\n\
-         func delayed_number(value: i32, milliseconds: u64): async i32 {\n\
+         async func number(value: i32): i32 { return value }\n\
+         async func delayed_number(value: i32, milliseconds: u64): i32 {\n\
              await time.delay(time.Duration.from_milliseconds(milliseconds))\n\
              return value\n\
          }\n\
          \n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              let immediate = await task.join(number(20), number(22))\n\
              if immediate.0 + immediate.1 != 42 { return 1 }\n\
              let duration = time.Duration.from_milliseconds(35)\n\
@@ -3807,12 +3807,12 @@ fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
          \n\
          struct Counter { value: i32 }\n\
          \n\
-         func read_after_delay(counter: &Counter): async i32 {\n\
+         async func read_after_delay(counter: &Counter): i32 {\n\
              await time.delay(time.Duration.from_milliseconds(20))\n\
              return counter.value\n\
          }\n\
          \n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              let counter = Counter { value: 42 }\n\
              let result = await read_after_delay(&counter)\n\
              if result == 42 { return 0 }\n\
@@ -3857,12 +3857,12 @@ fn large_async_output_staging_preserves_the_consume_entry() {
              twelfth: Vec<u8>\n\
          }\n\
          \n\
-         func hold(payload: Payload): async Payload {\n\
+         async func hold(payload: Payload): Payload {\n\
              await time.delay(time.Duration.from_milliseconds(20))\n\
              return move payload\n\
          }\n\
          \n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              let payload = Payload {\n\
                  first: Vec [u8.truncate(1)],\n\
                  second: Vec [u8.truncate(2)],\n\
@@ -3906,7 +3906,7 @@ fn public_async_tcp_crosses_the_complete_native_session() {
          use std/task\n\
          use std/vec.Vec\n\
          \n\
-         func main(): async i32! {\n\
+         async func main(): i32! {\n\
              let address = net.SocketAddress.new(\n\
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
@@ -4058,7 +4058,7 @@ fn public_async_tcp_timeout_races_readiness_in_the_native_session() {
          use std/time.Duration\n\
          use std/vec.Vec\n\
          \n\
-         func main(): async i32! {\n\
+         async func main(): i32! {\n\
              let address = net.SocketAddress.new(\n\
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
@@ -4109,7 +4109,7 @@ fn public_async_tcp_idle_read_observes_its_deadline() {
          use std/time.Duration\n\
          use std/vec.Vec\n\
          \n\
-         func main(): async i32! {\n\
+         async func main(): i32! {\n\
              let address = net.SocketAddress.new(\n\
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
@@ -4155,7 +4155,7 @@ fn public_async_host_connection_preserves_its_two_stage_contract() {
          use std/time.Duration\n\
          use std/vec.Vec\n\
          \n\
-         func main(): async i32! {\n\
+         async func main(): i32! {\n\
              let address = net.SocketAddress.new(\n\
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
@@ -4208,7 +4208,7 @@ fn async_host_candidate_policy_falls_back_in_deterministic_order() {
     let net_index_path = standard_root.join("net/index.nct");
     let mut net_index_source = fs::read_to_string(&net_index_path).unwrap();
     net_index_source.push_str(
-        "\nfunc main(): async i32! {\n\
+        "\nasync func main(): i32! {\n\
              var listener = loopback_listener()?\n\
              let address = listener.local_address()?\n\
              var client = await deterministic_async_fallback(address.port())?\n\
@@ -4229,7 +4229,7 @@ fn async_host_candidate_policy_falls_back_in_deterministic_order() {
     let resolution_path = standard_root.join("net/resolution_tests.nct");
     let mut resolution_source = fs::read_to_string(&resolution_path).unwrap();
     resolution_source.push_str(
-        "\nfunc deterministic_async_fallback(port: u16): async TcpStream! {\n\
+        "\nasync func deterministic_async_fallback(port: u16): TcpStream! {\n\
              let candidates = ordered_loopback_candidates(port)\n\
              let deadline = substrate.connection_deadline(Duration.from_seconds(1))\n\
              return await connect_resolved_async(move candidates, move deadline)\n\

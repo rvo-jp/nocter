@@ -27,7 +27,7 @@ enum TypeContract {
     },
     Slice(Box<Self>),
     Tuple(Vec<Self>),
-    Async(Box<Self>),
+    Future(Box<Self>),
     Optional(Box<Self>),
     RuntimeStorage(RuntimeStorageRole),
 }
@@ -57,7 +57,7 @@ impl TypeContract {
     }
 
     fn asynchronous(output: Self) -> Self {
-        Self::Async(Box::new(output))
+        Self::Future(Box::new(output))
     }
 
     fn optional(value: Self) -> Self {
@@ -366,7 +366,7 @@ impl TypeContractContext<'_> {
             }
             (Some(TypeKind::Pointer(actual)), TypeContract::Pointer(expected))
             | (Some(TypeKind::Slice(actual)), TypeContract::Slice(expected))
-            | (Some(TypeKind::Async(actual)), TypeContract::Async(expected))
+            | (Some(TypeKind::Future(actual)), TypeContract::Future(expected))
             | (Some(TypeKind::Optional(actual)), TypeContract::Optional(expected)) => {
                 self.matches(*actual, expected)
             }

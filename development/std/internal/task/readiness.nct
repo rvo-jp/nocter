@@ -6,25 +6,25 @@ see ./index.nct
 primitive func descriptor_readiness_raw(
     descriptor: usize,
     writable: bool,
-): async void
+): future void
 
 #target: "arm64-darwin"
 primitive func descriptor_readiness_or_deadline_raw(
     descriptor: usize,
     writable: bool,
     deadline: u64,
-): async void
+): future void
 
-func wait_descriptor_ready(descriptor: usize, writable: bool): async void {
+async func wait_descriptor_ready(descriptor: usize, writable: bool): void {
     await descriptor_readiness_raw(descriptor, writable)
     return
 }
 
-func wait_descriptor_ready_or_deadline(
+async func wait_descriptor_ready_or_deadline(
     descriptor: usize,
     writable: bool,
     deadline: u64,
-): async void {
+): void {
     await descriptor_readiness_or_deadline_raw(descriptor, writable, deadline)
     return
 }

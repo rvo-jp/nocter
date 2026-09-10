@@ -25,8 +25,8 @@ fn constant_process_crosses_the_complete_native_pipeline() {
 #[test]
 fn deferred_process_entry_crosses_the_complete_native_pipeline() {
     let machine = lower_machine(
-        "func ready(value: i32): async i32 { return value }\n\
-         func main(): async i32 { return await ready(42) }\n",
+        "async func ready(value: i32): i32 { return value }\n\
+         async func main(): i32 { return await ready(42) }\n",
     );
     let program = nocter_arm64::Arm64Program::lower_machine(&machine).unwrap();
     let image = nocter_macho::MachOImage::build(&program).unwrap();
@@ -37,7 +37,7 @@ fn deferred_process_entry_crosses_the_complete_native_pipeline() {
 #[test]
 fn deferred_process_failure_uses_the_existing_error_exit_policy() {
     let machine = lower_machine(
-        "func main(): async void! {\n\
+        "async func main(): void! {\n\
              return error.new(\"app.async\", \"failed\")\n\
          }\n",
     );
@@ -51,7 +51,7 @@ fn deferred_process_failure_uses_the_existing_error_exit_policy() {
 fn deferred_process_waits_for_descriptor_readiness_without_spinning() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              await task.descriptor_readiness_for_test(0, false)\n\
              return 42\n\
          }\n",
@@ -68,7 +68,7 @@ fn deferred_process_waits_for_descriptor_readiness_without_spinning() {
 fn deferred_process_waits_for_tcp_loopback_readiness() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              await task.descriptor_readiness_for_test(0, false)\n\
              return 44\n\
          }\n",
@@ -86,7 +86,7 @@ fn deferred_process_waits_until_a_monotonic_deadline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\
          use std/internal/time\n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              let now = time.monotonic_counter_for_test()\n\
              let frequency = time.monotonic_frequency_for_test()\n\
              await time.monotonic_deadline_for_test(now + frequency / 20)\n\
@@ -106,7 +106,7 @@ fn deferred_process_wakes_when_descriptor_precedes_deadline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\
          use std/internal/time\n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              let now = time.monotonic_counter_for_test()\n\
              let frequency = time.monotonic_frequency_for_test()\n\
              await task.descriptor_readiness_or_deadline_for_test(\n\
@@ -130,7 +130,7 @@ fn deferred_process_wakes_when_deadline_precedes_descriptor() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/task\n\
          use std/internal/time\n\
-         func main(): async i32 {\n\
+         async func main(): i32 {\n\
              let now = time.monotonic_counter_for_test()\n\
              let frequency = time.monotonic_frequency_for_test()\n\
              await task.descriptor_readiness_or_deadline_for_test(\n\
@@ -152,8 +152,8 @@ fn deferred_process_wakes_when_deadline_precedes_descriptor() {
 #[test]
 fn dropped_deferred_computation_crosses_the_complete_native_pipeline() {
     let machine = lower_machine(
-        "func ready(value: i64): async i64 { return value }\n\
-         func forward(value: i64): async i64 {\n\
+        "async func ready(value: i64): i64 { return value }\n\
+         async func forward(value: i64): i64 {\n\
              let completed = await ready(value)\n\
              return completed + 1\n\
          }\n\
@@ -172,8 +172,8 @@ fn dropped_deferred_computation_crosses_the_complete_native_pipeline() {
 #[test]
 fn deferred_variadic_pack_capture_and_cancellation_cross_the_native_pipeline() {
     let machine = lower_machine(
-        "func ready(): async void { return }\n\
-         func count(...items: i32): async usize {\n\
+        "async func ready(): void { return }\n\
+         async func count(...items: i32): usize {\n\
              await ready()\n\
              return items.len()\n\
          }\n\

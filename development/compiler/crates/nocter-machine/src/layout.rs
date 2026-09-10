@@ -409,7 +409,7 @@ impl LayoutBuilder<'_> {
                     },
                 })
             }
-            RuntimeType::Pointer(_) | RuntimeType::Async(_) => Ok(self.pointer()),
+            RuntimeType::Pointer(_) | RuntimeType::Future(_) => Ok(self.pointer()),
             RuntimeType::Borrow { referent, .. } => {
                 let referent = self
                     .program

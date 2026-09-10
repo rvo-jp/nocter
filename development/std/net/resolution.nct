@@ -202,10 +202,10 @@ noalloc func connect_resolved(
     return last_failure.context("every resolved address failed to connect")
 }
 
-func connect_resolved_async(
+async func connect_resolved_async(
     addresses: Vec<SocketAddress>,
     connection: ConnectionDeadline,
-): async TcpStream! {
+): TcpStream! {
     var deadline = move connection
     var offset: usize = 0
     var last_failure = error.new("std.net.no_addresses", "host has no connection candidates")
@@ -227,7 +227,7 @@ func connect_resolved_async(
     return last_failure.context("every resolved address failed to connect")
 }
 
-func connect_host_async(host: &str, port: u16): (async TcpStream!)! {
+func connect_host_async(host: &str, port: u16): (future TcpStream!)! {
     let addresses = resolve(host, port)?
     let deadline = substrate.connection_deadline(none)
     return connect_resolved_async(move addresses, move deadline)
@@ -237,7 +237,7 @@ func connect_host_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (async TcpStream!)! {
+): (future TcpStream!)! {
     let deadline = substrate.connection_deadline(timeout)
     let addresses = resolve(host, port)?
     return connect_resolved_async(move addresses, move deadline)

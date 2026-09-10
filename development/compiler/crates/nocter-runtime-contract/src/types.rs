@@ -44,7 +44,7 @@ pub enum RuntimeType {
     Optional(TypeId),
     Fallible(TypeId),
     /// One owning, type-erased deferred computation whose eventual output has this type.
-    Async(TypeId),
+    Future(TypeId),
     /// One compiler-owned, source-opaque storage representation.
     Storage(super::RuntimeStorageRole),
     Opaque,
@@ -123,7 +123,7 @@ impl RuntimeTypeTableBuilder {
                 | RuntimeType::Slice(ty)
                 | RuntimeType::Optional(ty)
                 | RuntimeType::Fallible(ty)
-                | RuntimeType::Async(ty) => Some(*ty),
+                | RuntimeType::Future(ty) => Some(*ty),
                 RuntimeType::Borrow { referent, .. } => Some(*referent),
                 RuntimeType::FixedArray { element, .. } => Some(*element),
                 RuntimeType::Tuple(elements) => {

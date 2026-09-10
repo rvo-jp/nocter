@@ -147,4 +147,4 @@ instance UtcDateTime {
 pub noalloc func sleep(duration: &Duration): void!
 
 /// Produces a lazy computation that completes after at least `duration` has elapsed.
-pub func delay(duration: Duration): async void
+pub async func delay(duration: Duration): void

@@ -207,19 +207,19 @@ fn error_and_every_fallible_type_retain_owned_failure_destruction() {
 
 #[test]
 fn async_values_use_the_computation_lifecycle_destruction() {
-    let output = check("func hold(value: async i32): void { return }\n");
+    let output = check("func hold(value: future i32): void { return }\n");
     let program = output.program();
     let async_i32 = program
         .types()
         .iter()
-        .find_map(|(ty, kind)| matches!(kind, TypeKind::Async(_)).then_some(ty))
-        .expect("fixture must intern its async parameter type");
+        .find_map(|(ty, kind)| matches!(kind, TypeKind::Future(_)).then_some(ty))
+        .expect("fixture must intern its future parameter type");
     let mut resolver = ConcreteDispatchResolver::new(program);
 
     let plan = resolver
         .resolve_destruction(async_i32, &TypeSubstitution::default())
         .unwrap()
-        .expect("an async value always owns its lifecycle");
+        .expect("a future value always owns its lifecycle");
     assert!(matches!(plan.kind(), ConcreteDestructionKind::Async));
 }
 

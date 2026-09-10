@@ -105,7 +105,7 @@ fn materializes_all_six_process_result_contracts() {
 #[test]
 fn deferred_process_entry_is_driven_only_by_the_compiler_root() {
     let program = lower_executable(executable_fixture(&CompilerFixture::with_app(
-        "func main(): async i32 { return 42 }\n",
+        "async func main(): i32 { return 42 }\n",
     )))
     .unwrap();
     let MirRoot::Process(root) = program.root() else {

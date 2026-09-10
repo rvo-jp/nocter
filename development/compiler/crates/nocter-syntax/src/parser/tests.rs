@@ -375,8 +375,8 @@ fn recursive_delimiters_stop_at_the_declared_nesting_limit() {
 }
 
 #[test]
-fn recursive_async_types_stop_at_the_declared_nesting_limit() {
-    let source = format!("type TooDeep = {}i32\n", "async ".repeat(300));
+fn recursive_future_types_stop_at_the_declared_nesting_limit() {
+    let source = format!("type TooDeep = {}i32\n", "future ".repeat(300));
     let tree = parse_text(&source, ParseGoal::SourceFile);
 
     assert!(
@@ -397,7 +397,7 @@ fn nested_type_arguments_are_parsed_once_per_level() {
 #[test]
 fn parses_the_complete_type_atom_and_prefix_surface() {
     let tree = assert_syntax_ok(
-        "type Scalar = bool\ntype Signed = i64\ntype Text = str\ntype Failure = error\ntype Unit = void\ntype Bottom = never\ntype Projection<T> = &parser.Buffer<T>.Item?\ntype Slice<T> = [T]\ntype Array<T> = [T; 16]\ntype Group<T> = (*(&+T))\ntype Pending<T> = async T!\ntype BorrowedPending<T> = &async T\ntype Callback<T> = &+func(input: &T): &T from input\n",
+        "type Scalar = bool\ntype Signed = i64\ntype Text = str\ntype Failure = error\ntype Unit = void\ntype Bottom = never\ntype Projection<T> = &parser.Buffer<T>.Item?\ntype Slice<T> = [T]\ntype Array<T> = [T; 16]\ntype Group<T> = (*(&+T))\ntype Pending<T> = future T!\ntype BorrowedPending<T> = &future T\ntype Callback<T> = &+func(input: &T): &T from input\n",
         ParseGoal::SourceFile,
     );
 
@@ -405,7 +405,7 @@ fn parses_the_complete_type_atom_and_prefix_surface() {
         NodeKind::NamedType,
         NodeKind::BorrowType,
         NodeKind::PointerType,
-        NodeKind::AsyncType,
+        NodeKind::FutureType,
         NodeKind::SliceType,
         NodeKind::FixedArrayType,
         NodeKind::GroupedType,
@@ -437,6 +437,35 @@ fn parses_noalloc_as_a_structural_callable_modifier() {
             .count(),
         11
     );
+}
+
+#[test]
+fn parses_async_only_as_a_function_or_method_modifier() {
+    let tree = assert_syntax_ok(
+        "async func fetch(): String! { return failure() }\n\
+         interface Source { pub async method &self.read(): String!\n\
+         pub async default method &self.cached(): String! }\n\
+         instance Reader { pub async method &+self.read(): String! }\n\
+         type Pending = future String!\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::AsyncModifier)
+            .count(),
+        4
+    );
+    assert_eq!(count_node_kind(&tree, NodeKind::FutureType), 1);
+
+    for source in [
+        "type Legacy = async String\n",
+        "async primitive func pending(): future String\n",
+        "construct Value { async func new(): Self }\n",
+        "instance Value { async coerce &self as &str }\n",
+    ] {
+        assert!(parse_text(source, ParseGoal::SourceFile).has_errors());
+    }
 }
 
 #[test]

@@ -510,7 +510,7 @@ fn project_async_result(
             .get(result)
             .ok_or(InferenceFailure::UnknownType(result))?
         {
-            TypeKind::Async(output) => result = *output,
+            TypeKind::Future(output) => result = *output,
             _ => return Ok(None),
         }
     }
@@ -524,7 +524,7 @@ fn wrap_async_result(
 ) -> Result<TypeId, InferenceFailure> {
     for _ in 0..depth {
         output = types
-            .intern(TypeKind::Async(output))
+            .intern(TypeKind::Future(output))
             .map_err(|_| InferenceFailure::UnknownType(output))?;
     }
     Ok(output)

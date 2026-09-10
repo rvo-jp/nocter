@@ -67,7 +67,7 @@ pub(crate) fn validate_destruction_plan(
             validate_destruction_plan(environment, failure)?;
         }
         MirDestructionKind::Async => {
-            if !matches!(types.get(plan.ty()), Some(TypeKind::Async(_))) {
+            if !matches!(types.get(plan.ty()), Some(TypeKind::Future(_))) {
                 return Err(MirValidationError::InvalidDestruction(plan.ty()));
             }
         }

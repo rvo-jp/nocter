@@ -30,7 +30,7 @@ pub(/) noalloc func monotonic_frequency(): u64
 pub(/) noalloc func monotonic_delta(earlier: u64, later: u64): u64
 
 /// Suspends until one absolute monotonic-counter deadline is observed.
-pub(/) func wait_until(deadline: u64): async void
+pub(/) async func wait_until(deadline: u64): void
 
 /// Performs one blocking timeout wait without deciding retry or remaining-time policy.
 pub(/) noalloc func wait_once(seconds: u64, microseconds: u64): WaitStatus

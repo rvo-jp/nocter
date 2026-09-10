@@ -15,7 +15,7 @@ use crate::{
 #[test]
 fn executable_items_retain_the_specialized_checked_execution_contract() {
     let target = build_target_program(&Fixture::with_app(
-        "func defer<T>(value: T): async T { move value }\n\
+        "async func defer<T>(value: T): T { move value }\n\
          func transfer<T>(value: T): T { move value }\n\
          func main(): void {\n\
              let pending = defer(transfer(7))\n\
@@ -63,7 +63,7 @@ fn executable_items_retain_the_specialized_checked_execution_contract() {
     assert_eq!(execution("transfer"), ExecutableExecution::Immediate);
     assert_eq!(execution("main"), ExecutableExecution::Immediate);
     assert!(executable.types().iter().any(|(ty, kind)| {
-        matches!(kind, nocter_model::TypeKind::Async(output) if *output == i32_)
+        matches!(kind, nocter_model::TypeKind::Future(output) if *output == i32_)
             && executable.type_representations().get(ty).is_none()
     }));
 }

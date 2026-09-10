@@ -35,10 +35,10 @@ pub enum CallableOwner {
     Interface(InterfaceId),
 }
 
-/// Execution mode fixed once from a callable's normalized declaration result.
+/// Execution mode fixed once from a callable's declaration modifier.
 ///
 /// A deferred body produces `output`; invocation itself produces the declaration's outer
-/// `async output` value. Concrete generic substitution never changes this fact.
+/// `future output` value. Result shape, aliases, and generic substitution never change this fact.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CallableExecution {
     Immediate,

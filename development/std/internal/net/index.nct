@@ -81,29 +81,29 @@ pub(/) noalloc func connect_tls_stream_before(
 ): StreamConnectionAttempt
 
 /// Connects one provider-backed stream without blocking the executor thread.
-pub(/) func connect_stream_async(address: NetworkAddress): async StreamConnectionAttempt
+pub(/) async func connect_stream_async(address: NetworkAddress): StreamConnectionAttempt
 
 /// Connects one provider-backed stream asynchronously until the relative timeout expires.
-pub(/) func connect_stream_async_with_timeout(
+pub(/) async func connect_stream_async_with_timeout(
     address: NetworkAddress,
     timeout: Duration,
-): async StreamConnectionAttempt
+): StreamConnectionAttempt
 
 /// Connects asynchronously without restarting one shared candidate deadline.
-pub(/) func connect_stream_async_before(
+pub(/) async func connect_stream_async_before(
     address: NetworkAddress,
     deadline: &+ConnectionDeadline,
-): async StreamConnectionAttempt
+): StreamConnectionAttempt
 
 /// Authenticates one TLS stream asynchronously through the shared provider event channel.
-pub(/) func connect_tls_stream_async_before(
+pub(/) async func connect_tls_stream_async_before(
     address: NetworkAddress,
     server_name: &str,
     application_protocol: *u8,
     trust_anchor: *u8,
     trust_anchor_len: usize,
     deadline: &+ConnectionDeadline,
-): async StreamConnectionAttempt
+): StreamConnectionAttempt
 
 /// Binds and starts one provider-backed stream listener.
 pub(/) noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt
@@ -116,22 +116,22 @@ instance StreamConnection {
     pub(/) noalloc method &+self.write(bytes: &[u8]): UnitAttempt
 
     /// Reads one provider chunk without blocking the executor thread.
-    pub(/) method &+self.read_async(buffer: &+[u8]): async TransferAttempt
+    pub(/) async method &+self.read_async(buffer: &+[u8]): TransferAttempt
 
     /// Reads asynchronously until the relative timeout expires.
-    pub(/) method &+self.read_async_with_timeout(
+    pub(/) async method &+self.read_async_with_timeout(
         buffer: &+[u8],
         timeout: Duration,
-    ): async TransferAttempt
+    ): TransferAttempt
 
     /// Sends the complete byte view without blocking the executor thread.
-    pub(/) method &+self.write_async(bytes: &[u8]): async UnitAttempt
+    pub(/) async method &+self.write_async(bytes: &[u8]): UnitAttempt
 
     /// Sends asynchronously until the complete view is accepted or the timeout expires.
-    pub(/) method &+self.write_async_with_timeout(
+    pub(/) async method &+self.write_async_with_timeout(
         bytes: &[u8],
         timeout: Duration,
-    ): async UnitAttempt
+    ): UnitAttempt
 
     /// Reports the effective logical local address.
     pub(/) noalloc method &self.local_address(): AddressAttempt
@@ -166,12 +166,12 @@ instance StreamListener {
     pub(/) noalloc method &+self.accept(): StreamListenerAcceptAttempt
 
     /// Accepts one connection without blocking the executor thread.
-    pub(/) method &+self.accept_async(): async StreamListenerAcceptAttempt
+    pub(/) async method &+self.accept_async(): StreamListenerAcceptAttempt
 
     /// Accepts asynchronously until one fixed relative timeout expires.
-    pub(/) method &+self.accept_async_with_timeout(
+    pub(/) async method &+self.accept_async_with_timeout(
         timeout: Duration,
-    ): async StreamListenerAcceptAttempt
+    ): StreamListenerAcceptAttempt
 
     /// Replaces the finite accept timeout; absence permits an unlimited wait.
     pub(/) noalloc method &+self.set_accept_timeout(timeout: Duration?): void

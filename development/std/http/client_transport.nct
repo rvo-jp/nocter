@@ -76,11 +76,11 @@ func connect_client_transport(
     }
 }
 
-func await_plain_client_transport(pending: async TcpStream!): async ClientTransport! {
+async func await_plain_client_transport(pending: future TcpStream!): ClientTransport! {
     return ClientTransport.plain(await pending?)
 }
 
-func await_secure_client_transport(pending: async TlsStream!): async ClientTransport! {
+async func await_secure_client_transport(pending: future TlsStream!): ClientTransport! {
     return ClientTransport.secure(await pending?)
 }
 
@@ -88,7 +88,7 @@ func begin_secure_client_transport_async(
     url: &Url,
     trust: &ClientTrust,
     timeout: Duration?,
-): (async ClientTransport!)! {
+): (future ClientTransport!)! {
     match trust {
         ClientTrust.system {
             let finite = timeout otherwise {
@@ -127,7 +127,7 @@ func begin_client_transport_async(
     url: &Url,
     trust: &ClientTrust,
     timeout: Duration?,
-): (async ClientTransport!)! {
+): (future ClientTransport!)! {
     match url.scheme() {
         UrlScheme.http {
             let finite = timeout otherwise {
@@ -160,7 +160,7 @@ instance ClientTransport {
         }
     }
 
-    method &+self.read_async(output: &+[u8], timeout: Duration?): async usize! {
+    async method &+self.read_async(output: &+[u8], timeout: Duration?): usize! {
         match self {
             ClientTransport.plain(stream) {
                 let finite = timeout otherwise { return await stream.read_async(output)? }
@@ -173,7 +173,7 @@ instance ClientTransport {
         }
     }
 
-    method &+self.write_async(bytes: &[u8], timeout: Duration?): async void! {
+    async method &+self.write_async(bytes: &[u8], timeout: Duration?): void! {
         match self {
             ClientTransport.plain(stream) {
                 let finite = timeout otherwise {

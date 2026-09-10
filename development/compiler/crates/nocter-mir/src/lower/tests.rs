@@ -16,8 +16,8 @@ mod root;
 #[test]
 fn lowers_deferred_functions_and_awaits_without_reclassifying_calls() {
     let program = lower_fixture(
-        "func ready(value: i32): async i32 { value }\n\
-         func combine(left: i32): async i32 {\n\
+        "async func ready(value: i32): i32 { value }\n\
+         async func combine(left: i32): i32 {\n\
              let right = await ready(2)\n\
              left + right\n\
          }\n\
@@ -48,7 +48,7 @@ fn lowers_deferred_functions_and_awaits_without_reclassifying_calls() {
                 MirTerminator::Suspend { computation, resume }
                     if matches!(
                         program.types().get(function.values().get(*computation).unwrap().ty()),
-                        Some(nocter_runtime_contract::RuntimeType::Async(_))
+                        Some(nocter_runtime_contract::RuntimeType::Future(_))
                     ) && resume.arguments().is_empty()
                         && function.blocks().get(resume.block()).unwrap().parameters().len() == 1
             )
@@ -95,8 +95,8 @@ fn lowers_deferred_functions_and_awaits_without_reclassifying_calls() {
 fn suspension_storage_is_lowered_from_checked_loans_into_stable_frame_locals() {
     let program = lower_fixture(
         "struct Counter { value: i32 }\n\
-         func consume(counter: &Counter): async i32 { return counter.value }\n\
-         func parent(): async i32 {\n\
+         async func consume(counter: &Counter): i32 { return counter.value }\n\
+         async func parent(): i32 {\n\
              let counter = Counter { value: 1 }\n\
              return await consume(&counter)\n\
          }\n\
@@ -140,8 +140,8 @@ fn freezes_checked_cancellation_cleanup_into_each_suspension_state() {
     let program = lower_fixture(
         "struct Resource {}\n\
          drop Resource(&+self) { return }\n\
-         func ready(): async void { return }\n\
-         func hold(value: Resource): async Resource {\n\
+         async func ready(): void { return }\n\
+         async func hold(value: Resource): Resource {\n\
              await ready()\n\
              move value\n\
          }\n\
@@ -205,8 +205,8 @@ fn cancellation_retains_checked_conditional_initialization_across_await() {
     let program = lower_fixture(
         "struct Owned { value: i32 }\n\
          drop Owned(&+self) { return }\n\
-         func ready(): async void { return }\n\
-         func hold(condition: bool, first: Owned, second: Owned): async Owned {\n\
+         async func ready(): void { return }\n\
+         async func hold(condition: bool, first: Owned, second: Owned): Owned {\n\
              var value = move first\n\
              if condition { let _ = move value }\n\
              await ready()\n\
@@ -1250,7 +1250,7 @@ fn lowers_fallible_injection_and_propagation_through_typed_storage() {
 fn deferred_outcome_propagation_uses_the_inner_body_result() {
     let program = lower_fixture(
         "func fail(): i32! { return error.new(\"app.failure\", \"failed\") }\n\
-         func deferred(): async i32! { return fail()? }\n\
+         async func deferred(): i32! { return fail()? }\n\
          func main(): void {\n\
              let pending = deferred()\n\
              drop pending\n\

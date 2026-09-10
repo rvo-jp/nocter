@@ -485,7 +485,7 @@ fn annotation_reuses_normalized_data_position_validity() {
 fn inferred_bindings_reuse_normalized_data_position_validity() {
     for source in [
         "func finish(): void { return }\nfunc invalid(): void {\n    let completion = finish()\n    return\n}\n",
-        "func finish(): async void! { return }\nfunc invalid(): async void! {\n    let completion = await finish()?\n    return\n}\n",
+        "async func finish(): void! { return }\nasync func invalid(): void! {\n    let completion = await finish()?\n    return\n}\n",
     ] {
         let error = check(source).unwrap_err();
         assert_eq!(

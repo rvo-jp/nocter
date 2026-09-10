@@ -24,10 +24,10 @@ noalloc func ends_with(bytes: &[u8], suffix: &[u8]): bool {
     return true
 }
 
-func serve_once(
+async func serve_once(
     listener: TcpListener,
     timeout: Duration,
-): async void! {
+): void! {
     var owner = move listener
     let accepted = await owner.accept_async_with_timeout(timeout)?
     var stream = move accepted.0
@@ -63,7 +63,7 @@ func serve_once(
     return
 }
 
-func run(): async i32! {
+async func run(): i32! {
     let timeout = Duration.from_seconds(1)
     var listener = TcpListener.bind(loopback())?
     let address = listener.local_address()?

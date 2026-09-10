@@ -83,6 +83,10 @@ fn interface_implementation_method_failures_have_distinct_rules() {
             "pub interface Readable { pub method &self.read(...values: i32: i32): i32 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(...values: i32: u32): i32 { return 0 }\n}\n",
             "E0352",
         ),
+        (
+            "pub interface Readable { pub async method &self.read(): i32 }\nasync func pending(): i32 { return 1 }\nstruct Value {}\ninstance Value {\n    impl Readable\n    method &self.read(): future i32 { return pending() }\n}\n",
+            "E0352",
+        ),
     ] {
         let fixture = Fixture::new(source);
         let input = fixture.input(false);

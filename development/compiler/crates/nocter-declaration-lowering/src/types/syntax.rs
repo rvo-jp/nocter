@@ -99,9 +99,9 @@ fn bind_node(
                 referent: child_value(tree, node, values)?,
             },
         ),
-        NodeKind::AsyncType => push(
+        NodeKind::FutureType => push(
             kinds,
-            BoundTypeKind::Async(child_value(tree, node, values)?),
+            BoundTypeKind::Future(child_value(tree, node, values)?),
         ),
         NodeKind::SliceType => push(
             kinds,

@@ -37,8 +37,8 @@ fn direct_allocation_violates_noalloc() {
 #[test]
 fn creating_a_deferred_computation_is_an_allocation_effect() {
     let error = check(
-        "func produce(): async i32 { 1 }\n\
-         noalloc func invalid(): (async i32)? { produce() }\n",
+        "async func produce(): i32 { 1 }\n\
+         noalloc func invalid(): (future i32)? { produce() }\n",
     )
     .unwrap_err();
 

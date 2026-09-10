@@ -243,8 +243,10 @@ parameter. Other declaration forms reject the modifier.
 ## Functions, Primitive Types, and Aliases
 
 ```text
-FunctionDeclaration = Visibility? NoAllocModifier? AsyncModifier? "primitive"? "func" Name GenericParameters? Parameters
+FunctionDeclaration = Visibility? NoAllocModifier? AsyncModifier? "func" Name GenericParameters? Parameters
                       CallableTail CallableBody
+                    | Visibility? NoAllocModifier? "primitive" "func" Name GenericParameters? Parameters
+                      CallableTail
 
 NoAllocModifier = "noalloc"
 AsyncModifier = "async"
@@ -264,8 +266,9 @@ exact closed built-in declaration selected for that source token; accepting a sy
 here does not create an open user-defined primitive-type facility.
 
 `async` is admitted only on an ordinary function. Its canonical position follows `noalloc` and
-precedes `func`; combining `async` with `primitive` or `noalloc` is a semantic error. The modifier
-declares deferred execution and is independent of the callable's result type.
+precedes `func`; it has no primitive-function production. Combining `async` with `noalloc` is a
+semantic error. The modifier declares deferred execution and is independent of the callable's
+result type.
 
 ## Structs and Enums
 

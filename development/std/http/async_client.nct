@@ -13,29 +13,29 @@ see ./values.nct
 
 use /time.Duration
 
-func read_http_transport_async(
+async func read_http_transport_async(
     stream: &+ClientTransport,
     output: &+[u8],
     timeout: Duration?,
-): async usize! {
+): usize! {
     return await stream.read_async(output, timeout)?
 }
 
-func write_http_transport_async(
+async func write_http_transport_async(
     stream: &+ClientTransport,
     bytes: &[u8],
     timeout: Duration?,
-): async void! {
+): void! {
     await stream.write_async(bytes, timeout)?
     return
 }
 
-func read_response_head_async(
+async func read_response_head_async(
     stream: &+ClientTransport,
     request_method: &Method,
     limits: Limits,
     timeout: Duration?,
-): async ReceivedResponseHead! {
+): ReceivedResponseHead! {
     var scratch = initialized_bytes(CLIENT_BUFFER_BYTES)
     var decoder = response_head_decoder(limits)
     loop {
@@ -58,11 +58,11 @@ func read_response_head_async(
     }
 }
 
-func send_after_connect(
+async func send_after_connect(
     prepared: PreparedRequest,
-    pending_connection: async ClientTransport!,
+    pending_connection: future ClientTransport!,
     timeout: Duration?,
-): async Response! {
+): Response! {
     var owned = move prepared
     var connection = await pending_connection catch failure {
         return failure.context("while connecting the HTTP request")
@@ -96,7 +96,7 @@ func begin_async_send(
     trust: &ClientTrust,
     request: Request,
     timeout: Duration?,
-): (async Response!)! {
+): (future Response!)! {
     let prepared = prepare_request(move request, limits)?
     let pending_connection = begin_client_transport_async(
         &prepared.request.url_value,
@@ -108,11 +108,11 @@ func begin_async_send(
     return send_after_connect(move prepared, move pending_connection, timeout)
 }
 
-func read_response_body_async(
+async func read_response_body_async(
     response: &+Response,
     output: &+[u8],
     timeout: Duration?,
-): async usize! {
+): usize! {
     if response.complete || output.len() == 0 { return 0 }
     loop {
         match advance_response_body(response, output, false) {
@@ -165,27 +165,27 @@ func read_response_body_async(
 }
 
 instance Client {
-    method &self.send_async(request: Request): (async Response!)! {
+    method &self.send_async(request: Request): (future Response!)! {
         return begin_async_send(self.limits_value, &self.trust, move request, none)
     }
 
     method &self.send_async_with_timeout(
         request: Request,
         timeout: Duration,
-    ): (async Response!)! {
+    ): (future Response!)! {
         return begin_async_send(self.limits_value, &self.trust, move request, timeout)
     }
 }
 
 instance Response {
-    method &+self.read_async(output: &+[u8]): async usize! {
+    async method &+self.read_async(output: &+[u8]): usize! {
         return await read_response_body_async(self, output, none)?
     }
 
-    method &+self.read_async_with_timeout(
+    async method &+self.read_async_with_timeout(
         output: &+[u8],
         timeout: Duration,
-    ): async usize! {
+    ): usize! {
         return await read_response_body_async(self, output, timeout)?
     }
 }

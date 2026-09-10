@@ -4,7 +4,7 @@ use nocter_model::{BodyNodeId, TypeId};
 ///
 /// This is intentionally stored on the checked call. Later analyses must not rediscover deferred
 /// execution from a result type, because an immediate generic callable may return an existing
-/// `async T` value after substitution.
+/// `future T` value after substitution.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CheckedCallExecution {
     Immediate,

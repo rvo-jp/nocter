@@ -189,16 +189,10 @@ fn validate_shape(
         CallableKind::Function | CallableKind::Method
     );
     let execution_matches_result = match callable.execution() {
-        CallableExecution::Immediate => {
-            !deferred_kind
-                || !matches!(
-                    program.types().get(callable.result()),
-                    Some(nocter_model::TypeKind::Async(_))
-                )
-        }
+        CallableExecution::Immediate => true,
         CallableExecution::Deferred { output } => {
             deferred_kind
-                && matches!(program.types().get(callable.result()), Some(nocter_model::TypeKind::Async(expected)) if *expected == output)
+                && matches!(program.types().get(callable.result()), Some(nocter_model::TypeKind::Future(expected)) if *expected == output)
         }
     };
     if named != callable.name().is_some()

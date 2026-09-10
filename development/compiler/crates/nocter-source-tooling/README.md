@@ -13,6 +13,7 @@ analysis and are not reconstructed here.
 ## Invariants
 
 - Formatting preserves syntax and emits the canonical source style.
-- Formatting preserves authored callable guarantees in their canonical modifier position.
+- Formatting preserves authored callable execution and guarantees in their canonical modifier
+  positions.
 - Source token classification never invents semantic identity.
 - Invalid syntax remains representable and diagnosable after tooling operations.

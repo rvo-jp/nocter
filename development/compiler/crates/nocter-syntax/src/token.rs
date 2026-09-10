@@ -134,6 +134,7 @@ keywords! {
     False => "false",
     For => "for",
     Func => "func",
+    Future => "future",
     If => "if",
     Impl => "impl",
     In => "in",

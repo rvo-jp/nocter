@@ -13,7 +13,7 @@ use /internal/net.{
 }
 use /time.Duration
 
-func connect_tcp_async(address: SocketAddress): async TcpStream! {
+async func connect_tcp_async(address: SocketAddress): TcpStream! {
     match await net.connect_stream_async(substrate_address(&address)) {
         StreamConnectionAttempt.ready(connection) {
             return stream_from_connection(move connection)
@@ -22,10 +22,10 @@ func connect_tcp_async(address: SocketAddress): async TcpStream! {
     }
 }
 
-func connect_tcp_async_with_timeout(
+async func connect_tcp_async_with_timeout(
     address: SocketAddress,
     timeout: Duration,
-): async TcpStream! {
+): TcpStream! {
     match await net.connect_stream_async_with_timeout(substrate_address(&address), timeout) {
         StreamConnectionAttempt.ready(connection) {
             return stream_from_connection(move connection)
@@ -35,34 +35,34 @@ func connect_tcp_async_with_timeout(
 }
 
 instance TcpStream {
-    method &+self.read_async(buffer: &+[u8]): async usize! {
+    async method &+self.read_async(buffer: &+[u8]): usize! {
         match await self.connection.read_async(buffer) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    method &+self.read_async_with_timeout(
+    async method &+self.read_async_with_timeout(
         buffer: &+[u8],
         timeout: Duration,
-    ): async usize! {
+    ): usize! {
         match await self.connection.read_async_with_timeout(buffer, timeout) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    method &+self.write_async(bytes: &[u8]): async void! {
+    async method &+self.write_async(bytes: &[u8]): void! {
         match await self.connection.write_async(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    method &+self.write_async_with_timeout(
+    async method &+self.write_async_with_timeout(
         bytes: &[u8],
         timeout: Duration,
-    ): async void! {
+    ): void! {
         match await self.connection.write_async_with_timeout(bytes, timeout) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
@@ -71,7 +71,7 @@ instance TcpStream {
 }
 
 instance TcpListener {
-    method &+self.accept_async(): async (TcpStream, SocketAddress)! {
+    async method &+self.accept_async(): (TcpStream, SocketAddress)! {
         match await self.listener.accept_async() {
             StreamListenerAcceptAttempt.ready(connection, peer) {
                 return (stream_from_connection(move connection), public_address(peer))
@@ -80,9 +80,9 @@ instance TcpListener {
         }
     }
 
-    method &+self.accept_async_with_timeout(
+    async method &+self.accept_async_with_timeout(
         timeout: Duration,
-    ): async (TcpStream, SocketAddress)! {
+    ): (TcpStream, SocketAddress)! {
         match await self.listener.accept_async_with_timeout(timeout) {
             StreamListenerAcceptAttempt.ready(connection, peer) {
                 return (stream_from_connection(move connection), public_address(peer))

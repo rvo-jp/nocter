@@ -21,7 +21,7 @@ impl BodyChecker<'_, '_> {
                 Ok(CheckedCallExecution::Immediate)
             }
             nocter_declarations::CallableExecution::Deferred { .. } => {
-                let Some(TypeKind::Async(output)) = self.types.get(result) else {
+                let Some(TypeKind::Future(output)) = self.types.get(result) else {
                     return Err(BodyCheckInternalError::UnknownType(result));
                 };
                 Ok(CheckedCallExecution::Deferred { output: *output })
@@ -51,7 +51,7 @@ impl BodyChecker<'_, '_> {
         };
         let computation = self.consume_await_operand(*operand, node, result_context)?;
         let computation_type = self.node_type(computation)?;
-        let Some(TypeKind::Async(output)) = self.types.get(computation_type) else {
+        let Some(TypeKind::Future(output)) = self.types.get(computation_type) else {
             return Err(self.rule(BodyRule::InvalidAwaitOperand, node)?);
         };
         let output = *output;

@@ -83,7 +83,7 @@ fn parses_precedence_conversion_and_outcome_layers() {
 #[test]
 fn parses_await_before_outer_outcome_propagation() {
     let tree = parse_module(
-        "func resolve(first: async i32!, nested: async async i32): async i32! {\n    let value = await first?\n    await await nested\n}\n",
+        "async func resolve(first: future i32!, nested: future future i32): i32! {\n    let value = await first?\n    await await nested\n}\n",
     );
     assert!(!tree.has_errors(), "{:?}", tree.diagnostics());
     assert_eq!(count_nodes(&tree, NodeKind::AwaitExpression), 3);

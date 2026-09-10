@@ -261,13 +261,13 @@ instance Client {
     pub method &self.send(request: Request): Response!
 
     /// Resolves immediately, then lazily connects, sends, and receives without blocking the executor.
-    pub method &self.send_async(request: Request): (async Response!)!
+    pub method &self.send_async(request: Request): (future Response!)!
 
     /// Performs each asynchronous transport operation with an explicit timeout.
     pub method &self.send_async_with_timeout(
         request: Request,
         timeout: Duration,
-    ): (async Response!)!
+    ): (future Response!)!
 
     /// Sends with one connection deadline and per-operation stream timeouts.
     pub method &self.send_with_timeout(request: Request, timeout: Duration): Response!
@@ -286,25 +286,25 @@ instance Response {
     pub noalloc method &self.headers(): &Headers from self
 
     /// Reads at most `output.len()` decoded response-body bytes without blocking the executor.
-    pub method &+self.read_async(output: &+[u8]): async usize!
+    pub async method &+self.read_async(output: &+[u8]): usize!
 
     /// Reads at most `output.len()` decoded bytes with an idle timeout for needed input.
-    pub method &+self.read_async_with_timeout(
+    pub async method &+self.read_async_with_timeout(
         output: &+[u8],
         timeout: Duration,
-    ): async usize!
+    ): usize!
 
     /// Reads the complete decoded body into independently owned byte storage.
-    pub method &+self.read_to_end_async(): async Vec<u8>!
+    pub async method &+self.read_to_end_async(): Vec<u8>!
 
     /// Reads the complete decoded body and validates it as UTF-8.
-    pub method &+self.read_to_string_async(): async String!
+    pub async method &+self.read_to_string_async(): String!
 
     /// Reads the complete decoded body with a fresh idle timeout for each needed input fragment.
-    pub method &+self.read_to_end_async_with_timeout(timeout: Duration): async Vec<u8>!
+    pub async method &+self.read_to_end_async_with_timeout(timeout: Duration): Vec<u8>!
 
     /// Reads and validates the complete UTF-8 body with per-fragment idle timeouts.
-    pub method &+self.read_to_string_async_with_timeout(timeout: Duration): async String!
+    pub async method &+self.read_to_string_async_with_timeout(timeout: Duration): String!
 
     /// Closes the owned connection; later reads report end of stream.
     pub noalloc method &+self.close(): void

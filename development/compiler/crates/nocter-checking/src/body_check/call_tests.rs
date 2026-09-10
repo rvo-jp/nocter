@@ -25,9 +25,9 @@ fn check_fixture(fixture: &Fixture) -> Result<crate::CheckedProgramOutput, crate
 }
 
 #[test]
-fn deferred_callable_body_is_checked_against_the_async_output() {
+fn deferred_callable_body_is_checked_against_the_declared_output() {
     let output = check(
-        "func produce(): async i32 { return 1 }\n\
+        "async func produce(): i32 { return 1 }\n\
          func hold(): void { let pending = produce()\n    drop pending\n    return\n}\n",
     )
     .unwrap();
@@ -49,7 +49,7 @@ fn deferred_callable_body_is_checked_against_the_async_output() {
     };
     assert_eq!(
         output.program().types().get(callable.result()),
-        Some(&TypeKind::Async(body_result))
+        Some(&TypeKind::Future(body_result))
     );
     assert_eq!(
         output.program().types().get(body_result),
@@ -68,15 +68,17 @@ fn deferred_callable_body_is_checked_against_the_async_output() {
 }
 
 #[test]
-fn declaration_execution_is_fixed_after_aliases_but_before_generic_substitution() {
+fn declaration_execution_depends_only_on_the_async_modifier() {
     let output = check(
-        "type Pending = async i32\n\
-         func by_alias(): Pending { return 1 }\n\
+        "type Pending = future i32\n\
+         async func produce(): i32 { return 1 }\n\
+         func by_alias(pending: Pending): Pending { return move pending }\n\
          func identity<T>(value: T): T { return move value }\n\
          func hold(): void {\n\
-             let first = by_alias()\n\
-             let second = identity(move first)\n\
-             drop second\n\
+             let first = produce()\n\
+             let second = by_alias(move first)\n\
+             let third = identity(move second)\n\
+             drop third\n\
              return\n\
          }\n",
     )
@@ -102,7 +104,7 @@ fn declaration_execution_is_fixed_after_aliases_but_before_generic_substitution(
             .iter()
             .filter(|execution| matches!(execution, CallableExecution::Immediate))
             .count(),
-        2
+        3
     );
     let call_executions = output
         .program()
@@ -123,6 +125,7 @@ fn declaration_execution_is_fixed_after_aliases_but_before_generic_substitution(
                     .types()
                     .builtin(nocter_model::BuiltinType::I32),
             },
+            CheckedCallExecution::Immediate,
             CheckedCallExecution::Immediate,
         ]
     );

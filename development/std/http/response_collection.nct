@@ -14,19 +14,19 @@ func response_collection_buffer(): Vec<u8> {
     return move buffer
 }
 
-func read_response_chunk_async(
+async func read_response_chunk_async(
     response: &+Response,
     output: &+[u8],
     timeout: Duration?,
-): async usize! {
+): usize! {
     let finite = timeout otherwise { return await response.read_async(output)? }
     return await response.read_async_with_timeout(output, finite)?
 }
 
-func collect_response_bytes_async(
+async func collect_response_bytes_async(
     response: &+Response,
     timeout: Duration?,
-): async Vec<u8>! {
+): Vec<u8>! {
     var result: Vec<u8> = Vec.empty()
     var scratch = response_collection_buffer()
     loop {
@@ -42,20 +42,20 @@ func collect_response_bytes_async(
 }
 
 instance Response {
-    method &+self.read_to_end_async(): async Vec<u8>! {
+    async method &+self.read_to_end_async(): Vec<u8>! {
         return await collect_response_bytes_async(self, none)?
     }
 
-    method &+self.read_to_string_async(): async String! {
+    async method &+self.read_to_string_async(): String! {
         let bytes = await self.read_to_end_async()?
         return String.from_utf8(&bytes)?
     }
 
-    method &+self.read_to_end_async_with_timeout(timeout: Duration): async Vec<u8>! {
+    async method &+self.read_to_end_async_with_timeout(timeout: Duration): Vec<u8>! {
         return await collect_response_bytes_async(self, timeout)?
     }
 
-    method &+self.read_to_string_async_with_timeout(timeout: Duration): async String! {
+    async method &+self.read_to_string_async_with_timeout(timeout: Duration): String! {
         let bytes = await self.read_to_end_async_with_timeout(timeout)?
         return String.from_utf8(&bytes)?
     }

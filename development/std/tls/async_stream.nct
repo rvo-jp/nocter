@@ -18,13 +18,13 @@ use /string.String
 use /time.Duration
 use /vec.Vec
 
-func connect_candidates_async(
+async func connect_candidates_async(
     server_name: String,
     application_protocol: String,
     trust_anchor: Vec<u8>,
     addresses: Vec<SocketAddress>,
     connection_deadline: ConnectionDeadline,
-): async TlsStream! {
+): TlsStream! {
     var owned_server_name = move server_name
     var owned_application_protocol = move application_protocol
     var owned_trust_anchor = move trust_anchor
@@ -65,7 +65,7 @@ func connect_candidates_async(
     return last_failure.context("every resolved address failed TLS authentication")
 }
 
-func connect_async(host: &str, port: u16): (async TlsStream!)! {
+func connect_async(host: &str, port: u16): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(none)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -83,7 +83,7 @@ func connect_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (async TlsStream!)! {
+): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(timeout)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -101,7 +101,7 @@ func connect_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (async TlsStream!)! {
+): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(none)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -120,7 +120,7 @@ func connect_async_with_trust_anchor_and_timeout(
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (async TlsStream!)! {
+): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(timeout)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -134,7 +134,7 @@ func connect_async_with_trust_anchor_and_timeout(
     )
 }
 
-func connect_http1_async(host: &str, port: u16): (async TlsStream!)! {
+func connect_http1_async(host: &str, port: u16): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(none)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -153,7 +153,7 @@ func connect_http1_async_with_timeout(
     host: &str,
     port: u16,
     timeout: Duration,
-): (async TlsStream!)! {
+): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(timeout)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -172,7 +172,7 @@ func connect_http1_async_with_trust_anchor(
     host: &str,
     port: u16,
     trust_anchor: &TrustAnchor,
-): (async TlsStream!)! {
+): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(none)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -192,7 +192,7 @@ func connect_http1_async_with_trust_anchor_and_timeout(
     port: u16,
     trust_anchor: &TrustAnchor,
     timeout: Duration,
-): (async TlsStream!)! {
+): (future TlsStream!)! {
     let deadline = substrate.connection_deadline(timeout)
     let addresses = net.resolve(host, port)?
     var server_name = String.copy(host)
@@ -208,34 +208,34 @@ func connect_http1_async_with_trust_anchor_and_timeout(
 }
 
 instance TlsStream {
-    method &+self.read_async(buffer: &+[u8]): async usize! {
+    async method &+self.read_async(buffer: &+[u8]): usize! {
         match await self.connection.read_async(buffer) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return net.network_error(move failure) }
         }
     }
 
-    method &+self.read_async_with_timeout(
+    async method &+self.read_async_with_timeout(
         buffer: &+[u8],
         timeout: Duration,
-    ): async usize! {
+    ): usize! {
         match await self.connection.read_async_with_timeout(buffer, timeout) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return net.network_error(move failure) }
         }
     }
 
-    method &+self.write_async(bytes: &[u8]): async void! {
+    async method &+self.write_async(bytes: &[u8]): void! {
         match await self.connection.write_async(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return net.network_error(move failure) }
         }
     }
 
-    method &+self.write_async_with_timeout(
+    async method &+self.write_async_with_timeout(
         bytes: &[u8],
         timeout: Duration,
-    ): async void! {
+    ): void! {
         match await self.connection.write_async_with_timeout(bytes, timeout) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return net.network_error(move failure) }

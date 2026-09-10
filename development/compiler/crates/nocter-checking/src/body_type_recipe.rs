@@ -64,7 +64,7 @@ enum BodyTypeKind {
         capability: BorrowCapability,
         referent: BodyTypeRef,
     },
-    Async(BodyTypeRef),
+    Future(BodyTypeRef),
     Slice(BodyTypeRef),
     FixedArray {
         element: BodyTypeRef,
@@ -302,7 +302,7 @@ fn capture_kind(
             capability: *capability,
             referent: reference(*referent)?,
         },
-        TypeKind::Async(output) => BodyTypeKind::Async(reference(*output)?),
+        TypeKind::Future(output) => BodyTypeKind::Future(reference(*output)?),
         TypeKind::Slice(element) => BodyTypeKind::Slice(reference(*element)?),
         TypeKind::FixedArray { element, length } => BodyTypeKind::FixedArray {
             element: reference(*element)?,
@@ -394,7 +394,7 @@ fn replay_kind(
             capability: *capability,
             referent: resolve(*referent)?,
         },
-        BodyTypeKind::Async(output) => TypeKind::Async(resolve(*output)?),
+        BodyTypeKind::Future(output) => TypeKind::Future(resolve(*output)?),
         BodyTypeKind::Slice(element) => TypeKind::Slice(resolve(*element)?),
         BodyTypeKind::FixedArray { element, length } => TypeKind::FixedArray {
             element: resolve(*element)?,
