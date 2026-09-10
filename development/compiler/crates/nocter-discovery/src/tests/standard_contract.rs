@@ -237,6 +237,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("tls", "internal/ptr"),
     ("tls", "io"),
     ("tls", "net"),
+    ("tls", "ptr"),
     ("tls", "string"),
     ("tls", "time"),
     ("tls", "vec"),
