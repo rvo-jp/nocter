@@ -193,6 +193,8 @@
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-type">Hash</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>net<span class="token-operator">.</span><span class="token-type">NetworkFailure</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>net<span class="token-operator">/</span>model<span class="token-operator">.</span><span class="token-type">NetworkAddress</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">TotalOrder</span>
@@ -242,6 +244,15 @@
 
 <span class="token-comment">/// One uniquely owned UDP datagram socket.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">UdpSocket</span>
+
+<span class="token-comment">/// Converts one public socket address to the target-independent provider representation.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">substrate_address</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">SocketAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">NetworkAddress</span>
+
+<span class="token-comment">/// Converts one provider address to its public value representation.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">public_address</span><span class="token-operator">(</span>address<span class="token-operator">:</span> <span class="token-type">NetworkAddress</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span>
+
+<span class="token-comment">/// Maps one provider-independent failure to the stable public network error vocabulary.</span>
+<span class="token-keyword">pub</span><span class="token-operator">(</span><span class="token-operator">/</span><span class="token-operator">)</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">network_error</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> <span class="token-type">NetworkFailure</span><span class="token-operator">)</span><span class="token-operator">:</span> error
 
 <span class="token-comment">/// The observable result of receiving exactly one UDP datagram.</span>
 <span class="token-keyword">pub</span> copy <span class="token-keyword">struct</span> <span class="token-type">DatagramRead</span>

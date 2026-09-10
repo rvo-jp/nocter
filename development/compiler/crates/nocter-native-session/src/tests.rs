@@ -2485,6 +2485,60 @@ fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
+fn public_tls_rejects_a_plain_local_peer_through_the_complete_native_session() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = fixture.local_addr().unwrap().port();
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        &format!(
+            "use std/time.Duration\n\
+             use std/tls.TlsStream\n\
+             \n\
+             func main(): i32 {{\n\
+                 let _stream = TlsStream.connect_with_timeout(\n\
+                     \"localhost\",\n\
+                     {port},\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch failure {{\n\
+                     if failure.has_code(\"std.net.tls_failed\") {{ return 0 }}\n\
+                     return 2\n\
+                 }}\n\
+                 return 1\n\
+             }}\n"
+        ),
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+
+    let server = thread::spawn(move || {
+        let (mut stream, _) = fixture.accept().unwrap();
+        let mut client_hello = [0_u8; 512];
+        assert_ne!(stream.read(&mut client_hello).unwrap(), 0);
+        stream.write_all(b"this is not a TLS record").unwrap();
+        thread::sleep(Duration::from_millis(100));
+    });
+    execute_native_status(image.image(), &package_root.0, "tls-plain-peer", 0);
+    server.join().unwrap();
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
 fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
     use std::io::{Read, Write};
     use std::net::TcpListener;

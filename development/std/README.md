@@ -39,6 +39,7 @@ comments.
 | structured asynchronous computation composition | [Structured Asynchronous Tasks](task/README.md) | `std/task` |
 | synchronous processes and process context | [Synchronous Processes](process/README.md) | `std/process` |
 | numeric network addresses and socket I/O | [Network I/O](net/README.md) | `std/net` |
+| authenticated TLS client streams | [Authenticated TLS](tls/README.md) | `std/tls` |
 | absolute HTTP-family URLs and request targets | [URL](url/README.md) | `std/url` |
 | HTTP/1.1 client, message values, and framing | [HTTP/1.1](http/README.md) | `std/http` |
 | Unicode scalars and text transforms | [Unicode Text and Scalars](char/README.md) | `std/char`, Unicode operations on `std/str` and `std/string` |

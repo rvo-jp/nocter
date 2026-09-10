@@ -1,0 +1,50 @@
+//! Authenticated TLS client byte streams.
+//!
+//! `TlsStream` uses the operating system trust store, verifies the requested server name, requires
+//! TLS 1.2 or newer, and preserves the same unique stream ownership and timeout model as TCP.
+
+use /io.{Reader, Writer}
+use /net.{SocketAddress, TcpShutdown}
+use /time.Duration
+
+see ./stream.nct
+
+/// One uniquely owned authenticated TLS client byte stream.
+pub struct TlsStream
+
+construct TlsStream {
+    /// Resolves `host` and connects to the first authenticated address in system order.
+    pub func connect(host: &str, port: u16): Self!
+
+    /// Resolves and authenticates candidates without restarting `timeout` for each address.
+    pub func connect_with_timeout(host: &str, port: u16, timeout: Duration): Self!
+}
+
+instance TlsStream {
+    impl Reader
+    impl Writer
+
+    /// Returns the effective local socket address.
+    pub noalloc method &self.local_address(): SocketAddress!
+
+    /// Returns the authenticated peer socket address.
+    pub noalloc method &self.peer_address(): SocketAddress!
+
+    /// Replaces the read timeout; absence permits an unlimited wait.
+    pub noalloc method &+self.set_read_timeout(timeout: Duration?): void
+
+    /// Returns the configured read timeout.
+    pub noalloc method &self.read_timeout(): Duration?
+
+    /// Replaces the write timeout; absence permits an unlimited wait.
+    pub noalloc method &+self.set_write_timeout(timeout: Duration?): void
+
+    /// Returns the configured write timeout.
+    pub noalloc method &self.write_timeout(): Duration?
+
+    /// Shuts down selected local stream directions.
+    pub noalloc method &+self.shutdown(direction: TcpShutdown): void!
+
+    /// Cancels provider progress and releases the stream exactly once.
+    pub noalloc method &+self.close(): void
+}

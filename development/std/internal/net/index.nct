@@ -69,6 +69,14 @@ pub(/) noalloc func connect_stream_before(
     deadline: &+ConnectionDeadline,
 ): StreamConnectionAttempt
 
+/// Connects one authenticated TLS stream through the shared provider lifecycle.
+pub(/) noalloc func connect_tls_stream_before(
+    address: NetworkAddress,
+    server_name: *u8,
+    application_protocol: *u8,
+    deadline: &+ConnectionDeadline,
+): StreamConnectionAttempt
+
 /// Connects one provider-backed stream without blocking the executor thread.
 pub(/) func connect_stream_async(address: NetworkAddress): async StreamConnectionAttempt
 

@@ -5,6 +5,8 @@
 
 use /fmt.Format
 use /hash.Hash
+use /internal/net.NetworkFailure
+use /internal/net/model.NetworkAddress
 use /io.{Reader, Writer}
 use /mem.TryAllocator
 use /order.TotalOrder
@@ -54,6 +56,15 @@ pub struct TcpListener
 
 /// One uniquely owned UDP datagram socket.
 pub struct UdpSocket
+
+/// Converts one public socket address to the target-independent provider representation.
+pub(/) noalloc func substrate_address(address: &SocketAddress): NetworkAddress
+
+/// Converts one provider address to its public value representation.
+pub(/) noalloc func public_address(address: NetworkAddress): SocketAddress
+
+/// Maps one provider-independent failure to the stable public network error vocabulary.
+pub(/) noalloc func network_error(failure: NetworkFailure): error
 
 /// The observable result of receiving exactly one UDP datagram.
 pub copy struct DatagramRead
