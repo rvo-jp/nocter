@@ -17,6 +17,11 @@ pub(super) fn select(
 ) -> Result<(), Arm64SelectionError> {
     match target.role() {
         PrimitiveRole::AllocationAbort => select_break(operation, target, selected),
+        PrimitiveRole::MemoryMap | PrimitiveRole::MemoryUnmap => {
+            select_memory_operation(operation, target, selected)
+        }
+        PrimitiveRole::DescriptorClose => select_descriptor_close(operation, target, selected),
+        PrimitiveRole::EntropySeedFill => select_entropy_seed_fill(operation, target, selected),
         PrimitiveRole::ProcessExit => select_exit(operation, target, selected),
         PrimitiveRole::MonotonicCounterRead | PrimitiveRole::MonotonicCounterFrequency => {
             select_counter_read(operation, target, selected)
@@ -35,6 +40,44 @@ pub(super) fn select(
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
+}
+
+fn select_entropy_seed_fill(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 1)?;
+    validate_direct_result(operation, target, 1)?;
+    selected.push(Arm64SelectedInstruction::DarwinEntropySeedFill);
+    Ok(())
+}
+
+fn select_descriptor_close(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    validate_ordinary_inputs(operation, target, 1)?;
+    validate_direct_result(operation, target, 2)?;
+    selected.push(Arm64SelectedInstruction::DarwinDescriptorClose);
+    Ok(())
+}
+
+fn select_memory_operation(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    let (argument_count, instruction) = match target.role() {
+        PrimitiveRole::MemoryMap => (1, Arm64SelectedInstruction::DarwinMemoryMap),
+        PrimitiveRole::MemoryUnmap => (2, Arm64SelectedInstruction::DarwinMemoryUnmap),
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    validate_ordinary_inputs(operation, target, argument_count)?;
+    validate_direct_result(operation, target, 2)?;
+    selected.push(instruction);
+    Ok(())
 }
 
 fn select_syscall_pair(

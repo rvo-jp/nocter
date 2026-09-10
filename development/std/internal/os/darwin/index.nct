@@ -19,6 +19,10 @@ pub(/) copy struct SyscallPairResult {
     pub errno: i32
 }
 
+/// Closes one descriptor through the target-owned Darwin ABI boundary.
+#target: "arm64-darwin"
+pub(/) noalloc primitive func close_descriptor(fd: usize): SyscallResult
+
 #target: "arm64-darwin"
 pub(/) copy struct Errno {
     pub code: i32
@@ -56,9 +60,6 @@ pub(/) const SYS_WRITE: usize
 pub(/) const SYS_OPEN: usize
 
 #target: "arm64-darwin"
-pub(/) const SYS_CLOSE: usize
-
-#target: "arm64-darwin"
 pub(/) const SYS_WAIT4: usize
 
 #target: "arm64-darwin"
@@ -89,19 +90,10 @@ pub(/) const SYS_MKDIR: usize
 pub(/) const SYS_RMDIR: usize
 
 #target: "arm64-darwin"
-pub(/) const SYS_MUNMAP: usize
-
-#target: "arm64-darwin"
-pub(/) const SYS_MMAP: usize
-
-#target: "arm64-darwin"
 pub(/) const SYS_STAT64: usize
 
 #target: "arm64-darwin"
 pub(/) const SYS_GETDIRENTRIES64: usize
-
-#target: "arm64-darwin"
-pub(/) const SYS_GETENTROPY: usize
 
 #target: "arm64-darwin"
 pub(/) const SYS_GETTIMEOFDAY: usize
@@ -135,15 +127,6 @@ pub(/) const CREATE_MODE: usize
 
 #target: "arm64-darwin"
 pub(/) const CREATE_DIRECTORY_MODE: usize
-
-#target: "arm64-darwin"
-pub(/) const MMAP_READ_WRITE: usize
-
-#target: "arm64-darwin"
-pub(/) const MMAP_PRIVATE_ANONYMOUS: usize
-
-#target: "arm64-darwin"
-pub(/) const MMAP_NO_FILE: usize
 
 #target: "arm64-darwin"
 pub(/) const ERRNO_INTERRUPTED: i32

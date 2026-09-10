@@ -65,6 +65,14 @@ closed_role_enum! {
         CurrentAllocatorState,
         CurrentAllocatorKind,
         AllocationAbort,
+        /// Requests one private anonymous page mapping through a target-owned ABI operation.
+        MemoryMap,
+        /// Releases one page mapping through a target-owned ABI operation.
+        MemoryUnmap,
+        /// Closes one Darwin descriptor without exposing the raw syscall-number boundary.
+        DescriptorClose,
+        /// Fills one 64-bit hash seed from the target entropy source.
+        EntropySeedFill,
         PointerAddress,
         PointerFromReference,
         PointerFromReadWriteReference,
@@ -194,6 +202,10 @@ impl PrimitiveRole {
             Self::CurrentAllocatorState => "current_allocator_state",
             Self::CurrentAllocatorKind => "current_allocator_kind",
             Self::AllocationAbort => "allocation_abort",
+            Self::MemoryMap => "memory_map",
+            Self::MemoryUnmap => "memory_unmap",
+            Self::DescriptorClose => "descriptor_close",
+            Self::EntropySeedFill => "entropy_seed_fill",
             Self::PointerAddress => "pointer_address",
             Self::PointerFromReference => "pointer_from_reference",
             Self::PointerFromReadWriteReference => "pointer_from_read_write_reference",

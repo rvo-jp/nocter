@@ -7,6 +7,8 @@ const SUPERVISOR_CALL_IMMEDIATE: u16 = 0x80;
 pub(crate) enum DarwinSystemCall {
     Exit,
     Write,
+    Close,
+    GetEntropy,
     MemoryUnmap,
     MemoryMap,
     Poll,
@@ -17,6 +19,8 @@ impl DarwinSystemCall {
         match self {
             Self::Exit => 1,
             Self::Write => 0x0200_0004,
+            Self::Close => 0x0200_0006,
+            Self::GetEntropy => 0x0200_01f4,
             Self::MemoryUnmap => 0x0200_0049,
             Self::MemoryMap => 0x0200_00c5,
             Self::Poll => 0x0200_00e6,
@@ -98,6 +102,8 @@ mod tests {
         let calls = [
             DarwinSystemCall::Exit,
             DarwinSystemCall::Write,
+            DarwinSystemCall::Close,
+            DarwinSystemCall::GetEntropy,
             DarwinSystemCall::MemoryUnmap,
             DarwinSystemCall::MemoryMap,
             DarwinSystemCall::Poll,

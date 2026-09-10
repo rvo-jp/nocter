@@ -10,16 +10,14 @@ use /internal/os/darwin
 use /internal/ptr
 
 #target: "arm64-darwin"
+noalloc primitive func map_pages_raw(size: usize): darwin.SyscallResult
+
+#target: "arm64-darwin"
+noalloc primitive func unmap_pages_raw(address: usize, size: usize): darwin.SyscallResult
+
+#target: "arm64-darwin"
 func alloc_pages(size: usize): usize! {
-    let result = darwin.syscall6(
-        darwin.SYS_MMAP,
-        0,
-        size,
-        darwin.MMAP_READ_WRITE,
-        darwin.MMAP_PRIVATE_ANONYMOUS,
-        darwin.MMAP_NO_FILE,
-        0,
-    )
+    let result = map_pages_raw(size)
     if result.errno != 0 {
         return allocation_failure_error()
     }
@@ -28,7 +26,7 @@ func alloc_pages(size: usize): usize! {
 
 #target: "arm64-darwin"
 noalloc func free_pages(address: usize, size: usize): void {
-    let result = darwin.syscall2(darwin.SYS_MUNMAP, address, size)
+    let result = unmap_pages_raw(address, size)
     return
 }
 

@@ -1,13 +1,54 @@
 use crate::{
     Arm64BranchCondition, Arm64CodeBuilder, Arm64CodeError, Arm64DataSize, Arm64Instruction,
-    Arm64NocterAbi,
+    Arm64MaterializationError, Arm64NocterAbi,
 };
+
+/// Performs the standard-library recoverable mapping operation.
+///
+/// The source ABI supplies `size` in `x0`; this boundary owns every Darwin number and flag and
+/// returns the ordinary two-word `SyscallResult` in `x0:x1`.
+pub(crate) fn emit_map_result(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::address_code::move_register(code, argument(0), argument(1));
+    prepare_map_arguments(code);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::MemoryMap,
+    );
+    crate::system_primitive_code::emit_system_call_result(code)
+}
+
+/// Performs the standard-library recoverable mapping-release operation.
+pub(crate) fn emit_unmap_result(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::MemoryUnmap,
+    );
+    crate::system_primitive_code::emit_system_call_result(code)
+}
 
 /// Emits one private anonymous mapping request.
 ///
 /// The caller supplies the byte length in `x1`. The mapping pointer is returned in `x0`, and an
 /// allocation failure terminates through the compiler-owned trap contract.
 pub(crate) fn emit_map(code: &mut Arm64CodeBuilder) -> Result<(), Arm64CodeError> {
+    prepare_map_arguments(code);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::MemoryMap,
+    );
+    let success = code.create_label();
+    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
+    code.append(Arm64Instruction::Break {
+        immediate: crate::runtime_trap::Arm64RuntimeTrap::AllocationFailure.immediate(),
+    });
+    code.bind(success)
+}
+
+fn prepare_map_arguments(code: &mut Arm64CodeBuilder) {
     crate::frame_access::load_immediate(code, argument(0), 0, Arm64DataSize::Bits64);
     crate::frame_access::load_immediate(
         code,
@@ -28,16 +69,6 @@ pub(crate) fn emit_map(code: &mut Arm64CodeBuilder) -> Result<(), Arm64CodeError
         Arm64DataSize::Bits64,
     );
     crate::frame_access::load_immediate(code, argument(5), 0, Arm64DataSize::Bits64);
-    crate::darwin_kernel_abi::emit_system_call(
-        code,
-        crate::darwin_kernel_abi::DarwinSystemCall::MemoryMap,
-    );
-    let success = code.create_label();
-    code.branch_conditional(success, Arm64BranchCondition::CarryClear);
-    code.append(Arm64Instruction::Break {
-        immediate: crate::runtime_trap::Arm64RuntimeTrap::AllocationFailure.immediate(),
-    });
-    code.bind(success)
 }
 
 /// Emits one mapping release request using the address in `x0` and byte length in `x1`.

@@ -20,7 +20,13 @@ pub(crate) fn emit_system_call(
         move_register(argument(position + 1), argument(position), code);
     }
     crate::darwin_kernel_abi::emit_loaded_system_call(code);
+    emit_system_call_result(code)
+}
 
+/// Translates Darwin's carry-set error convention into Nocter's `(value, errno)` result.
+pub(crate) fn emit_system_call_result(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
     let success = code.create_label();
     let complete = code.create_label();
     code.branch_conditional(success, Arm64BranchCondition::CarryClear);
@@ -29,6 +35,33 @@ pub(crate) fn emit_system_call(
     code.branch(complete, false);
     code.bind(success)?;
     crate::frame_access::load_immediate(code, argument(1), 0, Arm64DataSize::Bits64);
+    code.bind(complete)?;
+    Ok(())
+}
+
+/// Closes the descriptor in `x0` through the compiler-owned Darwin ABI identity.
+pub(crate) fn emit_descriptor_close(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::Close,
+    );
+    emit_system_call_result(code)
+}
+
+/// Fills the `u64` addressed by `x0` and returns zero or the Darwin errno in `x0`.
+pub(crate) fn emit_entropy_seed_fill(
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), Arm64MaterializationError> {
+    crate::frame_access::load_immediate(code, argument(1), 8, Arm64DataSize::Bits64);
+    crate::darwin_kernel_abi::emit_system_call(
+        code,
+        crate::darwin_kernel_abi::DarwinSystemCall::GetEntropy,
+    );
+    let complete = code.create_label();
+    code.branch_conditional(complete, Arm64BranchCondition::CarrySet);
+    crate::frame_access::load_immediate(code, argument(0), 0, Arm64DataSize::Bits64);
     code.bind(complete)?;
     Ok(())
 }

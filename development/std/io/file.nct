@@ -94,7 +94,7 @@ func close_fd(fd: usize): void {
     // A failed close is deliberately not retried: Darwin may have consumed the
     // descriptor even when reporting an interruption, and retrying could close
     // an unrelated descriptor that another operation has reused.
-    let _ = darwin.syscall1(darwin.SYS_CLOSE, fd)
+    let _ = darwin.close_descriptor(fd)
     return
 }
 

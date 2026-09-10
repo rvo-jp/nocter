@@ -521,6 +521,38 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             make(0, vec![], usize(), private, None, vec![])
         }
         PrimitiveRole::AllocationAbort => make(0, vec![], never(), package, None, vec![]),
+        PrimitiveRole::MemoryMap => make(
+            0,
+            vec![usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::MemoryUnmap => make(
+            0,
+            vec![usize(), usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DescriptorClose => make(
+            0,
+            vec![usize()],
+            syscall_result(),
+            package,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::EntropySeedFill => make(
+            0,
+            vec![TypeContract::pointer(u64())],
+            i32(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::PointerAddress => make(
             1,
             vec![TypeContract::pointer(TypeContract::Generic(0))],

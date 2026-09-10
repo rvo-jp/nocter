@@ -137,6 +137,10 @@ pub(crate) fn select(
         | PrimitiveRole::F64ToI64
         | PrimitiveRole::F64ToU64 => select_float_primitive(operation, target, selected),
         PrimitiveRole::AllocationAbort
+        | PrimitiveRole::MemoryMap
+        | PrimitiveRole::MemoryUnmap
+        | PrimitiveRole::DescriptorClose
+        | PrimitiveRole::EntropySeedFill
         | PrimitiveRole::ProcessExit
         | PrimitiveRole::MonotonicCounterRead
         | PrimitiveRole::MonotonicCounterFrequency

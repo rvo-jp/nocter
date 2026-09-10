@@ -97,9 +97,14 @@ pub struct AllocationContext { state: usize
     kind: usize }
 ";
 const MEM_SOURCE: &str = "\
+use /internal/os/darwin.SyscallResult
 primitive func current_allocator_state(): usize
 primitive func current_allocator_kind(): usize
 primitive func allocation_failure_error(): error
+#target: \"arm64-darwin\"
+primitive func map_pages_raw(size: usize): SyscallResult
+#target: \"arm64-darwin\"
+primitive func unmap_pages_raw(address: usize, size: usize): SyscallResult
 pub func allocation_context_state_for_test(): usize {
     return current_allocator_state()
 }
@@ -111,6 +116,10 @@ pub func allocation_failure_for_test(): error { return allocation_failure_error(
 const INTERNAL_MEM_SOURCE: &str = "\
 pub(/) primitive func allocation_abort(): never
 pub func allocation_abort_for_test(): never { allocation_abort() }
+";
+const INTERNAL_HASH_SOURCE: &str = "\
+#target: \"arm64-darwin\"
+primitive func fill_seed_raw(destination: *u64): i32
 ";
 const PTR_SOURCE: &str = "\
 pub primitive func addr<T>(pointer: *T): usize
@@ -409,6 +418,8 @@ pub(/) copy struct SyscallPairResult {
     pub errno: i32
 }
 #target: \"arm64-darwin\"
+pub(/) noalloc primitive func close_descriptor(fd: usize): SyscallResult
+#target: \"arm64-darwin\"
 primitive func syscall0(number: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) primitive func syscall_pair0(number: usize): SyscallPairResult
@@ -468,6 +479,64 @@ struct FixtureModule {
 struct FixtureUse {
     declaration: nocter_syntax::NodeId,
     target: Box<[Box<str>]>,
+}
+
+fn fixture_modules(sources: &mut SourceMap) -> Vec<FixtureModule> {
+    [
+        (&["error"][..], ERROR_SOURCE),
+        (&["core"][..], CORE_SOURCE),
+        (&["num"][..], NUM_SOURCE),
+        (&["char"][..], CHAR_SOURCE),
+        (&["internal", "character"][..], INTERNAL_CHARACTER_SOURCE),
+        (&["mem"][..], MEM_SOURCE),
+        (&["internal", "mem"][..], INTERNAL_MEM_SOURCE),
+        (&["internal", "hash"][..], INTERNAL_HASH_SOURCE),
+        (&["ptr"][..], PTR_SOURCE),
+        (&["internal", "ptr"][..], INTERNAL_PTR_SOURCE),
+        (&["string"][..], STRING_SOURCE),
+        (&["slice"][..], SLICE_SOURCE),
+        (&["str"][..], STR_SOURCE),
+        (&["process"][..], PROCESS_SOURCE),
+        (&["io"][..], IO_SOURCE),
+        (&["time"][..], TIME_SOURCE),
+        (&["task"][..], TASK_SOURCE),
+        (&["internal", "time"][..], INTERNAL_TIME_SOURCE),
+        (&["internal", "task"][..], INTERNAL_TASK_SOURCE),
+        (&["internal", "net", "model"][..], INTERNAL_NET_MODEL_SOURCE),
+        (
+            &["internal", "net", "darwin"][..],
+            INTERNAL_NET_DARWIN_SOURCE,
+        ),
+        (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),
+    ]
+    .into_iter()
+    .map(|(path, text)| fixture_module(sources, path, text))
+    .collect()
+}
+
+fn fixture_module(sources: &mut SourceMap, path: &[&str], text: &str) -> FixtureModule {
+    let source_path = format!("/std/{}/index.nct", path.join("/"));
+    let syntax = add_parsed(sources, &source_path, text, ParseGoal::SourceFile);
+    let use_targets: &[&[&str]] = match path {
+        ["mem"] => &[&["internal", "os", "darwin"]],
+        ["internal", "net", "darwin"] => &[&["internal", "net", "model"]],
+        _ => &[],
+    };
+    let declarations = use_declarations(&syntax);
+    assert_eq!(declarations.len(), use_targets.len());
+    FixtureModule {
+        path: path.iter().map(|segment| Box::from(*segment)).collect(),
+        source_path: source_path.into_boxed_str(),
+        syntax,
+        uses: declarations
+            .into_iter()
+            .zip(use_targets)
+            .map(|(declaration, target)| FixtureUse {
+                declaration,
+                target: target.iter().map(|segment| Box::from(*segment)).collect(),
+            })
+            .collect(),
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -673,66 +742,7 @@ impl CompilerFixture {
             "",
             ParseGoal::SourceFile,
         );
-        let modules = [
-            (&["error"][..], ERROR_SOURCE),
-            (&["core"][..], CORE_SOURCE),
-            (&["num"][..], NUM_SOURCE),
-            (&["char"][..], CHAR_SOURCE),
-            (&["internal", "character"][..], INTERNAL_CHARACTER_SOURCE),
-            (&["mem"][..], MEM_SOURCE),
-            (&["internal", "mem"][..], INTERNAL_MEM_SOURCE),
-            (&["ptr"][..], PTR_SOURCE),
-            (&["internal", "ptr"][..], INTERNAL_PTR_SOURCE),
-            (&["string"][..], STRING_SOURCE),
-            (&["slice"][..], SLICE_SOURCE),
-            (&["str"][..], STR_SOURCE),
-            (&["process"][..], PROCESS_SOURCE),
-            (&["io"][..], IO_SOURCE),
-            (&["time"][..], TIME_SOURCE),
-            (&["task"][..], TASK_SOURCE),
-            (&["internal", "time"][..], INTERNAL_TIME_SOURCE),
-            (&["internal", "task"][..], INTERNAL_TASK_SOURCE),
-            (&["internal", "net", "model"][..], INTERNAL_NET_MODEL_SOURCE),
-            (
-                &["internal", "net", "darwin"][..],
-                INTERNAL_NET_DARWIN_SOURCE,
-            ),
-            (&["internal", "os", "darwin"][..], INTERNAL_OS_SOURCE),
-        ]
-        .into_iter()
-        .map(|(path, text)| {
-            let source_path = format!("/std/{}/index.nct", path.join("/"));
-            let syntax = add_parsed(&mut sources, &source_path, text, ParseGoal::SourceFile);
-            let use_targets: &[&[&str]] = if path == ["internal", "net", "darwin"] {
-                &[&["internal", "net", "model"]]
-            } else {
-                &[]
-            };
-            let declarations = use_declarations(&syntax);
-            assert_eq!(declarations.len(), use_targets.len());
-            FixtureModule {
-                path: path
-                    .iter()
-                    .map(|segment| Box::<str>::from(*segment))
-                    .collect::<Vec<_>>()
-                    .into_boxed_slice(),
-                source_path: source_path.into_boxed_str(),
-                syntax,
-                uses: declarations
-                    .into_iter()
-                    .zip(use_targets)
-                    .map(|(declaration, target)| FixtureUse {
-                        declaration,
-                        target: target
-                            .iter()
-                            .map(|segment| Box::<str>::from(*segment))
-                            .collect::<Vec<_>>()
-                            .into_boxed_slice(),
-                    })
-                    .collect(),
-            }
-        })
-        .collect();
+        let modules = fixture_modules(&mut sources);
         Self {
             sources,
             app_is_package,

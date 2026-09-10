@@ -38,6 +38,9 @@ public source-level imports.
 
 - A role has one numeric and structural authority.
 - Source spelling and visibility are not runtime identities.
+- A closed operating-system role owns its syscall identity, fixed flags, and result convention in
+  the target backend. Standard-library source can select the semantic role but cannot reproduce or
+  override those ABI constants.
 - A loader symbol is validated once, retains whether it denotes a function or data object, and
   cannot be selected from user source.
 - A target-service binding owns its closed descriptor; later stages cannot reconstruct the

@@ -4,3 +4,6 @@ see ./darwin.nct
 
 /// Returns a fresh process-local seed or terminates when target entropy is unavailable.
 pub(/) func acquire_seed(): u64
+
+#target: "arm64-darwin"
+primitive func fill_seed_raw(destination: *u64): i32

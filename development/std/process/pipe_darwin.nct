@@ -59,7 +59,7 @@ noalloc func duplicate_cloexec(fd: usize): SyscallResult {
 noalloc func close_raw_fd(fd: usize): void {
     // A failed close is never retried. Darwin may already have consumed the descriptor, and a
     // retry could close an unrelated descriptor allocated in the meantime.
-    let _ = darwin.syscall1(darwin.SYS_CLOSE, fd)
+    let _ = darwin.close_descriptor(fd)
     return
 }
 

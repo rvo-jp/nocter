@@ -351,6 +351,18 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinSystemCallPair => {
             crate::system_primitive_code::emit_system_call_pair(code)
         }
+        Arm64SelectedInstruction::DarwinMemoryMap => {
+            crate::darwin_memory_code::emit_map_result(code)
+        }
+        Arm64SelectedInstruction::DarwinMemoryUnmap => {
+            crate::darwin_memory_code::emit_unmap_result(code)
+        }
+        Arm64SelectedInstruction::DarwinDescriptorClose => {
+            crate::system_primitive_code::emit_descriptor_close(code)
+        }
+        Arm64SelectedInstruction::DarwinEntropySeedFill => {
+            crate::system_primitive_code::emit_entropy_seed_fill(code)
+        }
         Arm64SelectedInstruction::ReadMonotonicCounter => {
             // CNTVCT_EL0 is not self-synchronizing on the baseline ARM64 target. Treat the
             // primitive as an ordered time observation rather than a bare register read so a

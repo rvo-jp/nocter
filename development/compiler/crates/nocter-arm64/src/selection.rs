@@ -255,6 +255,14 @@ pub enum Arm64SelectedInstruction {
         argument_count: u8,
     },
     DarwinSystemCallPair,
+    /// Performs a compiler-owned private anonymous mapping and returns `(value, errno)`.
+    DarwinMemoryMap,
+    /// Releases a compiler-owned page mapping and returns `(value, errno)`.
+    DarwinMemoryUnmap,
+    /// Closes one target descriptor and returns `(value, errno)`.
+    DarwinDescriptorClose,
+    /// Fills one 64-bit value from the target entropy source and returns its errno.
+    DarwinEntropySeedFill,
     ReadMonotonicCounter,
     ReadMonotonicCounterFrequency,
     /// Calls the compiler-owned descriptor-readiness computation constructor.

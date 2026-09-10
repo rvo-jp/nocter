@@ -96,9 +96,6 @@ const SYS_WRITE: usize = 0x02000004
 const SYS_OPEN: usize = 0x02000005
 
 #target: "arm64-darwin"
-const SYS_CLOSE: usize = 0x02000006
-
-#target: "arm64-darwin"
 const SYS_WAIT4: usize = 0x02000007
 
 #target: "arm64-darwin"
@@ -129,19 +126,10 @@ const SYS_MKDIR: usize = 0x02000088
 const SYS_RMDIR: usize = 0x02000089
 
 #target: "arm64-darwin"
-const SYS_MUNMAP: usize = 0x02000049
-
-#target: "arm64-darwin"
-const SYS_MMAP: usize = 0x020000c5
-
-#target: "arm64-darwin"
 const SYS_STAT64: usize = 0x02000152
 
 #target: "arm64-darwin"
 const SYS_GETDIRENTRIES64: usize = 0x02000158
-
-#target: "arm64-darwin"
-const SYS_GETENTROPY: usize = 0x020001f4
 
 #target: "arm64-darwin"
 const SYS_GETTIMEOFDAY: usize = 0x02000074
@@ -180,15 +168,6 @@ const CREATE_MODE: usize = 438
 #target: "arm64-darwin"
 // 0777, filtered by the process umask.
 const CREATE_DIRECTORY_MODE: usize = 511
-
-#target: "arm64-darwin"
-const MMAP_READ_WRITE: usize = 3
-
-#target: "arm64-darwin"
-const MMAP_PRIVATE_ANONYMOUS: usize = 0x1002
-
-#target: "arm64-darwin"
-const MMAP_NO_FILE: usize = 0xffffffffffffffff
 
 #target: "arm64-darwin"
 const ERRNO_INTERRUPTED: i32 = 4

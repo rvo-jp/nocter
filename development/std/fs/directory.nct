@@ -213,7 +213,7 @@ func fail_directory(reader: &+ReadDir, failure: error): error {
 
 func close_directory(reader: &+ReadDir): void {
     if reader.is_open {
-        let _ = darwin.syscall1(darwin.SYS_CLOSE, reader.fd)
+        let _ = darwin.close_descriptor(reader.fd)
         reader.is_open = false
     }
     reader.is_finished = true

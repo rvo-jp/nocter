@@ -44,7 +44,7 @@ func open_current_directory(): usize! {
 
 #target: "arm64-darwin"
 func close_fd_word(fd: usize): void {
-    let result = darwin.syscall1(darwin.SYS_CLOSE, fd)
+    let result = darwin.close_descriptor(fd)
     return
 }
 

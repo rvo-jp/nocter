@@ -10,8 +10,8 @@ use /ptr
 func acquire_seed(): u64 {
     var value: u64 = 0
     let pointer = ptr.from_ref_mut(&+value)
-    let result = darwin.syscall2(darwin.SYS_GETENTROPY, ptr.addr(pointer), 8)
-    if result.errno != 0 {
+    let errno = fill_seed_raw(pointer)
+    if errno != 0 {
         return darwin.trap()
     }
     return value
