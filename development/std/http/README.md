@@ -2,26 +2,30 @@
 
 `std/http` owns validated HTTP/1.1 message values, the protocol's single transport-independent
 framing authority, and synchronous and asynchronous one-request-per-connection operations. The
-client composes the public URL, name-resolution, TCP, and I/O contracts; the codec remains
-independent of sockets, descriptors, DNS, executor state, and connection policy.
+client composes the public URL, name-resolution, TCP, authenticated TLS, and I/O contracts; the
+codec remains independent of sockets, descriptors, DNS, executor state, and connection policy.
 
 `Request` owns a parsed `Url`, method, ordered user fields, and complete byte body. `Client` adds a
 canonical `Host`, `Connection: close`, and one computed `Content-Length`. Callers cannot supply
-those fields or `Transfer-Encoding`, so request framing has one authority. HTTPS is rejected before
-name resolution because this release has no TLS transport. CONNECT is rejected because the API
-does not transfer tunnel ownership.
+those fields or `Transfer-Encoding`, so request framing has one authority. `http` selects a plain
+provider stream and `https` selects a TLS stream authenticated for the URL host against the
+operating-system trust store. CONNECT is rejected because the API does not transfer tunnel
+ownership.
 
 `Request.get`, `Request.head`, and `Request.post` are named constructors over the same validated
 `Request.new` operation. `append_header_text` validates both textual components before mutating the
 request, and `set_text_body` copies the exact UTF-8 bytes. These conveniences do not infer a
 `Content-Type`, select an encoding, or bypass the reserved-field policy applied by `Client`.
 
-`Client.send` opens one connection and returns a uniquely owned `Response`. Ordinary informational
-responses are consumed before the final response is exposed; protocol-switching status 101 is
-rejected because the API does not transfer the upgraded stream. `Response` exposes the final status
-and fields and implements `Reader` for decoded body bytes. Completion, decoding or network failure,
-explicit `close`, and destruction of an unfinished response all close the connection. There is no
-pooling, redirect following, request replay, decompression, or connection reuse.
+`Client.send` opens one plain or authenticated connection and returns a uniquely owned `Response`.
+One private transport sum owns that choice; request encoding, final-head parsing, body framing, and
+the public response cursor operate on the sum rather than branching on the URL scheme. Ordinary
+informational responses are consumed before the final response is exposed; protocol-switching
+status 101 is rejected because the API does not transfer the upgraded stream. `Response` exposes
+the final status and fields and implements `Reader` for decoded body bytes. Completion, decoding or
+network failure, explicit `close`, and destruction of an unfinished response all close the
+connection. There is no pooling, redirect following, request replay, decompression, or connection
+reuse.
 
 `Client.send_async` has an immediate outer result and a lazy inner computation. Request validation,
 request-head encoding, and synchronous host resolution finish before the method returns. Awaiting
@@ -29,10 +33,11 @@ the inner computation connects, writes the complete request, and receives the fi
 without blocking the executor thread. Dropping that computation cancels the connection or stream
 it uniquely owns through the ordinary async lifecycle.
 
-`Response.read_async` uses async TCP while advancing the same decoder, pending bytes, completion
-flag, and uniquely owned stream used by `read`. Synchronous and asynchronous reads cannot form
-independent cursors or concurrently consume one response. Their transport loops share one body
-progress operation, so EOF and decoding decisions are not reimplemented by either adapter.
+`Response.read_async` uses the selected asynchronous transport while advancing the same decoder,
+pending bytes, completion flag, and uniquely owned stream used by `read`. Synchronous and
+asynchronous reads cannot form independent cursors or concurrently consume one response. Their
+transport loops share one body progress operation, so EOF and decoding decisions are not
+reimplemented by either adapter.
 
 `read_to_end_async` repeatedly consumes that same asynchronous cursor into owned bytes, while
 `read_to_string_async` additionally validates the completed bytes as UTF-8. Their timeout-bearing

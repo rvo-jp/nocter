@@ -48,10 +48,6 @@ noalloc func premature_eof(): error {
     return error.new("std.http.premature_eof", "HTTP message ended before its framing completed")
 }
 
-noalloc func unsupported_scheme(): error {
-    return error.new("std.http.unsupported_scheme", "the HTTP client does not provide TLS")
-}
-
 noalloc func reserved_header(): error {
     return error.new(
         "std.http.reserved_header",

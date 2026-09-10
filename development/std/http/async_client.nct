@@ -1,6 +1,7 @@
 //! Asynchronous HTTP transport orchestration over the shared exchange state.
 
 see ./client_storage.nct
+see ./client_transport.nct
 see ./errors.nct
 see ./exchange.nct
 see ./index.nct
@@ -10,34 +11,27 @@ see ./storage.nct
 see ./transport_buffer.nct
 see ./values.nct
 
-use /net
-use /net.TcpStream
 use /time.Duration
 
 func read_http_transport_async(
-    stream: &+TcpStream,
+    stream: &+ClientTransport,
     output: &+[u8],
     timeout: Duration?,
 ): async usize! {
-    let finite = timeout otherwise { return await stream.read_async(output)? }
-    return await stream.read_async_with_timeout(output, finite)?
+    return await stream.read_async(output, timeout)?
 }
 
 func write_http_transport_async(
-    stream: &+TcpStream,
+    stream: &+ClientTransport,
     bytes: &[u8],
     timeout: Duration?,
 ): async void! {
-    let finite = timeout otherwise {
-        await stream.write_async(bytes)?
-        return
-    }
-    await stream.write_async_with_timeout(bytes, finite)?
+    await stream.write_async(bytes, timeout)?
     return
 }
 
 func read_response_head_async(
-    stream: &+TcpStream,
+    stream: &+ClientTransport,
     request_method: &Method,
     limits: Limits,
     timeout: Duration?,
@@ -66,7 +60,7 @@ func read_response_head_async(
 
 func send_after_connect(
     prepared: PreparedRequest,
-    pending_connection: async TcpStream!,
+    pending_connection: async ClientTransport!,
     timeout: Duration?,
 ): async Response! {
     var owned = move prepared
@@ -103,23 +97,13 @@ func begin_async_send(
     timeout: Duration?,
 ): (async Response!)! {
     let prepared = prepare_request(move request, limits)?
-    let finite = timeout otherwise {
-        let pending_connection = net.connect_host_async(
-            prepared.request.url_value.host(),
-            prepared.request.url_value.port(),
-        ) catch failure {
-            return failure.context("while resolving the HTTP request host")
-        }
-        return send_after_connect(move prepared, move pending_connection, none)
-    }
-    let pending_connection = net.connect_host_async_with_timeout(
-        prepared.request.url_value.host(),
-        prepared.request.url_value.port(),
-        finite,
+    let pending_connection = begin_client_transport_async(
+        &prepared.request.url_value,
+        timeout,
     ) catch failure {
         return failure.context("while resolving the HTTP request host")
     }
-    return send_after_connect(move prepared, move pending_connection, finite)
+    return send_after_connect(move prepared, move pending_connection, timeout)
 }
 
 func read_response_body_async(

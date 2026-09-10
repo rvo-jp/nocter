@@ -2499,9 +2499,11 @@ fn public_tls_sync_and_async_reject_a_plain_local_peer() {
     package_root.source(
         "main.nct",
         &format!(
-            "use std/time.Duration\n\
+            "use std/http.{{Client, Request}}\n\
+             use std/time.Duration\n\
              use std/tls as tls\n\
              use std/tls.TlsStream\n\
+             use std/url.Url\n\
              \n\
              func rejects_sync(): bool {{\n\
                  let _stream = TlsStream.connect_with_timeout(\n\
@@ -2514,18 +2516,53 @@ fn public_tls_sync_and_async_reject_a_plain_local_peer() {
                  return false\n\
              }}\n\
              \n\
-             func main(): async i32 {{\n\
-                 if !rejects_sync() {{ return 1 }}\n\
+             func rejects_https_sync(): bool {{\n\
+                 let client = Client.new()\n\
+                 let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
+                     return false\n\
+                 }}) catch _ {{ return false }}\n\
+                 let _response = client.send_with_timeout(\n\
+                     move request,\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch failure {{\n\
+                     return failure.has_code(\"std.net.tls_failed\")\n\
+                 }}\n\
+                 return false\n\
+             }}\n\
+             \n\
+             func rejects_async(): async bool {{\n\
                  let pending = tls.connect_async_with_timeout(\n\
                      \"localhost\",\n\
                      {port},\n\
                      Duration.from_seconds(1),\n\
-                 ) catch _ {{ return 2 }}\n\
+                 ) catch _ {{ return false }}\n\
                  let _stream = await pending catch failure {{\n\
-                     if failure.has_code(\"std.net.tls_failed\") {{ return 0 }}\n\
-                     return 3\n\
+                     return failure.has_code(\"std.net.tls_failed\")\n\
                  }}\n\
-                 return 4\n\
+                 return false\n\
+             }}\n\
+             \n\
+             func rejects_https_async(): async bool {{\n\
+                 let client = Client.new()\n\
+                 let request = Request.get(Url.parse(\"https://localhost:{port}/\") catch _ {{\n\
+                     return false\n\
+                 }}) catch _ {{ return false }}\n\
+                 let pending_response = client.send_async_with_timeout(\n\
+                     move request,\n\
+                     Duration.from_seconds(1),\n\
+                 ) catch _ {{ return false }}\n\
+                 let _response = await pending_response catch failure {{\n\
+                     return failure.has_code(\"std.net.tls_failed\")\n\
+                 }}\n\
+                 return false\n\
+             }}\n\
+             \n\
+             func main(): async i32 {{\n\
+                 if !rejects_sync() {{ return 1 }}\n\
+                 if !await rejects_async() {{ return 2 }}\n\
+                 if !rejects_https_sync() {{ return 3 }}\n\
+                 if !await rejects_https_async() {{ return 4 }}\n\
+                 return 0\n\
              }}\n"
         ),
     );
@@ -2541,7 +2578,7 @@ fn public_tls_sync_and_async_reject_a_plain_local_peer() {
     let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
 
     let server = thread::spawn(move || {
-        for _ in 0..2 {
+        for _ in 0..4 {
             let (mut stream, _) = fixture.accept().unwrap();
             let mut client_hello = [0_u8; 512];
             assert_ne!(stream.read(&mut client_hello).unwrap(), 0);

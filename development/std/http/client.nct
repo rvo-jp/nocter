@@ -2,6 +2,7 @@
 
 see ./body.nct
 see ./client_storage.nct
+see ./client_transport.nct
 see ./errors.nct
 see ./exchange.nct
 see ./index.nct
@@ -12,13 +13,12 @@ see ./storage.nct
 see ./transport_buffer.nct
 see ./values.nct
 
-use /net.TcpStream
 use /time.Duration
 use /url.Url
 use /vec.Vec
 
 func read_response_head(
-    stream: &+TcpStream,
+    stream: &+ClientTransport,
     request_method: &Method,
     limits: Limits,
 ): ReceivedResponseHead! {
@@ -40,9 +40,9 @@ func read_response_head(
     }
 }
 
-func send_over_stream(
+func send_over_transport(
     prepared: PreparedRequest,
-    stream: TcpStream,
+    stream: ClientTransport,
 ): Response! {
     var owned = move prepared
     var connection = move stream
@@ -119,27 +119,21 @@ construct Client {
 instance Client {
     method &self.send(request: Request): Response! {
         let prepared = prepare_request(move request, self.limits_value)?
-        let stream = TcpStream.connect_host(
-            prepared.request.url_value.host(),
-            prepared.request.url_value.port(),
-        ) catch failure {
+        let stream = connect_client_transport(&prepared.request.url_value, none) catch failure {
             return failure.context("while connecting the HTTP request")
         }
-        return send_over_stream(move prepared, move stream)?
+        return send_over_transport(move prepared, move stream)?
     }
 
     method &self.send_with_timeout(request: Request, timeout: Duration): Response! {
         let prepared = prepare_request(move request, self.limits_value)?
-        var stream = TcpStream.connect_host_with_timeout(
-            prepared.request.url_value.host(),
-            prepared.request.url_value.port(),
+        let stream = connect_client_transport(
+            &prepared.request.url_value,
             timeout,
         ) catch failure {
             return failure.context("while connecting the HTTP request")
         }
-        stream.set_read_timeout(timeout)
-        stream.set_write_timeout(timeout)
-        return send_over_stream(move prepared, move stream)?
+        return send_over_transport(move prepared, move stream)?
     }
 }
 

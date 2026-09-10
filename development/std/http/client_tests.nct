@@ -2,6 +2,7 @@
 
 see ./client.nct
 see ./client_storage.nct
+see ./client_transport.nct
 see ./exchange.nct
 see ./index.nct
 see ./response_head.nct
@@ -23,6 +24,10 @@ func client_test_pair(): (TcpStream, TcpStream, SocketAddress)! {
     let client = TcpStream.connect(address)?
     let accepted = listener.accept()?
     return (move client, move accepted.0, address)
+}
+
+func send_over_test_stream(prepared: PreparedRequest, stream: TcpStream): Response! {
+    return send_over_transport(move prepared, plain_client_transport(move stream))?
 }
 
 func client_test_url(address: SocketAddress, suffix: &str): Url! {
@@ -150,7 +155,7 @@ test synchronous_client_generates_policy_fields_and_streams_fixed_body {
     server_stream.write(
         "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nX-Reply: yes\r\n\r\nhello".bytes(),
     )?
-    var response = send_over_stream(move prepared, move client_stream)?
+    var response = send_over_test_stream(move prepared, move client_stream)?
     let _reply = response.headers().first("x-reply") otherwise {
         return error.new("std.http.test", "final response field was lost")
     }
@@ -188,7 +193,7 @@ test synchronous_client_consumes_informational_chunked_and_close_delimited_respo
     first_server.write(
         "HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n".bytes(),
     )?
-    var chunked = send_over_stream(move prepared, move first_pair.0)?
+    var chunked = send_over_test_stream(move prepared, move first_pair.0)?
     let chunked_body = chunked.read_to_end()?
     if !same_bytes(&chunked_body, "Wikipedia".bytes()) {
         return error.new("std.http.test", "informational or chunked response changed")
@@ -200,7 +205,7 @@ test synchronous_client_consumes_informational_chunked_and_close_delimited_respo
     let close_prepared = prepare_request(move close_request, limits)?
     second_server.write("HTTP/1.1 200 OK\r\n\r\nclosed".bytes())?
     second_server.shutdown(TcpShutdown.write)?
-    var close_response = send_over_stream(
+    var close_response = send_over_test_stream(
         move close_prepared,
         move second_pair.0,
     )?
@@ -214,7 +219,7 @@ test synchronous_client_consumes_informational_chunked_and_close_delimited_respo
     let head_request = Request.new(Method.head(), client_test_url(third_pair.2, "/head")?)?
     let head_prepared = prepare_request(move head_request, limits)?
     third_server.write("HTTP/1.1 200 OK\r\nContent-Length: 99\r\n\r\n".bytes())?
-    var head_response = send_over_stream(
+    var head_response = send_over_test_stream(
         move head_prepared,
         move third_pair.0,
     )?
@@ -231,7 +236,7 @@ test truncated_and_unfinished_responses_have_one_terminal_cleanup_path {
     let truncated_prepared = prepare_request(move truncated_request, limits)?
     truncated_server.write("HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nabc".bytes())?
     truncated_server.shutdown(TcpShutdown.write)?
-    var truncated = send_over_stream(
+    var truncated = send_over_test_stream(
         move truncated_prepared,
         move truncated_pair.0,
     )?
@@ -246,7 +251,7 @@ test truncated_and_unfinished_responses_have_one_terminal_cleanup_path {
         let unfinished_prepared = prepare_request(move unfinished_request, limits)?
         let unfinished_request_len = unfinished_prepared.encoded.len()
         unfinished_server.write("HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\npartial".bytes())?
-        var unfinished = send_over_stream(
+        var unfinished = send_over_test_stream(
             move unfinished_prepared,
             move unfinished_pair.0,
         )?
@@ -259,41 +264,33 @@ test truncated_and_unfinished_responses_have_one_terminal_cleanup_path {
     return error.new("std.http.test", "truncated fixed response completed")
 }
 
-test public_client_rejects_policy_before_network_and_applies_read_timeout {
+test public_client_rejects_reserved_policy_before_network_and_applies_read_timeout {
     let client = Client.new()
-    let secure = Request.get(Url.parse("https://localhost/")?)?
-    let _secure_response = client.send(move secure) catch failure {
-        if !failure.has_code("std.http.unsupported_scheme") {
-            return error.new("std.http.test", "HTTPS policy failure changed")
+    var reserved = Request.get(Url.parse("http://127.0.0.1:1/")?)?
+    reserved.append_header(Header.new(
+        HeaderName.parse("Host")?,
+        HeaderValue.from_text("wrong")?,
+    ))
+    let _reserved_response = client.send(move reserved) catch reserved_failure {
+        if !reserved_failure.has_code("std.http.reserved_header") {
+            return error.new("std.http.test", "reserved-header failure changed")
         }
 
-        var reserved = Request.get(Url.parse("http://127.0.0.1:1/")?)?
-        reserved.append_header(Header.new(
-            HeaderName.parse("Host")?,
-            HeaderValue.from_text("wrong")?,
-        ))
-        let _reserved_response = client.send(move reserved) catch reserved_failure {
-            if !reserved_failure.has_code("std.http.reserved_header") {
-                return error.new("std.http.test", "reserved-header failure changed")
-            }
-
-            var listener = TcpListener.bind(SocketAddress.new(
-                IpAddress.from_ipv4(Ipv4Address.loopback()),
-                0,
-            ))?
-            let waiting = Request.get(client_test_url(listener.local_address()?, "/slow")?)?
-            let _waiting_response = client.send_with_timeout(
-                move waiting,
-                Duration.from_milliseconds(10),
-            ) catch timeout_failure {
-                if timeout_failure.has_code("std.net.timed_out") { return }
-                return error.new("std.http.test", "HTTP timeout lost its network cause")
-            }
-            return error.new("std.http.test", "unresponsive peer ignored the read timeout")
+        var listener = TcpListener.bind(SocketAddress.new(
+            IpAddress.from_ipv4(Ipv4Address.loopback()),
+            0,
+        ))?
+        let waiting = Request.get(client_test_url(listener.local_address()?, "/slow")?)?
+        let _waiting_response = client.send_with_timeout(
+            move waiting,
+            Duration.from_milliseconds(10),
+        ) catch timeout_failure {
+            if timeout_failure.has_code("std.net.timed_out") { return }
+            return error.new("std.http.test", "HTTP timeout lost its network cause")
         }
-        return error.new("std.http.test", "reserved client header reached the network")
+        return error.new("std.http.test", "unresponsive peer ignored the read timeout")
     }
-    return error.new("std.http.test", "HTTPS reached name resolution")
+    return error.new("std.http.test", "reserved client header reached the network")
 }
 
 test tunnel_and_protocol_upgrade_paths_are_rejected_explicitly {
@@ -313,7 +310,7 @@ test tunnel_and_protocol_upgrade_paths_are_rejected_explicitly {
         let limits = Limits.standard()
         let prepared = prepare_request(move request, limits)?
         server.write("HTTP/1.1 101 Switching Protocols\r\nUpgrade: test\r\n\r\n".bytes())?
-        let _upgrade = send_over_stream(move prepared, move pair.0) catch upgrade_failure {
+        let _upgrade = send_over_test_stream(move prepared, move pair.0) catch upgrade_failure {
             if upgrade_failure.has_code("std.http.unsupported_upgrade") { return }
             return error.new("std.http.test", "protocol-upgrade failure changed")
         }

@@ -11,7 +11,6 @@ see ./storage.nct
 see ./values.nct
 see ./wire.nct
 
-use /url.UrlScheme
 use /vec.Vec
 
 struct PreparedRequest {
@@ -42,7 +41,6 @@ noalloc func reserved_client_header(name: &str): bool {
 
 func prepare_request(request: Request, limits: Limits): PreparedRequest! {
     var owned_request = move request
-    if owned_request.url_value.scheme() is UrlScheme.https { return unsupported_scheme() }
     if ascii_case_equal(owned_request.head_value.request_method().text(), "CONNECT") {
         return unsupported_method()
     }

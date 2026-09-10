@@ -1,11 +1,11 @@
 //! Sole ownership layout for HTTP requests, clients, and transport-owning responses.
 
 see ./body.nct
+see ./client_transport.nct
 see ./index.nct
 see ./storage.nct
 see ./transport_buffer.nct
 
-use /net.TcpStream
 use /url.Url
 use /vec.Vec
 
@@ -20,7 +20,7 @@ struct Client {
 }
 
 struct Response {
-    stream: TcpStream
+    stream: ClientTransport
     head: ResponseHead
     decoder: BodyDecoder
     pending: Vec<u8>
@@ -42,7 +42,7 @@ func request_from_parts(url: Url, head: RequestHead): Request {
 }
 
 func response_from_parts(
-    stream: TcpStream,
+    stream: ClientTransport,
     head: ResponseHead,
     decoder: BodyDecoder,
     pending: Vec<u8>,

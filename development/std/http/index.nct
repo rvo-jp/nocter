@@ -12,6 +12,7 @@ see ./body.nct
 see ./client.nct
 see ./client_storage.nct
 see ./client_tests.nct
+see ./client_transport.nct
 see ./codec.nct
 see ./errors.nct
 see ./exchange.nct
