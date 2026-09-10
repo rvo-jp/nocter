@@ -820,6 +820,20 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             None,
             vec![0, 1],
         ),
+        PrimitiveRole::TaskRace => make(
+            1,
+            vec![
+                TypeContract::asynchronous(TypeContract::Generic(0)),
+                TypeContract::asynchronous(TypeContract::Generic(0)),
+            ],
+            TypeContract::asynchronous(TypeContract::tuple(vec![
+                boolean(),
+                TypeContract::Generic(0),
+            ])),
+            private,
+            None,
+            vec![0, 1],
+        ),
         PrimitiveRole::NetworkConnectionCreate | PrimitiveRole::NetworkListenerCreate => make(
             0,
             vec![byte_pointer()],

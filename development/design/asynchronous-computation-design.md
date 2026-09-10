@@ -245,15 +245,20 @@ handle, including a completed handle. A constructor is declared only when the fr
 program contains its primitive role; later lowering does not rediscover the dependency from source
 spelling.
 
-`std/task.join` is one compiler-owned composite computation rather than a second executor. It owns
-two child handles, polls them left to right, and keeps completed child outputs inside their own
-frames until the joined output is consumed. Pending records from both children are copied into one
-dynamically sized contiguous set; their readiness pointers still name the original child cells, so
-nested joins preserve exact wake identity. Machine lowering freezes only the two tuple-element
-offsets. ARM64 lowering consumes those offsets without reopening semantic types or recomputing tuple
-layout. Join cancellation calls both child cancellation entries exactly once, while join
-consumption directs each child consume entry into its frozen tuple element and then retires the join
-frame.
+`std/task.join` and `std/task.race` use one compiler-owned two-child composition substrate rather
+than a second executor. Each owns two child handles and polls them left to right. Pending records
+from both children are copied into one dynamically sized contiguous set; their readiness pointers
+still name the original child cells, so nested compositions preserve exact wake identity. Machine
+lowering freezes only the two structural result offsets. ARM64 lowering consumes those offsets
+without reopening semantic types or recomputing layout.
+
+Join keeps both completed outputs inside their child frames until its tuple is consumed. Race
+selects the first child that completes during ordered polling, immediately cancels the loser, and
+keeps the winner output inside its child frame until consumption. The raw race result is the
+structural tuple `(bool, T)`; ordinary standard-library code maps that private representation to
+the public `Race<T>` enum, so the backend does not depend on a standard-library nominal type.
+Cancellation accepts both pending and completed-but-unconsumed composition states and calls every
+still-owned child cancellation entry exactly once.
 
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
 normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
@@ -332,11 +337,12 @@ analysis freezes the stable source roots, target-independent frames preserve tho
 deferred ARM64 code accesses retained local storage at its persistent heap address. Escaping child
 computations remain rejected by the ordinary provenance contract.
 
-The first structured composition operation joins two heterogeneous computations without a
-detached task or global executor. Reactor-signaled readiness cells prevent one child from
-completing merely because the other child's descriptor or deadline woke the shared process wait.
-Native coverage exercises immediate completion, different concurrent deadlines, cancellation
-before polling, and concurrent public TCP connection and acceptance.
+The first structured composition operations join two heterogeneous computations or race two
+same-output computations without a detached task or global executor. Reactor-signaled readiness
+cells prevent one child from completing merely because the other child's descriptor or deadline
+woke the shared process wait. Native coverage exercises immediate completion, deterministic race
+selection, different concurrent deadlines, cancellation before polling, cancellation of a nested
+composition with one completed child, and concurrent public TCP connection and acceptance.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.

@@ -308,10 +308,25 @@ pub func env_value_for_test(index: usize): &str { return env_value_raw(index) }
 const IO_SOURCE: &str = "pub func answer_for_test(): i32 { return 42 }\n";
 const TIME_SOURCE: &str = "";
 const TASK_SOURCE: &str = "\
+pub enum Race<T> {
+    first(value: T)
+    second(value: T)
+}
 pub primitive func join<A, B>(
     first: future A,
     second: future B,
 ): future (A, B) from first | second
+primitive func race_raw<T>(
+    first: future T,
+    second: future T,
+): future (bool, T) from first | second
+pub async func race<T>(first: future T, second: future T): Race<T> {
+    let selected = await race_raw(move first, move second)
+    if selected.0 {
+        return Race.second(move selected.1)
+    }
+    return Race.first(move selected.1)
+}
 ";
 const INTERNAL_TIME_SOURCE: &str = "\
 #target: \"arm64-darwin\"

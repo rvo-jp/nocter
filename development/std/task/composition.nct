@@ -1,0 +1,16 @@
+//! Public structured-composition policy over compiler-owned pair lifecycles.
+
+see ./index.nct
+
+primitive func race_raw<T>(
+    first: future T,
+    second: future T,
+): future (bool, T) from first | second
+
+async func race<T>(first: future T, second: future T): Race<T> {
+    let selected = await race_raw(move first, move second)
+    if selected.0 {
+        return Race.second(move selected.1)
+    }
+    return Race.first(move selected.1)
+}

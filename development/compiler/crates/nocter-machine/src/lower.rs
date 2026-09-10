@@ -264,7 +264,7 @@ pub enum MachineProgramError {
     InvalidDestructionAbi(MachineLinkageId),
     InvalidGeneratedDestruction(MachineLinkageId, crate::MachineBlockId),
     MissingGeneratedDestruction(MachineLinkageId, MirOperationId),
-    InvalidAsyncJoin(MirOperationId),
+    InvalidAsyncPair(MirOperationId),
     MissingAsyncDestruction(MachineLinkageId),
     DuplicateAsyncDestruction(MachineLinkageId),
     MissingStoredLayout(TypeId),
@@ -349,7 +349,7 @@ impl std::error::Error for MachineProgramError {
             | Self::InvalidDestructionAbi(_)
             | Self::InvalidGeneratedDestruction(_, _)
             | Self::MissingGeneratedDestruction(_, _)
-            | Self::InvalidAsyncJoin(_)
+            | Self::InvalidAsyncPair(_)
             | Self::MissingAsyncDestruction(_)
             | Self::DuplicateAsyncDestruction(_)
             | Self::MissingStoredLayout(_)

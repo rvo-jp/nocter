@@ -1,13 +1,13 @@
 use nocter_model::TypeId;
 
-/// Physical output placement for one two-child structured join.
+/// Physical output placement for one two-child structured composition result.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MachineAsyncJoinPlan {
+pub struct MachineAsyncPairPlan {
     first_output_offset: u64,
     second_output_offset: u64,
 }
 
-impl MachineAsyncJoinPlan {
+impl MachineAsyncPairPlan {
     pub(crate) const fn new(first_output_offset: u64, second_output_offset: u64) -> Self {
         Self {
             first_output_offset,
@@ -35,5 +35,5 @@ impl MachineAsyncJoinPlan {
 pub enum MachinePrimitiveDependency {
     None,
     NoopDestruction { subject: TypeId },
-    AsyncJoin(MachineAsyncJoinPlan),
+    AsyncPair(MachineAsyncPairPlan),
 }

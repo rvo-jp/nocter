@@ -1,5 +1,7 @@
+//! Compiler-owned two-child composition lifecycles shared by join and race.
+
 use crate::{
-    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AsyncJoinTargets, Arm64BaseRegister,
+    Arm64AddSubtract, Arm64AddSubtractDestination, Arm64AsyncPairTargets, Arm64BaseRegister,
     Arm64BranchCondition, Arm64Code, Arm64CodeBuilder, Arm64DataRegister, Arm64DataSize,
     Arm64Instruction, Arm64LoadStoreSize, Arm64NocterAbi,
 };
@@ -21,7 +23,7 @@ const SECOND_INTEREST_POINTER_OFFSET: u64 =
     FIRST_INTEREST_COUNT_OFFSET + Arm64NocterAbi::word_size();
 const SECOND_INTEREST_COUNT_OFFSET: u64 =
     SECOND_INTEREST_POINTER_OFFSET + Arm64NocterAbi::word_size();
-const JOIN_FRAME_SIZE: u64 = SECOND_INTEREST_COUNT_OFFSET + Arm64NocterAbi::word_size();
+pub(super) const PAIR_FRAME_SIZE: u64 = SECOND_INTEREST_COUNT_OFFSET + Arm64NocterAbi::word_size();
 const MAX_INTEREST_COUNT: u64 = u32::MAX as u64;
 
 const FRAME_STACK_OFFSET: u64 = 0;
@@ -36,61 +38,9 @@ const CONSUME_ALLOCATION_CONTEXT_STACK_OFFSET: u64 = 24;
 const CONSUME_PROCESS_CONTEXT_STACK_OFFSET: u64 = 32;
 const CONSUME_STACK_SIZE: u64 = 48;
 
-const CONSTRUCTOR_FIRST_STACK_OFFSET: u64 = 0;
-const CONSTRUCTOR_SECOND_STACK_OFFSET: u64 = 8;
-const CONSTRUCTOR_FIRST_OUTPUT_STACK_OFFSET: u64 = 16;
-const CONSTRUCTOR_SECOND_OUTPUT_STACK_OFFSET: u64 = 24;
-const CONSTRUCTOR_ALLOCATION_CONTEXT_STACK_OFFSET: u64 = 32;
-const CONSTRUCTOR_STACK_SIZE: u64 = 48;
-
-/// Constructs one compiler-owned computation that takes ownership of two child computations.
-pub(crate) fn materialize_constructor(
-    targets: Arm64AsyncJoinTargets,
-) -> Result<Arm64Code, crate::Arm64CodeError> {
-    let mut code = Arm64CodeBuilder::new();
-    validate_nonzero(argument(0), &mut code);
-    validate_nonzero(argument(1), &mut code);
-    crate::frame_access::adjust_stack(
-        &mut code,
-        CONSTRUCTOR_STACK_SIZE,
-        Arm64AddSubtract::Subtract,
-    );
-    store_stack(CONSTRUCTOR_FIRST_STACK_OFFSET, argument(0), &mut code);
-    store_stack(CONSTRUCTOR_SECOND_STACK_OFFSET, argument(1), &mut code);
-    store_stack(
-        CONSTRUCTOR_FIRST_OUTPUT_STACK_OFFSET,
-        argument(2),
-        &mut code,
-    );
-    store_stack(
-        CONSTRUCTOR_SECOND_OUTPUT_STACK_OFFSET,
-        argument(3),
-        &mut code,
-    );
-    store_stack(
-        CONSTRUCTOR_ALLOCATION_CONTEXT_STACK_OFFSET,
-        Arm64NocterAbi::allocation_context_register(),
-        &mut code,
-    );
-
-    crate::frame_access::load_immediate(
-        &mut code,
-        argument(1),
-        JOIN_FRAME_SIZE,
-        Arm64DataSize::Bits64,
-    );
-    crate::darwin_memory_code::emit_map(&mut code)?;
-    crate::address_code::move_register(&mut code, argument(0), argument(6));
-    initialize_join_frame(argument(6), targets, &mut code)?;
-    crate::address_code::move_register(&mut code, argument(6), argument(0));
-    crate::frame_access::adjust_stack(&mut code, CONSTRUCTOR_STACK_SIZE, Arm64AddSubtract::Add);
-    return_to_caller(&mut code);
-    code.finish()
-}
-
-fn initialize_join_frame(
+pub(super) fn initialize_pair_frame(
     frame: crate::Arm64Register,
-    targets: Arm64AsyncJoinTargets,
+    targets: Arm64AsyncPairTargets,
     code: &mut Arm64CodeBuilder,
 ) -> Result<(), crate::Arm64CodeError> {
     let schema = Arm64NocterAbi::asynchronous();
@@ -115,7 +65,7 @@ fn initialize_join_frame(
     );
     store_immediate(frame, schema.state_tag_offset(), states.initial(), code);
     load_stack(
-        CONSTRUCTOR_ALLOCATION_CONTEXT_STACK_OFFSET,
+        crate::async_pair_constructor_code::ALLOCATION_CONTEXT_STACK_OFFSET,
         argument(4),
         code,
     );
@@ -123,25 +73,25 @@ fn initialize_join_frame(
     initialize_from_stack(
         frame,
         FIRST_CHILD_OFFSET,
-        CONSTRUCTOR_FIRST_STACK_OFFSET,
+        crate::async_pair_constructor_code::FIRST_STACK_OFFSET,
         code,
     );
     initialize_from_stack(
         frame,
         SECOND_CHILD_OFFSET,
-        CONSTRUCTOR_SECOND_STACK_OFFSET,
+        crate::async_pair_constructor_code::SECOND_STACK_OFFSET,
         code,
     );
     initialize_from_stack(
         frame,
         FIRST_OUTPUT_OFFSET,
-        CONSTRUCTOR_FIRST_OUTPUT_STACK_OFFSET,
+        crate::async_pair_constructor_code::FIRST_OUTPUT_STACK_OFFSET,
         code,
     );
     initialize_from_stack(
         frame,
         SECOND_OUTPUT_OFFSET,
-        CONSTRUCTOR_SECOND_OUTPUT_STACK_OFFSET,
+        crate::async_pair_constructor_code::SECOND_OUTPUT_STACK_OFFSET,
         code,
     );
     for offset in [
@@ -160,7 +110,7 @@ fn initialize_join_frame(
 }
 
 /// Polls both owned children from left to right and returns their combined wait-interest slice.
-pub(crate) fn materialize_resume() -> Result<Arm64Code, crate::Arm64CodeError> {
+pub(crate) fn materialize_join_resume() -> Result<Arm64Code, crate::Arm64CodeError> {
     let schema = Arm64NocterAbi::asynchronous();
     let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
@@ -208,60 +158,175 @@ pub(crate) fn materialize_resume() -> Result<Arm64Code, crate::Arm64CodeError> {
     emit_call_epilogue(&mut code);
 
     code.bind(pending)?;
-    allocate_combined_interests(&mut code)?;
-    load_frame(argument(3), &mut code);
-    load(argument(3), INTEREST_BUFFER_OFFSET, argument(3), &mut code);
-    copy_interest_records(
-        FIRST_INTEREST_POINTER_OFFSET,
-        FIRST_INTEREST_COUNT_OFFSET,
-        &mut code,
-    )?;
-    copy_interest_records(
-        SECOND_INTEREST_POINTER_OFFSET,
-        SECOND_INTEREST_COUNT_OFFSET,
-        &mut code,
-    )?;
-    load_frame(argument(4), &mut code);
-    load(argument(4), INTEREST_BUFFER_OFFSET, argument(1), &mut code);
-    load(
-        argument(4),
-        FIRST_INTEREST_COUNT_OFFSET,
-        argument(2),
-        &mut code,
-    );
-    load(
-        argument(4),
-        SECOND_INTEREST_COUNT_OFFSET,
-        argument(3),
-        &mut code,
-    );
-    add_register(argument(2), argument(2), argument(3), false, &mut code);
-    crate::frame_access::load_immediate(
-        &mut code,
-        argument(0),
-        schema.pending_status(),
-        Arm64DataSize::Bits64,
-    );
-    emit_call_epilogue(&mut code);
+    emit_combined_pending(&mut code)?;
     code.finish()
 }
 
-/// Cancels both still-owned children exactly once, then releases the join frame.
-pub(crate) fn materialize_cancel() -> Result<Arm64Code, crate::Arm64CodeError> {
+/// Polls two same-output children from left to right and selects one deterministic winner.
+pub(crate) fn materialize_race_resume() -> Result<Arm64Code, crate::Arm64CodeError> {
     let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     emit_call_prologue(argument(0), &mut code);
     validate_state(states.initial(), &mut code);
     release_interest_buffer(&mut code)?;
+    clear_pending_interests(&mut code);
+
+    poll_child(
+        FIRST_CHILD_OFFSET,
+        FIRST_DONE_OFFSET,
+        FIRST_INTEREST_POINTER_OFFSET,
+        FIRST_INTEREST_COUNT_OFFSET,
+        &mut code,
+    )?;
+    let first_wins = code.create_label();
+    load_frame(argument(3), &mut code);
+    load(argument(3), FIRST_DONE_OFFSET, argument(4), &mut code);
+    compare_immediate(argument(4), 1, &mut code);
+    code.branch_conditional(first_wins, Arm64BranchCondition::Equal);
+
+    poll_child(
+        SECOND_CHILD_OFFSET,
+        SECOND_DONE_OFFSET,
+        SECOND_INTEREST_POINTER_OFFSET,
+        SECOND_INTEREST_COUNT_OFFSET,
+        &mut code,
+    )?;
+    let second_wins = code.create_label();
+    load_frame(argument(3), &mut code);
+    load(argument(3), SECOND_DONE_OFFSET, argument(4), &mut code);
+    compare_immediate(argument(4), 1, &mut code);
+    code.branch_conditional(second_wins, Arm64BranchCondition::Equal);
+
+    emit_combined_pending(&mut code)?;
+
+    code.bind(first_wins)?;
+    release_child(SECOND_CHILD_OFFSET, false, &mut code);
+    complete_pair(states.completed(), &mut code);
+
+    code.bind(second_wins)?;
+    release_child(FIRST_CHILD_OFFSET, false, &mut code);
+    complete_pair(states.completed(), &mut code);
+    code.finish()
+}
+
+fn emit_combined_pending(code: &mut Arm64CodeBuilder) -> Result<(), crate::Arm64CodeError> {
+    let schema = Arm64NocterAbi::asynchronous();
+    allocate_combined_interests(code)?;
+    load_frame(argument(3), code);
+    load(argument(3), INTEREST_BUFFER_OFFSET, argument(3), code);
+    copy_interest_records(
+        FIRST_INTEREST_POINTER_OFFSET,
+        FIRST_INTEREST_COUNT_OFFSET,
+        code,
+    )?;
+    copy_interest_records(
+        SECOND_INTEREST_POINTER_OFFSET,
+        SECOND_INTEREST_COUNT_OFFSET,
+        code,
+    )?;
+    load_frame(argument(4), code);
+    load(argument(4), INTEREST_BUFFER_OFFSET, argument(1), code);
+    load(argument(4), FIRST_INTEREST_COUNT_OFFSET, argument(2), code);
+    load(argument(4), SECOND_INTEREST_COUNT_OFFSET, argument(3), code);
+    add_register(argument(2), argument(2), argument(3), false, code);
+    crate::frame_access::load_immediate(
+        code,
+        argument(0),
+        schema.pending_status(),
+        Arm64DataSize::Bits64,
+    );
+    emit_call_epilogue(code);
+    Ok(())
+}
+
+fn complete_pair(completed_state: u64, code: &mut Arm64CodeBuilder) {
+    let schema = Arm64NocterAbi::asynchronous();
+    load_frame(argument(3), code);
+    store_immediate(
+        argument(3),
+        schema.state_tag_offset(),
+        completed_state,
+        code,
+    );
+    crate::frame_access::load_immediate(
+        code,
+        argument(0),
+        schema.completed_status(),
+        Arm64DataSize::Bits64,
+    );
+    zero(argument(1), code);
+    zero(argument(2), code);
+    emit_call_epilogue(code);
+}
+
+/// Cancels both still-owned children exactly once, then releases the join frame.
+pub(crate) fn materialize_join_cancel() -> Result<Arm64Code, crate::Arm64CodeError> {
+    let states = lifecycle_states()?;
+    let mut code = Arm64CodeBuilder::new();
+    emit_call_prologue(argument(0), &mut code);
+    validate_state_any(&[states.initial(), states.completed()], &mut code)?;
+    release_interest_buffer(&mut code)?;
     release_child(FIRST_CHILD_OFFSET, false, &mut code);
     release_child(SECOND_CHILD_OFFSET, false, &mut code);
-    release_join_frame(&mut code)?;
+    release_pair_frame(&mut code)?;
+    emit_call_epilogue(&mut code);
+    code.finish()
+}
+
+/// Cancels both unselected children, or the retained winner after completion.
+pub(crate) fn materialize_race_cancel() -> Result<Arm64Code, crate::Arm64CodeError> {
+    let states = lifecycle_states()?;
+    let mut code = Arm64CodeBuilder::new();
+    emit_call_prologue(argument(0), &mut code);
+
+    load_frame(argument(3), &mut code);
+    load(
+        argument(3),
+        Arm64NocterAbi::asynchronous().state_tag_offset(),
+        argument(4),
+        &mut code,
+    );
+    let initial = code.create_label();
+    let completed = code.create_label();
+    compare_immediate(argument(4), states.initial(), &mut code);
+    code.branch_conditional(initial, Arm64BranchCondition::Equal);
+    compare_immediate(argument(4), states.completed(), &mut code);
+    code.branch_conditional(completed, Arm64BranchCondition::Equal);
+    trap_state(&mut code);
+
+    code.bind(initial)?;
+    release_interest_buffer(&mut code)?;
+    release_child(FIRST_CHILD_OFFSET, false, &mut code);
+    release_child(SECOND_CHILD_OFFSET, false, &mut code);
+    release_pair_frame(&mut code)?;
+    emit_call_epilogue(&mut code);
+
+    code.bind(completed)?;
+    let second = code.create_label();
+    load_frame(argument(3), &mut code);
+    load(argument(3), FIRST_DONE_OFFSET, argument(4), &mut code);
+    compare_immediate(argument(4), 1, &mut code);
+    code.branch_conditional(second, Arm64BranchCondition::NotEqual);
+    release_child(FIRST_CHILD_OFFSET, false, &mut code);
+    release_pair_frame(&mut code)?;
+    emit_call_epilogue(&mut code);
+
+    code.bind(second)?;
+    load_frame(argument(3), &mut code);
+    load(argument(3), SECOND_DONE_OFFSET, argument(4), &mut code);
+    compare_immediate(argument(4), 1, &mut code);
+    let valid_second = code.create_label();
+    code.branch_conditional(valid_second, Arm64BranchCondition::Equal);
+    trap_state(&mut code);
+    code.bind(valid_second)?;
+    release_child(SECOND_CHILD_OFFSET, false, &mut code);
+    release_pair_frame(&mut code)?;
     emit_call_epilogue(&mut code);
     code.finish()
 }
 
 /// Consumes both completed child outputs directly into their frozen tuple placements.
-pub(crate) fn materialize_consume() -> Result<Arm64Code, crate::Arm64CodeError> {
+pub(crate) fn materialize_join_consume() -> Result<Arm64Code, crate::Arm64CodeError> {
     let states = lifecycle_states()?;
     let mut code = Arm64CodeBuilder::new();
     crate::frame_access::adjust_stack(&mut code, CONSUME_STACK_SIZE, Arm64AddSubtract::Subtract);
@@ -285,7 +350,74 @@ pub(crate) fn materialize_consume() -> Result<Arm64Code, crate::Arm64CodeError> 
     validate_state(states.completed(), &mut code);
     release_child(FIRST_CHILD_OFFSET, true, &mut code);
     release_child(SECOND_CHILD_OFFSET, true, &mut code);
-    release_join_frame(&mut code)?;
+    release_pair_frame(&mut code)?;
+    load_stack(
+        CONSUME_ALLOCATION_CONTEXT_STACK_OFFSET,
+        Arm64NocterAbi::allocation_context_register(),
+        &mut code,
+    );
+    load_stack(
+        CONSUME_PROCESS_CONTEXT_STACK_OFFSET,
+        Arm64NocterAbi::process_context_register(),
+        &mut code,
+    );
+    load_stack(
+        CONSUME_LINK_STACK_OFFSET,
+        Arm64NocterAbi::link_register(),
+        &mut code,
+    );
+    crate::frame_access::adjust_stack(&mut code, CONSUME_STACK_SIZE, Arm64AddSubtract::Add);
+    return_to_caller(&mut code);
+    code.finish()
+}
+
+/// Writes the winning branch tag and consumes its output into the structural race payload.
+pub(crate) fn materialize_race_consume() -> Result<Arm64Code, crate::Arm64CodeError> {
+    let states = lifecycle_states()?;
+    let mut code = Arm64CodeBuilder::new();
+    crate::frame_access::adjust_stack(&mut code, CONSUME_STACK_SIZE, Arm64AddSubtract::Subtract);
+    store_stack(FRAME_STACK_OFFSET, argument(0), &mut code);
+    store_stack(OUTPUT_STACK_OFFSET, argument(1), &mut code);
+    store_stack(
+        CONSUME_LINK_STACK_OFFSET,
+        Arm64NocterAbi::link_register(),
+        &mut code,
+    );
+    store_stack(
+        CONSUME_ALLOCATION_CONTEXT_STACK_OFFSET,
+        Arm64NocterAbi::allocation_context_register(),
+        &mut code,
+    );
+    store_stack(
+        CONSUME_PROCESS_CONTEXT_STACK_OFFSET,
+        Arm64NocterAbi::process_context_register(),
+        &mut code,
+    );
+    validate_state(states.completed(), &mut code);
+
+    let second = code.create_label();
+    let finish = code.create_label();
+    load_frame(argument(3), &mut code);
+    load(argument(3), FIRST_DONE_OFFSET, argument(4), &mut code);
+    compare_immediate(argument(4), 1, &mut code);
+    code.branch_conditional(second, Arm64BranchCondition::NotEqual);
+    store_race_winner(false, &mut code);
+    release_child_to(FIRST_CHILD_OFFSET, SECOND_OUTPUT_OFFSET, &mut code);
+    code.branch(finish, false);
+
+    code.bind(second)?;
+    load_frame(argument(3), &mut code);
+    load(argument(3), SECOND_DONE_OFFSET, argument(4), &mut code);
+    compare_immediate(argument(4), 1, &mut code);
+    let valid_second = code.create_label();
+    code.branch_conditional(valid_second, Arm64BranchCondition::Equal);
+    trap_state(&mut code);
+    code.bind(valid_second)?;
+    store_race_winner(true, &mut code);
+    release_child_to(SECOND_CHILD_OFFSET, SECOND_OUTPUT_OFFSET, &mut code);
+
+    code.bind(finish)?;
+    release_pair_frame(&mut code)?;
     load_stack(
         CONSUME_ALLOCATION_CONTEXT_STACK_OFFSET,
         Arm64NocterAbi::allocation_context_register(),
@@ -543,9 +675,44 @@ fn release_child(child_offset: u64, consume: bool, code: &mut Arm64CodeBuilder) 
     });
 }
 
-fn release_join_frame(code: &mut Arm64CodeBuilder) -> Result<(), crate::Arm64CodeError> {
+fn release_child_to(child_offset: u64, placement_offset: u64, code: &mut Arm64CodeBuilder) {
+    load_frame(argument(3), code);
+    load(argument(3), child_offset, argument(0), code);
+    validate_nonzero(argument(0), code);
+    store_immediate(argument(3), child_offset, 0, code);
+    load(
+        argument(0),
+        Arm64NocterAbi::asynchronous().consume_function_offset(),
+        argument(4),
+        code,
+    );
+    load_stack(OUTPUT_STACK_OFFSET, argument(1), code);
+    load_frame(argument(3), code);
+    load(argument(3), placement_offset, argument(5), code);
+    add_register(argument(1), argument(1), argument(5), false, code);
+    code.append(Arm64Instruction::BranchRegister {
+        target: argument(4),
+        link: true,
+    });
+}
+
+fn store_race_winner(second: bool, code: &mut Arm64CodeBuilder) {
+    load_stack(OUTPUT_STACK_OFFSET, argument(3), code);
+    load_frame(argument(4), code);
+    load(argument(4), FIRST_OUTPUT_OFFSET, argument(5), code);
+    add_register(argument(3), argument(3), argument(5), false, code);
+    crate::frame_access::load_immediate(
+        code,
+        argument(4),
+        u64::from(second),
+        Arm64DataSize::Bits64,
+    );
+    crate::address_code::store_native(code, Arm64LoadStoreSize::Byte, argument(4), argument(3), 0);
+}
+
+fn release_pair_frame(code: &mut Arm64CodeBuilder) -> Result<(), crate::Arm64CodeError> {
     load_frame(argument(0), code);
-    crate::frame_access::load_immediate(code, argument(1), JOIN_FRAME_SIZE, Arm64DataSize::Bits64);
+    crate::frame_access::load_immediate(code, argument(1), PAIR_FRAME_SIZE, Arm64DataSize::Bits64);
     crate::darwin_memory_code::emit_unmap(
         code,
         crate::runtime_trap::Arm64RuntimeTrap::AsyncFrameReleaseFailure,
@@ -600,7 +767,27 @@ fn validate_state(expected: u64, code: &mut Arm64CodeBuilder) {
         .expect("fresh join state-validation label binds once");
 }
 
-fn validate_nonzero(value: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
+fn validate_state_any(
+    expected: &[u64],
+    code: &mut Arm64CodeBuilder,
+) -> Result<(), crate::Arm64CodeError> {
+    load_frame(argument(3), code);
+    load(
+        argument(3),
+        Arm64NocterAbi::asynchronous().state_tag_offset(),
+        argument(4),
+        code,
+    );
+    let valid = code.create_label();
+    for state in expected {
+        compare_immediate(argument(4), *state, code);
+        code.branch_conditional(valid, Arm64BranchCondition::Equal);
+    }
+    trap_state(code);
+    code.bind(valid)
+}
+
+pub(super) fn validate_nonzero(value: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
     validate_nonzero_with_trap(
         value,
         crate::runtime_trap::Arm64RuntimeTrap::AsyncFrameStateCorruption,
@@ -682,7 +869,7 @@ fn store_immediate(
     store(frame, offset, argument(7), code);
 }
 
-fn store_stack(offset: u64, source: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
+pub(super) fn store_stack(offset: u64, source: crate::Arm64Register, code: &mut Arm64CodeBuilder) {
     crate::frame_access::store_at_stack_offset(code, Arm64LoadStoreSize::Double, source, offset);
 }
 
@@ -779,15 +966,15 @@ fn trap_wait(code: &mut Arm64CodeBuilder) {
     });
 }
 
-fn return_to_caller(code: &mut Arm64CodeBuilder) {
+pub(super) fn return_to_caller(code: &mut Arm64CodeBuilder) {
     code.append(Arm64Instruction::Return {
         target: Arm64NocterAbi::link_register(),
     });
 }
 
-const fn argument(index: u8) -> crate::Arm64Register {
+pub(super) const fn argument(index: u8) -> crate::Arm64Register {
     match Arm64NocterAbi::argument_register(index) {
         Some(register) => register,
-        None => panic!("async join uses only ABI argument registers"),
+        None => panic!("async pair composition uses only ABI argument registers"),
     }
 }

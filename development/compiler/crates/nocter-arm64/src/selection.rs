@@ -279,6 +279,11 @@ pub enum Arm64SelectedInstruction {
         first_output_offset: u64,
         second_output_offset: u64,
     },
+    /// Constructs one compiler-owned computation that selects one of two same-output children.
+    ConstructTaskRace {
+        winner_offset: u64,
+        output_offset: u64,
+    },
     /// Calls one source-ABI entry from the compiler-owned plain connection target set.
     CallDarwinNetworkPrimitive(crate::Arm64DarwinNetworkPrimitive),
     ExitProcess {

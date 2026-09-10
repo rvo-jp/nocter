@@ -11,16 +11,16 @@ pub struct Arm64AsyncInterestLifecycleTargets {
     interest_count: u8,
 }
 
-/// Shared native lifecycle entries for one two-child structured join computation.
+/// Native lifecycle entries for one two-child structured composition computation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Arm64AsyncJoinTargets {
+pub struct Arm64AsyncPairTargets {
     constructor: Arm64FunctionId,
     resume: Arm64FunctionId,
     cancel: Arm64FunctionId,
     consume: Arm64FunctionId,
 }
 
-impl Arm64AsyncJoinTargets {
+impl Arm64AsyncPairTargets {
     #[must_use]
     pub const fn constructor(self) -> Arm64FunctionId {
         self.constructor
@@ -72,7 +72,8 @@ pub struct Arm64AsyncPrimitiveTargets {
     monotonic_deadline: Option<Arm64FunctionId>,
     single_interest_lifecycle: Option<Arm64AsyncInterestLifecycleTargets>,
     dual_interest_lifecycle: Option<Arm64AsyncInterestLifecycleTargets>,
-    task_join: Option<Arm64AsyncJoinTargets>,
+    task_join: Option<Arm64AsyncPairTargets>,
+    task_race: Option<Arm64AsyncPairTargets>,
 }
 
 impl Arm64AsyncPrimitiveTargets {
@@ -85,6 +86,7 @@ impl Arm64AsyncPrimitiveTargets {
             roles.contains(&PrimitiveRole::DescriptorReadinessOrDeadline);
         let monotonic_deadline = roles.contains(&PrimitiveRole::MonotonicDeadline);
         let task_join = roles.contains(&PrimitiveRole::TaskJoin);
+        let task_race = roles.contains(&PrimitiveRole::TaskRace);
         let single_interest_lifecycle =
             (descriptor_readiness || monotonic_deadline).then(|| declare_lifecycle(builder, 1));
         let dual_interest_lifecycle =
@@ -96,12 +98,8 @@ impl Arm64AsyncPrimitiveTargets {
             monotonic_deadline: monotonic_deadline.then(|| builder.declare_function()),
             single_interest_lifecycle,
             dual_interest_lifecycle,
-            task_join: task_join.then(|| Arm64AsyncJoinTargets {
-                constructor: builder.declare_function(),
-                resume: builder.declare_function(),
-                cancel: builder.declare_function(),
-                consume: builder.declare_function(),
-            }),
+            task_join: task_join.then(|| declare_pair(builder)),
+            task_race: task_race.then(|| declare_pair(builder)),
         }
     }
 
@@ -131,8 +129,22 @@ impl Arm64AsyncPrimitiveTargets {
     }
 
     #[must_use]
-    pub const fn task_join(self) -> Option<Arm64AsyncJoinTargets> {
+    pub const fn task_join(self) -> Option<Arm64AsyncPairTargets> {
         self.task_join
+    }
+
+    #[must_use]
+    pub const fn task_race(self) -> Option<Arm64AsyncPairTargets> {
+        self.task_race
+    }
+}
+
+fn declare_pair(builder: &mut Arm64ProgramBuilder) -> Arm64AsyncPairTargets {
+    Arm64AsyncPairTargets {
+        constructor: builder.declare_function(),
+        resume: builder.declare_function(),
+        cancel: builder.declare_function(),
+        consume: builder.declare_function(),
     }
 }
 

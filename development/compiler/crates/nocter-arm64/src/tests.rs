@@ -1098,6 +1098,7 @@ fn async_primitive_targets_follow_machine_dependencies() {
     assert_eq!(absent.single_interest_lifecycle(), None);
     assert_eq!(absent.dual_interest_lifecycle(), None);
     assert_eq!(absent.task_join(), None);
+    assert_eq!(absent.task_race(), None);
 
     let present = crate::test_support::lower_machine_with_standard_uses(
         "use std/internal/task\n\
@@ -1152,6 +1153,34 @@ fn lowers_structured_join_with_one_closed_native_lifecycle() {
     assert_ne!(join.constructor(), join.resume());
     assert_ne!(join.resume(), join.cancel());
     assert_ne!(join.cancel(), join.consume());
+    assert!(crate::Arm64Program::lower_machine(&machine).is_ok());
+}
+
+#[test]
+fn lowers_structured_race_with_one_closed_native_lifecycle() {
+    let machine = crate::test_support::lower_machine_with_standard_uses(
+        "use std/task\n\
+         use std/task.Race\n\
+         async func left(): i32 { return 1 }\n\
+         async func right(): i32 { return 2 }\n\
+         async func main(): i32 {\n\
+             let selected: Race<i32> = await task.race(left(), right())\n\
+             match selected {\n\
+                 Race.first(value) { return value }\n\
+                 Race.second(value) { return value }\n\
+             }\n\
+         }\n",
+        &[&["task"], &["task"]],
+    );
+    let mut builder = crate::Arm64ProgramBuilder::new();
+    let targets = crate::primitive_targets::Arm64PrimitiveTargets::declare(&machine, &mut builder)
+        .unwrap()
+        .asynchronous();
+    let race = targets.task_race().expect("one structured race lifecycle");
+
+    assert_ne!(race.constructor(), race.resume());
+    assert_ne!(race.resume(), race.cancel());
+    assert_ne!(race.cancel(), race.consume());
     assert!(crate::Arm64Program::lower_machine(&machine).is_ok());
 }
 

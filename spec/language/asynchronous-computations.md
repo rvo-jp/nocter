@@ -199,6 +199,19 @@ task and does not start a hidden global executor from synchronous code. Scheduli
 future into a scope-owned task; normal scope exit joins remaining children, and exceptional exit
 cancels them.
 
+The fixed-arity `std/task` compositions take ownership of their input futures. `task.join` drives
+two children until both complete and returns their outputs in argument order. `task.race` drives
+two children with the same output type until one completes, returns a `Race<T>` value identifying
+that branch, and cancels the other child before completing. Polling and tie selection are
+left-to-right, so the first branch wins when both can complete during the same drive step.
+
+A composition is the sole lifecycle owner of its child handles. Destroying a pending composition
+cancels every child it still owns. Destroying a completed but unconsumed composition cancels the
+completed child frames that still own their outputs. Consuming the composition transfers exactly
+the selected output or outputs and retires those child frames. Nested compositions forward their
+children's original wait interests rather than creating another executor or treating an unrelated
+wakeup as completion.
+
 `async` describes a producer body that may suspend; the produced structural future supplies the
 nonblocking drive invariant. Under the initial allocation-backed representation, an `async`
 producer cannot satisfy `noalloc`; immediate `noalloc` code may still move, store, or return an

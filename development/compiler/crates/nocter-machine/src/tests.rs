@@ -47,7 +47,7 @@ fn structured_join_carries_machine_owned_tuple_placement() {
             if target.role() != PrimitiveRole::TaskJoin {
                 return None;
             }
-            let crate::MachinePrimitiveDependency::AsyncJoin(plan) = target.dependency() else {
+            let crate::MachinePrimitiveDependency::AsyncPair(plan) = target.dependency() else {
                 panic!("task.join must carry its physical output placement")
             };
             Some(*plan)
@@ -56,6 +56,45 @@ fn structured_join_carries_machine_owned_tuple_placement() {
 
     assert_eq!(plan.first_output_offset(), 0);
     assert_eq!(plan.second_output_offset(), 8);
+}
+
+#[test]
+fn structured_race_carries_machine_owned_winner_and_output_placement() {
+    let fixture = CompilerFixture::with_app_standard_uses(
+        "use std/task\n\
+         async func left(): i32 { return 1 }\n\
+         async func right(): i32 { return 2 }\n\
+         async func main(): i32 {\n\
+             let selected = await task.race(left(), right())\n\
+             drop selected\n\
+             return 0\n\
+         }\n",
+        &[&["task"]],
+    );
+    let mir = lower_selected_fixture(&fixture, false);
+    let program = MachineProgram::lower(&mir).unwrap();
+    let plan = program
+        .functions()
+        .flat_map(|(_, function)| function.body().operations())
+        .find_map(|(_, operation)| {
+            let MachineOperationKind::Call(call) = operation.kind() else {
+                return None;
+            };
+            let crate::MachineCallTarget::Primitive(target) = call.target() else {
+                return None;
+            };
+            if target.role() != PrimitiveRole::TaskRace {
+                return None;
+            }
+            let crate::MachinePrimitiveDependency::AsyncPair(plan) = target.dependency() else {
+                panic!("task.race must carry its physical output placement")
+            };
+            Some(*plan)
+        })
+        .expect("one task.race primitive call");
+
+    assert_eq!(plan.first_output_offset(), 0);
+    assert_eq!(plan.second_output_offset(), 4);
 }
 
 #[test]

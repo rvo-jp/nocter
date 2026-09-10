@@ -162,7 +162,8 @@ pub(crate) fn select(
         PrimitiveRole::DescriptorReadiness
         | PrimitiveRole::DescriptorReadinessOrDeadline
         | PrimitiveRole::MonotonicDeadline
-        | PrimitiveRole::TaskJoin => select_async_primitive(operation, target, selected),
+        | PrimitiveRole::TaskJoin
+        | PrimitiveRole::TaskRace => select_async_primitive(operation, target, selected),
         PrimitiveRole::NetworkConnectionCreate
         | PrimitiveRole::NetworkConnectionCreateHost
         | PrimitiveRole::NetworkTlsConnectionCreate
@@ -350,16 +351,31 @@ fn select_async_primitive(
     target: Arm64PrimitiveTarget<'_>,
     selected: &mut Vec<Arm64SelectedInstruction>,
 ) -> Result<(), Arm64SelectionError> {
-    if target.role() == PrimitiveRole::TaskJoin {
+    if matches!(
+        target.role(),
+        PrimitiveRole::TaskJoin | PrimitiveRole::TaskRace
+    ) {
         validate_register_abi(operation, target, &[1, 1], 1)?;
-        validate_type_arguments(operation, target, 2)?;
-        let nocter_machine::MachinePrimitiveDependency::AsyncJoin(plan) = target.dependency()
+        let expected_type_arguments = if target.role() == PrimitiveRole::TaskJoin {
+            2
+        } else {
+            1
+        };
+        validate_type_arguments(operation, target, expected_type_arguments)?;
+        let nocter_machine::MachinePrimitiveDependency::AsyncPair(plan) = target.dependency()
         else {
             return Err(Arm64SelectionError::PrimitiveCall(operation));
         };
-        selected.push(Arm64SelectedInstruction::ConstructTaskJoin {
-            first_output_offset: plan.first_output_offset(),
-            second_output_offset: plan.second_output_offset(),
+        selected.push(if target.role() == PrimitiveRole::TaskJoin {
+            Arm64SelectedInstruction::ConstructTaskJoin {
+                first_output_offset: plan.first_output_offset(),
+                second_output_offset: plan.second_output_offset(),
+            }
+        } else {
+            Arm64SelectedInstruction::ConstructTaskRace {
+                winner_offset: plan.first_output_offset(),
+                output_offset: plan.second_output_offset(),
+            }
         });
         return Ok(());
     }

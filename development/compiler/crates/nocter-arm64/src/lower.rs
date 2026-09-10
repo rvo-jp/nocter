@@ -350,22 +350,44 @@ fn define_async_primitives(
     if let Some(join) = targets.task_join() {
         builder.define_function(
             join.constructor(),
-            crate::async_join_code::materialize_constructor(join)
+            crate::async_pair_constructor_code::materialize(join)
                 .map_err(Arm64MaterializationError::Code)?,
         )?;
         builder.define_function(
             join.resume(),
-            crate::async_join_code::materialize_resume()
+            crate::async_pair_code::materialize_join_resume()
                 .map_err(Arm64MaterializationError::Code)?,
         )?;
         builder.define_function(
             join.cancel(),
-            crate::async_join_code::materialize_cancel()
+            crate::async_pair_code::materialize_join_cancel()
                 .map_err(Arm64MaterializationError::Code)?,
         )?;
         builder.define_function(
             join.consume(),
-            crate::async_join_code::materialize_consume()
+            crate::async_pair_code::materialize_join_consume()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+    }
+    if let Some(race) = targets.task_race() {
+        builder.define_function(
+            race.constructor(),
+            crate::async_pair_constructor_code::materialize(race)
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            race.resume(),
+            crate::async_pair_code::materialize_race_resume()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            race.cancel(),
+            crate::async_pair_code::materialize_race_cancel()
+                .map_err(Arm64MaterializationError::Code)?,
+        )?;
+        builder.define_function(
+            race.consume(),
+            crate::async_pair_code::materialize_race_consume()
                 .map_err(Arm64MaterializationError::Code)?,
         )?;
     }

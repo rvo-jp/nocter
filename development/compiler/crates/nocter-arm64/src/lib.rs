@@ -19,8 +19,9 @@ mod async_drive_selection;
 mod async_frame;
 mod async_function;
 mod async_interest_code;
-mod async_join_code;
 mod async_pack_capture_code;
+mod async_pair_code;
+mod async_pair_constructor_code;
 mod async_primitive_targets;
 mod async_release_code;
 mod async_release_selection;
@@ -128,7 +129,7 @@ pub use async_function::{
     Arm64AsyncParameterCapture,
 };
 pub use async_primitive_targets::{
-    Arm64AsyncInterestLifecycleTargets, Arm64AsyncJoinTargets, Arm64AsyncPrimitiveTargets,
+    Arm64AsyncInterestLifecycleTargets, Arm64AsyncPairTargets, Arm64AsyncPrimitiveTargets,
 };
 pub use async_resume_error::Arm64AsyncResumeError;
 pub use async_wait_frame::Arm64AsyncWaitFrame;

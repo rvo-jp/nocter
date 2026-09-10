@@ -17,6 +17,12 @@ result is consumed cancels both children and releases their initialized state ex
 Consuming a completed join transfers both outputs and retires both child computations. No detached
 task, hidden process-global executor, or independently copyable task handle is created.
 
-The initial fixed arity is an intentional bounded-concurrency surface. A later homogeneous
-collection operation can build on the same ownership and scheduling contract without changing
-`join`.
+`task.race` takes ownership of two computations with the same output type and returns
+`Race.first(value)` or `Race.second(value)`. It polls from left to right. If both branches can
+complete during one drive step, the first branch wins. Selecting one branch immediately cancels
+the other; dropping the race instead cancels every child still owned by it. The winner value stays
+owned by its completed child frame until the race result is consumed.
+
+The fixed arity is an intentional bounded-concurrency surface. A later homogeneous collection
+operation can build on the same ownership and scheduling contract without changing `join` or
+`race`.

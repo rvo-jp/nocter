@@ -3871,6 +3871,70 @@ fn structured_async_join_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn structured_async_race_selects_one_winner_and_cancels_the_other() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/task\n\
+         use std/task.Race\n\
+         use std/time\n\
+         \n\
+         async func number(value: i32): i32 { return value }\n\
+         async func delayed_number(value: i32, milliseconds: u64): i32 {\n\
+             await time.sleep(time.Duration.from_milliseconds(milliseconds))\n\
+             return value\n\
+         }\n\
+         async func nested_value(): ((i32, i32), (i32, i32)) {\n\
+             return ((5, 6), (7, 8))\n\
+         }\n\
+         \n\
+         async func main(): i32 {\n\
+             let immediate = await task.race(number(20), number(22))\n\
+             match immediate {\n\
+                 Race.first(value) { if value != 20 { return 1 } }\n\
+                 Race.second(_) { return 2 }\n\
+             }\n\
+             let maximum = time.Duration.from_milliseconds(80)\n\
+             let start = time.Instant.now()\n\
+             let delayed = await task.race(\n\
+                 delayed_number(20, 80),\n\
+                 delayed_number(22, 10),\n\
+             )\n\
+             match delayed {\n\
+                 Race.first(_) { return 3 }\n\
+                 Race.second(value) { if value != 22 { return 4 } }\n\
+             }\n\
+             if !(start.elapsed() < maximum) { return 5 }\n\
+             let partially_completed = task.join(\n\
+                 task.join(number(1), number(2)),\n\
+                 task.join(delayed_number(3, 80), delayed_number(4, 80)),\n\
+             )\n\
+             let nested_race = await task.race(move partially_completed, nested_value())\n\
+             match nested_race {\n\
+                 Race.first(_) { return 6 }\n\
+                 Race.second(value) {\n\
+                     if value.0.0 + value.0.1 + value.1.0 + value.1.1 != 26 { return 7 }\n\
+                 }\n\
+             }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "structured-async-race", 0);
+}
+
+#[test]
 fn suspended_child_can_read_parent_storage_without_parent_side_liveness() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

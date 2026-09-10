@@ -154,6 +154,8 @@ closed_role_enum! {
         MonotonicDeadline,
         /// Takes ownership of two lazy computations and produces both outputs concurrently.
         TaskJoin,
+        /// Takes ownership of two same-output computations and selects one deterministic winner.
+        TaskRace,
         NetworkConnectionCreate,
         NetworkConnectionCreateHost,
         NetworkTlsConnectionCreate,
@@ -286,6 +288,7 @@ impl PrimitiveRole {
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
             Self::TaskJoin => "task_join",
+            Self::TaskRace => "task_race",
             Self::NetworkConnectionCreate
             | Self::NetworkConnectionCreateHost
             | Self::NetworkTlsConnectionCreate
@@ -382,6 +385,7 @@ impl PrimitiveRole {
                     | Self::DescriptorReadinessOrDeadline
                     | Self::MonotonicDeadline
                     | Self::TaskJoin
+                    | Self::TaskRace
             ),
             may_block: matches!(
                 self,
@@ -405,6 +409,7 @@ impl PrimitiveRole {
                     | Self::DescriptorReadinessOrDeadline
                     | Self::MonotonicDeadline
                     | Self::TaskJoin
+                    | Self::TaskRace
             ),
         }
     }
@@ -585,6 +590,7 @@ mod tests {
                 PrimitiveRole::DescriptorReadinessOrDeadline,
                 PrimitiveRole::MonotonicDeadline,
                 PrimitiveRole::TaskJoin,
+                PrimitiveRole::TaskRace,
             ]
         );
     }
@@ -630,6 +636,7 @@ mod tests {
                 PrimitiveRole::DescriptorReadinessOrDeadline,
                 PrimitiveRole::MonotonicDeadline,
                 PrimitiveRole::TaskJoin,
+                PrimitiveRole::TaskRace,
             ]
         );
     }
