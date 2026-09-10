@@ -3,7 +3,7 @@
 see ./index.nct
 
 #target: "arm64-darwin"
-noalloc primitive func get_address_info_raw(
+noalloc blocking primitive func get_address_info_raw(
     node: *u8,
     service: *u8,
     hints: *u8,
@@ -14,7 +14,7 @@ noalloc primitive func get_address_info_raw(
 noalloc primitive func free_address_info_raw(result: *u8): void
 
 #target: "arm64-darwin"
-noalloc func call_get_address_info(
+noalloc blocking func call_get_address_info(
     node: *u8,
     service: *u8,
     hints: *u8,

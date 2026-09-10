@@ -10,7 +10,7 @@ struct ResolverResults {
     raw: darwin.RawResolverResults
 }
 
-noalloc func resolve_host_once(node: *u8): ResolveAttempt {
+noalloc blocking func resolve_host_once(node: *u8): ResolveAttempt {
     let attempt = darwin.resolve_host_once(node)
     match move attempt {
         RawResolveAttempt.ready(raw) {

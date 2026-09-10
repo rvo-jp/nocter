@@ -66,6 +66,11 @@ Target contract validation compares source modifiers with the first fact and req
 fact for every primitive result whose outer structural type is `future`. Later target and native
 lowering consume the selected role without reopening either decision.
 
+Closed target services carry the same invocation fact. The target-service catalog marks Darwin
+`getaddrinfo` as possibly blocking and `freeaddrinfo` as nonblocking; target closure rejects a
+source declaration whose `blocking` modifier disagrees. The source resolver therefore propagates
+one catalog-owned fact rather than inferring behavior from a foreign symbol or module path.
+
 The v0.45.0 migration inventory classifies current roles as follows:
 
 | Classification | Current roles | Required action |
@@ -111,6 +116,11 @@ and NUL-terminated host/service storage, while distinct closed primitive roles s
 host endpoint creation. Network.framework owns DNS progress and address selection after the future
 starts. TLS extends the same host constructor with authentication parameters; it does not run a
 second resolver or reproduce connection fallback policy in source.
+
+The explicitly synchronous resolver remains a separate API and calls the blocking `getaddrinfo`
+target service. `net.resolve`, `net.try_resolve`, synchronous host-based TCP and TLS constructors,
+and synchronous HTTP sends propagate that effect. None of those annotations are reused to
+classify the provider-backed asynchronous path.
 
 ## Standard-Library Migration Inventory
 

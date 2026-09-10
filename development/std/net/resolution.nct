@@ -79,7 +79,7 @@ func numeric_result(
     return HostResolutionAttempt.ready(move addresses)
 }
 
-func resolve_core(
+blocking func resolve_core(
     allocator: &+TryAllocator,
     host: &str,
     port: u16,
@@ -139,7 +139,7 @@ func resolve_core(
     return numeric_result(allocator, numeric, port)
 }
 
-func resolve(host: &str, port: u16): Vec<SocketAddress>! {
+blocking func resolve(host: &str, port: u16): Vec<SocketAddress>! {
     var allocator = mem_module.current_try_allocator()
     let attempt = resolve_core(&+allocator, host, port)
     match move attempt {
@@ -150,7 +150,7 @@ func resolve(host: &str, port: u16): Vec<SocketAddress>! {
     }
 }
 
-func try_resolve(
+blocking func try_resolve(
     allocator: &+TryAllocator,
     host: &str,
     port: u16,
@@ -220,13 +220,17 @@ func connect_host_async_with_timeout(
 }
 
 construct TcpStream {
-    func connect_host(host: &str, port: u16): Self! {
+    blocking func connect_host(host: &str, port: u16): Self! {
         var deadline = substrate.connection_deadline(none)
         let addresses = resolve(host, port)?
         return connect_resolved(&addresses, &+deadline)
     }
 
-    func connect_host_with_timeout(host: &str, port: u16, timeout: Duration): Self! {
+    blocking func connect_host_with_timeout(
+        host: &str,
+        port: u16,
+        timeout: Duration,
+    ): Self! {
         var deadline = substrate.connection_deadline(timeout)
         let addresses = resolve(host, port)?
         return connect_resolved(&addresses, &+deadline)

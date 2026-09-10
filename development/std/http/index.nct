@@ -258,9 +258,9 @@ instance Client {
     pub method self.with_trust_anchor(trust_anchor: TrustAnchor): Self
 
     /// Sends one request over one new connection and returns its final response.
-    pub method &self.send(request: Request): Response!
+    pub blocking method &self.send(request: Request): Response!
 
-    /// Resolves immediately, then lazily connects, sends, and receives without blocking the executor.
+    /// Lazily resolves, connects, sends, and receives without blocking the executor.
     pub method &self.send_async(request: Request): (future Response!)!
 
     /// Performs each asynchronous transport operation with an explicit timeout.
@@ -270,7 +270,7 @@ instance Client {
     ): (future Response!)!
 
     /// Sends with one connection deadline and per-operation stream timeouts.
-    pub method &self.send_with_timeout(request: Request, timeout: Duration): Response!
+    pub blocking method &self.send_with_timeout(request: Request, timeout: Duration): Response!
 }
 
 /// One uniquely owned response body stream and its parsed response head.

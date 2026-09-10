@@ -2247,7 +2247,7 @@ mod tests {
             "use std/http.{Client, Request}\n",
             "use std/io.Reader\n",
             "use std/url.Url\n",
-            "func main(): void! {\n",
+            "blocking func main(): void! {\n",
             "    let url = Url.parse(\"http://localhost/\")?\n",
             "    let request = Request.get(move url)?\n",
             "    let client = Client.new()\n",
@@ -2285,7 +2285,7 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("pub method &Client.send(request: Request): Response!"),
+            response.contains("pub blocking method &Client.send(request: Request): Response!"),
             "{response}"
         );
         assert!(!response.contains("limits_value"), "{response}");
@@ -2305,7 +2305,7 @@ mod tests {
         ));
         let response = signature.response().unwrap();
         assert!(
-            response.contains("method &Client.send(request: Request): Response!"),
+            response.contains("blocking method &Client.send(request: Request): Response!"),
             "{response}"
         );
         assert!(response.contains("\"activeParameter\":0"), "{response}");
@@ -2624,7 +2624,7 @@ mod tests {
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = concat!(
             "use std/net\n",
-            "func main(): void! {\n",
+            "blocking func main(): void! {\n",
             "    let addresses = net.resolve(\"localhost\", 80)?\n",
             "    let stream = net.TcpStream.connect_host(\"localhost\", 80)?\n",
             "    return\n",
@@ -2660,7 +2660,9 @@ mod tests {
         ));
         let response = signature.response().unwrap();
         assert!(
-            response.contains("func TcpStream.connect_host(host: &str, port: u16): TcpStream!"),
+            response.contains(
+                "blocking func TcpStream.connect_host(host: &str, port: u16): TcpStream!"
+            ),
             "{response}"
         );
         assert!(response.contains("\"activeParameter\":1"), "{response}");

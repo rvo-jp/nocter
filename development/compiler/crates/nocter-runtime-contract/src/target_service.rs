@@ -77,6 +77,7 @@ impl TargetServiceRole {
             Self::DarwinGetAddressInfo => TargetServiceDescriptor::new(
                 CompilationTarget::Arm64Darwin,
                 TargetServiceCallingConvention::PlatformC,
+                true,
                 RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSystem, "_getaddrinfo")
                     .expect("catalog symbol is valid"),
                 TargetServiceSignature::new(
@@ -92,6 +93,7 @@ impl TargetServiceRole {
             Self::DarwinFreeAddressInfo => TargetServiceDescriptor::new(
                 CompilationTarget::Arm64Darwin,
                 TargetServiceCallingConvention::PlatformC,
+                false,
                 RuntimeFunctionImport::new(RuntimeLibraryIdentity::DarwinSystem, "_freeaddrinfo")
                     .expect("catalog symbol is valid"),
                 TargetServiceSignature::new([TargetServiceValueAbi::Pointer], None),
@@ -105,6 +107,7 @@ impl TargetServiceRole {
 pub struct TargetServiceDescriptor {
     target: CompilationTarget,
     calling_convention: TargetServiceCallingConvention,
+    may_block: bool,
     import: RuntimeFunctionImport,
     signature: TargetServiceSignature,
 }
@@ -114,12 +117,14 @@ impl TargetServiceDescriptor {
     const fn new(
         target: CompilationTarget,
         calling_convention: TargetServiceCallingConvention,
+        may_block: bool,
         import: RuntimeFunctionImport,
         signature: TargetServiceSignature,
     ) -> Self {
         Self {
             target,
             calling_convention,
+            may_block,
             import,
             signature,
         }
@@ -133,6 +138,12 @@ impl TargetServiceDescriptor {
     #[must_use]
     pub const fn calling_convention(&self) -> TargetServiceCallingConvention {
         self.calling_convention
+    }
+
+    /// Whether invoking this foreign service may wait synchronously for external progress.
+    #[must_use]
+    pub const fn may_block(&self) -> bool {
+        self.may_block
     }
 
     #[must_use]
@@ -316,6 +327,12 @@ mod tests {
         );
         let descriptor = registry.bindings()[0].descriptor();
         assert_eq!(descriptor.target(), CompilationTarget::Arm64Darwin);
+        assert!(descriptor.may_block());
+        assert!(
+            !TargetServiceRole::DarwinFreeAddressInfo
+                .descriptor()
+                .may_block()
+        );
         assert_eq!(
             descriptor.calling_convention(),
             TargetServiceCallingConvention::PlatformC

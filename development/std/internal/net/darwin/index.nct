@@ -352,7 +352,7 @@ pub(/) enum RawResolveAttempt {
 
 /// Starts one system resolver query for a validated null-terminated host.
 #target: "arm64-darwin"
-pub(/) noalloc func resolve_host_once(node: *u8): RawResolveAttempt
+pub(/) noalloc blocking func resolve_host_once(node: *u8): RawResolveAttempt
 
 instance RawResolverResults {
     /// Returns the next usable logical address without exposing a native record.

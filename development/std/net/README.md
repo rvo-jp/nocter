@@ -39,7 +39,8 @@ generators.
 operation with recoverable result storage from an explicit `TryAllocator`. A numeric IPv4 or IPv6
 host bypasses the system resolver. Other hosts use the operating-system resolver with TCP-family
 hints, retain its usable IPv4 and IPv6 order, apply the requested logical port, and remove only
-exact duplicate addresses.
+exact duplicate addresses. Both operations are explicitly `blocking` because that system resolver
+may synchronously wait for external progress.
 
 Native resolver records never cross the target adapter. The adapter validates each native record,
 copies only its logical address, and owns the complete result list until destruction releases it
@@ -52,7 +53,7 @@ restart it for each candidate. The platform resolver is a synchronous operating-
 cannot itself be interrupted by this timeout. Time spent resolving still consumes the deadline, so
 connection work cannot receive a fresh duration afterward. As with other zero-duration network
 operations, one immediate connection attempt is permitted and later candidates require remaining
-time.
+time. Both host constructors carry the resolver's `blocking` effect.
 
 `net.connect_host_async` and `net.connect_host_async_with_timeout` validate and copy NUL-terminated
 host and decimal service text before returning. Invalid input is the outer failure. Success

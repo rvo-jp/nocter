@@ -5,7 +5,7 @@ use std/process
 use std/time.Duration
 use std/url.Url
 
-func run(): i32 {
+blocking func run(): i32 {
     let source = process.arg(1) catch failure {
         report_failure(&failure) catch _ { return 2 }
         return 2
@@ -20,7 +20,7 @@ func run(): i32 {
     return 0
 }
 
-func fetch(source: &str): void! {
+blocking func fetch(source: &str): void! {
     let url = Url.parse(source)?
     let request = Request.get(move url)?
     let client = Client.new()

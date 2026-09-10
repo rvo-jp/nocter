@@ -19,7 +19,7 @@ noalloc func plain_client_transport(stream: TcpStream): ClientTransport {
     return ClientTransport.plain(move stream)
 }
 
-func connect_secure_client_transport(
+blocking func connect_secure_client_transport(
     url: &Url,
     trust: &ClientTrust,
     timeout: Duration?,
@@ -55,7 +55,7 @@ func connect_secure_client_transport(
     }
 }
 
-func connect_client_transport(
+blocking func connect_client_transport(
     url: &Url,
     trust: &ClientTrust,
     timeout: Duration?,

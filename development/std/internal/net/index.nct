@@ -227,7 +227,7 @@ pub(/) enum ResolveAttempt {
 }
 
 /// Starts one system resolver query for a validated null-terminated host.
-pub(/) noalloc func resolve_host_once(node: *u8): ResolveAttempt
+pub(/) noalloc blocking func resolve_host_once(node: *u8): ResolveAttempt
 
 pub(/) enum NetworkShutdown {
     read

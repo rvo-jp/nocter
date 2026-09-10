@@ -125,7 +125,7 @@ instance Client {
         }
     }
 
-    method &self.send(request: Request): Response! {
+    blocking method &self.send(request: Request): Response! {
         let prepared = prepare_request(move request, self.limits_value)?
         let stream = connect_client_transport(
             &prepared.request.url_value,
@@ -137,7 +137,7 @@ instance Client {
         return send_over_transport(move prepared, move stream)?
     }
 
-    method &self.send_with_timeout(request: Request, timeout: Duration): Response! {
+    blocking method &self.send_with_timeout(request: Request, timeout: Duration): Response! {
         let prepared = prepare_request(move request, self.limits_value)?
         let stream = connect_client_transport(
             &prepared.request.url_value,

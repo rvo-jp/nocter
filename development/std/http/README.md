@@ -33,13 +33,15 @@ status 101 is rejected because the API does not transfer the upgraded stream. `R
 the final status and fields and implements `Reader` for decoded body bytes. Completion, decoding or
 network failure, explicit `close`, and destruction of an unfinished response all transfer the
 connection through its exact-once nonwaiting disposal boundary. There is no pooling, redirect
-following, request replay, decompression, or connection reuse.
+following, request replay, decompression, or connection reuse. `send` and `send_with_timeout` are
+explicitly `blocking`; their synchronous transport setup uses the synchronous system resolver.
 
 `Client.send_async` has an immediate outer result and a lazy inner computation. Request validation,
-request-head encoding, and synchronous host resolution finish before the method returns. Awaiting
-the inner computation connects, writes the complete request, and receives the final response head
-without blocking the executor thread. Dropping that computation cancels the connection or stream
-it uniquely owns through the ordinary async lifecycle.
+request-head encoding, and owned host-endpoint construction finish before the method returns.
+Awaiting the inner computation asks the operating-system provider to resolve and connect the host,
+then writes the complete request and receives the final response head without blocking the executor
+thread. Dropping that computation cancels the connection or stream it uniquely owns through the
+ordinary async lifecycle.
 
 `Response.read_async` uses the selected asynchronous transport while advancing the same decoder,
 pending bytes, completion flag, and uniquely owned stream used by `read`. Synchronous and
@@ -59,10 +61,11 @@ Transport, framing, timeout, or final UTF-8 validation failure returns no partia
 UTF-8 failure occurs after the complete body has been consumed.
 
 `send_async_with_timeout` applies its `Duration` to the existing shared connection deadline, each
-complete request-head or request-body write, and each idle wait for more response-head input. Host
-resolution remains synchronous and consumes time from the connection deadline; retaining the lazy
-computation before awaiting it does not restart that deadline. Receiving head bytes begins a new
-idle interval. The timeout is not a deadline for the complete response.
+complete request-head or request-body write, and each idle wait for more response-head input. The
+connection deadline starts when the lazy computation begins and covers provider resolution and
+connection; retaining the computation before awaiting it does not consume or restart that
+deadline. Receiving head bytes begins a new idle interval. The timeout is not a deadline for the
+complete response.
 
 `read_async_with_timeout` bounds the idle interval before the next transport input needed by one
 body-read call. Buffered decoded bytes return immediately. Each received framing or body fragment

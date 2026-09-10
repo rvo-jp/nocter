@@ -10,7 +10,8 @@ behavior shared by those declarations.
 numeric addresses in system order, and authenticates the requested host against the operating
 system trust store. The host text remains the authentication identity even when connection falls
 back between IPv6 and IPv4 candidates. TLS 1.2 is the minimum accepted protocol version; the
-operating-system provider may negotiate a newer version.
+operating-system provider may negotiate a newer version. Every synchronous host constructor is
+explicitly `blocking` because this path uses the synchronous system resolver.
 
 `TrustAnchor.from_der` copies one non-empty DER certificate. The custom-trust connection
 operations add that certificate to the operating-system roots; they do not replace system trust or
@@ -23,7 +24,7 @@ borrow the caller's `TrustAnchor` after returning.
 returning a deferred computation. Invalid host input belongs to the outer result. Provider
 resolution, authentication, and transport failure belong to the awaited result. The timeout
 variant starts one monotonic deadline when the future begins and preserves it across provider
-resolution and authentication.
+resolution and authentication. These operations do not call the synchronous resolver.
 
 The `std/http` client selects this authenticated transport for `https` URLs. Its
 `with_trust_anchor` policy carries one additional root through the TLS-owned connection boundary;

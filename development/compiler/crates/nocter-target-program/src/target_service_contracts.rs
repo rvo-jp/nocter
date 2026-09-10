@@ -4,7 +4,8 @@ use nocter_declarations::{
     CallableKind, CallableOwner, DeclarationGraph, ParameterOwner, ParameterRole, Visibility,
 };
 use nocter_model::{
-    AllocationGuarantee, BuiltinType, CallableId, CompilationTarget, TypeId, TypeKind, TypeStore,
+    AllocationGuarantee, BuiltinType, CallableId, CompilationTarget, NonblockingGuarantee, TypeId,
+    TypeKind, TypeStore,
 };
 use nocter_runtime_contract::{TargetServiceRole, TargetServiceValueAbi};
 
@@ -132,6 +133,14 @@ fn validate_binding(
         return Err(fail(TargetServiceContractRule::Body));
     }
     if declaration.guarantees().allocation() != AllocationGuarantee::NoAllocation {
+        return Err(fail(TargetServiceContractRule::Guarantees));
+    }
+    let expected_nonblocking = if descriptor.may_block() {
+        NonblockingGuarantee::Unspecified
+    } else {
+        NonblockingGuarantee::Nonblocking
+    };
+    if declaration.guarantees().nonblocking() != expected_nonblocking {
         return Err(fail(TargetServiceContractRule::Guarantees));
     }
     if declaration.target_gate() != Some(descriptor.target()) {
