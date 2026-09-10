@@ -13,16 +13,16 @@ use crate::{
     emit_darwin_network_owner_release, emit_darwin_network_owner_transition,
 };
 
-/// Native callable targets for the complete terminal lifecycle of one connection owner.
+/// Native callable targets for the complete terminal lifecycle of one provider owner.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Arm64DarwinNetworkConnectionLifecycleTargets {
+pub struct Arm64DarwinNetworkOwnerLifecycleTargets {
     start: Arm64FunctionId,
     request_cancel: Arm64FunctionId,
     complete_release_barrier: Arm64FunctionId,
     release: Arm64FunctionId,
 }
 
-impl Arm64DarwinNetworkConnectionLifecycleTargets {
+impl Arm64DarwinNetworkOwnerLifecycleTargets {
     #[must_use]
     pub const fn start(self) -> Arm64FunctionId {
         self.start
@@ -44,7 +44,7 @@ impl Arm64DarwinNetworkConnectionLifecycleTargets {
     }
 }
 
-/// Adds the only production call targets that advance and release a connection owner.
+/// Adds the only production call targets that advance and release one provider-owner family.
 ///
 /// Every target accepts the owner address in `x0`. The barrier target performs
 /// `dispatch_sync_f` on the owner's serial queue before committing the quiesced state; release is
@@ -53,11 +53,13 @@ impl Arm64DarwinNetworkConnectionLifecycleTargets {
 /// # Errors
 ///
 /// Propagates malformed runtime contracts and ARM64 program/code construction failures.
-pub(crate) fn add_darwin_network_connection_lifecycle_targets(
+pub(crate) fn add_darwin_network_owner_lifecycle_targets(
     program: &mut Arm64ProgramBuilder,
     imports: &Arm64DarwinNetworkAdapterImports,
-) -> Result<Arm64DarwinNetworkConnectionLifecycleTargets, Arm64DarwinNetworkConnectionLifecycleError>
-{
+    kind: DarwinNetworkOwnerKind,
+    start_import: DarwinNetworkAdapterFunction,
+    cancel_import: DarwinNetworkAdapterFunction,
+) -> Result<Arm64DarwinNetworkOwnerLifecycleTargets, Arm64DarwinNetworkOwnerLifecycleError> {
     let start = program.declare_function();
     let request_cancel = program.declare_function();
     let complete_release_barrier = program.declare_function();
@@ -68,26 +70,28 @@ pub(crate) fn add_darwin_network_connection_lifecycle_targets(
         start,
         owner_import_operation(
             imports,
+            kind,
             DarwinNetworkAdapterOperation::Start,
-            DarwinNetworkAdapterFunction::ConnectionStart,
+            start_import,
         )?,
     )?;
     program.define_function(
         request_cancel,
         owner_import_operation(
             imports,
+            kind,
             DarwinNetworkAdapterOperation::RequestCancel,
-            DarwinNetworkAdapterFunction::ConnectionCancel,
+            cancel_import,
         )?,
     )?;
     program.define_function(barrier_callback, return_only()?)?;
     program.define_function(
         complete_release_barrier,
-        complete_barrier(imports, barrier_callback)?,
+        complete_barrier(imports, kind, barrier_callback)?,
     )?;
-    program.define_function(release, release_owner(imports)?)?;
+    program.define_function(release, release_owner(imports, kind)?)?;
 
-    Ok(Arm64DarwinNetworkConnectionLifecycleTargets {
+    Ok(Arm64DarwinNetworkOwnerLifecycleTargets {
         start,
         request_cancel,
         complete_release_barrier,
@@ -97,18 +101,13 @@ pub(crate) fn add_darwin_network_connection_lifecycle_targets(
 
 fn owner_import_operation(
     imports: &Arm64DarwinNetworkAdapterImports,
+    kind: DarwinNetworkOwnerKind,
     operation: DarwinNetworkAdapterOperation,
     imported: DarwinNetworkAdapterFunction,
-) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionLifecycleError> {
+) -> Result<crate::Arm64Code, Arm64DarwinNetworkOwnerLifecycleError> {
     let mut code = Arm64CodeBuilder::new();
     owner_prologue(&mut code);
-    emit_darwin_network_owner_transition(
-        &mut code,
-        x(19),
-        DarwinNetworkOwnerKind::Connection,
-        operation,
-        imports,
-    )?;
+    emit_darwin_network_owner_transition(&mut code, x(19), kind, operation, imports)?;
     load_owner_field(
         &mut code,
         x(0),
@@ -122,14 +121,15 @@ fn owner_import_operation(
 
 fn complete_barrier(
     imports: &Arm64DarwinNetworkAdapterImports,
+    kind: DarwinNetworkOwnerKind,
     barrier_callback: Arm64FunctionId,
-) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionLifecycleError> {
+) -> Result<crate::Arm64Code, Arm64DarwinNetworkOwnerLifecycleError> {
     let mut code = Arm64CodeBuilder::new();
     owner_prologue(&mut code);
     emit_darwin_network_owner_guard(
         &mut code,
         x(19),
-        DarwinNetworkOwnerKind::Connection,
+        kind,
         DarwinNetworkAdapterOperation::CompleteReleaseBarrier,
         imports,
     )?;
@@ -143,7 +143,7 @@ fn complete_barrier(
     emit_darwin_network_owner_transition(
         &mut code,
         x(19),
-        DarwinNetworkOwnerKind::Connection,
+        kind,
         DarwinNetworkAdapterOperation::CompleteReleaseBarrier,
         imports,
     )?;
@@ -153,20 +153,16 @@ fn complete_barrier(
 
 fn release_owner(
     imports: &Arm64DarwinNetworkAdapterImports,
-) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionLifecycleError> {
+    kind: DarwinNetworkOwnerKind,
+) -> Result<crate::Arm64Code, Arm64DarwinNetworkOwnerLifecycleError> {
     let mut code = Arm64CodeBuilder::new();
     owner_prologue(&mut code);
-    emit_darwin_network_owner_release(
-        &mut code,
-        x(19),
-        DarwinNetworkOwnerKind::Connection,
-        imports,
-    )?;
+    emit_darwin_network_owner_release(&mut code, x(19), kind, imports)?;
     owner_epilogue(&mut code);
     code.finish().map_err(Into::into)
 }
 
-fn return_only() -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionLifecycleError> {
+fn return_only() -> Result<crate::Arm64Code, Arm64DarwinNetworkOwnerLifecycleError> {
     let mut code = Arm64CodeBuilder::new();
     code.append(Arm64Instruction::BranchRegister {
         target: x(30),
@@ -197,9 +193,9 @@ fn load_owner_field(
     destination: Arm64Register,
     owner: Arm64Register,
     field: DarwinNetworkOwnerField,
-) -> Result<(), Arm64DarwinNetworkConnectionLifecycleError> {
+) -> Result<(), Arm64DarwinNetworkOwnerLifecycleError> {
     let offset = u32::try_from(DarwinNetworkOwnerAbiSchema::ARM64_DARWIN.offset(field))
-        .map_err(|_| Arm64DarwinNetworkConnectionLifecycleError::ContractLayout)?;
+        .map_err(|_| Arm64DarwinNetworkOwnerLifecycleError::ContractLayout)?;
     code.append(Arm64Instruction::LoadUnsigned {
         size: Arm64LoadStoreSize::Double,
         destination: Arm64DataRegister::General(destination),
@@ -213,9 +209,9 @@ fn immediate(
     code: &mut Arm64CodeBuilder,
     destination: Arm64Register,
     value: u64,
-) -> Result<(), Arm64DarwinNetworkConnectionLifecycleError> {
-    let immediate = u16::try_from(value)
-        .map_err(|_| Arm64DarwinNetworkConnectionLifecycleError::ContractLayout)?;
+) -> Result<(), Arm64DarwinNetworkOwnerLifecycleError> {
+    let immediate =
+        u16::try_from(value).map_err(|_| Arm64DarwinNetworkOwnerLifecycleError::ContractLayout)?;
     code.append(Arm64Instruction::MoveWide {
         size: Arm64DataSize::Bits64,
         operation: crate::Arm64MoveWide::Zero,
@@ -281,23 +277,23 @@ fn x(number: u8) -> Arm64Register {
 }
 
 #[derive(Debug)]
-pub enum Arm64DarwinNetworkConnectionLifecycleError {
+pub enum Arm64DarwinNetworkOwnerLifecycleError {
     ContractLayout,
     Owner(Arm64DarwinNetworkOwnerError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
 
-impl fmt::Display for Arm64DarwinNetworkConnectionLifecycleError {
+impl fmt::Display for Arm64DarwinNetworkOwnerLifecycleError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             formatter,
-            "ARM64 Darwin connection lifecycle failed: {self:?}"
+            "ARM64 Darwin network owner lifecycle failed: {self:?}"
         )
     }
 }
 
-impl std::error::Error for Arm64DarwinNetworkConnectionLifecycleError {
+impl std::error::Error for Arm64DarwinNetworkOwnerLifecycleError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Owner(error) => Some(error),
@@ -308,19 +304,19 @@ impl std::error::Error for Arm64DarwinNetworkConnectionLifecycleError {
     }
 }
 
-impl From<Arm64DarwinNetworkOwnerError> for Arm64DarwinNetworkConnectionLifecycleError {
+impl From<Arm64DarwinNetworkOwnerError> for Arm64DarwinNetworkOwnerLifecycleError {
     fn from(error: Arm64DarwinNetworkOwnerError) -> Self {
         Self::Owner(error)
     }
 }
 
-impl From<Arm64CodeError> for Arm64DarwinNetworkConnectionLifecycleError {
+impl From<Arm64CodeError> for Arm64DarwinNetworkOwnerLifecycleError {
     fn from(error: Arm64CodeError) -> Self {
         Self::Code(error)
     }
 }
 
-impl From<Arm64ProgramError> for Arm64DarwinNetworkConnectionLifecycleError {
+impl From<Arm64ProgramError> for Arm64DarwinNetworkOwnerLifecycleError {
     fn from(error: Arm64ProgramError) -> Self {
         Self::Program(error)
     }
@@ -328,15 +324,23 @@ impl From<Arm64ProgramError> for Arm64DarwinNetworkConnectionLifecycleError {
 
 #[cfg(test)]
 mod tests {
-    use super::add_darwin_network_connection_lifecycle_targets;
+    use nocter_runtime_contract::{DarwinNetworkAdapterFunction, DarwinNetworkOwnerKind};
+
+    use super::add_darwin_network_owner_lifecycle_targets;
     use crate::{Arm64DarwinNetworkAdapterImports, Arm64ProgramBuilder};
 
     #[test]
     fn lifecycle_targets_are_one_complete_distinct_set() {
         let mut program = Arm64ProgramBuilder::new();
         let imports = Arm64DarwinNetworkAdapterImports::declare(&mut program).unwrap();
-        let targets =
-            add_darwin_network_connection_lifecycle_targets(&mut program, &imports).unwrap();
+        let targets = add_darwin_network_owner_lifecycle_targets(
+            &mut program,
+            &imports,
+            DarwinNetworkOwnerKind::Connection,
+            DarwinNetworkAdapterFunction::ConnectionStart,
+            DarwinNetworkAdapterFunction::ConnectionCancel,
+        )
+        .unwrap();
         let functions = [
             targets.start(),
             targets.request_cancel(),

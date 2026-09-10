@@ -2,22 +2,22 @@ use std::fmt;
 
 use nocter_runtime_contract::{
     DarwinNetworkAdapterData, DarwinNetworkAdapterFunction, DarwinNetworkCallbackRole,
-    DarwinNetworkOwnerCreateStatus,
+    DarwinNetworkOwnerCreateStatus, DarwinNetworkOwnerKind,
 };
 
 use crate::darwin_network_connection_address::add_darwin_network_connection_address_targets;
 use crate::darwin_network_connection_event::add_darwin_network_connection_event_targets;
-use crate::darwin_network_connection_lifecycle::add_darwin_network_connection_lifecycle_targets;
 use crate::darwin_network_connection_transfer::add_darwin_network_connection_transfer_targets;
+use crate::darwin_network_owner_lifecycle::add_darwin_network_owner_lifecycle_targets;
 
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinBlockError, Arm64DarwinNetworkAdapterImports,
     Arm64DarwinNetworkCallbackError, Arm64DarwinNetworkConnectionAddressError,
     Arm64DarwinNetworkConnectionAddressTargets, Arm64DarwinNetworkConnectionEventError,
-    Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionLifecycleError,
-    Arm64DarwinNetworkConnectionLifecycleTargets, Arm64DarwinNetworkConnectionTransferError,
+    Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionTransferError,
     Arm64DarwinNetworkConnectionTransferTargets, Arm64DarwinNetworkOwnerError,
+    Arm64DarwinNetworkOwnerLifecycleError, Arm64DarwinNetworkOwnerLifecycleTargets,
     Arm64DarwinNetworkOwnerResources, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
     Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
     add_darwin_network_state_callback, add_darwin_pointer_capture_block_descriptor,
@@ -31,7 +31,7 @@ pub struct Arm64DarwinNetworkConnectionTargets {
     create: Arm64FunctionId,
     state_callback: Arm64FunctionId,
     state_block: crate::Arm64DarwinBlockDescriptorId,
-    lifecycle: Arm64DarwinNetworkConnectionLifecycleTargets,
+    lifecycle: Arm64DarwinNetworkOwnerLifecycleTargets,
     events: Arm64DarwinNetworkConnectionEventTargets,
     addresses: Arm64DarwinNetworkConnectionAddressTargets,
     transfers: Arm64DarwinNetworkConnectionTransferTargets,
@@ -54,7 +54,7 @@ impl Arm64DarwinNetworkConnectionTargets {
     }
 
     #[must_use]
-    pub const fn lifecycle(self) -> Arm64DarwinNetworkConnectionLifecycleTargets {
+    pub const fn lifecycle(self) -> Arm64DarwinNetworkOwnerLifecycleTargets {
         self.lifecycle
     }
 
@@ -101,7 +101,13 @@ pub fn add_darwin_plain_connection_targets(
     let create = program.declare_function();
     let code = connection_create_code(imports, state_callback, state_block, queue_label)?;
     program.define_function(create, code.finish()?)?;
-    let lifecycle = add_darwin_network_connection_lifecycle_targets(program, imports)?;
+    let lifecycle = add_darwin_network_owner_lifecycle_targets(
+        program,
+        imports,
+        DarwinNetworkOwnerKind::Connection,
+        DarwinNetworkAdapterFunction::ConnectionStart,
+        DarwinNetworkAdapterFunction::ConnectionCancel,
+    )?;
     let events = add_darwin_network_connection_event_targets(program, imports)?;
     let addresses = add_darwin_network_connection_address_targets(program, imports)?;
     let transfers = add_darwin_network_connection_transfer_targets(program, imports)?;
@@ -485,7 +491,7 @@ pub enum Arm64DarwinNetworkConnectionError {
     Block(Arm64DarwinBlockError),
     Callback(Arm64DarwinNetworkCallbackError),
     Owner(Arm64DarwinNetworkOwnerError),
-    Lifecycle(Arm64DarwinNetworkConnectionLifecycleError),
+    Lifecycle(Arm64DarwinNetworkOwnerLifecycleError),
     Event(Arm64DarwinNetworkConnectionEventError),
     Address(Arm64DarwinNetworkConnectionAddressError),
     Transfer(Arm64DarwinNetworkConnectionTransferError),
@@ -532,7 +538,7 @@ macro_rules! convert_error {
 convert_error!(Arm64DarwinBlockError, Block);
 convert_error!(Arm64DarwinNetworkCallbackError, Callback);
 convert_error!(Arm64DarwinNetworkOwnerError, Owner);
-convert_error!(Arm64DarwinNetworkConnectionLifecycleError, Lifecycle);
+convert_error!(Arm64DarwinNetworkOwnerLifecycleError, Lifecycle);
 convert_error!(Arm64DarwinNetworkConnectionEventError, Event);
 convert_error!(Arm64DarwinNetworkConnectionAddressError, Address);
 convert_error!(Arm64DarwinNetworkConnectionTransferError, Transfer);

@@ -40,9 +40,10 @@ mod darwin_network_channel;
 mod darwin_network_connection;
 mod darwin_network_connection_address;
 mod darwin_network_connection_event;
-mod darwin_network_connection_lifecycle;
 mod darwin_network_connection_transfer;
 mod darwin_network_owner;
+mod darwin_network_owner_event;
+mod darwin_network_owner_lifecycle;
 mod darwin_network_primitive_targets;
 mod destruction_selection;
 mod encode;
@@ -142,9 +143,6 @@ pub use darwin_network_connection_address::{
 pub use darwin_network_connection_event::{
     Arm64DarwinNetworkConnectionEventError, Arm64DarwinNetworkConnectionEventTargets,
 };
-pub use darwin_network_connection_lifecycle::{
-    Arm64DarwinNetworkConnectionLifecycleError, Arm64DarwinNetworkConnectionLifecycleTargets,
-};
 pub use darwin_network_connection_transfer::{
     Arm64DarwinNetworkConnectionTransferError, Arm64DarwinNetworkConnectionTransferTargets,
 };
@@ -152,6 +150,10 @@ pub use darwin_network_owner::{
     Arm64DarwinNetworkOwnerError, Arm64DarwinNetworkOwnerResources,
     emit_darwin_network_owner_guard, emit_darwin_network_owner_initialize,
     emit_darwin_network_owner_release, emit_darwin_network_owner_transition,
+};
+pub use darwin_network_owner_event::Arm64DarwinNetworkOwnerEventError;
+pub use darwin_network_owner_lifecycle::{
+    Arm64DarwinNetworkOwnerLifecycleError, Arm64DarwinNetworkOwnerLifecycleTargets,
 };
 pub use darwin_network_primitive_targets::{
     Arm64DarwinNetworkPrimitive, Arm64DarwinNetworkPrimitiveError,

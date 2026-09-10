@@ -7,12 +7,15 @@ use nocter_runtime_contract::{
     DarwinNetworkOwnerField, DarwinNetworkOwnerKind,
 };
 
+use crate::darwin_network_owner_event::add_darwin_network_owner_event_descriptor_target;
+
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinNetworkAdapterImports,
-    Arm64DarwinNetworkChannelError, Arm64DarwinNetworkOwnerError, Arm64DataRegister, Arm64DataSize,
-    Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError,
-    Arm64Register, emit_darwin_network_event_receive_to_pointer, emit_darwin_network_owner_guard,
+    Arm64DarwinNetworkChannelError, Arm64DarwinNetworkOwnerError,
+    Arm64DarwinNetworkOwnerEventError, Arm64DataRegister, Arm64DataSize, Arm64FunctionId,
+    Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder, Arm64ProgramError, Arm64Register,
+    emit_darwin_network_event_receive_to_pointer, emit_darwin_network_owner_guard,
     emit_darwin_network_owner_transition,
 };
 
@@ -53,37 +56,17 @@ pub(crate) fn add_darwin_network_connection_event_targets(
     program: &mut Arm64ProgramBuilder,
     imports: &Arm64DarwinNetworkAdapterImports,
 ) -> Result<Arm64DarwinNetworkConnectionEventTargets, Arm64DarwinNetworkConnectionEventError> {
-    let descriptor = program.declare_function();
+    let descriptor = add_darwin_network_owner_event_descriptor_target(
+        program,
+        imports,
+        DarwinNetworkOwnerKind::Connection,
+    )?;
     let receive = program.declare_function();
-    program.define_function(descriptor, descriptor_code(imports)?)?;
     program.define_function(receive, receive_code(imports)?)?;
     Ok(Arm64DarwinNetworkConnectionEventTargets {
         descriptor,
         receive,
     })
-}
-
-fn descriptor_code(
-    imports: &Arm64DarwinNetworkAdapterImports,
-) -> Result<crate::Arm64Code, Arm64DarwinNetworkConnectionEventError> {
-    let mut code = Arm64CodeBuilder::new();
-    adjust_stack(&mut code, Arm64AddSubtract::Subtract, 16);
-    store_stack(&mut code, x(19), 0);
-    store_stack(&mut code, x(30), 8);
-    move_register(&mut code, x(19), x(0));
-    emit_darwin_network_owner_guard(
-        &mut code,
-        x(19),
-        DarwinNetworkOwnerKind::Connection,
-        DarwinNetworkAdapterOperation::EventDescriptor,
-        imports,
-    )?;
-    load_owner_field(&mut code, x(0), x(19), DarwinNetworkOwnerField::EventReader)?;
-    load_stack(&mut code, x(19), 0);
-    load_stack(&mut code, x(30), 8);
-    adjust_stack(&mut code, Arm64AddSubtract::Add, 16);
-    return_from_function(&mut code);
-    code.finish().map_err(Into::into)
 }
 
 #[allow(
@@ -738,6 +721,7 @@ const fn x(number: u8) -> Arm64Register {
 pub enum Arm64DarwinNetworkConnectionEventError {
     ContractLayout,
     Owner(Arm64DarwinNetworkOwnerError),
+    OwnerEvent(Arm64DarwinNetworkOwnerEventError),
     Channel(Arm64DarwinNetworkChannelError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
@@ -753,6 +737,7 @@ impl std::error::Error for Arm64DarwinNetworkConnectionEventError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Owner(error) => Some(error),
+            Self::OwnerEvent(error) => Some(error),
             Self::Channel(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
@@ -772,6 +757,7 @@ macro_rules! convert_error {
 }
 
 convert_error!(Arm64DarwinNetworkOwnerError, Owner);
+convert_error!(Arm64DarwinNetworkOwnerEventError, OwnerEvent);
 convert_error!(Arm64DarwinNetworkChannelError, Channel);
 convert_error!(Arm64CodeError, Code);
 convert_error!(Arm64ProgramError, Program);
