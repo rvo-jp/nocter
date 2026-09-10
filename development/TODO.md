@@ -2,9 +2,9 @@
 
 ## Current State
 
-Publication of the qualified v0.43.0 candidate is authorized and in progress. The retained archive
-was built from release-content commit `de4932a08a123b274f8b44df39f706511f549255`; its identity must
-remain unchanged through the public audit.
+Nocter v0.43.0 is published and externally audited. The annotated tag, remote `main`, GitHub latest
+release, retained local candidate, public asset bytes, and extracted installation all resolve to
+the recorded v0.43.0 identities.
 Network.framework now supplies plain TCP and authenticated TLS
 through one owner/event model. System trust, custom-root augmentation, hostname authentication,
 synchronous TLS, asynchronous TLS, HTTP/1.1 ALPN, and custom-trust HTTPS have deterministic local
@@ -12,12 +12,12 @@ native coverage.
 
 ## Next Work
 
-Integrate the public latest-release surfaces into `main`, create and push one annotated `v0.43.0`
-tag, upload the retained archive as the release's only asset, and verify the public tag,
-latest-release endpoint, asset bytes, extracted installation, and remote `main`. Record that
-evidence and stop.
+Plan v0.44.0 as the explicit asynchronous-producer and `future T` type-model change before adding
+more asynchronous APIs or a `noblock` guarantee. Freeze its grammar, callable execution authority,
+ownership semantics, migration boundary, and deletion of the old `async T` inference model before
+implementation begins.
 
-Preserve every published tag and asset, including v0.42.0.
+Preserve every published tag and asset, including v0.43.0.
 
 ## Blockers
 
