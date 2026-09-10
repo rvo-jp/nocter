@@ -2,16 +2,18 @@
 
 ## Current State
 
-Nocter v0.43.0 is published and externally audited. v0.44.0 implementation and qualification are
-complete on `develop-v0.44.0`. The old result-type-driven asynchronous producer model has been
-replaced by an explicit `async` declaration modifier and a separate `future T` structural type
-throughout the frontend, semantic pipeline, standard library, examples, and editor presentation.
+Nocter v0.43.0 is published and externally audited. v0.44.0 implementation and source-tree
+qualification are complete on `develop-v0.44.0`. Its release identity is fixed at `0.44.0`; public
+latest-release references remain at v0.43.0 until the publication commit. The old result-type-driven
+asynchronous producer model has been replaced by an explicit `async` declaration modifier and a
+separate `future T` structural type throughout the compiler and public sources.
 
 ## Next Work
 
-Begin v0.44.0 release preparation only when requested. Recheck release identity, public version
-references, changelog and release notes, archive contents, installation smoke tests, and publication
-state without weakening the completed asynchronous model.
+Commit the release-content identity, run independent complete compiler gates, build the archive
+twice from isolated targets, qualify a fresh installed home from the retained candidate, and record
+exact source and artifact identities. Publication is authorized, but must reuse only that retained
+qualified archive.
 
 Preserve every published tag and asset, including v0.43.0.
 
