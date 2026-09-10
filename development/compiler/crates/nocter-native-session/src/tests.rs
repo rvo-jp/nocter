@@ -2508,7 +2508,11 @@ fn serve_plain_tls_peers_and_require_https_alpn(fixture: &std::net::TcpListener)
                 "HTTPS did not advertise the HTTP/1.1 ALPN protocol"
             );
         }
-        stream.write_all(b"this is not a TLS record").unwrap();
+        if connection_index == 0 {
+            stream.write_all(&[22, 3, 3, 0, 16, 1, 2]).unwrap();
+        } else {
+            stream.write_all(b"this is not a TLS record").unwrap();
+        }
         thread::sleep(Duration::from_millis(100));
     }
 }
@@ -2623,6 +2627,104 @@ fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
 
     let server = thread::spawn(move || serve_plain_tls_peers_and_require_https_alpn(&fixture));
     execute_native_status(image.image(), &package_root.0, "tls-plain-peer", 0);
+    server.join().unwrap();
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn tls_handshake_timeout_source(port: u16) -> String {
+    format!(
+        "use std/http.{{Client, Request}}\n\
+         use std/time.Duration\n\
+         use std/tls as tls\n\
+         use std/tls.TlsStream\n\
+         use std/url.Url\n\
+         \n\
+         func sync_tls_times_out(timeout: Duration): bool {{\n\
+             let _stream = TlsStream.connect_with_timeout(\n\
+                 \"localhost\",\n\
+                 {port},\n\
+                 timeout,\n\
+             ) catch failure {{ return failure.has_code(\"std.net.timed_out\") }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func async_tls_times_out(timeout: Duration): async bool {{\n\
+             let pending = tls.connect_async_with_timeout(\n\
+                 \"localhost\",\n\
+                 {port},\n\
+                 timeout,\n\
+             ) catch _ {{ return false }}\n\
+             let _stream = await pending catch failure {{\n\
+                 return failure.has_code(\"std.net.timed_out\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func sync_https_times_out(client: &Client, timeout: Duration): bool {{\n\
+             let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
+             let request = Request.get(move url) catch _ {{ return false }}\n\
+             let _response = client.send_with_timeout(move request, timeout) catch failure {{\n\
+                 return failure.has_code(\"std.net.timed_out\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func async_https_times_out(client: &Client, timeout: Duration): async bool {{\n\
+             let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
+             let request = Request.get(move url) catch _ {{ return false }}\n\
+             let pending = client.send_async_with_timeout(\n\
+                 move request,\n\
+                 timeout,\n\
+             ) catch _ {{ return false }}\n\
+             let _response = await pending catch failure {{\n\
+                 return failure.has_code(\"std.net.timed_out\")\n\
+             }}\n\
+             return false\n\
+         }}\n\
+         \n\
+         func main(): async i32 {{\n\
+             let timeout = Duration.from_milliseconds(20)\n\
+             if !sync_tls_times_out(timeout) {{ return 1 }}\n\
+             if !await async_tls_times_out(timeout) {{ return 2 }}\n\
+             let client = Client.new()\n\
+             if !sync_https_times_out(&client, timeout) {{ return 3 }}\n\
+             if !await async_https_times_out(&client, timeout) {{ return 4 }}\n\
+             return 0\n\
+         }}\n"
+    )
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[test]
+fn tls_and_https_handshakes_share_the_fixed_timeout_contract() {
+    use std::net::TcpListener;
+    use std::thread;
+    use std::time::Duration;
+
+    let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = fixture.local_addr().unwrap().port();
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source("main.nct", &tls_handshake_timeout_source(port));
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let target = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
+
+    let server = thread::spawn(move || {
+        for _ in 0..4 {
+            let (_stream, _) = fixture.accept().unwrap();
+            thread::sleep(Duration::from_millis(80));
+        }
+    });
+    execute_native_status(image.image(), &package_root.0, "tls-handshake-timeout", 0);
     server.join().unwrap();
 }
 

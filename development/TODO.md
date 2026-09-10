@@ -10,11 +10,12 @@ native coverage.
 
 ## Next Work
 
-Perform Phase 6 failure, lifecycle, tooling, packaging, and security review. Qualify malformed,
-unknown, and expired trust material, truncated handshakes, timeout and cancellation, then exercise
-editor behavior and the packaged toolchain. Keep UDP on its descriptor substrate and keep native
-objects and callbacks compiler-owned; do not add source-level FFI or a general callback escape
-hatch.
+Complete Phase 6 failure, lifecycle, tooling, packaging, and security review. Malformed trust
+material, an unknown root, hostname mismatch, a truncated TLS record, and synchronous and
+asynchronous handshake timeouts are qualified. Close the remaining certificate-validity,
+unfinished-computation ownership, editor, and packaged-toolchain evidence. Keep UDP on its
+descriptor substrate and keep native objects and callbacks compiler-owned; do not add source-level
+FFI or a general callback escape hatch.
 
 Preserve every published tag and asset.
 
