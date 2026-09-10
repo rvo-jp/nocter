@@ -916,7 +916,7 @@ fn standard_text_output_selects_stdout_and_stderr_symmetrically() {
         "output.nct",
         concat!(
             "use std/io\n\n",
-            "func main(): i32! {\n",
+            "blocking func main(): i32! {\n",
             "    io.print(\"out\")?\n",
             "    io.println(\"-line\")?\n",
             "    io.println(\"\")?\n",

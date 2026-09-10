@@ -7,7 +7,7 @@ use /internal/io
 use /internal/os.OSErrorKind
 use /path as path_module
 
-func create_dir(path: &str): void! {
+blocking func create_dir(path: &str): void! {
     let attempt = create_directory_target(path)?
     if attempt is CreateDirectoryAttempt.already_exists {
         return io.io_error_from_kind(OSErrorKind.already_exists)
@@ -15,7 +15,7 @@ func create_dir(path: &str): void! {
     return
 }
 
-func create_dir_all(path: &str): void! {
+blocking func create_dir_all(path: &str): void! {
     path_module.validate(path)?
     if path.len() == 0 {
         return io.io_error_from_kind(OSErrorKind.invalid_input)
@@ -42,14 +42,14 @@ func create_dir_all(path: &str): void! {
     return
 }
 
-func ensure_directory(value: &str): void! {
+blocking func ensure_directory(value: &str): void! {
     let attempt = create_directory_target(value)?
     if attempt is CreateDirectoryAttempt.created { return }
     if existing_path_is_directory_target(value)? { return }
     return io.io_error_from_kind(OSErrorKind.not_directory)
 }
 
-func remove_dir(path: &str): void! {
+blocking func remove_dir(path: &str): void! {
     remove_directory_target(path)?
     return
 }

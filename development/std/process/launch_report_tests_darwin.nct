@@ -8,7 +8,7 @@ use /internal/os/darwin
 use /ptr
 
 #target: "arm64-darwin"
-func authored_launch_report(
+blocking func authored_launch_report(
     stage: i32,
     errno: i32,
     byte_count: usize,
@@ -36,7 +36,7 @@ func authored_launch_report(
 }
 
 #target: "arm64-darwin"
-func closed_launch_report(): LaunchReportAttempt! {
+blocking func closed_launch_report(): LaunchReportAttempt! {
     match create_cloexec_pipe() {
         PipeAttempt.failed(_) {
             return error.new("std.process.test", "closed report pipe creation failed")
@@ -50,7 +50,7 @@ func closed_launch_report(): LaunchReportAttempt! {
 }
 
 #target: "arm64-darwin"
-func failed_launch_report(): LaunchReportAttempt! {
+blocking func failed_launch_report(): LaunchReportAttempt! {
     match create_cloexec_pipe() {
         PipeAttempt.failed(_) {
             return error.new("std.process.test", "failed report pipe creation failed")

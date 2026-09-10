@@ -3,10 +3,10 @@
 see ./index.nct
 
 #target: "arm64-darwin"
-noalloc primitive func syscall0(number: usize): SyscallResult
+noalloc blocking primitive func syscall0(number: usize): SyscallResult
 
 #target: "arm64-darwin"
-noalloc primitive func syscall4(
+noalloc blocking primitive func syscall4(
     number: usize,
     a0: usize,
     a1: usize,

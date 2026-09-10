@@ -5,33 +5,33 @@ use /vec.Vec
 //! Portable byte-stream implementation bodies.
 
 interface Reader {
-    default method &+self.read_to_end(): Vec<u8>! {
+    blocking default method &+self.read_to_end(): Vec<u8>! {
         return collect_bytes(self)?
     }
 
-    default method &+self.read_to_string(): String! {
+    blocking default method &+self.read_to_string(): String! {
         let collected = collect_bytes(self)?
         return String.from_utf8(&collected)?
     }
 }
 
 interface Writer {
-    default method &+self.flush(): void! {
+    blocking default method &+self.flush(): void! {
         return
     }
 
-    default method &+self.write_text(text: &str): void! {
+    blocking default method &+self.write_text(text: &str): void! {
         write_text_to(self, text)?
         return
     }
 
-    default method &+self.write_line(text: &str): void! {
+    blocking default method &+self.write_line(text: &str): void! {
         write_line_to(self, text)?
         return
     }
 }
 
-func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl Reader {
+blocking func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl Reader {
     var result: Vec<u8> = Vec.empty()
     var scratch: Vec<u8> = initialized_scratch(8192)
     while true {
@@ -61,13 +61,13 @@ func initialized_scratch(size: usize): Vec<u8> {
     return move scratch
 }
 
-func write_text_to<W>(writer: &+W, text: &str): void! where W impl Writer {
+blocking func write_text_to<W>(writer: &+W, text: &str): void! where W impl Writer {
     let encoded: &[u8] = text.bytes()
     writer.write(encoded)?
     return
 }
 
-func write_line_to<W>(writer: &+W, text: &str): void! where W impl Writer {
+blocking func write_line_to<W>(writer: &+W, text: &str): void! where W impl Writer {
     writer.write_text(text)?
     writer.write_text("\n")?
     return

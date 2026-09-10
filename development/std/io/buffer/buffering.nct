@@ -36,7 +36,7 @@ construct BufReader {
     }
 }
 
-func read(reader: &+BufReader, destination: &+[u8]): usize! {
+blocking func read(reader: &+BufReader, destination: &+[u8]): usize! {
     if reader.is_finished {
         return 0
     }
@@ -56,7 +56,7 @@ func read(reader: &+BufReader, destination: &+[u8]): usize! {
     return written
 }
 
-func refill(reader: &+BufReader): usize! {
+blocking func refill(reader: &+BufReader): usize! {
     if reader.is_finished {
         return 0
     }
@@ -78,7 +78,7 @@ func refill(reader: &+BufReader): usize! {
     return received
 }
 
-func read_line(reader: &+BufReader): String?! {
+blocking func read_line(reader: &+BufReader): String?! {
     var result = String.empty()
     let present = read_line_into(reader, &+result)?
     if !present {
@@ -87,7 +87,7 @@ func read_line(reader: &+BufReader): String?! {
     return move result
 }
 
-func read_line_into(reader: &+BufReader, destination: &+String): bool! {
+blocking func read_line_into(reader: &+BufReader, destination: &+String): bool! {
     destination.clear()
     if reader.is_finished {
         return false
@@ -156,11 +156,11 @@ func terminate_reader(reader: &+BufReader): void {
 }
 
 instance BufReader {
-    method &+self.read_line(): String?! {
+    blocking method &+self.read_line(): String?! {
         return read_line(self)
     }
 
-    method &+self.read_line_into(destination: &+String): bool! {
+    blocking method &+self.read_line_into(destination: &+String): bool! {
         return read_line_into(self, destination)?
     }
 
@@ -169,7 +169,7 @@ instance BufReader {
         return
     }
 
-    method &+self.read(destination: &+[u8]): usize! {
+    blocking method &+self.read(destination: &+[u8]): usize! {
         return read(self, destination)?
     }
 }
@@ -201,7 +201,7 @@ construct BufWriter {
     }
 }
 
-func write(writer: &+BufWriter, bytes: &[u8]): void! {
+blocking func write(writer: &+BufWriter, bytes: &[u8]): void! {
     if !writer.is_open {
         return io.closed_stream_error()
     }
@@ -216,7 +216,7 @@ func write(writer: &+BufWriter, bytes: &[u8]): void! {
     return
 }
 
-func flush(writer: &+BufWriter): void! {
+blocking func flush(writer: &+BufWriter): void! {
     if !writer.is_open {
         return io.closed_stream_error()
     }
@@ -235,7 +235,7 @@ func flush(writer: &+BufWriter): void! {
     return
 }
 
-func close(writer: &+BufWriter): void! {
+blocking func close(writer: &+BufWriter): void! {
     if !writer.is_open {
         return
     }
@@ -252,17 +252,17 @@ func terminate_writer(writer: &+BufWriter): void {
 }
 
 instance BufWriter {
-    method &+self.close(): void! {
+    blocking method &+self.close(): void! {
         close(self)?
         return
     }
 
-    method &+self.write(bytes: &[u8]): void! {
+    blocking method &+self.write(bytes: &[u8]): void! {
         write(self, bytes)?
         return
     }
 
-    method &+self.flush(): void! {
+    blocking method &+self.flush(): void! {
         flush(self)?
         return
     }

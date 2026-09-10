@@ -25,14 +25,14 @@ instance EscapeBuffer {
         return ptr.slice_from_raw_parts_value(ptr_module.from_ref(&self.storage[0]), self.len)
     }
 
-    method &+self.flush<S>(sink: &+S): void! where S impl ByteSink {
+    blocking method &+self.flush<S>(sink: &+S): void! where S impl ByteSink {
         if self.len == 0 { return }
         sink.emit(self.bytes())?
         self.len = 0
         return
     }
 
-    method &+self.push<S>(sink: &+S, byte: u8): void! where S impl ByteSink {
+    blocking method &+self.push<S>(sink: &+S, byte: u8): void! where S impl ByteSink {
         if self.len == 16 {
             self.flush(sink)?
         }
@@ -41,7 +41,7 @@ instance EscapeBuffer {
         return
     }
 
-    method &+self.prepare<S>(sink: &+S, additional: usize): void! where S impl ByteSink {
+    blocking method &+self.prepare<S>(sink: &+S, additional: usize): void! where S impl ByteSink {
         if self.len + additional > 16 {
             self.flush(sink)?
         }
@@ -54,7 +54,7 @@ func hexadecimal_digit(value: u8): u8 {
     return 65 + value - 10
 }
 
-func push_control_escape<S>(
+blocking func push_control_escape<S>(
     buffer: &+EscapeBuffer,
     sink: &+S,
     byte: u8,
@@ -80,7 +80,7 @@ func push_control_escape<S>(
     return
 }
 
-func emit_json_string<S>(sink: &+S, text: &str): void! where S impl ByteSink {
+blocking func emit_json_string<S>(sink: &+S, text: &str): void! where S impl ByteSink {
     sink.emit("\"".bytes())?
     var buffer = EscapeBuffer.empty()
     let bytes = text.bytes()

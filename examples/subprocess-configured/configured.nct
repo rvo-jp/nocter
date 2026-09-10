@@ -2,7 +2,7 @@ use std/io
 use std/process.Command
 use std/string.String
 
-func run(): i32! {
+blocking func run(): i32! {
     var command = Command.new("./helper.sh")?
     command.current_dir("./workspace")?
     command.clear_env()

@@ -15,8 +15,9 @@ The process stream conveniences are symmetric; their exact declarations are owne
 line forms append exactly one LF, including for empty input. These functions do not buffer, flush,
 format arbitrary values, or allocate through a Nocter allocation context. They use the same
 descriptor-write authority as `File.write`, including interruption retry, complete-write looping,
-zero-progress rejection, and stable I/O errors. Formatting remains explicit through interpolation,
-for example `io.println("count: ${count}")?`.
+zero-progress rejection, and stable I/O errors. All four functions are `blocking`; `noalloc` remains
+an independent allocation guarantee. Formatting remains explicit through interpolation, for
+example `io.println("count: ${count}")?`.
 
 ## Standard Input
 
@@ -41,6 +42,8 @@ var input = BufReader.new(io.stdin())
 let line = input.read_line()?
 ```
 
+The containing callable must admit `blocking`, because `read_line` may wait for input.
+
 Each `BufReader` owns its unread bytes and line state. Creating two buffered wrappers for the same
 process descriptor therefore creates two independent consumers; the library does not coordinate
 their buffered state. EOF, CR/LF removal, UTF-8 validation, allocation failure, and terminal-state
@@ -55,6 +58,11 @@ collects bytes into independently owned `Vec<u8>` storage. A reader that reports
 count fails with `std.io.invalid_read_count`. The `read_to_string` default method uses the same
 collector and validates the complete result as UTF-8 before returning an independently owned
 `String`.
+
+Every `Reader` and `Writer` operation admits `blocking`. A generic algorithm using either
+interface retains that contract even when one concrete implementation happens to operate only on
+memory. Construction of `stdin`, `stdout`, and `stderr`, and explicit `File.close`, do not wait and
+remain unqualified.
 
 `Writer.write_text` is a default adapter from UTF-8 text to the complete-byte `write` contract.
 `BufReader` and `BufWriter` in `std/io/buffer` own their buffering storage and receive these common

@@ -3,7 +3,7 @@ use std/process
 use std/string.String
 use std/vec.Vec
 
-func main(): i32! {
+blocking func main(): i32! {
     let root: &str = process.arg(1)? otherwise {
         return error.new("phase0.missing_root", "filesystem test root is missing")
     }
@@ -22,14 +22,14 @@ func main(): i32! {
     return 0
 }
 
-func verify_directory(path: &str): void! {
+blocking func verify_directory(path: &str): void! {
     let details = fs.metadata(path)?
     require(details.is_directory(), "root was not classified as a directory")?
     require(!details.is_file(), "directory was classified as a regular file")?
     return
 }
 
-func verify_text(path: &str, renamed: &str): void! {
+blocking func verify_text(path: &str, renamed: &str): void! {
     fs.write_text(path, "hello")?
     require(fs.exists(path)?, "written text file does not exist")?
 
@@ -55,7 +55,7 @@ func verify_text(path: &str, renamed: &str): void! {
     return
 }
 
-func verify_bytes(path: &str): void! {
+blocking func verify_bytes(path: &str): void! {
     var bytes: Vec<u8> = Vec.empty()
     bytes.push(0)
     bytes.push(127)
@@ -71,7 +71,7 @@ func verify_bytes(path: &str): void! {
     return
 }
 
-func verify_invalid_utf8(path: &str): void! {
+blocking func verify_invalid_utf8(path: &str): void! {
     let unexpected = fs.read_to_string(path) catch failure {
         if failure.has_code("std.string.invalid_utf8") {
             return
@@ -82,7 +82,7 @@ func verify_invalid_utf8(path: &str): void! {
     return error.new("phase0.expected_invalid_utf8", "invalid UTF-8 was accepted")
 }
 
-func verify_missing(path: &str): void! {
+blocking func verify_missing(path: &str): void! {
     require(!fs.exists(path)?, "missing path was reported as present")?
     let unexpected = fs.read(path) catch failure {
         if failure.has_code("std.io.not_found") {
@@ -94,7 +94,7 @@ func verify_missing(path: &str): void! {
     return error.new("phase0.expected_not_found", "missing read unexpectedly succeeded")
 }
 
-func verify_link(path: &str, target: &str): void! {
+blocking func verify_link(path: &str, target: &str): void! {
     let details = fs.metadata(path)?
     require(details.is_file(), "metadata did not follow the symbolic link")?
     require(details.len() == 5, "symbolic-link target length is incorrect")?

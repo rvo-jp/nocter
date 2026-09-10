@@ -26,7 +26,7 @@ struct DarwinStatQuery {
 }
 
 #target: "arm64-darwin"
-func stat_path(path: &str): DarwinStatQuery! {
+blocking func stat_path(path: &str): DarwinStatQuery! {
     let argument = internal_path.target_path_argument(path)?
     var allocator = mem.page_try_allocator()
     let storage = allocator.try_alloc(darwin.STAT_BUFFER_SIZE, 8)?
@@ -46,7 +46,7 @@ func stat_path(path: &str): DarwinStatQuery! {
 }
 
 #target: "arm64-darwin"
-func metadata_target(path: &str): Metadata! {
+blocking func metadata_target(path: &str): Metadata! {
     let query = stat_path(path)?
     if query.result.errno != 0 {
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(query.result.errno)))
@@ -85,7 +85,7 @@ func metadata_from_query(query: &DarwinStatQuery): Metadata! {
 }
 
 #target: "arm64-darwin"
-func existing_path_is_directory_target(path: &str): bool! {
+blocking func existing_path_is_directory_target(path: &str): bool! {
     let query = stat_path(path)?
     if query.result.errno == 0 {
         let details = metadata_from_query(&query)?
@@ -99,7 +99,7 @@ func existing_path_is_directory_target(path: &str): bool! {
 }
 
 #target: "arm64-darwin"
-func exists_target(path: &str): bool! {
+blocking func exists_target(path: &str): bool! {
     let query = stat_path(path)?
     if query.result.errno == 0 {
         return true
@@ -115,7 +115,7 @@ func exists_target(path: &str): bool! {
 }
 
 #target: "arm64-darwin"
-func remove_file_target(path: &str): void! {
+blocking func remove_file_target(path: &str): void! {
     let argument = internal_path.target_path_argument(path)?
     let result = darwin.syscall1(darwin.SYS_UNLINK, internal_path.target_path_address(&argument))
     if result.errno != 0 {
@@ -125,7 +125,7 @@ func remove_file_target(path: &str): void! {
 }
 
 #target: "arm64-darwin"
-func rename_target(source: &str, destination: &str): void! {
+blocking func rename_target(source: &str, destination: &str): void! {
     let source_argument = internal_path.target_path_argument(source)?
     let destination_argument = internal_path.target_path_argument(destination)?
     let result = darwin.syscall2(
@@ -140,7 +140,7 @@ func rename_target(source: &str, destination: &str): void! {
 }
 
 #target: "arm64-darwin"
-func create_directory_target(path: &str): CreateDirectoryAttempt! {
+blocking func create_directory_target(path: &str): CreateDirectoryAttempt! {
     let argument = internal_path.target_path_argument(path)?
     let result = darwin.syscall2(
         darwin.SYS_MKDIR,
@@ -158,7 +158,7 @@ func create_directory_target(path: &str): CreateDirectoryAttempt! {
 }
 
 #target: "arm64-darwin"
-func remove_directory_target(path: &str): void! {
+blocking func remove_directory_target(path: &str): void! {
     let argument = internal_path.target_path_argument(path)?
     let result = darwin.syscall1(
         darwin.SYS_RMDIR,

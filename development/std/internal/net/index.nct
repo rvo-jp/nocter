@@ -59,19 +59,19 @@ pub(/) enum StreamListenerAcceptAttempt {
 }
 
 /// Connects one provider-backed stream with an optional relative timeout.
-pub(/) noalloc func connect_stream(
+pub(/) noalloc blocking func connect_stream(
     address: NetworkAddress,
     timeout: Duration?,
 ): StreamConnectionAttempt
 
 /// Connects synchronously without restarting one shared candidate deadline.
-pub(/) noalloc func connect_stream_before(
+pub(/) noalloc blocking func connect_stream_before(
     address: NetworkAddress,
     deadline: &+ConnectionDeadline,
 ): StreamConnectionAttempt
 
 /// Connects one authenticated TLS stream through the shared provider lifecycle.
-pub(/) noalloc func connect_tls_stream_before(
+pub(/) noalloc blocking func connect_tls_stream_before(
     address: NetworkAddress,
     server_name: *u8,
     application_protocol: *u8,
@@ -108,17 +108,17 @@ pub(/) async func connect_tls_host_stream_async_before(
 ): StreamConnectionAttempt
 
 /// Binds and starts one provider-backed stream listener.
-pub(/) noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt
+pub(/) noalloc blocking func listen_stream(address: NetworkAddress): StreamListenerAttempt
 
 /// Binds and starts one provider-backed stream listener without blocking the executor thread.
 pub(/) async func listen_stream_async(address: NetworkAddress): StreamListenerAttempt
 
 instance StreamConnection {
     /// Reads one provider chunk, returning zero at clean peer completion.
-    pub(/) noalloc method &+self.read(buffer: &+[u8]): TransferAttempt
+    pub(/) noalloc blocking method &+self.read(buffer: &+[u8]): TransferAttempt
 
     /// Sends the complete byte view or returns one normalized failure.
-    pub(/) noalloc method &+self.write(bytes: &[u8]): UnitAttempt
+    pub(/) noalloc blocking method &+self.write(bytes: &[u8]): UnitAttempt
 
     /// Reads one provider chunk without blocking the executor thread.
     pub(/) async method &+self.read_async(buffer: &+[u8]): TransferAttempt
@@ -157,7 +157,7 @@ instance StreamConnection {
     pub(/) noalloc method &self.write_timeout(): Duration?
 
     /// Shuts down selected local stream directions without releasing ownership.
-    pub(/) noalloc method &+self.shutdown(direction: NetworkShutdown): UnitAttempt
+    pub(/) noalloc blocking method &+self.shutdown(direction: NetworkShutdown): UnitAttempt
 
     /// Cancels and releases the provider owner at most once.
     pub(/) noalloc method &+self.close(): void
@@ -168,7 +168,7 @@ instance StreamListener {
     pub(/) noalloc method &self.local_address(): AddressAttempt
 
     /// Accepts and starts one provider-backed stream connection.
-    pub(/) noalloc method &+self.accept(): StreamListenerAcceptAttempt
+    pub(/) noalloc blocking method &+self.accept(): StreamListenerAcceptAttempt
 
     /// Accepts one connection without blocking the executor thread.
     pub(/) async method &+self.accept_async(): StreamListenerAcceptAttempt
@@ -244,7 +244,7 @@ instance ResolverResults {
 }
 
 /// Creates and binds one configured UDP descriptor.
-pub(/) noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt
+pub(/) noalloc blocking func bind_udp(address: NetworkAddress): DescriptorAttempt
 
 instance SocketDescriptor {
     /// Replaces the finite read-side operation timeout; absence permits an unlimited wait.
@@ -260,25 +260,25 @@ instance SocketDescriptor {
     pub(/) noalloc method &self.write_timeout(): Duration?
 
     /// Reports the effective logical local address.
-    pub(/) noalloc method &self.local_address(): AddressAttempt
+    pub(/) noalloc blocking method &self.local_address(): AddressAttempt
 
     /// Reports the connected logical peer address.
-    pub(/) noalloc method &self.peer_address(): AddressAttempt
+    pub(/) noalloc blocking method &self.peer_address(): AddressAttempt
 
     /// Connects this datagram socket to one peer without changing ownership.
-    pub(/) noalloc method &self.connect_udp(address: NetworkAddress): UnitAttempt
+    pub(/) noalloc blocking method &self.connect_udp(address: NetworkAddress): UnitAttempt
 
     /// Sends one complete datagram to the connected peer.
-    pub(/) noalloc method &self.send_datagram(bytes: &[u8]): UnitAttempt
+    pub(/) noalloc blocking method &self.send_datagram(bytes: &[u8]): UnitAttempt
 
     /// Sends one complete datagram to an explicit peer.
-    pub(/) noalloc method &self.send_datagram_to(
+    pub(/) noalloc blocking method &self.send_datagram_to(
         bytes: &[u8],
         target: NetworkAddress,
     ): UnitAttempt
 
     /// Receives exactly one datagram and preserves source and truncation information.
-    pub(/) noalloc method &self.receive_datagram(buffer: &+[u8]): DatagramAttempt
+    pub(/) noalloc blocking method &self.receive_datagram(buffer: &+[u8]): DatagramAttempt
 
     /// Makes this owner terminal and releases an open descriptor at most once.
     pub(/) noalloc method &+self.close(): void

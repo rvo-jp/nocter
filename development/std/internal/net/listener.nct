@@ -65,7 +65,7 @@ noalloc func failed_listener(
     return StreamListenerAttempt.failed(move failure)
 }
 
-noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt {
+noalloc blocking func listen_stream(address: NetworkAddress): StreamListenerAttempt {
     var owner = darwin.listener_create(&address) otherwise {
         return StreamListenerAttempt.failed(NetworkFailure.invalid_target_result)
     }
@@ -126,7 +126,7 @@ noalloc func listen_stream(address: NetworkAddress): StreamListenerAttempt {
     return failed_listener(move owner, NetworkFailure.invalid_target_result)
 }
 
-noalloc func accepted_stream_before(
+noalloc blocking func accepted_stream_before(
     owner: NetworkOwner,
     deadline: &OperationDeadline,
 ): StreamListenerAcceptAttempt {
@@ -149,7 +149,7 @@ noalloc func accepted_stream_before(
     }
 }
 
-noalloc func accept_stream_before(
+noalloc blocking func accept_stream_before(
     listener: &+StreamListener,
     deadline: &OperationDeadline,
 ): StreamListenerAcceptAttempt {
@@ -211,7 +211,7 @@ instance StreamListener {
         }
     }
 
-    noalloc method &+self.accept(): StreamListenerAcceptAttempt {
+    noalloc blocking method &+self.accept(): StreamListenerAcceptAttempt {
         let deadline = operation_deadline(self.accept_timeout_value)
         return accept_stream_before(self, &deadline)
     }

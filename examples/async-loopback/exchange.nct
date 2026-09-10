@@ -1,6 +1,5 @@
 see ./index.nct
 
-use std/io
 use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener}
 use std/string.String
@@ -14,7 +13,7 @@ func loopback(): SocketAddress {
 
 async func run(): i32! {
     let timeout = Duration.from_seconds(1)
-    var listener = TcpListener.bind(loopback())?
+    var listener = await net.bind_tcp_async(loopback())?
     let listening_address = listener.local_address()?
     let connection = await task.join(
         net.connect_tcp_async_with_timeout(listening_address, timeout),
@@ -45,7 +44,8 @@ async func run(): i32! {
         return error.new("async-loopback.length", "TCP changed the message length")
     }
     let text = String.from_utf8(&bytes)?
-    io.print("async tcp: ")?
-    io.println(&text)?
+    if text != "ping" {
+        return error.new("async-loopback.body", "TCP changed the message bytes")
+    }
     return 0
 }

@@ -62,8 +62,9 @@ cannot be mistaken for an exec failure.
 
 Construction and `arg` own their copied text in the current allocation context and follow the
 ordinary allocation-abort policy. Their `T!` layer reports validation, not recoverable allocation.
-`status` may allocate launch metadata before creating the child and may block until termination; it
-does not publish `noalloc` or a nonblocking guarantee. `ExitStatus` inspection is allocation-free.
+`status` may allocate launch metadata before creating the child and may wait until termination; it
+therefore carries `blocking` and does not publish `noalloc`. `ExitStatus` inspection is
+allocation-free and nonblocking.
 
 No child is created until all target arguments, pointers, and the launch-report channel can be
 prepared. After process creation, the child path performs only target operations required to close
@@ -164,7 +165,7 @@ the ordinary current allocation context and follows the standard allocation-abor
 reports process and I/O failures rather than recoverable allocation exhaustion.
 
 The operation may block until the child terminates and every inherited captured descriptor closes.
-It publishes neither `noalloc` nor a nonblocking guarantee.
+It publishes neither `noalloc` nor a nonblocking guarantee and explicitly carries `blocking`.
 
 ### Responsibility Boundaries
 

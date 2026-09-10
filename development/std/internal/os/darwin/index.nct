@@ -216,24 +216,24 @@ pub(/) const DIRENT_TYPE_REGULAR: u8
 pub(/) const DIRENT_TYPE_SYMLINK: u8
 
 #target: "arm64-darwin"
-pub(/) noalloc primitive func syscall1(
+pub(/) noalloc blocking primitive func syscall1(
     number: usize,
     a0: usize,
 ): SyscallResult
 
 /// Performs a zero-argument syscall whose successful ABI result occupies two words.
 #target: "arm64-darwin"
-pub(/) noalloc primitive func syscall_pair0(number: usize): SyscallPairResult
+pub(/) noalloc blocking primitive func syscall_pair0(number: usize): SyscallPairResult
 
 #target: "arm64-darwin"
-pub(/) noalloc primitive func syscall2(
+pub(/) noalloc blocking primitive func syscall2(
     number: usize,
     a0: usize,
     a1: usize,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) noalloc primitive func syscall3(
+pub(/) noalloc blocking primitive func syscall3(
     number: usize,
     a0: usize,
     a1: usize,
@@ -241,7 +241,7 @@ pub(/) noalloc primitive func syscall3(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) noalloc primitive func syscall5(
+pub(/) noalloc blocking primitive func syscall5(
     number: usize,
     a0: usize,
     a1: usize,
@@ -251,14 +251,14 @@ pub(/) noalloc primitive func syscall5(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) noalloc func read_directory_entries(
+pub(/) noalloc blocking func read_directory_entries(
     fd: usize,
     buffer: &+[u8],
     position: &+u64,
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) noalloc primitive func syscall6(
+pub(/) noalloc blocking primitive func syscall6(
     number: usize,
     a0: usize,
     a1: usize,

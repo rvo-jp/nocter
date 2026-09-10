@@ -19,7 +19,7 @@ enum GenerationFrame {
     object(values: &Map<String, Value>, next_index: usize)
 }
 
-func emit_token<S>(
+blocking func emit_token<S>(
     sink: &+S,
     token: &str,
 ): void! where S impl ByteSink {
@@ -27,7 +27,7 @@ func emit_token<S>(
     return
 }
 
-func generate_core<S>(
+blocking func generate_core<S>(
     allocator: &+TryAllocator,
     sink: &+S,
     value: &Value,
@@ -132,7 +132,7 @@ func generate_core<S>(
     }
 }
 
-func stringify(value: &Value): String {
+blocking func stringify(value: &Value): String {
     var allocator = mem_module.current_try_allocator()
     var output: String = String.try_with_capacity(&+allocator, 0) catch _ {
         return mem.allocation_abort()
@@ -146,7 +146,7 @@ func stringify(value: &Value): String {
     }
 }
 
-func try_stringify(
+blocking func try_stringify(
     allocator: &+TryAllocator,
     value: &Value,
 ): String! from allocator {
@@ -160,7 +160,7 @@ func try_stringify(
     }
 }
 
-func write<W>(destination: &+W, value: &Value): void! where W impl Writer {
+blocking func write<W>(destination: &+W, value: &Value): void! where W impl Writer {
     var allocator = mem_module.current_try_allocator()
     var sink = WriterSink<W>.new(destination)
     let attempt = generate_core(&+allocator, &+sink, value)
@@ -171,7 +171,7 @@ func write<W>(destination: &+W, value: &Value): void! where W impl Writer {
     }
 }
 
-func try_write<W>(
+blocking func try_write<W>(
     allocator: &+TryAllocator,
     destination: &+W,
     value: &Value,
@@ -185,7 +185,7 @@ func try_write<W>(
     }
 }
 
-func expect_generated(source: &str, expected: &str): void! {
+blocking func expect_generated(source: &str, expected: &str): void! {
     let value = parse(source)?
     let generated = stringify(&value)
     if generated != expected {
@@ -250,7 +250,7 @@ test generator_uses_an_explicit_stack_for_deep_values {
     return
 }
 
-func recoverable_stringify_inside_region(value: &Value): String! {
+blocking func recoverable_stringify_inside_region(value: &Value): String! {
     var selected = mem_module.page_try_allocator()
     var backing = mem_module.page_allocator()
     region temporary using backing {

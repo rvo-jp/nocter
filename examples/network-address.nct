@@ -1,7 +1,7 @@
 use std/io
 use std/net.SocketAddress
 
-func main(): i32! {
+blocking func main(): i32! {
     let address = SocketAddress.parse("[::1]:443") otherwise {
         return error.new("network-address.invalid", "loopback address did not parse")
     }

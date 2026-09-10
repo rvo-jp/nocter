@@ -137,16 +137,16 @@ The following current families contain synchronous external waits and must expos
 | synchronous `std/tls` and `std/http` | the underlying resolver, connection, transfer, and timeout paths |
 
 Pure formatting, in-memory buffering, URL parsing, HTTP codec work, calendar conversion,
-monotonic-counter reads, and collection operations do not become blocking merely because a caller
-may eventually pass their output to I/O. Interface abstractions such as `Reader` and `Writer` must
-state the effect admitted by their requirement; a generic algorithm cannot infer nonblocking
-behavior from a concrete witness that has already been erased behind a blocking contract.
+monotonic-counter reads, and collection operations do not intrinsically wait. Interface
+abstractions such as `Reader` and `Writer` must nevertheless state the effect admitted by their
+requirement. Without effect polymorphism, a generic algorithm checked through such a requirement
+conservatively retains `blocking`, even when one later concrete witness is memory-only. The
+declaration contract remains authoritative; a call site does not specialize or recompute it.
 
-The Network.framework release barrier is the one current runtime operation known to synchronously
-wait inside lifecycle cleanup. Phase 2 must replace that cleanup transition with reactor-visible
-completion or another drive-safe ownership protocol before an async future can own the resource.
-Annotating the barrier and continuing to invoke it while driving or cancelling a future would
-document the defect rather than fix it.
+The Network.framework release barrier synchronously waits, but no future drive or cancellation
+path invokes it. Every terminal path transfers the owner to the nonwaiting disposal primitive;
+only the private cleanup worker drains callbacks and crosses the barrier. The barrier's source
+declaration remains `blocking`, so a future path cannot regain it without failing effect checking.
 
 ## Rejected Models
 
@@ -162,8 +162,9 @@ document the defect rather than fix it.
 
 ## Phase Boundary
 
-Phase 0 closes the public contract and this inventory. Phase 1 may change syntax, model, lowering,
-checking, and presentation contracts together, but it must establish the effect table before any
-standard-library API is renamed. Phase 2 then migrates primitive and library declarations from the
-closed inventory. This order prevents names from claiming nonblocking behavior before the compiler
-can prove it.
+Phase 0 closed the public contract and inventory. Phase 1 changed syntax, model, lowering,
+checking, and presentation contracts together and established the effect table before any
+standard-library normalization. Phase 2 validates every registered primitive declaration against
+the catalog's exact blocking classification and propagates synchronous waits through standard
+contracts and their private helper chains. This order prevents names from claiming nonblocking
+behavior before the compiler can prove it.

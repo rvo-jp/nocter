@@ -18,7 +18,7 @@ instance Point {
     }
 }
 
-func main(): i32! {
+blocking func main(): i32! {
     let point = Point { x: 3, y: 4 }
     let message = "point = ${point}\n"
     io.print(&message)?

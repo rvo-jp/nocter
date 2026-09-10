@@ -4,7 +4,7 @@ see ./index.nct
 
 use /vec.Vec
 
-func loopback_listener(): TcpListener! {
+blocking func loopback_listener(): TcpListener! {
     return TcpListener.bind(SocketAddress.new(
         IpAddress.from_ipv4(Ipv4Address.loopback()),
         0,

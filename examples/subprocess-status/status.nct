@@ -1,7 +1,7 @@
 use std/io
 use std/process.{Command, ExitStatus}
 
-func run(): i32! {
+blocking func run(): i32! {
     var command = Command.new("./helper.sh")?
     command.arg("Nocter subprocess")?
     let status = command.status()?
@@ -9,7 +9,7 @@ func run(): i32! {
     return 0
 }
 
-func report(status: ExitStatus): void! {
+blocking func report(status: ExitStatus): void! {
     if status.success() {
         io.println("helper exited successfully")?
         return

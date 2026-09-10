@@ -69,7 +69,7 @@ noalloc func timeout_unit(): UnitAttempt {
     return UnitAttempt.failed(NetworkFailure.timed_out)
 }
 
-noalloc func wait_readable(fd: usize, deadline: &OperationDeadline): UnitAttempt {
+noalloc blocking func wait_readable(fd: usize, deadline: &OperationDeadline): UnitAttempt {
     while true {
         match darwin.wait_readable_once(fd, poll_timeout_milliseconds(deadline)) {
             RawWaitAttempt.ready { return UnitAttempt.ready }
@@ -88,7 +88,7 @@ noalloc func wait_readable(fd: usize, deadline: &OperationDeadline): UnitAttempt
     return invalid_unit()
 }
 
-noalloc func wait_writable(fd: usize, deadline: &OperationDeadline): UnitAttempt {
+noalloc blocking func wait_writable(fd: usize, deadline: &OperationDeadline): UnitAttempt {
     while true {
         match darwin.wait_writable_once(fd, poll_timeout_milliseconds(deadline)) {
             RawWaitAttempt.ready { return UnitAttempt.ready }
@@ -107,7 +107,7 @@ noalloc func wait_writable(fd: usize, deadline: &OperationDeadline): UnitAttempt
     return invalid_unit()
 }
 
-noalloc func finish_datagram_peer_selection(
+noalloc blocking func finish_datagram_peer_selection(
     fd: usize,
     deadline: &OperationDeadline,
 ): UnitAttempt {
@@ -133,7 +133,7 @@ noalloc func finish_datagram_peer_selection(
     return invalid_unit()
 }
 
-noalloc func select_datagram_peer(
+noalloc blocking func select_datagram_peer(
     fd: usize,
     address: &NetworkAddress,
     deadline: &OperationDeadline,
@@ -159,7 +159,7 @@ noalloc func select_datagram_peer(
     return invalid_unit()
 }
 
-noalloc func bind_address(fd: usize, address: &NetworkAddress): UnitAttempt {
+noalloc blocking func bind_address(fd: usize, address: &NetworkAddress): UnitAttempt {
     while true {
         match darwin.bind_once(fd, address) {
             RawUnitAttempt.ready { return UnitAttempt.ready }
@@ -173,7 +173,7 @@ noalloc func bind_address(fd: usize, address: &NetworkAddress): UnitAttempt {
     return invalid_unit()
 }
 
-noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt {
+noalloc blocking func bind_udp(address: NetworkAddress): DescriptorAttempt {
     let fd = match darwin.create_udp(address.family) {
         RawDescriptorAttempt.ready(value) { value }
         RawDescriptorAttempt.failed(failure) {
@@ -192,7 +192,7 @@ noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt {
     }
 }
 
-noalloc func send_datagram_with(
+noalloc blocking func send_datagram_with(
     fd: usize,
     bytes: &[u8],
     destination: DatagramDestination,
@@ -233,7 +233,7 @@ noalloc func descriptor_is_open(descriptor: &SocketDescriptor): bool {
 }
 
 instance SocketDescriptor {
-    noalloc method &self.local_address(): AddressAttempt {
+    noalloc blocking method &self.local_address(): AddressAttempt {
         if !descriptor_is_open(self) { return AddressAttempt.failed(NetworkFailure.closed) }
         while true {
             match darwin.local_address_once(self.fd) {
@@ -250,7 +250,7 @@ instance SocketDescriptor {
         return AddressAttempt.failed(NetworkFailure.invalid_target_result)
     }
 
-    noalloc method &self.peer_address(): AddressAttempt {
+    noalloc blocking method &self.peer_address(): AddressAttempt {
         if !descriptor_is_open(self) { return AddressAttempt.failed(NetworkFailure.closed) }
         while true {
             match darwin.peer_address_once(self.fd) {
@@ -267,19 +267,19 @@ instance SocketDescriptor {
         return AddressAttempt.failed(NetworkFailure.invalid_target_result)
     }
 
-    noalloc method &self.connect_udp(address: NetworkAddress): UnitAttempt {
+    noalloc blocking method &self.connect_udp(address: NetworkAddress): UnitAttempt {
         if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
         let deadline = operation_deadline(self.write_timeout_value)
         return select_datagram_peer(self.fd, &address, &deadline)
     }
 
-    noalloc method &self.send_datagram(bytes: &[u8]): UnitAttempt {
+    noalloc blocking method &self.send_datagram(bytes: &[u8]): UnitAttempt {
         if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
         let deadline = operation_deadline(self.write_timeout_value)
         return send_datagram_with(self.fd, bytes, DatagramDestination.connected, &deadline)
     }
 
-    noalloc method &self.send_datagram_to(
+    noalloc blocking method &self.send_datagram_to(
         bytes: &[u8],
         target: NetworkAddress,
     ): UnitAttempt {
@@ -293,7 +293,7 @@ instance SocketDescriptor {
         )
     }
 
-    noalloc method &self.receive_datagram(buffer: &+[u8]): DatagramAttempt {
+    noalloc blocking method &self.receive_datagram(buffer: &+[u8]): DatagramAttempt {
         if !descriptor_is_open(self) { return DatagramAttempt.failed(NetworkFailure.closed) }
         let deadline = operation_deadline(self.read_timeout_value)
         var first_attempt = true

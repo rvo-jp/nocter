@@ -146,14 +146,14 @@ func begin_client_transport_async(
 }
 
 instance ClientTransport {
-    noalloc method &+self.read(output: &+[u8]): usize! {
+    noalloc blocking method &+self.read(output: &+[u8]): usize! {
         match self {
             ClientTransport.plain(stream) { return stream.read(output)? }
             ClientTransport.secure(stream) { return stream.read(output)? }
         }
     }
 
-    noalloc method &+self.write(bytes: &[u8]): void! {
+    noalloc blocking method &+self.write(bytes: &[u8]): void! {
         match self {
             ClientTransport.plain(stream) { return stream.write(bytes)? }
             ClientTransport.secure(stream) { return stream.write(bytes)? }

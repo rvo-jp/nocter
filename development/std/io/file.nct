@@ -10,22 +10,22 @@ use /internal/path as internal_path
 use /ptr
 
 #target: "arm64-darwin"
-func open_read_fd(path: &str): usize! {
+blocking func open_read_fd(path: &str): usize! {
     return open_fd(path, darwin.OPEN_READ_ONLY)?
 }
 
 #target: "arm64-darwin"
-func create_fd(path: &str): usize! {
+blocking func create_fd(path: &str): usize! {
     return open_fd(path, darwin.OPEN_CREATE_TRUNCATE)?
 }
 
 #target: "arm64-darwin"
-func append_fd(path: &str): usize! {
+blocking func append_fd(path: &str): usize! {
     return open_fd(path, darwin.OPEN_CREATE_APPEND)?
 }
 
 #target: "arm64-darwin"
-func open_fd(path: &str, flags: usize): usize! {
+blocking func open_fd(path: &str, flags: usize): usize! {
     let argument = internal_path.target_path_argument(path)?
 
     var result: SyscallResult = darwin.syscall3(
@@ -68,7 +68,7 @@ noalloc func classify_read_result(result: SyscallResult, capacity: usize): ReadP
 }
 
 #target: "arm64-darwin"
-func read_fd(fd: usize, buffer: &+[u8]): usize! {
+blocking func read_fd(fd: usize, buffer: &+[u8]): usize! {
     var count: usize = 0
     var complete: bool = false
     while !complete {
@@ -110,17 +110,17 @@ struct File {
 }
 
 construct File {
-    func open(path: &str): Self! {
+    blocking func open(path: &str): Self! {
         let fd = open_read_fd(path)?
         return File { fd: fd, state: FileState.owned_open }
     }
 
-    func create(path: &str): Self! {
+    blocking func create(path: &str): Self! {
         let fd = create_fd(path)?
         return File { fd: fd, state: FileState.owned_open }
     }
 
-    func append(path: &str): Self! {
+    blocking func append(path: &str): Self! {
         let fd = append_fd(path)?
         return File { fd: fd, state: FileState.owned_open }
     }
@@ -133,7 +133,7 @@ noalloc func require_open(file: &File): void! {
     return
 }
 
-func read(file: &+File, buffer: &+[u8]): usize! {
+blocking func read(file: &+File, buffer: &+[u8]): usize! {
     require_open(file)?
     return read_fd(file.fd, buffer)?
 }
@@ -152,7 +152,7 @@ instance File {
         return
     }
 
-    method &+self.read(buffer: &+[u8]): usize! {
+    blocking method &+self.read(buffer: &+[u8]): usize! {
         return read(self, buffer)?
     }
 }

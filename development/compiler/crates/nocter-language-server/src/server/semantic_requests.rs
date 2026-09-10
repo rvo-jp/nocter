@@ -2703,7 +2703,7 @@ mod tests {
         let text = concat!(
             "use std/json.Value\n",
             "use std/json\n",
-            "func main(): void! {\n",
+            "blocking func main(): void! {\n",
             "    let value = json.parse(\"[1]\")?\n",
             "    let text = json.stringify(&value)\n",
             "    match move value {\n",
@@ -2749,7 +2749,7 @@ mod tests {
         ));
         let response = stringify_hover.response().unwrap();
         assert!(
-            response.contains("pub func stringify(value: &Value): String"),
+            response.contains("pub blocking func stringify(value: &Value): String"),
             "{response}"
         );
         for internal in [
@@ -2871,7 +2871,7 @@ mod tests {
             "use std/json\n",
             "use std/mem\n",
             "use std/io\n",
-            "func main(): void! {\n",
+            "blocking func main(): void! {\n",
             "    var allocator = mem.page_try_allocator()\n",
             "    let value = json.try_parse(&+allocator, \"null\")?\n",
             "    let text = json.try_stringify(&+allocator, &value)?\n",
@@ -2908,7 +2908,7 @@ mod tests {
         let response = signature.response().unwrap();
         assert!(
             response.contains(concat!(
-                "func try_write<File>(allocator: &+TryAllocator, destination: &+File, ",
+                "blocking func try_write<File>(allocator: &+TryAllocator, destination: &+File, ",
                 "value: &Value): void!"
             )),
             "{response}"

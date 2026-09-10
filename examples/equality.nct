@@ -12,7 +12,7 @@ instance Point {
     }
 }
 
-func main(): i32! {
+blocking func main(): i32! {
     let first = Point { x: 3, y: 4 }
     let same = Point { x: 3, y: 4 }
     let other = Point { x: 5, y: 6 }

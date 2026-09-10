@@ -31,7 +31,7 @@ noalloc func classify_write_result(result: SyscallResult, remaining: usize): Wri
 }
 
 #target: "arm64-darwin"
-noalloc func write_fd(fd: usize, bytes: &[u8]): void! {
+noalloc blocking func write_fd(fd: usize, bytes: &[u8]): void! {
     var offset: usize = 0
     while offset < bytes.len() {
         let remaining: usize = bytes.len() - offset
@@ -50,13 +50,13 @@ noalloc func write_fd(fd: usize, bytes: &[u8]): void! {
 }
 
 #target: "arm64-darwin"
-noalloc func write_text_fd(fd: usize, text: &str): void! {
+noalloc blocking func write_text_fd(fd: usize, text: &str): void! {
     write_fd(fd, text.bytes())?
     return
 }
 
 #target: "arm64-darwin"
-noalloc func write_line_fd(fd: usize, text: &str): void! {
+noalloc blocking func write_line_fd(fd: usize, text: &str): void! {
     write_text_fd(fd, text)?
     write_text_fd(fd, "\n")?
     return
@@ -70,14 +70,14 @@ noalloc func stderr(): File {
     return File { fd: darwin.STDERR_FD, state: FileState.borrowed_open }
 }
 
-noalloc func write(file: &+File, bytes: &[u8]): void! {
+noalloc blocking func write(file: &+File, bytes: &[u8]): void! {
     require_open(file)?
     write_fd(file.fd, bytes)?
     return
 }
 
 instance File {
-    noalloc method &+self.write(bytes: &[u8]): void! {
+    noalloc blocking method &+self.write(bytes: &[u8]): void! {
         write(self, bytes)?
         return
     }
@@ -88,22 +88,22 @@ instance File {
     }
 }
 
-noalloc func print(text: &str): void! {
+noalloc blocking func print(text: &str): void! {
     write_text_fd(darwin.STDOUT_FD, text)?
     return
 }
 
-noalloc func println(text: &str): void! {
+noalloc blocking func println(text: &str): void! {
     write_line_fd(darwin.STDOUT_FD, text)?
     return
 }
 
-noalloc func eprint(text: &str): void! {
+noalloc blocking func eprint(text: &str): void! {
     write_text_fd(darwin.STDERR_FD, text)?
     return
 }
 
-noalloc func eprintln(text: &str): void! {
+noalloc blocking func eprintln(text: &str): void! {
     write_line_fd(darwin.STDERR_FD, text)?
     return
 }

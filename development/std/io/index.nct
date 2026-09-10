@@ -16,28 +16,28 @@ see ./output_tests.nct
 /// A source that initializes at most `buffer.len()` bytes per read.
 pub interface Reader {
     /// Initializes at most the supplied buffer length and returns zero at end of stream.
-    pub method &+self.read(buffer: &+[u8]): usize!
+    pub blocking method &+self.read(buffer: &+[u8]): usize!
 
     /// Reads until end of stream into independently owned byte storage.
-    pub default method &+self.read_to_end(): Vec<u8>!
+    pub blocking default method &+self.read_to_end(): Vec<u8>!
 
     /// Reads until end of stream and validates the complete input as UTF-8.
-    pub default method &+self.read_to_string(): String!
+    pub blocking default method &+self.read_to_string(): String!
 }
 
 /// A destination that accepts the complete byte view or returns an error.
 pub interface Writer {
     /// Writes the complete byte view or reports an error after an observable prefix.
-    pub method &+self.write(value: &[u8]): void!
+    pub blocking method &+self.write(value: &[u8]): void!
 
     /// Publishes any retained output; the default implementation has no retained state.
-    pub default method &+self.flush(): void!
+    pub blocking default method &+self.flush(): void!
 
     /// Writes the UTF-8 encoding bytes through the shared byte contract.
-    pub default method &+self.write_text(text: &str): void!
+    pub blocking default method &+self.write_text(text: &str): void!
 
     /// Writes UTF-8 text followed by exactly one LF byte.
-    pub default method &+self.write_line(text: &str): void!
+    pub blocking default method &+self.write_line(text: &str): void!
 }
 
 /// A stateful byte stream wrapper over one owned or borrowed file descriptor.
@@ -54,13 +54,13 @@ pub noalloc func stderr(): File
 
 construct File {
     /// Opens an existing file for reading.
-    pub func open(path: &str): Self!
+    pub blocking func open(path: &str): Self!
 
     /// Creates or truncates a file for writing.
-    pub func create(path: &str): Self!
+    pub blocking func create(path: &str): Self!
 
     /// Opens or creates a file and positions writes at its end.
-    pub func append(path: &str): Self!
+    pub blocking func append(path: &str): Self!
 }
 
 instance File {
@@ -71,13 +71,13 @@ instance File {
 }
 
 /// Writes UTF-8 text to standard output without adding a newline.
-pub noalloc func print(text: &str): void!
+pub noalloc blocking func print(text: &str): void!
 
 /// Writes UTF-8 text and one LF byte to standard output.
-pub noalloc func println(text: &str): void!
+pub noalloc blocking func println(text: &str): void!
 
 /// Writes UTF-8 text to standard error without adding a newline.
-pub noalloc func eprint(text: &str): void!
+pub noalloc blocking func eprint(text: &str): void!
 
 /// Writes UTF-8 text and one LF byte to standard error.
-pub noalloc func eprintln(text: &str): void!
+pub noalloc blocking func eprintln(text: &str): void!

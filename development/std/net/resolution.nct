@@ -164,7 +164,7 @@ blocking func try_resolve(
     }
 }
 
-noalloc func connect_resolved(
+noalloc blocking func connect_resolved(
     addresses: &[SocketAddress],
     deadline: &+ConnectionDeadline,
 ): TcpStream! {

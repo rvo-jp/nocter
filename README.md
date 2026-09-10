@@ -78,7 +78,7 @@ Create `hello.nct`:
 ```nct
 use std/io
 
-func main(): i32! {
+blocking func main(): i32! {
     io.print("Hello from Nocter\n")?
     return 0
 }

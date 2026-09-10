@@ -19,7 +19,7 @@ Parse one complete text and return its compact spelling:
 use std/json
 use std/string.String
 
-func normalize(text: &str): String! {
+blocking func normalize(text: &str): String! {
     let value = json.parse(text)?
     return json.stringify(&value)
 }
@@ -32,7 +32,7 @@ output String:
 use std/io.Writer
 use std/json
 
-func normalize_into<W>(destination: &+W, text: &str): void! where W impl Writer {
+blocking func normalize_into<W>(destination: &+W, text: &str): void! where W impl Writer {
     let value = json.parse(text)?
     json.write(destination, &value)?
     return
@@ -46,7 +46,7 @@ use std/json
 use std/mem.TryAllocator
 use std/string.String
 
-func try_normalize(allocator: &+TryAllocator, text: &str): String! from allocator {
+blocking func try_normalize(allocator: &+TryAllocator, text: &str): String! from allocator {
     let value = json.try_parse(allocator, text)?
     return json.try_stringify(allocator, &value)?
 }
@@ -162,6 +162,12 @@ complete JSON text in memory. Traversal uses an explicit stack proportional to v
 fixed-size local encoding buffers; it does not allocate a second JSON tree. `write` allocates that
 stack in the current context, while `try_write` uses the supplied `TryAllocator`. The writer remains
 responsible for its own internal allocation and I/O policy.
+
+All four generation functions currently carry `blocking`. The shared generator is checked once
+against the package-internal `ByteSink` interface, whose contract admits a blocking `Writer`.
+Nocter does not yet make callable effects polymorphic over an interface witness, so the concrete
+in-memory `StringSink` cannot narrow that generic callable contract at a use site. This is a
+conservative admission, not a claim that writing into a `String` performs external I/O.
 
 ## Allocation and Failure
 

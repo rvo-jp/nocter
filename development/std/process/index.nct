@@ -64,10 +64,10 @@ instance Command {
     pub method &+self.input(value: &[u8]): void
 
     /// Launches the command, waits for its child, and consumes all command storage.
-    pub method self.status(): ExitStatus!
+    pub blocking method self.status(): ExitStatus!
 
     /// Launches the command and returns its terminal state and complete output streams.
-    pub method self.output(): Output!
+    pub blocking method self.output(): Output!
 }
 
 instance ExitStatus {
@@ -109,10 +109,10 @@ pub noalloc func environment(index: usize): EnvironmentEntry?!
 pub noalloc func env(name: &str): &str?!
 
 /// Returns the current working directory in current-context storage.
-pub func cwd(): String!
+pub blocking func cwd(): String!
 
 /// Returns the current working directory using recoverable storage from `allocator`.
-pub func try_cwd(allocator: &+TryAllocator): String!
+pub blocking func try_cwd(allocator: &+TryAllocator): String!
 
 /// Terminates the process with `code` and does not return.
 pub func exit(code: i32): never

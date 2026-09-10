@@ -25,7 +25,7 @@ copy struct DatagramRead {
 }
 
 construct UdpSocket {
-    noalloc func bind(address: SocketAddress): Self! {
+    noalloc blocking func bind(address: SocketAddress): Self! {
         match net.bind_udp(substrate_address(&address)) {
             DescriptorAttempt.ready(descriptor) {
                 return UdpSocket { descriptor: move descriptor }
@@ -36,28 +36,28 @@ construct UdpSocket {
 }
 
 instance UdpSocket {
-    noalloc method &+self.connect(peer: SocketAddress): void! {
+    noalloc blocking method &+self.connect(peer: SocketAddress): void! {
         match self.descriptor.connect_udp(substrate_address(&peer)) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    noalloc method &+self.send(bytes: &[u8]): void! {
+    noalloc blocking method &+self.send(bytes: &[u8]): void! {
         match self.descriptor.send_datagram(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    noalloc method &+self.send_to(bytes: &[u8], target: SocketAddress): void! {
+    noalloc blocking method &+self.send_to(bytes: &[u8], target: SocketAddress): void! {
         match self.descriptor.send_datagram_to(bytes, substrate_address(&target)) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    noalloc method &+self.receive(buffer: &+[u8]): DatagramRead! {
+    noalloc blocking method &+self.receive(buffer: &+[u8]): DatagramRead! {
         match self.descriptor.receive_datagram(buffer) {
             DatagramAttempt.ready(source, copied_len, truncated) {
                 return DatagramRead {
@@ -70,14 +70,14 @@ instance UdpSocket {
         }
     }
 
-    noalloc method &self.local_address(): SocketAddress! {
+    noalloc blocking method &self.local_address(): SocketAddress! {
         match self.descriptor.local_address() {
             AddressAttempt.ready(address) { return public_address(address) }
             AddressAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    noalloc method &self.peer_address(): SocketAddress! {
+    noalloc blocking method &self.peer_address(): SocketAddress! {
         match self.descriptor.peer_address() {
             AddressAttempt.ready(address) { return public_address(address) }
             AddressAttempt.failed(failure) { return network_error(move failure) }

@@ -329,7 +329,7 @@ fn target_entropy_boundary_crosses_the_complete_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/os/darwin\n\
          use std/ptr\n\
-         func main(): i32 {\n\
+         blocking func main(): i32 {\n\
              var seed: u64 = 0\n\
              darwin.fill_seed_for_test(ptr.addr(ptr.from_ref_mut(&+seed)))\n\
              return 42\n\
@@ -1165,7 +1165,7 @@ fn memory_transfer_primitives_cross_the_native_pipeline() {
 fn darwin_syscall_primitives_cross_the_native_pipeline() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/os/darwin\n\
-         func main(): i32 {\n\
+         blocking func main(): i32 {\n\
              if darwin.syscall0_succeeds_for_test(0x02000014) {\n\
                  if darwin.syscall1_fails_for_test(0x02000006, 18446744073709551615) {\n\
                      return 42\n\
@@ -1187,7 +1187,7 @@ fn generic_syscall_write_is_the_native_io_boundary() {
     let fixture = CompilerFixture::with_app_standard_uses(
         "use std/internal/os/darwin\n\
          use std/str as std_str\n\
-         func main(): i32 {\n\
+         blocking func main(): i32 {\n\
              let text: &str = \"hello\"\n\
              let written = darwin.syscall3_value_for_test(\n\
                  0x02000004,\n\
@@ -1214,7 +1214,7 @@ fn generic_syscalls_open_read_and_close_a_native_file() {
          use std/process\n\
          use std/ptr\n\
          use std/str as std_str\n\
-         func inspect_file(): i32 {\n\
+         blocking func inspect_file(): i32 {\n\
              if !(process.arg_count_for_test() == 2) { return 2 }\n\
              let fd = darwin.syscall3_value_for_test(\n\
                  0x02000005,\n\
@@ -1241,7 +1241,7 @@ fn generic_syscalls_open_read_and_close_a_native_file() {
              if !(bytes[4] == 111) { return 11 }\n\
              return 42\n\
          }\n\
-         func main(): i32 { inspect_file() }\n",
+         blocking func main(): i32 { inspect_file() }\n",
         &[
             &["internal", "os", "darwin"],
             &["process"],

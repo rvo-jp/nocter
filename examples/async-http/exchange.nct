@@ -1,7 +1,6 @@
 see ./index.nct
 
 use std/http.{Client, Request}
-use std/io
 use std/net
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener}
 use std/string.String
@@ -91,7 +90,8 @@ async func run(): i32! {
         return error.new("async-http.header", "local response header was absent")
     }
     let body = await received.read_to_string_async_with_timeout(timeout)?
-    io.print("async http: ")?
-    io.println(&body)?
+    if body != "pong" {
+        return error.new("async-http.body", "local server returned an unexpected body")
+    }
     return 0
 }

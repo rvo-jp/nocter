@@ -135,7 +135,7 @@ fn namespace_member_call_projects_the_callable_for_hover_and_navigation() {
     let tree = TempTree::new();
     let source_text = concat!(
         "use std/fs\n",
-        "func inspect(path: &str): void! {\n",
+        "blocking func inspect(path: &str): void! {\n",
         "    let details = fs.metadata(path)?\n",
         "    let _ = details.len()\n",
         "    return\n",
@@ -164,7 +164,7 @@ fn namespace_member_call_projects_the_callable_for_hover_and_navigation() {
         .unwrap();
     assert_eq!(
         subject.presentation().code(),
-        "pub func metadata(path: &str): Metadata!"
+        "pub blocking func metadata(path: &str): Metadata!"
     );
     assert_eq!(
         snapshot
@@ -395,7 +395,7 @@ fn repeated_checked_member_queries_are_semantically_identical() {
     let tree = TempTree::new();
     let source_text = concat!(
         "use std/fs\n",
-        "func inspect(path: &str): void! {\n",
+        "blocking func inspect(path: &str): void! {\n",
         "    let details = fs.metadata(path)?\n",
         "    let _ = details.len()\n",
         "    return\n",

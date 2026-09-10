@@ -61,7 +61,7 @@
                 <div class="hero-code-panels">
                     <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span></code></pre>
@@ -100,7 +100,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
@@ -120,7 +120,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
@@ -252,10 +252,10 @@
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">input</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
     <span class="token-comment">/// Launches the command, waits for its child, and consumes all command storage.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">ExitStatus</span><span class="token-operator">!</span>
 
     <span class="token-comment">/// Launches the command and returns its terminal state and complete output streams.</span>
-    <span class="token-keyword">pub</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> self<span class="token-operator">.</span><span class="token-function">output</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Output</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">ExitStatus</span> <span class="token-operator">{</span>
@@ -297,10 +297,10 @@
 <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">env</span><span class="token-operator">(</span>name<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">?</span><span class="token-operator">!</span>
 
 <span class="token-comment">/// Returns the current working directory in current-context storage.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">cwd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">cwd</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
 
 <span class="token-comment">/// Returns the current working directory using recoverable storage from `allocator`.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">try_cwd</span><span class="token-operator">(</span>allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
 
 <span class="token-comment">/// Terminates the process with `code` and does not return.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">func</span> <span class="token-function">exit</span><span class="token-operator">(</span>code<span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">never</span>

@@ -2,7 +2,7 @@ use std/io
 use std/json
 use std/json.{Number, Value}
 
-func main(): i32! {
+blocking func main(): i32! {
     let input = f64.parse("0.1") otherwise {
         io.eprint("the built-in decimal sample was rejected\n")?
         return 1

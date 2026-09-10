@@ -170,6 +170,14 @@ fn validate_identity(
     {
         return Err(PrimitiveContractRule::AllocationGuarantee);
     }
+    let expected_nonblocking = if role.effects().may_block() {
+        nocter_model::NonblockingGuarantee::Unspecified
+    } else {
+        nocter_model::NonblockingGuarantee::Nonblocking
+    };
+    if declaration.guarantees().nonblocking() != expected_nonblocking {
+        return Err(PrimitiveContractRule::BlockingGuarantee);
+    }
     let site = graph
         .declaration_sites()
         .get(declaration.site())

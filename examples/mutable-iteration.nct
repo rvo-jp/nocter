@@ -5,7 +5,7 @@ struct Counter {
     value: i32
 }
 
-func main(): i32! {
+blocking func main(): i32! {
     var counters = Vec [Counter { value: 1 }, Counter { value: 2 }, Counter { value: 3 }]
     var expected: i32 = 11
     for counter in &+counters {

@@ -93,7 +93,8 @@ An entry may carry the `async` modifier when it needs suspension:
 ```nct
 async func main(): void! {
     let response = await fetch()?
-    io.print(response)
+    drop response
+    return
 }
 ```
 

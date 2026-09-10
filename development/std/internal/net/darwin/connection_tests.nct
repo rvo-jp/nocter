@@ -6,12 +6,12 @@ see ./index.nct
 use /internal/net/model.{NetworkAddress, NetworkOwner}
 use /ptr
 
-noalloc func next_test_connection_event(owner: &+NetworkOwner): (usize, usize, usize, usize, usize) {
+noalloc blocking func next_test_connection_event(owner: &+NetworkOwner): (usize, usize, usize, usize, usize) {
     var scratch: [u8; 1] = [0]
     return network_connection_receive_event_raw(owner, ptr.from_ref_mut(&+scratch[0]), 1)
 }
 
-noalloc func release_test_connection(owner: NetworkOwner): void {
+noalloc blocking func release_test_connection(owner: NetworkOwner): void {
     var connection = move owner
     network_connection_request_cancel_raw(&+connection)
     var event = next_test_connection_event(&+connection)

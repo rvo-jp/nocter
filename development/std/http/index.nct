@@ -285,6 +285,9 @@ instance Response {
     /// Borrows the final ordered response fields.
     pub noalloc method &self.headers(): &Headers from self
 
+    /// Reads at most `output.len()` decoded response-body bytes, possibly waiting for input.
+    pub blocking method &+self.read(output: &+[u8]): usize!
+
     /// Reads at most `output.len()` decoded response-body bytes without blocking the executor.
     pub async method &+self.read_async(output: &+[u8]): usize!
 

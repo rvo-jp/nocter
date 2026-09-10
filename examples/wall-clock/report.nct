@@ -3,7 +3,7 @@ use std/io
 use std/process
 use std/time.SystemTime
 
-func run(): i32! {
+blocking func run(): i32! {
     let requested: &str = process.arg(1)? otherwise {
         io.eprintln("usage: wall-clock PATH")?
         return 2

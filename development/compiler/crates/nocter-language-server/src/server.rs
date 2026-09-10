@@ -1644,7 +1644,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/fs\\nfunc main(): void! {{\\n    let stream = fs.read_dir(\\\".\\\")?\\n    return\\n}}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/fs\\nblocking func main(): void! {{\\n    let stream = fs.read_dir(\\\".\\\")?\\n    return\\n}}\\n\"}}}}}}"
         ));
 
         let completion = server.receive(&format!(
@@ -1666,7 +1666,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("pub func read_dir(path: &str): ReadDir!"))
+            .find(|(_, line)| line.contains("pub blocking func read_dir(path: &str): ReadDir!"))
             .unwrap();
         let character = source_line.find("read_dir").unwrap();
         let hover = server.receive(&format!(
@@ -1675,7 +1675,7 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("```nocter\\npub func read_dir(path: &str): ReadDir!\\n```"),
+            response.contains("```nocter\\npub blocking func read_dir(path: &str): ReadDir!\\n```"),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -1707,7 +1707,7 @@ mod tests {
             "use std/time.SystemTime\n",
             "use std/fs\n",
             "\n",
-            "func inspect(): void! {\n",
+            "blocking func inspect(): void! {\n",
             "    let parsed = SystemTime.parse_rfc3339(\"1970-01-01T00:00:00Z\")?\n",
             "    let text = parsed.to_rfc3339()?\n",
             "    let details = fs.metadata(\"sample\")?\n",
@@ -1841,7 +1841,7 @@ mod tests {
     #[test]
     fn path_and_directory_mutation_contracts_share_complete_editor_semantics() {
         let temporary = TemporaryDirectory::new();
-        let source_text = "use std/fs\nuse std/path.Utf8Path\n\nfunc inspect(path: &Utf8Path): void! {\n    fs.create_dir_all(path)?\n    let _parent = path.parent()\n    return\n}\n";
+        let source_text = "use std/fs\nuse std/path.Utf8Path\n\nblocking func inspect(path: &Utf8Path): void! {\n    fs.create_dir_all(path)?\n    let _parent = path.parent()\n    return\n}\n";
         let (mut server, source_uri) = open_semantic_source(&temporary, source_text);
 
         let create_line = source_text
@@ -1869,7 +1869,8 @@ mod tests {
         ));
         let response = create_hover.response().unwrap();
         assert!(
-            response.contains("```nocter\\npub func create_dir_all(path: &str): void!\\n```"),
+            response
+                .contains("```nocter\\npub blocking func create_dir_all(path: &str): void!\\n```"),
             "{response}"
         );
         assert!(create_hover.issue().is_none(), "{:?}", create_hover.issue());
@@ -1940,7 +1941,7 @@ mod tests {
         ));
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/io/buffer.BufReader\\nfunc inspect(reader: &+BufReader): void! {{\\n    let _line = reader.read_line()?\\n    return\\n}}\\n\"}}}}}}"
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":{{\"textDocument\":{{\"uri\":\"{source_uri}\",\"languageId\":\"nocter\",\"version\":1,\"text\":\"use std/io/buffer.BufReader\\nblocking func inspect(reader: &+BufReader): void! {{\\n    let _line = reader.read_line()?\\n    return\\n}}\\n\"}}}}}}"
         ));
 
         let completion = server.receive(&format!(
@@ -1970,7 +1971,7 @@ mod tests {
         let (line, source_line) = text
             .lines()
             .enumerate()
-            .find(|(_, line)| line.contains("pub method &+self.read_line(): String?!"))
+            .find(|(_, line)| line.contains("pub blocking method &+self.read_line(): String?!"))
             .unwrap();
         let character = source_line.find("read_line").unwrap();
         let hover = server.receive(&format!(
@@ -1979,7 +1980,9 @@ mod tests {
         ));
         let response = hover.response().unwrap();
         assert!(
-            response.contains("```nocter\\npub method &+BufReader.read_line(): String?!\\n```"),
+            response.contains(
+                "```nocter\\npub blocking method &+BufReader.read_line(): String?!\\n```"
+            ),
             "{response}"
         );
         assert!(hover.issue().is_none(), "{:?}", hover.issue());

@@ -61,7 +61,7 @@
                 <div class="hero-code-panels">
                     <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span></code></pre>
@@ -100,7 +100,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
@@ -120,7 +120,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
@@ -192,7 +192,7 @@
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>process
 <span class="token-keyword">use</span> std<span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 
-<span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> process<span class="token-operator">.</span><span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">2</span> <span class="token-operator">{</span>
         <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">2</span> <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
@@ -211,7 +211,7 @@
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">prefix_lines</span><span class="token-operator">(</span>prefix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">prefix_lines</span><span class="token-operator">(</span>prefix<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> input <span class="token-operator">=</span> <span class="token-type">BufReader</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span>io<span class="token-operator">.</span><span class="token-function">stdin</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> output <span class="token-operator">=</span> io<span class="token-operator">.</span><span class="token-function">stdout</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-keyword">var</span> line <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
@@ -222,12 +222,12 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     io<span class="token-operator">.</span><span class="token-function">eprintln</span><span class="token-operator">(</span><span class="token-string">"usage: stdin-prefix PREFIX"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">report_failure</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> <span class="token-operator">&amp;</span>error<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">report_failure</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> <span class="token-operator">&amp;</span>error<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     io<span class="token-operator">.</span><span class="token-function">eprint</span><span class="token-operator">(</span><span class="token-string">"stdin-prefix: "</span><span class="token-operator">)</span><span class="token-operator">?</span>
     io<span class="token-operator">.</span><span class="token-function">eprint</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">code</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
     io<span class="token-operator">.</span><span class="token-function">eprint</span><span class="token-operator">(</span><span class="token-string">": "</span><span class="token-operator">)</span><span class="token-operator">?</span>

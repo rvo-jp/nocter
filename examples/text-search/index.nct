@@ -21,6 +21,6 @@ instance SearchPath {
     impl TotalOrder
 }
 
-func main(): i32 {
+blocking func main(): i32 {
     return run()
 }

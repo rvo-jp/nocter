@@ -64,7 +64,7 @@ noalloc func stream_from_connection(connection: StreamConnection): TcpStream {
 }
 
 construct TcpStream {
-    noalloc func connect(address: SocketAddress): Self! {
+    noalloc blocking func connect(address: SocketAddress): Self! {
         match net.connect_stream(substrate_address(&address), none) {
             StreamConnectionAttempt.ready(connection) {
                 return stream_from_connection(move connection)
@@ -73,7 +73,7 @@ construct TcpStream {
         }
     }
 
-    noalloc func connect_with_timeout(address: SocketAddress, timeout: Duration): Self! {
+    noalloc blocking func connect_with_timeout(address: SocketAddress, timeout: Duration): Self! {
         match net.connect_stream(substrate_address(&address), timeout) {
             StreamConnectionAttempt.ready(connection) {
                 return stream_from_connection(move connection)
@@ -84,14 +84,14 @@ construct TcpStream {
 }
 
 instance TcpStream {
-    noalloc method &+self.read(buffer: &+[u8]): usize! {
+    noalloc blocking method &+self.read(buffer: &+[u8]): usize! {
         match self.connection.read(buffer) {
             TransferAttempt.ready(count) { return count }
             TransferAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    noalloc method &+self.write(bytes: &[u8]): void! {
+    noalloc blocking method &+self.write(bytes: &[u8]): void! {
         match self.connection.write(bytes) {
             UnitAttempt.ready { return }
             UnitAttempt.failed(failure) { return network_error(move failure) }
@@ -130,7 +130,7 @@ instance TcpStream {
         return self.connection.write_timeout()
     }
 
-    noalloc method &+self.shutdown(direction: TcpShutdown): void! {
+    noalloc blocking method &+self.shutdown(direction: TcpShutdown): void! {
         let selected = match direction {
             TcpShutdown.read { NetworkShutdown.read }
             TcpShutdown.write { NetworkShutdown.write }
@@ -149,7 +149,7 @@ instance TcpStream {
 }
 
 construct TcpListener {
-    noalloc func bind(address: SocketAddress): Self! {
+    noalloc blocking func bind(address: SocketAddress): Self! {
         match net.listen_stream(substrate_address(&address)) {
             StreamListenerAttempt.ready(listener) {
                 return TcpListener { listener: move listener }
@@ -167,7 +167,7 @@ instance TcpListener {
         }
     }
 
-    noalloc method &+self.accept(): (TcpStream, SocketAddress)! {
+    noalloc blocking method &+self.accept(): (TcpStream, SocketAddress)! {
         match self.listener.accept() {
             StreamListenerAcceptAttempt.ready(connection, peer) {
                 return (stream_from_connection(move connection), public_address(peer))

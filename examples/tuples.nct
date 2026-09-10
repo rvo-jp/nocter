@@ -4,7 +4,7 @@ func initial_statistics(): (String, usize) {
     return (String "Nocter", 32)
 }
 
-func main(): i32! {
+blocking func main(): i32! {
     var statistics = initial_statistics()
     statistics.1 += 1
     let _ = (7, 8).0

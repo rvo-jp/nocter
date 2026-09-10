@@ -44,7 +44,7 @@ code:
 use std/io
 use ./parser.Parser
 
-func main(): i32! {
+blocking func main(): i32! {
     let parser = Parser.new()
     io.print("ready\n")?
     return 0

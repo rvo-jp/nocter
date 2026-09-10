@@ -370,7 +370,7 @@ noalloc func connection_event_from_words(
 }
 
 #target: "arm64-darwin"
-noalloc func connection_next_event(
+noalloc blocking func connection_next_event(
     owner: &+NetworkOwner,
     destination: *u8,
     capacity: usize,
@@ -466,7 +466,7 @@ noalloc func listener_event_from_words(
 }
 
 #target: "arm64-darwin"
-noalloc func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent {
+noalloc blocking func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent {
     let event = network_listener_receive_event_raw(owner)
     return listener_event_from_words(event.0, event.1, event.2, event.3, move event.4)
 }
@@ -490,7 +490,7 @@ noalloc func listener_dispose(owner: NetworkOwner): void {
 }
 
 #target: "arm64-darwin"
-noalloc func configure_descriptor(fd: usize): ConfigureAttempt {
+noalloc blocking func configure_descriptor(fd: usize): ConfigureAttempt {
     var flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFD, 0)
     while flags.errno == darwin.ERRNO_INTERRUPTED {
         flags = darwin.syscall3(darwin.SYS_FCNTL, fd, darwin.F_GETFD, 0)
@@ -533,7 +533,7 @@ noalloc func configure_descriptor(fd: usize): ConfigureAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func configure_family(fd: usize, family: NetworkFamily): ConfigureAttempt {
+noalloc blocking func configure_family(fd: usize, family: NetworkFamily): ConfigureAttempt {
     if family is NetworkFamily.ipv4 { return ConfigureAttempt.ready }
     var enabled: i32 = 1
     var result = darwin.syscall5(
@@ -566,7 +566,7 @@ noalloc func close_once(fd: usize): void {
 }
 
 #target: "arm64-darwin"
-noalloc func create_socket(family: NetworkFamily, socket_type: usize): RawDescriptorAttempt {
+noalloc blocking func create_socket(family: NetworkFamily, socket_type: usize): RawDescriptorAttempt {
     let native_family = match family {
         NetworkFamily.ipv4 { ADDRESS_FAMILY_IPV4 }
         NetworkFamily.ipv6 { ADDRESS_FAMILY_IPV6 }
@@ -598,7 +598,7 @@ noalloc func create_socket(family: NetworkFamily, socket_type: usize): RawDescri
 }
 
 #target: "arm64-darwin"
-noalloc func create_udp(family: NetworkFamily): RawDescriptorAttempt {
+noalloc blocking func create_udp(family: NetworkFamily): RawDescriptorAttempt {
     return create_socket(family, SOCKET_DATAGRAM)
 }
 
@@ -612,7 +612,7 @@ noalloc func classify_unit(result: SyscallResult): RawUnitAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func select_datagram_peer_once(
+noalloc blocking func select_datagram_peer_once(
     fd: usize,
     address: &NetworkAddress,
 ): RawUnitAttempt {
@@ -631,7 +631,7 @@ noalloc func select_datagram_peer_once(
 }
 
 #target: "arm64-darwin"
-noalloc func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt {
+noalloc blocking func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt {
     var pending_error: i32 = 0
     var length: u32 = 4
     let result = darwin.syscall5(
@@ -650,7 +650,7 @@ noalloc func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt {
+noalloc blocking func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt {
     let native = native_address(address)
     return classify_unit(darwin.syscall3(
         SYS_BIND,
@@ -670,7 +670,7 @@ noalloc func classify_datagram_send(result: SyscallResult, expected: usize): Raw
 }
 
 #target: "arm64-darwin"
-noalloc func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt {
+noalloc blocking func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt {
     return classify_datagram_send(darwin.syscall6(
         SYS_SENDTO,
         fd,
@@ -683,7 +683,7 @@ noalloc func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func send_to_once(
+noalloc blocking func send_to_once(
     fd: usize,
     bytes: &[u8],
     target: &NetworkAddress,
@@ -701,7 +701,7 @@ noalloc func send_to_once(
 }
 
 #target: "arm64-darwin"
-noalloc func receive_from_once(
+noalloc blocking func receive_from_once(
     fd: usize,
     buffer: &+[u8],
 ): RawDatagramAttempt {
@@ -742,7 +742,7 @@ noalloc func receive_from_once(
 }
 
 #target: "arm64-darwin"
-noalloc func poll_once(
+noalloc blocking func poll_once(
     fd: usize,
     events: u16,
     timeout_milliseconds: usize?,
@@ -785,7 +785,7 @@ noalloc func poll_once(
 }
 
 #target: "arm64-darwin"
-noalloc func wait_readable_once(
+noalloc blocking func wait_readable_once(
     fd: usize,
     timeout_milliseconds: usize?,
 ): RawWaitAttempt {
@@ -793,7 +793,7 @@ noalloc func wait_readable_once(
 }
 
 #target: "arm64-darwin"
-noalloc func wait_writable_once(
+noalloc blocking func wait_writable_once(
     fd: usize,
     timeout_milliseconds: usize?,
 ): RawWaitAttempt {
@@ -801,7 +801,7 @@ noalloc func wait_writable_once(
 }
 
 #target: "arm64-darwin"
-noalloc func address_once(fd: usize, peer: bool): RawAddressAttempt {
+noalloc blocking func address_once(fd: usize, peer: bool): RawAddressAttempt {
     var native = empty_native_address()
     var length: u32 = 28
     let syscall = if peer { SYS_GETPEERNAME } else { SYS_GETSOCKNAME }
@@ -821,11 +821,11 @@ noalloc func address_once(fd: usize, peer: bool): RawAddressAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func local_address_once(fd: usize): RawAddressAttempt {
+noalloc blocking func local_address_once(fd: usize): RawAddressAttempt {
     return address_once(fd, false)
 }
 
 #target: "arm64-darwin"
-noalloc func peer_address_once(fd: usize): RawAddressAttempt {
+noalloc blocking func peer_address_once(fd: usize): RawAddressAttempt {
     return address_once(fd, true)
 }

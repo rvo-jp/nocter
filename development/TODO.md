@@ -2,16 +2,17 @@
 
 ## Current State
 
-Nocter v0.44.0 is published and externally audited. v0.45.0 Phase 0 is complete. The adopted model
-makes nonblocking drive a universal `future T` invariant and marks synchronous external waiting
-with the positive `blocking` callable effect. It does not introduce `noblock` or a second future
-type.
+Nocter v0.44.0 is published and externally audited. v0.45.0 Phases 0 and 1 are complete. Phase 2
+has established nonwaiting network disposal, provider-backed asynchronous host setup, an explicit
+synchronous resolver effect, exact primitive blocking validation, and propagated synchronous
+standard-library contracts. The adopted model makes nonblocking drive a universal `future T`
+invariant and marks synchronous external waiting with the positive `blocking` callable effect.
 
 ## Next Work
 
-Implement Phase 1 as one syntax-to-checking authority replacement. Establish one checked blocking
-effect before changing standard-library API names. Follow the phases and gates in the
-[v0.45.0 milestone](history/milestones/v0.45.0.md).
+Finish Phase 2 API normalization from the closed effect inventory, then begin structured task
+composition in Phase 3. Follow the phases and gates in the [v0.45.0
+milestone](history/milestones/v0.45.0.md).
 
 Preserve every published tag and asset, including v0.44.0.
 

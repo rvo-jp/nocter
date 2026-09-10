@@ -9,6 +9,6 @@
 
 see ./report.nct
 
-func main(): i32! {
+blocking func main(): i32! {
     return run()
 }

@@ -18,7 +18,7 @@ use /tls.TrustAnchor
 use /url.Url
 use /vec.Vec
 
-func read_response_head(
+blocking func read_response_head(
     stream: &+ClientTransport,
     request_method: &Method,
     limits: Limits,
@@ -41,7 +41,7 @@ func read_response_head(
     }
 }
 
-func send_over_transport(
+blocking func send_over_transport(
     prepared: PreparedRequest,
     stream: ClientTransport,
 ): Response! {
@@ -159,7 +159,7 @@ instance Response {
         return self.head.headers()
     }
 
-    method &+self.read(output: &+[u8]): usize! {
+    blocking method &+self.read(output: &+[u8]): usize! {
         if self.complete || output.len() == 0 { return 0 }
         loop {
             match advance_response_body(self, output, false) {

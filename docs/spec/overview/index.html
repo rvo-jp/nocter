@@ -61,7 +61,7 @@
                 <div class="hero-code-panels">
                     <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span></code></pre>
@@ -100,7 +100,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
@@ -120,7 +120,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
@@ -210,7 +210,8 @@
 <span class="token-operator">}</span>
 </code></pre><p>An entry may carry the <code>async</code> modifier when it needs suspension:</p><pre><code class="language-nct"><span class="token-keyword">async</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> response <span class="token-operator">=</span> <span class="token-keyword">await</span> <span class="token-function">fetch</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
-    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span>response<span class="token-operator">)</span>
+    drop response
+    <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 </code></pre><p>Rules:</p><ul><li>A selected executable module must define exactly one top-level function named <code>main</code>.</li><li>The CLI does not accept <code>--entry</code>.</li><li>Entry lookup considers only the selected executable module's top-level functions.</li><li>Imported modules may define ordinary functions named <code>main</code>; they are not selected as the executable entry point.</li><li>Duplicate declarations for the selected entry name in one visible scope are normal duplicate function-name errors.</li><li><code>func main(): i32!</code> is the standard executable entry form.</li><li>If <code>func main(): i32!</code> or <code>func main(): usize!</code> succeeds, the returned value is used as the process exit status.</li><li>If <code>func main(): void!</code> succeeds, the process exits with status code <code>0</code>.</li><li>If <code>func main(): i32!</code>, <code>func main(): usize!</code>, or <code>func main(): void!</code> fails, the compiler-generated entry wrapper writes the built-in <code>error</code> payload to stderr and exits with status code <code>1</code>.</li><li>The generated failure report includes the root classification code and the outer-to-inner
   context and leaf messages exposed by the built-in error handle.</li><li>If stderr reporting itself fails, the wrapper ignores that reporting failure and still exits with status code <code>1</code>.</li><li>Process-result conversion and failure reporting in the compiler-generated entry wrapper do not

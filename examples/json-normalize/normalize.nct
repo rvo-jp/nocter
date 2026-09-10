@@ -5,7 +5,7 @@ use std/json
 use std/path.Utf8Path
 use std/process
 
-func run(): i32 {
+blocking func run(): i32 {
     if process.arg_count() != 2 {
         report_usage() catch _ { return 2 }
         return 2
@@ -41,13 +41,13 @@ func run(): i32 {
     return 0
 }
 
-func report_usage(): void! {
+blocking func report_usage(): void! {
     var output = io.stderr()
     output.write_text("usage: json-normalize PATH\n")?
     return
 }
 
-func report_failure(failure: &error): void! {
+blocking func report_failure(failure: &error): void! {
     var output = io.stderr()
     output.write_text("json-normalize: ")?
     output.write_text(failure.code())?

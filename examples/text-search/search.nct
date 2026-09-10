@@ -19,7 +19,7 @@ instance SearchPath {
     }
 }
 
-func run(): i32 {
+blocking func run(): i32 {
     if process.arg_count() != 3 {
         report_usage() catch _ { return 2 }
         return 2
@@ -48,7 +48,7 @@ func run(): i32 {
     return 1
 }
 
-func search_tree(needle: &str, root: &str): bool! {
+blocking func search_tree(needle: &str, root: &str): bool! {
     var paths: Vec<SearchPath> = Vec.empty()
     collect_directory(root, "", &+paths)?
     paths.sort()
@@ -64,7 +64,7 @@ func search_tree(needle: &str, root: &str): bool! {
     return matched
 }
 
-func collect_directory(
+blocking func collect_directory(
     full_directory: &str,
     display_directory: &str,
     files: &+Vec<SearchPath>,
@@ -116,7 +116,7 @@ func display_child(parent: &str, name: &str): String {
     return String.concat(parent, "/", name)
 }
 
-func search_file(output: &+BufWriter, needle: &str, path: &SearchPath): bool! {
+blocking func search_file(output: &+BufWriter, needle: &str, path: &SearchPath): bool! {
     let source = File.open(&path.full) catch failure {
         let context = String.concat("cannot open ", &path.display)
         return failure.context(&context)
@@ -143,7 +143,7 @@ func search_file(output: &+BufWriter, needle: &str, path: &SearchPath): bool! {
     return matched
 }
 
-func write_match(
+blocking func write_match(
     output: &+BufWriter,
     path: &str,
     line_number: usize,
@@ -159,13 +159,13 @@ func write_match(
     return
 }
 
-func report_usage(): void! {
+blocking func report_usage(): void! {
     var output = io.stderr()
     output.write_text("usage: text-search NEEDLE ROOT\n")?
     return
 }
 
-func report_failure(failure: &error): void! {
+blocking func report_failure(failure: &error): void! {
     var output = io.stderr()
     output.write_text("text-search: ")?
     output.write_text(failure.code())?

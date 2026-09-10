@@ -15,7 +15,7 @@ use std/path.Utf8Path
 use std/process
 use std/string.String
 
-func main(): i32! {
+blocking func main(): i32! {
     let requested: &str = process.arg(1)? otherwise {
         io.print("usage: text-report PATH NEEDLE\n")?
         return 2
@@ -32,7 +32,7 @@ func main(): i32! {
     return 0
 }
 
-func print_report(report: &Report): void! {
+blocking func print_report(report: &Report): void! {
     let lines = report.lines().to_string()
     let matching = report.matching().to_string()
     let output = String.concat(

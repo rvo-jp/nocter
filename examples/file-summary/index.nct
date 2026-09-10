@@ -14,7 +14,7 @@ use std/process
 
 see ./summary.nct
 
-func main(): i32! {
+blocking func main(): i32! {
     let requested: &str = process.arg(1)? otherwise {
         io.print("usage: file-summary PATH\n")?
         return 2

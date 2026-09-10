@@ -26,14 +26,14 @@ construct WriterSink<W> {
 }
 
 instance StringSink {
-    method &+self.emit(bytes: &[u8]): void! {
+    blocking method &+self.emit(bytes: &[u8]): void! {
         self.destination.try_push_utf8(bytes)?
         return
     }
 }
 
 instance WriterSink<W> where W impl Writer {
-    method &+self.emit(bytes: &[u8]): void! {
+    blocking method &+self.emit(bytes: &[u8]): void! {
         self.destination.write(bytes)?
         return
     }

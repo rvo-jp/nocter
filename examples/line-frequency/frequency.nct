@@ -6,7 +6,7 @@ use std/string.String
 
 see ./index.nct
 
-func run(): i32! {
+blocking func run(): i32! {
     let requested: &str = process.arg(1)? otherwise {
         io.print("usage: line-frequency PATH NEEDLE\n")?
         return 2

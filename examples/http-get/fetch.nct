@@ -35,13 +35,13 @@ blocking func fetch(source: &str): void! {
     return
 }
 
-func report_usage(): void! {
+blocking func report_usage(): void! {
     var output = io.stderr()
     output.write_text("usage: http-get URL\n")?
     return
 }
 
-func report_failure(failure: &error): void! {
+blocking func report_failure(failure: &error): void! {
     var output = io.stderr()
     output.write_text("http-get: ")?
     output.write_text(failure.code())?

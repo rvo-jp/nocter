@@ -37,7 +37,7 @@ enum DescriptorInstallAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func duplicate_cloexec(fd: usize): SyscallResult {
+noalloc blocking func duplicate_cloexec(fd: usize): SyscallResult {
     var result = darwin.syscall3(
         darwin.SYS_FCNTL,
         fd,
@@ -64,7 +64,7 @@ noalloc func close_raw_fd(fd: usize): void {
 }
 
 #target: "arm64-darwin"
-noalloc func create_cloexec_pipe(): PipeAttempt {
+noalloc blocking func create_cloexec_pipe(): PipeAttempt {
     let raw: SyscallPairResult = darwin.syscall_pair0(darwin.SYS_PIPE)
     if raw.errno != 0 { return PipeAttempt.failed(raw.errno) }
 
@@ -132,7 +132,7 @@ noalloc func close_pipe_write(pipe: &+OwnedPipe): void {
 }
 
 #target: "arm64-darwin"
-noalloc func configure_pipe_writer_for_async_io(pipe: &OwnedPipe): PipeConfigurationAttempt {
+noalloc blocking func configure_pipe_writer_for_async_io(pipe: &OwnedPipe): PipeConfigurationAttempt {
     var result = darwin.syscall3(
         darwin.SYS_FCNTL,
         pipe_write_fd(pipe),
@@ -187,7 +187,7 @@ noalloc func configure_pipe_writer_for_async_io(pipe: &OwnedPipe): PipeConfigura
 }
 
 #target: "arm64-darwin"
-noalloc func install_descriptor(source_fd: usize, target_fd: usize): DescriptorInstallAttempt {
+noalloc blocking func install_descriptor(source_fd: usize, target_fd: usize): DescriptorInstallAttempt {
     var result = darwin.syscall2(darwin.SYS_DUP2, source_fd, target_fd)
     while result.errno == darwin.ERRNO_INTERRUPTED {
         result = darwin.syscall2(darwin.SYS_DUP2, source_fd, target_fd)

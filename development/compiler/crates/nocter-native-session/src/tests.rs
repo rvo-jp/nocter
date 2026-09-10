@@ -488,6 +488,16 @@ fn compile_single_file_native_source(
     compiled.into_parts().0
 }
 
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn byte_vector_source(bytes: &[u8]) -> String {
+    let elements = bytes
+        .iter()
+        .map(|byte| format!("u8.truncate({byte})"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("Vec [{elements}]")
+}
+
 #[test]
 fn scalar_floating_values_cross_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -782,7 +792,7 @@ func main(): i32 {
 
 const PROVIDER_ASYNC_STREAM_TEST_MAIN: &str = r#"
 async func main(): i32 {
-    var listener = match listen_stream(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+    var listener = match await listen_stream_async(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
         StreamListenerAttempt.ready(ready_listener) { move ready_listener }
         StreamListenerAttempt.failed(_) { return 1 }
     }
@@ -797,7 +807,7 @@ async func main(): i32 {
         StreamConnectionAttempt.ready(connection) { move connection }
         StreamConnectionAttempt.failed(_) { return 3 }
     }
-    var server = match listener.accept() {
+    var server = match await listener.accept_async() {
         StreamListenerAcceptAttempt.ready(connection, _) { move connection }
         StreamListenerAcceptAttempt.failed(_) { return 4 }
     }
@@ -811,12 +821,12 @@ async func main(): i32 {
     var request: Vec<u8> = Vec [
         u8.truncate(0), u8.truncate(0), u8.truncate(0), u8.truncate(0),
     ]
-    let request_len = match server.read(&+request) {
+    let request_len = match await server.read_async(&+request) {
         TransferAttempt.ready(count) { count }
         TransferAttempt.failed(_) { return 6 }
     }
     if request_len != 4 || request[0] != 112 || request[3] != 103 { return 7 }
-    match server.write("pong".bytes()) {
+    match await server.write_async("pong".bytes()) {
         UnitAttempt.ready {}
         UnitAttempt.failed(_) { return 8 }
     }
@@ -844,7 +854,7 @@ async func main(): i32 {
             }
         }
     }
-    match client.write("closed".bytes()) {
+    match await client.write_async("closed".bytes()) {
         UnitAttempt.failed(failure) {
             match move failure {
                 NetworkFailure.closed { return 0 }
@@ -858,7 +868,7 @@ async func main(): i32 {
 
 const PROVIDER_LISTENER_POLICY_TEST_MAIN: &str = r"
 async func main(): i32 {
-    var listener = match listen_stream(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
+    var listener = match await listen_stream_async(NetworkAddress.ipv4([127, 0, 0, 1], 0)) {
         StreamListenerAttempt.ready(value) { move value }
         StreamListenerAttempt.failed(_) { return 1 }
     }
@@ -889,10 +899,7 @@ async func main(): i32 {
     }
     var server = move accepted.0
     if accepted.1.port == 0 { return 8 }
-    match server.shutdown(NetworkShutdown.write) {
-        UnitAttempt.ready {}
-        UnitAttempt.failed(_) { return 9 }
-    }
+    server.close()
     var end: Vec<u8> = Vec [u8.truncate(0)]
     match await client.read_async_with_timeout(&+end, Duration.from_seconds(1)) {
         TransferAttempt.ready(count) {
@@ -901,10 +908,9 @@ async func main(): i32 {
         TransferAttempt.failed(_) { return 11 }
     }
     client.close()
-    server.close()
     listener.close()
     listener.close()
-    match listener.accept() {
+    match await listener.accept_async() {
         StreamListenerAcceptAttempt.failed(failure) {
             match move failure {
                 NetworkFailure.closed { return 0 }
@@ -1053,7 +1059,7 @@ noalloc func has_signal(status: ExitStatus): bool {{
     return true
 }}
 
-func main(): i32 {{
+blocking func main(): i32 {{
     var path = String.copy("{}")
     var first = String.copy("alpha beta")
     var command = Command.new(&path as &str) catch _ {{ return 1 }}
@@ -1124,7 +1130,7 @@ noalloc func matches_stream(
         && bytes[repeated_len + 1] == second_tail
 }}
 
-func main(): i32 {{
+blocking func main(): i32 {{
     let command = Command.new("{}") catch _ {{ return 1 }}
     let output = command.output() catch _ {{ return 2 }}
     let code = output.status.code() otherwise {{ return 3 }}
@@ -1220,12 +1226,12 @@ noalloc func range_matches(bytes: &[u8], start: usize, count: usize, byte: u8): 
     return true
 }
 
-func status_fails_with(command: Command, code: &str): bool {
+blocking func status_fails_with(command: Command, code: &str): bool {
     let _status = command.status() catch failure { return failure.has_code(code) }
     return false
 }
 
-func output_fails_with(command: Command, code: &str): bool {
+blocking func output_fails_with(command: Command, code: &str): bool {
     let _output = command.output() catch failure { return failure.has_code(code) }
     return false
 }
@@ -1246,7 +1252,7 @@ fn configured_subprocess_crosses_the_complete_native_session() {
         "main.nct",
         &format!(
             r#"{CONFIGURED_SUBPROCESS_HELPERS_SOURCE}
-func main(): i32 {{
+blocking func main(): i32 {{
     var exact = Command.new("./environment-helper") catch _ {{ return 1 }}
     exact.current_dir("{}") catch _ {{ return 2 }}
     exact.clear_env()
@@ -1396,12 +1402,12 @@ noalloc func signaled_with(status: ExitStatus, expected: i32): bool {{
     return false
 }}
 
-func fails_with(command: Command, code: &str): bool {{
+blocking func fails_with(command: Command, code: &str): bool {{
     let _status = command.status() catch failure {{ return failure.has_code(code) }}
     return false
 }}
 
-func main(): i32 {{
+blocking func main(): i32 {{
     let success = Command.new("{}") catch _ {{ return 1 }}
     let success_status = success.status() catch _ {{ return 2 }}
     if !success_status.success() || !exited_with(success_status, 0) {{ return 3 }}
@@ -1682,19 +1688,19 @@ fn standard_directory_stream_crosses_the_complete_native_session() {
         r#"use std/fs.FileType
 use std/fs
 
-func open_and_drop(): void! {
+blocking func open_and_drop(): void! {
     let stream = fs.read_dir(".")?
     return
 }
 
-func open_fails_with(path: &str, code: &str): bool {
+blocking func open_fails_with(path: &str, code: &str): bool {
     let _stream = fs.read_dir(path) catch failure {
         return failure.has_code(code)
     }
     return false
 }
 
-func inspect_directory(): i32! {
+blocking func inspect_directory(): i32! {
     var stream = fs.read_dir(".")?
     var saw_file = false
     var saw_directory = false
@@ -1736,7 +1742,7 @@ func inspect_directory(): i32! {
     return 11
 }
 
-func main(): i32 {
+blocking func main(): i32 {
     return inspect_directory() catch _ { return 12 }
 }
 "#,
@@ -1771,7 +1777,7 @@ fn public_path_and_directory_lifecycle_crosses_the_complete_native_session() {
         r#"use std/fs
 use std/path.Utf8Path
 
-func main(): i32! {
+blocking func main(): i32! {
     let target = Utf8Path.new("workspace/cache/items.json")?
     let parent = target.parent() otherwise { return 1 }
     fs.create_dir_all(parent)?
@@ -1842,7 +1848,7 @@ fn standard_streaming_lines_cross_the_complete_native_session() {
 use std/io/buffer.{BufReader, BufWriter}
 use std/string.String
 
-func check_lines(): i32! {
+blocking func check_lines(): i32! {
     var reader = BufReader.with_capacity(File.open("lines.txt")?, 3)
     var line = String.with_capacity(64)
     let original_capacity = line.capacity()
@@ -1860,7 +1866,7 @@ func check_lines(): i32! {
     return 10
 }
 
-func check_invalid_utf8(): i32! {
+blocking func check_invalid_utf8(): i32! {
     var reader = BufReader.with_capacity(File.open("invalid.txt")?, 2)
     var line = String.copy("sentinel")
     if !reader.read_line_into(&+line)? || (&line as &str) != "good" { return 1 }
@@ -1873,7 +1879,7 @@ func check_invalid_utf8(): i32! {
     return 5
 }
 
-func check_zero_capacity_and_close(): i32! {
+blocking func check_zero_capacity_and_close(): i32! {
     var reader = BufReader.with_capacity(File.open("single.txt")?, 0)
     let line = reader.read_line()? otherwise { return 1 }
     if (&line as &str) != "z" { return 2 }
@@ -1886,7 +1892,7 @@ func check_zero_capacity_and_close(): i32! {
     return 4
 }
 
-func check_closed_output(): i32! {
+blocking func check_closed_output(): i32! {
     var file = File.create("closed-file.txt")?
     file.close()
     file.write_text("not written") catch failure {
@@ -1903,7 +1909,7 @@ func check_closed_output(): i32! {
     return 4
 }
 
-func main(): i32 {
+blocking func main(): i32 {
     let lines = check_lines() catch _ { return 20 }
     if lines != 0 { return lines }
     let invalid = check_invalid_utf8() catch _ { return 21 }
@@ -1952,7 +1958,7 @@ func drop_stdin_wrapper(): void {
     return
 }
 
-func main(): i32! {
+blocking func main(): i32! {
     var input = io.stdin()
     let bytes = input.read_to_end()?
     if bytes.len() != 7 { return 1 }
@@ -2008,7 +2014,7 @@ fn standard_buffered_input_crosses_the_complete_native_session() {
 use std/io/buffer.BufReader
 use std/string.String
 
-func main(): i32! {
+blocking func main(): i32! {
     var input = BufReader.with_capacity(io.stdin(), 3)
     var line = String.with_capacity(64)
     let original_capacity = line.capacity()
@@ -3029,6 +3035,8 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     let certificate = package_root.0.join("localhost-cert.pem");
     let key = package_root.0.join("localhost-key.pem");
     let _server = start_local_tls_server(port, &certificate, &key, true);
+    let certificate_source =
+        byte_vector_source(&fs::read(package_root.0.join("root-cert.der")).unwrap());
 
     let standard_root = compiler_root.join("../std");
     let sync_main = format!(
@@ -3049,18 +3057,21 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
              return 6\n\
          }}"
     );
-    let async_main = "async func main(): i32 {\n\
-             let certificate = fs.read(\"root-cert.der\") catch _ { return 1 }\n\
-             let anchor = TrustAnchor.from_der(&certificate) catch _ { return 2 }\n\
-             if !await accepts_asynchronously(&anchor) { return 3 }\n\
+    let async_main = format!(
+        "async func main(): i32 {{\n\
+             let certificate: Vec<u8> = {certificate_source}\n\
+             let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
+             if !await accepts_asynchronously(&anchor) {{ return 3 }}\n\
              return 0\n\
-         }";
+         }}"
+    );
     let source = |main: &str| {
         format!(
             "use std/fs\n\
              use std/time.Duration\n\
              use std/tls as tls\n\
              use std/tls.{{TlsStream, TrustAnchor}}\n\
+             use std/vec.Vec\n\
              \n\
              blocking func rejects_mismatched_name(anchor: &TrustAnchor): bool {{\n\
                  let _stream = TlsStream.connect_with_trust_anchor_and_timeout(\n\
@@ -3084,7 +3095,7 @@ fn custom_trust_augments_system_roots_and_preserves_hostname_authentication() {
     let sync_image =
         compile_single_file_native_source(&package_root, &standard_root, &source(&sync_main));
     let async_image =
-        compile_single_file_native_source(&package_root, &standard_root, &source(async_main));
+        compile_single_file_native_source(&package_root, &standard_root, &source(&async_main));
     execute_native_status(&sync_image, &package_root.0, "tls-custom-trust-sync", 0);
     execute_native_status(&async_image, &package_root.0, "tls-custom-trust-async", 0);
 }
@@ -3155,6 +3166,8 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
     let certificate = package_root.0.join("localhost-cert.pem");
     let key = package_root.0.join("localhost-key.pem");
     let server = start_local_tls_http_server(port, &certificate, &key, 2);
+    let certificate_source =
+        byte_vector_source(&fs::read(package_root.0.join("root-cert.der")).unwrap());
 
     let standard_root = compiler_root.join("../std");
     let sync_main = "blocking func main(): i32 {\n\
@@ -3163,13 +3176,15 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
              let client = Client.new().with_trust_anchor(move anchor)\n\
              return accepts_sync(&client)\n\
          }";
-    let async_main = "async func main(): i32 {\n\
-             let certificate = fs.read(\"root-cert.der\") catch _ { return 1 }\n\
-             let anchor = TrustAnchor.from_der(&certificate) catch _ { return 2 }\n\
+    let async_main = format!(
+        "async func main(): i32 {{\n\
+             let certificate: Vec<u8> = {certificate_source}\n\
+             let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
              let client = Client.new().with_trust_anchor(move anchor)\n\
-             if !await accepts_async(&client) { return 3 }\n\
+             if !await accepts_async(&client) {{ return 3 }}\n\
              return 0\n\
-         }";
+         }}"
+    );
     let source = |main: &str| {
         format!(
             "use std/fs\n\
@@ -3177,6 +3192,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
              use std/time.Duration\n\
              use std/tls.TrustAnchor\n\
              use std/url.Url\n\
+             use std/vec.Vec\n\
              \n\
              blocking func accepts_sync(client: &Client): i32 {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return 1 }}\n\
@@ -3216,7 +3232,7 @@ fn custom_trust_crosses_sync_and_async_https_without_a_second_http_codec() {
     let sync_image =
         compile_single_file_native_source(&package_root, &standard_root, &source(sync_main));
     let async_image =
-        compile_single_file_native_source(&package_root, &standard_root, &source(async_main));
+        compile_single_file_native_source(&package_root, &standard_root, &source(&async_main));
     execute_native_status(&sync_image, &package_root.0, "https-custom-trust-sync", 0);
     execute_native_status(&async_image, &package_root.0, "https-custom-trust-async", 0);
     server.finish();
@@ -3237,6 +3253,8 @@ fn https_requires_the_negotiated_http1_application_protocol() {
     let certificate = package_root.0.join("localhost-cert.pem");
     let key = package_root.0.join("localhost-key.pem");
     let _server = start_local_tls_server(port, &certificate, &key, false);
+    let certificate_source =
+        byte_vector_source(&fs::read(package_root.0.join("root-cert.der")).unwrap());
 
     let standard_root = compiler_root.join("../std");
     let sync_main = "blocking func main(): i32 {\n\
@@ -3246,13 +3264,15 @@ fn https_requires_the_negotiated_http1_application_protocol() {
              if !rejects_sync(&client) { return 3 }\n\
              return 0\n\
          }";
-    let async_main = "async func main(): i32 {\n\
-             let certificate = fs.read(\"root-cert.der\") catch _ { return 1 }\n\
-             let anchor = TrustAnchor.from_der(&certificate) catch _ { return 2 }\n\
+    let async_main = format!(
+        "async func main(): i32 {{\n\
+             let certificate: Vec<u8> = {certificate_source}\n\
+             let anchor = TrustAnchor.from_der(&certificate) catch _ {{ return 2 }}\n\
              let client = Client.new().with_trust_anchor(move anchor)\n\
-             if !await rejects_async(&client) { return 3 }\n\
+             if !await rejects_async(&client) {{ return 3 }}\n\
              return 0\n\
-         }";
+         }}"
+    );
     let source = |main: &str| {
         format!(
             "use std/fs\n\
@@ -3260,6 +3280,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
              use std/time.Duration\n\
              use std/tls.TrustAnchor\n\
              use std/url.Url\n\
+             use std/vec.Vec\n\
              \n\
              blocking func rejects_sync(client: &Client): bool {{\n\
                  let url = Url.parse(\"https://localhost:{port}/\") catch _ {{ return false }}\n\
@@ -3292,7 +3313,7 @@ fn https_requires_the_negotiated_http1_application_protocol() {
     let sync_image =
         compile_single_file_native_source(&package_root, &standard_root, &source(sync_main));
     let async_image =
-        compile_single_file_native_source(&package_root, &standard_root, &source(async_main));
+        compile_single_file_native_source(&package_root, &standard_root, &source(&async_main));
     execute_native_status(&sync_image, &package_root.0, "https-alpn-required-sync", 0);
     execute_native_status(
         &async_image,
@@ -3964,7 +3985,7 @@ fn public_async_tcp_crosses_the_complete_native_session() {
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
              )\n\
-             var listener = net.TcpListener.bind(address)?\n\
+             var listener = await net.bind_tcp_async(address)?\n\
              let listening = listener.local_address()?\n\
              let connection = await task.join(\n\
                  net.connect_tcp_async(listening),\n\
@@ -4117,7 +4138,7 @@ fn public_async_tcp_timeout_races_readiness_in_the_native_session() {
                  0,\n\
              )\n\
              let generous = Duration.from_seconds(1)\n\
-             var listener = net.TcpListener.bind(address)?\n\
+             var listener = await net.bind_tcp_async(address)?\n\
              let listening = listener.local_address()?\n\
              var client = await net.connect_tcp_async_with_timeout(listening, generous)?\n\
              let accepted = await listener.accept_async_with_timeout(generous)?\n\
@@ -4167,7 +4188,7 @@ fn public_async_tcp_idle_read_observes_its_deadline() {
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
              )\n\
-             var listener = net.TcpListener.bind(address)?\n\
+             var listener = await net.bind_tcp_async(address)?\n\
              let listening = listener.local_address()?\n\
              var client = await net.connect_tcp_async(listening)?\n\
              let accepted = await listener.accept_async()?\n\
@@ -4213,7 +4234,7 @@ fn public_async_host_connection_preserves_its_two_stage_contract() {
                  net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
                  0,\n\
              )\n\
-             var listener = net.TcpListener.bind(address)?\n\
+             var listener = await net.bind_tcp_async(address)?\n\
              let listening = listener.local_address()?\n\
              let pending = net.connect_host_async_with_timeout(\n\
                  \"localhost\",\n\

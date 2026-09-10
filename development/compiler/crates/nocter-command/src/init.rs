@@ -193,7 +193,7 @@ fn root_template(name: &str, kind: InitializedPackageKind) -> String {
     let directives = package_directives(name, kind);
     let body = match kind {
         InitializedPackageKind::Executable => format!(
-            "use std/io\n\nfunc main(): i32! {{\n    io.print(\"Hello from {name}\\n\")?\n    return 0\n}}\n"
+            "use std/io\n\nblocking func main(): i32! {{\n    io.print(\"Hello from {name}\\n\")?\n    return 0\n}}\n"
         ),
         InitializedPackageKind::Library => {
             format!("pub func greeting(): &str {{\n    return \"Hello from {name}\"\n}}\n")
@@ -495,7 +495,7 @@ mod tests {
         );
         assert_eq!(
             fs::read_to_string(result.root().join("index.nct")).unwrap(),
-            "#package: { name: \"hello\", version: \"0.1.0\", }\n#executable: {\n    name: \"hello\",\n}\n#test: {\n    name: \"unit\",\n    module: \"./tests/unit\",\n}\n\nuse std/io\n\nfunc main(): i32! {\n    io.print(\"Hello from hello\\n\")?\n    return 0\n}\n"
+            "#package: { name: \"hello\", version: \"0.1.0\", }\n#executable: {\n    name: \"hello\",\n}\n#test: {\n    name: \"unit\",\n    module: \"./tests/unit\",\n}\n\nuse std/io\n\nblocking func main(): i32! {\n    io.print(\"Hello from hello\\n\")?\n    return 0\n}\n"
         );
         assert!(
             fs::read_to_string(result.root().join("index.nct"))

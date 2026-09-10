@@ -146,7 +146,7 @@ instance TlsStream {
     pub noalloc method &self.write_timeout(): Duration?
 
     /// Shuts down selected local stream directions.
-    pub noalloc method &+self.shutdown(direction: TcpShutdown): void!
+    pub noalloc blocking method &+self.shutdown(direction: TcpShutdown): void!
 
     /// Cancels provider progress and releases the stream exactly once.
     pub noalloc method &+self.close(): void

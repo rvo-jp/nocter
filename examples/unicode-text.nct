@@ -1,7 +1,7 @@
 use std/io
 use std/string.String
 
-func main(): i32! {
+blocking func main(): i32! {
     let decorated: &str = "　ΟΣ　"
     let trimmed = decorated.trim()
     if trimmed != "ΟΣ" || trimmed.char_count() != 2 {

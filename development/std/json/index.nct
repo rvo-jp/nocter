@@ -72,19 +72,19 @@ pub func parse(text: &str): Value!
 pub func try_parse(allocator: &+TryAllocator, text: &str): Value! from allocator
 
 /// Generates one compact JSON text using the current allocation context.
-pub func stringify(value: &Value): String
+pub blocking func stringify(value: &Value): String
 
 /// Generates one compact JSON text with recoverable allocation.
-pub func try_stringify(
+pub blocking func try_stringify(
     allocator: &+TryAllocator,
     value: &Value,
 ): String! from allocator
 
 /// Writes one compact JSON text without constructing a complete intermediate String.
-pub func write<W>(destination: &+W, value: &Value): void! where W impl Writer
+pub blocking func write<W>(destination: &+W, value: &Value): void! where W impl Writer
 
 /// Writes one compact JSON text with recoverable traversal-stack allocation.
-pub func try_write<W>(
+pub blocking func try_write<W>(
     allocator: &+TryAllocator,
     destination: &+W,
     value: &Value,

@@ -20,8 +20,9 @@ fn network_loopback_public_contract_drives_navigation_and_calls() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response
-            .contains("pub noalloc func TcpListener.bind(address: SocketAddress): TcpListener!"),
+        response.contains(
+            "pub noalloc blocking func TcpListener.bind(address: SocketAddress): TcpListener!"
+        ),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -152,7 +153,7 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub func read_dir(path: &str): ReadDir!"),
+        response.contains("pub blocking func read_dir(path: &str): ReadDir!"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -192,7 +193,9 @@ fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub method &+BufReader.read_line_into(destination: &+String): bool!"),
+        response.contains(
+            "pub blocking method &+BufReader.read_line_into(destination: &+String): bool!"
+        ),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -460,7 +463,7 @@ fn text_banner_uses_public_text_and_output_editor_semantics_end_to_end() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub noalloc func println(text: &str): void!"),
+        response.contains("pub noalloc blocking func println(text: &str): void!"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -555,7 +558,9 @@ fn stdin_prefix_uses_public_process_and_input_editor_semantics_end_to_end() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub method &+BufReader.read_line_into(destination: &+String): bool!"),
+        response.contains(
+            "pub blocking method &+BufReader.read_line_into(destination: &+String): bool!"
+        ),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -607,7 +612,7 @@ fn subprocess_status_uses_one_public_contract_across_editor_features() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub method Command.status(): ExitStatus!"),
+        response.contains("pub blocking method Command.status(): ExitStatus!"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());
@@ -688,7 +693,7 @@ fn subprocess_output_uses_one_public_contract_across_editor_features() {
     ));
     let response = hover.response().unwrap();
     assert!(
-        response.contains("pub method Command.output(): Output!"),
+        response.contains("pub blocking method Command.output(): Output!"),
         "{response}"
     );
     assert!(hover.issue().is_none(), "{:?}", hover.issue());

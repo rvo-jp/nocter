@@ -20,6 +20,7 @@ pub enum PrimitiveContractRule {
     Body,
     Requirements,
     AllocationGuarantee,
+    BlockingGuarantee,
     SupportingType,
 }
 

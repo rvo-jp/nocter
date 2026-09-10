@@ -15,7 +15,7 @@ use /time.Duration
 use /url.Url
 use /vec.Vec
 
-func client_test_pair(): (TcpStream, TcpStream, SocketAddress)! {
+blocking func client_test_pair(): (TcpStream, TcpStream, SocketAddress)! {
     var listener = TcpListener.bind(SocketAddress.new(
         IpAddress.from_ipv4(Ipv4Address.loopback()),
         0,
@@ -26,7 +26,7 @@ func client_test_pair(): (TcpStream, TcpStream, SocketAddress)! {
     return (move client, move accepted.0, address)
 }
 
-func send_over_test_stream(prepared: PreparedRequest, stream: TcpStream): Response! {
+blocking func send_over_test_stream(prepared: PreparedRequest, stream: TcpStream): Response! {
     return send_over_transport(move prepared, plain_client_transport(move stream))?
 }
 
@@ -36,7 +36,7 @@ func client_test_url(address: SocketAddress, suffix: &str): Url! {
     return Url.parse(&text)?
 }
 
-func read_exact(stream: &+TcpStream, expected: usize): Vec<u8>! {
+blocking func read_exact(stream: &+TcpStream, expected: usize): Vec<u8>! {
     var output: Vec<u8> = Vec.with_capacity(expected)
     while output.len() < expected {
         var scratch = initialized_bytes(expected - output.len())

@@ -89,7 +89,7 @@ namespace:
 use std/io.File
 use std/io
 
-func write_message(file: &+File): void! {
+blocking func write_message(file: &+File): void! {
     file.write_text("ready\n")?
     return
 }
@@ -104,12 +104,13 @@ Top-level imports precede non-import declarations. Block-scope module imports pr
 statements in their block:
 
 ```nct
-func greet(debug: bool): void {
+blocking func greet(debug: bool): void! {
     if debug {
         use std/io
 
-        io.print("debug mode")
+        io.print("debug mode")?
     }
+    return
 }
 ```
 

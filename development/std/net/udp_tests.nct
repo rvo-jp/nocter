@@ -4,7 +4,7 @@ see ./index.nct
 
 use /vec.Vec
 
-func udp_loopback_v4(): UdpSocket! {
+blocking func udp_loopback_v4(): UdpSocket! {
     return UdpSocket.bind(SocketAddress.new(
         IpAddress.from_ipv4(Ipv4Address.loopback()),
         0,

@@ -93,7 +93,7 @@ noalloc func require_application_protocol(
     }
 }
 
-noalloc func start_stream_connection_before(
+noalloc blocking func start_stream_connection_before(
     owner: NetworkOwner,
     deadline: &OperationDeadline,
 ): StreamConnectionAttempt {
@@ -131,7 +131,7 @@ noalloc func start_stream_connection_before(
     return failed_connection(move active, NetworkFailure.invalid_target_result)
 }
 
-noalloc func connect_stream_before(
+noalloc blocking func connect_stream_before(
     address: NetworkAddress,
     deadline: &+ConnectionDeadline,
 ): StreamConnectionAttempt {
@@ -144,7 +144,7 @@ noalloc func connect_stream_before(
     return start_stream_connection_before(move owner, &deadline.operation)
 }
 
-noalloc func connect_tls_stream_before(
+noalloc blocking func connect_tls_stream_before(
     address: NetworkAddress,
     server_name: *u8,
     application_protocol: *u8,
@@ -170,7 +170,7 @@ noalloc func connect_tls_stream_before(
     )
 }
 
-noalloc func connect_stream(
+noalloc blocking func connect_stream(
     address: NetworkAddress,
     timeout: Duration?,
 ): StreamConnectionAttempt {
@@ -178,7 +178,7 @@ noalloc func connect_stream(
     return connect_stream_before(address, &+deadline)
 }
 
-noalloc func read_open_connection(
+noalloc blocking func read_open_connection(
     owner: &+NetworkOwner,
     event_descriptor: usize,
     timeout: Duration?,
@@ -212,7 +212,7 @@ noalloc func read_open_connection(
     return StreamReadProgress.failed(NetworkFailure.invalid_target_result)
 }
 
-noalloc func write_open_connection(
+noalloc blocking func write_open_connection(
     owner: &+NetworkOwner,
     event_descriptor: usize,
     timeout: Duration?,
@@ -231,7 +231,7 @@ noalloc func write_open_connection(
     return wait_for_stream_write(owner, event_descriptor, &deadline)
 }
 
-noalloc func finish_open_connection_write(
+noalloc blocking func finish_open_connection_write(
     owner: &+NetworkOwner,
     event_descriptor: usize,
     timeout: Duration?,
@@ -243,7 +243,7 @@ noalloc func finish_open_connection_write(
     return wait_for_stream_write(owner, event_descriptor, &deadline)
 }
 
-noalloc func wait_for_stream_write(
+noalloc blocking func wait_for_stream_write(
     owner: &+NetworkOwner,
     event_descriptor: usize,
     deadline: &OperationDeadline,
@@ -290,7 +290,7 @@ noalloc func complete_stream_write(
     }
 }
 
-noalloc func shutdown_stream_write(connection: &+StreamConnection): UnitAttempt {
+noalloc blocking func shutdown_stream_write(connection: &+StreamConnection): UnitAttempt {
     if connection.write_complete { return UnitAttempt.ready }
     let progress = match &+connection.ownership {
         StreamConnectionOwnership.open(owner) {
@@ -308,7 +308,7 @@ noalloc func shutdown_stream_write(connection: &+StreamConnection): UnitAttempt 
 }
 
 instance StreamConnection {
-    noalloc method &+self.read(buffer: &+[u8]): TransferAttempt {
+    noalloc blocking method &+self.read(buffer: &+[u8]): TransferAttempt {
         if self.read_complete { return TransferAttempt.ready(0) }
         if buffer.len() == 0 { return TransferAttempt.ready(0) }
         let operation = match &+self.ownership {
@@ -344,7 +344,7 @@ instance StreamConnection {
         }
     }
 
-    noalloc method &+self.write(bytes: &[u8]): UnitAttempt {
+    noalloc blocking method &+self.write(bytes: &[u8]): UnitAttempt {
         if self.write_complete { return UnitAttempt.failed(NetworkFailure.closed) }
         let operation = match &+self.ownership {
             StreamConnectionOwnership.open(owner) {
@@ -408,7 +408,7 @@ instance StreamConnection {
         return self.write_timeout_value
     }
 
-    noalloc method &+self.shutdown(direction: NetworkShutdown): UnitAttempt {
+    noalloc blocking method &+self.shutdown(direction: NetworkShutdown): UnitAttempt {
         match direction {
             NetworkShutdown.read {
                 self.read_complete = true

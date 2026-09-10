@@ -128,8 +128,8 @@ accepted process results: `void`, `void!`, `i32`, `i32!`, `usize`, or `usize!`.
 ```nct
 async func main(): i32! {
     let response = await fetch()?
-    io.print(response)
-    0
+    drop response
+    return 0
 }
 ```
 
@@ -138,6 +138,10 @@ root future, drives it until completion, and then applies the same exit-status a
 rules as the corresponding immediate result. This is a process-boundary rule, not an alternate
 calling convention visible to source code. Calling the same function normally still returns an
 unstarted `future R` value.
+
+A synchronous output, filesystem, resolver, process, or stream operation carries `blocking` and
+therefore cannot be called from an asynchronous body. An asynchronous body must use an
+executor-safe operation or finish its work before handing the result to synchronous code.
 
 When the root future suspends, it supplies one or more descriptor-readiness or absolute
 monotonic-deadline interests. The process adapter waits for any interest to become eligible and

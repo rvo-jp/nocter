@@ -34,6 +34,11 @@ descriptor word that the operating system may reuse. The `stdin`, `stdout`, and 
 constructors return non-owning wrappers. Closing one makes that wrapper terminal without closing
 the process-global descriptor used by other wrappers.
 
+File construction and every filesystem operation that crosses the operating-system boundary carry
+`blocking`. This includes metadata, existence checks, directory construction and removal, rename,
+whole-file I/O, opening a directory, and `ReadDir.next`. Pure `Metadata` and `DirEntry` inspection
+and terminal close transitions remain unqualified.
+
 The target syscall boundary returns raw `{ value, errno }` facts. `std/io` retries interrupted open,
 read, and write operations, completes partial writes before reporting success, rejects a
 zero-progress write, and maps other errno values into the public built-in `error`. Close is issued

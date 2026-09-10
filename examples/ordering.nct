@@ -20,7 +20,7 @@ func earlier<T>(left: &T, right: &T): bool where (&T < &T): bool {
     return left < right
 }
 
-func main(): i32! {
+blocking func main(): i32! {
     let low = Rank { value: 2 }
     let high = Rank { value: 8 }
     if !earlier(&low, &high) || high <= low {

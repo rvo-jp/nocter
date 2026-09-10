@@ -60,44 +60,44 @@ instance DirEntry {
 
 instance ReadDir {
     /// Returns the next entry, `none` at end, or an error from this terminal stream.
-    pub method &+self.next(): DirEntry?!
+    pub blocking method &+self.next(): DirEntry?!
 
     /// Closes the stream. Later `next` calls return `none`.
     pub method &+self.close(): void
 }
 
 /// Reads an entire file into independently owned byte storage.
-pub func read(path: &str): Vec<u8>!
+pub blocking func read(path: &str): Vec<u8>!
 
 /// Reads an entire file and validates it as UTF-8.
-pub func read_to_string(path: &str): String!
+pub blocking func read_to_string(path: &str): String!
 
 /// Creates or truncates a file and writes every supplied byte.
-pub func write(path: &str, value: &[u8]): void!
+pub blocking func write(path: &str, value: &[u8]): void!
 
 /// Creates or truncates a file and writes the UTF-8 text.
-pub func write_text(path: &str, text: &str): void!
+pub blocking func write_text(path: &str, text: &str): void!
 
 /// Returns target metadata after following symbolic links.
-pub func metadata(path: &str): Metadata!
+pub blocking func metadata(path: &str): Metadata!
 
 /// Opens one directory without sorting its entries.
-pub func read_dir(path: &str): ReadDir!
+pub blocking func read_dir(path: &str): ReadDir!
 
 /// Returns false only when the path is absent.
-pub func exists(path: &str): bool!
+pub blocking func exists(path: &str): bool!
 
 /// Removes one non-directory entry, including a symbolic link itself.
-pub func remove_file(path: &str): void!
+pub blocking func remove_file(path: &str): void!
 
 /// Renames one entry without a copy-and-delete fallback.
-pub func rename(from: &str, to: &str): void!
+pub blocking func rename(from: &str, to: &str): void!
 
 /// Creates exactly one directory.
-pub func create_dir(path: &str): void!
+pub blocking func create_dir(path: &str): void!
 
 /// Creates every missing directory prefix in the authored spelling.
-pub func create_dir_all(path: &str): void!
+pub blocking func create_dir_all(path: &str): void!
 
 /// Removes exactly one empty directory without following a final symbolic link.
-pub func remove_dir(path: &str): void!
+pub blocking func remove_dir(path: &str): void!

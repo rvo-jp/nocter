@@ -61,7 +61,7 @@
                 <div class="hero-code-panels">
                     <pre class="hero-code-panel" data-example-panel="hello"><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>io
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-string">"Hello from Nocter\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span></code></pre>
@@ -100,7 +100,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
     io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
@@ -120,7 +120,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> first <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> same <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
     <span class="token-keyword">let</span> other <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">5</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">6</span> <span class="token-operator">}</span>
@@ -208,7 +208,7 @@
     <span class="token-operator">}</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span> <span class="token-operator">{</span>
     <span class="token-keyword">if</span> process<span class="token-operator">.</span><span class="token-function">arg_count</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">3</span> <span class="token-operator">{</span>
         <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-keyword">catch</span> _ <span class="token-operator">{</span> <span class="token-keyword">return</span> <span class="token-number">2</span> <span class="token-operator">}</span>
         <span class="token-keyword">return</span> <span class="token-number">2</span>
@@ -237,7 +237,7 @@
     <span class="token-keyword">return</span> <span class="token-number">1</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">search_tree</span><span class="token-operator">(</span>needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> root<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">search_tree</span><span class="token-operator">(</span>needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> root<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> paths<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">SearchPath</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span><span class="token-operator">.</span><span class="token-function">empty</span><span class="token-operator">(</span><span class="token-operator">)</span>
     <span class="token-function">collect_directory</span><span class="token-operator">(</span>root<span class="token-operator">,</span> <span class="token-string">""</span><span class="token-operator">,</span> <span class="token-operator">&amp;+</span>paths<span class="token-operator">)</span><span class="token-operator">?</span>
     paths<span class="token-operator">.</span><span class="token-function">sort</span><span class="token-operator">(</span><span class="token-operator">)</span>
@@ -253,7 +253,7 @@
     <span class="token-keyword">return</span> matched
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">collect_directory</span><span class="token-operator">(</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">collect_directory</span><span class="token-operator">(</span>
     full_directory<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     display_directory<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     files<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">SearchPath</span><span class="token-operator">&gt;</span><span class="token-operator">,</span>
@@ -305,7 +305,7 @@
     <span class="token-keyword">return</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">concat</span><span class="token-operator">(</span>parent<span class="token-operator">,</span> <span class="token-string">"/"</span><span class="token-operator">,</span> name<span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">search_file</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">,</span> needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">SearchPath</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">search_file</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">,</span> needle<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span> path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">SearchPath</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">bool</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">let</span> source <span class="token-operator">=</span> <span class="token-type">File</span><span class="token-operator">.</span><span class="token-function">open</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>path<span class="token-operator">.</span>full<span class="token-operator">)</span> <span class="token-keyword">catch</span> failure <span class="token-operator">{</span>
         <span class="token-keyword">let</span> context <span class="token-operator">=</span> <span class="token-type">String</span><span class="token-operator">.</span><span class="token-function">concat</span><span class="token-operator">(</span><span class="token-string">"cannot open "</span><span class="token-operator">,</span> <span class="token-operator">&amp;</span>path<span class="token-operator">.</span>display<span class="token-operator">)</span>
         <span class="token-keyword">return</span> failure<span class="token-operator">.</span><span class="token-function">context</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>context<span class="token-operator">)</span>
@@ -332,7 +332,7 @@
     <span class="token-keyword">return</span> matched
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">write_match</span><span class="token-operator">(</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">write_match</span><span class="token-operator">(</span>
     output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">BufWriter</span><span class="token-operator">,</span>
     path<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">,</span>
     line_number<span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">,</span>
@@ -348,13 +348,13 @@
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">report_usage</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> output <span class="token-operator">=</span> io<span class="token-operator">.</span><span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span>
     output<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"usage: text-search NEEDLE ROOT\n"</span><span class="token-operator">)</span><span class="token-operator">?</span>
     <span class="token-keyword">return</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">func</span> <span class="token-function">report_failure</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> <span class="token-operator">&amp;</span>error<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">report_failure</span><span class="token-operator">(</span>failure<span class="token-operator">:</span> <span class="token-operator">&amp;</span>error<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
     <span class="token-keyword">var</span> output <span class="token-operator">=</span> io<span class="token-operator">.</span><span class="token-function">stderr</span><span class="token-operator">(</span><span class="token-operator">)</span>
     output<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span><span class="token-string">"text-search: "</span><span class="token-operator">)</span><span class="token-operator">?</span>
     output<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>failure<span class="token-operator">.</span><span class="token-function">code</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>

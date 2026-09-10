@@ -385,7 +385,7 @@ noalloc primitive func network_connection_begin_receive_raw(owner: &+NetworkOwne
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_begin_send_raw(owner: &+NetworkOwner, bytes: *u8, len: usize, final: bool): bool
 #target: \"arm64-darwin\"
-noalloc primitive func network_connection_receive_event_raw(owner: &+NetworkOwner, destination: *u8, capacity: usize): (usize, usize, usize, usize, usize)
+noalloc blocking primitive func network_connection_receive_event_raw(owner: &+NetworkOwner, destination: *u8, capacity: usize): (usize, usize, usize, usize, usize)
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_try_receive_event_raw(owner: &+NetworkOwner, destination: *u8, capacity: usize): (usize, usize, usize, usize, usize, usize)
 #target: \"arm64-darwin\"
@@ -395,7 +395,7 @@ noalloc primitive func network_connection_copy_remote_address_raw(owner: &Networ
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
-noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
+noalloc blocking primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
 #target: \"arm64-darwin\"
@@ -407,7 +407,7 @@ noalloc primitive func network_listener_start_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func network_listener_event_descriptor_raw(owner: &NetworkOwner): usize
 #target: \"arm64-darwin\"
-noalloc primitive func network_listener_receive_event_raw(owner: &+NetworkOwner): (usize, usize, usize, usize, NetworkOwner?) from static
+noalloc blocking primitive func network_listener_receive_event_raw(owner: &+NetworkOwner): (usize, usize, usize, usize, NetworkOwner?) from static
 #target: \"arm64-darwin\"
 noalloc primitive func network_listener_try_receive_event_raw(owner: &+NetworkOwner): (usize, usize, usize, usize, usize, NetworkOwner?) from static
 #target: \"arm64-darwin\"
@@ -415,7 +415,7 @@ noalloc primitive func network_listener_port_raw(owner: &NetworkOwner): u16
 #target: \"arm64-darwin\"
 noalloc primitive func network_listener_request_cancel_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
-noalloc primitive func network_listener_release_barrier_raw(owner: &+NetworkOwner): void
+noalloc blocking primitive func network_listener_release_barrier_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func network_listener_release_raw(owner: NetworkOwner): void
 #target: \"arm64-darwin\"
@@ -436,34 +436,34 @@ pub(/) copy struct SyscallPairResult {
 #target: \"arm64-darwin\"
 pub(/) noalloc primitive func close_descriptor(fd: usize): SyscallResult
 #target: \"arm64-darwin\"
-primitive func syscall0(number: usize): SyscallResult
+blocking primitive func syscall0(number: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive func syscall_pair0(number: usize): SyscallPairResult
+pub(/) blocking primitive func syscall_pair0(number: usize): SyscallPairResult
 #target: \"arm64-darwin\"
-pub(/) primitive func syscall1(number: usize, a0: usize): SyscallResult
+pub(/) blocking primitive func syscall1(number: usize, a0: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive func syscall2(number: usize, a0: usize, a1: usize): SyscallResult
+pub(/) blocking primitive func syscall2(number: usize, a0: usize, a1: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive func syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
+pub(/) blocking primitive func syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
 #target: \"arm64-darwin\"
-primitive func syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
+blocking primitive func syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive func syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
+pub(/) blocking primitive func syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
 #target: \"arm64-darwin\"
-pub(/) primitive func syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
+pub(/) blocking primitive func syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) primitive func trap(): never
 #target: \"arm64-darwin\"
 primitive func unreachable(): never
-pub func syscall0_succeeds_for_test(number: usize): bool {
+pub blocking func syscall0_succeeds_for_test(number: usize): bool {
     let result = syscall0(number)
     return result.errno == 0 && result.value > 0
 }
-pub func syscall1_fails_for_test(number: usize, argument: usize): bool {
+pub blocking func syscall1_fails_for_test(number: usize, argument: usize): bool {
     let result = syscall1(number, argument)
     return result.errno != 0
 }
-pub func syscall3_value_for_test(
+pub blocking func syscall3_value_for_test(
     number: usize,
     a0: usize,
     a1: usize,
@@ -478,7 +478,7 @@ pub func terminate_for_test(use_unreachable: bool): never {
     trap()
 }
 #target: \"arm64-darwin\"
-pub func fill_seed_for_test(address: usize): void {
+pub blocking func fill_seed_for_test(address: usize): void {
     let result = syscall2(0x020001f4, address, 8)
     if result.errno != 0 { return trap() }
     return

@@ -42,7 +42,7 @@ const LAUNCH_STAGE_DIRECTORY: i32 = 3
 const LAUNCH_STAGE_EXEC: i32 = 4
 
 #target: "arm64-darwin"
-noalloc func write_launch_failure_and_exit(
+noalloc blocking func write_launch_failure_and_exit(
     report: &+OwnedPipe,
     stage: i32,
     errno: i32,
@@ -70,7 +70,7 @@ noalloc func write_launch_failure_and_exit(
 }
 
 #target: "arm64-darwin"
-noalloc func exec_child_after_setup(
+noalloc blocking func exec_child_after_setup(
     path_address: usize,
     argv_address: usize,
     environment_address: usize,
@@ -86,7 +86,7 @@ noalloc func exec_child_after_setup(
 }
 
 #target: "arm64-darwin"
-noalloc func read_launch_report(report: OwnedPipe): LaunchReportAttempt {
+noalloc blocking func read_launch_report(report: OwnedPipe): LaunchReportAttempt {
     var channel = move report
     close_pipe_write(&+channel)
     var payload = LaunchFailurePayload { stage: 0, errno: 0 }

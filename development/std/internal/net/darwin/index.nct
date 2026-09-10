@@ -89,7 +89,7 @@ pub(/) noalloc func connection_begin_final_send(owner: &+NetworkOwner): bool
 
 /// Consumes and normalizes one ordered callback event.
 #target: "arm64-darwin"
-pub(/) noalloc func connection_next_event(
+pub(/) noalloc blocking func connection_next_event(
     owner: &+NetworkOwner,
     destination: *u8,
     capacity: usize,
@@ -129,7 +129,7 @@ pub(/) noalloc func listener_event_descriptor(owner: &NetworkOwner): usize
 
 /// Consumes and normalizes one ordered listener event.
 #target: "arm64-darwin"
-pub(/) noalloc func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent
+pub(/) noalloc blocking func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent
 
 /// Attempts to consume one ordered listener event without waiting for an empty channel.
 #target: "arm64-darwin"
@@ -210,7 +210,7 @@ noalloc primitive func network_connection_begin_send_raw(
 
 /// Receives one ordered connection event and consumes all provider ownership carried by it.
 #target: "arm64-darwin"
-noalloc primitive func network_connection_receive_event_raw(
+noalloc blocking primitive func network_connection_receive_event_raw(
     owner: &+NetworkOwner,
     destination: *u8,
     capacity: usize,
@@ -244,7 +244,7 @@ noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwn
 
 /// Waits until the final callback has returned and advances the release fence.
 #target: "arm64-darwin"
-noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
+noalloc blocking primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
 
 /// Releases a quiesced connection owner and all of its native resources.
 #target: "arm64-darwin"
@@ -268,7 +268,7 @@ noalloc primitive func network_listener_event_descriptor_raw(owner: &NetworkOwne
 
 /// Consumes one ordered listener event and adopts accepted connections before returning.
 #target: "arm64-darwin"
-noalloc primitive func network_listener_receive_event_raw(
+noalloc blocking primitive func network_listener_receive_event_raw(
     owner: &+NetworkOwner,
 ): (usize, usize, usize, usize, NetworkOwner?) from static
 
@@ -288,7 +288,7 @@ noalloc primitive func network_listener_request_cancel_raw(owner: &+NetworkOwner
 
 /// Waits until every listener callback has returned after final cancellation.
 #target: "arm64-darwin"
-noalloc primitive func network_listener_release_barrier_raw(owner: &+NetworkOwner): void
+noalloc blocking primitive func network_listener_release_barrier_raw(owner: &+NetworkOwner): void
 
 /// Releases one quiesced provider listener owner.
 #target: "arm64-darwin"
@@ -360,53 +360,53 @@ instance RawResolverResults {
 }
 
 #target: "arm64-darwin"
-pub(/) noalloc func create_udp(family: NetworkFamily): RawDescriptorAttempt
+pub(/) noalloc blocking func create_udp(family: NetworkFamily): RawDescriptorAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func select_datagram_peer_once(
+pub(/) noalloc blocking func select_datagram_peer_once(
     fd: usize,
     address: &NetworkAddress,
 ): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt
+pub(/) noalloc blocking func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
+pub(/) noalloc blocking func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt
+pub(/) noalloc blocking func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func send_to_once(
+pub(/) noalloc blocking func send_to_once(
     fd: usize,
     bytes: &[u8],
     target: &NetworkAddress,
 ): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func receive_from_once(
+pub(/) noalloc blocking func receive_from_once(
     fd: usize,
     buffer: &+[u8],
 ): RawDatagramAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func wait_readable_once(
+pub(/) noalloc blocking func wait_readable_once(
     fd: usize,
     timeout_milliseconds: usize?,
 ): RawWaitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func wait_writable_once(
+pub(/) noalloc blocking func wait_writable_once(
     fd: usize,
     timeout_milliseconds: usize?,
 ): RawWaitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func local_address_once(fd: usize): RawAddressAttempt
+pub(/) noalloc blocking func local_address_once(fd: usize): RawAddressAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc func peer_address_once(fd: usize): RawAddressAttempt
+pub(/) noalloc blocking func peer_address_once(fd: usize): RawAddressAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func close_once(fd: usize): void

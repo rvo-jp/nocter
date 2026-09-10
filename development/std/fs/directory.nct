@@ -47,7 +47,7 @@ instance DirEntry {
 }
 
 instance ReadDir {
-    method &+self.next(): DirEntry?! {
+    blocking method &+self.next(): DirEntry?! {
         return next_directory_entry(self)
     }
 
@@ -57,7 +57,7 @@ instance ReadDir {
     }
 }
 
-func read_dir(path: &str): ReadDir! {
+blocking func read_dir(path: &str): ReadDir! {
     let base = Utf8Path.new(path)?
     var allocator = mem.page_try_allocator()
     let buffer = allocator.try_alloc(DIRECTORY_BUFFER_SIZE, 8)?
@@ -74,7 +74,7 @@ func read_dir(path: &str): ReadDir! {
 }
 
 #target: "arm64-darwin"
-func open_directory(path: &str): usize! {
+blocking func open_directory(path: &str): usize! {
     let argument = internal_path.target_path_argument(path)?
     var result: SyscallResult = darwin.syscall3(
         darwin.SYS_OPEN,
@@ -97,7 +97,7 @@ func open_directory(path: &str): usize! {
 }
 
 #target: "arm64-darwin"
-func refill_directory(reader: &+ReadDir): usize! {
+blocking func refill_directory(reader: &+ReadDir): usize! {
     var position: u64 = 0
     let buffer = reader.buffer.bytes_mut()
     var result: SyscallResult = darwin.read_directory_entries(reader.fd, buffer, &+position)
@@ -115,7 +115,7 @@ func refill_directory(reader: &+ReadDir): usize! {
     return result.value
 }
 
-func next_directory_entry(reader: &+ReadDir): DirEntry?! {
+blocking func next_directory_entry(reader: &+ReadDir): DirEntry?! {
     if reader.is_finished || !reader.is_open {
         return none
     }

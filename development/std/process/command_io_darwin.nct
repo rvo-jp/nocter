@@ -135,7 +135,7 @@ noalloc func classify_poll_syscall(result: SyscallResult): PollSyscallAttempt {
 }
 
 #target: "arm64-darwin"
-noalloc func poll_command_io_once(
+noalloc blocking func poll_command_io_once(
     input_fd: usize,
     input_active: bool,
     stdout_fd: usize,
@@ -199,7 +199,7 @@ noalloc func poll_command_io_once(
 }
 
 #target: "arm64-darwin"
-noalloc func read_command_io_once(fd: usize, buffer: &+[u8]): CommandIoReadAttempt {
+noalloc blocking func read_command_io_once(fd: usize, buffer: &+[u8]): CommandIoReadAttempt {
     if buffer.len() == 0 { return CommandIoReadAttempt.malformed }
     let result = darwin.syscall3(
         darwin.SYS_READ,
@@ -224,7 +224,7 @@ noalloc func classify_command_io_read(
 }
 
 #target: "arm64-darwin"
-noalloc func write_command_input_once(
+noalloc blocking func write_command_input_once(
     fd: usize,
     input: &[u8],
     offset: usize,
