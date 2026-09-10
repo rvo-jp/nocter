@@ -147,8 +147,9 @@ nocter run
 [http-get/index.nct](http-get/index.nct) is a synchronous one-request HTTP client. It parses one
 command-line URL, resolves its host through the operating system, applies a finite connection and
 per-operation stream timeout, reads the bounded decoded response body, and writes exact body bytes
-after the response status. It supports `http://`; HTTPS deliberately fails until Nocter has a TLS
-transport.
+after the response status. `http://` uses a plain connection; `https://` uses authenticated TLS 1.2
+or newer, the operating-system trust store, hostname verification, and HTTP/1.1 ALPN through the
+same request and response implementation.
 
 ```sh
 cd examples/http-get
