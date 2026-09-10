@@ -375,6 +375,22 @@ noalloc primitive func network_connection_request_cancel_raw(owner: &+NetworkOwn
 noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOwner): void
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_create_raw(address: *u8): NetworkOwner? from static
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_start_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_event_descriptor_raw(owner: &NetworkOwner): usize
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_receive_event_raw(owner: &+NetworkOwner): (usize, usize, usize, usize, NetworkOwner?) from static
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_port_raw(owner: &NetworkOwner): u16
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_request_cancel_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_release_barrier_raw(owner: &+NetworkOwner): void
+#target: \"arm64-darwin\"
+noalloc primitive func network_listener_release_raw(owner: NetworkOwner): void
 ";
 const INTERNAL_OS_SOURCE: &str = "\
 #target: \"arm64-darwin\"

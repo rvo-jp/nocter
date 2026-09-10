@@ -37,6 +37,22 @@ pub(/) enum NetworkConnectionEvent {
     malformed
 }
 
+/// Provider-independent progress states for one listener owner.
+pub(/) enum NetworkListenerState {
+    waiting
+    ready
+    failed(failure: NetworkProviderFailure?)
+    cancelled
+}
+
+/// One ordered listener event after every provider object has been consumed or encapsulated.
+pub(/) enum NetworkListenerEvent {
+    state(value: NetworkListenerState)
+    accepted(owner: NetworkOwner)
+    adoption_failed(status: usize)
+    malformed
+}
+
 /// One target-independent classification of a system resolver outcome.
 pub(/) enum ResolverFailure {
     not_found

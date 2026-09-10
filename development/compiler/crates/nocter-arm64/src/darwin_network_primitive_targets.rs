@@ -6,16 +6,19 @@ use nocter_machine::{
     MachineResultLocation, MachineValueClass,
 };
 use nocter_runtime_contract::{
-    DarwinNetworkConnectionEventObservationAbiSchema, DarwinNetworkOwnerAbiSchema,
+    DarwinNetworkConnectionEventObservationAbiSchema,
+    DarwinNetworkListenerEventObservationAbiSchema, DarwinNetworkOwnerAbiSchema,
     DarwinNetworkOwnerCreateStatus, PrimitiveRole,
 };
 
 use crate::{
     Arm64AddSubtract, Arm64AddSubtractDestination, Arm64BaseRegister, Arm64BranchCondition,
     Arm64CodeBuilder, Arm64CodeError, Arm64DarwinNetworkAdapterImports,
-    Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets, Arm64DataRegister,
+    Arm64DarwinNetworkConnectionError, Arm64DarwinNetworkConnectionTargets,
+    Arm64DarwinNetworkListenerError, Arm64DarwinNetworkListenerTargets, Arm64DataRegister,
     Arm64DataSize, Arm64FunctionId, Arm64Instruction, Arm64LoadStoreSize, Arm64ProgramBuilder,
     Arm64ProgramError, Arm64Register, add_darwin_plain_connection_targets,
+    add_darwin_plain_listener_targets,
 };
 
 /// One source primitive in the closed plain-connection adapter family.
@@ -32,6 +35,14 @@ pub enum Arm64DarwinNetworkPrimitive {
     RequestCancel,
     ReleaseBarrier,
     Release,
+    ListenerCreate,
+    ListenerStart,
+    ListenerEventDescriptor,
+    ListenerReceiveEvent,
+    ListenerPort,
+    ListenerRequestCancel,
+    ListenerReleaseBarrier,
+    ListenerRelease,
 }
 
 impl Arm64DarwinNetworkPrimitive {
@@ -48,6 +59,14 @@ impl Arm64DarwinNetworkPrimitive {
             PrimitiveRole::NetworkConnectionRequestCancel => Some(Self::RequestCancel),
             PrimitiveRole::NetworkConnectionReleaseBarrier => Some(Self::ReleaseBarrier),
             PrimitiveRole::NetworkConnectionRelease => Some(Self::Release),
+            PrimitiveRole::NetworkListenerCreate => Some(Self::ListenerCreate),
+            PrimitiveRole::NetworkListenerStart => Some(Self::ListenerStart),
+            PrimitiveRole::NetworkListenerEventDescriptor => Some(Self::ListenerEventDescriptor),
+            PrimitiveRole::NetworkListenerReceiveEvent => Some(Self::ListenerReceiveEvent),
+            PrimitiveRole::NetworkListenerPort => Some(Self::ListenerPort),
+            PrimitiveRole::NetworkListenerRequestCancel => Some(Self::ListenerRequestCancel),
+            PrimitiveRole::NetworkListenerReleaseBarrier => Some(Self::ListenerReleaseBarrier),
+            PrimitiveRole::NetworkListenerRelease => Some(Self::ListenerRelease),
             _ => None,
         }
     }
@@ -56,16 +75,20 @@ impl Arm64DarwinNetworkPrimitive {
 /// Source-ABI entries backed by one atomically declared production connection target set.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Arm64DarwinNetworkPrimitiveTargets {
-    source_create: Option<Arm64FunctionId>,
-    production: Arm64DarwinNetworkConnectionTargets,
+    source_connection_create: Option<Arm64FunctionId>,
+    source_listener_create: Option<Arm64FunctionId>,
+    connection: Arm64DarwinNetworkConnectionTargets,
+    listener: Option<Arm64DarwinNetworkListenerTargets>,
 }
 
 impl Arm64DarwinNetworkPrimitiveTargets {
     pub(crate) fn declare(
         machine: &nocter_machine::MachineProgram,
         roles: &BTreeSet<PrimitiveRole>,
-        create: Option<&MachinePrimitiveTarget>,
-        receive_event: Option<&MachinePrimitiveTarget>,
+        connection_create: Option<&MachinePrimitiveTarget>,
+        connection_receive_event: Option<&MachinePrimitiveTarget>,
+        listener_create: Option<&MachinePrimitiveTarget>,
+        listener_receive_event: Option<&MachinePrimitiveTarget>,
         builder: &mut Arm64ProgramBuilder,
     ) -> Result<Option<Self>, Arm64DarwinNetworkPrimitiveError> {
         if !roles
@@ -76,51 +99,108 @@ impl Arm64DarwinNetworkPrimitiveTargets {
             return Ok(None);
         }
         let imports = Arm64DarwinNetworkAdapterImports::declare(builder)?;
-        let production = add_darwin_plain_connection_targets(builder, &imports)?;
-        validate_event_result(machine, roles, receive_event)?;
-        let source_create = create
+        let connection = add_darwin_plain_connection_targets(builder, &imports)?;
+        validate_connection_event_result(machine, roles, connection_receive_event)?;
+        let source_connection_create = connection_create
             .map(|target| {
                 let layout = creation_layout(machine, target)?;
                 let wrapper = builder.declare_function();
                 builder
-                    .define_function(wrapper, source_create_code(production.create(), layout)?)?;
+                    .define_function(wrapper, source_create_code(connection.create(), layout)?)?;
                 Ok::<Arm64FunctionId, Arm64DarwinNetworkPrimitiveError>(wrapper)
             })
             .transpose()?;
+        let listener = roles
+            .iter()
+            .copied()
+            .any(is_listener_role)
+            .then(|| {
+                add_darwin_plain_listener_targets(builder, &imports, connection.adopt_accepted())
+            })
+            .transpose()?;
+        validate_listener_event_result(machine, roles, listener_receive_event)?;
+        let source_listener_create = match (listener_create, listener) {
+            (Some(target), Some(listener)) => {
+                let layout = creation_layout(machine, target)?;
+                let wrapper = builder.declare_function();
+                builder.define_function(wrapper, source_create_code(listener.create(), layout)?)?;
+                Some(wrapper)
+            }
+            (None, _) => None,
+            (Some(_), None) => return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi),
+        };
         Ok(Some(Self {
-            source_create,
-            production,
+            source_connection_create,
+            source_listener_create,
+            connection,
+            listener,
         }))
     }
 
     #[must_use]
-    pub const fn target(self, primitive: Arm64DarwinNetworkPrimitive) -> Option<Arm64FunctionId> {
-        let lifecycle = self.production.lifecycle();
-        let events = self.production.events();
+    pub fn target(self, primitive: Arm64DarwinNetworkPrimitive) -> Option<Arm64FunctionId> {
+        let lifecycle = self.connection.lifecycle();
+        let events = self.connection.events();
         match primitive {
-            Arm64DarwinNetworkPrimitive::Create => self.source_create,
+            Arm64DarwinNetworkPrimitive::Create => self.source_connection_create,
             Arm64DarwinNetworkPrimitive::Start => Some(lifecycle.start()),
             Arm64DarwinNetworkPrimitive::EventDescriptor => Some(events.descriptor()),
             Arm64DarwinNetworkPrimitive::BeginReceive => {
-                Some(self.production.transfers().begin_receive())
+                Some(self.connection.transfers().begin_receive())
             }
             Arm64DarwinNetworkPrimitive::BeginSend => {
-                Some(self.production.transfers().begin_send())
+                Some(self.connection.transfers().begin_send())
             }
             Arm64DarwinNetworkPrimitive::ReceiveEvent => Some(events.receive()),
             Arm64DarwinNetworkPrimitive::CopyLocalAddress => {
-                Some(self.production.addresses().local())
+                Some(self.connection.addresses().local())
             }
             Arm64DarwinNetworkPrimitive::CopyRemoteAddress => {
-                Some(self.production.addresses().remote())
+                Some(self.connection.addresses().remote())
             }
             Arm64DarwinNetworkPrimitive::RequestCancel => Some(lifecycle.request_cancel()),
             Arm64DarwinNetworkPrimitive::ReleaseBarrier => {
                 Some(lifecycle.complete_release_barrier())
             }
             Arm64DarwinNetworkPrimitive::Release => Some(lifecycle.release()),
+            Arm64DarwinNetworkPrimitive::ListenerCreate => self.source_listener_create,
+            Arm64DarwinNetworkPrimitive::ListenerStart => {
+                self.listener.map(|listener| listener.lifecycle().start())
+            }
+            Arm64DarwinNetworkPrimitive::ListenerEventDescriptor => self
+                .listener
+                .map(Arm64DarwinNetworkListenerTargets::event_descriptor),
+            Arm64DarwinNetworkPrimitive::ListenerReceiveEvent => self
+                .listener
+                .map(|listener| listener.receive_event().function()),
+            Arm64DarwinNetworkPrimitive::ListenerPort => {
+                self.listener.map(Arm64DarwinNetworkListenerTargets::port)
+            }
+            Arm64DarwinNetworkPrimitive::ListenerRequestCancel => self
+                .listener
+                .map(|listener| listener.lifecycle().request_cancel()),
+            Arm64DarwinNetworkPrimitive::ListenerReleaseBarrier => self
+                .listener
+                .map(|listener| listener.lifecycle().complete_release_barrier()),
+            Arm64DarwinNetworkPrimitive::ListenerRelease => {
+                self.listener.map(|listener| listener.lifecycle().release())
+            }
         }
     }
+}
+
+const fn is_listener_role(role: PrimitiveRole) -> bool {
+    matches!(
+        role,
+        PrimitiveRole::NetworkListenerCreate
+            | PrimitiveRole::NetworkListenerStart
+            | PrimitiveRole::NetworkListenerEventDescriptor
+            | PrimitiveRole::NetworkListenerReceiveEvent
+            | PrimitiveRole::NetworkListenerPort
+            | PrimitiveRole::NetworkListenerRequestCancel
+            | PrimitiveRole::NetworkListenerReleaseBarrier
+            | PrimitiveRole::NetworkListenerRelease
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -200,7 +280,7 @@ fn creation_layout(
     })
 }
 
-fn validate_event_result(
+fn validate_connection_event_result(
     machine: &nocter_machine::MachineProgram,
     roles: &BTreeSet<PrimitiveRole>,
     target: Option<&MachinePrimitiveTarget>,
@@ -237,6 +317,77 @@ fn validate_event_result(
             .any(|(lane, element)| schema.value_offset(lane) != Some(element.offset()))
         || layout.size() != schema.size()
         || layout.alignment() != schema.alignment()
+    {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    }
+    Ok(())
+}
+
+fn validate_listener_event_result(
+    machine: &nocter_machine::MachineProgram,
+    roles: &BTreeSet<PrimitiveRole>,
+    target: Option<&MachinePrimitiveTarget>,
+) -> Result<(), Arm64DarwinNetworkPrimitiveError> {
+    if !roles.contains(&PrimitiveRole::NetworkListenerReceiveEvent) {
+        return Ok(());
+    }
+    let target = target.ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
+    let abi = machine
+        .primitive_abi(target)
+        .ok_or(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi)?;
+    let MachineResultAbi::Value(result) = abi.result() else {
+        return Err(Arm64DarwinNetworkPrimitiveError::PrimitiveAbi);
+    };
+    let layout = machine
+        .layouts()
+        .get(result.ty())
+        .ok_or(Arm64DarwinNetworkPrimitiveError::ResultLayout)?;
+    let MachineLayoutKind::Tuple { elements } = layout.kind() else {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    };
+    let schema = DarwinNetworkListenerEventObservationAbiSchema::ARM64_DARWIN;
+    if result.class() != MachineValueClass::Indirect
+        || result.location()
+            != (MachineResultLocation::CallerStorage {
+                pointer_register: 8,
+            })
+        || elements.len() != 5
+        || elements[0].offset() != schema.kind_offset()
+        || elements[1..4]
+            .iter()
+            .enumerate()
+            .any(|(lane, element)| schema.value_offset(lane) != Some(element.offset()))
+        || elements[4].offset() != schema.accepted_tag_offset()
+        || layout.size() != schema.size()
+        || layout.alignment() != schema.alignment()
+    {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    }
+    let optional = machine
+        .layouts()
+        .get(elements[4].ty())
+        .ok_or(Arm64DarwinNetworkPrimitiveError::ResultLayout)?;
+    let MachineLayoutKind::Outcome {
+        kind: nocter_machine::MachineOutcomeKind::Optional,
+        tag_offset,
+        payload_offset,
+        primary: Some(owner),
+        alternate: None,
+    } = optional.kind()
+    else {
+        return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
+    };
+    let owner_layout = machine
+        .layouts()
+        .get(*owner)
+        .ok_or(Arm64DarwinNetworkPrimitiveError::ResultLayout)?;
+    let owner_schema = DarwinNetworkOwnerAbiSchema::ARM64_DARWIN;
+    if elements[4].offset().checked_add(*tag_offset) != Some(schema.accepted_tag_offset())
+        || elements[4].offset().checked_add(*payload_offset) != Some(schema.accepted_owner_offset())
+        || optional.size() != schema.accepted_optional_size()
+        || optional.alignment() != schema.alignment()
+        || owner_layout.size() != owner_schema.size()
+        || owner_layout.alignment() != owner_schema.alignment()
     {
         return Err(Arm64DarwinNetworkPrimitiveError::ResultLayout);
     }
@@ -394,6 +545,7 @@ pub enum Arm64DarwinNetworkPrimitiveError {
     PrimitiveAbi,
     ResultLayout,
     Connection(Arm64DarwinNetworkConnectionError),
+    Listener(Arm64DarwinNetworkListenerError),
     Code(Arm64CodeError),
     Program(Arm64ProgramError),
 }
@@ -408,6 +560,7 @@ impl std::error::Error for Arm64DarwinNetworkPrimitiveError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Connection(error) => Some(error),
+            Self::Listener(error) => Some(error),
             Self::Code(error) => Some(error),
             Self::Program(error) => Some(error),
             Self::PrimitiveAbi | Self::ResultLayout => None,
@@ -418,6 +571,12 @@ impl std::error::Error for Arm64DarwinNetworkPrimitiveError {
 impl From<Arm64DarwinNetworkConnectionError> for Arm64DarwinNetworkPrimitiveError {
     fn from(error: Arm64DarwinNetworkConnectionError) -> Self {
         Self::Connection(error)
+    }
+}
+
+impl From<Arm64DarwinNetworkListenerError> for Arm64DarwinNetworkPrimitiveError {
+    fn from(error: Arm64DarwinNetworkListenerError) -> Self {
+        Self::Listener(error)
     }
 }
 

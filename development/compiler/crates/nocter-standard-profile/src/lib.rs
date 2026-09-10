@@ -263,6 +263,16 @@ pub const fn bundled_primitive_source_location(
         Role::NetworkConnectionRequestCancel => (DARWIN_NET, NET_REQUEST_CANCEL),
         Role::NetworkConnectionReleaseBarrier => (DARWIN_NET, NET_RELEASE_BARRIER),
         Role::NetworkConnectionRelease => (DARWIN_NET, "network_connection_release_raw"),
+        Role::NetworkListenerCreate => (DARWIN_NET, "network_listener_create_raw"),
+        Role::NetworkListenerStart => (DARWIN_NET, "network_listener_start_raw"),
+        Role::NetworkListenerEventDescriptor => {
+            (DARWIN_NET, "network_listener_event_descriptor_raw")
+        }
+        Role::NetworkListenerReceiveEvent => (DARWIN_NET, "network_listener_receive_event_raw"),
+        Role::NetworkListenerPort => (DARWIN_NET, "network_listener_port_raw"),
+        Role::NetworkListenerRequestCancel => (DARWIN_NET, "network_listener_request_cancel_raw"),
+        Role::NetworkListenerReleaseBarrier => (DARWIN_NET, "network_listener_release_barrier_raw"),
+        Role::NetworkListenerRelease => (DARWIN_NET, "network_listener_release_raw"),
         Role::Syscall0 => (&["internal", "os", "darwin"], "syscall0"),
         Role::SyscallPair0 => (&["internal", "os", "darwin"], "syscall_pair0"),
         Role::Syscall1 => (&["internal", "os", "darwin"], "syscall1"),

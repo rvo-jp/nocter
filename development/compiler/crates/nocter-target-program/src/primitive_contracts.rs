@@ -769,7 +769,7 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             None,
             vec![0, 1],
         ),
-        PrimitiveRole::NetworkConnectionCreate => make(
+        PrimitiveRole::NetworkConnectionCreate | PrimitiveRole::NetworkListenerCreate => make(
             0,
             vec![byte_pointer()],
             TypeContract::optional(network_owner()),
@@ -779,7 +779,10 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::NetworkConnectionStart
         | PrimitiveRole::NetworkConnectionRequestCancel
-        | PrimitiveRole::NetworkConnectionReleaseBarrier => make(
+        | PrimitiveRole::NetworkConnectionReleaseBarrier
+        | PrimitiveRole::NetworkListenerStart
+        | PrimitiveRole::NetworkListenerRequestCancel
+        | PrimitiveRole::NetworkListenerReleaseBarrier => make(
             0,
             vec![TypeContract::readwrite(network_owner())],
             void(),
@@ -787,10 +790,19 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::NetworkConnectionEventDescriptor => make(
+        PrimitiveRole::NetworkConnectionEventDescriptor
+        | PrimitiveRole::NetworkListenerEventDescriptor => make(
             0,
             vec![TypeContract::readonly(network_owner())],
             usize(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::NetworkListenerPort => make(
+            0,
+            vec![TypeContract::readonly(network_owner())],
+            u16(),
             private,
             arm64_darwin,
             vec![],
@@ -836,10 +848,24 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
-        PrimitiveRole::NetworkConnectionRelease => make(
+        PrimitiveRole::NetworkConnectionRelease | PrimitiveRole::NetworkListenerRelease => make(
             0,
             vec![network_owner()],
             void(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::NetworkListenerReceiveEvent => make(
+            0,
+            vec![TypeContract::readwrite(network_owner())],
+            TypeContract::tuple(vec![
+                usize(),
+                usize(),
+                usize(),
+                usize(),
+                TypeContract::optional(network_owner()),
+            ]),
             private,
             arm64_darwin,
             vec![],

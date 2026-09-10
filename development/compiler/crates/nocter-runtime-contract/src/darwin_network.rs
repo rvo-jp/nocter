@@ -72,6 +72,11 @@ impl DarwinNetworkListenerEventObservationAbiSchema {
     }
 
     #[must_use]
+    pub const fn accepted_optional_size(self) -> u64 {
+        self.size - self.accepted_tag_offset
+    }
+
+    #[must_use]
     pub const fn size(self) -> u64 {
         self.size
     }
@@ -490,6 +495,7 @@ mod tests {
         assert_eq!(schema.value_offset(3), None);
         assert_eq!(schema.accepted_tag_offset(), 32);
         assert_eq!(schema.accepted_owner_offset(), 40);
+        assert_eq!(schema.accepted_optional_size(), 48);
         assert_eq!(schema.size(), 80);
         assert_eq!(schema.alignment(), 8);
     }

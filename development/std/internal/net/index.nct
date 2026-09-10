@@ -7,7 +7,11 @@
 use /internal/os.OSError
 use /internal/net/model.{
     NetworkAddress,
+    NetworkConnectionEvent,
+    NetworkConnectionState,
     NetworkFamily,
+    NetworkListenerEvent,
+    NetworkListenerState,
     NetworkProviderFailure,
     ResolverFailure,
     ResolverNext,

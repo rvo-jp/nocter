@@ -7,6 +7,7 @@ use /internal/net/model.{
     NetworkAddress,
     NetworkConnectionEvent,
     NetworkFamily,
+    NetworkListenerEvent,
     NetworkOwner,
     ResolverFailure,
     ResolverNext,
@@ -73,6 +74,38 @@ pub(/) noalloc func connection_release_barrier(owner: &+NetworkOwner): void
 #target: "arm64-darwin"
 pub(/) noalloc func connection_release(owner: NetworkOwner): void
 
+/// Creates one provider listener for a logical local address.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_create(address: &NetworkAddress): NetworkOwner?
+
+/// Starts one fully initialized provider listener.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_start(owner: &+NetworkOwner): void
+
+/// Returns the descriptor for a listener's ordered callback channel.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_event_descriptor(owner: &NetworkOwner): usize
+
+/// Consumes and normalizes one ordered listener event.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent
+
+/// Returns the effective local port of a running listener.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_port(owner: &NetworkOwner): u16
+
+/// Requests provider cancellation for one listener.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_cancel(owner: &+NetworkOwner): void
+
+/// Waits until every listener callback has returned after final cancellation.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_release_barrier(owner: &+NetworkOwner): void
+
+/// Releases one quiesced listener owner.
+#target: "arm64-darwin"
+pub(/) noalloc func listener_release(owner: NetworkOwner): void
+
 /// Creates an unstarted plain connection over one complete native socket address.
 #target: "arm64-darwin"
 noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
@@ -135,6 +168,40 @@ noalloc primitive func network_connection_release_barrier_raw(owner: &+NetworkOw
 /// Releases a quiesced connection owner and all of its native resources.
 #target: "arm64-darwin"
 noalloc primitive func network_connection_release_raw(owner: NetworkOwner): void
+
+/// Creates one provider listener for a native socket address.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_create_raw(address: *u8): NetworkOwner? from static
+
+/// Starts a fully initialized provider listener.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_start_raw(owner: &+NetworkOwner): void
+
+/// Returns the descriptor for the listener's ordered callback channel.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_event_descriptor_raw(owner: &NetworkOwner): usize
+
+/// Consumes one ordered listener event and adopts accepted connections before returning.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_receive_event_raw(
+    owner: &+NetworkOwner,
+): (usize, usize, usize, usize, NetworkOwner?) from static
+
+/// Returns the effective local port assigned to a running provider listener.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_port_raw(owner: &NetworkOwner): u16
+
+/// Requests idempotent provider listener cancellation.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_request_cancel_raw(owner: &+NetworkOwner): void
+
+/// Waits until every listener callback has returned after final cancellation.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_release_barrier_raw(owner: &+NetworkOwner): void
+
+/// Releases one quiesced provider listener owner.
+#target: "arm64-darwin"
+noalloc primitive func network_listener_release_raw(owner: NetworkOwner): void
 
 #target: "arm64-darwin"
 pub(/) enum RawDescriptorAttempt {

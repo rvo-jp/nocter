@@ -167,7 +167,15 @@ pub(crate) fn select(
         | PrimitiveRole::NetworkConnectionCopyRemoteAddress
         | PrimitiveRole::NetworkConnectionRequestCancel
         | PrimitiveRole::NetworkConnectionReleaseBarrier
-        | PrimitiveRole::NetworkConnectionRelease => {
+        | PrimitiveRole::NetworkConnectionRelease
+        | PrimitiveRole::NetworkListenerCreate
+        | PrimitiveRole::NetworkListenerStart
+        | PrimitiveRole::NetworkListenerEventDescriptor
+        | PrimitiveRole::NetworkListenerReceiveEvent
+        | PrimitiveRole::NetworkListenerPort
+        | PrimitiveRole::NetworkListenerRequestCancel
+        | PrimitiveRole::NetworkListenerReleaseBarrier
+        | PrimitiveRole::NetworkListenerRelease => {
             select_network_primitive(operation, target, selected)
         }
     }
@@ -192,7 +200,9 @@ fn select_network_primitive(
             MachineValueClass::Direct { words: 1 },
             MachineValueClass::Direct { words: 1 },
         ],
-        PrimitiveRole::NetworkConnectionRelease => &[MachineValueClass::Indirect],
+        PrimitiveRole::NetworkConnectionRelease | PrimitiveRole::NetworkListenerRelease => {
+            &[MachineValueClass::Indirect]
+        }
         _ => &[MachineValueClass::Direct { words: 1 }],
     };
     if target.abi().arguments().len() != expected_arguments.len()
@@ -216,7 +226,10 @@ fn select_network_primitive(
         return Err(Arm64SelectionError::PrimitiveCall(operation));
     }
     let valid_result = match target.role() {
-        PrimitiveRole::NetworkConnectionCreate | PrimitiveRole::NetworkConnectionReceiveEvent => {
+        PrimitiveRole::NetworkConnectionCreate
+        | PrimitiveRole::NetworkConnectionReceiveEvent
+        | PrimitiveRole::NetworkListenerCreate
+        | PrimitiveRole::NetworkListenerReceiveEvent => {
             matches!(
                 target.abi().result(),
                 MachineResultAbi::Value(result)
@@ -228,7 +241,9 @@ fn select_network_primitive(
         PrimitiveRole::NetworkConnectionEventDescriptor
         | PrimitiveRole::NetworkConnectionBeginSend
         | PrimitiveRole::NetworkConnectionCopyLocalAddress
-        | PrimitiveRole::NetworkConnectionCopyRemoteAddress => matches!(
+        | PrimitiveRole::NetworkConnectionCopyRemoteAddress
+        | PrimitiveRole::NetworkListenerEventDescriptor
+        | PrimitiveRole::NetworkListenerPort => matches!(
             target.abi().result(),
             MachineResultAbi::Value(result)
                 if result.class() == (MachineValueClass::Direct { words: 1 })
@@ -242,7 +257,11 @@ fn select_network_primitive(
         | PrimitiveRole::NetworkConnectionBeginReceive
         | PrimitiveRole::NetworkConnectionRequestCancel
         | PrimitiveRole::NetworkConnectionReleaseBarrier
-        | PrimitiveRole::NetworkConnectionRelease => {
+        | PrimitiveRole::NetworkConnectionRelease
+        | PrimitiveRole::NetworkListenerStart
+        | PrimitiveRole::NetworkListenerRequestCancel
+        | PrimitiveRole::NetworkListenerReleaseBarrier
+        | PrimitiveRole::NetworkListenerRelease => {
             target.abi().result() == MachineResultAbi::Completion
         }
         _ => false,

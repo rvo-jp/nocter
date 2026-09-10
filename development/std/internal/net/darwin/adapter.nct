@@ -7,6 +7,8 @@ use /internal/net/model.{
     NetworkConnectionEvent,
     NetworkConnectionState,
     NetworkFamily,
+    NetworkListenerEvent,
+    NetworkListenerState,
     NetworkOwner,
     NetworkProviderFailure,
 }
@@ -349,6 +351,73 @@ noalloc func connection_release_barrier(owner: &+NetworkOwner): void {
 #target: "arm64-darwin"
 noalloc func connection_release(owner: NetworkOwner): void {
     network_connection_release_raw(move owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func listener_create(address: &NetworkAddress): NetworkOwner? {
+    let native = native_address(address)
+    return network_listener_create_raw(ptr.from_ref(&native.bytes[0]))?
+}
+
+#target: "arm64-darwin"
+noalloc func listener_start(owner: &+NetworkOwner): void {
+    network_listener_start_raw(owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func listener_event_descriptor(owner: &NetworkOwner): usize {
+    return network_listener_event_descriptor_raw(owner)
+}
+
+#target: "arm64-darwin"
+noalloc func listener_next_event(owner: &+NetworkOwner): NetworkListenerEvent {
+    let event = network_listener_receive_event_raw(owner)
+    if event.0 == 3 {
+        let failure = connection_provider_failure(event.2, event.3)
+        if event.1 == 1 {
+            return NetworkListenerEvent.state(NetworkListenerState.waiting)
+        }
+        if event.1 == 2 {
+            return NetworkListenerEvent.state(NetworkListenerState.ready)
+        }
+        if event.1 == 3 {
+            return NetworkListenerEvent.state(NetworkListenerState.failed(move failure))
+        }
+        if event.1 == 4 {
+            return NetworkListenerEvent.state(NetworkListenerState.cancelled)
+        }
+        return NetworkListenerEvent.malformed
+    }
+    if event.0 == 4 {
+        if event.1 != 0 { return NetworkListenerEvent.adoption_failed(event.1) }
+        let accepted = move event.4 otherwise { return NetworkListenerEvent.malformed }
+        return NetworkListenerEvent.accepted(move accepted)
+    }
+    return NetworkListenerEvent.malformed
+}
+
+#target: "arm64-darwin"
+noalloc func listener_port(owner: &NetworkOwner): u16 {
+    return network_listener_port_raw(owner)
+}
+
+#target: "arm64-darwin"
+noalloc func listener_cancel(owner: &+NetworkOwner): void {
+    network_listener_request_cancel_raw(owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func listener_release_barrier(owner: &+NetworkOwner): void {
+    network_listener_release_barrier_raw(owner)
+    return
+}
+
+#target: "arm64-darwin"
+noalloc func listener_release(owner: NetworkOwner): void {
+    network_listener_release_raw(move owner)
     return
 }
 

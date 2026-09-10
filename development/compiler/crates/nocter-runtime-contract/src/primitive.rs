@@ -138,6 +138,14 @@ closed_role_enum! {
         NetworkConnectionRequestCancel,
         NetworkConnectionReleaseBarrier,
         NetworkConnectionRelease,
+        NetworkListenerCreate,
+        NetworkListenerStart,
+        NetworkListenerEventDescriptor,
+        NetworkListenerReceiveEvent,
+        NetworkListenerPort,
+        NetworkListenerRequestCancel,
+        NetworkListenerReleaseBarrier,
+        NetworkListenerRelease,
         Syscall0,
         /// Preserves both successful result words of one zero-argument target syscall.
         SyscallPair0,
@@ -155,6 +163,10 @@ closed_role_enum! {
 impl PrimitiveRole {
     /// Returns the stable compiler-contract name of this primitive role.
     #[must_use]
+    #[allow(
+        clippy::too_many_lines,
+        reason = "one exhaustive closed mapping keeps primitive role names as a single authority"
+    )]
     pub const fn name(self) -> &'static str {
         match self {
             Self::NewError => "new_error",
@@ -233,6 +245,54 @@ impl PrimitiveRole {
             Self::DescriptorReadinessOrDeadline => "descriptor_readiness_or_deadline",
             Self::MonotonicDeadline => "monotonic_deadline",
             Self::TaskJoin => "task_join",
+            Self::NetworkConnectionCreate
+            | Self::NetworkConnectionStart
+            | Self::NetworkConnectionEventDescriptor
+            | Self::NetworkConnectionBeginReceive
+            | Self::NetworkConnectionBeginSend
+            | Self::NetworkConnectionReceiveEvent
+            | Self::NetworkConnectionCopyLocalAddress
+            | Self::NetworkConnectionCopyRemoteAddress
+            | Self::NetworkConnectionRequestCancel
+            | Self::NetworkConnectionReleaseBarrier
+            | Self::NetworkConnectionRelease => self.network_connection_name(),
+            Self::NetworkListenerCreate
+            | Self::NetworkListenerStart
+            | Self::NetworkListenerEventDescriptor
+            | Self::NetworkListenerReceiveEvent
+            | Self::NetworkListenerPort
+            | Self::NetworkListenerRequestCancel
+            | Self::NetworkListenerReleaseBarrier
+            | Self::NetworkListenerRelease => self.network_listener_name(),
+            Self::Syscall0 => "syscall_0",
+            Self::SyscallPair0 => "syscall_pair_0",
+            Self::Syscall1 => "syscall_1",
+            Self::Syscall2 => "syscall_2",
+            Self::Syscall3 => "syscall_3",
+            Self::Syscall4 => "syscall_4",
+            Self::Syscall5 => "syscall_5",
+            Self::Syscall6 => "syscall_6",
+            Self::Trap => "trap",
+            Self::Unreachable => "unreachable",
+        }
+    }
+
+    const fn network_listener_name(self) -> &'static str {
+        match self {
+            Self::NetworkListenerCreate => "network_listener_create",
+            Self::NetworkListenerStart => "network_listener_start",
+            Self::NetworkListenerEventDescriptor => "network_listener_event_descriptor",
+            Self::NetworkListenerReceiveEvent => "network_listener_receive_event",
+            Self::NetworkListenerPort => "network_listener_port",
+            Self::NetworkListenerRequestCancel => "network_listener_request_cancel",
+            Self::NetworkListenerReleaseBarrier => "network_listener_release_barrier",
+            Self::NetworkListenerRelease => "network_listener_release",
+            _ => panic!("only listener roles use listener names"),
+        }
+    }
+
+    const fn network_connection_name(self) -> &'static str {
+        match self {
             Self::NetworkConnectionCreate => "network_connection_create",
             Self::NetworkConnectionStart => "network_connection_start",
             Self::NetworkConnectionEventDescriptor => "network_connection_event_descriptor",
@@ -244,16 +304,7 @@ impl PrimitiveRole {
             Self::NetworkConnectionRequestCancel => "network_connection_request_cancel",
             Self::NetworkConnectionReleaseBarrier => "network_connection_release_barrier",
             Self::NetworkConnectionRelease => "network_connection_release",
-            Self::Syscall0 => "syscall_0",
-            Self::SyscallPair0 => "syscall_pair_0",
-            Self::Syscall1 => "syscall_1",
-            Self::Syscall2 => "syscall_2",
-            Self::Syscall3 => "syscall_3",
-            Self::Syscall4 => "syscall_4",
-            Self::Syscall5 => "syscall_5",
-            Self::Syscall6 => "syscall_6",
-            Self::Trap => "trap",
-            Self::Unreachable => "unreachable",
+            _ => panic!("only connection roles use connection names"),
         }
     }
 

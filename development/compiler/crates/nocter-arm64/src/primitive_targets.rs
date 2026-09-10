@@ -26,6 +26,8 @@ impl Arm64PrimitiveTargets {
         let mut roles = BTreeSet::new();
         let mut network_create = None;
         let mut network_receive_event = None;
+        let mut listener_create = None;
+        let mut listener_receive_event = None;
         for target in machine.functions().flat_map(|(_, function)| {
             function.body().operations().filter_map(|(_, operation)| {
                 let MachineOperationKind::Call(call) = operation.kind() else {
@@ -44,6 +46,12 @@ impl Arm64PrimitiveTargets {
                 }
                 PrimitiveRole::NetworkConnectionReceiveEvent => {
                     remember_unique_abi(machine, &mut network_receive_event, target)?;
+                }
+                PrimitiveRole::NetworkListenerCreate => {
+                    remember_unique_abi(machine, &mut listener_create, target)?;
+                }
+                PrimitiveRole::NetworkListenerReceiveEvent => {
+                    remember_unique_abi(machine, &mut listener_receive_event, target)?;
                 }
                 _ => {}
             }
@@ -64,6 +72,8 @@ impl Arm64PrimitiveTargets {
                 &roles,
                 network_create,
                 network_receive_event,
+                listener_create,
+                listener_receive_event,
                 builder,
             )?,
         })
