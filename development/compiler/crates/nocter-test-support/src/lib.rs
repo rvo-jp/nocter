@@ -381,6 +381,27 @@ pub(/) primitive type NetworkOwner
 ";
 const INTERNAL_NET_DARWIN_SOURCE: &str = "\
 use /internal/net/model.NetworkOwner
+use /internal/os/darwin.SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_socket_open_raw(ipv6: bool): SyscallResult
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_socket_configure_raw(fd: usize, ipv6: bool, enabled: *i32): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_bind_raw(fd: usize, address: *u8, address_len: usize): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_connect_raw(fd: usize, address: *u8, address_len: usize): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_connect_status_raw(fd: usize, pending_error: *i32, length: *u32): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_send_raw(fd: usize, bytes: *u8, len: usize): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_send_to_raw(fd: usize, bytes: *u8, len: usize, address: *u8, address_len: usize): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_receive_raw(fd: usize, header: *u8): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_local_address_raw(fd: usize, address: *u8, address_len: *u32): SyscallResult from static
+#target: \"arm64-darwin\"
+noalloc primitive func datagram_peer_address_raw(fd: usize, address: *u8, address_len: *u32): SyscallResult from static
 #target: \"arm64-darwin\"
 noalloc primitive func network_connection_create_raw(address: *u8): NetworkOwner? from static
 #target: \"arm64-darwin\"
@@ -462,8 +483,6 @@ pub(/) blocking primitive func syscall2(number: usize, a0: usize, a1: usize): Sy
 pub(/) blocking primitive func syscall3(number: usize, a0: usize, a1: usize, a2: usize): SyscallResult
 #target: \"arm64-darwin\"
 blocking primitive func syscall4(number: usize, a0: usize, a1: usize, a2: usize, a3: usize): SyscallResult
-#target: \"arm64-darwin\"
-pub(/) blocking primitive func syscall5(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize): SyscallResult
 #target: \"arm64-darwin\"
 pub(/) blocking primitive func syscall6(number: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize): SyscallResult
 #target: \"arm64-darwin\"
@@ -550,7 +569,9 @@ fn fixture_module(sources: &mut SourceMap, path: &[&str], text: &str) -> Fixture
     let syntax = add_parsed(sources, &source_path, text, ParseGoal::SourceFile);
     let use_targets: &[&[&str]] = match path {
         ["mem"] => &[&["internal", "os", "darwin"]],
-        ["internal", "net", "darwin"] => &[&["internal", "net", "model"]],
+        ["internal", "net", "darwin"] => {
+            &[&["internal", "net", "model"], &["internal", "os", "darwin"]]
+        }
         _ => &[],
     };
     let declarations = use_declarations(&syntax);

@@ -13,6 +13,7 @@ use /internal/net/model.{
     ResolverNext,
 }
 use /internal/os.OSError
+use /internal/os/darwin.SyscallResult
 
 see ./adapter.nct
 see ./connection_tests.nct
@@ -142,6 +143,80 @@ pub(/) noalloc func listener_port(owner: &NetworkOwner): u16
 /// Transfers a listener owner to nonblocking asynchronous terminal cleanup.
 #target: "arm64-darwin"
 pub(/) noalloc func listener_dispose(owner: NetworkOwner): void
+
+/// Opens one datagram descriptor for IPv4 or IPv6 without exposing Darwin socket constants.
+#target: "arm64-darwin"
+noalloc primitive func datagram_socket_open_raw(ipv6: bool): SyscallResult
+
+/// Applies the required close-on-exec, no-SIGPIPE, nonblocking, and IPv6-only policy.
+#target: "arm64-darwin"
+noalloc primitive func datagram_socket_configure_raw(
+    fd: usize,
+    ipv6: bool,
+    enabled: *i32,
+): SyscallResult from static
+
+/// Performs one nonblocking bind attempt over a complete native socket address.
+#target: "arm64-darwin"
+noalloc primitive func datagram_bind_raw(
+    fd: usize,
+    address: *u8,
+    address_len: usize,
+): SyscallResult from static
+
+/// Performs one nonblocking connected-peer selection attempt.
+#target: "arm64-darwin"
+noalloc primitive func datagram_connect_raw(
+    fd: usize,
+    address: *u8,
+    address_len: usize,
+): SyscallResult from static
+
+/// Reads the pending socket error after writable peer selection.
+#target: "arm64-darwin"
+noalloc primitive func datagram_connect_status_raw(
+    fd: usize,
+    pending_error: *i32,
+    length: *u32,
+): SyscallResult from static
+
+/// Performs one connected datagram send attempt with fixed target flags.
+#target: "arm64-darwin"
+noalloc primitive func datagram_send_raw(
+    fd: usize,
+    bytes: *u8,
+    len: usize,
+): SyscallResult from static
+
+/// Performs one addressed datagram send attempt with fixed target flags.
+#target: "arm64-darwin"
+noalloc primitive func datagram_send_to_raw(
+    fd: usize,
+    bytes: *u8,
+    len: usize,
+    address: *u8,
+    address_len: usize,
+): SyscallResult from static
+
+/// Performs one receive attempt through a caller-owned Darwin message header.
+#target: "arm64-darwin"
+noalloc primitive func datagram_receive_raw(fd: usize, header: *u8): SyscallResult from static
+
+/// Copies the local native address of one datagram descriptor.
+#target: "arm64-darwin"
+noalloc primitive func datagram_local_address_raw(
+    fd: usize,
+    address: *u8,
+    address_len: *u32,
+): SyscallResult from static
+
+/// Copies the selected peer native address of one datagram descriptor.
+#target: "arm64-darwin"
+noalloc primitive func datagram_peer_address_raw(
+    fd: usize,
+    address: *u8,
+    address_len: *u32,
+): SyscallResult from static
 
 /// Creates an unstarted plain connection over one complete native socket address.
 #target: "arm64-darwin"
@@ -360,32 +435,32 @@ instance RawResolverResults {
 }
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func create_udp(family: NetworkFamily): RawDescriptorAttempt
+pub(/) noalloc func create_udp(family: NetworkFamily): RawDescriptorAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func select_datagram_peer_once(
+pub(/) noalloc func select_datagram_peer_once(
     fd: usize,
     address: &NetworkAddress,
 ): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt
+pub(/) noalloc func finish_datagram_peer_selection_once(fd: usize): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
+pub(/) noalloc func bind_once(fd: usize, address: &NetworkAddress): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt
+pub(/) noalloc func send_once(fd: usize, bytes: &[u8]): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func send_to_once(
+pub(/) noalloc func send_to_once(
     fd: usize,
     bytes: &[u8],
     target: &NetworkAddress,
 ): RawUnitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func receive_from_once(
+pub(/) noalloc func receive_from_once(
     fd: usize,
     buffer: &+[u8],
 ): RawDatagramAttempt
@@ -403,10 +478,10 @@ pub(/) noalloc blocking func wait_writable_once(
 ): RawWaitAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func local_address_once(fd: usize): RawAddressAttempt
+pub(/) noalloc func local_address_once(fd: usize): RawAddressAttempt
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking func peer_address_once(fd: usize): RawAddressAttempt
+pub(/) noalloc func peer_address_once(fd: usize): RawAddressAttempt
 
 #target: "arm64-darwin"
 pub(/) noalloc func close_once(fd: usize): void

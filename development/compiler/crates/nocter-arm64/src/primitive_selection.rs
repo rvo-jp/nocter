@@ -140,6 +140,16 @@ pub(crate) fn select(
         | PrimitiveRole::MemoryMap
         | PrimitiveRole::MemoryUnmap
         | PrimitiveRole::DescriptorClose
+        | PrimitiveRole::DatagramSocketOpen
+        | PrimitiveRole::DatagramSocketConfigure
+        | PrimitiveRole::DatagramBind
+        | PrimitiveRole::DatagramConnect
+        | PrimitiveRole::DatagramConnectStatus
+        | PrimitiveRole::DatagramSend
+        | PrimitiveRole::DatagramSendTo
+        | PrimitiveRole::DatagramReceive
+        | PrimitiveRole::DatagramLocalAddress
+        | PrimitiveRole::DatagramPeerAddress
         | PrimitiveRole::EntropySeedFill
         | PrimitiveRole::WallClockRead
         | PrimitiveRole::TimeoutWait
@@ -153,7 +163,6 @@ pub(crate) fn select(
         | PrimitiveRole::Syscall2
         | PrimitiveRole::Syscall3
         | PrimitiveRole::Syscall4
-        | PrimitiveRole::Syscall5
         | PrimitiveRole::Syscall6
         | PrimitiveRole::Trap
         | PrimitiveRole::Unreachable => {

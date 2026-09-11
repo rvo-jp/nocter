@@ -8,11 +8,11 @@ Nocter v0.45.0 is published and externally audited. Development has moved to v0.
 
 ## Next Work
 
-Implement the closed datagram target operations defined by the
+Build the shared synchronous/asynchronous datagram policy defined by the
 [v0.46.0 milestone](history/milestones/v0.46.0.md) and
-[asynchronous datagram design](design/asynchronous-datagram-io-design.md). Then build one
-cancellation-safe descriptor substrate, migrate the public UDP surface, and qualify native and
-editor behavior before release review.
+[asynchronous datagram design](design/asynchronous-datagram-io-design.md). Closed target attempts
+are complete. Next, drive asynchronous retry through descriptor readiness, preserve one deadline,
+and prove cancellation leaves the borrowed socket reusable before migrating the public surface.
 
 Preserve every published tag and asset, including v0.45.0.
 

@@ -360,6 +360,9 @@ pub(crate) fn emit_instruction(
         Arm64SelectedInstruction::DarwinDescriptorClose => {
             crate::system_primitive_code::emit_descriptor_close(code)
         }
+        Arm64SelectedInstruction::DarwinDatagram(operation) => {
+            crate::darwin_datagram_code::emit(operation, code)
+        }
         Arm64SelectedInstruction::DarwinEntropySeedFill => {
             crate::system_primitive_code::emit_entropy_seed_fill(code)
         }

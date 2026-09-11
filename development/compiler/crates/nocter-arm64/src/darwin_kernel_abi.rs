@@ -8,6 +8,16 @@ pub(crate) enum DarwinSystemCall {
     Exit,
     Write,
     Close,
+    Socket,
+    Connect,
+    Bind,
+    SetSocketOption,
+    GetSocketOption,
+    SendTo,
+    ReceiveMessage,
+    GetSocketName,
+    GetPeerName,
+    Fcntl,
     GetEntropy,
     MemoryUnmap,
     MemoryMap,
@@ -22,6 +32,16 @@ impl DarwinSystemCall {
             Self::Exit => 1,
             Self::Write => 0x0200_0004,
             Self::Close => 0x0200_0006,
+            Self::Socket => 0x0200_0061,
+            Self::Connect => 0x0200_0062,
+            Self::Bind => 0x0200_0068,
+            Self::SetSocketOption => 0x0200_0069,
+            Self::GetSocketOption => 0x0200_0076,
+            Self::SendTo => 0x0200_0085,
+            Self::ReceiveMessage => 0x0200_001b,
+            Self::GetSocketName => 0x0200_0020,
+            Self::GetPeerName => 0x0200_001f,
+            Self::Fcntl => 0x0200_005c,
             Self::GetEntropy => 0x0200_01f4,
             Self::MemoryUnmap => 0x0200_0049,
             Self::MemoryMap => 0x0200_00c5,
@@ -30,6 +50,25 @@ impl DarwinSystemCall {
             Self::GetTimeOfDay => 0x0200_0074,
         }
     }
+}
+
+/// Fixed Darwin socket and descriptor values used by the closed datagram boundary.
+pub(crate) struct DarwinDatagramAbi;
+
+impl DarwinDatagramAbi {
+    pub(crate) const IPV4_FAMILY: u64 = 2;
+    pub(crate) const IPV6_FAMILY: u64 = 30;
+    pub(crate) const DATAGRAM_SOCKET: u64 = 2;
+    pub(crate) const SOCKET_LEVEL: u64 = 0xffff;
+    pub(crate) const SOCKET_ERROR: u64 = 0x1007;
+    pub(crate) const IPV6_LEVEL: u64 = 41;
+    pub(crate) const IPV6_ONLY: u64 = 27;
+    pub(crate) const INTEGER_OPTION_SIZE: u64 = 4;
+    pub(crate) const SET_DESCRIPTOR_FLAGS: u64 = 2;
+    pub(crate) const SET_STATUS_FLAGS: u64 = 4;
+    pub(crate) const SET_NO_SIGPIPE: u64 = 73;
+    pub(crate) const CLOSE_ON_EXEC: u64 = 1;
+    pub(crate) const NONBLOCKING: u64 = 4;
 }
 
 /// Emits a compiler-selected Darwin system call after its arguments have been prepared.
@@ -128,6 +167,16 @@ mod tests {
             DarwinSystemCall::Exit,
             DarwinSystemCall::Write,
             DarwinSystemCall::Close,
+            DarwinSystemCall::Socket,
+            DarwinSystemCall::Connect,
+            DarwinSystemCall::Bind,
+            DarwinSystemCall::SetSocketOption,
+            DarwinSystemCall::GetSocketOption,
+            DarwinSystemCall::SendTo,
+            DarwinSystemCall::ReceiveMessage,
+            DarwinSystemCall::GetSocketName,
+            DarwinSystemCall::GetPeerName,
+            DarwinSystemCall::Fcntl,
             DarwinSystemCall::GetEntropy,
             DarwinSystemCall::MemoryUnmap,
             DarwinSystemCall::MemoryMap,

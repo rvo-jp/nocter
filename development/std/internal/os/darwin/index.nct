@@ -241,16 +241,6 @@ pub(/) noalloc blocking primitive func syscall3(
 ): SyscallResult
 
 #target: "arm64-darwin"
-pub(/) noalloc blocking primitive func syscall5(
-    number: usize,
-    a0: usize,
-    a1: usize,
-    a2: usize,
-    a3: usize,
-    a4: usize,
-): SyscallResult
-
-#target: "arm64-darwin"
 pub(/) noalloc blocking func read_directory_entries(
     fd: usize,
     buffer: &+[u8],

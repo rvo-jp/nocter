@@ -21,6 +21,16 @@ pub(super) fn select(
             select_memory_operation(operation, target, selected)
         }
         PrimitiveRole::DescriptorClose => select_descriptor_close(operation, target, selected),
+        PrimitiveRole::DatagramSocketOpen
+        | PrimitiveRole::DatagramSocketConfigure
+        | PrimitiveRole::DatagramBind
+        | PrimitiveRole::DatagramConnect
+        | PrimitiveRole::DatagramConnectStatus
+        | PrimitiveRole::DatagramSend
+        | PrimitiveRole::DatagramSendTo
+        | PrimitiveRole::DatagramReceive
+        | PrimitiveRole::DatagramLocalAddress
+        | PrimitiveRole::DatagramPeerAddress => select_datagram(operation, target, selected),
         PrimitiveRole::EntropySeedFill => select_entropy_seed_fill(operation, target, selected),
         PrimitiveRole::WallClockRead => {
             select_wall_clock_read(program, operation, target, selected)
@@ -37,13 +47,38 @@ pub(super) fn select(
         | PrimitiveRole::Syscall2
         | PrimitiveRole::Syscall3
         | PrimitiveRole::Syscall4
-        | PrimitiveRole::Syscall5
         | PrimitiveRole::Syscall6 => select_syscall(operation, target, selected),
         PrimitiveRole::Trap | PrimitiveRole::Unreachable => {
             select_break(operation, target, selected)
         }
         _ => Err(Arm64SelectionError::PrimitiveCall(operation)),
     }
+}
+
+fn select_datagram(
+    operation: MachineOperationId,
+    target: super::primitive_selection::Arm64PrimitiveTarget<'_>,
+    selected: &mut Vec<Arm64SelectedInstruction>,
+) -> Result<(), Arm64SelectionError> {
+    use crate::darwin_datagram_code::DarwinDatagramOperation as Datagram;
+
+    let (argument_count, datagram) = match target.role() {
+        PrimitiveRole::DatagramSocketOpen => (1, Datagram::SocketOpen),
+        PrimitiveRole::DatagramSocketConfigure => (3, Datagram::SocketConfigure),
+        PrimitiveRole::DatagramBind => (3, Datagram::Bind),
+        PrimitiveRole::DatagramConnect => (3, Datagram::Connect),
+        PrimitiveRole::DatagramConnectStatus => (3, Datagram::ConnectStatus),
+        PrimitiveRole::DatagramSend => (3, Datagram::Send),
+        PrimitiveRole::DatagramSendTo => (5, Datagram::SendTo),
+        PrimitiveRole::DatagramReceive => (2, Datagram::Receive),
+        PrimitiveRole::DatagramLocalAddress => (3, Datagram::LocalAddress),
+        PrimitiveRole::DatagramPeerAddress => (3, Datagram::PeerAddress),
+        _ => return Err(Arm64SelectionError::PrimitiveCall(operation)),
+    };
+    validate_ordinary_inputs(operation, target, argument_count)?;
+    validate_direct_result(operation, target, 2)?;
+    selected.push(Arm64SelectedInstruction::DarwinDatagram(datagram));
+    Ok(())
 }
 
 fn select_wall_clock_read(
@@ -299,7 +334,6 @@ fn syscall_argument_count(role: PrimitiveRole) -> Option<u8> {
         PrimitiveRole::Syscall2 => Some(2),
         PrimitiveRole::Syscall3 => Some(3),
         PrimitiveRole::Syscall4 => Some(4),
-        PrimitiveRole::Syscall5 => Some(5),
         PrimitiveRole::Syscall6 => Some(6),
         _ => None,
     }

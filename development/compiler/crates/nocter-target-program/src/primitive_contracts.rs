@@ -565,6 +565,68 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
             arm64_darwin,
             vec![],
         ),
+        PrimitiveRole::DatagramSocketOpen => make(
+            0,
+            vec![boolean()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DatagramSocketConfigure => make(
+            0,
+            vec![usize(), boolean(), TypeContract::pointer(i32())],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DatagramBind
+        | PrimitiveRole::DatagramConnect
+        | PrimitiveRole::DatagramSend => make(
+            0,
+            vec![usize(), byte_pointer(), usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DatagramConnectStatus => make(
+            0,
+            vec![
+                usize(),
+                TypeContract::pointer(i32()),
+                TypeContract::pointer(u32()),
+            ],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DatagramSendTo => make(
+            0,
+            vec![usize(), byte_pointer(), usize(), byte_pointer(), usize()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DatagramReceive => make(
+            0,
+            vec![usize(), byte_pointer()],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
+        PrimitiveRole::DatagramLocalAddress | PrimitiveRole::DatagramPeerAddress => make(
+            0,
+            vec![usize(), byte_pointer(), TypeContract::pointer(u32())],
+            syscall_result(),
+            private,
+            arm64_darwin,
+            vec![],
+        ),
         PrimitiveRole::EntropySeedFill => make(
             0,
             vec![TypeContract::pointer(u64())],
@@ -1028,7 +1090,6 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         | PrimitiveRole::Syscall2
         | PrimitiveRole::Syscall3
         | PrimitiveRole::Syscall4
-        | PrimitiveRole::Syscall5
         | PrimitiveRole::Syscall6 => {
             let argument_count = match role {
                 PrimitiveRole::Syscall0 => 1,
@@ -1036,7 +1097,6 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
                 PrimitiveRole::Syscall2 => 3,
                 PrimitiveRole::Syscall3 => 4,
                 PrimitiveRole::Syscall4 => 5,
-                PrimitiveRole::Syscall5 => 6,
                 PrimitiveRole::Syscall6 => 7,
                 _ => unreachable!(),
             };

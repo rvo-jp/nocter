@@ -71,6 +71,26 @@ closed_role_enum! {
         MemoryUnmap,
         /// Closes one Darwin descriptor without exposing the raw syscall-number boundary.
         DescriptorClose,
+        /// Opens one Darwin datagram socket for a selected logical address family.
+        DatagramSocketOpen,
+        /// Applies the compiler-owned nonblocking descriptor policy to one datagram socket.
+        DatagramSocketConfigure,
+        /// Performs one nonblocking datagram bind attempt over a caller-owned native address.
+        DatagramBind,
+        /// Performs one nonblocking datagram peer-selection attempt.
+        DatagramConnect,
+        /// Observes the pending error of one datagram peer-selection attempt.
+        DatagramConnectStatus,
+        /// Performs one nonblocking send attempt on a connected datagram socket.
+        DatagramSend,
+        /// Performs one nonblocking send attempt to a caller-owned native address.
+        DatagramSendTo,
+        /// Performs one nonblocking receive attempt through a caller-owned native message header.
+        DatagramReceive,
+        /// Copies one datagram socket's local native address into caller-owned storage.
+        DatagramLocalAddress,
+        /// Copies one datagram socket's peer native address into caller-owned storage.
+        DatagramPeerAddress,
         /// Fills one 64-bit hash seed from the target entropy source.
         EntropySeedFill,
         PointerAddress,
@@ -190,7 +210,6 @@ closed_role_enum! {
         Syscall2,
         Syscall3,
         Syscall4,
-        Syscall5,
         Syscall6,
         Trap,
         Unreachable,
@@ -217,6 +236,16 @@ impl PrimitiveRole {
             Self::MemoryMap => "memory_map",
             Self::MemoryUnmap => "memory_unmap",
             Self::DescriptorClose => "descriptor_close",
+            Self::DatagramSocketOpen => "datagram_socket_open",
+            Self::DatagramSocketConfigure => "datagram_socket_configure",
+            Self::DatagramBind => "datagram_bind",
+            Self::DatagramConnect => "datagram_connect",
+            Self::DatagramConnectStatus => "datagram_connect_status",
+            Self::DatagramSend => "datagram_send",
+            Self::DatagramSendTo => "datagram_send_to",
+            Self::DatagramReceive => "datagram_receive",
+            Self::DatagramLocalAddress => "datagram_local_address",
+            Self::DatagramPeerAddress => "datagram_peer_address",
             Self::EntropySeedFill => "entropy_seed_fill",
             Self::PointerAddress => "pointer_address",
             Self::PointerFromReference => "pointer_from_reference",
@@ -322,7 +351,6 @@ impl PrimitiveRole {
             Self::Syscall2 => "syscall_2",
             Self::Syscall3 => "syscall_3",
             Self::Syscall4 => "syscall_4",
-            Self::Syscall5 => "syscall_5",
             Self::Syscall6 => "syscall_6",
             Self::Trap => "trap",
             Self::Unreachable => "unreachable",
@@ -400,7 +428,6 @@ impl PrimitiveRole {
                     | Self::Syscall2
                     | Self::Syscall3
                     | Self::Syscall4
-                    | Self::Syscall5
                     | Self::Syscall6
             ),
             returns_drive_safe_future: matches!(
@@ -616,7 +643,6 @@ mod tests {
                 PrimitiveRole::Syscall2,
                 PrimitiveRole::Syscall3,
                 PrimitiveRole::Syscall4,
-                PrimitiveRole::Syscall5,
                 PrimitiveRole::Syscall6,
             ]
         );

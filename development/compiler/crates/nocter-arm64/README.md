@@ -28,9 +28,12 @@ source, loader commands, or package state.
   receive destructured payloads or a closed subsystem operation, never the complete parent enum.
 - Physical register decisions cannot change semantic value transport.
 - Every primitive expansion is selected by closed runtime role.
-- Darwin kernel syscall numbers, trap encoding, native record layouts, and OS value constants have
-  one backend-local authority. Emitters prepare operation-specific values but cannot restate the
-  kernel ABI.
+- Darwin kernel syscall numbers, trap encoding, and compiler-owned native records and OS constants
+  have one backend-local authority. Source-owned target adapters retain their own native records;
+  emitters accept only their typed pointer ABI and cannot reinterpret standard-library data.
+- Closed datagram lowering owns fixed socket calls and invocation flags. The target-specific
+  standard adapter owns socket-address and message-header construction, malformed-record checks,
+  retry policy, and descriptor cleanup after a configuration failure.
 - Data-pointer fixups identify exact eight-byte fields and section-local targets; executable image
   policy remains outside this crate.
 - Imported function and data slots retain exact kind-preserving trusted runtime identities; ARM64
