@@ -2,9 +2,11 @@
 
 ## Current State
 
-Publication of the qualified v0.45.0 candidate is authorized and in progress. The retained archive
-was built from release-content commit `03f80fa57ff9843a760742e0f7ac128473719ccb`; its identity must
-remain unchanged through the public audit.
+Nocter v0.45.0 is published and externally audited. It makes nonblocking drive universal to
+`future T`, represents synchronous external waiting with the positive `blocking` effect,
+normalizes asynchronous I/O names, and adds deterministic structured race and timeout composition.
+The public asset is byte-identical to the retained qualified archive built from release-content
+commit `03f80fa57ff9843a760742e0f7ac128473719ccb`.
 The standard library has nonwaiting network disposal, provider-backed asynchronous host setup, an
 explicit synchronous resolver effect, exact primitive blocking validation, propagated synchronous
 contracts, single-layer awaited failures, and canonical base names for asynchronous TCP, TLS, and
@@ -14,12 +16,11 @@ positive `blocking` callable effect.
 
 ## Next Work
 
-Integrate the public latest-release surfaces into `main`, create and push one annotated `v0.45.0`
-tag, upload the retained archive as the release's only asset, and verify the public tag,
-latest-release endpoint, asset bytes, extracted installation, and remote `main`. Record that
-evidence and stop.
+Plan the next milestone only when requested. Preserve the separation between universal future
+drive safety, positive synchronous `blocking`, `noalloc`, deferred execution, and result
+provenance; do not infer one fact from another.
 
-Preserve every published tag and asset, including v0.44.0.
+Preserve every published tag and asset, including v0.45.0.
 
 ## Blockers
 
