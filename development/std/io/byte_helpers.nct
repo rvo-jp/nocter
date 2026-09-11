@@ -1,0 +1,20 @@
+//! Storage and failure helpers shared by blocking and asynchronous byte algorithms.
+
+see ./index.nct
+
+use /vec.Vec
+
+func byte_scratch(size: usize): Vec<u8> {
+    var scratch: Vec<u8> = Vec.with_capacity(size)
+    while scratch.len() < size {
+        scratch.push(0)
+    }
+    return move scratch
+}
+
+func invalid_read_count_error(): error {
+    return error.new(
+        "std.io.invalid_read_count",
+        "reader returned more bytes than the supplied buffer can hold",
+    )
+}

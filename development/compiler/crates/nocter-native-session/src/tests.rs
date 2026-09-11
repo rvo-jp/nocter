@@ -3850,6 +3850,19 @@ fn standard_async_sleep_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn generic_async_io_defaults_cross_interface_dispatch_and_native_execution() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    let image = compile_single_file_native_source(
+        &package_root,
+        &standard_root,
+        include_str!("../../../tests/fixtures/native/async_io_defaults.nct"),
+    );
+    execute_native_status(&image, &package_root.0, "async-io-defaults", 0);
+}
+
+#[test]
 fn structured_async_join_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");

@@ -1,0 +1,100 @@
+use std/io.{Reader, Writer}
+use std/vec.Vec
+
+struct MemoryReader {
+    bytes: Vec<u8>
+    next: usize
+}
+
+construct MemoryReader {
+    func new(bytes: Vec<u8>): Self {
+        return MemoryReader { bytes: move bytes, next: 0 }
+    }
+}
+
+instance MemoryReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        var written: usize = 0
+        while written < output.len() && self.next < self.bytes.len() {
+            output[written] = self.bytes[self.next]
+            written += 1
+            self.next += 1
+        }
+        return written
+    }
+}
+
+struct MemoryWriter {
+    bytes: Vec<u8>
+}
+
+construct MemoryWriter {
+    func new(): Self {
+        return MemoryWriter { bytes: Vec.empty() }
+    }
+}
+
+instance MemoryWriter {
+    impl Writer
+
+    async method &+self.write(input: &[u8]): void! {
+        var offset: usize = 0
+        while offset < input.len() {
+            self.bytes.push(input[offset])
+            offset += 1
+        }
+        return
+    }
+}
+
+struct InvalidReader {}
+
+instance InvalidReader {
+    impl Reader
+
+    async method &+self.read(output: &+[u8]): usize! {
+        return output.len() + 1
+    }
+}
+
+async func rejects_invalid_count(): bool {
+    var reader = InvalidReader {}
+    let _ = await reader.read_to_end() catch failure {
+        return failure.has_code("std.io.invalid_read_count")
+    }
+    return false
+}
+
+async func rejects_invalid_utf8(): bool {
+    var reader = MemoryReader.new(Vec [u8.truncate(255)])
+    let _ = await reader.read_to_string() catch failure {
+        return failure.has_code("std.string.invalid_utf8")
+    }
+    return false
+}
+
+async func main(): i32! {
+    var bytes = MemoryReader.new(Vec [
+        u8.truncate(97),
+        u8.truncate(98),
+        u8.truncate(99),
+    ])
+    let collected = await bytes.read_to_end()?
+    if collected.len() != 3 || collected[0] != 97 || collected[1] != 98
+        || collected[2] != 99 { return 1 }
+
+    var text = MemoryReader.new(Vec [u8.truncate(111), u8.truncate(107)])
+    if await text.read_to_string()? != "ok" { return 2 }
+
+    var writer = MemoryWriter.new()
+    await writer.write_line("ok")?
+    await writer.flush()?
+    if writer.bytes.len() != 3 || writer.bytes[0] != 111 || writer.bytes[1] != 107
+        || writer.bytes[2] != 10 { return 3 }
+
+    if !await rejects_invalid_count() { return 4 }
+    if !await rejects_invalid_utf8() { return 5 }
+    return 0
+}

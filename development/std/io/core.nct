@@ -1,4 +1,5 @@
 see ./index.nct
+see ./byte_helpers.nct
 use /string.String
 use /vec.Vec
 
@@ -6,11 +7,11 @@ use /vec.Vec
 
 interface BlockingReader {
     blocking default method &+self.read_to_end_blocking(): Vec<u8>! {
-        return collect_bytes(self)?
+        return collect_bytes_blocking(self)?
     }
 
     blocking default method &+self.read_to_string_blocking(): String! {
-        let collected = collect_bytes(self)?
+        let collected = collect_bytes_blocking(self)?
         return String.from_utf8(&collected)?
     }
 }
@@ -21,23 +22,23 @@ interface BlockingWriter {
     }
 
     blocking default method &+self.write_text_blocking(text: &str): void! {
-        write_text_to(self, text)?
+        write_text_blocking_to(self, text)?
         return
     }
 
     blocking default method &+self.write_line_blocking(text: &str): void! {
-        write_line_to(self, text)?
+        write_line_blocking_to(self, text)?
         return
     }
 }
 
-blocking func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl BlockingReader {
+blocking func collect_bytes_blocking<R>(reader: &+R): Vec<u8>! where R impl BlockingReader {
     var result: Vec<u8> = Vec.empty()
-    var scratch: Vec<u8> = initialized_scratch(8192)
+    var scratch: Vec<u8> = byte_scratch(8192)
     while true {
         let received: usize = reader.read_blocking(&+scratch)?
         if received > scratch.len() {
-            return invalid_read_count()
+            return invalid_read_count_error()
         }
         if received == 0 {
             break
@@ -53,29 +54,14 @@ blocking func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl BlockingReade
     return move result
 }
 
-func initialized_scratch(size: usize): Vec<u8> {
-    var scratch: Vec<u8> = Vec.with_capacity(size)
-    while scratch.len() < size {
-        scratch.push(0)
-    }
-    return move scratch
-}
-
-blocking func write_text_to<W>(writer: &+W, text: &str): void! where W impl BlockingWriter {
+blocking func write_text_blocking_to<W>(writer: &+W, text: &str): void! where W impl BlockingWriter {
     let encoded: &[u8] = text.bytes()
     writer.write_blocking(encoded)?
     return
 }
 
-blocking func write_line_to<W>(writer: &+W, text: &str): void! where W impl BlockingWriter {
+blocking func write_line_blocking_to<W>(writer: &+W, text: &str): void! where W impl BlockingWriter {
     writer.write_text_blocking(text)?
     writer.write_text_blocking("\n")?
     return
-}
-
-func invalid_read_count(): error {
-    return error.new(
-        "std.io.invalid_read_count",
-        "reader returned more bytes than the supplied buffer can hold",
-    )
 }

@@ -1,7 +1,7 @@
 //! File ownership and Darwin descriptor operations.
 
 see ./index.nct
-see ./core.nct
+see ./byte_helpers.nct
 
 use /internal/os/darwin.SyscallResult
 use /internal/os/darwin
@@ -62,7 +62,7 @@ noalloc func classify_read_result(result: SyscallResult, capacity: usize): ReadP
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
     if result.value > capacity {
-        return invalid_read_count()
+        return invalid_read_count_error()
     }
     return ReadProgress.complete(result.value)
 }

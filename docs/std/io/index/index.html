@@ -194,6 +194,7 @@
 <span class="token-comment">//! results and errno wrappers stay behind `#target`-gated std internals.</span>
 
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>core<span class="token-operator">.</span>nct
+<span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>async_core<span class="token-operator">.</span>nct
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>file<span class="token-operator">.</span>nct
@@ -227,6 +228,33 @@
 
     <span class="token-comment">/// Writes UTF-8 text followed by exactly one LF byte.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_line_blocking</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// An executor-safe source that initializes at most `buffer.len()` bytes per read.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Reader</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Initializes at most the supplied buffer length and returns zero at end of stream.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Reads until end of stream into independently owned byte storage.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_to_end</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Reads until end of stream and validates the complete input as UTF-8.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_to_string</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span>
+<span class="token-operator">}</span>
+
+<span class="token-comment">/// An executor-safe destination that accepts complete byte views.</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+    <span class="token-comment">/// Writes the complete byte view or reports an error after an observable prefix.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Publishes retained output; the default implementation has no retained state.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">flush</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Writes the UTF-8 encoding bytes through the shared byte contract.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_text</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
+
+    <span class="token-comment">/// Writes UTF-8 text followed by exactly one LF byte.</span>
+    <span class="token-keyword">pub</span> <span class="token-keyword">async</span> default <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_line</span><span class="token-operator">(</span>text<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">str</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// A stateful byte stream wrapper over one owned or borrowed file descriptor.</span>

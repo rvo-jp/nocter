@@ -1,0 +1,67 @@
+//! Portable executor-safe byte-stream default implementations.
+
+see ./index.nct
+see ./byte_helpers.nct
+
+use /string.String
+use /vec.Vec
+
+interface Reader {
+    async default method &+self.read_to_end(): Vec<u8>! {
+        return await collect_bytes(self)?
+    }
+
+    async default method &+self.read_to_string(): String! {
+        let collected = await collect_bytes(self)?
+        return String.from_utf8(&collected)?
+    }
+}
+
+interface Writer {
+    async default method &+self.flush(): void! {
+        return
+    }
+
+    async default method &+self.write_text(text: &str): void! {
+        await write_text_to(self, text)?
+        return
+    }
+
+    async default method &+self.write_line(text: &str): void! {
+        await write_line_to(self, text)?
+        return
+    }
+}
+
+async func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl Reader {
+    var result: Vec<u8> = Vec.empty()
+    var scratch: Vec<u8> = byte_scratch(8192)
+    while true {
+        let received: usize = await reader.read(&+scratch)?
+        if received > scratch.len() {
+            return invalid_read_count_error()
+        }
+        if received == 0 {
+            break
+        }
+        result.reserve(received)
+        let initialized: &[u8] = &scratch
+        var offset: usize = 0
+        while offset < received {
+            result.push(initialized[offset])
+            offset += 1
+        }
+    }
+    return move result
+}
+
+async func write_text_to<W>(writer: &+W, text: &str): void! where W impl Writer {
+    await writer.write(text.bytes())?
+    return
+}
+
+async func write_line_to<W>(writer: &+W, text: &str): void! where W impl Writer {
+    await writer.write_text(text)?
+    await writer.write_text("\n")?
+    return
+}

@@ -52,6 +52,19 @@ behavior remain exactly the common `BufReader` contract.
 
 ## Byte I/O and Buffering
 
+`Reader` and `Writer` are the canonical executor-safe byte-stream contracts. Calling one of their
+methods creates a lazy future; driving it cannot synchronously wait for external progress.
+`Reader.read` initializes no more than the supplied mutable byte view and returns zero at EOF.
+Its default `read_to_end` owns one scratch buffer and one independently owned result, rejects an
+impossible byte count with `std.io.invalid_read_count`, and destroys both correctly on failure or
+cancellation. `read_to_string` reuses that collector and validates the complete result as UTF-8.
+
+`Writer.write` accepts the complete supplied byte view or reports failure after any already-written
+prefix remains observable. The default `flush` has no retained state. `write_text` forwards the
+UTF-8 bytes and `write_line` follows them with exactly one LF operation; neither constructs a
+combined buffer. Transport-specific deadlines and configured timeouts are deliberately absent from
+these interfaces because their meaning is not portable across a generic byte stream.
+
 `BlockingReader` and `BlockingWriter` define the shared byte-I/O contracts.
 `BlockingReader.read_blocking` initializes no more than the supplied buffer length and returns zero
 at end of stream. The

@@ -5,6 +5,7 @@
 //! results and errno wrappers stay behind `#target`-gated std internals.
 
 see ./core.nct
+see ./async_core.nct
 use /string.String
 use /vec.Vec
 see ./file.nct
@@ -38,6 +39,33 @@ pub interface BlockingWriter {
 
     /// Writes UTF-8 text followed by exactly one LF byte.
     pub blocking default method &+self.write_line_blocking(text: &str): void!
+}
+
+/// An executor-safe source that initializes at most `buffer.len()` bytes per read.
+pub interface Reader {
+    /// Initializes at most the supplied buffer length and returns zero at end of stream.
+    pub async method &+self.read(buffer: &+[u8]): usize!
+
+    /// Reads until end of stream into independently owned byte storage.
+    pub async default method &+self.read_to_end(): Vec<u8>!
+
+    /// Reads until end of stream and validates the complete input as UTF-8.
+    pub async default method &+self.read_to_string(): String!
+}
+
+/// An executor-safe destination that accepts complete byte views.
+pub interface Writer {
+    /// Writes the complete byte view or reports an error after an observable prefix.
+    pub async method &+self.write(value: &[u8]): void!
+
+    /// Publishes retained output; the default implementation has no retained state.
+    pub async default method &+self.flush(): void!
+
+    /// Writes the UTF-8 encoding bytes through the shared byte contract.
+    pub async default method &+self.write_text(text: &str): void!
+
+    /// Writes UTF-8 text followed by exactly one LF byte.
+    pub async default method &+self.write_line(text: &str): void!
 }
 
 /// A stateful byte stream wrapper over one owned or borrowed file descriptor.
