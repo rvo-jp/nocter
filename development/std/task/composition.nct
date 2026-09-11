@@ -2,6 +2,9 @@
 
 see ./index.nct
 
+use /time
+use /time.Duration
+
 primitive func race_raw<T>(
     first: future T,
     second: future T,
@@ -13,4 +16,22 @@ async func race<T>(first: future T, second: future T): Race<T> {
         return Race.second(move selected.1)
     }
     return Race.first(move selected.1)
+}
+
+async func completed_before_timeout<T>(computation: future T): Timeout<T> {
+    return Timeout.completed(await computation)
+}
+
+async func elapsed_after_timeout<T>(timeout: Duration): Timeout<T> {
+    await time.sleep(timeout)
+    return Timeout.elapsed
+}
+
+async func with_timeout<T>(computation: future T, timeout: Duration): Timeout<T> {
+    let elapsed: future Timeout<T> = elapsed_after_timeout(timeout)
+    let selected = await race_raw(
+        completed_before_timeout(move computation),
+        move elapsed,
+    )
+    return move selected.1
 }

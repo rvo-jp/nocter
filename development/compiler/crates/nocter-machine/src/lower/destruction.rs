@@ -206,7 +206,7 @@ fn lower_struct(
         .map(|field| {
             let offset = context
                 .layouts
-                .field(field.field())
+                .field(ty, field.field())
                 .map(crate::MachineFieldLayout::offset)
                 .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
             Ok(MachineDestructionField::new(
@@ -233,7 +233,7 @@ fn lower_enum(
         .map(|variant| {
             let member = context
                 .layouts
-                .variant(variant.variant())
+                .variant(ty, variant.variant())
                 .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
             let payload = variant
                 .payload()
@@ -241,7 +241,7 @@ fn lower_enum(
                 .map(|payload| {
                     let offset = context
                         .layouts
-                        .payload(variant.variant(), payload.parameter())
+                        .payload(ty, variant.variant(), payload.parameter())
                         .map(crate::MachinePayloadLayout::offset)
                         .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
                     Ok(MachineDestructionPayload::new(
@@ -270,7 +270,7 @@ fn lower_closure(
         .map(|capture| {
             let offset = context
                 .layouts
-                .capture(capture.capture())
+                .capture(ty, capture.capture())
                 .map(crate::MachineCaptureLayout::offset)
                 .ok_or_else(|| context.error(MachineDestructionError::MissingMember(ty)))?;
             Ok(MachineDestructionCapture::new(

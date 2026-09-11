@@ -208,10 +208,10 @@ pub struct MachineLayoutStore {
 #[derive(Debug)]
 pub(crate) struct MachineLayoutPlan {
     store: MachineLayoutStore,
-    fields: BTreeMap<FieldId, MachineFieldLayout>,
-    variants: BTreeMap<VariantId, MachineEnumVariantLayout>,
-    payloads: BTreeMap<ParameterId, (VariantId, MachinePayloadLayout)>,
-    captures: BTreeMap<CaptureId, MachineCaptureLayout>,
+    fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
+    variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
+    payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
+    captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
 }
 
 impl MachineLayoutStore {
@@ -317,29 +317,32 @@ impl MachineLayoutPlan {
     }
 
     #[must_use]
-    pub(crate) fn field(&self, field: FieldId) -> Option<MachineFieldLayout> {
-        self.fields.get(&field).copied()
+    pub(crate) fn field(&self, ty: TypeId, field: FieldId) -> Option<MachineFieldLayout> {
+        self.fields.get(&(ty, field)).copied()
     }
 
     #[must_use]
-    pub(crate) fn variant(&self, variant: VariantId) -> Option<&MachineEnumVariantLayout> {
-        self.variants.get(&variant)
+    pub(crate) fn variant(
+        &self,
+        ty: TypeId,
+        variant: VariantId,
+    ) -> Option<&MachineEnumVariantLayout> {
+        self.variants.get(&(ty, variant))
     }
 
     #[must_use]
     pub(crate) fn payload(
         &self,
+        ty: TypeId,
         variant: VariantId,
         parameter: ParameterId,
     ) -> Option<MachinePayloadLayout> {
-        self.payloads
-            .get(&parameter)
-            .and_then(|(owner, layout)| (*owner == variant).then_some(*layout))
+        self.payloads.get(&(ty, variant, parameter)).copied()
     }
 
     #[must_use]
-    pub(crate) fn capture(&self, capture: CaptureId) -> Option<MachineCaptureLayout> {
-        self.captures.get(&capture).copied()
+    pub(crate) fn capture(&self, ty: TypeId, capture: CaptureId) -> Option<MachineCaptureLayout> {
+        self.captures.get(&(ty, capture)).copied()
     }
 
     pub(crate) fn finish(self) -> MachineLayoutStore {
@@ -361,10 +364,10 @@ struct LayoutBuilder<'program> {
     layouts: BTreeMap<TypeId, MachineLayout>,
     classes: BTreeMap<TypeId, crate::MachineValueClass>,
     active: BTreeSet<TypeId>,
-    fields: BTreeMap<FieldId, MachineFieldLayout>,
-    variants: BTreeMap<VariantId, MachineEnumVariantLayout>,
-    payloads: BTreeMap<ParameterId, (VariantId, MachinePayloadLayout)>,
-    captures: BTreeMap<CaptureId, MachineCaptureLayout>,
+    fields: BTreeMap<(TypeId, FieldId), MachineFieldLayout>,
+    variants: BTreeMap<(TypeId, VariantId), MachineEnumVariantLayout>,
+    payloads: BTreeMap<(TypeId, VariantId, ParameterId), MachinePayloadLayout>,
+    captures: BTreeMap<(TypeId, CaptureId), MachineCaptureLayout>,
 }
 
 impl LayoutBuilder<'_> {
@@ -592,10 +595,12 @@ impl LayoutBuilder<'_> {
                     ty: field_type,
                     offset,
                 };
-                self.fields.insert(field, layout);
-                layout
+                if self.fields.insert((ty, field), layout).is_some() {
+                    return Err(MachineLayoutError::InvalidRepresentation(ty));
+                }
+                Ok(layout)
             })
-            .collect::<Vec<_>>()
+            .collect::<Result<Vec<_>, MachineLayoutError>>()?
             .into_boxed_slice();
         Ok(MachineLayout {
             size,
@@ -666,8 +671,13 @@ impl LayoutBuilder<'_> {
                                 .checked_add(offset)
                                 .ok_or(MachineLayoutError::LayoutOverflow(ty))?,
                         };
-                        self.payloads
-                            .insert(payload.parameter(), (variant.variant(), layout));
+                        if self
+                            .payloads
+                            .insert((ty, variant.variant(), payload.parameter()), layout)
+                            .is_some()
+                        {
+                            return Err(MachineLayoutError::InvalidRepresentation(ty));
+                        }
                         Ok(layout)
                     })
                     .collect::<Result<Vec<_>, MachineLayoutError>>()?
@@ -677,7 +687,13 @@ impl LayoutBuilder<'_> {
                         .map_err(|_| MachineLayoutError::InvalidRepresentation(ty))?,
                     payload,
                 };
-                self.variants.insert(variant.variant(), layout.clone());
+                if self
+                    .variants
+                    .insert((ty, variant.variant()), layout.clone())
+                    .is_some()
+                {
+                    return Err(MachineLayoutError::InvalidRepresentation(ty));
+                }
                 Ok(layout)
             })
             .collect::<Result<Vec<_>, MachineLayoutError>>()?
@@ -713,10 +729,12 @@ impl LayoutBuilder<'_> {
                     ty: capture_type,
                     offset,
                 };
-                self.captures.insert(capture, layout);
-                layout
+                if self.captures.insert((ty, capture), layout).is_some() {
+                    return Err(MachineLayoutError::InvalidRepresentation(ty));
+                }
+                Ok(layout)
             })
-            .collect::<Vec<_>>()
+            .collect::<Result<Vec<_>, MachineLayoutError>>()?
             .into_boxed_slice();
         Ok(MachineLayout {
             size,

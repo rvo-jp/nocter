@@ -26,6 +26,9 @@ select physical registers, encode instructions, write Mach-O, or reinterpret sem
 ## Invariants
 
 - Layout is computed once and reused by every machine consumer.
+- Generic member placement is keyed by the complete concrete type plus semantic member identity;
+  distinct specializations cannot overwrite one another's field, variant, payload, or capture
+  correspondence.
 - Compiler-owned storage consumes the runtime role's ABI layout directly; Machine never projects
   native fields or repeats their offsets.
 - Machine code cannot reach checking or target-program storage.

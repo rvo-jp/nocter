@@ -3880,6 +3880,7 @@ fn structured_async_race_selects_one_winner_and_cancels_the_other() {
         "use std/task\n\
          use std/task.Race\n\
          use std/time\n\
+         use std/string.String\n\
          \n\
          async func number(value: i32): i32 { return value }\n\
          async func delayed_number(value: i32, milliseconds: u64): i32 {\n\
@@ -3888,6 +3889,10 @@ fn structured_async_race_selects_one_winner_and_cancels_the_other() {
          }\n\
          async func nested_value(): ((i32, i32), (i32, i32)) {\n\
              return ((5, 6), (7, 8))\n\
+         }\n\
+         async func delayed_text(value: String, milliseconds: u64): String {\n\
+             await time.sleep(time.Duration.from_milliseconds(milliseconds))\n\
+             return move value\n\
          }\n\
          \n\
          async func main(): i32 {\n\
@@ -3918,6 +3923,16 @@ fn structured_async_race_selects_one_winner_and_cancels_the_other() {
                      if value.0.0 + value.0.1 + value.1.0 + value.1.1 != 26 { return 7 }\n\
                  }\n\
              }\n\
+             let owned = await task.race(\n\
+                 delayed_text(String.copy(\"lost\"), 80),\n\
+                 delayed_text(String.copy(\"winner\"), 10),\n\
+             )\n\
+             match move owned {\n\
+                 Race.first(_) { return 8 }\n\
+                 Race.second(value) {\n\
+                     if !(value == String.copy(\"winner\")) { return 9 }\n\
+                 }\n\
+             }\n\
              return 0\n\
          }\n",
     );
@@ -3932,6 +3947,61 @@ fn structured_async_race_selects_one_winner_and_cancels_the_other() {
     let compiled = compile_for_test(unit);
     let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
     execute_native_status(image.image(), &package_root.0, "structured-async-race", 0);
+}
+
+#[test]
+fn structured_async_timeout_distinguishes_completion_from_elapsed_time() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/task\n\
+         use std/task.Timeout\n\
+         use std/time\n\
+         \n\
+         async func number(value: i32): i32 { return value }\n\
+         async func delayed_number(value: i32, milliseconds: u64): i32 {\n\
+             await time.sleep(time.Duration.from_milliseconds(milliseconds))\n\
+             return value\n\
+         }\n\
+         \n\
+         async func main(): i32 {\n\
+             let immediate = await task.with_timeout(\n\
+                 number(42),\n\
+                 time.Duration.from_milliseconds(0),\n\
+             )\n\
+             match immediate {\n\
+                 Timeout.completed(value) { if value != 42 { return 1 } }\n\
+                 Timeout.elapsed { return 2 }\n\
+             }\n\
+             let elapsed = await task.with_timeout(\n\
+                 delayed_number(42, 80),\n\
+                 time.Duration.from_milliseconds(10),\n\
+             )\n\
+             match elapsed {\n\
+                 Timeout.completed(_) { return 3 }\n\
+                 Timeout.elapsed {}\n\
+             }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(
+        image.image(),
+        &package_root.0,
+        "structured-async-timeout",
+        0,
+    );
 }
 
 #[test]

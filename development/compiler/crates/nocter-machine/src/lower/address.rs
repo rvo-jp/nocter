@@ -271,22 +271,22 @@ fn static_projection_offset(
     let offset = match (projection, layout_kind(context.layouts, source)?) {
         (MirProjectionKind::Field(field), MachineLayoutKind::Struct { .. }) => context
             .layouts
-            .field(field)
+            .field(source, field)
             .map(crate::MachineFieldLayout::offset),
         (MirProjectionKind::TupleElement(index), MachineLayoutKind::Tuple { elements }) => {
             elements.get(index).map(|element| element.offset())
         }
         (MirProjectionKind::ClosureCapture(capture), MachineLayoutKind::Closure { .. }) => context
             .layouts
-            .capture(capture)
+            .capture(source, capture)
             .map(crate::MachineCaptureLayout::offset),
         (
             MirProjectionKind::VariantPayload { variant, parameter },
             MachineLayoutKind::Enum { .. },
         ) => context
             .layouts
-            .variant(variant)
-            .and_then(|_| context.layouts.payload(variant, parameter))
+            .variant(source, variant)
+            .and_then(|_| context.layouts.payload(source, variant, parameter))
             .map(crate::MachinePayloadLayout::offset),
         (MirProjectionKind::PackEntryKey, MachineLayoutKind::PackEntry { key, .. }) => {
             Some(key.offset())

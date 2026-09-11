@@ -1,11 +1,19 @@
 //! Structured asynchronous computation composition.
 
+use /time.Duration
+
 see ./composition.nct
 
 /// The completed branch of one two-computation race.
 pub enum Race<T> {
     first(value: T)
     second(value: T)
+}
+
+/// The outcome of driving one computation within a relative timeout.
+pub enum Timeout<T> {
+    completed(value: T)
+    elapsed
 }
 
 /// Starts two owned computations, waits for both, and returns their outputs in argument order.
@@ -21,3 +29,8 @@ pub primitive func join<A, B>(
 ///
 /// When both computations can complete during the same drive step, `first` wins.
 pub async func race<T>(first: future T, second: future T): Race<T>
+
+/// Drives one owned computation until it completes or `timeout` elapses.
+///
+/// Completion wins when both outcomes become available during the same drive step.
+pub async func with_timeout<T>(computation: future T, timeout: Duration): Timeout<T>

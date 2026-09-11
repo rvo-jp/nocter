@@ -205,12 +205,20 @@ two children with the same output type until one completes, returns a `Race<T>` 
 that branch, and cancels the other child before completing. Polling and tie selection are
 left-to-right, so the first branch wins when both can complete during the same drive step.
 
+`task.with_timeout` composes one owned computation with a relative monotonic delay. It returns
+`Timeout.completed(value)` when the child completes or `Timeout.elapsed` when the delay wins, then
+cancels the unselected computation before completing. Elapsed time is data rather than a
+recoverable failure: a child with output `T!` produces `Timeout<T!>`, preserving the distinction
+between operation failure and expiration. The child is the first race branch, so it receives one
+drive step and wins a same-step tie even when the supplied timeout is zero.
+
 A composition is the sole lifecycle owner of its child handles. Destroying a pending composition
 cancels every child it still owns. Destroying a completed but unconsumed composition cancels the
 completed child frames that still own their outputs. Consuming the composition transfers exactly
 the selected output or outputs and retires those child frames. Nested compositions forward their
 children's original wait interests rather than creating another executor or treating an unrelated
-wakeup as completion.
+wakeup as completion. Timeout composition is ordinary standard-library code over this race
+substrate and `time.sleep`; it introduces no timeout-specific scheduler or backend lifecycle.
 
 `async` describes a producer body that may suspend; the produced structural future supplies the
 nonblocking drive invariant. Under the initial allocation-backed representation, an `async`

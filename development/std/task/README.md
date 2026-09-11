@@ -23,6 +23,13 @@ complete during one drive step, the first branch wins. Selecting one branch imme
 the other; dropping the race instead cancels every child still owned by it. The winner value stays
 owned by its completed child frame until the race result is consumed.
 
+`task.with_timeout(computation, timeout)` races one owned computation against `time.sleep(timeout)`
+and returns `Timeout.completed(value)` or `Timeout.elapsed`. It does not reinterpret the child's
+output: `future T!` produces `Timeout<T!>`, so a recoverable operation failure remains distinct from
+elapsed time. The child is polled first and therefore wins if both outcomes can complete during the
+same drive step. A zero timeout still permits one immediate child poll. Selecting elapsed time
+cancels the child before the timeout computation completes.
+
 The fixed arity is an intentional bounded-concurrency surface. A later homogeneous collection
 operation can build on the same ownership and scheduling contract without changing `join` or
 `race`.

@@ -98,6 +98,67 @@ fn structured_race_carries_machine_owned_winner_and_output_placement() {
 }
 
 #[test]
+fn generic_enum_specializations_keep_independent_member_placements() {
+    let program = MachineProgram::lower(&lower_fixture(
+        "enum Choice<T> {\n\
+             value(value: T)\n\
+         }\n\
+         func small(): Choice<i32> { return Choice.value(1) }\n\
+         func large(): Choice<(u64, u64)> {\n\
+             let value: (u64, u64) = (2, 3)\n\
+             return Choice.value(value)\n\
+         }\n\
+         func main(): i32 {\n\
+             let first = small()\n\
+             let second = large()\n\
+             drop first\n\
+             drop second\n\
+             return 0\n\
+         }\n",
+    ))
+    .unwrap();
+
+    let mut enum_aggregates = 0;
+    for (_, function) in program.functions() {
+        for (_, operation) in function.body().operations() {
+            let MachineOperationKind::Aggregate(aggregate) = operation.kind() else {
+                continue;
+            };
+            if !aggregate
+                .writes()
+                .iter()
+                .any(|write| matches!(write, crate::MachineAggregateWrite::Tag { .. }))
+            {
+                continue;
+            }
+            enum_aggregates += 1;
+            for write in aggregate.writes() {
+                let (offset, size) = match *write {
+                    crate::MachineAggregateWrite::Tag { offset, .. } => (offset, 1),
+                    crate::MachineAggregateWrite::Value { offset, value } => {
+                        let size = match function.body().value(value).unwrap().representation() {
+                            crate::MachineValueRepresentation::Stored { size, .. } => size,
+                            crate::MachineValueRepresentation::Completion
+                            | crate::MachineValueRepresentation::Diverging => {
+                                panic!("aggregate payload must have stored representation")
+                            }
+                        };
+                        (offset, size)
+                    }
+                };
+                assert!(
+                    offset
+                        .checked_add(size)
+                        .is_some_and(|end| end <= aggregate.size()),
+                    "one specialization reused another specialization's member offset"
+                );
+            }
+        }
+    }
+    assert_eq!(enum_aggregates, 2);
+}
+
+#[test]
 fn projects_deferred_execution_and_cancellation_without_recomputing_mir_facts() {
     let mir = lower_fixture(
         "struct Resource {}\n\

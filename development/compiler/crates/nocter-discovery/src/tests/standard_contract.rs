@@ -227,6 +227,7 @@ const REVIEWED_STANDARD_DEPENDENCIES: &[(&str, &str)] = &[
     ("string", "internal/safety"),
     ("string", "internal/utf8"),
     ("string", "mem"),
+    ("task", "time"),
     ("time", "internal/time"),
     ("time", "internal/mem"),
     ("time", "mem"),

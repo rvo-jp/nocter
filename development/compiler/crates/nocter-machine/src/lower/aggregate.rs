@@ -17,6 +17,7 @@ pub(super) fn lower_aggregate(
 ) -> Result<MachineAggregate, MachineProgramError> {
     let context = AggregateContext {
         operation,
+        ty,
         ids,
         layouts,
     };
@@ -106,6 +107,7 @@ pub(super) fn lower_aggregate(
 #[derive(Clone, Copy)]
 struct AggregateContext<'a> {
     operation: MirOperationId,
+    ty: TypeId,
     ids: &'a BodyIdentities,
     layouts: &'a MachineLayoutPlan,
 }
@@ -129,7 +131,7 @@ fn lower_struct(
         .map(|(field, value)| {
             let offset = context
                 .layouts
-                .field(*field)
+                .field(context.ty, *field)
                 .map(crate::MachineFieldLayout::offset)
                 .ok_or_else(|| context.error(MachineAggregateError::MemberMismatch))?;
             Ok(MachineAggregateWrite::Value {
@@ -148,7 +150,7 @@ fn lower_enum(
 ) -> Result<Vec<MachineAggregateWrite>, MachineProgramError> {
     let variant = context
         .layouts
-        .variant(variant)
+        .variant(context.ty, variant)
         .ok_or_else(|| context.error(MachineAggregateError::MemberMismatch))?;
     if variant.payload().len() != payload.len() {
         return Err(context.error(MachineAggregateError::MemberMismatch));
@@ -221,7 +223,7 @@ fn lower_closure(
         .map(|capture| {
             let offset = context
                 .layouts
-                .capture(capture.binding())
+                .capture(context.ty, capture.binding())
                 .map(crate::MachineCaptureLayout::offset)
                 .ok_or_else(|| context.error(MachineAggregateError::MemberMismatch))?;
             Ok(MachineAggregateWrite::Value {

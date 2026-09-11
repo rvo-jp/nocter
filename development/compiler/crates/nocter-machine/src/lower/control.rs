@@ -113,7 +113,7 @@ fn lower_tag_switch(
                         return Err(MachineProgramError::InvalidTagSwitch(ids.owner()));
                     };
                     let tag = layouts
-                        .variant(variant)
+                        .variant(ty, variant)
                         .map(crate::MachineEnumVariantLayout::tag)
                         .ok_or(MachineProgramError::InvalidTagSwitch(ids.owner()))?;
                     lower_tag_case(tag, case.target(), ids)

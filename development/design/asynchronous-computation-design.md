@@ -260,6 +260,14 @@ the public `Race<T>` enum, so the backend does not depend on a standard-library 
 Cancellation accepts both pending and completed-but-unconsumed composition states and calls every
 still-owned child cancellation entry exactly once.
 
+`task.with_timeout` is standard-library policy over that same private race operation and
+`time.sleep`. Two ordinary async helpers map child completion and elapsed time into one
+`Timeout<T>` output before racing them. An explicit expected `future Timeout<T>` type closes the
+output-only generic inference of the timer branch; no dummy runtime witness crosses the API. The
+backend therefore gains neither a timeout-specific primitive nor another scheduling lifecycle.
+The computation branch remains first, giving it one immediate poll and deterministic same-step
+priority over the timer branch.
+
 The first task API is scope-owned. A scope cannot finish while its child work remains unconsumed;
 normal exit joins it and exceptional exit cancels it. A task handle is an ownership value, not a
 detached observation token. Detached execution is excluded until the language has an explicit
@@ -337,12 +345,14 @@ analysis freezes the stable source roots, target-independent frames preserve tho
 deferred ARM64 code accesses retained local storage at its persistent heap address. Escaping child
 computations remain rejected by the ordinary provenance contract.
 
-The first structured composition operations join two heterogeneous computations or race two
-same-output computations without a detached task or global executor. Reactor-signaled readiness
-cells prevent one child from completing merely because the other child's descriptor or deadline
-woke the shared process wait. Native coverage exercises immediate completion, deterministic race
-selection, different concurrent deadlines, cancellation before polling, cancellation of a nested
-composition with one completed child, and concurrent public TCP connection and acceptance.
+The first structured composition operations join two heterogeneous computations, race two
+same-output computations, or bound one computation by a relative timeout without a detached task
+or global executor. Reactor-signaled readiness cells prevent one child from completing merely
+because the other child's descriptor or deadline woke the shared process wait. Native coverage
+exercises immediate completion, deterministic race selection, mixed generic result layouts,
+different concurrent deadlines, cancellation before polling, timeout cancellation, cancellation
+of a nested composition with one completed child, and concurrent public TCP connection and
+acceptance.
 
 This order prevents runtime constraints from leaking backward into source semantics and prevents
 the editor from implementing a partial asynchronous language independently of the compiler.
