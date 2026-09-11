@@ -2,19 +2,20 @@
 
 ## Current State
 
-Nocter v0.45.0 is published and externally audited. Development has moved to v0.46.0 on
-`develop-v0.46.0`. The asynchronous datagram area is implemented through its public surface,
-native IPv4/IPv6 execution, cancellation and timeout behavior, complete public example, and
-ordinary checked LSP queries without weakening the universal `future T` drive invariant.
+Nocter v0.45.0 is published and externally audited. v0.46.0 implementation and qualification are
+complete on `develop-v0.46.0`. Asynchronous datagrams cross closed target operations, shared
+blocking/async policy, the public standard surface, native IPv4/IPv6 execution, cancellation and
+timeout behavior, a complete public example, and ordinary checked LSP queries without weakening
+the universal `future T` drive invariant.
 
 ## Next Work
 
-Perform the whole-area review and release-readiness work defined by the
-[v0.46.0 milestone](history/milestones/v0.46.0.md) and
-[asynchronous datagram design](design/asynchronous-datagram-io-design.md). Audit generic-syscall
-reachability, retry and timeout authority, dependency direction, effect preservation, caller-trust
-contracts, and stale documentation. Then run the complete compiler, documentation, public-example,
-formatting, and repository gates and stop before changing release identity or publishing.
+Begin v0.46.0 release preparation from the completed
+[milestone](history/milestones/v0.46.0.md) and
+[Phase 5 final review](history/reviews/v0.46.0-phase-5.md). Change release identity only as one
+coherent preparation step, build and inspect a fresh distribution, verify its adjacent `.nocter`
+home and public async UDP example, then prepare release notes and the publication commit. Do not
+tag or publish without explicit authorization.
 
 Preserve every published tag and asset, including v0.45.0.
 

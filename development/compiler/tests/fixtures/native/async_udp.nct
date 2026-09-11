@@ -1,0 +1,101 @@
+use std/net
+use std/net.IpFamily
+use std/task
+use std/task.Timeout
+use std/time.Duration
+use std/vec.Vec
+
+noalloc func loopback_v4(): net.SocketAddress {
+    return net.SocketAddress.new(
+        net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),
+        0,
+    )
+}
+
+noalloc func loopback_v6(): net.SocketAddress {
+    return net.SocketAddress.new(
+        net.IpAddress.from_ipv6(net.Ipv6Address.loopback()),
+        0,
+    )
+}
+
+async func receive_fails_with(
+    socket: &+net.UdpSocket,
+    buffer: &+[u8],
+    timeout: Duration,
+    code: &str,
+): bool {
+    let _received = await socket.receive_with_timeout(buffer, timeout) catch failure {
+        return failure.has_code(code)
+    }
+    return false
+}
+
+async func main(): i32! {
+    let generous = Duration.from_seconds(1)
+    var sender = net.UdpSocket.bind(loopback_v4())?
+    var receiver = net.UdpSocket.bind(loopback_v4())?
+    let sender_address = sender.local_address()?
+    let receiver_address = receiver.local_address()?
+    await sender.send_to_with_timeout("abcdef".bytes(), receiver_address, generous)?
+    var short: Vec<u8> = Vec [
+        u8.truncate(0),
+        u8.truncate(0),
+        u8.truncate(0),
+    ]
+    let truncated = await receiver.receive_with_timeout(&+short, generous)?
+    if truncated.source() != sender_address || truncated.copied_len() != 3
+        || !truncated.was_truncated() || short[0] != 97 || short[1] != 98
+        || short[2] != 99 { return 1 }
+    await sender.send_to("".bytes(), receiver_address)?
+    var byte: Vec<u8> = Vec [u8.truncate(0)]
+    let empty = await receiver.receive_with_timeout(&+byte, generous)?
+    if empty.copied_len() != 0 || empty.was_truncated() { return 2 }
+    sender.connect(receiver_address)?
+    receiver.connect(sender_address)?
+    if sender.peer_address()? != receiver_address { return 3 }
+    await sender.send("ok".bytes())?
+    let connected = await receiver.receive_with_timeout(&+byte, generous)?
+    if connected.copied_len() != 1 || !connected.was_truncated()
+        || byte[0] != 111 { return 4 }
+    let cancelled = await task.with_timeout(
+        receiver.receive(&+byte),
+        Duration.from_milliseconds(5),
+    )
+    match move cancelled {
+        Timeout.completed(_) { return 5 }
+        Timeout.elapsed {}
+    }
+    await sender.send("r".bytes())?
+    let reused = await receiver.receive_with_timeout(&+byte, generous)?
+    if reused.copied_len() != 1 || reused.was_truncated() || byte[0] != 114 {
+        return 6
+    }
+    if !await receive_fails_with(
+        &+receiver,
+        &+byte,
+        Duration.from_milliseconds(2),
+        "std.net.timed_out",
+    ) { return 7 }
+    receiver.close()
+    if !await receive_fails_with(
+        &+receiver,
+        &+byte,
+        generous,
+        "std.net.closed",
+    ) { return 8 }
+    var sender_v6 = net.UdpSocket.bind(loopback_v6())?
+    var receiver_v6 = net.UdpSocket.bind(loopback_v6())?
+    let sender_v6_address = sender_v6.local_address()?
+    let receiver_v6_address = receiver_v6.local_address()?
+    await sender_v6.send_to("6".bytes(), receiver_v6_address)?
+    let ipv6 = await receiver_v6.receive_with_timeout(&+byte, generous)?
+    if ipv6.source().ip().family() is IpFamily.ipv4 { return 9 }
+    if ipv6.copied_len() != 1 || byte[0] != 54 { return 10 }
+    receiver_v6.connect(sender_v6_address)?
+    await receiver_v6.send("v".bytes())?
+    let ipv6_reply = await sender_v6.receive_with_timeout(&+byte, generous)?
+    if ipv6_reply.source() != receiver_v6_address
+        || ipv6_reply.copied_len() != 1 || byte[0] != 118 { return 11 }
+    return 0
+}

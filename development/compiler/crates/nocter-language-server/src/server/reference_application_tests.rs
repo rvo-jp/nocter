@@ -142,12 +142,21 @@ fn async_udp_uses_one_checked_contract_across_editor_features() {
     let source = root.join("exchange.nct");
     let (mut server, text) = open_package_source(&root, &source);
 
-    let (send_line, send_source) = source_line(&text, "sender.send_to_with_timeout");
+    assert_async_udp_navigation_and_calls(&mut server, &source, &text);
+    assert_async_udp_source_features(&mut server, &source, &text);
+}
+
+fn assert_async_udp_navigation_and_calls(
+    server: &mut super::LanguageServer,
+    source: &Path,
+    text: &str,
+) {
+    let (send_line, send_source) = source_line(text, "sender.send_to_with_timeout");
     let send_character = send_source.find("send_to_with_timeout").unwrap();
     let hover = server.receive(&position_request(
         2,
         "textDocument/hover",
-        &source,
+        source,
         send_line,
         send_character,
     ));
@@ -163,7 +172,7 @@ fn async_udp_uses_one_checked_contract_across_editor_features() {
     let definition = server.receive(&position_request(
         3,
         "textDocument/definition",
-        &source,
+        source,
         send_line,
         send_character,
     ));
@@ -174,7 +183,7 @@ fn async_udp_uses_one_checked_contract_across_editor_features() {
     let implementation = server.receive(&position_request(
         4,
         "textDocument/implementation",
-        &source,
+        source,
         send_line,
         send_character,
     ));
@@ -190,7 +199,7 @@ fn async_udp_uses_one_checked_contract_across_editor_features() {
     let signature = server.receive(&position_request(
         5,
         "textDocument/signatureHelp",
-        &source,
+        source,
         send_line,
         send_target,
     ));
@@ -203,14 +212,16 @@ fn async_udp_uses_one_checked_contract_across_editor_features() {
     );
     assert!(response.contains("\"activeParameter\":1"), "{response}");
     assert!(signature.issue().is_none(), "{:?}", signature.issue());
+}
 
+fn assert_async_udp_source_features(server: &mut super::LanguageServer, source: &Path, text: &str) {
     let (completion_line, completion_source) =
-        source_line(&text, "let received = await receiver.receive");
+        source_line(text, "let received = await receiver.receive");
     let completion_character = completion_source.find("receiver.").unwrap() + "receiver.".len();
     let completion = server.receive(&position_request(
         6,
         "textDocument/completion",
-        &source,
+        source,
         completion_line,
         completion_character,
     ));

@@ -3432,7 +3432,7 @@ fn public_async_http_client_crosses_reactor_and_fragmented_body_fixture() {
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-fn async_http_timeout_source(port: u16) -> String {
+fn async_http_timeout_source(abandoned_port: u16, fixture_port: u16) -> String {
     format!(
         "use std/http.{{Client, Request}}\n\
          use std/time.Duration\n\
@@ -3497,16 +3497,16 @@ fn async_http_timeout_source(port: u16) -> String {
          async func main(): i32 {{\n\
              let client = Client.new()\n\
              let abandoned_request = Request.get(\n\
-                 Url.parse(\"http://localhost:{port}/abandoned\") catch _ {{ return 1 }},\n\
+                 Url.parse(\"http://localhost:{abandoned_port}/abandoned\") catch _ {{ return 1 }},\n\
              ) catch _ {{ return 2 }}\n\
              let abandoned = client.send(move abandoned_request)\n\
              drop abandoned\n\
-             let short = Duration.from_milliseconds(20)\n\
-             let head_url = Url.parse(\"http://localhost:{port}/head\") catch _ {{ return 4 }}\n\
+             let short = Duration.from_seconds(1)\n\
+             let head_url = Url.parse(\"http://localhost:{fixture_port}/head\") catch _ {{ return 4 }}\n\
              if !await head_times_out(&client, move head_url, short) {{ return 5 }}\n\
-             let body_url = Url.parse(\"http://localhost:{port}/body\") catch _ {{ return 6 }}\n\
+             let body_url = Url.parse(\"http://localhost:{fixture_port}/body\") catch _ {{ return 6 }}\n\
              if !await body_times_out(&client, move body_url, short) {{ return 7 }}\n\
-             let truncated_url = Url.parse(\"http://localhost:{port}/truncated\") catch _ {{ return 8 }}\n\
+             let truncated_url = Url.parse(\"http://localhost:{fixture_port}/truncated\") catch _ {{ return 8 }}\n\
              if !await truncated_peer_fails(&client, move truncated_url) {{ return 9 }}\n\
              return 0\n\
          }}\n"
@@ -3532,12 +3532,17 @@ fn public_async_http_timeouts_and_abandoned_operations_preserve_ownership() {
         request
     }
 
+    let abandoned_fixture = TcpListener::bind("127.0.0.1:0").unwrap();
+    let abandoned_port = abandoned_fixture.local_addr().unwrap().port();
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = fixture.local_addr().unwrap().port();
+    let fixture_port = fixture.local_addr().unwrap().port();
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = compiler_root.join("../std");
     let package_root = TempPackage::new();
-    package_root.source("main.nct", &async_http_timeout_source(port));
+    package_root.source(
+        "main.nct",
+        &async_http_timeout_source(abandoned_port, fixture_port),
+    );
     let standard_package = PackageIdentity::new("toolchain:std");
     let unit = discover(DiscoveryRequest::single_file(
         CompilationTarget::Arm64Darwin,
@@ -3553,7 +3558,7 @@ fn public_async_http_timeouts_and_abandoned_operations_preserve_ownership() {
         let (mut head_stream, _) = fixture.accept().unwrap();
         let head_request = read_request_head(&mut head_stream);
         assert!(head_request.starts_with(b"GET /head HTTP/1.1\r\n"));
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(1200));
         drop(head_stream);
 
         let (mut body_stream, _) = fixture.accept().unwrap();
@@ -3562,7 +3567,7 @@ fn public_async_http_timeouts_and_abandoned_operations_preserve_ownership() {
         body_stream
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n")
             .unwrap();
-        thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(1200));
         let _ = body_stream.write_all(b"late");
 
         let (mut truncated_stream, _) = fixture.accept().unwrap();
@@ -3575,11 +3580,13 @@ fn public_async_http_timeouts_and_abandoned_operations_preserve_ownership() {
 
     execute_native_status(image.image(), &package_root.0, "async-http-timeouts", 0);
     server.join().unwrap();
+    drop(abandoned_fixture);
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn public_async_http_request_body_observes_write_backpressure_timeout() {
+    use std::io::Read;
     use std::net::TcpListener;
     use std::thread;
     use std::time::Duration;
@@ -3608,7 +3615,7 @@ fn public_async_http_request_body_observes_write_backpressure_timeout() {
                  let client = Client.new()\n\
                  let pending = client.send_with_timeout(\n\
                      move request,\n\
-                     Duration.from_milliseconds(20),\n\
+                     Duration.from_seconds(1),\n\
                  )\n\
                  let _response = await pending catch failure {{\n\
                      if failure.has_code(\"std.net.timed_out\")\n\
@@ -3633,8 +3640,16 @@ fn public_async_http_request_body_observes_write_backpressure_timeout() {
     let image = compile_native_image(ExecutableCompileRequest::only(target)).unwrap();
 
     let server = thread::spawn(move || {
-        let (_stream, _) = fixture.accept().unwrap();
-        thread::sleep(Duration::from_millis(100));
+        let (mut stream, _) = fixture.accept().unwrap();
+        let mut request_prefix = Vec::new();
+        let mut scratch = [0_u8; 256];
+        while request_prefix.windows(4).all(|bytes| bytes != b"\r\n\r\n") {
+            let received = stream.read(&mut scratch).unwrap();
+            assert_ne!(received, 0, "HTTP client closed before its request body");
+            request_prefix.extend_from_slice(&scratch[..received]);
+        }
+        assert!(request_prefix.starts_with(b"POST /backpressure HTTP/1.1\r\n"));
+        thread::sleep(Duration::from_millis(1200));
     });
 
     execute_native_status(
@@ -4183,107 +4198,7 @@ fn public_async_udp_crosses_readiness_timeout_cancellation_and_datagram_boundari
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        "use std/net\n\
-         use std/net.IpFamily\n\
-         use std/task\n\
-         use std/task.Timeout\n\
-         use std/time.Duration\n\
-         use std/vec.Vec\n\
-         \n\
-         noalloc func loopback_v4(): net.SocketAddress {\n\
-             return net.SocketAddress.new(\n\
-                 net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
-                 0,\n\
-             )\n\
-         }\n\
-         \n\
-         noalloc func loopback_v6(): net.SocketAddress {\n\
-             return net.SocketAddress.new(\n\
-                 net.IpAddress.from_ipv6(net.Ipv6Address.loopback()),\n\
-                 0,\n\
-             )\n\
-         }\n\
-         \n\
-         async func receive_fails_with(\n\
-             socket: &+net.UdpSocket,\n\
-             buffer: &+[u8],\n\
-             timeout: Duration,\n\
-             code: &str,\n\
-         ): bool {\n\
-             let _received = await socket.receive_with_timeout(buffer, timeout) catch failure {\n\
-                 return failure.has_code(code)\n\
-             }\n\
-             return false\n\
-         }\n\
-         \n\
-         async func main(): i32! {\n\
-             let generous = Duration.from_seconds(1)\n\
-             var sender = net.UdpSocket.bind(loopback_v4())?\n\
-             var receiver = net.UdpSocket.bind(loopback_v4())?\n\
-             let sender_address = sender.local_address()?\n\
-             let receiver_address = receiver.local_address()?\n\
-             await sender.send_to_with_timeout(\"abcdef\".bytes(), receiver_address, generous)?\n\
-             var short: Vec<u8> = Vec [\n\
-                 u8.truncate(0),\n\
-                 u8.truncate(0),\n\
-                 u8.truncate(0),\n\
-             ]\n\
-             let truncated = await receiver.receive_with_timeout(&+short, generous)?\n\
-             if truncated.source() != sender_address || truncated.copied_len() != 3\n\
-                 || !truncated.was_truncated() || short[0] != 97 || short[1] != 98\n\
-                 || short[2] != 99 { return 1 }\n\
-             await sender.send_to(\"\".bytes(), receiver_address)?\n\
-             var byte: Vec<u8> = Vec [u8.truncate(0)]\n\
-             let empty = await receiver.receive_with_timeout(&+byte, generous)?\n\
-             if empty.copied_len() != 0 || empty.was_truncated() { return 2 }\n\
-             sender.connect(receiver_address)?\n\
-             receiver.connect(sender_address)?\n\
-             if sender.peer_address()? != receiver_address { return 3 }\n\
-             await sender.send(\"ok\".bytes())?\n\
-             let connected = await receiver.receive_with_timeout(&+byte, generous)?\n\
-             if connected.copied_len() != 1 || !connected.was_truncated()\n\
-                 || byte[0] != 111 { return 4 }\n\
-             let cancelled = await task.with_timeout(\n\
-                 receiver.receive(&+byte),\n\
-                 Duration.from_milliseconds(5),\n\
-             )\n\
-             match move cancelled {\n\
-                 Timeout.completed(_) { return 5 }\n\
-                 Timeout.elapsed {}\n\
-             }\n\
-             await sender.send(\"r\".bytes())?\n\
-             let reused = await receiver.receive_with_timeout(&+byte, generous)?\n\
-             if reused.copied_len() != 1 || reused.was_truncated() || byte[0] != 114 {\n\
-                 return 6\n\
-             }\n\
-             if !await receive_fails_with(\n\
-                 &+receiver,\n\
-                 &+byte,\n\
-                 Duration.from_milliseconds(2),\n\
-                 \"std.net.timed_out\",\n\
-             ) { return 7 }\n\
-             receiver.close()\n\
-             if !await receive_fails_with(\n\
-                 &+receiver,\n\
-                 &+byte,\n\
-                 generous,\n\
-                 \"std.net.closed\",\n\
-             ) { return 8 }\n\
-             var sender_v6 = net.UdpSocket.bind(loopback_v6())?\n\
-             var receiver_v6 = net.UdpSocket.bind(loopback_v6())?\n\
-             let sender_v6_address = sender_v6.local_address()?\n\
-             let receiver_v6_address = receiver_v6.local_address()?\n\
-             await sender_v6.send_to(\"6\".bytes(), receiver_v6_address)?\n\
-             let ipv6 = await receiver_v6.receive_with_timeout(&+byte, generous)?\n\
-             if ipv6.source().ip().family() is IpFamily.ipv4 { return 9 }\n\
-             if ipv6.copied_len() != 1 || byte[0] != 54 { return 10 }\n\
-             receiver_v6.connect(sender_v6_address)?\n\
-             await receiver_v6.send(\"v\".bytes())?\n\
-             let ipv6_reply = await sender_v6.receive_with_timeout(&+byte, generous)?\n\
-             if ipv6_reply.source() != receiver_v6_address\n\
-                 || ipv6_reply.copied_len() != 1 || byte[0] != 118 { return 11 }\n\
-             return 0\n\
-         }\n",
+        include_str!("../../../tests/fixtures/native/async_udp.nct"),
     );
     let standard_package = PackageIdentity::new("toolchain:std");
     let unit = discover(DiscoveryRequest::single_file(

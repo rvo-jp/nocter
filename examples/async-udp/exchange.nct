@@ -24,8 +24,8 @@ async func run(): i32! {
     ]
     let received = await receiver.receive_with_timeout(&+bytes, timeout)?
     if received.source() != sender_address || received.copied_len() != 4
-        || received.was_truncated() || bytes[0] != 112 || bytes[1] != 105
-        || bytes[2] != 110 || bytes[3] != 103 {
+    || received.was_truncated() || bytes[0] != 112 || bytes[1] != 105
+    || bytes[2] != 110 || bytes[3] != 103 {
         return error.new("async-udp.datagram", "UDP changed one message boundary")
     }
 
@@ -34,7 +34,7 @@ async func run(): i32! {
     await receiver.send("pong".bytes())?
     let reply = await sender.receive_with_timeout(&+bytes, timeout)?
     if reply.copied_len() != 4 || reply.was_truncated()
-        || bytes[0] != 112 || bytes[1] != 111 || bytes[2] != 110 || bytes[3] != 103 {
+    || bytes[0] != 112 || bytes[1] != 111 || bytes[2] != 110 || bytes[3] != 103 {
         return error.new("async-udp.reply", "connected UDP changed one reply")
     }
     return 0
