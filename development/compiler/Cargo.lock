@@ -1730,6 +1730,7 @@ dependencies = [
  "nocter-declarations",
  "nocter-diagnostics",
  "nocter-frontend-bindings",
+ "nocter-language",
  "nocter-model",
  "nocter-persistent",
  "nocter-source",
@@ -2031,6 +2032,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-filesystem",
  "nocter-hash",
+ "nocter-language",
  "nocter-model",
  "nocter-package-cache",
  "nocter-source",

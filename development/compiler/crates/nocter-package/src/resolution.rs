@@ -19,7 +19,7 @@ use crate::graph::{
 use crate::{
     DependencySource, ExactDependencyLock, PackageGraphError, PackageId, PackageIdError,
     PackageLockOverlay, PackageRootCatalog, PackageSourceSnapshot, PackageStoreOverlay,
-    ResolvedPackageGraph,
+    ResolvedPackageGraph, StandardPackage,
 };
 
 /// Immutable policy controlling whether exact resolution may request lock or fetch authority.
@@ -43,44 +43,6 @@ impl PackageResolutionPolicy {
     #[must_use]
     pub const fn offline(self) -> bool {
         self.offline
-    }
-}
-
-/// Exact standard-library package selected by the active toolchain.
-#[derive(Clone, Debug)]
-pub struct StandardPackage {
-    identity: PackageIdentity,
-    root: PathBuf,
-    release: Box<str>,
-}
-
-impl StandardPackage {
-    #[must_use]
-    pub fn new(
-        identity: PackageIdentity,
-        root: impl Into<PathBuf>,
-        release: impl Into<Box<str>>,
-    ) -> Self {
-        Self {
-            identity,
-            root: root.into(),
-            release: release.into(),
-        }
-    }
-
-    #[must_use]
-    pub const fn identity(&self) -> &PackageIdentity {
-        &self.identity
-    }
-
-    #[must_use]
-    pub fn root(&self) -> &Path {
-        &self.root
-    }
-
-    #[must_use]
-    pub const fn release(&self) -> &str {
-        &self.release
     }
 }
 
@@ -262,11 +224,10 @@ pub fn resolve_package_selection_with_root_catalog(
         .map_err(PackageResolutionError::PackageId)
         .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?
         .package_identity();
-    let standard_root = canonical_package_root_with_overlay(source_overlay, &standard.root)
+    let (standard_id, standard_source_root, standard_release) = standard.into_parts();
+    let standard_root = canonical_package_root_with_overlay(source_overlay, &standard_source_root)
         .map_err(PackageResolutionError::Graph)
         .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?;
-    let standard_id = standard.identity;
-    let standard_release = standard.release;
 
     let source_overlay_for_resolution = source_overlay.clone();
     let mut builder = PackageGraphBuilder::new(package_roots);
@@ -362,7 +323,7 @@ fn insert_and_validate_standard_package(
         source_syntax,
     )?;
     builder
-        .validate_declaration_identity(identity, "std", release)
+        .validate_declaration_identity(identity, StandardPackage::DECLARED_NAME, release)
         .map_err(PackageResolutionError::Graph)
 }
 
@@ -448,7 +409,7 @@ fn resolve_package_edges(
         }
     }
     let mut implicit = BTreeMap::new();
-    implicit.insert("std".into(), standard.clone());
+    implicit.insert(StandardPackage::DEPENDENCY_ALIAS.into(), standard.clone());
     Ok(ResolvedPackageWork {
         edges: ResolvedPackageEdges {
             authored,
@@ -500,20 +461,16 @@ pub fn resolve_standard_package_with_root_catalog(
     package_roots: PackageRootCatalog,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<ResolvedPackageGraph, PackageGraphError> {
-    let StandardPackage {
-        identity,
-        root,
-        release,
-    } = standard;
+    let (identity, root, release) = standard.into_parts();
     let mut builder = PackageGraphBuilder::new(package_roots);
     builder.load(identity.clone(), &root, source_syntax)?;
-    builder.validate_declaration_identity(&identity, "std", &release)?;
+    builder.validate_declaration_identity(&identity, StandardPackage::DECLARED_NAME, &release)?;
     builder.finish(BTreeMap::from([(
         identity.clone(),
         ResolvedPackageEdges {
             authored: BTreeMap::new(),
             locks: BTreeMap::new(),
-            implicit: BTreeMap::from([("std".into(), identity)]),
+            implicit: BTreeMap::from([(StandardPackage::DEPENDENCY_ALIAS.into(), identity)]),
         },
     )]))
 }

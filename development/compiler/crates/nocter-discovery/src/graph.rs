@@ -897,7 +897,7 @@ fn load_single_file_package(
             mode: PackageMode::SingleFile,
             canonical_root,
             dependencies: BTreeMap::from([(
-                Box::<str>::from("std"),
+                Box::<str>::from(nocter_package::StandardPackage::DEPENDENCY_ALIAS),
                 toolchain.standard_package().clone(),
             )]),
             package_declaration: None,

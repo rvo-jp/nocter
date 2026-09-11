@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-hash = { path = "../nocter-hash" }
+nocter-language = { path = "../nocter-language" }
 nocter-model = { path = "../nocter-model" }
 nocter-package-cache = { path = "../nocter-package-cache" }
 nocter-source = { path = "../nocter-source" }

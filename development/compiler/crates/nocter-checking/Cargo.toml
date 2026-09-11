@@ -17,6 +17,7 @@ nocter-declaration-lowering = { path = "../nocter-declaration-lowering" }
 nocter-declarations = { path = "../nocter-declarations" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-frontend-bindings = { path = "../nocter-frontend-bindings" }
+nocter-language = { path = "../nocter-language" }
 nocter-model = { path = "../nocter-model" }
 nocter-persistent = { path = "../nocter-persistent" }
 nocter-source = { path = "../nocter-source" }

@@ -6,7 +6,9 @@ use nocter_declarations::{
 };
 use nocter_model::{BodyId, ParameterId, TypeId};
 use nocter_source_index::{SemanticEntity, SourceRole};
-use nocter_syntax::{NodeKind, SyntaxElement, SyntaxOrigin, SyntaxToken, TokenKind};
+use nocter_syntax::{
+    ContextualSpelling, NodeKind, SyntaxElement, SyntaxOrigin, SyntaxToken, TokenKind,
+};
 
 use crate::{PreparedTypes, SurfaceDeclarationId};
 
@@ -141,11 +143,11 @@ fn explicit(
             .into());
         }
         let spelling = token_spelling(types, token)?;
-        if spelling == "static" {
+        if spelling == ContextualSpelling::Static.as_str() {
             includes_static = true;
             continue;
         }
-        if spelling == "self" {
+        if spelling == ContextualSpelling::LowerSelf.as_str() {
             let receiver = receiver.ok_or_else(|| {
                 HeaderDefinitionError::from(DefinitionViolation::new(
                     DefinitionRule::UnknownResultProvenanceOrigin,

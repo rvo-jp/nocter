@@ -11,6 +11,7 @@ use nocter_declarations::{
 };
 use nocter_model::{BorrowCapability, CallableCapability, Symbol, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SemanticEntity;
+use nocter_syntax::ContextualSpelling;
 
 mod signature;
 pub(in crate::query) mod visible_spelling;
@@ -951,14 +952,16 @@ impl<'a> Renderer<'a> {
         let origins = callable.provenance().declared_origins()?;
         self.output.push_str(" from ");
         if includes_static {
-            self.output.push_str("static");
+            self.output.push_str(ContextualSpelling::Static.as_str());
         }
         for origin in origins {
             if includes_static || !self.output.ends_with(" from ") {
                 self.output.push_str(" | ");
             }
             match origin {
-                nocter_declarations::ProvenanceOrigin::Receiver => self.output.push_str("self"),
+                nocter_declarations::ProvenanceOrigin::Receiver => {
+                    self.output.push_str(ContextualSpelling::LowerSelf.as_str())
+                }
                 nocter_declarations::ProvenanceOrigin::Parameter(id) => {
                     let parameter = self.graph.declarations().parameters().get(*id)?;
                     self.output.push_str(self.symbol(parameter.name())?);
@@ -1111,12 +1114,13 @@ impl<'a> Renderer<'a> {
                     .declarations()
                     .associated_types()
                     .get(associated)?;
-                self.output.push_str("Self.");
+                self.output.push_str(ContextualSpelling::UpperSelf.as_str());
+                self.output.push('.');
                 self.output.push_str(self.symbol(declaration.name())?);
                 Some(())
             }
             RequirementSubject::InterfaceSelf(_) => {
-                self.output.push_str("Self");
+                self.output.push_str(ContextualSpelling::UpperSelf.as_str());
                 Some(())
             }
         }
@@ -1133,7 +1137,7 @@ impl<'a> Renderer<'a> {
 
     fn ty(&mut self, ty: TypeId) -> Option<()> {
         if self.self_type == Some(ty) {
-            self.output.push_str("Self");
+            self.output.push_str(ContextualSpelling::UpperSelf.as_str());
             return Some(());
         }
         match self.types.get(ty)? {

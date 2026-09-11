@@ -4,7 +4,7 @@ use std::fmt;
 use nocter_declarations::{ProvenanceAnnotation, ProvenanceOrigin};
 use nocter_source::{ByteOffset, SourceId, TextRange};
 use nocter_source_index::{SemanticEntity, SourceIndex, SourceRole};
-use nocter_syntax::{NodeKind, SyntaxTree};
+use nocter_syntax::{ContextualSpelling, NodeKind, SyntaxTree};
 
 use crate::AnalysisSnapshot;
 use crate::query::SemanticQueryContext;
@@ -267,7 +267,9 @@ impl InlayContext<'_> {
                     label.push_str(" | ");
                 }
                 match origin {
-                    ProvenanceOrigin::Receiver => label.push_str("self"),
+                    ProvenanceOrigin::Receiver => {
+                        label.push_str(ContextualSpelling::LowerSelf.as_str());
+                    }
                     ProvenanceOrigin::Parameter(parameter) => {
                         let parameter = checked
                             .graph()

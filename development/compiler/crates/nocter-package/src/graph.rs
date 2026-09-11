@@ -14,7 +14,7 @@ use nocter_syntax::{SourceSyntaxProvider, SyntaxTree};
 use crate::{
     DependencySource, ExactDependencyLock, PackageDeclaration, PackageDeclarationError,
     PackageExactSelectionSourceError, PackageExactSelectionSourceUpdate, PackageRootCatalog,
-    PackageRootCatalogBuilder, PackageRootProbeError, decode_package_declaration,
+    PackageRootCatalogBuilder, PackageRootProbeError, StandardPackage, decode_package_declaration,
 };
 
 /// One externally resolved package before its authored declaration is loaded and verified.
@@ -53,7 +53,8 @@ impl ResolvedPackageSpec {
 
     #[must_use]
     pub fn with_standard_dependency(mut self, package: PackageIdentity) -> Self {
-        self.implicit_dependencies.insert("std".into(), package);
+        self.implicit_dependencies
+            .insert(StandardPackage::DEPENDENCY_ALIAS.into(), package);
         self
     }
 
@@ -668,7 +669,9 @@ fn validate_edges(
     }
     let mut dependencies = authored_edges;
     for (alias, target) in implicit_edges {
-        if alias.as_ref() != "std" || dependencies.insert(alias.clone(), target).is_some() {
+        if alias.as_ref() != StandardPackage::DEPENDENCY_ALIAS
+            || dependencies.insert(alias.clone(), target).is_some()
+        {
             return Err(PackageGraphError::InvalidImplicitDependency {
                 package: package.clone(),
                 alias,

@@ -8,6 +8,8 @@ use nocter_model::{
 
 use crate::TargetProgram;
 
+const EXECUTABLE_ENTRY_NAME: &str = "main";
+
 /// The successful payload accepted by the generated process-entry wrapper.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ProcessSuccessType {
@@ -175,7 +177,7 @@ pub fn select_executable_entry(
     if target.kind() != PackageTargetKind::Executable {
         return Err(EntrySelectionError::NotExecutable(selected));
     }
-    let main = graph.symbols().get("main").and_then(|name| {
+    let main = graph.symbols().get(EXECUTABLE_ENTRY_NAME).and_then(|name| {
         graph
             .module_namespaces()
             .get(target.module())?

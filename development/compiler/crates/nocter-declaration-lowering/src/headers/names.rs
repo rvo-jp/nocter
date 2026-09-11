@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use nocter_model::{ModuleId, Symbol};
-use nocter_syntax::SyntaxOrigin;
+use nocter_syntax::{ContextualSpelling, SyntaxOrigin};
 
 use super::HeaderError;
 use crate::{
@@ -42,7 +42,7 @@ fn resolve_name(
     let spelling = source
         .text_at(token.range())
         .ok_or(HeaderError::InconsistentSource(token.source()))?;
-    if spelling == "Self" {
+    if spelling == ContextualSpelling::UpperSelf.as_str() {
         return Err(NamespaceViolation::reserved_name(SyntaxOrigin::Token(token)).into());
     }
     if matches!(

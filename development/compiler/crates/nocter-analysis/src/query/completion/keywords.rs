@@ -1,5 +1,8 @@
 use nocter_source::{ByteOffset, SourceId, TextRange};
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxTree, TokenKind};
+use nocter_syntax::{
+    ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxTree,
+    TokenKind,
+};
 
 use super::{SemanticCompletion, SemanticCompletionKind};
 use crate::AnalysisSnapshot;
@@ -29,10 +32,10 @@ pub(super) fn completions(
         && has_visible_generic_syntax(tree, where_clause)
         && !has_descendant(tree, where_clause, NodeKind::CopyPredicate)
         && current_where_prefix(tree, source_file, where_clause, offset)
-            .is_some_and(|prefix| "copy".starts_with(prefix))
+            .is_some_and(|prefix| ContextualSpelling::Copy.as_str().starts_with(prefix))
     {
         return Box::new([SemanticCompletion::new(
-            "copy",
+            ContextualSpelling::Copy.as_str(),
             SemanticCompletionKind::Keyword,
             Some("intrinsic generic copy requirement".into()),
         )]);
@@ -42,8 +45,11 @@ pub(super) fn completions(
     if let Some(prefix) = top_level_declaration_prefix(tree, source_file, offset) {
         completions.extend(
             [
-                ("static", "static NAME: Type = value"),
-                ("test", "test name { ... }"),
+                (
+                    ContextualSpelling::Static.as_str(),
+                    "static NAME: Type = value",
+                ),
+                (Keyword::Test.as_str(), "test name { ... }"),
             ]
             .into_iter()
             .filter(|(keyword, _)| keyword.starts_with(prefix))
@@ -61,17 +67,17 @@ pub(super) fn completions(
         completions.extend(
             [
                 (
-                    "noalloc",
+                    Keyword::NoAlloc.as_str(),
                     "allocation-free callable guarantee",
                     modifiers.noalloc,
                 ),
                 (
-                    "blocking",
+                    Keyword::Blocking.as_str(),
                     "synchronous waiting callable effect",
                     modifiers.blocking,
                 ),
                 (
-                    "async",
+                    Keyword::Async.as_str(),
                     "deferred producer execution",
                     modifiers.asynchronous,
                 ),

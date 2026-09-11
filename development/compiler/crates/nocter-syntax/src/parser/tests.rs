@@ -154,6 +154,22 @@ fn keeps_duplicate_directives_as_a_semantic_boundary() {
 }
 
 #[test]
+fn obsolete_lock_is_not_a_package_directive_name() {
+    let tree = parse_text(
+        "#package: { name: \"app\", version: \"0.0.0\", }\n#lock: {}\n",
+        ParseGoal::SourceFile,
+    );
+
+    assert!(tree.has_errors());
+    assert_eq!(
+        tree.nodes()
+            .filter(|(_, node)| node.kind() == NodeKind::PackageDirective)
+            .count(),
+        1
+    );
+}
+
+#[test]
 fn rejects_non_data_and_interpolated_directive_values() {
     let boolean = parse_text("#package: true\n", ParseGoal::SourceFile);
     assert!(boolean.has_errors());

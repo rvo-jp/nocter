@@ -7,7 +7,7 @@ use nocter_model::{
     ArenaBuilder, BodyScopeId, CaptureId, LocalBindingId, ModuleId, ParameterId, Symbol,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
-use nocter_syntax::SyntaxOrigin;
+use nocter_syntax::{ContextualSpelling, SyntaxOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
 };
@@ -488,7 +488,10 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
         let block = direct_node(self.tree(), node, NodeKind::Block)
             .ok_or(NameResolutionInternalError::InvalidSyntaxNode(node))?;
         let introductions = direct_identifier(self.tree(), node)
-            .filter(|token| token_text(self.input.sources(), *token).ok() != Some("_"))
+            .filter(|token| {
+                token_text(self.input.sources(), *token).ok()
+                    != Some(ContextualSpelling::Discard.as_str())
+            })
             .map(|token| {
                 vec![Introduction {
                     token,
@@ -740,7 +743,9 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
     }
 
     fn declare_local(&mut self, introduction: Introduction) -> Result<(), NameResolutionError> {
-        if token_text(self.input.sources(), introduction.token)? == "_" {
+        if token_text(self.input.sources(), introduction.token)?
+            == ContextualSpelling::Discard.as_str()
+        {
             return Ok(());
         }
         let name = self.symbol(introduction.token)?;
@@ -849,7 +854,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 source_namespaces.lookup(self.tree().source(), name),
                 Some(ExportedEntity::BuiltinType(_))
             )
-            || self.spelling(name)? == "Self"
+            || self.spelling(name)? == ContextualSpelling::UpperSelf.as_str()
         {
             return Err(diagnostic::name_collision(self.spelling(name)?, primary, None).into());
         }
@@ -979,7 +984,7 @@ impl<'input, 'syntax> BodyNameResolver<'input, 'syntax> {
                 self.input.sources(),
                 self.graph.symbols(),
                 token,
-            )?)? == "_"
+            )?)? == ContextualSpelling::Discard.as_str()
             {
                 continue;
             }

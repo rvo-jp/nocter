@@ -5,7 +5,8 @@ use nocter_model::{
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
 use nocter_syntax::{
-    ExpectedSyntax, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
+    ContextualSpelling, ExpectedSyntax, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken,
+    TokenKind,
 };
 
 use super::BodyChecker;
@@ -131,7 +132,8 @@ impl BodyChecker<'_, '_> {
     ) -> Result<NominalConstructionOwner, BodyCheckError> {
         let segments = self.named_segments(node)?;
         let fixed = segments.iter().any(|segment| !segment.arguments.is_empty())
-            || (segments.len() == 1 && self.token_text(segments[0].token)? == "Self");
+            || (segments.len() == 1
+                && self.token_text(segments[0].token)? == ContextualSpelling::UpperSelf.as_str());
         if fixed {
             let ty = self.resolve_named_segments(node, segments)?;
             let Some(TypeKind::Nominal {
@@ -571,7 +573,8 @@ impl BodyChecker<'_, '_> {
                         .intern(TypeKind::GenericParameter(parameter))
                         .map_err(|_| BodyCheckInternalError::InvalidSyntax(node))?,
                 )
-            } else if self.token_text(segments[0].token)? == "Self" {
+            } else if self.token_text(segments[0].token)? == ContextualSpelling::UpperSelf.as_str()
+            {
                 Some(self.lexical_self_type(node, segments[0].token)?)
             } else {
                 None

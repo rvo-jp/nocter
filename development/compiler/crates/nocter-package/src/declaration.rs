@@ -1,12 +1,15 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
+use nocter_language::PackageDirectiveName;
 use nocter_model::PackageTargetKind;
 use nocter_source::SourceFile;
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind, child_node_iter,
     decode_string_literal, direct_node,
 };
+
+use crate::StandardPackage;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthoredString {
@@ -248,6 +251,23 @@ pub fn decode_package_declaration(
     let mut dependencies = None;
     let mut targets = Vec::new();
     let mut target_order = 0_u32;
+    let mut add_target = |declaration, kind| {
+        targets.push(decode_target(
+            source,
+            tree,
+            declaration,
+            kind,
+            target_order,
+        )?);
+        target_order = target_order.checked_add(1).ok_or_else(|| {
+            error(
+                declaration,
+                PackageDeclarationRule::TargetOrderOverflow,
+                None,
+            )
+        })?;
+        Ok::<(), PackageDeclarationError>(())
+    };
 
     for declaration in child_node_iter(tree, tree.root_id()) {
         if tree
@@ -256,48 +276,34 @@ pub fn decode_package_declaration(
         {
             continue;
         }
-        let directive = directive_name(source, tree, declaration)
+        let directive_spelling = directive_name(source, tree, declaration)
             .ok_or_else(|| error(declaration, PackageDeclarationRule::InvalidDirective, None))?;
-        match directive.as_ref() {
-            "package" => set_once(
+        let directive =
+            PackageDirectiveName::from_spelling(&directive_spelling).ok_or_else(|| {
+                error(
+                    declaration,
+                    PackageDeclarationRule::InvalidDirective,
+                    Some(directive_spelling),
+                )
+            })?;
+        match directive {
+            PackageDirectiveName::Package => set_once(
                 &mut package,
                 decode_package_header(source, tree, declaration)?,
                 declaration,
-                "package",
+                PackageDirectiveName::Package.spelling(),
             )?,
-            "dependencies" => set_once(
+            PackageDirectiveName::Dependencies => set_once(
                 &mut dependencies,
                 decode_dependencies(source, tree, declaration)?,
                 declaration,
-                "dependencies",
+                PackageDirectiveName::Dependencies.spelling(),
             )?,
-            "executable" | "test" => {
-                let kind = if directive.as_ref() == "executable" {
-                    PackageTargetKind::Executable
-                } else {
-                    PackageTargetKind::Test
-                };
-                targets.push(decode_target(
-                    source,
-                    tree,
-                    declaration,
-                    kind,
-                    target_order,
-                )?);
-                target_order = target_order.checked_add(1).ok_or_else(|| {
-                    error(
-                        declaration,
-                        PackageDeclarationRule::TargetOrderOverflow,
-                        None,
-                    )
-                })?;
+            PackageDirectiveName::Executable => {
+                add_target(declaration, PackageTargetKind::Executable)?;
             }
-            _ => {
-                return Err(error(
-                    declaration,
-                    PackageDeclarationRule::InvalidDirective,
-                    Some(directive),
-                ));
+            PackageDirectiveName::Test => {
+                add_target(declaration, PackageTargetKind::Test)?;
             }
         }
     }
@@ -307,7 +313,7 @@ pub fn decode_package_declaration(
         error(
             tree.root_id(),
             PackageDeclarationRule::MissingPackageDirective,
-            Some("package".into()),
+            Some(PackageDirectiveName::Package.spelling().into()),
         )
     })?;
     Ok(PackageDeclaration {
@@ -358,7 +364,7 @@ fn decode_dependencies(
                 Some(alias),
             ));
         }
-        if alias.as_ref() == "std" {
+        if alias.as_ref() == StandardPackage::DEPENDENCY_ALIAS {
             return Err(error(
                 field,
                 PackageDeclarationRule::ReservedStandardDependency,
@@ -603,8 +609,9 @@ fn directive_name(source: &SourceFile, tree: &SyntaxTree, declaration: NodeId) -
             return None;
         };
         match token.kind() {
-            TokenKind::Identifier => source.text_at(token.range()).map(Into::into),
-            TokenKind::Keyword(Keyword::Test) => Some("test".into()),
+            TokenKind::Identifier | TokenKind::Keyword(Keyword::Test) => {
+                source.text_at(token.range()).map(Into::into)
+            }
             _ => None,
         }
     })
@@ -788,7 +795,10 @@ mod tests {
             "#package: { name: \"app\", version: \"0.0.0\", }\n#lock: { format: 1, dependencies: {}, }\n",
         )
         .unwrap_err();
-        assert_eq!(legacy_lock.rule(), PackageDeclarationRule::InvalidDirective);
+        assert_eq!(
+            legacy_lock.rule(),
+            PackageDeclarationRule::SyntaxErrorsPresent
+        );
     }
 
     #[test]

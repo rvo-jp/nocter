@@ -12,6 +12,7 @@ mod lock_overlay;
 mod resolution;
 mod root_probe;
 mod selection_source;
+mod standard;
 mod store_overlay;
 
 pub use declaration::{
@@ -28,9 +29,10 @@ pub use lock::{ExactDependencyLock, ExactDependencyLockError, ExactDependencyLoc
 pub use lock_overlay::{PackageLockOverlay, PackageLockOverlayError};
 pub use resolution::{
     PackageResolutionError, PackageResolutionFailure, PackageResolutionPolicy,
-    PackageResolutionRequest, ResolvedPackageSelection, StandardPackage,
+    PackageResolutionRequest, ResolvedPackageSelection,
     resolve_package_selection_with_root_catalog, resolve_standard_package_with_root_catalog,
 };
 pub use root_probe::{PackageRootCatalog, PackageRootCatalogBuilder, PackageRootProbeError};
 pub use selection_source::{PackageExactSelectionSourceError, PackageExactSelectionSourceUpdate};
+pub use standard::StandardPackage;
 pub use store_overlay::{PackageStoreOverlay, PackageStoreOverlayError};

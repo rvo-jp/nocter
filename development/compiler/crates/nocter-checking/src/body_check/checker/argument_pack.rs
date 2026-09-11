@@ -1,4 +1,5 @@
 use nocter_declarations::ParameterRole;
+use nocter_language::ArgumentPackMember;
 use nocter_model::{ArgumentPackType, ParameterId, TypeId};
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{NodeId, NodeKind};
@@ -96,7 +97,10 @@ impl BodyChecker<'_, '_> {
     ) -> Result<nocter_model::BodyNodeId, BodyCheckError> {
         let member = direct_identifier(self.tree(), member)
             .ok_or(BodyCheckInternalError::InvalidSyntax(member))?;
-        if self.token_text(member)? != "len" || !child_nodes(self.tree(), suffix).is_empty() {
+        if ArgumentPackMember::from_spelling(self.token_text(member)?)
+            != Some(ArgumentPackMember::Len)
+            || !child_nodes(self.tree(), suffix).is_empty()
+        {
             return Err(self.rule(BodyRule::InvalidArgumentPackUse, node)?);
         }
         let ty = self.types.builtin(nocter_model::BuiltinType::Usize);

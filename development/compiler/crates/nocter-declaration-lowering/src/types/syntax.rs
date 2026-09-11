@@ -6,8 +6,8 @@ use nocter_model::{
 };
 use nocter_syntax::SyntaxOrigin;
 use nocter_syntax::{
-    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree, TokenKind,
-    direct_identifier, direct_node, direct_nodes,
+    ContextualSpelling, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, SyntaxTree,
+    TokenKind, direct_identifier, direct_node, direct_nodes,
 };
 
 use crate::{PreparedNamespaces, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
@@ -173,7 +173,7 @@ fn bind_named(
     let first = segments
         .first()
         .ok_or(TypeBindingError::InvalidSyntax(node))?;
-    if token_text(namespaces, tree, first.token)? == "Self" {
+    if token_text(namespaces, tree, first.token)? == ContextualSpelling::UpperSelf.as_str() {
         if !first.arguments.is_empty() {
             return Err(invalid_arguments(first));
         }

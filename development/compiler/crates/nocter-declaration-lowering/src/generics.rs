@@ -8,8 +8,8 @@ use nocter_declarations::{GenericOwner, GenericParameter};
 use nocter_model::{GenericParameterId, Symbol};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
 use nocter_syntax::{
-    NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind, direct_node_iter,
-    direct_token,
+    ContextualSpelling, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxToken, TokenKind,
+    direct_node_iter, direct_token,
 };
 
 use crate::{
@@ -314,7 +314,9 @@ fn binder_symbol(
     let spelling = source
         .text_at(token.range())
         .ok_or(GenericError::MissingSource(id))?;
-    if spelling == "Self" || nocter_syntax::BuiltinType::from_spelling(spelling).is_some() {
+    if spelling == ContextualSpelling::UpperSelf.as_str()
+        || nocter_syntax::BuiltinType::from_spelling(spelling).is_some()
+    {
         return Err(GenericViolation::reserved_binder(token).into());
     }
     headers

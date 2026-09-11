@@ -10,8 +10,8 @@ use nocter_model::{
 };
 use nocter_source_index::{DiagnosticOrigins, SemanticEntity, SourceAccess, SourceOrigin};
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, SyntaxToken, TokenKind,
-    decode_byte_literal, decode_character_literal,
+    ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin,
+    SyntaxToken, TokenKind, decode_byte_literal, decode_character_literal,
 };
 
 use super::context::{
@@ -562,7 +562,8 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
             .is_empty()
             .then(|| direct_identifier(self.tree(), pattern))
             .flatten();
-        let root_discard = root_token.map(|token| self.token_text(token)).transpose()? == Some("_");
+        let root_discard = root_token.map(|token| self.token_text(token)).transpose()?
+            == Some(ContextualSpelling::Discard.as_str());
         let mutable = self.tree().children(statement).iter().any(|element| {
             matches!(
                 element,
@@ -613,7 +614,7 @@ impl<'input, 'syntax> BodyChecker<'input, 'syntax> {
         if children.is_empty() {
             let token = direct_identifier(self.tree(), syntax)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(syntax))?;
-            if self.token_text(token)? == "_" {
+            if self.token_text(token)? == ContextualSpelling::Discard.as_str() {
                 return Ok(crate::CheckedBindingPattern::Discard { ty });
             }
             let local = self

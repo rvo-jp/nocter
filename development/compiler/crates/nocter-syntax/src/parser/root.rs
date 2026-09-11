@@ -3,6 +3,7 @@ use crate::{
     ContextualSpelling, ExpectedSyntax, Keyword, NodeKind, ParseDiagnosticKind, Punctuation,
     TokenKind,
 };
+use nocter_language::PackageDirectiveName;
 
 pub(super) fn source_file(parser: &mut Parser<'_>) {
     let root = parser.start();
@@ -68,18 +69,18 @@ fn at_package_directive_start(parser: &Parser<'_>) -> bool {
     matches!(
         next.kind(),
         TokenKind::Identifier | TokenKind::Keyword(Keyword::Test)
-    ) && matches!(
-        parser.source.text_at(next.span().range()),
-        Some("package" | "dependencies" | "lock" | "executable" | "test")
-    )
+    ) && parser
+        .source
+        .text_at(next.span().range())
+        .and_then(PackageDirectiveName::from_spelling)
+        .is_some()
 }
 
 fn is_package_directive_name(parser: &Parser<'_>) -> bool {
     matches!(
-        parser.current_text(),
-        "package" | "dependencies" | "lock" | "executable"
-    ) && parser.at(TokenKind::Identifier)
-        || parser.at_keyword(Keyword::Test)
+        parser.current_kind(),
+        TokenKind::Identifier | TokenKind::Keyword(Keyword::Test)
+    ) && PackageDirectiveName::from_spelling(parser.current_text()).is_some()
 }
 
 fn directive_value(parser: &mut Parser<'_>) {

@@ -5,7 +5,9 @@ use nocter_model::{
     BodyNodeId, BorrowCapability, BuiltinType, NominalTypeId, TypeId, TypeKind, VariantId,
 };
 use nocter_source_index::{SemanticEntity, SourceOrigin};
-use nocter_syntax::{NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, TokenKind};
+use nocter_syntax::{
+    ContextualSpelling, NodeId, NodeKind, Punctuation, SyntaxElement, SyntaxOrigin, TokenKind,
+};
 
 use super::{BlockExpectation, BodyChecker};
 use crate::body_check::diagnostic::BodyRule;
@@ -105,8 +107,9 @@ impl BodyChecker<'_, '_> {
                 branch_types.push(Some(ty));
                 arms.push(CheckedPatternArm::new(pattern, body));
             } else {
-                let wildcard = direct_identifier(self.tree(), arm_syntax)
-                    .filter(|token| self.token_text(*token).ok() == Some("_"));
+                let wildcard = direct_identifier(self.tree(), arm_syntax).filter(|token| {
+                    self.token_text(*token).ok() == Some(ContextualSpelling::Discard.as_str())
+                });
                 if wildcard.is_none() || fallback.is_some() || position + 1 != arm_nodes.len() {
                     return Err(self.rule(BodyRule::InvalidMatchCoverage, arm_syntax)?);
                 }
@@ -331,7 +334,7 @@ impl BodyChecker<'_, '_> {
             let token = direct_identifier(self.tree(), slot)
                 .ok_or(BodyCheckInternalError::InvalidSyntax(slot))?;
             let payload = self.apply_type_substitution(&resolved.substitution, declaration.ty())?;
-            let binding = if self.token_text(token)? == "_" {
+            let binding = if self.token_text(token)? == ContextualSpelling::Discard.as_str() {
                 if matches!(
                     subject.checked.preparation(),
                     PatternSubjectPreparation::OwnedTemporary

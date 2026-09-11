@@ -12,7 +12,7 @@ use nocter_declarations::{
 };
 use nocter_model::{ImportId, ModuleId, Symbol};
 use nocter_source::SourceId;
-use nocter_syntax::{NodeId, SyntaxOrigin, SyntaxToken};
+use nocter_syntax::{ContextualSpelling, NodeId, SyntaxOrigin, SyntaxToken};
 
 use crate::visibility::{VisibilityResolutionError, resolve_authored};
 use crate::{
@@ -694,7 +694,9 @@ fn validate_local_name(
         .symbols()
         .spelling(name)
         .ok_or(ImportError::InvalidSyntax(declaration))?;
-    if nocter_syntax::BuiltinType::from_spelling(spelling).is_some() || spelling == "Self" {
+    if nocter_syntax::BuiltinType::from_spelling(spelling).is_some()
+        || spelling == ContextualSpelling::UpperSelf.as_str()
+    {
         Err(NamespaceViolation::reserved_name(SyntaxOrigin::Token(token)).into())
     } else {
         Ok(())

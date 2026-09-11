@@ -1,6 +1,12 @@
 //! Source-independent vocabulary shared by Nocter's syntax and semantic layers.
 
+mod argument_pack;
+mod package;
+
 include!(concat!(env!("OUT_DIR"), "/diagnostic_code.rs"));
+
+pub use argument_pack::ArgumentPackMember;
+pub use package::PackageDirectiveName;
 
 /// Closed set of primitive type names defined by the language.
 ///

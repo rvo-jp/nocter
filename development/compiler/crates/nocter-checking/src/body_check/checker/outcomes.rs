@@ -1,7 +1,9 @@
 use nocter_diagnostics::DiagnosticRepair;
 use nocter_model::{BodyNodeId, BuiltinType, TypeId, TypeKind};
 use nocter_syntax::SyntaxOrigin;
-use nocter_syntax::{Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind};
+use nocter_syntax::{
+    ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind,
+};
 
 use super::value_planning::CallResultContext;
 use super::{BlockExpectation, BodyChecker};
@@ -253,7 +255,7 @@ impl BodyChecker<'_, '_> {
     ) -> Result<Option<nocter_model::LocalBindingId>, BodyCheckError> {
         let token = direct_identifier(self.tree(), clause)
             .ok_or(BodyCheckInternalError::InvalidSyntax(clause))?;
-        if self.token_text(token)? == "_" {
+        if self.token_text(token)? == ContextualSpelling::Discard.as_str() {
             return Ok(None);
         }
         let local = self
