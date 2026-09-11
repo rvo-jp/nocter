@@ -121,16 +121,25 @@ unsupported operations, and invalid target results.
 `Writer`. Binding port zero and reporting the effective local address behave like TCP listeners.
 `send_to` supplies an address for one message. `connect` selects one peer for later `send`
 operations and makes that peer available through `peer_address`; it does not turn UDP into a byte
-stream.
+stream. Binding, numeric peer selection, and address observation complete immediately without
+publishing a future.
 
-Every `send` or `send_to` transmits one complete datagram or returns an error. Every `receive`
-consumes at most one datagram and returns one `DatagramRead` containing its source address, the
-number of bytes copied, and an explicit truncation flag. If a datagram exceeds the destination
-buffer, the unread suffix is discarded and cannot appear in the next receive. A zero-length
-datagram is a successful receive with copied length zero, not end of stream.
+Every `send` or `send_to` asynchronously transmits one complete datagram or returns an error. Every
+`receive` asynchronously consumes at most one datagram and returns one `DatagramRead` containing
+its source address, the number of bytes copied, and an explicit truncation flag. Explicit
+`_with_timeout` variants bound one async operation. The `send_blocking`, `send_to_blocking`, and
+`receive_blocking` twins provide synchronous access. If a datagram exceeds the destination buffer,
+the unread suffix is discarded and cannot appear in the next receive. A zero-length datagram is a
+successful receive with copied length zero, not end of stream.
 
-UDP read timeouts bound `receive`. UDP write timeouts bound `connect`, `send`, and `send_to`.
-Timeout configuration does not change datagram boundaries or expose native socket options.
+Destroying a pending async transfer cancels only its readiness wait. It does not close or duplicate
+the borrowed socket, and a receive cancelled while waiting has not consumed a datagram. The same
+socket may be used by a later operation after cancellation releases its exclusive borrow.
+
+UDP read timeouts bound `receive_blocking`; UDP write timeouts bound `send_blocking` and
+`send_to_blocking`. Async operations ignore this mutable configuration and use only an explicit
+timeout argument when requested. `connect` is immediate and has no timeout. Timeout configuration
+does not change datagram boundaries or expose native socket options.
 
 ## Timeout Semantics
 
@@ -149,11 +158,10 @@ cannot affect these deadlines.
 
 Numeric addresses, explicit synchronous system host resolution, ordered synchronous host
 connection, synchronous TCP, provider-resolved asynchronous host connection, asynchronous numeric
-TCP connection and transfer, boundary-preserving UDP, and monotonic synchronous operation timeouts
-are implemented. Async host resolution and connection are one provider operation; the standard
+TCP connection and transfer, synchronous and asynchronous boundary-preserving UDP, and monotonic
+operation timeouts are implemented. Async host resolution and connection are one provider operation; the standard
 library does not materialize or retry a second address list on that path.
 Native public-surface qualification covers peer EOF, idle-read timeout, and backpressure during a
 timed complete write. Structured race and timeout composition is public through `std/task`;
-standalone detached tasks and explicit task handles are not. Asynchronous UDP remains open. URLs
-are provided by `std/url`, while HTTP and TLS have separate public modules. No raw nonblocking
-socket mode is exposed.
+standalone detached tasks and explicit task handles are not. URLs are provided by `std/url`, while
+HTTP and TLS have separate public modules. No raw nonblocking socket mode is exposed.

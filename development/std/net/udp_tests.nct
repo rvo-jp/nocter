@@ -2,9 +2,10 @@
 
 see ./index.nct
 
+use /time.Duration
 use /vec.Vec
 
-blocking func udp_loopback_v4(): UdpSocket! {
+noalloc func udp_loopback_v4(): UdpSocket! {
     return UdpSocket.bind(SocketAddress.new(
         IpAddress.from_ipv4(Ipv4Address.loopback()),
         0,
@@ -15,10 +16,10 @@ test udp_unconnected_receive_preserves_source_and_message_bytes {
     var sender = udp_loopback_v4()?
     var receiver = udp_loopback_v4()?
     let sender_address = sender.local_address()?
-    sender.send_to("one".bytes(), receiver.local_address()?)?
+    sender.send_to_blocking("one".bytes(), receiver.local_address()?)?
 
     var buffer: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0), u8.truncate(0)]
-    let received = receiver.receive(&+buffer)?
+    let received = receiver.receive_blocking(&+buffer)?
     if received.source() != sender_address || received.copied_len() != 3
         || received.was_truncated() || buffer[0] != 111 || buffer[1] != 110
         || buffer[2] != 101 {
@@ -31,18 +32,18 @@ test udp_receive_reports_truncation_and_consumes_one_message {
     var sender = udp_loopback_v4()?
     var receiver = udp_loopback_v4()?
     let target = receiver.local_address()?
-    sender.send_to("abcdef".bytes(), target)?
-    sender.send_to("z".bytes(), target)?
+    sender.send_to_blocking("abcdef".bytes(), target)?
+    sender.send_to_blocking("z".bytes(), target)?
 
     var short: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0), u8.truncate(0)]
-    let truncated = receiver.receive(&+short)?
+    let truncated = receiver.receive_blocking(&+short)?
     if truncated.copied_len() != 3 || !truncated.was_truncated()
         || short[0] != 97 || short[1] != 98 || short[2] != 99 {
         return error.new("std.net.test", "UDP truncation was not explicit")
     }
 
     var next: Vec<u8> = Vec [u8.truncate(0)]
-    let following = receiver.receive(&+next)?
+    let following = receiver.receive_blocking(&+next)?
     if following.copied_len() != 1 || following.was_truncated() || next[0] != 122 {
         return error.new("std.net.test", "UDP receive crossed a message boundary")
     }
@@ -52,9 +53,9 @@ test udp_receive_reports_truncation_and_consumes_one_message {
 test udp_zero_length_datagram_is_not_end_of_stream {
     var sender = udp_loopback_v4()?
     var receiver = udp_loopback_v4()?
-    sender.send_to("".bytes(), receiver.local_address()?)?
+    sender.send_to_blocking("".bytes(), receiver.local_address()?)?
     var buffer: Vec<u8> = Vec [u8.truncate(0)]
-    let received = receiver.receive(&+buffer)?
+    let received = receiver.receive_blocking(&+buffer)?
     if received.copied_len() != 0 || received.was_truncated() {
         return error.new("std.net.test", "zero-length UDP datagram changed meaning")
     }
@@ -71,9 +72,9 @@ test udp_connected_send_and_peer_address_share_one_contract {
     if left.peer_address()? != right_address || right.peer_address()? != left_address {
         return error.new("std.net.test", "connected UDP peer address changed")
     }
-    left.send("ok".bytes())?
+    left.send_blocking("ok".bytes())?
     var buffer: Vec<u8> = Vec [u8.truncate(0), u8.truncate(0)]
-    let received = right.receive(&+buffer)?
+    let received = right.receive_blocking(&+buffer)?
     if received.source() != left_address || received.copied_len() != 2
         || received.was_truncated() || buffer[0] != 111 || buffer[1] != 107 {
         return error.new("std.net.test", "connected UDP send changed message")
@@ -90,9 +91,9 @@ test udp_ipv6_loopback_and_terminal_close_preserve_public_behavior {
         IpAddress.from_ipv6(Ipv6Address.loopback()),
         0,
     ))?
-    sender.send_to("6".bytes(), receiver.local_address()?)?
+    sender.send_to_blocking("6".bytes(), receiver.local_address()?)?
     var buffer: Vec<u8> = Vec [u8.truncate(0)]
-    let received = receiver.receive(&+buffer)?
+    let received = receiver.receive_blocking(&+buffer)?
     if received.source().ip().family() is IpFamily.ipv4 {
         return error.new("std.net.test", "IPv6 UDP changed address family")
     }
@@ -106,4 +107,32 @@ test udp_ipv6_loopback_and_terminal_close_preserve_public_behavior {
         return
     }
     return error.new("std.net.test", "closed UDP socket remained usable")
+}
+
+test udp_async_surface_constructs_cancellable_borrowing_computations {
+    var socket = udp_loopback_v4()?
+    let address = socket.local_address()?
+    let timeout = Duration.from_milliseconds(2)
+
+    let connected_send = socket.send("".bytes())
+    drop connected_send
+    let timed_connected_send = socket.send_with_timeout("".bytes(), timeout)
+    drop timed_connected_send
+    let addressed_send = socket.send_to("".bytes(), address)
+    drop addressed_send
+    let timed_addressed_send = socket.send_to_with_timeout("".bytes(), address, timeout)
+    drop timed_addressed_send
+
+    var buffer: Vec<u8> = Vec [u8.truncate(0)]
+    let receive = socket.receive(&+buffer)
+    drop receive
+    let timed_receive = socket.receive_with_timeout(&+buffer, timeout)
+    drop timed_receive
+
+    socket.send_to_blocking("r".bytes(), address)?
+    let received = socket.receive_blocking(&+buffer)?
+    if received.copied_len() != 1 || buffer[0] != 114 {
+        return error.new("std.net.test", "dropped UDP future changed socket ownership")
+    }
+    return
 }

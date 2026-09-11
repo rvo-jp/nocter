@@ -25,7 +25,7 @@ copy struct DatagramRead {
 }
 
 construct UdpSocket {
-    noalloc blocking func bind(address: SocketAddress): Self! {
+    noalloc func bind(address: SocketAddress): Self! {
         match net.bind_udp(substrate_address(&address)) {
             DescriptorAttempt.ready(descriptor) {
                 return UdpSocket { descriptor: move descriptor }
@@ -35,49 +35,106 @@ construct UdpSocket {
     }
 }
 
-instance UdpSocket {
-    noalloc blocking method &+self.connect(peer: SocketAddress): void! {
-        match self.descriptor.connect_udp(substrate_address(&peer)) {
-            UnitAttempt.ready { return }
-            UnitAttempt.failed(failure) { return network_error(move failure) }
-        }
+noalloc func complete_datagram_unit(attempt: UnitAttempt): void! {
+    match move attempt {
+        UnitAttempt.ready { return }
+        UnitAttempt.failed(failure) { return network_error(move failure) }
     }
+}
 
-    noalloc blocking method &+self.send(bytes: &[u8]): void! {
-        match self.descriptor.send_datagram(bytes) {
-            UnitAttempt.ready { return }
-            UnitAttempt.failed(failure) { return network_error(move failure) }
-        }
-    }
-
-    noalloc blocking method &+self.send_to(bytes: &[u8], target: SocketAddress): void! {
-        match self.descriptor.send_datagram_to(bytes, substrate_address(&target)) {
-            UnitAttempt.ready { return }
-            UnitAttempt.failed(failure) { return network_error(move failure) }
-        }
-    }
-
-    noalloc blocking method &+self.receive(buffer: &+[u8]): DatagramRead! {
-        match self.descriptor.receive_datagram(buffer) {
-            DatagramAttempt.ready(source, copied_len, truncated) {
-                return DatagramRead {
-                    source_address: public_address(source),
-                    copied_count: copied_len,
-                    truncated: truncated,
-                }
+noalloc func complete_datagram_receive(attempt: DatagramAttempt): DatagramRead! {
+    match move attempt {
+        DatagramAttempt.ready(source, copied_len, truncated) {
+            return DatagramRead {
+                source_address: public_address(source),
+                copied_count: copied_len,
+                truncated: truncated,
             }
-            DatagramAttempt.failed(failure) { return network_error(move failure) }
         }
+        DatagramAttempt.failed(failure) { return network_error(move failure) }
+    }
+}
+
+instance UdpSocket {
+    noalloc method &+self.connect(peer: SocketAddress): void! {
+        return complete_datagram_unit(
+            self.descriptor.connect_udp(substrate_address(&peer)),
+        )
     }
 
-    noalloc blocking method &self.local_address(): SocketAddress! {
+    async method &+self.send(bytes: &[u8]): void! {
+        return complete_datagram_unit(await self.descriptor.send_datagram_async(bytes))
+    }
+
+    async method &+self.send_with_timeout(bytes: &[u8], timeout: Duration): void! {
+        return complete_datagram_unit(
+            await self.descriptor.send_datagram_async_with_timeout(bytes, timeout),
+        )
+    }
+
+    async method &+self.send_to(bytes: &[u8], target: SocketAddress): void! {
+        return complete_datagram_unit(
+            await self.descriptor.send_datagram_to_async(
+                bytes,
+                substrate_address(&target),
+            ),
+        )
+    }
+
+    async method &+self.send_to_with_timeout(
+        bytes: &[u8],
+        target: SocketAddress,
+        timeout: Duration,
+    ): void! {
+        return complete_datagram_unit(
+            await self.descriptor.send_datagram_to_async_with_timeout(
+                bytes,
+                substrate_address(&target),
+                timeout,
+            ),
+        )
+    }
+
+    async method &+self.receive(buffer: &+[u8]): DatagramRead! {
+        return complete_datagram_receive(
+            await self.descriptor.receive_datagram_async(buffer),
+        )
+    }
+
+    async method &+self.receive_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): DatagramRead! {
+        return complete_datagram_receive(
+            await self.descriptor.receive_datagram_async_with_timeout(buffer, timeout),
+        )
+    }
+
+    noalloc blocking method &+self.send_blocking(bytes: &[u8]): void! {
+        return complete_datagram_unit(self.descriptor.send_datagram(bytes))
+    }
+
+    noalloc blocking method &+self.send_to_blocking(
+        bytes: &[u8],
+        target: SocketAddress,
+    ): void! {
+        return complete_datagram_unit(
+            self.descriptor.send_datagram_to(bytes, substrate_address(&target)),
+        )
+    }
+
+    noalloc blocking method &+self.receive_blocking(buffer: &+[u8]): DatagramRead! {
+        return complete_datagram_receive(self.descriptor.receive_datagram(buffer))
+    }
+
+    noalloc method &self.local_address(): SocketAddress! {
         match self.descriptor.local_address() {
             AddressAttempt.ready(address) { return public_address(address) }
             AddressAttempt.failed(failure) { return network_error(move failure) }
         }
     }
 
-    noalloc blocking method &self.peer_address(): SocketAddress! {
+    noalloc method &self.peer_address(): SocketAddress! {
         match self.descriptor.peer_address() {
             AddressAttempt.ready(address) { return public_address(address) }
             AddressAttempt.failed(failure) { return network_error(move failure) }

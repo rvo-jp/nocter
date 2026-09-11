@@ -35,14 +35,14 @@ blocking func run(): i32! {
 
     var sender = UdpSocket.bind(loopback())?
     var receiver = UdpSocket.bind(loopback())?
-    sender.send_to("pong".bytes(), receiver.local_address()?)?
+    sender.send_to_blocking("pong".bytes(), receiver.local_address()?)?
     var udp_bytes: Vec<u8> = Vec [
         u8.truncate(0),
         u8.truncate(0),
         u8.truncate(0),
         u8.truncate(0),
     ]
-    let received = receiver.receive(&+udp_bytes)?
+    let received = receiver.receive_blocking(&+udp_bytes)?
     if received.copied_len() != 4 || received.was_truncated() {
         return error.new("network-loopback.udp", "UDP changed the datagram boundary")
     }
@@ -52,7 +52,7 @@ blocking func run(): i32! {
 
     let short_timeout = Duration.from_milliseconds(2)
     receiver.set_read_timeout(short_timeout)
-    let _ = receiver.receive(&+udp_bytes) catch failure {
+    let _ = receiver.receive_blocking(&+udp_bytes) catch failure {
         io.print("timeout: ")?
         io.println(failure.code())?
         return 0

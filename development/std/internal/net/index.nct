@@ -246,7 +246,7 @@ instance ResolverResults {
 }
 
 /// Creates and binds one configured UDP descriptor.
-pub(/) noalloc blocking func bind_udp(address: NetworkAddress): DescriptorAttempt
+pub(/) noalloc func bind_udp(address: NetworkAddress): DescriptorAttempt
 
 instance SocketDescriptor {
     /// Replaces the finite read-side operation timeout; absence permits an unlimited wait.
@@ -262,13 +262,13 @@ instance SocketDescriptor {
     pub(/) noalloc method &self.write_timeout(): Duration?
 
     /// Reports the effective logical local address.
-    pub(/) noalloc blocking method &self.local_address(): AddressAttempt
+    pub(/) noalloc method &self.local_address(): AddressAttempt
 
     /// Reports the connected logical peer address.
-    pub(/) noalloc blocking method &self.peer_address(): AddressAttempt
+    pub(/) noalloc method &self.peer_address(): AddressAttempt
 
     /// Connects this datagram socket to one peer without changing ownership.
-    pub(/) noalloc blocking method &+self.connect_udp(address: NetworkAddress): UnitAttempt
+    pub(/) noalloc method &+self.connect_udp(address: NetworkAddress): UnitAttempt
 
     /// Sends one complete datagram to the connected peer.
     pub(/) noalloc blocking method &+self.send_datagram(bytes: &[u8]): UnitAttempt

@@ -29,9 +29,9 @@ families, ports, provider objects, or target record structures.
 ## Scope
 
 The current layer provides numeric IPv4 and IPv6 addresses, system host resolution, synchronous
-and asynchronous TCP client/listener operations, UDP datagrams, and monotonic deadlines. URL and
-HTTP build above this layer. TLS composes with the same provider owner in its own design boundary.
-Asynchronous UDP and a public nonblocking socket mode remain excluded.
+and asynchronous TCP client/listener operations, synchronous and asynchronous UDP datagrams, and
+monotonic deadlines. URL and HTTP build above this layer. TLS composes with the same provider owner
+in its own design boundary. A public nonblocking socket mode remains excluded.
 
 All release qualification uses loopback communication. Normal compilation and tests must not
 depend on an external network service.
@@ -119,11 +119,14 @@ reported explicitly and never masquerades as a complete message.
 
 Connected UDP may constrain the peer used by later sends and receives, but it does not acquire TCP
 stream semantics. Unconnected and connected operations share the same datagram result and deadline
-rules.
+rules. Bind, numeric peer selection, and address observation are immediate operations. Canonical
+send and receive methods are asynchronous; `_blocking` twins retain explicit synchronous access.
 
 ## Blocking and Deadlines
 
-The public API is synchronous and may block. v0.39.0 therefore does not introduce `noblock`.
+Potentially waiting public operations distinguish asynchronous canonical names from explicit
+`_blocking` twins. Neither surface exposes a descriptor mode. Immediate setup and observation carry
+neither execution modifier.
 
 Internally, every potentially waiting operation uses an optional absolute monotonic deadline.
 Relative public durations are converted once at the operation boundary. Provider events, readiness
@@ -137,9 +140,10 @@ The package-private policies are the sole authorities for:
 - recomputing remaining time from the monotonic clock; and
 - maintaining configured synchronous timeout state without exposing platform socket options.
 
-An absent deadline means wait without a time limit. A zero duration performs the operation only if
-it can make immediate progress. Expiration returns one stable timeout error. Wall-clock adjustments
-cannot extend or shorten a network deadline.
+An absent deadline means wait without a time limit. Configured socket timeouts apply only to
+synchronous twins; asynchronous timeout variants take one explicit relative duration. A zero
+duration still permits one immediate attempt. Expiration returns one stable timeout error.
+Wall-clock adjustments cannot extend or shorten a network deadline.
 
 Allocation and blocking are independent properties. Socket operations do not gain or lose a
 `noalloc` guarantee merely because they may wait. Exact callable modifiers follow the actual public
@@ -221,7 +225,7 @@ Each implementation phase must preserve these invariants:
 
 - DNS and service-name resolution
 - URL, HTTP, WebSocket, or TLS protocol policy
-- asynchronous UDP, readiness streams, or a public nonblocking mode
+- readiness streams or a public nonblocking mode
 - multicast, broadcast, ancillary data, interface enumeration, or IPv6 zones
 - Unix-domain or raw sockets
 - platform-native socket structures in public APIs

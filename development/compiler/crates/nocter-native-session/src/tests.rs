@@ -2392,7 +2392,7 @@ fn standard_network_contract_crosses_native_tests() {
             execute_native_test(case.image(), &output.0, case.identity().name());
         }
     }
-    assert_eq!(case_count, 29);
+    assert_eq!(case_count, 30);
 }
 
 #[test]

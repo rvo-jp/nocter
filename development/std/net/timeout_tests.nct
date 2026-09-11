@@ -71,7 +71,7 @@ test udp_receive_timeout_round_trips_and_expires {
         return error.new("std.net.test", "UDP timeout value changed")
     }
     var byte: Vec<u8> = Vec [u8.truncate(0)]
-    let _ = socket.receive(&+byte) catch failure {
+    let _ = socket.receive_blocking(&+byte) catch failure {
         if !failure.has_code("std.net.timed_out") {
             return error.new("std.net.test", "UDP timeout lost its stable error")
         }
@@ -83,17 +83,17 @@ test udp_receive_timeout_round_trips_and_expires {
 test zero_timeout_permits_an_immediately_ready_datagram {
     var sender = udp_loopback_v4()?
     var receiver = udp_loopback_v4()?
-    sender.send_to("p".bytes(), receiver.local_address()?)?
-    sender.send_to("z".bytes(), receiver.local_address()?)?
+    sender.send_to_blocking("p".bytes(), receiver.local_address()?)?
+    sender.send_to_blocking("z".bytes(), receiver.local_address()?)?
     receiver.set_read_timeout(Duration.from_seconds(1))
     var primer: Vec<u8> = Vec [u8.truncate(0)]
-    let primed = receiver.receive(&+primer)?
+    let primed = receiver.receive_blocking(&+primer)?
     if primed.copied_len() != 1 || primer[0] != 112 {
         return error.new("std.net.test", "ready-datagram setup lost ordering")
     }
     receiver.set_read_timeout(Duration.from_seconds(0))
     var byte: Vec<u8> = Vec [u8.truncate(0)]
-    let received = receiver.receive(&+byte)?
+    let received = receiver.receive_blocking(&+byte)?
     if received.copied_len() != 1 || byte[0] != 122 {
         return error.new("std.net.test", "zero timeout rejected ready data")
     }
