@@ -12,9 +12,12 @@ func byte_scratch(size: usize): Vec<u8> {
     return move scratch
 }
 
-func invalid_read_count_error(): error {
-    return error.new(
-        "std.io.invalid_read_count",
-        "reader returned more bytes than the supplied buffer can hold",
-    )
+noalloc func validate_read_count(received: usize, capacity: usize): usize! {
+    if received > capacity {
+        return error.new(
+            "std.io.invalid_read_count",
+            "reader returned more bytes than the supplied buffer can hold",
+        )
+    }
+    return received
 }

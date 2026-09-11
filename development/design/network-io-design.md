@@ -90,7 +90,8 @@ contract.
 
 ## TCP Semantics
 
-`TcpStream` is a byte stream and conforms to `BlockingReader` and `BlockingWriter`.
+`TcpStream` is a byte stream and conforms to the canonical asynchronous `Reader` and `Writer`
+contracts as well as the explicit `BlockingReader` and `BlockingWriter` contracts.
 
 - A read returns zero only after clean peer EOF or for an empty destination buffer.
 - A successful write consumes the complete supplied buffer.

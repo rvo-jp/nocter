@@ -6,6 +6,7 @@
 
 see ./core.nct
 see ./async_core.nct
+see ./byte_helpers.nct
 use /string.String
 use /vec.Vec
 see ./file.nct
@@ -67,6 +68,9 @@ pub interface Writer {
     /// Writes UTF-8 text followed by exactly one LF byte.
     pub async default method &+self.write_line(text: &str): void!
 }
+
+/// Validates one implementation-reported read count against its supplied capacity.
+pub(/) noalloc func validate_read_count(received: usize, capacity: usize): usize!
 
 /// A stateful byte stream wrapper over one owned or borrowed file descriptor.
 pub struct File

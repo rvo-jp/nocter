@@ -31,7 +31,8 @@ This design adds three independent consumers above it:
 
 Neither URL nor HTTP may inspect a descriptor, native address, resolver record, or syscall result.
 Name resolution may produce only existing logical `SocketAddress` values. HTTP may perform
-transport only through `TcpStream`, `BlockingReader`, and `BlockingWriter` contracts.
+transport only through `TcpStream` and the canonical asynchronous or explicit blocking byte-I/O
+contracts.
 
 ## Trusted Target Services
 
@@ -148,7 +149,8 @@ chunk-line, and buffered-body limits are checked before unbounded allocation.
 ## Client Ownership
 
 `Client` owns immutable request policy and produces a uniquely owned `Response`. `Response` exposes
-status and headers and implements `BlockingReader` for the decoded response body. The reader
+status and headers and implements both `Reader` and `BlockingReader` for the decoded response
+body. The reader
 consumes fixed, chunked, or close-delimited framing without exposing framing bytes. Closing or destroying an
 unfinished response releases its TCP stream.
 

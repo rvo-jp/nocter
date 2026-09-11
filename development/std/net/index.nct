@@ -7,7 +7,7 @@ use /fmt.Format
 use /hash.Hash
 use /internal/net.NetworkFailure
 use /internal/net/model.NetworkAddress
-use /io.{BlockingReader, BlockingWriter}
+use /io.{BlockingReader, BlockingWriter, Reader, Writer}
 use /mem.TryAllocator
 use /order.TotalOrder
 use /string.String
@@ -305,6 +305,8 @@ pub blocking func try_resolve(
 instance TcpStream {
     impl BlockingReader
     impl BlockingWriter
+    impl Reader
+    impl Writer
 
     /// Returns the effective local socket address.
     pub noalloc method &self.local_address(): SocketAddress!

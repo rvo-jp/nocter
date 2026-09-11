@@ -36,10 +36,7 @@ blocking func collect_bytes_blocking<R>(reader: &+R): Vec<u8>! where R impl Bloc
     var result: Vec<u8> = Vec.empty()
     var scratch: Vec<u8> = byte_scratch(8192)
     while true {
-        let received: usize = reader.read_blocking(&+scratch)?
-        if received > scratch.len() {
-            return invalid_read_count_error()
-        }
+        let received = validate_read_count(reader.read_blocking(&+scratch)?, scratch.len())?
         if received == 0 {
             break
         }

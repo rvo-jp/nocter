@@ -31,7 +31,8 @@ request, and `set_text_body` copies the exact UTF-8 bytes. These conveniences do
 framing, and the public response cursor operate on the sum rather than branching on the URL scheme. Ordinary
 informational responses are consumed before the final response is exposed; protocol-switching
 status 101 is rejected because the API does not transfer the upgraded stream. `Response` exposes
-the final status and fields and implements `BlockingReader` for decoded body bytes. Completion,
+the final status and fields and implements both `Reader` and `BlockingReader` for decoded body
+bytes. Completion,
 decoding or network failure, explicit `close`, and destruction of an unfinished response all transfer the
 connection through its exact-once nonwaiting disposal boundary. There is no pooling, redirect
 following, request replay, decompression, or connection reuse. `send_blocking` and
@@ -50,10 +51,10 @@ asynchronous reads cannot form independent cursors or concurrently consume one r
 transport loops share one body progress operation, so EOF and decoding decisions are not
 reimplemented by either adapter.
 
-`read_to_end` repeatedly consumes that same asynchronous cursor into owned bytes, while
-`read_to_string` additionally validates the completed bytes as UTF-8. Their timeout-bearing forms
-delegate every needed read to `read_with_timeout`; the duration therefore remains a per-input idle
-timeout rather than becoming a whole-body deadline. Collection remains bounded by
+The generic `Reader` defaults implement `read_to_end` and `read_to_string` once for every
+asynchronous byte source. Their `Response` timeout-bearing counterparts remain concrete methods
+and delegate every needed read to `read_with_timeout`; the duration therefore remains a per-input
+idle timeout rather than becoming a whole-body deadline. Collection remains bounded by
 the `Limits` selected by the client and introduces no second body decoder.
 
 Whole-body collection consumes the response cursor as it progresses. Destroying a collector after

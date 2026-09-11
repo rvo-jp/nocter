@@ -37,10 +37,7 @@ async func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl Reader {
     var result: Vec<u8> = Vec.empty()
     var scratch: Vec<u8> = byte_scratch(8192)
     while true {
-        let received: usize = await reader.read(&+scratch)?
-        if received > scratch.len() {
-            return invalid_read_count_error()
-        }
+        let received = validate_read_count(await reader.read(&+scratch)?, scratch.len())?
         if received == 0 {
             break
         }

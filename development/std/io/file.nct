@@ -61,10 +61,7 @@ noalloc func classify_read_result(result: SyscallResult, capacity: usize): ReadP
     if result.errno != 0 {
         return io.io_error_from_os(darwin.error_from_errno(darwin.errno(result.errno)))
     }
-    if result.value > capacity {
-        return invalid_read_count_error()
-    }
-    return ReadProgress.complete(result.value)
+    return ReadProgress.complete(validate_read_count(result.value, capacity)?)
 }
 
 #target: "arm64-darwin"

@@ -1,7 +1,7 @@
 //! Validated HTTP/1.1 message values and transport-independent framing.
 
 use /hash.{Hash, HashState}
-use /io.BlockingReader
+use /io.{BlockingReader, Reader}
 use /string.String
 use /time.Duration
 use /tls.TrustAnchor
@@ -281,6 +281,7 @@ pub struct Response
 
 instance Response {
     impl BlockingReader
+    impl Reader
 
     /// Returns the final response status.
     pub noalloc method &self.status(): Status
@@ -299,12 +300,6 @@ instance Response {
         output: &+[u8],
         timeout: Duration,
     ): usize!
-
-    /// Reads the complete decoded body into independently owned byte storage.
-    pub async method &+self.read_to_end(): Vec<u8>!
-
-    /// Reads the complete decoded body and validates it as UTF-8.
-    pub async method &+self.read_to_string(): String!
 
     /// Reads the complete decoded body with a fresh idle timeout for each needed input fragment.
     pub async method &+self.read_to_end_with_timeout(timeout: Duration): Vec<u8>!

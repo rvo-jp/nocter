@@ -65,7 +65,8 @@ provider resolution, and connection.
 
 ## TCP Streams and Listeners
 
-`TcpStream` is a uniquely owned byte stream implementing `BlockingReader` and `BlockingWriter`.
+`TcpStream` is a uniquely owned byte stream implementing both the canonical asynchronous `Reader`
+and `Writer` contracts and the explicit `BlockingReader` and `BlockingWriter` contracts.
 Connecting accepts one numeric `SocketAddress`, while the host constructors compose the separate resolution contract
 with ordered candidate connection. `net.connect_tcp` performs numeric connection without
 blocking the executor thread. Reads initialize at most the supplied mutable byte view and return
