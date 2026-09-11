@@ -5390,6 +5390,7 @@ fn package_graph_with_overlay(
     ResolvedPackageGraph::load_with_root_catalog(
         packages,
         nocter_package::PackageRootCatalog::new(overlay),
+        nocter_source::SourceIdentityDomain::new(),
         &mut nocter_syntax::DirectSourceSyntax,
     )
     .unwrap()

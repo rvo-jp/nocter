@@ -1423,6 +1423,7 @@ fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
     ResolvedPackageGraph::load_with_root_catalog(
         packages,
         nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+        nocter_source::SourceIdentityDomain::new(),
         &mut nocter_syntax::DirectSourceSyntax,
     )
     .unwrap()

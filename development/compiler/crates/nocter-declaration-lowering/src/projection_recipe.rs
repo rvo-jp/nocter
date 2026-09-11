@@ -14,7 +14,8 @@ use nocter_source_index::{
     SemanticEntity, SourceIndex, SourceIndexBuilder, SourceOrigin, SourceRole,
 };
 use nocter_syntax::{
-    DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin, project_declaration_syntax,
+    BoundSyntax, DeclarationSyntaxLocator, DeclarationSyntaxProjection, SyntaxOrigin,
+    project_declaration_syntax,
 };
 
 use crate::{ModuleIdentity, ModuleSourceKind, SurfaceSource, SurfaceSourceId};
@@ -667,8 +668,9 @@ impl<'syntax> ProjectionSyntaxDomain<'syntax> {
                 let file = source_map
                     .get(syntax.source())
                     .ok_or(ProjectionRecipeError::UnknownSource(syntax.source()))?;
-                let projection = project_declaration_syntax(syntax, file)
+                let bound = BoundSyntax::new(file, syntax)
                     .ok_or(ProjectionRecipeError::MismatchedSource(syntax.source()))?;
+                let projection = project_declaration_syntax(bound);
                 Ok::<_, ProjectionRecipeError>(ProjectionSyntaxEntry {
                     source: syntax.source(),
                     syntax,

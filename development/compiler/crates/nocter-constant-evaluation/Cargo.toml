@@ -9,8 +9,10 @@ publish = false
 [dependencies]
 nocter-language = { path = "../nocter-language" }
 nocter-model = { path = "../nocter-model" }
-nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
+
+[dev-dependencies]
+nocter-source = { path = "../nocter-source" }
 
 [lints]
 workspace = true

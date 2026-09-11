@@ -668,34 +668,6 @@ impl<'syntax> CompileUnitInput<'syntax> {
         }
     }
 
-    /// Constructs the immutable lowering input from discovery's already completed target
-    /// selection.
-    ///
-    /// Unlike [`Self::new`], which is a convenience boundary for direct compiler tests and
-    /// embedding clients, this constructor never scans syntax for target gates.
-    #[must_use]
-    pub fn from_target_selection(
-        target: CompilationTarget,
-        sources: &'syntax SourceMap,
-        packages: Vec<PackageInput>,
-        modules: Vec<ModuleInput<'syntax>>,
-        use_resolutions: Vec<UseResolutionInput>,
-        target_selection: TargetSelection,
-    ) -> Self {
-        Self {
-            target,
-            sources: SourceMapHandle::borrowed(sources),
-            packages,
-            root_packages: Vec::new(),
-            modules,
-            source_visibility_resolutions: Vec::new(),
-            use_resolutions,
-            package_target_resolutions: Vec::new(),
-            toolchain: None,
-            target_selection: Ok(target_selection),
-        }
-    }
-
     /// Constructs the closed, ownership-sharing input retained by one discovery snapshot.
     ///
     /// Unlike borrowing constructors used by focused compiler clients, this boundary keeps the
@@ -710,6 +682,17 @@ impl<'syntax> CompileUnitInput<'syntax> {
         use_resolutions: Vec<UseResolutionInput>,
         target_selection: TargetSelection,
     ) -> CompileUnitInput<'static> {
+        let target_selection = if target_selection.matches(
+            target,
+            &sources,
+            modules
+                .iter()
+                .flat_map(|module| module.sources().iter().map(ModuleSourceInput::syntax)),
+        ) {
+            Ok(target_selection)
+        } else {
+            Err(TargetSelectionError::InconsistentSnapshot)
+        };
         CompileUnitInput {
             target,
             sources: SourceMapHandle::shared(sources),
@@ -720,7 +703,7 @@ impl<'syntax> CompileUnitInput<'syntax> {
             use_resolutions,
             package_target_resolutions: Vec::new(),
             toolchain: None,
-            target_selection: Ok(target_selection),
+            target_selection,
         }
     }
 
@@ -744,26 +727,15 @@ impl<'syntax> CompileUnitInput<'syntax> {
     /// # Errors
     ///
     /// Directly constructed inputs retain the exact target-selection failure for declaration
-    /// diagnostics rather than asking lowering to repeat the scan.
+    /// diagnostics rather than asking lowering to repeat the scan. Owned discovery inputs validate
+    /// their supplied selection once during construction, so this accessor performs no syntax
+    /// traversal or selection work.
     pub fn target_selection(&self) -> Result<&TargetSelection, TargetSelectionError> {
         let selection = self.target_selection.as_ref().map_err(|error| *error)?;
         if let Some(error) = selection.authored_error() {
             return Err(error);
         }
         Ok(selection)
-    }
-
-    #[must_use]
-    pub fn with_target(mut self, target: CompilationTarget) -> Self {
-        self.target = target;
-        self.target_selection = TargetSelection::prepare(
-            target,
-            self.sources(),
-            self.modules
-                .iter()
-                .flat_map(|module| module.sources().iter().map(ModuleSourceInput::syntax)),
-        );
-        self
     }
 
     #[must_use]
@@ -819,11 +791,14 @@ impl<'syntax> CompileUnitInput<'syntax> {
     /// not rediscover module topology or source visibility.
     #[must_use]
     pub fn syntax_tree(&self, source: SourceId) -> Option<&SyntaxTree> {
-        self.modules
+        let mut matching = self
+            .modules
             .iter()
             .flat_map(ModuleInput::sources)
             .map(ModuleSourceInput::syntax)
-            .find(|tree| tree.source() == source)
+            .filter(|tree| tree.source() == source);
+        let tree = matching.next()?;
+        matching.next().is_none().then_some(tree)
     }
 
     #[must_use]
@@ -849,9 +824,13 @@ impl<'syntax> CompileUnitInput<'syntax> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ModuleSourceInput, ModuleSourceKind};
+    use super::{
+        CompileUnitInput, ModuleIdentity, ModuleInput, ModuleSourceInput, ModuleSourceKind,
+    };
+    use nocter_model::{CompilationTarget, PackageIdentity};
     use nocter_source::{SourceMap, SourceName};
     use nocter_syntax::{ParseGoal, SyntaxTree, parse};
+    use nocter_target_selection::{TargetSelection, TargetSelectionError};
     use std::sync::Arc;
 
     fn syntax_snapshot() -> Arc<[SyntaxTree]> {
@@ -884,5 +863,50 @@ mod tests {
         .unwrap();
         drop(trees);
         assert_eq!(source.syntax().source().index(), 0);
+    }
+
+    #[test]
+    fn compile_input_rejects_target_selection_from_another_source_domain() {
+        let mut old_sources = SourceMap::new();
+        let old_id = old_sources
+            .add_bytes(SourceName::new("old.nct"), b"func old(): void { return }\n")
+            .unwrap();
+        let old_tree = parse(old_sources.get(old_id).unwrap(), ParseGoal::SourceFile);
+        let old_selection =
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &old_sources, [&old_tree])
+                .unwrap();
+
+        let mut current_sources = SourceMap::new();
+        current_sources
+            .add_bytes(
+                SourceName::new("current.nct"),
+                b"func current(): void { return }\n",
+            )
+            .unwrap();
+        let trees: Arc<[SyntaxTree]> = vec![old_tree].into();
+        let source = ModuleSourceInput::shared(
+            "old.nct",
+            ModuleSourceKind::SingleFile,
+            Arc::clone(&trees),
+            0,
+        )
+        .unwrap();
+        let module = ModuleInput::new(
+            ModuleIdentity::new(PackageIdentity::new("single:old"), Vec::<&str>::new()),
+            vec![source],
+        );
+        let input = CompileUnitInput::from_shared_target_selection(
+            CompilationTarget::Arm64Darwin,
+            Arc::new(current_sources),
+            Vec::new(),
+            vec![module],
+            Vec::new(),
+            old_selection,
+        );
+
+        assert!(matches!(
+            input.target_selection(),
+            Err(TargetSelectionError::InconsistentSnapshot)
+        ));
     }
 }

@@ -189,10 +189,12 @@ pub fn resolve_package_selection_with_source_snapshot(
     request: PackageResolutionRequest,
     source_overlay: SourceOverlay,
 ) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
+    let mut source_syntax = DirectSourceSyntax;
     resolve_package_selection_with_root_catalog(
         request,
         PackageRootCatalog::new(source_overlay),
-        &mut DirectSourceSyntax,
+        nocter_source::SourceIdentityDomain::new(),
+        &mut source_syntax,
     )
 }
 
@@ -205,6 +207,7 @@ pub fn resolve_package_selection_with_source_snapshot(
 pub fn resolve_package_selection_with_root_catalog(
     request: PackageResolutionRequest,
     package_roots: PackageRootCatalog,
+    source_identity_domain: nocter_source::SourceIdentityDomain,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<ResolvedPackageSelection, PackageResolutionFailure> {
     let empty_snapshot = || PackageSourceSnapshot::from_root_catalog(package_roots.clone());
@@ -230,7 +233,7 @@ pub fn resolve_package_selection_with_root_catalog(
         .map_err(|error| PackageResolutionFailure::new(error, empty_snapshot()))?;
 
     let source_overlay_for_resolution = source_overlay.clone();
-    let mut builder = PackageGraphBuilder::new(package_roots);
+    let mut builder = PackageGraphBuilder::new(package_roots, source_identity_domain);
     let mut roots = BTreeMap::new();
     let mut pending = BTreeMap::new();
     if let Err(error) = insert_and_validate_standard_package(
@@ -460,10 +463,11 @@ pub fn resolve_package_graph_with_source_overlay(
 pub fn resolve_standard_package_with_root_catalog(
     standard: StandardPackage,
     package_roots: PackageRootCatalog,
+    source_identity_domain: nocter_source::SourceIdentityDomain,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<ResolvedPackageGraph, PackageGraphError> {
     let (identity, root, release) = standard.into_parts();
-    let mut builder = PackageGraphBuilder::new(package_roots);
+    let mut builder = PackageGraphBuilder::new(package_roots, source_identity_domain);
     builder.load(identity.clone(), &root, source_syntax)?;
     builder.validate_declaration_identity(&identity, StandardPackage::DECLARED_NAME, &release)?;
     builder.finish(BTreeMap::from([(
@@ -977,6 +981,7 @@ mod tests {
                     "0.0.0",
                 ),
                 PackageRootCatalog::new(SourceOverlay::empty()),
+                nocter_source::SourceIdentityDomain::new(),
                 &mut DirectSourceSyntax,
             ),
             Err(PackageGraphError::PackageVersionMismatch { .. })

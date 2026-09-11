@@ -109,7 +109,8 @@ pub(crate) fn package_target(
     module: ModuleIdentity,
 ) -> PackageTargetResolutionInput {
     let source = sources.get(tree.source()).unwrap();
-    let declaration = nocter_package::decode_package_declaration(source, tree).unwrap();
+    let syntax = nocter_syntax::BoundSyntax::new(source, tree).unwrap();
+    let declaration = nocter_package::decode_package_declaration(syntax).unwrap();
     let target = &declaration.targets()[position];
     PackageTargetResolutionInput::new(
         target.declaration(),

@@ -24,6 +24,7 @@ fn package_graph(packages: Vec<ResolvedPackageSpec>) -> ResolvedPackageGraph {
     ResolvedPackageGraph::load_with_root_catalog(
         packages,
         nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+        nocter_source::SourceIdentityDomain::new(),
         &mut nocter_syntax::DirectSourceSyntax,
     )
     .unwrap()
@@ -198,6 +199,7 @@ impl PackageResolutionDriver for RecordingResolver {
         nocter_package::resolve_package_selection_with_root_catalog(
             request,
             nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+            nocter_source::SourceIdentityDomain::new(),
             &mut nocter_syntax::DirectSourceSyntax,
         )
         .map_err(nocter_package::PackageResolutionFailure::into_error)
@@ -234,6 +236,7 @@ impl PackageResolutionDriver for RepeatingLockResolver {
         let failure = nocter_package::resolve_package_selection_with_root_catalog(
             request,
             nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+            nocter_source::SourceIdentityDomain::new(),
             &mut nocter_syntax::DirectSourceSyntax,
         )
         .unwrap_err()
@@ -273,6 +276,7 @@ impl PackageResolutionDriver for ConcurrentEditResolver {
         let selected = nocter_package::resolve_package_selection_with_root_catalog(
             request,
             nocter_package::PackageRootCatalog::new(nocter_filesystem::SourceOverlay::empty()),
+            nocter_source::SourceIdentityDomain::new(),
             &mut nocter_syntax::DirectSourceSyntax,
         )
         .map_err(nocter_package::PackageResolutionFailure::into_error)

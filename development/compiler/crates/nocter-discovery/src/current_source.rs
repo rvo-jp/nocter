@@ -36,7 +36,7 @@ impl DiscoveredUnit {
                 .get(source.id)
                 .ok_or(CurrentSourceSurfaceError::MissingSource(source.id))?;
             encode(source.path.as_bytes(), &mut canonical);
-            canonical.extend_from_slice(&source.id.index().to_be_bytes());
+            canonical.extend_from_slice(&source.id.identity_bytes());
             encode(file.text().as_bytes(), &mut canonical);
         }
         Ok(CurrentSourceSurface {

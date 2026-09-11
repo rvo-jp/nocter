@@ -62,6 +62,7 @@ impl CommandCompiler {
         nocter_package::resolve_standard_package_with_root_catalog(
             standard,
             roots,
+            revision.source_identity_domain(),
             &mut source_syntax,
         )
         .map_err(CommandSourceError::StandardPackage)
@@ -83,6 +84,7 @@ impl CommandCompiler {
         nocter_package::resolve_package_selection_with_root_catalog(
             request,
             roots,
+            revision.source_identity_domain(),
             &mut source_syntax,
         )
         .map_err(nocter_package::PackageResolutionFailure::into_error)
@@ -141,6 +143,7 @@ impl nocter_package_state::PackageResolutionDriver for CommandCompiler {
         nocter_package::resolve_package_selection_with_root_catalog(
             request,
             roots,
+            revision.source_identity_domain(),
             &mut source_syntax,
         )
         .map_err(nocter_package::PackageResolutionFailure::into_error)

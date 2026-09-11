@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use nocter_source::SourceFile;
-
 use crate::{
     ExpectedSyntax, LexDiagnosticKind, NodeId, NodeKind, ParseDiagnosticKind, SyntaxElement,
     SyntaxOrigin, SyntaxToken, SyntaxTree, TokenKind,
@@ -103,16 +101,13 @@ impl DeclarationSyntaxProjection {
     }
 }
 
-/// Binds one current syntax tree to its source-neutral declaration surface.
+/// Projects one already bound source and syntax tree into its source-neutral declaration surface.
 ///
-/// Returns `None` when the source does not own the tree. The caller therefore cannot accidentally
-/// create locators from text in a different source-identity domain.
+/// The [`crate::BoundSyntax`] constructor rejects a tree from another source identity before
+/// this semantic invalidation boundary can observe it.
 #[must_use]
-pub fn project_declaration_syntax(
-    tree: &SyntaxTree,
-    source: &SourceFile,
-) -> Option<DeclarationSyntaxProjection> {
-    (tree.source() == source.id()).then(|| declaration_projection(tree, source.text()))
+pub fn project_declaration_syntax(syntax: crate::BoundSyntax<'_>) -> DeclarationSyntaxProjection {
+    declaration_projection(syntax.tree(), syntax.source().text())
 }
 
 pub(crate) fn declaration_projection(
@@ -337,8 +332,12 @@ mod tests {
             "func first(): i32 { return 10 }\n",
             "func second(): i32 { return 2 }\n",
         ));
-        let first = project_declaration_syntax(&first_tree, &first_source).unwrap();
-        let second = project_declaration_syntax(&second_tree, &second_source).unwrap();
+        let first = project_declaration_syntax(
+            crate::BoundSyntax::new(&first_source, &first_tree).unwrap(),
+        );
+        let second = project_declaration_syntax(
+            crate::BoundSyntax::new(&second_source, &second_tree).unwrap(),
+        );
 
         assert_eq!(first.surface(), second.surface());
         assert_eq!(first.body_surfaces().len(), 2);
@@ -426,8 +425,12 @@ mod tests {
         let (first_tree, first_source) = tree("func answer(): i32 { return 1 }\n");
         let (second_tree, second_source) =
             tree("/// Updated.\nfunc answer( ): i32 { let value = 2\n return value }\n");
-        let first = project_declaration_syntax(&first_tree, &first_source).unwrap();
-        let second = project_declaration_syntax(&second_tree, &second_source).unwrap();
+        let first = project_declaration_syntax(
+            crate::BoundSyntax::new(&first_source, &first_tree).unwrap(),
+        );
+        let second = project_declaration_syntax(
+            crate::BoundSyntax::new(&second_source, &second_tree).unwrap(),
+        );
         assert_eq!(first.surface(), second.surface());
 
         let first_function = node(&first_tree, NodeKind::FunctionDeclaration);
@@ -444,7 +447,8 @@ mod tests {
     #[test]
     fn body_descendants_cannot_escape_through_surface_locators() {
         let (tree, source) = tree("func answer(): i32 { return 1 }\n");
-        let projection = project_declaration_syntax(&tree, &source).unwrap();
+        let projection =
+            project_declaration_syntax(crate::BoundSyntax::new(&source, &tree).unwrap());
         let body = node(&tree, NodeKind::Block);
         let statement = node(&tree, NodeKind::ReturnStatement);
         assert!(projection.locate(SyntaxOrigin::Node(body)).is_some());
@@ -463,10 +467,9 @@ mod tests {
 
     fn body(text: &str) -> crate::BodySyntaxSurface {
         let (tree, source) = tree(text);
-        project_declaration_syntax(&tree, &source)
-            .unwrap()
-            .body_surfaces()[0]
-            .clone()
+        project_declaration_syntax(crate::BoundSyntax::new(&source, &tree).unwrap()).body_surfaces()
+            [0]
+        .clone()
     }
 
     fn node(tree: &crate::SyntaxTree, kind: NodeKind) -> crate::NodeId {

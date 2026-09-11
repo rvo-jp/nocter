@@ -245,15 +245,15 @@ impl BodyChecker<'_, '_> {
         let allocation = self.literal_allocation(node)?;
         let literal = direct_node(self.tree(), node, NodeKind::StringLiteral)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let text = nocter_syntax::decode_string_literal(
-            self.input
-                .sources()
-                .get(self.tree().source())
-                .ok_or(BodyCheckInternalError::InvalidSyntax(literal))?,
-            self.tree(),
-            literal,
-        )
-        .ok_or(BodyCheckInternalError::InvalidSyntax(literal))?;
+        let source = self
+            .input
+            .sources()
+            .get(self.tree().source())
+            .ok_or(BodyCheckInternalError::InvalidSyntax(literal))?;
+        let syntax = nocter_syntax::BoundSyntax::new(source, self.tree())
+            .ok_or(BodyCheckInternalError::InvalidSyntax(literal))?;
+        let text = nocter_syntax::decode_string_literal(syntax, literal)
+            .ok_or(BodyCheckInternalError::InvalidSyntax(literal))?;
         let result_pattern =
             self.apply_type_substitution(&plan.substitution, plan.result_pattern)?;
         let mut inference = CallableInference::new(plan.inference_parameters.clone());

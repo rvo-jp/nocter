@@ -32,7 +32,9 @@ impl BodyChecker<'_, '_> {
             .sources()
             .get(self.tree().source())
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
-        let parts = nocter_syntax::decode_string_expression(source, self.tree(), node)
+        let syntax = nocter_syntax::BoundSyntax::new(source, self.tree())
+            .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
+        let parts = nocter_syntax::decode_string_expression(syntax, node)
             .ok_or(BodyCheckInternalError::InvalidSyntax(node))?;
         if parts
             .iter()

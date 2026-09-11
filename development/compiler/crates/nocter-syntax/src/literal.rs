@@ -1,6 +1,4 @@
-use nocter_source::SourceFile;
-
-use crate::{NodeId, NodeKind, StringDelimiter, SyntaxElement, SyntaxTree, TokenKind};
+use crate::{NodeId, NodeKind, StringDelimiter, SyntaxElement, TokenKind};
 
 /// One decoded ordinary string-expression part in exact source order.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -291,11 +289,9 @@ fn decode_unicode_escape(text: &str) -> Result<u32, CharacterDecodeError> {
 /// The syntax tree remains lossless; semantic consumers call this boundary rather than each
 /// implementing escape and multiline-indentation rules independently.
 #[must_use]
-pub fn decode_string_literal(
-    source: &SourceFile,
-    tree: &SyntaxTree,
-    node: NodeId,
-) -> Option<Box<str>> {
+pub fn decode_string_literal(syntax: crate::BoundSyntax<'_>, node: NodeId) -> Option<Box<str>> {
+    let tree = syntax.tree();
+    tree.node(node)?;
     let mut delimiter = None;
     let mut text = "";
     for element in tree.children(node) {
@@ -304,7 +300,7 @@ pub fn decode_string_literal(
         };
         match token.kind() {
             TokenKind::StringStart(found) => delimiter = Some(found),
-            TokenKind::StringText => text = source.text_at(token.range())?,
+            TokenKind::StringText => text = syntax.text_at(token.range())?,
             _ => {}
         }
     }
@@ -317,11 +313,10 @@ pub fn decode_string_literal(
 /// require the interpolation planner rather than pretending to be one static literal.
 #[must_use]
 pub fn decode_plain_string_expression(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: crate::BoundSyntax<'_>,
     node: NodeId,
 ) -> Option<Box<str>> {
-    let parts = decode_string_expression(source, tree, node)?;
+    let parts = decode_string_expression(syntax, node)?;
     let mut text = String::new();
     for part in parts {
         match part {
@@ -339,10 +334,11 @@ pub fn decode_plain_string_expression(
 /// that appears before and after it.
 #[must_use]
 pub fn decode_string_expression(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: crate::BoundSyntax<'_>,
     node: NodeId,
 ) -> Option<Box<[DecodedStringPart]>> {
+    let tree = syntax.tree();
+    tree.node(node)?;
     let delimiter = tree
         .children(node)
         .iter()
@@ -369,7 +365,7 @@ pub fn decode_string_expression(
                         return None;
                     }
                     authored.extend(
-                        source
+                        syntax
                             .text_at(token.range())?
                             .bytes()
                             .map(AuthoredStringUnit::Byte),
@@ -577,7 +573,10 @@ mod decode_tests {
         let mut pending = vec![tree.root_id()];
         while let Some(node) = pending.pop() {
             if tree.node(node).unwrap().kind() == NodeKind::StringLiteral {
-                literals.push(decode_string_literal(file, &tree, node).unwrap());
+                literals.push(
+                    decode_string_literal(crate::BoundSyntax::new(file, &tree).unwrap(), node)
+                        .unwrap(),
+                );
             }
             for child in tree.children(node).iter().rev() {
                 if let SyntaxElement::Node(child) = child {
@@ -607,7 +606,10 @@ mod decode_tests {
         let mut pending = vec![tree.root_id()];
         while let Some(node) = pending.pop() {
             if tree.node(node).unwrap().kind() == NodeKind::StringExpression {
-                expressions.push(decode_plain_string_expression(file, &tree, node));
+                expressions.push(decode_plain_string_expression(
+                    crate::BoundSyntax::new(file, &tree).unwrap(),
+                    node,
+                ));
             }
             for child in tree.children(node).iter().rev() {
                 if let SyntaxElement::Node(child) = child {
@@ -632,7 +634,9 @@ mod decode_tests {
         let tree = parse(file, ParseGoal::SourceFile);
         assert!(!tree.has_errors(), "{:#?}", tree.diagnostics());
         let expression = find_node(&tree, NodeKind::StringExpression);
-        let parts = decode_string_expression(file, &tree, expression).unwrap();
+        let parts =
+            decode_string_expression(crate::BoundSyntax::new(file, &tree).unwrap(), expression)
+                .unwrap();
 
         assert_eq!(parts.len(), 5);
         assert_eq!(parts[0], DecodedStringPart::Text("before ".into()));

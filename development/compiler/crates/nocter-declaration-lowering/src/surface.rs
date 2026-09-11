@@ -623,7 +623,7 @@ fn collect_source(
             Some(NodeKind::SourceVisibilityDeclaration) => {
                 let resolution = input
                     .source_visibility_resolutions
-                    .get(&(child.source(), child.index()))
+                    .get(&child)
                     .ok_or(SurfaceError::InconsistentSourceVisibilityResolution(child))?;
                 let target = *input
                     .source_by_path
@@ -643,7 +643,7 @@ fn collect_source(
                 }
                 let resolution = input
                     .use_resolutions
-                    .get(&(child.source(), child.index()))
+                    .get(&child)
                     .ok_or(SurfaceError::InconsistentUseResolution(child))?;
                 imports.push(SurfaceImport {
                     source: source_id,

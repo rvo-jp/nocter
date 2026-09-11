@@ -2,7 +2,7 @@ use std::fmt;
 
 use nocter_declarations::{AcceptedDeclarationProgram, BodyAnalysisDeclarationProgram};
 use nocter_source::{SourceId, SourceMap};
-use nocter_syntax::{Keyword, NodeKind, SyntaxElement, TokenKind};
+use nocter_syntax::{BoundSyntax, Keyword, NodeKind, SyntaxElement, TokenKind};
 
 use crate::SurfaceSource;
 
@@ -93,7 +93,9 @@ fn collect_subtree_spellings(
                     .ok_or(CurrentSymbolError::InconsistentSyntax(tree.source()))?
                     .kind();
                 if kind == NodeKind::StringLiteral {
-                    let decoded = nocter_syntax::decode_string_literal(source, tree, node)
+                    let bound = BoundSyntax::new(source, tree)
+                        .ok_or(CurrentSymbolError::InconsistentSyntax(tree.source()))?;
+                    let decoded = nocter_syntax::decode_string_literal(bound, node)
                         .ok_or(CurrentSymbolError::InconsistentSyntax(tree.source()))?;
                     spellings.push(decoded);
                     continue;

@@ -12,6 +12,7 @@ nocter-package-cache = { path = "../nocter-package-cache" }
 
 [dev-dependencies]
 nocter-filesystem = { path = "../nocter-filesystem" }
+nocter-source = { path = "../nocter-source" }
 nocter-syntax = { path = "../nocter-syntax" }
 
 [lints]

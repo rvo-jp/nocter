@@ -3,9 +3,8 @@ use std::fmt;
 
 use nocter_language::PackageDirectiveName;
 use nocter_model::PackageTargetKind;
-use nocter_source::SourceFile;
 use nocter_syntax::{
-    Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind, child_node_iter,
+    BoundSyntax, Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind, child_node_iter,
     decode_string_literal, direct_node, is_valid_module_segment,
 };
 
@@ -240,9 +239,9 @@ impl std::error::Error for PackageDeclarationError {}
 /// Rejects malformed, duplicate, unknown, or mutually inconsistent declaration data. Parse
 /// diagnostics must be handled before this semantic package boundary.
 pub fn decode_package_declaration(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
 ) -> Result<PackageDeclaration, PackageDeclarationError> {
+    let tree = syntax.tree();
     if tree.has_errors()
         || tree
             .node(tree.root_id())
@@ -260,13 +259,7 @@ pub fn decode_package_declaration(
     let mut targets = Vec::new();
     let mut target_order = 0_u32;
     let mut add_target = |declaration, kind| {
-        targets.push(decode_target(
-            source,
-            tree,
-            declaration,
-            kind,
-            target_order,
-        )?);
+        targets.push(decode_target(syntax, declaration, kind, target_order)?);
         target_order = target_order.checked_add(1).ok_or_else(|| {
             error(
                 declaration,
@@ -284,7 +277,7 @@ pub fn decode_package_declaration(
         {
             continue;
         }
-        let directive_spelling = directive_name(source, tree, declaration)
+        let directive_spelling = directive_name(syntax, declaration)
             .ok_or_else(|| error(declaration, PackageDeclarationRule::InvalidDirective, None))?;
         let directive =
             PackageDirectiveName::from_spelling(&directive_spelling).ok_or_else(|| {
@@ -297,13 +290,13 @@ pub fn decode_package_declaration(
         match directive {
             PackageDirectiveName::Package => set_once(
                 &mut package,
-                decode_package_header(source, tree, declaration)?,
+                decode_package_header(syntax, declaration)?,
                 declaration,
                 PackageDirectiveName::Package.spelling(),
             )?,
             PackageDirectiveName::Dependencies => set_once(
                 &mut dependencies,
-                decode_dependencies(source, tree, declaration)?,
+                decode_dependencies(syntax, declaration)?,
                 declaration,
                 PackageDirectiveName::Dependencies.spelling(),
             )?,
@@ -333,29 +326,29 @@ pub fn decode_package_declaration(
 }
 
 fn decode_package_header(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     declaration: NodeId,
 ) -> Result<(AuthoredString, AuthoredString), PackageDeclarationError> {
+    let tree = syntax.tree();
     let record = required_record(tree, declaration)?;
-    let fields = known_fields(source, tree, record, PackageFieldName::PACKAGE)?;
+    let fields = known_fields(syntax, record, PackageFieldName::PACKAGE)?;
     let name = required_field(&fields, declaration, PackageFieldName::Name)?;
     let version = required_field(&fields, declaration, PackageFieldName::Version)?;
     Ok((
-        authored_string(source, tree, name)?,
-        authored_string(source, tree, version)?,
+        authored_string(syntax, name)?,
+        authored_string(syntax, version)?,
     ))
 }
 
 fn decode_dependencies(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     declaration: NodeId,
 ) -> Result<BTreeMap<Box<str>, DependencyDeclaration>, PackageDeclarationError> {
+    let tree = syntax.tree();
     let record = required_record(tree, declaration)?;
     let mut result = BTreeMap::new();
     for field in direct_fields(tree, record) {
-        let alias = field_name(source, tree, field)?;
+        let alias = field_name(syntax, field)?;
         if !is_valid_module_segment(&alias) {
             return Err(error(
                 field,
@@ -370,7 +363,7 @@ fn decode_dependencies(
                 Some(alias),
             ));
         }
-        let dependency = decode_dependency(source, tree, field, &alias)?;
+        let dependency = decode_dependency(syntax, field, &alias)?;
         if result.insert(alias.clone(), dependency).is_some() {
             return Err(error(
                 field,
@@ -383,19 +376,19 @@ fn decode_dependencies(
 }
 
 fn decode_dependency(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     field: NodeId,
     alias: &str,
 ) -> Result<DependencyDeclaration, PackageDeclarationError> {
+    let tree = syntax.tree();
     let record = required_record(tree, field)?;
-    let fields = known_fields(source, tree, record, PackageFieldName::DEPENDENCY)?;
-    let git = optional_string(source, tree, &fields, PackageFieldName::Git)?;
-    let revision = optional_string(source, tree, &fields, PackageFieldName::Revision)?;
-    let archive = optional_string(source, tree, &fields, PackageFieldName::Archive)?;
-    let path = optional_string(source, tree, &fields, PackageFieldName::Path)?;
-    let commit = optional_string(source, tree, &fields, PackageFieldName::Commit)?;
-    let sha256 = optional_string(source, tree, &fields, PackageFieldName::Sha256)?;
+    let fields = known_fields(syntax, record, PackageFieldName::DEPENDENCY)?;
+    let git = optional_string(syntax, &fields, PackageFieldName::Git)?;
+    let revision = optional_string(syntax, &fields, PackageFieldName::Revision)?;
+    let archive = optional_string(syntax, &fields, PackageFieldName::Archive)?;
+    let path = optional_string(syntax, &fields, PackageFieldName::Path)?;
+    let commit = optional_string(syntax, &fields, PackageFieldName::Commit)?;
+    let sha256 = optional_string(syntax, &fields, PackageFieldName::Sha256)?;
     let dependency_source = match (git, revision, archive, path) {
         (Some(url), Some(revision), None, None) => DependencySource::Git { url, revision },
         (None, None, Some(url), None) => DependencySource::Archive { url },
@@ -458,16 +451,16 @@ fn decode_dependency(
 }
 
 fn decode_target(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     declaration: NodeId,
     kind: PackageTargetKind,
     order: u32,
 ) -> Result<PackageTargetDeclaration, PackageDeclarationError> {
+    let tree = syntax.tree();
     let record = required_record(tree, declaration)?;
-    let fields = known_fields(source, tree, record, PackageFieldName::TARGET)?;
+    let fields = known_fields(syntax, record, PackageFieldName::TARGET)?;
     let name_field = required_field(&fields, declaration, PackageFieldName::Name)?;
-    let name = authored_string(source, tree, name_field)?;
+    let name = authored_string(syntax, name_field)?;
     if name.value().is_empty() {
         return Err(error(
             name.literal(),
@@ -476,7 +469,7 @@ fn decode_target(
         ));
     }
     let module = if let Some(field) = fields.get(&PackageFieldName::Module) {
-        let authored = authored_string(source, tree, *field)?;
+        let authored = authored_string(syntax, *field)?;
         parse_module_path(authored.value()).ok_or_else(|| {
             error(
                 authored.literal(),
@@ -520,14 +513,14 @@ fn set_once<T>(
 }
 
 fn known_fields(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     record: NodeId,
     accepted: &[PackageFieldName],
 ) -> Result<BTreeMap<PackageFieldName, NodeId>, PackageDeclarationError> {
+    let tree = syntax.tree();
     let mut fields = BTreeMap::new();
     for field in direct_fields(tree, record) {
-        let spelling = field_name(source, tree, field)?;
+        let spelling = field_name(syntax, field)?;
         let name = PackageFieldName::from_spelling(&spelling)
             .filter(|name| accepted.contains(name))
             .ok_or_else(|| {
@@ -563,26 +556,25 @@ fn required_field(
 }
 
 fn optional_string(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     fields: &BTreeMap<PackageFieldName, NodeId>,
     name: PackageFieldName,
 ) -> Result<Option<AuthoredString>, PackageDeclarationError> {
     fields
         .get(&name)
-        .map(|field| authored_string(source, tree, *field))
+        .map(|field| authored_string(syntax, *field))
         .transpose()
 }
 
 fn authored_string(
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     subject: NodeId,
 ) -> Result<AuthoredString, PackageDeclarationError> {
+    let tree = syntax.tree();
     let literal = value_node(tree, subject)
         .and_then(|value| direct_node(tree, value, NodeKind::StringLiteral))
         .ok_or_else(|| error(subject, PackageDeclarationRule::ExpectedString, None))?;
-    let value = decode_string_literal(source, tree, literal)
+    let value = decode_string_literal(syntax, literal)
         .ok_or_else(|| error(literal, PackageDeclarationRule::ExpectedString, None))?;
     Ok(AuthoredString { value, literal })
 }
@@ -597,30 +589,28 @@ fn value_node(tree: &SyntaxTree, subject: NodeId) -> Option<NodeId> {
     direct_node(tree, subject, NodeKind::DirectiveValue)
 }
 
-fn directive_name(source: &SourceFile, tree: &SyntaxTree, declaration: NodeId) -> Option<Box<str>> {
+fn directive_name(syntax: BoundSyntax<'_>, declaration: NodeId) -> Option<Box<str>> {
+    let tree = syntax.tree();
     tree.children(declaration).iter().find_map(|element| {
         let SyntaxElement::Token(token) = element else {
             return None;
         };
         match token.kind() {
             TokenKind::Identifier | TokenKind::Keyword(Keyword::Test) => {
-                source.text_at(token.range()).map(Into::into)
+                syntax.text_at(token.range()).map(Into::into)
             }
             _ => None,
         }
     })
 }
 
-fn field_name(
-    source: &SourceFile,
-    tree: &SyntaxTree,
-    field: NodeId,
-) -> Result<Box<str>, PackageDeclarationError> {
+fn field_name(syntax: BoundSyntax<'_>, field: NodeId) -> Result<Box<str>, PackageDeclarationError> {
+    let tree = syntax.tree();
     tree.children(field)
         .iter()
         .find_map(|element| match element {
             SyntaxElement::Token(token) if token.kind() == TokenKind::Identifier => {
-                source.text_at(token.range()).map(Into::into)
+                syntax.text_at(token.range()).map(Into::into)
             }
             SyntaxElement::Node(_) | SyntaxElement::Token(_) | SyntaxElement::Missing(_) => None,
         })
@@ -675,7 +665,7 @@ mod tests {
             .unwrap();
         let source = sources.get(source).unwrap();
         let syntax = parse(source, ParseGoal::SourceFile);
-        decode_package_declaration(source, &syntax)
+        decode_package_declaration(BoundSyntax::new(source, &syntax).unwrap())
     }
 
     #[test]

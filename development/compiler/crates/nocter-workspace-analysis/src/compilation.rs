@@ -26,6 +26,7 @@ pub(crate) fn compile_scope(
     revision: &CompilerSourceRevision,
 ) -> WorkspaceAnalysisState {
     let source_overlay = package_roots.source_overlay().clone();
+    let source_identity_domain = revision.source_identity_domain();
     let mut source_syntax = match computation.source_syntax(revision) {
         Ok(source_syntax) => source_syntax,
         Err(error) => {
@@ -44,14 +45,22 @@ pub(crate) fn compile_scope(
             root,
             requested_sources,
             package_roots.clone(),
+            source_identity_domain,
             &mut source_syntax,
         ),
-        ScopeCompilationInput::ToolchainStandard => {
-            prepare_toolchain_standard(configuration, package_roots.clone(), &mut source_syntax)
-        }
-        ScopeCompilationInput::SingleFile(source) => {
-            prepare_single_file(configuration, source, package_roots, &mut source_syntax)
-        }
+        ScopeCompilationInput::ToolchainStandard => prepare_toolchain_standard(
+            configuration,
+            package_roots.clone(),
+            source_identity_domain,
+            &mut source_syntax,
+        ),
+        ScopeCompilationInput::SingleFile(source) => prepare_single_file(
+            configuration,
+            source,
+            package_roots,
+            source_identity_domain,
+            &mut source_syntax,
+        ),
     };
     drop(source_syntax);
     let request = match request {
@@ -111,6 +120,7 @@ fn preparation_failed(
 fn prepare_toolchain_standard(
     configuration: &WorkspaceConfiguration,
     package_roots: PackageRootCatalog,
+    source_identity_domain: nocter_source::SourceIdentityDomain,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
@@ -118,6 +128,7 @@ fn prepare_toolchain_standard(
     let package = resolve_standard_package_with_root_catalog(
         toolchain.standard().clone(),
         package_roots,
+        source_identity_domain,
         source_syntax,
     )
     .map_err(WorkspaceAnalysisError::from)?;
@@ -133,6 +144,7 @@ fn prepare_package(
     root: &Path,
     requested_sources: &[PathBuf],
     package_roots: PackageRootCatalog,
+    source_identity_domain: nocter_source::SourceIdentityDomain,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
@@ -144,6 +156,7 @@ fn prepare_package(
             PackageResolutionPolicy::new(true, true),
         ),
         package_roots,
+        source_identity_domain,
         source_syntax,
     )
     .map_err(WorkspaceAnalysisError::from)?;
@@ -189,6 +202,7 @@ fn prepare_single_file(
     configuration: &WorkspaceConfiguration,
     source: &Path,
     package_roots: PackageRootCatalog,
+    source_identity_domain: nocter_source::SourceIdentityDomain,
     source_syntax: &mut dyn SourceSyntaxProvider,
 ) -> Result<DiscoveryRequest, WorkspaceAnalysisError> {
     let toolchain = configuration.toolchain();
@@ -196,6 +210,7 @@ fn prepare_single_file(
     let packages = resolve_standard_package_with_root_catalog(
         toolchain.standard().clone(),
         package_roots,
+        source_identity_domain,
         source_syntax,
     )
     .map_err(WorkspaceAnalysisError::from)?;

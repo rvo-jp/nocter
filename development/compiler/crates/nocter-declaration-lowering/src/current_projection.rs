@@ -125,8 +125,7 @@ fn current_block_imports(
         match tree.node(declaration).map(SyntaxNode::kind) {
             Some(NodeKind::UseDeclaration) => {}
             Some(NodeKind::BlockUseDeclaration) => {
-                let key = (declaration.source(), declaration.index());
-                if resolved.insert(key, declaration).is_some() {
+                if resolved.insert(declaration, declaration).is_some() {
                     return Err(CurrentProjectionError::DuplicateUseResolution(declaration));
                 }
                 let target = declarations
@@ -144,7 +143,7 @@ fn current_block_imports(
             if source.syntax().node(declaration).map(SyntaxNode::kind)
                 == Some(NodeKind::BlockUseDeclaration)
                 && selection.use_is_active(declaration)
-                && !resolved.contains_key(&(declaration.source(), declaration.index()))
+                && !resolved.contains_key(&declaration)
             {
                 return Err(CurrentProjectionError::MissingUseResolution(declaration));
             }

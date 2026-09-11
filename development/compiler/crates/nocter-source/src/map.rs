@@ -1,8 +1,90 @@
+use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::{
     ByteOffset, CoordinateError, LineIndex, SourceId, Span, TextRange, Utf16Position, Utf16Range,
 };
+
+static NEXT_SOURCE_IDENTITY: AtomicU32 = AtomicU32::new(1);
+
+fn allocate_source_identity() -> Option<u32> {
+    NEXT_SOURCE_IDENTITY
+        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+            current.checked_add(1)
+        })
+        .ok()
+}
+
+/// Revision-family owner of stable physical-source identities.
+///
+/// Maps created in the same domain reuse an identity only while both the exact source name and
+/// normalized text remain unchanged. A content transition allocates a new identity, including
+/// when text later returns to an earlier value. This lets a revisioned compiler reuse
+/// source-backed products across metadata-only generations without making a stale product valid
+/// after an intervening edit.
+#[derive(Clone)]
+pub struct SourceIdentityDomain {
+    state: Arc<Mutex<SourceIdentityState>>,
+}
+
+impl fmt::Debug for SourceIdentityDomain {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // A domain is an authority token, not a diagnostic view of every source admitted to it.
+        // In particular, deriving `Debug` here would make otherwise harmless debug output from a
+        // compiler revision retain and disclose the full source corpus.
+        formatter.write_str("SourceIdentityDomain")
+    }
+}
+
+#[derive(Debug, Default)]
+struct SourceIdentityState {
+    current: BTreeMap<String, CurrentSourceIdentity>,
+}
+
+#[derive(Debug)]
+struct CurrentSourceIdentity {
+    text: Arc<str>,
+    identity: u32,
+}
+
+impl SourceIdentityDomain {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            state: Arc::new(Mutex::new(SourceIdentityState::default())),
+        }
+    }
+
+    fn admit(&self, name: &SourceName, text: String) -> Option<(u32, Arc<str>)> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(current) = state.current.get(name.as_str())
+            && current.text.as_ref() == text
+        {
+            return Some((current.identity, Arc::clone(&current.text)));
+        }
+        let identity = allocate_source_identity()?;
+        let text: Arc<str> = text.into();
+        state.current.insert(
+            name.as_str().to_owned(),
+            CurrentSourceIdentity {
+                text: Arc::clone(&text),
+                identity,
+            },
+        );
+        Some((identity, text))
+    }
+}
+
+impl Default for SourceIdentityDomain {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Display and diagnostic name of a source input.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -31,7 +113,7 @@ impl fmt::Display for SourceName {
 pub struct SourceFile {
     id: SourceId,
     name: SourceName,
-    text: String,
+    text: Arc<str>,
     len: ByteOffset,
     lines: LineIndex,
 }
@@ -63,7 +145,7 @@ impl SourceFile {
     /// Returns the same source-ingestion error as [`SourceMap::add_bytes`] when `bytes` are not a
     /// valid source input.
     pub fn matches_source_bytes(&self, bytes: &[u8]) -> Result<bool, SourceError> {
-        Ok(self.text == normalize(bytes)?)
+        Ok(self.text.as_ref() == normalize(bytes)?)
     }
 
     #[must_use]
@@ -171,16 +253,26 @@ impl fmt::Display for SourceError {
 
 impl std::error::Error for SourceError {}
 
-/// Owns source identities and normalized text for one compiler invocation.
-#[derive(Clone, Debug, Default)]
+/// Owns source identities and normalized text for one immutable compiler source graph.
+#[derive(Clone, Debug)]
 pub struct SourceMap {
+    identity_domain: SourceIdentityDomain,
     files: Vec<SourceFile>,
 }
 
 impl SourceMap {
     #[must_use]
-    pub const fn new() -> Self {
-        Self { files: Vec::new() }
+    pub fn new() -> Self {
+        Self::in_identity_domain(SourceIdentityDomain::new())
+    }
+
+    /// Creates an empty map in one revision family's physical-source identity domain.
+    #[must_use]
+    pub fn in_identity_domain(identity_domain: SourceIdentityDomain) -> Self {
+        Self {
+            identity_domain,
+            files: Vec::new(),
+        }
     }
 
     /// Adds UTF-8 source after normalizing CRLF to LF.
@@ -198,7 +290,11 @@ impl SourceMap {
         );
         let lines = LineIndex::new(&normalized, len);
         let index = u32::try_from(self.files.len()).map_err(|_| SourceError::TooManySources)?;
-        let id = SourceId::from_index(index);
+        let (identity, normalized) = self
+            .identity_domain
+            .admit(&name, normalized)
+            .ok_or(SourceError::TooManySources)?;
+        let id = SourceId::new(index, identity);
         self.files.push(SourceFile {
             id,
             name,
@@ -211,14 +307,16 @@ impl SourceMap {
 
     #[must_use]
     pub fn get(&self, id: SourceId) -> Option<&SourceFile> {
-        self.files.get(id.index() as usize)
+        self.files
+            .get(id.index() as usize)
+            .filter(|source| source.id() == id)
     }
 
-    /// Resolves one exact source display name without assigning a second identity to it.
+    /// Returns the first source with one exact display name.
     ///
-    /// Source names are unique within a compiler invocation. Editor adapters use this lookup to
-    /// cross from a canonical filesystem path into the invocation-owned source identity before
-    /// performing coordinate conversion.
+    /// Names are lookup metadata, not identities; the source-graph authority is responsible for
+    /// uniqueness where a canonical path requires it. Editor adapters use this lookup only after
+    /// that authority has closed the graph.
     #[must_use]
     pub fn find_by_name(&self, name: &str) -> Option<&SourceFile> {
         self.files
@@ -239,6 +337,12 @@ impl SourceMap {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.files.is_empty()
+    }
+}
+
+impl Default for SourceMap {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -329,6 +433,129 @@ mod tests {
             Some(first)
         );
         assert!(sources.find_by_name("workspace/a.nct").is_none());
+    }
+
+    #[test]
+    fn source_identity_cannot_alias_the_same_index_in_another_map() {
+        let mut first = SourceMap::new();
+        let first_id = first
+            .add_bytes(SourceName::new("first.nct"), b"first")
+            .unwrap();
+        let cloned = first.clone();
+        let mut second = SourceMap::new();
+        let second_id = second
+            .add_bytes(SourceName::new("second.nct"), b"second")
+            .unwrap();
+
+        assert_eq!(first_id.index(), second_id.index());
+        assert_ne!(first_id, second_id);
+        assert!(first.get(second_id).is_none());
+        assert!(second.get(first_id).is_none());
+        assert_eq!(cloned.get(first_id).map(SourceFile::text), Some("first"));
+        assert_eq!(std::mem::size_of::<SourceId>(), std::mem::size_of::<u64>());
+    }
+
+    #[test]
+    fn revision_family_reuses_only_the_unchanged_current_source_value() {
+        let domain = SourceIdentityDomain::new();
+        let mut first = SourceMap::in_identity_domain(domain.clone());
+        let first_id = first
+            .add_bytes(SourceName::new("source.nct"), b"first")
+            .unwrap();
+        let mut unchanged = SourceMap::in_identity_domain(domain.clone());
+        let unchanged_id = unchanged
+            .add_bytes(SourceName::new("source.nct"), b"first")
+            .unwrap();
+        let mut changed = SourceMap::in_identity_domain(domain.clone());
+        let changed_id = changed
+            .add_bytes(SourceName::new("source.nct"), b"second")
+            .unwrap();
+        let mut restored = SourceMap::in_identity_domain(domain);
+        let restored_id = restored
+            .add_bytes(SourceName::new("source.nct"), b"first")
+            .unwrap();
+
+        assert_eq!(first_id, unchanged_id);
+        assert_ne!(unchanged_id, changed_id);
+        assert_ne!(first_id, restored_id);
+        assert!(unchanged.get(first_id).is_some());
+        assert!(changed.get(first_id).is_none());
+        assert!(restored.get(first_id).is_none());
+    }
+
+    #[test]
+    fn independent_identity_domains_do_not_alias_equal_source_values() {
+        let mut first = SourceMap::new();
+        let first_id = first
+            .add_bytes(SourceName::new("source.nct"), b"same")
+            .unwrap();
+        let mut second = SourceMap::new();
+        let second_id = second
+            .add_bytes(SourceName::new("source.nct"), b"same")
+            .unwrap();
+
+        assert_ne!(first_id, second_id);
+        assert!(first.get(second_id).is_none());
+        assert!(second.get(first_id).is_none());
+    }
+
+    #[test]
+    fn identity_domain_debug_output_does_not_expose_admitted_sources() {
+        let domain = SourceIdentityDomain::new();
+        let mut sources = SourceMap::in_identity_domain(domain.clone());
+        sources
+            .add_bytes(SourceName::new("secret.nct"), b"private source text")
+            .unwrap();
+
+        assert_eq!(format!("{domain:?}"), "SourceIdentityDomain");
+    }
+
+    #[test]
+    fn source_order_uses_the_current_map_index_not_identity_history() {
+        let domain = SourceIdentityDomain::new();
+        let mut historical = SourceMap::in_identity_domain(domain.clone());
+        historical
+            .add_bytes(SourceName::new("later.nct"), b"later")
+            .unwrap();
+        historical
+            .add_bytes(SourceName::new("earlier.nct"), b"earlier")
+            .unwrap();
+
+        let mut current = SourceMap::in_identity_domain(domain);
+        let earlier = current
+            .add_bytes(SourceName::new("earlier.nct"), b"earlier")
+            .unwrap();
+        let later = current
+            .add_bytes(SourceName::new("later.nct"), b"later")
+            .unwrap();
+        let mut ordered = [later, earlier];
+        ordered.sort_unstable();
+
+        assert_eq!(ordered, [earlier, later]);
+    }
+
+    #[test]
+    fn cloned_maps_can_diverge_without_aliasing_new_source_identities() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(SourceName::new("source.nct"), b"first")
+            .unwrap();
+        let mut snapshot = sources.clone();
+
+        assert_eq!(snapshot.get(source).map(SourceFile::text), Some("first"));
+        let second = sources
+            .add_bytes(SourceName::new("second.nct"), b"second")
+            .unwrap();
+        let third = snapshot
+            .add_bytes(SourceName::new("third.nct"), b"third")
+            .unwrap();
+
+        assert_eq!(second.index(), third.index());
+        assert_ne!(second, third);
+        assert!(sources.get(third).is_none());
+        assert!(snapshot.get(second).is_none());
+        assert_eq!(sources.get(second).map(SourceFile::text), Some("second"));
+        assert_eq!(snapshot.get(third).map(SourceFile::text), Some("third"));
     }
 
     #[test]

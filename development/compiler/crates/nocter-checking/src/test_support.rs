@@ -189,6 +189,14 @@ impl Fixture {
     }
 
     pub(crate) fn input(&self, reverse: bool) -> CompileUnitInput<'_> {
+        self.input_for_target(reverse, nocter_model::CompilationTarget::Arm64Darwin)
+    }
+
+    pub(crate) fn input_for_target(
+        &self,
+        reverse: bool,
+        target: nocter_model::CompilationTarget,
+    ) -> CompileUnitInput<'_> {
         let mut packages = vec![
             package("workspace:app", "app"),
             package("toolchain:std", "std"),
@@ -238,15 +246,9 @@ impl Fixture {
                 })
                 .collect()
         });
-        CompileUnitInput::new(
-            nocter_model::CompilationTarget::Arm64Darwin,
-            &self.sources,
-            packages,
-            modules,
-            resolutions,
-        )
-        .with_source_visibility_resolutions(self.source_visibility_resolutions())
-        .with_toolchain(builtin_toolchain(&self.sources, &self.standard, prelude))
+        CompileUnitInput::new(target, &self.sources, packages, modules, resolutions)
+            .with_source_visibility_resolutions(self.source_visibility_resolutions())
+            .with_toolchain(builtin_toolchain(&self.sources, &self.standard, prelude))
     }
 
     fn source_visibility_resolutions(&self) -> Vec<SourceVisibilityResolutionInput> {

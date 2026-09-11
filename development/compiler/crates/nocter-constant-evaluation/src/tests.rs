@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nocter_model::{ArenaBuilder, BuiltinType, CompilationTarget, ConstantId, ConstantValue};
 use nocter_source::{SourceMap, SourceName};
-use nocter_syntax::{NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
+use nocter_syntax::{BoundSyntax, NodeId, NodeKind, ParseGoal, SyntaxElement, SyntaxTree, parse};
 
 use crate::{
     ConstantEvaluationRule, ConstantPlanError, ConstantPlanRule, ConstantReference,
@@ -36,8 +36,7 @@ fn signed_minimum_literal_is_evaluated_in_the_signed_result_domain() {
     };
     let plan = plan_expression(
         CompilationTarget::Arm64Darwin,
-        sources.get(tree.source()).unwrap(),
-        &tree,
+        bound(&sources, &tree),
         expression,
         ConstantScalarType::Integer(BuiltinType::I8),
         &mut resolver,
@@ -59,8 +58,7 @@ fn short_circuiting_skips_values_but_not_rhs_type_planning() {
     };
     let plan = plan_expression(
         CompilationTarget::Arm64Darwin,
-        sources.get(tree.source()).unwrap(),
-        &tree,
+        bound(&sources, &tree),
         expression,
         ConstantScalarType::Bool,
         &mut resolver,
@@ -74,8 +72,7 @@ fn short_circuiting_skips_values_but_not_rhs_type_planning() {
     let (sources, tree, expression) = parsed_expression("false && 1");
     let error = plan_expression(
         CompilationTarget::Arm64Darwin,
-        sources.get(tree.source()).unwrap(),
-        &tree,
+        bound(&sources, &tree),
         expression,
         ConstantScalarType::Bool,
         &mut resolver,
@@ -108,8 +105,7 @@ fn authored_dependency_cycles_are_rejected_before_evaluation() {
     };
     let first_plan = plan_expression(
         CompilationTarget::Arm64Darwin,
-        first_sources.get(first_tree.source()).unwrap(),
-        &first_tree,
+        bound(&first_sources, &first_tree),
         first_expression,
         expected,
         &mut first_resolver,
@@ -117,8 +113,7 @@ fn authored_dependency_cycles_are_rejected_before_evaluation() {
     .unwrap();
     let second_plan = plan_expression(
         CompilationTarget::Arm64Darwin,
-        second_sources.get(second_tree.source()).unwrap(),
-        &second_tree,
+        bound(&second_sources, &second_tree),
         second_expression,
         expected,
         &mut second_resolver,
@@ -161,8 +156,7 @@ fn floating_constant_comparison_preserves_nan_incomparability() {
     };
     let plan = plan_expression(
         CompilationTarget::Arm64Darwin,
-        sources.get(tree.source()).unwrap(),
-        &tree,
+        bound(&sources, &tree),
         expression,
         ConstantScalarType::Bool,
         &mut resolver,
@@ -182,8 +176,7 @@ fn evaluate_float(expression: &str, format: FloatFormat) -> ConstantValue {
     };
     let plan = plan_expression(
         CompilationTarget::Arm64Darwin,
-        sources.get(tree.source()).unwrap(),
-        &tree,
+        bound(&sources, &tree),
         expression,
         ConstantScalarType::Float(format),
         &mut resolver,
@@ -210,6 +203,10 @@ fn parsed_expression(text: &str) -> (SourceMap, SyntaxTree, NodeId) {
         })
         .unwrap();
     (sources, tree, expression)
+}
+
+fn bound<'syntax>(sources: &'syntax SourceMap, tree: &'syntax SyntaxTree) -> BoundSyntax<'syntax> {
+    BoundSyntax::new(sources.get(tree.source()).unwrap(), tree).unwrap()
 }
 
 fn descendants(tree: &SyntaxTree, root: NodeId) -> Vec<NodeId> {

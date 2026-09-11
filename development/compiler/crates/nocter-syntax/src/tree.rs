@@ -1,7 +1,29 @@
 use nocter_source::{ByteOffset, SourceFile, SourceId, Span, TextRange};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crate::documentation::DocumentationAttachments;
 use crate::{ExpectedSyntax, LexedFile, ParseDiagnostic, Token, TokenKind};
+
+static NEXT_TREE_IDENTITY: AtomicU32 = AtomicU32::new(1);
+
+fn allocate_tree_identity() -> SyntaxTreeIdentity {
+    SyntaxTreeIdentity(
+        NEXT_TREE_IDENTITY
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .expect("syntax-tree identity space is exhausted"),
+    )
+}
+
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct SyntaxTreeIdentity(u32);
+
+impl std::fmt::Debug for SyntaxTreeIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("SyntaxTreeIdentity")
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum NodeKind {
@@ -377,15 +399,40 @@ impl NodeKind {
 ///
 /// Nodes and child elements live in flat arenas. This keeps ownership non-recursive even when a
 /// valid source contains a very deep chain of prefix types or expressions.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct NodeId {
     source: SourceId,
-    index: usize,
+    index: PackedNodeIdentity,
+}
+
+#[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct PackedNodeIdentity(u64);
+
+impl PackedNodeIdentity {
+    const fn local_index(self) -> u32 {
+        let bytes = self.0.to_le_bytes();
+        u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+    }
+
+    const fn tree(self) -> SyntaxTreeIdentity {
+        let bytes = self.0.to_le_bytes();
+        SyntaxTreeIdentity(u32::from_le_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]))
+    }
+}
+
+impl std::fmt::Debug for PackedNodeIdentity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.local_index().fmt(formatter)
+    }
 }
 
 impl NodeId {
-    const fn new(source: SourceId, index: usize) -> Self {
-        Self { source, index }
+    fn new(source: SourceId, index: usize, tree: SyntaxTreeIdentity) -> Self {
+        let index = u32::try_from(index).expect("syntax tree exceeds the node-identity limit");
+        Self {
+            source,
+            index: PackedNodeIdentity((u64::from(tree.0) << 32) | u64::from(index)),
+        }
     }
 
     #[must_use]
@@ -395,7 +442,17 @@ impl NodeId {
 
     #[must_use]
     pub const fn index(self) -> usize {
-        self.index
+        self.index.local_index() as usize
+    }
+
+    const fn tree(self) -> SyntaxTreeIdentity {
+        self.index.tree()
+    }
+
+    /// Reports whether two nodes belong to the same exact immutable syntax tree.
+    #[must_use]
+    pub fn shares_tree_with(self, another: Self) -> bool {
+        self.source == another.source && self.tree().0 == another.tree().0
     }
 
     const fn with_source(self, source: SourceId) -> Self {
@@ -526,6 +583,7 @@ impl SyntaxNode {
 
 #[derive(Clone, Debug)]
 pub struct SyntaxTree {
+    identity: SyntaxTreeIdentity,
     lexed: LexedFile,
     nodes: Vec<SyntaxNode>,
     elements: Vec<SyntaxElement>,
@@ -542,6 +600,7 @@ impl SyntaxTree {
         diagnostics: Vec<ParseDiagnostic>,
     ) -> Self {
         let mut tree = Self {
+            identity: built.identity,
             lexed,
             nodes: built.nodes,
             elements: built.elements,
@@ -587,7 +646,7 @@ impl SyntaxTree {
 
     #[must_use]
     pub fn node(&self, id: NodeId) -> Option<&SyntaxNode> {
-        if id.source() != self.source() {
+        if id.source() != self.source() || id.tree() != self.identity {
             return None;
         }
         self.nodes.get(id.index())
@@ -600,10 +659,11 @@ impl SyntaxTree {
     #[must_use]
     pub fn nodes(&self) -> impl ExactSizeIterator<Item = (NodeId, &SyntaxNode)> {
         let source = self.source();
+        let identity = self.identity;
         self.nodes
             .iter()
             .enumerate()
-            .map(move |(index, node)| (NodeId::new(source, index), node))
+            .map(move |(index, node)| (NodeId::new(source, index, identity), node))
     }
 
     #[must_use]
@@ -613,7 +673,10 @@ impl SyntaxTree {
     ///
     /// Panics when `id` belongs to another syntax tree or is not present in this tree.
     pub fn children(&self, id: NodeId) -> &[SyntaxElement] {
-        assert_eq!(id.source(), self.source(), "node belongs to another tree");
+        assert!(
+            id.source() == self.source() && id.tree() == self.identity,
+            "node belongs to another tree"
+        );
         let node = &self.nodes[id.index()];
         &self.elements[node.first_child..node.first_child + node.child_count]
     }
@@ -647,7 +710,7 @@ impl SyntaxTree {
     /// Returns normalized Markdown documentation attached to one documentable syntax node.
     #[must_use]
     pub fn documentation(&self, node: NodeId) -> Option<&str> {
-        if node.source() != self.source() {
+        if node.source() != self.source() || node.tree() != self.identity {
             return None;
         }
         self.documentation.node(node)
@@ -671,6 +734,7 @@ pub(crate) fn missing(expected: ExpectedSyntax, span: Span) -> Event {
 }
 
 pub(crate) struct BuiltTree {
+    identity: SyntaxTreeIdentity,
     nodes: Vec<SyntaxNode>,
     elements: Vec<SyntaxElement>,
     root: NodeId,
@@ -683,6 +747,7 @@ pub(crate) fn build_tree(source: SourceId, events: &[Event]) -> BuiltTree {
         children: Vec<SyntaxElement>,
     }
 
+    let identity = allocate_tree_identity();
     let mut stack: Vec<Frame> = Vec::new();
     let mut nodes = Vec::new();
     let mut elements = Vec::new();
@@ -748,7 +813,7 @@ pub(crate) fn build_tree(source: SourceId, events: &[Event]) -> BuiltTree {
                 let first_child = elements.len();
                 let child_count = frame.children.len();
                 elements.extend(frame.children);
-                let id = NodeId::new(source, nodes.len());
+                let id = NodeId::new(source, nodes.len(), identity);
                 let node = SyntaxNode {
                     kind: frame.kind,
                     range,
@@ -770,6 +835,7 @@ pub(crate) fn build_tree(source: SourceId, events: &[Event]) -> BuiltTree {
 
     assert!(stack.is_empty(), "event stream left nodes open");
     BuiltTree {
+        identity,
         nodes,
         elements,
         root: root.expect("event stream did not produce a root"),

@@ -384,6 +384,43 @@ mod tests {
     }
 
     #[test]
+    fn restored_text_uses_the_new_source_identity_and_current_document_version() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("restored.nct");
+        let invalid = "func main(): void { unknown() return }\n";
+        let valid = "func main(): void { return }\n";
+        let mut documents = DocumentWorkspace::new();
+        let mut analyses = WorkspaceAnalyses::new(configuration(temporary.path()));
+        let mut publisher = DiagnosticPublisher::new();
+
+        let opened = documents.open(&open_params(&source, 1, invalid)).unwrap();
+        let initial = analyses.analyze(opened).unwrap();
+        assert_eq!(publisher.publish(&initial).unwrap().len(), 1);
+
+        let changed = documents.change(&change_params(&source, 2, valid)).unwrap();
+        let DocumentWorkspaceChange::Accepted(changed) = changed else {
+            panic!("newer document version must be accepted")
+        };
+        let complete = analyses.analyze(changed).unwrap();
+        let cleared = publisher.publish(&complete).unwrap();
+        assert_eq!(cleared.len(), 1);
+        assert!(cleared[0].contains("\"version\":2"));
+        assert!(cleared[0].contains("\"diagnostics\":[]"));
+
+        let restored = documents
+            .change(&change_params(&source, 3, invalid))
+            .unwrap();
+        let DocumentWorkspaceChange::Accepted(restored) = restored else {
+            panic!("newer document version must be accepted")
+        };
+        let failed = analyses.analyze(restored).unwrap();
+        let republished = publisher.publish(&failed).unwrap();
+        assert_eq!(republished.len(), 1);
+        assert!(republished[0].contains("\"version\":3"));
+        assert!(!republished[0].contains("\"diagnostics\":[]"));
+    }
+
+    #[test]
     fn shared_diagnostics_survive_one_scope_leaving_and_publish_once_per_uri() {
         let temporary = TemporaryDirectory::new();
         let first_root = temporary.path().join("first");

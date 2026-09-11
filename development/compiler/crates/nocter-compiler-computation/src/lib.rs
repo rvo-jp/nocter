@@ -25,6 +25,7 @@ const RETAINED_SOURCE_REVISIONS: usize = 32;
 #[derive(Debug)]
 pub struct CompilerComputation {
     database: Database,
+    source_identity_domain: nocter_source::SourceIdentityDomain,
     revision_owner: Arc<()>,
     source_revision: u64,
     source_state: CompilerSourceState,
@@ -45,6 +46,7 @@ impl Default for CompilerComputation {
     fn default() -> Self {
         Self {
             database: Database::new(),
+            source_identity_domain: nocter_source::SourceIdentityDomain::new(),
             revision_owner: Arc::new(()),
             source_revision: 0,
             source_state: CompilerSourceState::Empty,
@@ -94,6 +96,7 @@ impl CompilerComputation {
             owner: Arc::clone(&self.revision_owner),
             revision: source_revision,
             source_overlay: overlay.identity().clone(),
+            source_identity_domain: self.source_identity_domain.clone(),
         })
     }
 
@@ -264,6 +267,15 @@ pub struct CompilerSourceRevision {
     owner: Arc<()>,
     revision: u64,
     source_overlay: SourceOverlayIdentity,
+    source_identity_domain: nocter_source::SourceIdentityDomain,
+}
+
+impl CompilerSourceRevision {
+    /// Returns the source-identity domain assigned to this computation's revision family.
+    #[must_use]
+    pub fn source_identity_domain(&self) -> nocter_source::SourceIdentityDomain {
+        self.source_identity_domain.clone()
+    }
 }
 
 /// One discovered unit inseparably admitted by an exact compiler source revision.

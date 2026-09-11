@@ -990,8 +990,29 @@ mod tests {
     #[derive(Debug, Eq, PartialEq)]
     struct AnalysisSignature {
         status: AnalysisStatus,
-        diagnostics: Vec<nocter_diagnostics::SourceDiagnostic>,
+        diagnostics: Vec<DiagnosticSignature>,
         sources: Vec<(Box<str>, Box<str>)>,
+    }
+
+    /// Observable diagnostic identity used when comparing independent compiler owners.
+    ///
+    /// `SourceId` and `NodeId` deliberately contain process-local integrity identities. Comparing
+    /// the raw diagnostic envelopes would therefore conflate externally equal diagnostics with
+    /// internal authority aliasing, exactly the condition the source model is designed to reject.
+    #[derive(Debug, Eq, PartialEq)]
+    struct DiagnosticSignature {
+        code: Box<str>,
+        message: Box<str>,
+        primary: DiagnosticOriginSignature,
+        notes: Vec<(Box<str>, DiagnosticOriginSignature)>,
+        help: Option<Box<str>>,
+        repair: Option<nocter_diagnostics::DiagnosticRepair>,
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct DiagnosticOriginSignature {
+        source: Box<str>,
+        range: nocter_source::TextRange,
     }
 
     fn assert_query_reused(before: (u64, u64), after: (u64, u64)) {
@@ -1321,10 +1342,44 @@ mod tests {
             .iter()
             .map(|source| (source.name().as_str().into(), source.text().into()))
             .collect();
+        let diagnostics = snapshot
+            .diagnostics()
+            .iter()
+            .map(|diagnostic| DiagnosticSignature {
+                code: diagnostic.code().into(),
+                message: diagnostic.message().into(),
+                primary: diagnostic_origin_signature(snapshot.sources(), diagnostic.primary()),
+                notes: diagnostic
+                    .notes()
+                    .iter()
+                    .map(|note| {
+                        (
+                            note.message().into(),
+                            diagnostic_origin_signature(snapshot.sources(), note.origin()),
+                        )
+                    })
+                    .collect(),
+                help: diagnostic.help().map(Into::into),
+                repair: diagnostic.repair().cloned(),
+            })
+            .collect();
         AnalysisSignature {
             status: snapshot.status(),
-            diagnostics: snapshot.diagnostics().to_vec(),
+            diagnostics,
             sources,
+        }
+    }
+
+    fn diagnostic_origin_signature(
+        sources: &nocter_source::SourceMap,
+        origin: nocter_diagnostics::DiagnosticOrigin,
+    ) -> DiagnosticOriginSignature {
+        let source = sources
+            .get(origin.source())
+            .expect("a published diagnostic source belongs to its analysis snapshot");
+        DiagnosticOriginSignature {
+            source: source.name().as_str().into(),
+            range: origin.span().range(),
         }
     }
 

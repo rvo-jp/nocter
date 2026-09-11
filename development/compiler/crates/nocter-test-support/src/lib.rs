@@ -896,7 +896,9 @@ impl CompilerFixture {
         .with_toolchain(toolchain);
         if self.app_is_package {
             let source = self.sources.get(self.app.source()).unwrap();
-            let declaration = nocter_package::decode_package_declaration(source, &self.app)
+            let syntax = nocter_syntax::BoundSyntax::new(source, &self.app)
+                .expect("test fixture syntax belongs to its source map");
+            let declaration = nocter_package::decode_package_declaration(syntax)
                 .expect("test fixture package source is valid");
             let target = declaration
                 .targets()

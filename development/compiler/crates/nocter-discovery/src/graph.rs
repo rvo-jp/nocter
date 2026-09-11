@@ -182,7 +182,7 @@ impl<'syntax> Builder<'syntax> {
             source_visibility_resolutions: Vec::new(),
             use_resolutions: Vec::new(),
             package_target_resolutions,
-            target_selection: TargetSelectionBuilder::new(),
+            target_selection: TargetSelectionBuilder::new(target),
             pending,
             toolchain,
             source_syntax,
@@ -360,19 +360,7 @@ impl<'syntax> Builder<'syntax> {
         )?;
         let canonical_name = canonical_text(&path)?;
         let syntax_index = if let Some(source) = self.sources.find_by_name(&canonical_name) {
-            let parsed = self
-                .source_syntax
-                .parsed_syntax(source, ParseGoal::SourceFile)
-                .map_err(|error| DiscoveryError::SourceSyntax {
-                    path: path.clone(),
-                    error,
-                })?;
-            let tree = parsed
-                .bind(source)
-                .ok_or(DiscoveryError::InconsistentSourceSnapshot(source.id()))?;
-            let index = self.syntax.len();
-            self.syntax.push(tree);
-            index
+            retained_syntax_index(&self.syntax, source.id())?
         } else {
             load_source(
                 &self.source_overlay,
@@ -395,7 +383,7 @@ impl<'syntax> Builder<'syntax> {
 
         let tree = &self.syntax[syntax_index];
         self.target_selection
-            .include_tree(self.target, &self.sources, tree)
+            .include_tree(&self.sources, tree)
             .map_err(DiscoveryError::TargetSelection)?;
         let source = self.sources.get(tree.source()).ok_or_else(|| {
             DiscoveryError::TargetSelection(
@@ -815,6 +803,24 @@ fn load_source(
         .ok_or(DiscoveryError::InconsistentSourceSnapshot(source))?;
     let index = syntax.len();
     syntax.push(tree);
+    Ok(index)
+}
+
+fn retained_syntax_index(
+    syntax: &[SyntaxTree],
+    source: nocter_source::SourceId,
+) -> Result<usize, DiscoveryError> {
+    let mut matching = syntax
+        .iter()
+        .enumerate()
+        .filter(|(_, tree)| tree.source() == source)
+        .map(|(index, _)| index);
+    let index = matching
+        .next()
+        .ok_or(DiscoveryError::InconsistentSourceSnapshot(source))?;
+    if matching.next().is_some() {
+        return Err(DiscoveryError::InconsistentSourceSnapshot(source));
+    }
     Ok(index)
 }
 

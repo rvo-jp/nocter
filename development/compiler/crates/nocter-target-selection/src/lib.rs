@@ -6,26 +6,27 @@ use nocter_model::CompilationTarget;
 use nocter_source::{SourceId, SourceMap};
 use nocter_syntax::{NodeId, NodeKind, SyntaxTree, child_node_iter, direct_node, node_is_complete};
 
-type SyntaxKey = (SourceId, usize);
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TargetSelectionError {
     MissingSource(SourceId),
     InconsistentSyntax(SourceId),
+    InconsistentSnapshot,
     UnknownTarget(NodeId),
 }
 
 /// The immutable item/use activity decision shared by discovery and semantic lowering.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct TargetSelection {
-    item_targets: BTreeMap<SyntaxKey, CompilationTarget>,
-    inactive_items: BTreeSet<SyntaxKey>,
-    inactive_uses: BTreeSet<SyntaxKey>,
+    target: CompilationTarget,
+    syntax_roots: Vec<NodeId>,
+    item_targets: BTreeMap<NodeId, CompilationTarget>,
+    inactive_items: BTreeSet<NodeId>,
+    inactive_uses: BTreeSet<NodeId>,
     authored_error: Option<TargetSelectionError>,
 }
 
 /// Sole incremental construction authority used while discovery closes a package graph.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TargetSelectionBuilder {
     selection: TargetSelection,
 }
@@ -43,27 +44,50 @@ impl TargetSelection {
         sources: &SourceMap,
         trees: impl IntoIterator<Item = &'tree SyntaxTree>,
     ) -> Result<Self, TargetSelectionError> {
-        let mut builder = TargetSelectionBuilder::new();
+        let mut builder = TargetSelectionBuilder::new(target);
         for tree in trees {
-            builder.include_tree(target, sources, tree)?;
+            builder.include_tree(sources, tree)?;
         }
         Ok(builder.finish())
     }
 
+    /// Reports whether this decision belongs to the exact target, source map, and syntax snapshots
+    /// supplied by one compile input.
+    #[must_use]
+    pub fn matches<'tree>(
+        &self,
+        target: CompilationTarget,
+        sources: &SourceMap,
+        trees: impl IntoIterator<Item = &'tree SyntaxTree>,
+    ) -> bool {
+        let mut roots = Vec::new();
+        for tree in trees {
+            let Some(source) = sources.get(tree.source()) else {
+                return false;
+            };
+            if nocter_syntax::BoundSyntax::new(source, tree).is_none() {
+                return false;
+            }
+            roots.push(tree.root_id());
+        }
+        roots.sort_unstable();
+        self.target == target && self.syntax_roots == roots
+    }
+
     #[must_use]
     pub fn item_is_active(&self, item: NodeId) -> bool {
-        !self.inactive_items.contains(&key(item))
+        self.contains_node(item) && !self.inactive_items.contains(&item)
     }
 
     /// Returns the normalized target named by one gated item.
     #[must_use]
     pub fn item_target(&self, item: NodeId) -> Option<CompilationTarget> {
-        self.item_targets.get(&key(item)).copied()
+        self.item_targets.get(&item).copied()
     }
 
     #[must_use]
     pub fn use_is_active(&self, declaration: NodeId) -> bool {
-        !self.inactive_uses.contains(&key(declaration))
+        self.contains_node(declaration) && !self.inactive_uses.contains(&declaration)
     }
 
     /// Returns the first source-authored target error retained by this selection.
@@ -76,18 +100,33 @@ impl TargetSelection {
         self.authored_error
     }
 
+    fn contains_node(&self, node: NodeId) -> bool {
+        self.syntax_roots
+            .iter()
+            .any(|root| root.shares_tree_with(node))
+    }
+
     fn collect_tree(
         &mut self,
-        target: CompilationTarget,
         sources: &SourceMap,
         tree: &SyntaxTree,
     ) -> Result<(), TargetSelectionError> {
+        if self
+            .syntax_roots
+            .iter()
+            .any(|root| root.source() == tree.source())
+        {
+            return Err(TargetSelectionError::InconsistentSnapshot);
+        }
         if tree.root().kind() != NodeKind::SourceFile {
             return Ok(());
         }
         let source = sources
             .get(tree.source())
             .ok_or(TargetSelectionError::MissingSource(tree.source()))?;
+        let syntax = nocter_syntax::BoundSyntax::new(source, tree)
+            .ok_or(TargetSelectionError::InconsistentSyntax(tree.source()))?;
+        self.syntax_roots.push(tree.root_id());
         for child in child_node_iter(tree, tree.root_id()) {
             if tree
                 .node(child)
@@ -104,7 +143,7 @@ impl TargetSelection {
             }
             let literal = descendant(tree, gate, NodeKind::StringLiteral)
                 .ok_or(TargetSelectionError::InconsistentSyntax(tree.source()))?;
-            let name = nocter_syntax::decode_string_literal(source, tree, literal)
+            let name = nocter_syntax::decode_string_literal(syntax, literal)
                 .ok_or(TargetSelectionError::InconsistentSyntax(tree.source()))?;
             let Some(selected) = CompilationTarget::from_name(&name) else {
                 if self.authored_error.is_none() {
@@ -113,8 +152,8 @@ impl TargetSelection {
                 self.deactivate_item(tree, child)?;
                 continue;
             };
-            self.item_targets.insert(key(child), selected);
-            if selected != target {
+            self.item_targets.insert(child, selected);
+            if selected != self.target {
                 self.deactivate_item(tree, child)?;
             }
         }
@@ -126,7 +165,7 @@ impl TargetSelection {
         tree: &SyntaxTree,
         item: NodeId,
     ) -> Result<(), TargetSelectionError> {
-        self.inactive_items.insert(key(item));
+        self.inactive_items.insert(item);
         self.collect_inactive_uses(tree, item)
     }
 
@@ -144,7 +183,7 @@ impl TargetSelection {
                 kind,
                 NodeKind::UseDeclaration | NodeKind::BlockUseDeclaration
             ) {
-                self.inactive_uses.insert(key(node));
+                self.inactive_uses.insert(node);
             }
         }
         Ok(())
@@ -153,8 +192,17 @@ impl TargetSelection {
 
 impl TargetSelectionBuilder {
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(target: CompilationTarget) -> Self {
+        Self {
+            selection: TargetSelection {
+                target,
+                syntax_roots: Vec::new(),
+                item_targets: BTreeMap::new(),
+                inactive_items: BTreeSet::new(),
+                inactive_uses: BTreeSet::new(),
+                authored_error: None,
+            },
+        }
     }
 
     /// Extends this authority with one newly discovered syntax tree.
@@ -165,11 +213,10 @@ impl TargetSelectionBuilder {
     /// inside the selection as inactive-item evidence.
     pub fn include_tree(
         &mut self,
-        target: CompilationTarget,
         sources: &SourceMap,
         tree: &SyntaxTree,
     ) -> Result<(), TargetSelectionError> {
-        self.selection.collect_tree(target, sources, tree)
+        self.selection.collect_tree(sources, tree)
     }
 
     /// Borrows the decisions completed so far for dependency traversal.
@@ -179,13 +226,10 @@ impl TargetSelectionBuilder {
     }
 
     #[must_use]
-    pub fn finish(self) -> TargetSelection {
+    pub fn finish(mut self) -> TargetSelection {
+        self.selection.syntax_roots.sort_unstable();
         self.selection
     }
-}
-
-const fn key(node: NodeId) -> SyntaxKey {
-    (node.source(), node.index())
 }
 
 fn descendant(tree: &SyntaxTree, node: NodeId, kind: NodeKind) -> Option<NodeId> {
@@ -330,6 +374,99 @@ mod tests {
             Some(TargetSelectionError::UnknownTarget(_))
         ));
         assert!(!selection.item_is_active(items[0]));
+    }
+
+    #[test]
+    fn rejects_a_tree_from_an_independent_source_map_with_the_same_index() {
+        let mut first = SourceMap::new();
+        let first_id = first
+            .add_bytes(
+                SourceName::new("first.nct"),
+                b"#target: \"x64-linux\"\nfunc value(): void { return }\n",
+            )
+            .unwrap();
+        let tree = parse(first.get(first_id).unwrap(), ParseGoal::SourceFile);
+        let mut second = SourceMap::new();
+        let second_id = second
+            .add_bytes(
+                SourceName::new("second.nct"),
+                b"#target: \"x64-linux\"\nfunc value(): void { return }\n",
+            )
+            .unwrap();
+
+        assert_eq!(first_id.index(), second_id.index());
+        assert!(matches!(
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &second, [&tree]),
+            Err(TargetSelectionError::MissingSource(source)) if source == first_id
+        ));
+    }
+
+    #[test]
+    fn selection_records_its_target_and_exact_syntax_snapshots() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("source.nct"),
+                b"func value(): void { return }\n",
+            )
+            .unwrap();
+        let tree = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        let selection =
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&tree]).unwrap();
+
+        assert!(selection.matches(CompilationTarget::Arm64Darwin, &sources, [&tree]));
+        assert!(!selection.matches(CompilationTarget::X64Linux, &sources, [&tree]));
+        assert!(!selection.matches(CompilationTarget::Arm64Darwin, &sources, []));
+        let reparsed = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        assert!(!selection.matches(CompilationTarget::Arm64Darwin, &sources, [&reparsed]));
+
+        let mut foreign_sources = SourceMap::new();
+        foreign_sources
+            .add_bytes(
+                SourceName::new("source.nct"),
+                b"func value(): void { return }\n",
+            )
+            .unwrap();
+        assert!(!selection.matches(CompilationTarget::Arm64Darwin, &foreign_sources, [&tree]));
+    }
+
+    #[test]
+    fn activity_from_one_parse_cannot_apply_to_a_reparsed_tree() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("source.nct"),
+                b"#target: \"x64-linux\"\nfunc value(): void { return }\n",
+            )
+            .unwrap();
+        let first = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        let second = parse(sources.get(source).unwrap(), ParseGoal::SourceFile);
+        let selection =
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&first]).unwrap();
+        let first_item = descendants_of_kind(&first, NodeKind::Item)[0];
+        let second_item = descendants_of_kind(&second, NodeKind::Item)[0];
+
+        assert!(!selection.item_is_active(first_item));
+        assert!(!selection.item_is_active(second_item));
+    }
+
+    #[test]
+    fn one_selection_cannot_admit_two_trees_for_the_same_source() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_bytes(
+                SourceName::new("source.nct"),
+                b"func value(): void { return }\n",
+            )
+            .unwrap();
+        let file = sources.get(source).unwrap();
+        let first = parse(file, ParseGoal::SourceFile);
+        let second = parse(file, ParseGoal::SourceFile);
+
+        assert!(matches!(
+            TargetSelection::prepare(CompilationTarget::Arm64Darwin, &sources, [&first, &second]),
+            Err(TargetSelectionError::InconsistentSnapshot)
+        ));
     }
 
     fn descendants_of_kind(tree: &SyntaxTree, kind: NodeKind) -> Vec<NodeId> {

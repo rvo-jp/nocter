@@ -116,7 +116,7 @@ fn encode_resolutions(
         if !ownership.contains(&declaration.source()) {
             return Err(SemanticTopologyError::UnknownResolutionSource(declaration));
         }
-        if !declarations.insert((declaration.source(), declaration.index())) {
+        if !declarations.insert(declaration) {
             return Err(SemanticTopologyError::DuplicateResolution(declaration));
         }
     }

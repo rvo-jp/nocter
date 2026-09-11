@@ -151,7 +151,9 @@ fn evaluate_constants(
                 )
             })?;
         let (file, tree) = syntax_input(bindings, source_ids, source.initializer)?;
-        let plan = plan_expression(target, file, tree, source.initializer, expected, resolver)
+        let syntax = nocter_syntax::BoundSyntax::new(file, tree)
+            .ok_or_else(|| inconsistent_node(source.initializer))?;
+        let plan = plan_expression(target, syntax, source.initializer, expected, resolver)
             .map_err(plan_error)?;
         plans.insert(id, plan);
     }
@@ -169,8 +171,10 @@ fn evaluate_array_lengths(
     let mut array_lengths = HashMap::new();
     for expression in collect_array_expressions(bindings) {
         let (file, tree) = syntax_input(bindings, source_ids, expression)?;
-        let plan = plan_expression(target, file, tree, expression, usize_ty, resolver)
-            .map_err(plan_error)?;
+        let syntax = nocter_syntax::BoundSyntax::new(file, tree)
+            .ok_or_else(|| inconsistent_node(expression))?;
+        let plan =
+            plan_expression(target, syntax, expression, usize_ty, resolver).map_err(plan_error)?;
         let value = evaluate_expression_plan(&plan, |id| values.get(&id).cloned())
             .map_err(evaluation_error)?;
         let ConstantValue::Integer(value) = value else {
@@ -213,9 +217,10 @@ fn evaluate_statics(
                 )
             })?;
         let (file, tree) = syntax_input(bindings, source_ids, source.initializer)?;
-        let plan =
-            plan_frozen_expression(target, file, tree, source.initializer, &expected, resolver)
-                .map_err(plan_error)?;
+        let syntax = nocter_syntax::BoundSyntax::new(file, tree)
+            .ok_or_else(|| inconsistent_node(source.initializer))?;
+        let plan = plan_frozen_expression(target, syntax, source.initializer, &expected, resolver)
+            .map_err(plan_error)?;
         let value =
             evaluate_frozen_expression_plan(&plan, &mut |constant| values.get(&constant).cloned())
                 .map_err(evaluation_error)?;

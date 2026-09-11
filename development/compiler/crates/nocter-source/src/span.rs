@@ -1,24 +1,67 @@
 use std::fmt;
 
-/// Stable identity of one source added to a [`crate::SourceMap`].
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct SourceId(u32);
+/// Stable identity of one physical source value in a [`crate::SourceIdentityDomain`].
+///
+/// The numeric index is meaningful only inside a map that contains this exact identity. Equality
+/// and ordering also include an opaque issuance identity. A revision family may retain the full
+/// identity across metadata-only generations; a content transition always receives a new one.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+pub struct SourceId(u64);
 
 impl SourceId {
-    pub(crate) const fn from_index(index: u32) -> Self {
-        Self(index)
+    pub(crate) const fn new(index: u32, identity: u32) -> Self {
+        Self(((identity as u64) << 32) | index as u64)
     }
 
     /// Returns the zero-based source-map index.
     #[must_use]
     pub const fn index(self) -> u32 {
-        self.0
+        let bytes = self.0.to_le_bytes();
+        u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
+    }
+
+    /// Returns the complete process-local identity used by internal invalidation products.
+    ///
+    /// These bytes are not a stable serialization format and must never enter diagnostics or
+    /// generated artifacts.
+    #[must_use]
+    pub const fn identity_bytes(self) -> [u8; 8] {
+        self.0.to_be_bytes()
+    }
+}
+
+impl Ord for SourceId {
+    fn cmp(&self, another: &Self) -> std::cmp::Ordering {
+        // Semantic traversal orders sources by their current immutable map positions. The opaque
+        // issuance identity is only a total-order tiebreaker for foreign values; allowing it to
+        // lead this comparison would make current semantic order depend on process history.
+        self.index()
+            .cmp(&another.index())
+            .then_with(|| self.0.cmp(&another.0))
+    }
+}
+
+impl PartialOrd for SourceId {
+    fn partial_cmp(&self, another: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(another))
+    }
+}
+
+impl fmt::Debug for SourceId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The issuance identity is intentionally opaque and process-local. Keeping it out of
+        // diagnostics and snapshots preserves deterministic presentation while equality still
+        // enforces ownership.
+        formatter
+            .debug_tuple("SourceId")
+            .field(&self.index())
+            .finish()
     }
 }
 
 impl fmt::Display for SourceId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "source:{}", self.0)
+        write!(formatter, "source:{}", self.index())
     }
 }
 

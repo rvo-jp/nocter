@@ -331,7 +331,10 @@ mod tests {
             .unwrap();
         let normalized = sources.get(source_id).unwrap();
         let syntax = parse(normalized, ParseGoal::SourceFile);
-        let declaration = decode_package_declaration(normalized, &syntax).unwrap();
+        let declaration = decode_package_declaration(
+            nocter_syntax::BoundSyntax::new(normalized, &syntax).unwrap(),
+        )
+        .unwrap();
         let selections = selections
             .iter()
             .map(|(alias, selection)| (Box::<str>::from(*alias), selection.clone()))

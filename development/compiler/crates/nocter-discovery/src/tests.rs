@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use nocter_compile_input::{
@@ -11,7 +12,7 @@ use nocter_model::{BuiltinType, CompilationTarget, PackageIdentity};
 use nocter_package::{PackageRootCatalog, ResolvedPackageGraph, ResolvedPackageSpec};
 use nocter_runtime_contract::{PrimitiveRole, RuntimeStorageRole};
 use nocter_standard_profile::bundled_standard_toolchain;
-use nocter_syntax::{DirectSourceSyntax, NodeKind};
+use nocter_syntax::{DirectSourceSyntax, NodeKind, SourceSyntaxProvider};
 use nocter_toolchain_contract::StandardDeclarationRole;
 
 use crate::{
@@ -26,6 +27,23 @@ static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
 fn discover(request: DiscoveryRequest) -> Result<DiscoveredUnit, DiscoveryFailure> {
     discover_with_source_syntax(request, &mut DirectSourceSyntax)
+}
+
+#[derive(Default)]
+struct CountingSourceSyntax {
+    direct: DirectSourceSyntax,
+    calls: usize,
+}
+
+impl SourceSyntaxProvider for CountingSourceSyntax {
+    fn parsed_syntax(
+        &mut self,
+        source: &nocter_source::SourceFile,
+        goal: nocter_syntax::ParseGoal,
+    ) -> Result<Arc<nocter_syntax::ParsedSyntax>, nocter_syntax::SourceSyntaxError> {
+        self.calls += 1;
+        self.direct.parsed_syntax(source, goal)
+    }
 }
 
 const TEST_BUILTIN_SOURCE: &str = "\
@@ -93,6 +111,7 @@ fn package_graph_with_overlay(
     ResolvedPackageGraph::load_with_root_catalog(
         packages,
         PackageRootCatalog::new(overlay),
+        nocter_source::SourceIdentityDomain::new(),
         &mut DirectSourceSyntax,
     )
     .unwrap()
@@ -110,6 +129,41 @@ fn minimal_toolchain(package: &str) -> ToolchainInput {
         Vec::new(),
         Vec::new(),
     )
+}
+
+#[test]
+fn discovery_reuses_the_package_graphs_exact_root_syntax() {
+    let tree = TempTree::new();
+    tree.source(
+        "app/index.nct",
+        "#package: { name: \"app\", version: \"0.0.0\", }\n",
+    );
+    let root = fs::canonicalize(tree.path().join("app")).unwrap();
+    let identity = PackageIdentity::new("workspace:app");
+    let mut source_syntax = CountingSourceSyntax::default();
+    let graph = ResolvedPackageGraph::load_with_root_catalog(
+        vec![ResolvedPackageSpec::new(identity.clone(), root)],
+        PackageRootCatalog::new(SourceOverlay::empty()),
+        nocter_source::SourceIdentityDomain::new(),
+        &mut source_syntax,
+    )
+    .unwrap();
+    let retained_root = graph.syntax_trees()[0].root_id();
+
+    let unit = discover_with_source_syntax(
+        DiscoveryRequest::declared(
+            CompilationTarget::Arm64Darwin,
+            graph,
+            vec![ModuleIdentity::new(identity.clone(), Vec::<&str>::new())],
+            minimal_toolchain(identity.as_str()),
+        ),
+        &mut source_syntax,
+    )
+    .unwrap();
+
+    assert_eq!(source_syntax.calls, 1);
+    assert_eq!(unit.syntax_trees().len(), 1);
+    assert_eq!(unit.syntax_trees()[0].root_id(), retained_root);
 }
 
 fn root_builtin_toolchain(package: &str) -> ToolchainInput {

@@ -7,7 +7,7 @@ use nocter_model::{ModuleId, SymbolTable};
 use nocter_runtime_contract::{PrimitiveBinding, TargetServiceBinding};
 use nocter_source::SourceId;
 use nocter_source_index::SourceIndex;
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, TokenKind};
+use nocter_syntax::{BoundSyntax, NodeId, NodeKind, SyntaxElement, TokenKind};
 
 use crate::package_source::validate_package_directive_ownership;
 use crate::{
@@ -17,8 +17,8 @@ use crate::{
 };
 use nocter_target_selection::{TargetSelection, TargetSelectionError};
 
-pub(crate) type SourceVisibilityResolutionKey = (SourceId, usize);
-pub(crate) type UseResolutionKey = (SourceId, usize);
+pub(crate) type SourceVisibilityResolutionKey = NodeId;
+pub(crate) type UseResolutionKey = NodeId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum UseScope {
@@ -269,6 +269,7 @@ pub enum LoweringError {
     MissingSource(SourceId),
     InvalidModuleSource(Box<str>),
     InconsistentSyntax(SourceId),
+    InconsistentTargetSelection,
     MissingCollectedSymbol(Box<str>),
     InvalidModuleSegment(Box<str>),
     InvalidModuleLayout(ModuleIdentity),
@@ -333,6 +334,9 @@ impl fmt::Display for LoweringError {
             }
             Self::InconsistentSyntax(source) => {
                 write!(formatter, "{source} has syntax outside its source snapshot")
+            }
+            Self::InconsistentTargetSelection => {
+                formatter.write_str("target selection belongs to another compile snapshot")
             }
             Self::MissingCollectedSymbol(spelling) => {
                 write!(formatter, "collected symbol table is missing {spelling}")
@@ -457,6 +461,7 @@ pub(crate) fn prepare_compile_unit<'input, 'syntax>(
         TargetSelectionError::InconsistentSyntax(source) => {
             LoweringError::InconsistentSyntax(source)
         }
+        TargetSelectionError::InconsistentSnapshot => LoweringError::InconsistentTargetSelection,
         TargetSelectionError::UnknownTarget(literal) => LoweringError::UnknownTargetGate(literal),
     })?;
     let package_target_resolutions =
@@ -994,8 +999,8 @@ fn module_cycle_witness(
     Some(imports)
 }
 
-const fn resolution_key(declaration: NodeId) -> (SourceId, usize) {
-    (declaration.source(), declaration.index())
+const fn resolution_key(declaration: NodeId) -> NodeId {
+    declaration
 }
 
 fn collect_symbols(
@@ -1049,7 +1054,9 @@ fn collect_tree_symbols(
                     continue;
                 }
                 if kind == NodeKind::StringLiteral {
-                    let decoded = nocter_syntax::decode_string_literal(source, tree, node)
+                    let bound = BoundSyntax::new(source, tree)
+                        .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
+                    let decoded = nocter_syntax::decode_string_literal(bound, node)
                         .ok_or(LoweringError::InconsistentSyntax(tree.source()))?;
                     spellings.push(decoded);
                     continue;

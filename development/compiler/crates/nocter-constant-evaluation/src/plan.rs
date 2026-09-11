@@ -3,8 +3,7 @@ use std::collections::HashMap;
 use nocter_model::{
     BuiltinType, CompilationTarget, ConstantValue, lossless_builtin_numeric_conversion,
 };
-use nocter_source::SourceFile;
-use nocter_syntax::{FloatLiteralSpelling, SyntaxOrigin};
+use nocter_syntax::{BoundSyntax, FloatLiteralSpelling, SyntaxOrigin};
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, Punctuation, SyntaxTree, TokenKind, decode_character_literal,
     decode_plain_string_expression, direct_node, first_direct_token,
@@ -21,8 +20,7 @@ use crate::support::{
 };
 
 struct Planner<'a, R> {
-    source: &'a SourceFile,
-    tree: &'a SyntaxTree,
+    syntax: BoundSyntax<'a>,
     resolver: &'a mut R,
     types: HashMap<NodeId, ConstantScalarType>,
     references: HashMap<NodeId, ConstantReference>,
@@ -88,15 +86,17 @@ impl ScalarHint {
 /// identity when the supplied source, tree, and expression do not describe one coherent input.
 pub fn plan_expression<R: ConstantResolver>(
     target: CompilationTarget,
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     expression: NodeId,
     expected: ConstantScalarType,
     resolver: &mut R,
 ) -> Result<ConstantExpressionPlan, ConstantPlanError<R::Error>> {
+    let tree = syntax.tree();
+    if tree.node(expression).is_none() {
+        return Err(ConstantPlanError::InvalidSyntax(expression));
+    }
     let mut planner = Planner {
-        source,
-        tree,
+        syntax,
         resolver,
         types: HashMap::new(),
         references: HashMap::new(),
@@ -123,17 +123,17 @@ pub fn plan_expression<R: ConstantResolver>(
 /// shape is reported as a type mismatch at the initializer node.
 pub fn plan_frozen_expression<R: ConstantResolver>(
     target: CompilationTarget,
-    source: &SourceFile,
-    tree: &SyntaxTree,
+    syntax: BoundSyntax<'_>,
     expression: NodeId,
     expected: &FrozenType,
     resolver: &mut R,
 ) -> Result<FrozenExpressionPlan, ConstantPlanError<R::Error>> {
+    let tree = syntax.tree();
     let semantic =
         unwrap_expression(tree, expression).ok_or(ConstantPlanError::InvalidSyntax(expression))?;
     match expected {
         FrozenType::Scalar(expected) => {
-            plan_expression(target, source, tree, expression, *expected, resolver)
+            plan_expression(target, syntax, expression, *expected, resolver)
                 .map(FrozenExpressionPlan::Scalar)
         }
         FrozenType::FixedArray { element, length } => {
@@ -154,7 +154,7 @@ pub fn plan_frozen_expression<R: ConstantResolver>(
             }
             let elements = children
                 .into_iter()
-                .map(|child| plan_frozen_expression(target, source, tree, child, element, resolver))
+                .map(|child| plan_frozen_expression(target, syntax, child, element, resolver))
                 .collect::<Result<Vec<_>, _>>()?
                 .into_boxed_slice();
             Ok(FrozenExpressionPlan::FixedArray {
@@ -186,12 +186,12 @@ impl<R: ConstantResolver> Planner<'_, R> {
         let kind = self.kind(node)?;
         let ty = match kind {
             NodeKind::Expression | NodeKind::GroupedExpression => {
-                let child = one_expression_child(self.tree, node)
+                let child = one_expression_child(self.syntax.tree(), node)
                     .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node))?;
                 self.analyze(child, expected)?
             }
             NodeKind::ScalarLiteral => {
-                let token = first_direct_token(self.tree, node)
+                let token = first_direct_token(self.syntax.tree(), node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 match token.kind() {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => ConstantScalarType::Bool,
@@ -201,7 +201,8 @@ impl<R: ConstantResolver> Planner<'_, R> {
                         .unwrap_or(ConstantScalarType::Integer(BuiltinType::I32)),
                     TokenKind::FloatLiteral => {
                         let authored = self
-                            .source
+                            .syntax
+                            .source()
                             .text_at(token.range())
                             .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                         let suffix = FloatLiteralSpelling::from_authored(authored)
@@ -225,9 +226,9 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 reference.ty()
             }
             NodeKind::UnaryExpression => {
-                let operator = direct_punctuation(self.tree, node)
+                let operator = direct_punctuation(self.syntax.tree(), node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
-                let operand = one_expression_child(self.tree, node)
+                let operand = one_expression_child(self.syntax.tree(), node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 match operator {
                     Punctuation::Bang => {
@@ -307,9 +308,9 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 ty
             }
             NodeKind::ConversionExpression => {
-                let operand = one_expression_child(self.tree, node)
+                let operand = one_expression_child(self.syntax.tree(), node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
-                let ty_node = direct_node(self.tree, node, NodeKind::Type)
+                let ty_node = direct_node(self.syntax.tree(), node, NodeKind::Type)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 let target = self
                     .conversion_type(ty_node)?
@@ -341,12 +342,12 @@ impl<R: ConstantResolver> Planner<'_, R> {
     fn scalar_hint(&mut self, node: NodeId) -> Result<ScalarHint, ConstantPlanError<R::Error>> {
         match self.kind(node)? {
             NodeKind::Expression | NodeKind::GroupedExpression => {
-                let child = one_expression_child(self.tree, node)
+                let child = one_expression_child(self.syntax.tree(), node)
                     .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node))?;
                 self.scalar_hint(child)
             }
             NodeKind::ScalarLiteral => {
-                let token = first_direct_token(self.tree, node)
+                let token = first_direct_token(self.syntax.tree(), node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 Ok(match token.kind() {
                     TokenKind::Keyword(Keyword::True | Keyword::False) => {
@@ -356,7 +357,8 @@ impl<R: ConstantResolver> Planner<'_, R> {
                     TokenKind::IntegerLiteral => ScalarHint::flexible_integer(),
                     TokenKind::FloatLiteral => {
                         let authored = self
-                            .source
+                            .syntax
+                            .source()
                             .text_at(token.range())
                             .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                         let suffix = FloatLiteralSpelling::from_authored(authored)
@@ -376,12 +378,12 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 .reference(node)
                 .map(|reference| ScalarHint::exact(reference.ty())),
             NodeKind::UnaryExpression => {
-                let operator = direct_punctuation(self.tree, node)
+                let operator = direct_punctuation(self.syntax.tree(), node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 if operator == Punctuation::Bang {
                     Ok(ScalarHint::exact(ConstantScalarType::Bool))
                 } else {
-                    let operand = one_expression_child(self.tree, node)
+                    let operand = one_expression_child(self.syntax.tree(), node)
                         .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                     self.scalar_hint(operand)
                 }
@@ -397,7 +399,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 self.merge_hints(operands[0], operands[1], node)
             }
             NodeKind::ConversionExpression => {
-                let ty_node = direct_node(self.tree, node, NodeKind::Type)
+                let ty_node = direct_node(self.syntax.tree(), node, NodeKind::Type)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?;
                 self.conversion_type(ty_node)?.map_or_else(
                     || Err(self.rule(ConstantPlanRule::NonConstantExpression, node)),
@@ -446,13 +448,13 @@ impl<R: ConstantResolver> Planner<'_, R> {
         let operation = match kind {
             NodeKind::Expression | NodeKind::GroupedExpression => {
                 return self.build(
-                    one_expression_child(self.tree, node)
+                    one_expression_child(self.syntax.tree(), node)
                         .ok_or(ConstantPlanError::InvalidSyntax(node))?,
                 );
             }
             NodeKind::ScalarLiteral => self.build_scalar_literal(node)?,
             NodeKind::StringExpression => ConstantOperation::Value(ConstantValue::Text(
-                decode_plain_string_expression(self.source, self.tree, node)
+                decode_plain_string_expression(self.syntax, node)
                     .ok_or_else(|| self.rule(ConstantPlanRule::NonConstantExpression, node))?,
             )),
             NodeKind::ReferenceExpression | NodeKind::PostfixExpression => {
@@ -465,10 +467,10 @@ impl<R: ConstantResolver> Planner<'_, R> {
                 )
             }
             NodeKind::UnaryExpression => ConstantOperation::Unary {
-                operator: direct_punctuation(self.tree, node)
+                operator: direct_punctuation(self.syntax.tree(), node)
                     .ok_or(ConstantPlanError::InvalidSyntax(node))?,
                 operand: self.build(
-                    one_expression_child(self.tree, node)
+                    one_expression_child(self.syntax.tree(), node)
                         .ok_or(ConstantPlanError::InvalidSyntax(node))?,
                 )?,
             },
@@ -481,7 +483,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
             | NodeKind::MultiplicativeExpression => {
                 let operands = self.binary_operands(node)?;
                 ConstantOperation::Binary {
-                    operator: direct_punctuation(self.tree, node)
+                    operator: direct_punctuation(self.syntax.tree(), node)
                         .ok_or(ConstantPlanError::InvalidSyntax(node))?,
                     left: self.build(operands[0])?,
                     right: self.build(operands[1])?,
@@ -489,7 +491,7 @@ impl<R: ConstantResolver> Planner<'_, R> {
             }
             NodeKind::ConversionExpression => ConstantOperation::Conversion {
                 operand: self.build(
-                    one_expression_child(self.tree, node)
+                    one_expression_child(self.syntax.tree(), node)
                         .ok_or(ConstantPlanError::InvalidSyntax(node))?,
                 )?,
             },
@@ -508,10 +510,11 @@ impl<R: ConstantResolver> Planner<'_, R> {
         &self,
         node: NodeId,
     ) -> Result<ConstantOperation, ConstantPlanError<R::Error>> {
-        let token =
-            first_direct_token(self.tree, node).ok_or(ConstantPlanError::InvalidSyntax(node))?;
+        let token = first_direct_token(self.syntax.tree(), node)
+            .ok_or(ConstantPlanError::InvalidSyntax(node))?;
         let authored = || {
-            self.source
+            self.syntax
+                .source()
                 .text_at(token.range())
                 .ok_or(ConstantPlanError::InvalidSyntax(node))
         };
@@ -565,20 +568,21 @@ impl<R: ConstantResolver> Planner<'_, R> {
     }
 
     fn binary_operands(&self, node: NodeId) -> Result<[NodeId; 2], ConstantPlanError<R::Error>> {
-        expression_children(self.tree, node)
+        expression_children(self.syntax.tree(), node)
             .try_into()
             .map_err(|_| ConstantPlanError::InvalidSyntax(node))
     }
 
     fn kind(&self, node: NodeId) -> Result<NodeKind, ConstantPlanError<R::Error>> {
-        self.tree
+        self.syntax
+            .tree()
             .node(node)
             .map(nocter_syntax::SyntaxNode::kind)
             .ok_or(ConstantPlanError::InvalidSyntax(node))
     }
 
     fn rule(&self, rule: ConstantPlanRule, node: NodeId) -> ConstantPlanError<R::Error> {
-        debug_assert_eq!(node.source(), self.tree.source());
+        debug_assert_eq!(node.source(), self.syntax.tree().source());
         ConstantPlanError::Rule {
             rule,
             origin: SyntaxOrigin::Node(node),

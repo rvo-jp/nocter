@@ -2024,6 +2024,7 @@ dependencies = [
  "nocter-package",
  "nocter-runtime-contract",
  "nocter-session",
+ "nocter-source",
  "nocter-source-index",
  "nocter-standard-profile",
  "nocter-syntax",
@@ -2074,6 +2075,7 @@ dependencies = [
  "nocter-model",
  "nocter-package",
  "nocter-package-cache",
+ "nocter-source",
  "nocter-syntax",
 ]
 

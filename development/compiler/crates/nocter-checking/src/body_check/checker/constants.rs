@@ -39,10 +39,11 @@ impl BodyChecker<'_, '_> {
         let tree = self.tree().clone();
         let plan = {
             let mut resolver = BodyConstantResolver { checker: self };
+            let syntax = nocter_syntax::BoundSyntax::new(&source, &tree)
+                .ok_or(BodyCheckInternalError::InvalidSyntax(expression))?;
             plan_expression(
                 resolver.checker.graph.target(),
-                &source,
-                &tree,
+                syntax,
                 expression,
                 ConstantScalarType::Integer(BuiltinType::Usize),
                 &mut resolver,

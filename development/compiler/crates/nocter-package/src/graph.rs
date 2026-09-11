@@ -205,6 +205,7 @@ impl ResolvedPackageGraph {
         Self::load_with_root_catalog(
             specs,
             PackageRootCatalog::new(source_overlay),
+            nocter_source::SourceIdentityDomain::new(),
             &mut DirectSourceSyntax,
         )
     }
@@ -218,6 +219,7 @@ impl ResolvedPackageGraph {
     pub fn load_with_root_catalog(
         mut specs: Vec<ResolvedPackageSpec>,
         package_roots: PackageRootCatalog,
+        source_identity_domain: nocter_source::SourceIdentityDomain,
         source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<Self, PackageGraphError> {
         specs.sort_unstable_by(|left, right| left.identity.cmp(&right.identity));
@@ -227,7 +229,7 @@ impl ResolvedPackageGraph {
                 return Err(PackageGraphError::DuplicatePackage(spec.identity.clone()));
             }
         }
-        let mut builder = PackageGraphBuilder::new(package_roots);
+        let mut builder = PackageGraphBuilder::new(package_roots, source_identity_domain);
         let mut edges = BTreeMap::new();
         for spec in specs {
             let identity = spec.identity.clone();
@@ -328,10 +330,13 @@ pub(crate) struct PackageGraphBuilder {
 }
 
 impl PackageGraphBuilder {
-    pub(crate) fn new(package_roots: PackageRootCatalog) -> Self {
+    pub(crate) fn new(
+        package_roots: PackageRootCatalog,
+        source_identity_domain: nocter_source::SourceIdentityDomain,
+    ) -> Self {
         Self {
             package_roots: package_roots.into_builder(),
-            sources: SourceMap::new(),
+            sources: SourceMap::in_identity_domain(source_identity_domain),
             syntax: Vec::new(),
             packages: BTreeMap::new(),
             roots: BTreeMap::new(),
@@ -549,7 +554,9 @@ fn load_package(
         let source = sources
             .get(source_id)
             .expect("parsed package source remains in the source map");
-        Some(decode_package_declaration(source, tree).map_err(PackageGraphError::Declaration)?)
+        let syntax = nocter_syntax::BoundSyntax::new(source, tree)
+            .ok_or_else(|| PackageGraphError::InconsistentRootSyntax(declaration_path.clone()))?;
+        Some(decode_package_declaration(syntax).map_err(PackageGraphError::Declaration)?)
     };
     let display_name = declaration
         .as_ref()
@@ -1059,6 +1066,7 @@ mod tests {
         let graph = ResolvedPackageGraph::load_with_root_catalog(
             vec![ResolvedPackageSpec::new(identity("app"), root)],
             catalog.finish(),
+            nocter_source::SourceIdentityDomain::new(),
             &mut source_syntax,
         )
         .unwrap();

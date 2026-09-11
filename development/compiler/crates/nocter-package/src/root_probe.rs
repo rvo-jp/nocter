@@ -8,8 +8,8 @@ use nocter_filesystem::SourceOverlay;
 use nocter_language::{MODULE_ROOT_FILE_NAME, PackageDirectiveName};
 use nocter_source::{SourceError, SourceMap, SourceName};
 use nocter_syntax::{
-    NodeKind, ParseGoal, ParsedSyntax, SourceSyntaxError, SourceSyntaxProvider, SyntaxElement,
-    SyntaxTree,
+    BoundSyntax, NodeKind, ParseGoal, ParsedSyntax, SourceSyntaxError, SourceSyntaxProvider,
+    SyntaxElement,
 };
 
 /// Immutable package-root facts selected from one exact source overlay.
@@ -166,7 +166,9 @@ impl PackageRootCatalogBuilder {
         let tree = syntax
             .bind(source_file)
             .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
-        let is_package = has_package_directive(source_file, &tree);
+        let syntax_view = BoundSyntax::new(source_file, &tree)
+            .ok_or_else(|| PackageRootProbeError::MissingSource(path.clone()))?;
+        let is_package = has_package_directive(syntax_view);
         Ok(Some(PackageRootSource {
             path,
             bytes: observed.bytes().into(),
@@ -213,7 +215,9 @@ impl PackageRootSource {
     }
 }
 
-fn has_package_directive(source: &nocter_source::SourceFile, syntax: &SyntaxTree) -> bool {
+fn has_package_directive(syntax: BoundSyntax<'_>) -> bool {
+    let source = syntax.source();
+    let syntax = syntax.tree();
     syntax.children(syntax.root_id()).iter().any(|element| {
         let SyntaxElement::Node(node) = element else {
             return false;
