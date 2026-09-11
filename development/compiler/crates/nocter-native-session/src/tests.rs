@@ -2667,7 +2667,7 @@ fn public_tls_and_https_reject_plain_peers_and_https_advertises_http1() {
 fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
     let main = if asynchronous {
         "async func main(): i32 {\n\
-             let timeout = Duration.from_milliseconds(20)\n\
+             let timeout = Duration.from_milliseconds(500)\n\
              if !await async_tls_times_out(timeout) { return 1 }\n\
              let client = Client.new()\n\
              if !await async_https_times_out(&client, timeout) { return 2 }\n\
@@ -2675,7 +2675,7 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
          }"
     } else {
         "blocking func main(): i32 {\n\
-             let timeout = Duration.from_milliseconds(20)\n\
+             let timeout = Duration.from_milliseconds(500)\n\
              if !sync_tls_times_out(timeout) { return 1 }\n\
              let client = Client.new()\n\
              if !sync_https_times_out(&client, timeout) { return 2 }\n\
@@ -2762,19 +2762,20 @@ fn tls_and_https_handshakes_share_the_fixed_timeout_contract() {
 
     let server = thread::spawn(move || {
         fixture.set_nonblocking(true).unwrap();
-        let deadline = Instant::now() + Duration::from_secs(5);
-        let mut accepted = 0;
-        while accepted < 4 && Instant::now() < deadline {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        let mut peers = Vec::new();
+        while peers.len() < 4 && Instant::now() < deadline {
             match fixture.accept() {
-                Ok((_stream, _)) => {
-                    accepted += 1;
-                    thread::sleep(Duration::from_millis(80));
-                }
+                Ok((stream, _)) => peers.push(stream),
                 Err(error) if error.kind() == ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(5));
                 }
                 Err(error) => panic!("failed to accept a TLS timeout peer: {error}"),
             }
+        }
+        let accepted = peers.len();
+        if accepted == 4 {
+            thread::sleep(Duration::from_secs(1));
         }
         accepted
     });
