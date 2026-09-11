@@ -10,10 +10,11 @@ tree for an explicit parse goal.
 The crate consumes `nocter-source` and the closed language vocabulary. It publishes token and node
 identities, source-preserving trees, documentation trivia, structural queries, literal decoding,
 syntax-owned subtree completeness, and a reusable parse product that binds only to equal normalized
-source text. It also publishes a canonical declaration-syntax surface that excludes body contents,
-trivia, and source identities without interpreting a declaration. Each pruned executable block is
-published separately as exact normalized body bytes keyed by its stable declaration-surface
-locator. Its source-syntax provider
+source text. Source-backed semantic helpers accept `BoundSyntax`, which proves the source file and
+tree share one exact source identity. It also publishes a canonical declaration-syntax surface
+that excludes body contents, trivia, and source identities without interpreting a declaration.
+Each pruned executable block is published separately as exact normalized body bytes keyed by its
+stable declaration-surface locator. Its source-syntax provider
 contract lets callers choose direct or revisioned parsing without exposing either mechanism to
 package or discovery code. It does not resolve names or apply semantic rules.
 
@@ -38,6 +39,9 @@ package or discovery code. It does not resolve names or apply semantic rules.
 ## Invariants
 
 - Every syntax token retains its lexical-token identity and exact normalized range.
+- Every independently built tree has an opaque identity carried by its `NodeId` values. Tree clones
+  retain that identity; a separate parse of the same source cannot lend nodes to the first tree.
+- `SourceId` and `NodeId` integrity tokens stay out of deterministic debug and presentation text.
 - Floating-literal suffix spelling is decomposed once by syntax. Semantic consumers map that
   lexical suffix to a type and send only the decimal component to target evaluation.
 - Contextual spellings remain identifier tokens; parser responsibilities select them through the

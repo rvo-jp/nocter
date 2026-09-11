@@ -7,9 +7,10 @@ workspace analysis.
 
 ## Contract
 
-The crate accepts atomic source revisions and returns a token bound to both the computation owner
-and the exact source-overlay generation. That token is required both to lend the computed syntax
-provider and to analyze a discovered unit. The crate
+The crate accepts atomic source revisions and returns a token bound to the computation owner, the
+exact source-overlay generation, and its source-identity domain. That token is required both to
+lend the computed syntax provider and to construct package source maps before analyzing a
+discovered unit. The crate
 derives and publishes semantic inputs from that exact unit, then demands the sole
 complete-or-incomplete semantic branch. It then seals that reusable branch with the exact current
 discovery unit outside the query cache. The publication types, semantic query entries, and sealing
@@ -44,6 +45,10 @@ interpret editor requests.
 - Semantic input publication may advance the internal database without invalidating the current
   source token; source authority and internal query revisions are separate identities.
 - One discovered unit supplies both semantic and exact-current fingerprints atomically.
+- The current-source fingerprint includes complete process-local source identities in addition to
+  paths and bytes. Metadata-only document generations retain those identities and may reuse
+  source-backed semantics; every content transition changes them, so reverting text cannot revive
+  an older source projection.
 - Query reuse owns semantic equivalence only. The returned unit-analysis envelope always retains
   the current discovery unit, so editor document versions, open-document state, and other overlay
   metadata cannot be inherited from an equivalent earlier source revision.

@@ -8,9 +8,10 @@ and freeze one deterministic package graph from an immutable filesystem view.
 ## Contract
 
 The crate reads package metadata and installed exact packages through the syntax-owned source
-provider contract but does not know whether parse work is direct or reused. It does not download,
-mutate lock state, choose compiler semantics, or publish files. Acquisition and mutation use
-separate crates.
+provider contract but does not know whether parse work is direct or reused. Its graph entry also
+receives the source-identity domain selected by compiler computation; package code uses the domain
+to ingest sources but does not create revision policy. It does not download, mutate lock state,
+choose compiler semantics, or publish files. Acquisition and mutation use separate crates.
 
 ## Internal Responsibilities
 
@@ -41,4 +42,5 @@ separate crates.
 - An effective provisional selection is checked against its dependency source before package lookup
   or acquisition can begin.
 - Production graph loading and resolution require a caller-owned syntax provider and retained root
-  catalog; convenience direct parsing is confined to tests.
+  catalog plus a caller-owned source-identity domain; convenience direct parsing and fresh domains
+  are confined to tests.
