@@ -33,6 +33,7 @@ under `development/history/`, not in current design documents.
 - [Performance Measurement Boundary](performance-measurement-design.md)
 - [Floating-Point Boundary](floating-point-design.md)
 - [Network I/O Boundary](network-io-design.md)
+- [Asynchronous Datagram I/O Boundary](asynchronous-datagram-io-design.md)
 - [Internet Client Foundation](internet-client-design.md)
 - [Asynchronous Computation Boundary](asynchronous-computation-design.md)
 - [Blocking Effect Boundary](blocking-effect-design.md)

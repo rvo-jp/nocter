@@ -153,6 +153,7 @@ TCP connection and transfer, boundary-preserving UDP, and monotonic synchronous 
 are implemented. Async host resolution and connection are one provider operation; the standard
 library does not materialize or retry a second address list on that path.
 Native public-surface qualification covers peer EOF, idle-read timeout, and backpressure during a
-timed complete write. Structured concurrency and explicit pending-child cancellation are not yet
-public. Asynchronous UDP remains open. URLs are provided by `std/url`. HTTP, TLS, and public
-nonblocking sockets remain outside this module.
+timed complete write. Structured race and timeout composition is public through `std/task`;
+standalone detached tasks and explicit task handles are not. Asynchronous UDP remains open. URLs
+are provided by `std/url`, while HTTP and TLS have separate public modules. No raw nonblocking
+socket mode is exposed.
