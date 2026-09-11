@@ -114,6 +114,7 @@ fn validate_binding(
     callable: CallableId,
 ) -> Result<(), PrimitiveContractError> {
     let contract = contract(role);
+    validate_role_effects(role, &contract).map_err(|rule| contract_error(role, callable, rule))?;
     let declaration = graph
         .declarations()
         .callables()
@@ -132,6 +133,17 @@ fn validate_binding(
             )
         })
         .map_err(|rule| contract_error(role, callable, rule))
+}
+
+fn validate_role_effects(
+    role: PrimitiveRole,
+    contract: &PrimitiveContract,
+) -> Result<(), PrimitiveContractRule> {
+    let returns_future = matches!(contract.result, TypeContract::Future(_));
+    if returns_future != role.effects().returns_drive_safe_future() {
+        return Err(PrimitiveContractRule::FutureDriveGuarantee);
+    }
+    Ok(())
 }
 
 fn contract_error(
@@ -1050,5 +1062,36 @@ fn contract(role: PrimitiveRole) -> PrimitiveContract {
         ),
         PrimitiveRole::Trap => make(0, vec![], never(), package, arm64_darwin, vec![]),
         PrimitiveRole::Unreachable => make(0, vec![], never(), private, arm64_darwin, vec![]),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PrimitiveContractRule, TypeContract, contract, validate_role_effects};
+    use crate::PrimitiveRole;
+
+    #[test]
+    fn every_future_primitive_contract_has_positive_drive_safety_evidence() {
+        for role in PrimitiveRole::ALL {
+            let contract = contract(*role);
+            let result = validate_role_effects(*role, &contract);
+            assert_eq!(
+                result,
+                Ok(()),
+                "primitive {} has an inconsistent future-drive contract",
+                role.name()
+            );
+            assert_eq!(
+                matches!(contract.result, TypeContract::Future(_)),
+                role.effects().returns_drive_safe_future(),
+            );
+        }
+
+        let mut invalid = contract(PrimitiveRole::MonotonicDeadline);
+        invalid.result = TypeContract::Builtin(nocter_model::BuiltinType::Void);
+        assert_eq!(
+            validate_role_effects(PrimitiveRole::MonotonicDeadline, &invalid),
+            Err(PrimitiveContractRule::FutureDriveGuarantee)
+        );
     }
 }

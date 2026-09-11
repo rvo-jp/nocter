@@ -34,6 +34,9 @@ checking decisions.
   in the standard package; its physical layout remains outside semantic representation.
 - Runtime-storage bindings are validated before primitive signatures that refer to them. An invalid
   prerequisite therefore cannot be reported as a downstream primitive mismatch.
+- Every primitive whose closed signature returns `future T` must carry runtime-contract evidence
+  that its drive and cancellation entries are nonblocking; certification on a non-future role is
+  rejected as the same contract inconsistency.
 - Executable specialization owns key construction; a consumer cannot pair a semantic identity with
   an unrelated specialization type store.
 - Reachability uses semantic identities, never runtime symbol spelling.

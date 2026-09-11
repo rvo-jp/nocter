@@ -21,6 +21,7 @@ pub enum PrimitiveContractRule {
     Requirements,
     AllocationGuarantee,
     BlockingGuarantee,
+    FutureDriveGuarantee,
     SupportingType,
 }
 
