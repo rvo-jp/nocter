@@ -147,7 +147,7 @@ impl InvocationError {
         if presentation.format != DiagnosticFormat::Json {
             return Ok(None);
         }
-        if presentation.command == "test" {
+        if presentation.command == nocter_command::DiagnosticCommand::Test {
             if let Some((diagnostics, sources)) = self.source_diagnostics() {
                 return crate::test_report::render_test_source_failure_json(
                     presentation.target,

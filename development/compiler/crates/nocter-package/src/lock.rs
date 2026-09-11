@@ -34,7 +34,7 @@ impl ExactDependencyLock {
             .ok_or(ExactDependencyLockError::InvalidArchiveDigest)
     }
 
-    pub(crate) fn validated(kind: ExactDependencyLockKind, value: &str) -> Self {
+    fn validated(kind: ExactDependencyLockKind, value: &str) -> Self {
         Self {
             kind,
             value: value.to_ascii_lowercase().into(),

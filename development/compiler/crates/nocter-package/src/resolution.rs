@@ -365,7 +365,8 @@ fn resolve_package_edges(
         for (alias, dependency) in declaration.dependencies() {
             let authored_lock = dependency
                 .selection()
-                .map(crate::DependencyExactSelection::exact);
+                .map(crate::DependencyExactSelection::exact)
+                .cloned();
             let overlay_lock = overlay.get(identity, alias);
             if authored_lock
                 .as_ref()

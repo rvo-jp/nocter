@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nocter_filesystem::SourceOverlay;
+use nocter_language::MODULE_ROOT_FILE_NAME;
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceError, SourceMap, SourceName};
 #[cfg(test)]
@@ -510,7 +511,7 @@ fn load_package(
     else {
         return Err(PackageGraphError::MissingPackageRootSource {
             package: identity,
-            path: canonical_root.join("index.nct"),
+            path: canonical_root.join(MODULE_ROOT_FILE_NAME),
         });
     };
     let declaration_path = root_source.path().to_path_buf();
@@ -618,7 +619,8 @@ fn validate_edges(
                 DependencySource::Git { .. } | DependencySource::Archive { .. } => {
                     let authored = dependency
                         .selection()
-                        .map(crate::DependencyExactSelection::exact);
+                        .map(crate::DependencyExactSelection::exact)
+                        .cloned();
                     let selected = resolved_locks
                         .get(alias)
                         .cloned()

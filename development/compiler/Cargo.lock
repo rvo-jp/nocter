@@ -1749,6 +1749,7 @@ dependencies = [
  "nocter-discovery",
  "nocter-filesystem",
  "nocter-json",
+ "nocter-language",
  "nocter-model",
  "nocter-native-session",
  "nocter-package",
@@ -1888,6 +1889,7 @@ dependencies = [
  "nocter-declaration-lowering",
  "nocter-diagnostics",
  "nocter-filesystem",
+ "nocter-language",
  "nocter-model",
  "nocter-package",
  "nocter-runtime-contract",
@@ -1923,6 +1925,7 @@ version = "0.0.0"
 dependencies = [
  "nocter-content-integrity",
  "nocter-json",
+ "nocter-language",
  "nocter-model",
  "nocter-package",
 ]
@@ -1943,6 +1946,7 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-filesystem",
  "nocter-json",
+ "nocter-language",
  "nocter-lsp",
  "nocter-model",
  "nocter-package",
@@ -2046,6 +2050,7 @@ dependencies = [
  "flate2",
  "gix",
  "nocter-hash",
+ "nocter-language",
  "nocter-package",
  "nocter-package-state",
  "reqwest",
@@ -2058,6 +2063,7 @@ name = "nocter-package-cache"
 version = "0.0.0"
 dependencies = [
  "nocter-content-integrity",
+ "nocter-language",
 ]
 
 [[package]]
@@ -2126,6 +2132,7 @@ name = "nocter-source-tooling"
 version = "0.0.0"
 dependencies = [
  "nocter-diagnostics",
+ "nocter-language",
  "nocter-source",
  "nocter-syntax",
 ]
@@ -2206,6 +2213,7 @@ dependencies = [
  "nocter-diagnostics",
  "nocter-discovery",
  "nocter-filesystem",
+ "nocter-language",
  "nocter-model",
  "nocter-package",
  "nocter-session",

@@ -2,6 +2,7 @@ use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use nocter_language::MODULE_ROOT_FILE_NAME;
 use nocter_model::CompilationTarget;
 
 use crate::command_schema::{CommandKind, CommandOption, CommandSchema, option_schema};
@@ -17,6 +18,30 @@ pub enum DiagnosticFormat {
     #[default]
     Human,
     Json,
+}
+
+/// Command identity carried by JSON diagnostic presentation.
+///
+/// Only commands with a source-diagnostic JSON contract enter this vocabulary. Callers receive a
+/// typed identity rather than reclassifying the authored command spelling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DiagnosticCommand {
+    Check,
+    Test,
+}
+
+impl DiagnosticCommand {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        self.command_kind().schema().name()
+    }
+
+    const fn command_kind(self) -> CommandKind {
+        match self {
+            Self::Check => CommandKind::Check,
+            Self::Test => CommandKind::Test,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -214,9 +239,10 @@ impl ParsedTestCommand {
 
     #[must_use]
     pub fn root_hint(&self) -> PathBuf {
-        self.root
-            .as_deref()
-            .map_or_else(|| PathBuf::from("index.nct"), |root| root.join("index.nct"))
+        self.root.as_deref().map_or_else(
+            || PathBuf::from(MODULE_ROOT_FILE_NAME),
+            |root| root.join(MODULE_ROOT_FILE_NAME),
+        )
     }
 
     /// Resolves one exact package and closes semantic test selection policy.
@@ -586,7 +612,7 @@ pub fn parse_command_invocation(
         return match arguments.into_iter().next() {
             Some(_) => Err(CommandArgumentFailure::new(
                 CommandArgumentError::HelpMustBeUsedAlone("--help"),
-                Some("--help"),
+                None,
                 DiagnosticFormat::Human,
                 None,
             )),
@@ -610,54 +636,54 @@ pub fn parse_command_invocation(
     match kind {
         CommandKind::Help => parse_help(arguments.into_iter())
             .map(ParsedCommand::Help)
-            .map_err(|failure| failure.for_command("help")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Version => parse_empty_command(arguments.into_iter(), kind.schema())
             .map(|()| ParsedCommand::Version)
-            .map_err(|failure| failure.for_command("--version")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Doctor => parse_empty_command(arguments.into_iter(), kind.schema())
             .map(|()| ParsedCommand::Doctor)
-            .map_err(|failure| failure.for_command("doctor")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Init => parse_init(arguments.into_iter())
             .map(ParsedCommand::Init)
-            .map_err(|failure| failure.for_command("init")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Graph => parse_graph(arguments.into_iter())
             .map(ParsedCommand::Graph)
-            .map_err(|failure| failure.for_command("graph")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Fetch => parse_fetch(arguments.into_iter())
             .map(ParsedCommand::Fetch)
-            .map_err(|failure| failure.for_command("fetch")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Check => parse_check(arguments.into_iter())
             .map(ParsedCommand::Check)
-            .map_err(|failure| failure.for_command("check")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Build => parse_build(arguments.into_iter())
             .map(ParsedCommand::Build)
-            .map_err(|failure| failure.for_command("build")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Run => parse_run(arguments.into_iter())
             .map(ParsedCommand::Run)
-            .map_err(|failure| failure.for_command("run")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Test => parse_test(arguments.into_iter())
             .map(ParsedCommand::Test)
-            .map_err(|failure| failure.for_command("test")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Tokens => parse_source_inspection(
             arguments.into_iter(),
             CommandKind::Tokens.schema(),
             SourceInspectionKind::Tokens,
         )
         .map(ParsedCommand::SourceInspection)
-        .map_err(|failure| failure.for_command("tokens")),
+        .map_err(|failure| failure.for_command(kind)),
         CommandKind::Ast => parse_source_inspection(
             arguments.into_iter(),
             CommandKind::Ast.schema(),
             SourceInspectionKind::Ast,
         )
         .map(ParsedCommand::SourceInspection)
-        .map_err(|failure| failure.for_command("ast")),
+        .map_err(|failure| failure.for_command(kind)),
         CommandKind::Fmt => parse_format(arguments.into_iter())
             .map(ParsedCommand::Format)
-            .map_err(|failure| failure.for_command("fmt")),
+            .map_err(|failure| failure.for_command(kind)),
         CommandKind::Lsp => parse_empty_command(arguments.into_iter(), kind.schema())
             .map(|()| ParsedCommand::Lsp)
-            .map_err(|failure| failure.for_command("lsp")),
+            .map_err(|failure| failure.for_command(kind)),
     }
 }
 
@@ -984,8 +1010,8 @@ impl OptionsParseFailure {
         }
     }
 
-    fn for_command(self, command: &'static str) -> CommandArgumentFailure {
-        let root_hint = if matches!(command, "check" | "test") {
+    fn for_command(self, command: CommandKind) -> CommandArgumentFailure {
+        let root_hint = if matches!(command, CommandKind::Check | CommandKind::Test) {
             self.root_hint
         } else {
             None
@@ -1230,7 +1256,7 @@ pub enum CommandArgumentError {
 #[derive(Debug, Eq, PartialEq)]
 pub struct CommandArgumentFailure {
     error: CommandArgumentError,
-    command: Option<&'static str>,
+    command: Option<CommandKind>,
     format: DiagnosticFormat,
     root_hint: Option<PathBuf>,
 }
@@ -1238,7 +1264,7 @@ pub struct CommandArgumentFailure {
 impl CommandArgumentFailure {
     fn new(
         error: CommandArgumentError,
-        command: Option<&'static str>,
+        command: Option<CommandKind>,
         format: DiagnosticFormat,
         root_hint: Option<PathBuf>,
     ) -> Self {
@@ -1256,8 +1282,26 @@ impl CommandArgumentFailure {
     }
 
     #[must_use]
-    pub const fn command(&self) -> Option<&'static str> {
-        self.command
+    pub const fn diagnostic_command(&self) -> Option<DiagnosticCommand> {
+        match self.command {
+            Some(CommandKind::Check) => Some(DiagnosticCommand::Check),
+            Some(CommandKind::Test) => Some(DiagnosticCommand::Test),
+            Some(
+                CommandKind::Help
+                | CommandKind::Version
+                | CommandKind::Doctor
+                | CommandKind::Init
+                | CommandKind::Graph
+                | CommandKind::Fetch
+                | CommandKind::Build
+                | CommandKind::Run
+                | CommandKind::Tokens
+                | CommandKind::Ast
+                | CommandKind::Fmt
+                | CommandKind::Lsp,
+            )
+            | None => None,
+        }
     }
 
     #[must_use]

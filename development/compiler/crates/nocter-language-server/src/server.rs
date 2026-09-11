@@ -210,10 +210,10 @@ impl LanguageServer {
         {
             return ServerStep::default();
         }
-        match self
-            .outbound_requests
-            .begin("client/registerCapability", &watched_files_registration())
-        {
+        match self.outbound_requests.begin(
+            "client/registerCapability",
+            &watched_files_registration(nocter_language::SOURCE_FILE_GLOB),
+        ) {
             Ok(request) => {
                 self.watcher = WatcherState::Registering;
                 ServerStep {

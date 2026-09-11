@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 
 use nocter_compile_input::ModuleIdentity;
 use nocter_filesystem::SourceOverlay;
+use nocter_language::{MODULE_ROOT_FILE_NAME, SOURCE_FILE_EXTENSION};
 use nocter_model::PackageIdentity;
 use nocter_syntax::SourceSyntaxProvider;
 
@@ -24,7 +25,7 @@ pub(crate) fn module_sources(
     while let Some(directory) = pending.pop_first() {
         if directory != module_directory
             && source_overlay
-                .is_file(&directory.join("index.nct"))
+                .is_file(&directory.join(MODULE_ROOT_FILE_NAME))
                 .map_err(|error| {
                     filesystem_error("inspect child module boundary", &directory, error)
                 })?
@@ -44,7 +45,8 @@ pub(crate) fn module_sources(
             if file_type.is_dir() {
                 pending.insert(path);
             } else if file_type.is_file()
-                && path.extension().and_then(|extension| extension.to_str()) == Some("nct")
+                && path.extension().and_then(|extension| extension.to_str())
+                    == Some(SOURCE_FILE_EXTENSION)
             {
                 sources.insert(path);
             }
@@ -53,14 +55,15 @@ pub(crate) fn module_sources(
     let identity = module_identity(package, package_root, module_directory)?;
     for (path, _) in source_overlay.sources() {
         if path.starts_with(module_directory)
-            && path.extension().and_then(|extension| extension.to_str()) == Some("nct")
+            && path.extension().and_then(|extension| extension.to_str())
+                == Some(SOURCE_FILE_EXTENSION)
             && module_for_source(package, package_root, path, source_overlay)? == identity
         {
             sources.insert(path.to_path_buf());
         }
     }
     let mut sources: Vec<_> = sources.into_iter().collect();
-    let root = module_directory.join("index.nct");
+    let root = module_directory.join(MODULE_ROOT_FILE_NAME);
     if !sources.iter().any(|source| source == &root) {
         return Err(DiscoveryError::MissingModuleRoot {
             module: module_identity(package, package_root, module_directory)?,
@@ -97,7 +100,7 @@ pub(crate) fn toolchain_standard_modules(
         {
             continue;
         }
-        let module_root = directory.join("index.nct");
+        let module_root = directory.join(MODULE_ROOT_FILE_NAME);
         if source_overlay
             .is_file(&module_root)
             .map_err(|error| filesystem_error("inspect module root", &module_root, error))?
@@ -183,7 +186,7 @@ pub fn module_for_source(
             path: source.to_path_buf(),
         })?;
     loop {
-        let root = directory.join("index.nct");
+        let root = directory.join(MODULE_ROOT_FILE_NAME);
         if source_overlay
             .is_file(&root)
             .map_err(|error| filesystem_error("inspect module ownership", &root, error))?

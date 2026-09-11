@@ -223,15 +223,19 @@ fn set_file_mode(
 }
 
 fn require_manifest(destination: &Path) -> Result<(), PackageAcquisitionError> {
-    let manifest = destination.join("index.nct");
+    let manifest = destination.join(nocter_language::MODULE_ROOT_FILE_NAME);
     match fs::symlink_metadata(&manifest) {
         Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(()),
-        Ok(_) => Err(PackageAcquisitionError::invalid_archive(
-            "archive-root index.nct is not a regular file",
-        )),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Err(
-            PackageAcquisitionError::invalid_archive("archive root does not contain index.nct"),
-        ),
+        Ok(_) => Err(PackageAcquisitionError::invalid_archive(format!(
+            "archive-root {} is not a regular file",
+            nocter_language::MODULE_ROOT_FILE_NAME
+        ))),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(PackageAcquisitionError::invalid_archive(format!(
+                "archive root does not contain {}",
+                nocter_language::MODULE_ROOT_FILE_NAME
+            )))
+        }
         Err(error) => Err(PackageAcquisitionError::filesystem(
             "inspect archive manifest",
             manifest,

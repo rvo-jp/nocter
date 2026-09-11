@@ -7,6 +7,7 @@ mod diagnostic;
 mod documentation;
 mod lexer;
 mod literal;
+mod name;
 mod navigation;
 mod origin;
 mod parser;
@@ -27,6 +28,7 @@ pub use literal::{
     decode_character_literal, decode_plain_string_expression, decode_string_expression,
     decode_string_literal, decode_string_text,
 };
+pub use name::{is_valid_module_segment, is_valid_name};
 pub use navigation::{
     child_node_iter, child_nodes, descendant_identifier_iter, descendant_node_iter,
     descendant_token_iter, direct_identifier, direct_identifier_iter, direct_node,
@@ -48,45 +50,3 @@ pub use tree::{
     SyntaxTree, TokenId,
 };
 pub use tuple::{TupleElementIndex, TupleElementIndexError};
-
-/// Reports whether `text` is one complete source-level name.
-///
-/// This is the shared boundary used by the parser and tooling mutations. Contextual spellings
-/// remain valid names; reserved keywords, `_`, and `Self` do not.
-#[must_use]
-pub fn is_valid_name(text: &str) -> bool {
-    let mut bytes = text.bytes();
-    bytes.next().is_some_and(is_name_start)
-        && bytes.all(is_name_continue)
-        && !matches!(
-            ContextualSpelling::from_spelling(text),
-            Some(ContextualSpelling::Discard | ContextualSpelling::UpperSelf)
-        )
-        && Keyword::from_spelling(text).is_none()
-}
-
-const fn is_name_start(byte: u8) -> bool {
-    byte.is_ascii_alphabetic() || byte == b'_'
-}
-
-const fn is_name_continue(byte: u8) -> bool {
-    is_name_start(byte) || byte.is_ascii_digit()
-}
-
-#[cfg(test)]
-mod name_tests {
-    use super::is_valid_name;
-
-    #[test]
-    fn validates_the_parser_name_language_without_rejecting_contextual_spellings() {
-        assert!(is_valid_name("value"));
-        assert!(is_valid_name("T2"));
-        assert!(is_valid_name("where"));
-        assert!(!is_valid_name(""));
-        assert!(!is_valid_name("2value"));
-        assert!(!is_valid_name("two-values"));
-        assert!(!is_valid_name("_"));
-        assert!(!is_valid_name("Self"));
-        assert!(!is_valid_name("func"));
-    }
-}

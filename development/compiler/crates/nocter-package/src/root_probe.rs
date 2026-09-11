@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use nocter_filesystem::SourceOverlay;
+use nocter_language::{MODULE_ROOT_FILE_NAME, PackageDirectiveName};
 use nocter_source::{SourceError, SourceMap, SourceName};
 use nocter_syntax::{
     NodeKind, ParseGoal, ParsedSyntax, SourceSyntaxError, SourceSyntaxProvider, SyntaxElement,
@@ -130,7 +131,7 @@ impl PackageRootCatalogBuilder {
         directory: &Path,
         source_syntax: &mut dyn SourceSyntaxProvider,
     ) -> Result<Option<PackageRootSource>, PackageRootProbeError> {
-        let requested_path = directory.join("index.nct");
+        let requested_path = directory.join(MODULE_ROOT_FILE_NAME);
         let Some(observed) = self
             .catalog
             .source_overlay
@@ -224,7 +225,10 @@ fn has_package_directive(source: &nocter_source::SourceFile, syntax: &SyntaxTree
                 let SyntaxElement::Token(token) = element else {
                     return false;
                 };
-                source.text_at(token.range()) == Some("package")
+                source
+                    .text_at(token.range())
+                    .and_then(PackageDirectiveName::from_spelling)
+                    == Some(PackageDirectiveName::Package)
             })
     })
 }

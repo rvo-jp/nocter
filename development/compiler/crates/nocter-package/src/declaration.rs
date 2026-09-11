@@ -6,10 +6,11 @@ use nocter_model::PackageTargetKind;
 use nocter_source::SourceFile;
 use nocter_syntax::{
     Keyword, NodeId, NodeKind, SyntaxElement, SyntaxTree, TokenKind, child_node_iter,
-    decode_string_literal, direct_node,
+    decode_string_literal, direct_node, is_valid_module_segment,
 };
 
-use crate::StandardPackage;
+use crate::schema::PackageFieldName;
+use crate::{ExactDependencyLock, StandardPackage};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthoredString {
@@ -80,23 +81,30 @@ impl DependencyDeclaration {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DependencyExactSelection {
-    GitCommit(AuthoredString),
-    ArchiveSha256(AuthoredString),
+    GitCommit {
+        authored: AuthoredString,
+        exact: ExactDependencyLock,
+    },
+    ArchiveSha256 {
+        authored: AuthoredString,
+        exact: ExactDependencyLock,
+    },
 }
 
 impl DependencyExactSelection {
-    /// Removes syntax identity from an already validated authored exact selection.
+    /// Returns the validated exact selection without its syntax identity.
     #[must_use]
-    pub fn exact(&self) -> crate::ExactDependencyLock {
+    pub const fn exact(&self) -> &ExactDependencyLock {
         match self {
-            Self::GitCommit(authored) => crate::ExactDependencyLock::validated(
-                crate::ExactDependencyLockKind::Git,
-                authored.value(),
-            ),
-            Self::ArchiveSha256(authored) => crate::ExactDependencyLock::validated(
-                crate::ExactDependencyLockKind::Sha256,
-                authored.value(),
-            ),
+            Self::GitCommit { exact, .. } | Self::ArchiveSha256 { exact, .. } => exact,
+        }
+    }
+
+    /// Returns the authored string and its exact source location.
+    #[must_use]
+    pub const fn authored(&self) -> &AuthoredString {
+        match self {
+            Self::GitCommit { authored, .. } | Self::ArchiveSha256 { authored, .. } => authored,
         }
     }
 }
@@ -330,18 +338,9 @@ fn decode_package_header(
     declaration: NodeId,
 ) -> Result<(AuthoredString, AuthoredString), PackageDeclarationError> {
     let record = required_record(tree, declaration)?;
-    let fields = unique_fields(source, tree, record)?;
-    for name in fields.keys() {
-        if !matches!(name.as_ref(), "name" | "version") {
-            return Err(error(
-                fields[name],
-                PackageDeclarationRule::UnknownField,
-                Some(name.clone()),
-            ));
-        }
-    }
-    let name = required_field(&fields, declaration, "name")?;
-    let version = required_field(&fields, declaration, "version")?;
+    let fields = known_fields(source, tree, record, PackageFieldName::PACKAGE)?;
+    let name = required_field(&fields, declaration, PackageFieldName::Name)?;
+    let version = required_field(&fields, declaration, PackageFieldName::Version)?;
     Ok((
         authored_string(source, tree, name)?,
         authored_string(source, tree, version)?,
@@ -357,7 +356,7 @@ fn decode_dependencies(
     let mut result = BTreeMap::new();
     for field in direct_fields(tree, record) {
         let alias = field_name(source, tree, field)?;
-        if !valid_module_segment(&alias) {
+        if !is_valid_module_segment(&alias) {
             return Err(error(
                 field,
                 PackageDeclarationRule::InvalidDependencyAlias,
@@ -390,25 +389,13 @@ fn decode_dependency(
     alias: &str,
 ) -> Result<DependencyDeclaration, PackageDeclarationError> {
     let record = required_record(tree, field)?;
-    let fields = unique_fields(source, tree, record)?;
-    let git = optional_string(source, tree, &fields, "git")?;
-    let revision = optional_string(source, tree, &fields, "revision")?;
-    let archive = optional_string(source, tree, &fields, "archive")?;
-    let path = optional_string(source, tree, &fields, "path")?;
-    let commit = optional_string(source, tree, &fields, "commit")?;
-    let sha256 = optional_string(source, tree, &fields, "sha256")?;
-    for name in fields.keys() {
-        if !matches!(
-            name.as_ref(),
-            "git" | "revision" | "archive" | "path" | "commit" | "sha256"
-        ) {
-            return Err(error(
-                fields[name],
-                PackageDeclarationRule::UnknownField,
-                Some(name.clone()),
-            ));
-        }
-    }
+    let fields = known_fields(source, tree, record, PackageFieldName::DEPENDENCY)?;
+    let git = optional_string(source, tree, &fields, PackageFieldName::Git)?;
+    let revision = optional_string(source, tree, &fields, PackageFieldName::Revision)?;
+    let archive = optional_string(source, tree, &fields, PackageFieldName::Archive)?;
+    let path = optional_string(source, tree, &fields, PackageFieldName::Path)?;
+    let commit = optional_string(source, tree, &fields, PackageFieldName::Commit)?;
+    let sha256 = optional_string(source, tree, &fields, PackageFieldName::Sha256)?;
     let dependency_source = match (git, revision, archive, path) {
         (Some(url), Some(revision), None, None) => DependencySource::Git { url, revision },
         (None, None, Some(url), None) => DependencySource::Archive { url },
@@ -423,24 +410,30 @@ fn decode_dependency(
     };
     let selection = match (&dependency_source, commit, sha256) {
         (DependencySource::Git { .. }, Some(commit), None) => {
-            if !valid_hex(commit.value(), 40) {
-                return Err(error(
+            let exact = ExactDependencyLock::git(commit.value()).map_err(|_| {
+                error(
                     commit.literal(),
                     PackageDeclarationRule::InvalidGitCommit,
                     Some(alias.into()),
-                ));
-            }
-            Some(DependencyExactSelection::GitCommit(commit))
+                )
+            })?;
+            Some(DependencyExactSelection::GitCommit {
+                authored: commit,
+                exact,
+            })
         }
         (DependencySource::Archive { .. }, None, Some(sha256)) => {
-            if !valid_hex(sha256.value(), 64) {
-                return Err(error(
+            let exact = ExactDependencyLock::sha256(sha256.value()).map_err(|_| {
+                error(
                     sha256.literal(),
                     PackageDeclarationRule::InvalidArchiveDigest,
                     Some(alias.into()),
-                ));
-            }
-            Some(DependencyExactSelection::ArchiveSha256(sha256))
+                )
+            })?;
+            Some(DependencyExactSelection::ArchiveSha256 {
+                authored: sha256,
+                exact,
+            })
         }
         (
             DependencySource::Git { .. }
@@ -472,17 +465,8 @@ fn decode_target(
     order: u32,
 ) -> Result<PackageTargetDeclaration, PackageDeclarationError> {
     let record = required_record(tree, declaration)?;
-    let fields = unique_fields(source, tree, record)?;
-    for name in fields.keys() {
-        if !matches!(name.as_ref(), "name" | "module") {
-            return Err(error(
-                fields[name],
-                PackageDeclarationRule::UnknownField,
-                Some(name.clone()),
-            ));
-        }
-    }
-    let name_field = required_field(&fields, declaration, "name")?;
+    let fields = known_fields(source, tree, record, PackageFieldName::TARGET)?;
+    let name_field = required_field(&fields, declaration, PackageFieldName::Name)?;
     let name = authored_string(source, tree, name_field)?;
     if name.value().is_empty() {
         return Err(error(
@@ -491,7 +475,7 @@ fn decode_target(
             None,
         ));
     }
-    let module = if let Some(field) = fields.get("module") {
+    let module = if let Some(field) = fields.get(&PackageFieldName::Module) {
         let authored = authored_string(source, tree, *field)?;
         parse_module_path(authored.value()).ok_or_else(|| {
             error(
@@ -506,7 +490,7 @@ fn decode_target(
         return Err(error(
             declaration,
             PackageDeclarationRule::MissingField,
-            Some("module".into()),
+            Some(PackageFieldName::Module.spelling().into()),
         ));
     };
     Ok(PackageTargetDeclaration {
@@ -535,19 +519,29 @@ fn set_once<T>(
     }
 }
 
-fn unique_fields(
+fn known_fields(
     source: &SourceFile,
     tree: &SyntaxTree,
     record: NodeId,
-) -> Result<BTreeMap<Box<str>, NodeId>, PackageDeclarationError> {
+    accepted: &[PackageFieldName],
+) -> Result<BTreeMap<PackageFieldName, NodeId>, PackageDeclarationError> {
     let mut fields = BTreeMap::new();
     for field in direct_fields(tree, record) {
-        let name = field_name(source, tree, field)?;
-        if fields.insert(name.clone(), field).is_some() {
+        let spelling = field_name(source, tree, field)?;
+        let name = PackageFieldName::from_spelling(&spelling)
+            .filter(|name| accepted.contains(name))
+            .ok_or_else(|| {
+                error(
+                    field,
+                    PackageDeclarationRule::UnknownField,
+                    Some(spelling.clone()),
+                )
+            })?;
+        if fields.insert(name, field).is_some() {
             return Err(error(
                 field,
                 PackageDeclarationRule::DuplicateField,
-                Some(name),
+                Some(spelling),
             ));
         }
     }
@@ -555,15 +549,15 @@ fn unique_fields(
 }
 
 fn required_field(
-    fields: &BTreeMap<Box<str>, NodeId>,
+    fields: &BTreeMap<PackageFieldName, NodeId>,
     subject: NodeId,
-    name: &'static str,
+    name: PackageFieldName,
 ) -> Result<NodeId, PackageDeclarationError> {
-    fields.get(name).copied().ok_or_else(|| {
+    fields.get(&name).copied().ok_or_else(|| {
         error(
             subject,
             PackageDeclarationRule::MissingField,
-            Some(name.into()),
+            Some(name.spelling().into()),
         )
     })
 }
@@ -571,11 +565,11 @@ fn required_field(
 fn optional_string(
     source: &SourceFile,
     tree: &SyntaxTree,
-    fields: &BTreeMap<Box<str>, NodeId>,
-    name: &str,
+    fields: &BTreeMap<PackageFieldName, NodeId>,
+    name: PackageFieldName,
 ) -> Result<Option<AuthoredString>, PackageDeclarationError> {
     fields
-        .get(name)
+        .get(&name)
         .map(|field| authored_string(source, tree, *field))
         .transpose()
 }
@@ -643,24 +637,9 @@ fn parse_module_path(authored: &str) -> Option<Box<[Box<str>]>> {
     }
     relative
         .split('/')
-        .map(|segment| valid_module_segment(segment).then(|| Box::<str>::from(segment)))
+        .map(|segment| is_valid_module_segment(segment).then(|| Box::<str>::from(segment)))
         .collect::<Option<Vec<_>>>()
         .map(Vec::into_boxed_slice)
-}
-
-fn valid_module_segment(segment: &str) -> bool {
-    let bytes = segment.as_bytes();
-    !bytes.is_empty()
-        && segment != "_"
-        && !bytes[0].is_ascii_digit()
-        && bytes
-            .iter()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_')
-        && Keyword::from_spelling(segment).is_none()
-}
-
-fn valid_hex(value: &str, digits: usize) -> bool {
-    value.len() == digits && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 fn direct_fields(tree: &SyntaxTree, record: NodeId) -> impl Iterator<Item = NodeId> + '_ {

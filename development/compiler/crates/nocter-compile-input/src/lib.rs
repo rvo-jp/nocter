@@ -16,7 +16,8 @@ mod dependency;
 mod identity;
 
 pub use dependency::{SourceVisibilityResolutionInput, UseResolutionInput};
-pub use identity::{ModuleIdentity, is_valid_module_segment};
+pub use identity::ModuleIdentity;
+pub use nocter_syntax::is_valid_module_segment;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum PackageMode {

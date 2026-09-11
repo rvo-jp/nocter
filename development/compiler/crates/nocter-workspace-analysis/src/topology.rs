@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use nocter_filesystem::SourceOverlay;
+use nocter_language::SOURCE_FILE_EXTENSION;
 use nocter_syntax::SourceSyntaxProvider;
 
 use super::{AnalysisScope, WorkspaceAnalysisError};
@@ -68,7 +69,7 @@ fn select_scope(
     if document
         .extension()
         .and_then(|extension| extension.to_str())
-        != Some("nct")
+        != Some(SOURCE_FILE_EXTENSION)
     {
         return Err(WorkspaceAnalysisError::unsupported_source(
             document.to_path_buf(),

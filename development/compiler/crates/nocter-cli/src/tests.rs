@@ -832,7 +832,7 @@ fn internal_json_failure_keeps_code_and_status_independent() {
             "TLS backend invariant".into(),
         )),
         Some(InvocationDiagnosticPresentation {
-            command: "check",
+            command: nocter_command::DiagnosticCommand::Check,
             format: DiagnosticFormat::Json,
             target: Some("arm64-darwin"),
             root: Some("app.nct".into()),

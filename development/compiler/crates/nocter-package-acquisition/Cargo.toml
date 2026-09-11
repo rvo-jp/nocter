@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+nocter-language = { path = "../nocter-language" }
 flate2 = { version = "1.1.9", default-features = false, features = ["rust_backend"] }
 gix = { version = "0.86.0", default-features = false, features = ["blocking-http-transport-reqwest", "sha1"] }
 nocter-hash = { path = "../nocter-hash" }

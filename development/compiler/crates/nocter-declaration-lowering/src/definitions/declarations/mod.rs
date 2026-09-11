@@ -8,7 +8,7 @@ use nocter_declarations::{
 };
 use nocter_model::{AssociatedTypeId, CallableGuarantees, CallableId, InterfaceId};
 use nocter_source_index::{SemanticEntity, SourceOrigin, SourceRole};
-use nocter_syntax::{NodeKind, SyntaxOrigin, TokenKind};
+use nocter_syntax::{ContextualSpelling, NodeKind, SyntaxOrigin, TokenKind};
 
 use crate::{PreparedTypes, ReservedEntity, SurfaceDeclarationId, SurfaceDeclarationKind};
 
@@ -294,7 +294,7 @@ fn define_nominal(
                         .source_map
                         .get(token.source())
                         .and_then(|source| source.text_at(token.range()))
-                        == Some("copy")
+                        == Some(ContextualSpelling::Copy.as_str())
                 });
             NominalShape::Struct {
                 copy_declared,

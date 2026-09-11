@@ -140,10 +140,13 @@ fn callable_modifier_prefix<'a>(
         .map_or_else(|| source.text().get(..end), |(_, line)| Some(line))?;
     let trailing_space = line.as_bytes().last().is_some_and(u8::is_ascii_whitespace);
     let mut words = line.split_ascii_whitespace().collect::<Vec<_>>();
-    if words
-        .first()
-        .is_some_and(|word| *word == "pub" || (word.starts_with("pub(") && word.ends_with(')')))
-    {
+    if words.first().is_some_and(|word| {
+        *word == Keyword::Pub.as_str()
+            || (word
+                .strip_prefix(Keyword::Pub.as_str())
+                .is_some_and(|suffix| suffix.starts_with('('))
+                && word.ends_with(')'))
+    }) {
         words.remove(0);
     }
     let prefix = if trailing_space {
@@ -157,10 +160,15 @@ fn callable_modifier_prefix<'a>(
     {
         return None;
     }
-    let (noalloc, blocking, asynchronous) = match words.as_slice() {
+    let modifiers = words
+        .iter()
+        .map(|word| Keyword::from_spelling(word))
+        .collect::<Option<Vec<_>>>()?;
+    let (noalloc, blocking, asynchronous) = match modifiers.as_slice() {
         [] => (true, true, true),
-        ["noalloc"] => (false, true, false),
-        ["blocking" | "async"] | ["noalloc", "blocking" | "async"] => (false, false, false),
+        [Keyword::NoAlloc] => (false, true, false),
+        [Keyword::Blocking | Keyword::Async]
+        | [Keyword::NoAlloc, Keyword::Blocking | Keyword::Async] => (false, false, false),
         _ => return None,
     };
     let asynchronous = asynchronous && container != Some(NodeKind::ConstructDeclaration);

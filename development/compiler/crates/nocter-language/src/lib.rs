@@ -2,11 +2,15 @@
 
 mod argument_pack;
 mod package;
+mod source_layout;
 
 include!(concat!(env!("OUT_DIR"), "/diagnostic_code.rs"));
 
 pub use argument_pack::ArgumentPackMember;
 pub use package::PackageDirectiveName;
+pub use source_layout::{
+    MODULE_ROOT_FILE_NAME, SOURCE_FILE_EXTENSION, SOURCE_FILE_GLOB, SOURCE_FILE_SUFFIX,
+};
 
 /// Closed set of primitive type names defined by the language.
 ///

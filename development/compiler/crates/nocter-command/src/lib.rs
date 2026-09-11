@@ -27,12 +27,13 @@ mod standalone_source;
 mod test;
 
 pub use arguments::{
-    CommandArgumentError, CommandArgumentFailure, DiagnosticFormat, GraphOutputFormat,
-    ParsedBuildCommand, ParsedCheckCommand, ParsedCommand, ParsedFetchCommand, ParsedFormatCommand,
-    ParsedGraphCommand, ParsedInitCommand, ParsedRunCommand, ParsedSourceInspectionCommand,
-    ParsedTestCommand, PreparedBuildCommand, PreparedCheckCommand, PreparedCommandError,
-    PreparedFetchCommand, PreparedGraphCommand, PreparedRunCommand, PreparedTestCommand,
-    ResolutionOptions, SourceInspectionKind, parse_command_arguments, parse_command_invocation,
+    CommandArgumentError, CommandArgumentFailure, DiagnosticCommand, DiagnosticFormat,
+    GraphOutputFormat, ParsedBuildCommand, ParsedCheckCommand, ParsedCommand, ParsedFetchCommand,
+    ParsedFormatCommand, ParsedGraphCommand, ParsedInitCommand, ParsedRunCommand,
+    ParsedSourceInspectionCommand, ParsedTestCommand, PreparedBuildCommand, PreparedCheckCommand,
+    PreparedCommandError, PreparedFetchCommand, PreparedGraphCommand, PreparedRunCommand,
+    PreparedTestCommand, ResolutionOptions, SourceInspectionKind, parse_command_arguments,
+    parse_command_invocation,
 };
 pub use artifact::{
     ArtifactError, ArtifactOperation, PersistentArtifact, TemporaryArtifact, persist_native_image,

@@ -86,11 +86,7 @@ impl<'a> Renderer<'a> {
         parameters: &[ClosureParameter],
         result: TypeId,
     ) -> Option<()> {
-        self.output.push_str(match capability {
-            CallableCapability::Readonly => "&func",
-            CallableCapability::ReadWrite => "&+func",
-            CallableCapability::Owned => "func",
-        });
+        self.callable_capability(capability);
         self.output.push('(');
         for (index, parameter) in parameters.iter().enumerate() {
             if index != 0 {

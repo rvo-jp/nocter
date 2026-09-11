@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use nocter_syntax::{NodeKind, Punctuation, SyntaxElement, SyntaxTree, TokenKind};
 
+use crate::schema::PackageFieldName;
 use crate::{ExactDependencyLock, ExactDependencyLockKind, PackageDeclaration};
 
 pub(crate) fn render_effective_selections(
@@ -37,7 +38,7 @@ pub(crate) fn render_effective_selections(
             }
             (Some(_), Some(selected)) => {
                 if let Some(authored) = dependency.selection() {
-                    if authored.exact() != *selected {
+                    if authored.exact() != selected {
                         return Err(PackageExactSelectionSourceError::AuthoredSelectionMismatch(
                             alias.clone(),
                         ));
@@ -201,15 +202,15 @@ fn selection_insertions(
     Ok(insertions)
 }
 
-fn selection_field(selection: &ExactDependencyLock) -> &'static str {
+fn selection_field(selection: &ExactDependencyLock) -> PackageFieldName {
     match selection.kind() {
-        ExactDependencyLockKind::Git => "commit",
-        ExactDependencyLockKind::Sha256 => "sha256",
+        ExactDependencyLockKind::Git => PackageFieldName::Commit,
+        ExactDependencyLockKind::Sha256 => PackageFieldName::Sha256,
     }
 }
 
-fn render_field(output: &mut Vec<u8>, field: &str, value: &str) {
-    output.extend_from_slice(field.as_bytes());
+fn render_field(output: &mut Vec<u8>, field: PackageFieldName, value: &str) {
+    output.extend_from_slice(field.spelling().as_bytes());
     output.extend_from_slice(b": \"");
     output.extend_from_slice(value.as_bytes());
     output.extend_from_slice(b"\",");

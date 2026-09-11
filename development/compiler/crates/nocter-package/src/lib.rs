@@ -11,6 +11,7 @@ mod lock;
 mod lock_overlay;
 mod resolution;
 mod root_probe;
+mod schema;
 mod selection_source;
 mod standard;
 mod store_overlay;

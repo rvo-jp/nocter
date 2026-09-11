@@ -555,6 +555,7 @@ const fn is_closing_delimiter(kind: TokenKind) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use nocter_language::SOURCE_FILE_EXTENSION;
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -902,7 +903,10 @@ mod tests {
             let path = entry.unwrap().path();
             if path.is_dir() {
                 collect_sources(&path, output);
-            } else if path.extension().is_some_and(|extension| extension == "nct") {
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == SOURCE_FILE_EXTENSION)
+            {
                 output.push(path);
             }
         }

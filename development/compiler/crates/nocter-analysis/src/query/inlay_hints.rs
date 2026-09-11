@@ -261,7 +261,9 @@ impl InlayContext<'_> {
             if !self.requested.contains_offset(position) {
                 continue;
             }
-            let mut label = String::from(" from ");
+            let mut label = String::from(" ");
+            label.push_str(ContextualSpelling::From.as_str());
+            label.push(' ');
             for (index, origin) in provenance.origins().iter().copied().enumerate() {
                 if index != 0 {
                     label.push_str(" | ");

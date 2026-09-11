@@ -3,6 +3,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use nocter_language::{MODULE_ROOT_FILE_NAME, SOURCE_FILE_EXTENSION, SOURCE_FILE_SUFFIX};
+
 /// Raw package/file choices accepted by build, run, and check command parsers.
 ///
 /// Positional and `--file` sources remain separate until validation so a parser cannot silently
@@ -59,8 +61,8 @@ impl ProgramInputOptions {
             .or(self.explicit_file.as_ref())
             .cloned()
             .or_else(|| match self.root.as_deref() {
-                Some(root) => Some(root.join("index.nct")),
-                None => Some(PathBuf::from("index.nct")),
+                Some(root) => Some(root.join(MODULE_ROOT_FILE_NAME)),
+                None => Some(PathBuf::from(MODULE_ROOT_FILE_NAME)),
             })
     }
 }
@@ -216,7 +218,7 @@ fn resolve_package_input_from(
         return Err(ProgramInputError::PackageRootNotDirectory(selected));
     }
     let root = canonicalize(&selected)?;
-    let declaration = root.join("index.nct");
+    let declaration = root.join(MODULE_ROOT_FILE_NAME);
     match fs::metadata(&declaration) {
         Ok(metadata) if metadata.is_file() => {}
         Ok(_) => return Err(ProgramInputError::PackageDeclarationNotFile(declaration)),
@@ -245,7 +247,7 @@ fn resolve_single_file_from(
     let selected = absolute_from(current_directory, source);
     if selected
         .extension()
-        .is_none_or(|extension| extension != "nct")
+        .is_none_or(|extension| extension != SOURCE_FILE_EXTENSION)
     {
         return Err(ProgramInputError::InvalidSourceExtension(selected));
     }
@@ -324,7 +326,7 @@ impl fmt::Display for ProgramInputError {
             Self::InvalidSourceExtension(path) => {
                 write!(
                     formatter,
-                    "single-file input {} must end in .nct",
+                    "single-file input {} must end in {SOURCE_FILE_SUFFIX}",
                     path.display()
                 )
             }

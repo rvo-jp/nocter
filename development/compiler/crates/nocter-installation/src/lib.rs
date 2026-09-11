@@ -131,7 +131,7 @@ impl NocterHome {
         }
         let standard_root =
             required_relative_directory(&root, "std.path", manifest.standard().path())?;
-        required_file(&standard_root, "index.nct")?;
+        required_file(&standard_root, nocter_language::MODULE_ROOT_FILE_NAME)?;
         let standard_digest = sha256_regular_tree(&standard_root, TreeHashOptions::complete())
             .map_err(|error| NocterHomeError::ContentIntegrity { name: "std", error })?;
         verify_digest(

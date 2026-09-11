@@ -1,5 +1,4 @@
 use nocter_model::PackageIdentity;
-use nocter_syntax::Keyword;
 
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ModuleIdentity {
@@ -32,17 +31,4 @@ impl ModuleIdentity {
     pub const fn path(&self) -> &[Box<str>] {
         &self.path
     }
-}
-
-/// Reports whether one authored directory-module segment is canonical Nocter syntax.
-#[must_use]
-pub fn is_valid_module_segment(segment: &str) -> bool {
-    let bytes = segment.as_bytes();
-    !bytes.is_empty()
-        && segment != "_"
-        && !bytes[0].is_ascii_digit()
-        && bytes
-            .iter()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'_')
-        && Keyword::from_spelling(segment).is_none()
 }

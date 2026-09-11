@@ -11,6 +11,7 @@ nocter-analysis = { path = "../nocter-analysis" }
 nocter-diagnostics = { path = "../nocter-diagnostics" }
 nocter-filesystem = { path = "../nocter-filesystem" }
 nocter-json = { path = "../nocter-json" }
+nocter-language = { path = "../nocter-language" }
 nocter-lsp = { path = "../nocter-lsp" }
 nocter-source = { path = "../nocter-source" }
 nocter-workspace-analysis = { path = "../nocter-workspace-analysis" }

@@ -9,6 +9,7 @@ use nocter_compile_input::{
     ToolchainInput, UseResolutionInput,
 };
 use nocter_filesystem::SourceOverlay;
+use nocter_language::{MODULE_ROOT_FILE_NAME, SOURCE_FILE_EXTENSION};
 use nocter_model::PackageIdentity;
 use nocter_source::{SourceMap, SourceName};
 use nocter_syntax::{ParseGoal, SourceSyntaxProvider, SyntaxTree};
@@ -308,7 +309,7 @@ impl<'syntax> Builder<'syntax> {
         if package.mode == PackageMode::SingleFile {
             return Err(DiscoveryError::MissingModuleRoot {
                 module,
-                path: package.canonical_root.join("index.nct"),
+                path: package.canonical_root.join(MODULE_ROOT_FILE_NAME),
             });
         }
         let directory = join_module_path(&package.canonical_root, module.path());
@@ -319,7 +320,7 @@ impl<'syntax> Builder<'syntax> {
             &self.source_overlay,
         )?;
         for path in paths {
-            let kind = if path == directory.join("index.nct") {
+            let kind = if path == directory.join(MODULE_ROOT_FILE_NAME) {
                 ModuleSourceKind::Root
             } else {
                 ModuleSourceKind::Implementation
@@ -544,7 +545,7 @@ impl<'syntax> Builder<'syntax> {
         let base = components.iter().fold(canonical_root, |path, segment| {
             path.join(Path::new(segment.as_ref()))
         });
-        let module_candidate = base.join("index.nct");
+        let module_candidate = base.join(MODULE_ROOT_FILE_NAME);
         if !regular_file(&self.source_overlay, &module_candidate)? {
             return Err(UseFailure::NotFound.into());
         }
@@ -565,7 +566,7 @@ impl<'syntax> Builder<'syntax> {
         let root = segments
             .iter()
             .fold(canonical_root, |path, segment| path.join(segment))
-            .join("index.nct");
+            .join(MODULE_ROOT_FILE_NAME);
         if !regular_file(&self.source_overlay, &root)? {
             return Err(UseFailure::NotFound.into());
         }
@@ -607,7 +608,7 @@ impl<'syntax> Builder<'syntax> {
             .ok_or(UseFailure::OutsidePackage)?;
         let mut directory = source.parent().ok_or(UseFailure::OutsidePackage)?;
         loop {
-            if regular_file(&self.source_overlay, &directory.join("index.nct"))? {
+            if regular_file(&self.source_overlay, &directory.join(MODULE_ROOT_FILE_NAME))? {
                 let relative = directory
                     .strip_prefix(&state.canonical_root)
                     .map_err(|_| UseFailure::OutsidePackage)?;
@@ -857,7 +858,7 @@ fn load_single_file_package(
     source: PathBuf,
     toolchain: &ToolchainInput,
 ) -> Result<(ModuleIdentity, PathBuf), DiscoveryError> {
-    if source.extension().and_then(|extension| extension.to_str()) != Some("nct") {
+    if source.extension().and_then(|extension| extension.to_str()) != Some(SOURCE_FILE_EXTENSION) {
         return Err(DiscoveryError::InvalidSingleFileExtension(source));
     }
     let source = canonicalize(

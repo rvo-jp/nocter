@@ -1,7 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use nocter_syntax::{NodeId, NodeKind, SyntaxElement, TokenKind};
+use nocter_syntax::{
+    ContextualSpelling, Keyword, NodeId, NodeKind, Punctuation, SyntaxElement, TokenKind,
+};
 
 use crate::{
     DeclarationSurface, ModuleIdentity, ModuleSourceKind, SurfaceDeclaration, SurfaceDeclarationId,
@@ -682,18 +684,21 @@ fn callable_label(
     match kind {
         SurfaceDeclarationKind::Function | SurfaceDeclarationKind::ConstructionFunction => tokens
             .iter()
-            .position(|token| token.as_ref() == "func")
+            .position(|token| token.as_ref() == Keyword::Func.as_str())
             .and_then(|index| tokens.get(index + 1))
             .cloned()
             .map(CallableLabel::Named),
         SurfaceDeclarationKind::InterfaceMethod | SurfaceDeclarationKind::InherentMethod => tokens
             .iter()
-            .position(|token| token.as_ref() == ".")
+            .position(|token| token.as_ref() == Punctuation::Dot.as_str())
             .and_then(|index| tokens.get(index + 1))
             .cloned()
             .map(CallableLabel::Named),
         SurfaceDeclarationKind::Literal => {
-            if tokens.iter().any(|token| token.as_ref() == "[") {
+            if tokens
+                .iter()
+                .any(|token| token.as_ref() == Punctuation::LeftBracket.as_str())
+            {
                 Some(CallableLabel::LiteralSequence)
             } else {
                 Some(CallableLabel::LiteralString)
@@ -702,7 +707,7 @@ fn callable_label(
         SurfaceDeclarationKind::Coercion => {
             let end = tokens
                 .iter()
-                .position(|token| token.as_ref() == "from")
+                .position(|token| token.as_ref() == ContextualSpelling::From.as_str())
                 .unwrap_or(tokens.len());
             Some(CallableLabel::Coercion(HeaderFingerprint(
                 tokens[..end].into(),

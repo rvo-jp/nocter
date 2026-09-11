@@ -123,7 +123,7 @@ fn validate_identity(path: &Path, identity: &str) -> Result<(), ExactPackageCach
 fn validate_root_shape(root: &Path) -> Result<(), ExactPackageCacheError> {
     require_directory(root)?;
     require_regular_file(
-        &root.join("index.nct"),
+        &root.join(nocter_language::MODULE_ROOT_FILE_NAME),
         "validate exact-package root source",
     )
 }

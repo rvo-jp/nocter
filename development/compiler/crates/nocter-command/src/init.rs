@@ -3,6 +3,8 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
+use nocter_language::MODULE_ROOT_FILE_NAME;
+
 use crate::ParsedInitCommand;
 
 /// The source template selected for a newly initialized package.
@@ -74,7 +76,10 @@ pub fn execute_init(
             .map(Box::<str>::from)
             .ok_or_else(|| InitCommandError::MissingPackageName(root.clone()))?,
     };
-    let protected = [root.join("index.nct"), root.join("tests/unit/index.nct")];
+    let protected = [
+        root.join(MODULE_ROOT_FILE_NAME),
+        root.join("tests/unit").join(MODULE_ROOT_FILE_NAME),
+    ];
     for path in &protected {
         match fs::symlink_metadata(path) {
             Ok(_) => return Err(InitCommandError::ExistingSource(path.clone())),

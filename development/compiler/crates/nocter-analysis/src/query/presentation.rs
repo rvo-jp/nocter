@@ -11,7 +11,7 @@ use nocter_declarations::{
 };
 use nocter_model::{BorrowCapability, CallableCapability, Symbol, TypeId, TypeKind, TypeStore};
 use nocter_source_index::SemanticEntity;
-use nocter_syntax::ContextualSpelling;
+use nocter_syntax::{ContextualSpelling, Keyword};
 
 mod signature;
 pub(in crate::query) mod visible_spelling;
@@ -195,6 +195,16 @@ pub(super) struct Renderer<'a> {
 }
 
 impl<'a> Renderer<'a> {
+    fn keyword(&mut self, keyword: Keyword) {
+        self.output.push_str(keyword.as_str());
+        self.output.push(' ');
+    }
+
+    fn contextual(&mut self, spelling: ContextualSpelling) {
+        self.output.push_str(spelling.as_str());
+        self.output.push(' ');
+    }
+
     fn new(
         graph: &'a DeclarationGraph,
         types: &'a TypeStore,
@@ -289,17 +299,18 @@ impl<'a> Renderer<'a> {
         let declarations = self.graph.declarations();
         match entity {
             SemanticEntity::BuiltinType(builtin) => {
-                self.output.push_str("primitive type ");
+                self.keyword(Keyword::Primitive);
+                self.keyword(Keyword::Type);
                 self.output.push_str(builtin.spelling());
             }
             SemanticEntity::NominalType(id) => {
                 let declaration = declarations.nominal_types().get(id)?;
                 self.visibility(declaration.site())?;
                 let keyword = match declaration.shape() {
-                    NominalShape::Struct { .. } => "struct",
-                    NominalShape::Enum { .. } => "enum",
+                    NominalShape::Struct { .. } => Keyword::Struct,
+                    NominalShape::Enum { .. } => Keyword::Enum,
                 };
-                write!(self.output, "{keyword} ").ok()?;
+                self.keyword(keyword);
                 self.output.push_str(self.symbol(declaration.name())?);
                 self.generic_parameters(declaration.generic_parameters())?;
                 self.requirements(declaration.requirements())?;
@@ -307,7 +318,7 @@ impl<'a> Renderer<'a> {
             SemanticEntity::TypeAlias(id) => {
                 let declaration = declarations.type_aliases().get(id)?;
                 self.visibility(declaration.site())?;
-                self.output.push_str("type ");
+                self.keyword(Keyword::Type);
                 self.output.push_str(self.symbol(declaration.name())?);
                 self.generic_parameters(declaration.generic_parameters())?;
                 self.output.push_str(" = ");
@@ -317,7 +328,7 @@ impl<'a> Renderer<'a> {
             SemanticEntity::Interface(id) => {
                 let declaration = declarations.interfaces().get(id)?;
                 self.visibility(declaration.site())?;
-                self.output.push_str("interface ");
+                self.keyword(Keyword::Interface);
                 self.output.push_str(self.symbol(declaration.name())?);
                 self.generic_parameters(declaration.generic_parameters())?;
                 self.requirements(declaration.requirements())?;
@@ -326,7 +337,7 @@ impl<'a> Renderer<'a> {
                 let declaration = declarations.associated_types().get(id)?;
                 let owner = declarations.interfaces().get(declaration.interface())?;
                 self.visibility(declaration.site())?;
-                self.output.push_str("type ");
+                self.keyword(Keyword::Type);
                 self.exported_name(
                     ExportedEntity::Interface(declaration.interface()),
                     owner.name(),
@@ -376,39 +387,11 @@ impl<'a> Renderer<'a> {
     ) -> Option<()> {
         let declarations = self.graph.declarations();
         match entity {
-            SemanticEntity::Constant(id) => {
-                let declaration = declarations.constants().get(id)?;
-                self.visibility(declaration.site())?;
-                self.output.push_str("const ");
-                self.output.push_str(self.symbol(declaration.name())?);
-                self.output.push_str(": ");
-                self.ty(declaration.ty())?;
-                self.output.push_str(" = ");
-                match declaration.value() {
-                    nocter_model::ConstantValue::Bool(value) => {
-                        self.output.push_str(if *value { "true" } else { "false" });
-                    }
-                    nocter_model::ConstantValue::Character(value) => {
-                        write_character_literal(&mut self.output, *value).ok()?;
-                    }
-                    nocter_model::ConstantValue::Float32(_)
-                    | nocter_model::ConstantValue::Float64(_) => {
-                        // Float declarations are enabled only after the shared numeric-text
-                        // authority can render their retained target bits as canonical source.
-                        return None;
-                    }
-                    nocter_model::ConstantValue::Integer(value) => {
-                        write!(self.output, "{value}").ok()?;
-                    }
-                    nocter_model::ConstantValue::Text(value) => {
-                        write_string_literal(&mut self.output, value).ok()?;
-                    }
-                }
-            }
+            SemanticEntity::Constant(id) => self.constant(id)?,
             SemanticEntity::Static(id) => {
                 let declaration = declarations.statics().get(id)?;
                 self.visibility(declaration.site())?;
-                self.output.push_str("static ");
+                self.contextual(ContextualSpelling::Static);
                 self.output.push_str(self.symbol(declaration.name())?);
                 self.output.push_str(": ");
                 self.ty(declaration.ty())?;
@@ -436,17 +419,18 @@ impl<'a> Renderer<'a> {
                 let _ = body;
                 let local = body_evidence?.locals().get(id)?;
                 let introducer = match local.declaration().kind() {
-                    LocalBindingKind::Mutable => "var",
+                    LocalBindingKind::Mutable => Keyword::Var,
                     LocalBindingKind::Immutable
                     | LocalBindingKind::PatternPayload
                     | LocalBindingKind::Loop
                     | LocalBindingKind::Region
                     | LocalBindingKind::Catch
-                    | LocalBindingKind::ClosureParameter => "let",
+                    | LocalBindingKind::ClosureParameter => Keyword::Let,
                 };
                 write!(
                     self.output,
-                    "{introducer} {}: ",
+                    "{} {}: ",
+                    introducer.as_str(),
                     self.symbol(local.declaration().name())?
                 )
                 .ok()?;
@@ -465,9 +449,50 @@ impl<'a> Renderer<'a> {
             }
             SemanticEntity::Test(id) => {
                 let declaration = declarations.tests().get(id)?;
-                write!(self.output, "test \"{}\"", self.symbol(declaration.name())?).ok()?;
+                write!(
+                    self.output,
+                    "{} \"{}\"",
+                    Keyword::Test.as_str(),
+                    self.symbol(declaration.name())?
+                )
+                .ok()?;
             }
             _ => return None,
+        }
+        Some(())
+    }
+
+    fn constant(&mut self, id: nocter_model::ConstantId) -> Option<()> {
+        let declaration = self.graph.declarations().constants().get(id)?;
+        self.visibility(declaration.site())?;
+        self.keyword(Keyword::Const);
+        self.output.push_str(self.symbol(declaration.name())?);
+        self.output.push_str(": ");
+        self.ty(declaration.ty())?;
+        self.output.push_str(" = ");
+        match declaration.value() {
+            nocter_model::ConstantValue::Bool(value) => self.output.push_str(
+                if *value {
+                    Keyword::True
+                } else {
+                    Keyword::False
+                }
+                .as_str(),
+            ),
+            nocter_model::ConstantValue::Character(value) => {
+                write_character_literal(&mut self.output, *value).ok()?;
+            }
+            nocter_model::ConstantValue::Float32(_) | nocter_model::ConstantValue::Float64(_) => {
+                // Float declarations are enabled only after the shared numeric-text authority can
+                // render their retained target bits as canonical source.
+                return None;
+            }
+            nocter_model::ConstantValue::Integer(value) => {
+                write!(self.output, "{value}").ok()?;
+            }
+            nocter_model::ConstantValue::Text(value) => {
+                write_string_literal(&mut self.output, value).ok()?;
+            }
         }
         Some(())
     }
@@ -502,30 +527,31 @@ impl<'a> Renderer<'a> {
             callable.execution(),
             nocter_declarations::CallableExecution::Deferred { .. }
         ) {
-            self.output.push_str("async ");
+            self.keyword(Keyword::Async);
         }
         if matches!(callable.owner(), CallableOwner::Interface(_)) && callable.body().is_some() {
-            self.output.push_str("default ");
+            self.contextual(ContextualSpelling::Default);
         }
         match callable.kind() {
             CallableKind::Primitive => {
-                self.output.push_str("primitive func ");
+                self.keyword(Keyword::Primitive);
+                self.keyword(Keyword::Func);
                 self.output.push_str(self.symbol(callable.name()?)?);
             }
             CallableKind::Function | CallableKind::ConstructionFunction => {
-                self.output.push_str("func ");
+                self.keyword(Keyword::Func);
                 self.owner_prefix(callable.owner())?;
                 self.output.push_str(self.symbol(callable.name()?)?);
             }
             CallableKind::Method => {
-                self.output.push_str("method ");
+                self.keyword(Keyword::Method);
                 let receiver = declarations.parameters().get(callable.receiver()?)?;
                 self.receiver(receiver.role(), callable.owner())?;
                 self.output.push('.');
                 self.output.push_str(self.symbol(callable.name()?)?);
             }
             CallableKind::Literal(shape) => {
-                self.output.push_str("literal ");
+                self.keyword(Keyword::Literal);
                 let CallableOwner::Construction(owner) = callable.owner() else {
                     return None;
                 };
@@ -538,10 +564,11 @@ impl<'a> Renderer<'a> {
                 });
             }
             CallableKind::Coercion => {
-                self.output.push_str("coerce ");
+                self.contextual(ContextualSpelling::Coerce);
                 let receiver = declarations.parameters().get(callable.receiver()?)?;
                 self.receiver(receiver.role(), callable.owner())?;
-                self.output.push_str(" as ");
+                self.output.push(' ');
+                self.keyword(Keyword::As);
                 self.ty(callable.result())?;
                 return Some(());
             }
@@ -570,14 +597,16 @@ impl<'a> Renderer<'a> {
         let callable = declarations.callables().get(required.interface_method())?;
         self.callable_guarantees(callable.guarantees());
         if required.is_deferred() {
-            self.output.push_str("async ");
+            self.keyword(Keyword::Async);
         }
-        self.output.push_str("method ");
-        self.output.push_str(match required.receiver() {
-            CallableCapability::Readonly => "&self.",
-            CallableCapability::ReadWrite => "&+self.",
-            CallableCapability::Owned => "self.",
-        });
+        self.keyword(Keyword::Method);
+        match required.receiver() {
+            CallableCapability::Readonly => self.output.push('&'),
+            CallableCapability::ReadWrite => self.output.push_str("&+"),
+            CallableCapability::Owned => {}
+        }
+        self.output.push_str(ContextualSpelling::LowerSelf.as_str());
+        self.output.push('.');
         self.output.push_str(self.symbol(callable.name()?)?);
         self.generic_parameters(required.generic_parameters())?;
         self.output.push('(');
@@ -606,7 +635,8 @@ impl<'a> Renderer<'a> {
         if requirements.is_empty() {
             return Some(());
         }
-        self.output.push_str(" where ");
+        self.output.push(' ');
+        self.contextual(ContextualSpelling::Where);
         for (index, requirement) in requirements.iter().enumerate() {
             if index != 0 {
                 self.output.push_str(", ");
@@ -624,7 +654,8 @@ impl<'a> Renderer<'a> {
                 associated_types,
             } => {
                 self.ty(*subject)?;
-                self.output.push_str(" impl ");
+                self.output.push(' ');
+                self.keyword(Keyword::Impl);
                 self.interface_application(application)?;
                 self.associated_bindings(associated_types)?;
             }
@@ -634,7 +665,7 @@ impl<'a> Renderer<'a> {
                 self.callable_contract(contract)?;
             }
             CheckedPredicate::Copy(ty) => {
-                self.output.push_str("copy ");
+                self.contextual(ContextualSpelling::Copy);
                 self.ty(*ty)?;
             }
             CheckedPredicate::BinderRefinement {
@@ -676,7 +707,8 @@ impl<'a> Renderer<'a> {
             }
             CheckedPredicate::Coercion { source, target } => {
                 self.ty(*source)?;
-                self.output.push_str(" as ");
+                self.output.push(' ');
+                self.keyword(Keyword::As);
                 self.ty(*target)?;
             }
             CheckedPredicate::Expansion {
@@ -774,7 +806,8 @@ impl<'a> Renderer<'a> {
     fn operator(&mut self, callable: &nocter_declarations::CallableDeclaration) -> Option<()> {
         let declarations = self.graph.declarations();
         let receiver = declarations.parameters().get(callable.receiver()?)?;
-        self.output.push_str("operator (");
+        self.keyword(Keyword::Operator);
+        self.output.push('(');
         if callable.kind() == CallableKind::Expansion {
             self.output.push_str("...");
         }
@@ -918,8 +951,11 @@ impl<'a> Renderer<'a> {
         let site = self.graph.declaration_sites().get(site)?;
         match site.visibility() {
             Visibility::Private => {}
-            Visibility::Public => self.output.push_str("pub "),
-            Visibility::Package(_) => self.output.push_str("pub(/) "),
+            Visibility::Public => self.keyword(Keyword::Pub),
+            Visibility::Package(_) => {
+                self.output.push_str(Keyword::Pub.as_str());
+                self.output.push_str("(/) ");
+            }
             Visibility::Descendants(boundary) => {
                 let current = self.graph.modules().get(site.module())?;
                 let boundary = self.graph.modules().get(boundary)?;
@@ -928,7 +964,8 @@ impl<'a> Renderer<'a> {
                 {
                     return None;
                 }
-                self.output.push_str("pub(");
+                self.output.push_str(Keyword::Pub.as_str());
+                self.output.push('(');
                 let parents = current.path().segments().len() - boundary.path().segments().len();
                 if parents == 0 {
                     self.output.push_str("./");
@@ -950,23 +987,27 @@ impl<'a> Renderer<'a> {
             return Some(());
         };
         let origins = callable.provenance().declared_origins()?;
-        self.output.push_str(" from ");
+        self.output.push(' ');
+        self.contextual(ContextualSpelling::From);
+        let mut has_origin = false;
         if includes_static {
             self.output.push_str(ContextualSpelling::Static.as_str());
+            has_origin = true;
         }
         for origin in origins {
-            if includes_static || !self.output.ends_with(" from ") {
+            if has_origin {
                 self.output.push_str(" | ");
             }
             match origin {
                 nocter_declarations::ProvenanceOrigin::Receiver => {
-                    self.output.push_str(ContextualSpelling::LowerSelf.as_str())
+                    self.output.push_str(ContextualSpelling::LowerSelf.as_str());
                 }
                 nocter_declarations::ProvenanceOrigin::Parameter(id) => {
                     let parameter = self.graph.declarations().parameters().get(*id)?;
                     self.output.push_str(self.symbol(parameter.name())?);
                 }
             }
+            has_origin = true;
         }
         Some(())
     }
@@ -975,7 +1016,8 @@ impl<'a> Renderer<'a> {
         if requirements.is_empty() {
             return Some(());
         }
-        self.output.push_str(" where ");
+        self.output.push(' ');
+        self.contextual(ContextualSpelling::Where);
         for (index, requirement) in requirements.iter().enumerate() {
             if index != 0 {
                 self.output.push_str(", ");
@@ -994,7 +1036,8 @@ impl<'a> Renderer<'a> {
                 associated_types,
             } => {
                 self.requirement_subject(*subject)?;
-                self.output.push_str(" impl ");
+                self.output.push(' ');
+                self.keyword(Keyword::Impl);
                 self.interface_application(application)?;
                 self.associated_bindings(associated_types)?;
             }
@@ -1004,7 +1047,7 @@ impl<'a> Renderer<'a> {
                 self.callable_contract(contract)?;
             }
             RequirementKind::Copy(parameter) => {
-                self.output.push_str("copy ");
+                self.contextual(ContextualSpelling::Copy);
                 self.generic_parameter(*parameter)?;
             }
             RequirementKind::BinderRefinement {
@@ -1046,7 +1089,8 @@ impl<'a> Renderer<'a> {
             }
             RequirementKind::Coercion { source, target } => {
                 self.ty(*source)?;
-                self.output.push_str(" as ");
+                self.output.push(' ');
+                self.keyword(Keyword::As);
                 self.ty(*target)?;
             }
             RequirementKind::Expansion {
@@ -1206,7 +1250,7 @@ impl<'a> Renderer<'a> {
                 self.prefix_type(*referent)?;
             }
             TypeKind::Future(output) => {
-                self.output.push_str("future ");
+                self.keyword(Keyword::Future);
                 self.ty(*output)?;
             }
             TypeKind::Slice(element) => {
@@ -1252,11 +1296,7 @@ impl<'a> Renderer<'a> {
 
     fn callable_contract(&mut self, contract: &nocter_model::CallableContract) -> Option<()> {
         self.callable_guarantees(contract.guarantees());
-        self.output.push_str(match contract.capability() {
-            CallableCapability::Readonly => "&func",
-            CallableCapability::ReadWrite => "&+func",
-            CallableCapability::Owned => "func",
-        });
+        self.callable_capability(contract.capability());
         self.output.push('(');
         let named = !contract.provenance().origins().is_empty();
         for (index, parameter) in contract.parameters().iter().copied().enumerate() {
@@ -1289,7 +1329,8 @@ impl<'a> Renderer<'a> {
         self.output.push_str("): ");
         self.ty(contract.result())?;
         if named {
-            self.output.push_str(" from ");
+            self.output.push(' ');
+            self.contextual(ContextualSpelling::From);
             for (index, origin) in contract.provenance().origins().iter().enumerate() {
                 if index != 0 {
                     self.output.push_str(" | ");
@@ -1302,11 +1343,20 @@ impl<'a> Renderer<'a> {
 
     fn callable_guarantees(&mut self, guarantees: nocter_model::CallableGuarantees) {
         if guarantees.allocation() == nocter_model::AllocationGuarantee::NoAllocation {
-            self.output.push_str("noalloc ");
+            self.keyword(Keyword::NoAlloc);
         }
         if guarantees.nonblocking() == nocter_model::NonblockingGuarantee::Unspecified {
-            self.output.push_str("blocking ");
+            self.keyword(Keyword::Blocking);
         }
+    }
+
+    fn callable_capability(&mut self, capability: CallableCapability) {
+        match capability {
+            CallableCapability::Readonly => self.output.push('&'),
+            CallableCapability::ReadWrite => self.output.push_str("&+"),
+            CallableCapability::Owned => {}
+        }
+        self.output.push_str(Keyword::Func.as_str());
     }
 
     fn record_parameter(&mut self, start: usize) {

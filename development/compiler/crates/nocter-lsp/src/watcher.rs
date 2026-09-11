@@ -7,7 +7,7 @@ pub const WATCHED_FILES_REGISTRATION_ID: &str = "nocter-source-files";
 
 /// Builds the exact dynamic registration for all Nocter source create/change/delete events.
 #[must_use]
-pub fn watched_files_registration() -> Value {
+pub fn watched_files_registration(glob: &str) -> Value {
     object([(
         "registrations",
         Value::Array(vec![object([
@@ -21,7 +21,7 @@ pub fn watched_files_registration() -> Value {
                 object([(
                     "watchers",
                     Value::Array(vec![object([
-                        ("globPattern", Value::String("**/*.nct".into())),
+                        ("globPattern", Value::String(glob.into())),
                         ("kind", Value::Number("7".into())),
                     ])]),
                 )]),
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn registration_covers_create_change_and_delete_for_nocter_sources() {
         let mut rendered = String::new();
-        write_value(&mut rendered, &watched_files_registration());
+        write_value(&mut rendered, &watched_files_registration("**/*.nct"));
         assert_eq!(
             rendered,
             concat!(
