@@ -47,7 +47,7 @@ namespace, select public type names, or define public re-exports:
 ```nct
 use std/io
 use std/io as console
-use std/io.{File, Writer}
+use std/io.{File, BlockingWriter}
 use std/io.File as StdFile
 use ./parser.Parser
 use ../shared/path.Path

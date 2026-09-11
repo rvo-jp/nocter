@@ -1,7 +1,7 @@
 # I/O
 
-Every `Writer` receives the line adapter declared by the compiler-checked
-[`Writer` contract](index.nct), in addition to exact text output.
+Every `BlockingWriter` receives the line adapter declared by the compiler-checked
+[`BlockingWriter` contract](index.nct), in addition to exact text output.
 
 `write_line_blocking` writes the complete input text followed by exactly one LF byte. It does not
 select a platform newline, allocate a combined buffer, or promise that both writes are atomic. A
@@ -52,19 +52,20 @@ behavior remain exactly the common `BufReader` contract.
 
 ## Byte I/O and Buffering
 
-`Reader` and `Writer` define the shared byte-I/O contracts. `Reader.read_blocking` initializes no
-more than the supplied buffer length and returns zero at end of stream. The
+`BlockingReader` and `BlockingWriter` define the shared byte-I/O contracts.
+`BlockingReader.read_blocking` initializes no more than the supplied buffer length and returns zero
+at end of stream. The
 `read_to_end_blocking` default method collects bytes into independently owned `Vec<u8>` storage. A
 reader that reports an impossible byte count fails with `std.io.invalid_read_count`. The
 `read_to_string_blocking` default method uses the same collector and validates the complete result
 as UTF-8 before returning an independently owned `String`.
 
-Every `Reader` and `Writer` operation admits `blocking`. A generic algorithm using either
-interface retains that contract even when one concrete implementation happens to operate only on
+Every `BlockingReader` and `BlockingWriter` operation admits `blocking`. A generic algorithm using
+either interface retains that contract even when one concrete implementation happens to operate only on
 memory. Construction of `stdin`, `stdout`, and `stderr`, and explicit `File.close`, do not wait and
 remain unqualified.
 
-`Writer.write_text_blocking` is a default adapter from UTF-8 text to the complete-byte
+`BlockingWriter.write_text_blocking` is a default adapter from UTF-8 text to the complete-byte
 `write_blocking` contract.
 `BufReader` and `BufWriter` in `std/io/buffer` own their buffering storage and receive these common
 operations through static interface dispatch. A buffered writer reports I/O failure only through
@@ -88,7 +89,7 @@ condition. An empty line therefore returns an empty present `String` or `true`, 
 Line results exclude the terminating LF byte. One CR byte immediately before that LF is also
 excluded; a lone CR and every other byte are retained. EOF after line bytes returns that final
 unterminated line once. Repeated line reads after EOF or explicit `close` return `none` or `false`,
-and byte reads through `Reader.read_blocking` return zero.
+and byte reads through `BlockingReader.read_blocking` return zero.
 
 UTF-8 validation applies to the complete line after newline removal, so one scalar may cross any
 number of partial underlying reads. Invalid input fails with `std.string.invalid_utf8`; it is not

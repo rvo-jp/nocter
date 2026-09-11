@@ -2,7 +2,7 @@ see ./index.nct
 
 use std/fs.FileType
 use std/fs
-use std/io.{File, Writer}
+use std/io.{File, BlockingWriter}
 use std/io
 use std/io/buffer.{BufReader, BufWriter}
 use std/process

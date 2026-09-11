@@ -1,6 +1,6 @@
 //! Owning JSON values, exact number tokens, and strict whole-text parsing.
 
-use /io.Writer
+use /io.BlockingWriter
 use /map.Map
 use /mem.TryAllocator
 use /string.String
@@ -81,11 +81,11 @@ pub blocking func try_stringify(
 ): String! from allocator
 
 /// Writes one compact JSON text without constructing a complete intermediate String.
-pub blocking func write<W>(destination: &+W, value: &Value): void! where W impl Writer
+pub blocking func write<W>(destination: &+W, value: &Value): void! where W impl BlockingWriter
 
 /// Writes one compact JSON text with recoverable traversal-stack allocation.
 pub blocking func try_write<W>(
     allocator: &+TryAllocator,
     destination: &+W,
     value: &Value,
-): void! where W impl Writer
+): void! where W impl BlockingWriter

@@ -13,7 +13,7 @@ use /internal/net.{
     UnitAttempt,
 }
 use /internal/ptr
-use /io.{Reader, Writer}
+use /io.{BlockingReader, BlockingWriter}
 use /net as net
 use /net.{SocketAddress, TcpShutdown}
 use /ptr as public_ptr

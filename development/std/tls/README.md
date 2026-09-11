@@ -42,8 +42,8 @@ Security.framework records do not cross the standard-library boundary.
 ## Ownership and I/O
 
 `TlsStream` uniquely owns one authenticated provider connection and implements the ordinary
-`Reader` and `Writer` contracts. Reads return decrypted application bytes and zero only after clean
-peer completion. Writes accept the complete plaintext view or report a failure after any prefix
+`BlockingReader` and `BlockingWriter` contracts. Reads return decrypted application bytes and zero
+only after clean peer completion. Writes accept the complete plaintext view or report a failure after any prefix
 already accepted by the provider remains observable.
 
 Read and write timeout configuration has the same fixed monotonic-deadline meaning as `TcpStream`.

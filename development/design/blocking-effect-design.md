@@ -138,8 +138,8 @@ The following current families contain synchronous external waits and must expos
 
 Pure formatting, in-memory buffering, URL parsing, HTTP codec work, calendar conversion,
 monotonic-counter reads, and collection operations do not intrinsically wait. Interface
-abstractions such as `Reader` and `Writer` must nevertheless state the effect admitted by their
-requirement. Without effect polymorphism, a generic algorithm checked through such a requirement
+abstractions such as `BlockingReader` and `BlockingWriter` must nevertheless state the effect
+admitted by their requirement. Without effect polymorphism, a generic algorithm checked through such a requirement
 conservatively retains `blocking`, even when one later concrete witness is memory-only. The
 declaration contract remains authoritative; a call site does not specialize or recompute it.
 

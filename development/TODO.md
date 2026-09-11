@@ -2,15 +2,15 @@
 
 ## Current State
 
-Nocter v0.46.0 is published and externally audited. v0.47.0 Phase 0 is complete on
+Nocter v0.46.0 is published and externally audited. v0.47.0 Phases 0–1 are complete on
 `develop-v0.47.0`. The new milestone makes the unqualified `Reader` and `Writer` names canonical
 asynchronous byte-stream contracts, gives synchronous contracts explicit `BlockingReader` and
 `BlockingWriter` names, and removes duplicated concrete collection logic through generic defaults.
 
 ## Next Work
 
-Migrate the synchronous interfaces and all consumers to `BlockingReader` and `BlockingWriter`
-without aliases before introducing their canonical asynchronous replacements. The
+Introduce the canonical async `Reader` and `Writer` requirements and their generic defaults, then
+exercise default dispatch, ownership, and failure semantics before adding concrete witnesses. The
 [v0.47.0 milestone](history/milestones/v0.47.0.md) owns phase gates; the
 [asynchronous byte-I/O design](design/asynchronous-byte-io-design.md) owns the cross-module
 contract and information flow.

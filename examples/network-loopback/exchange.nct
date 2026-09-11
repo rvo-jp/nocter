@@ -1,4 +1,4 @@
-use std/io.{Reader, Writer}
+use std/io.{BlockingReader, BlockingWriter}
 use std/io
 use std/net.{IpAddress, Ipv4Address, SocketAddress, TcpListener, TcpStream, UdpSocket}
 use std/string.String

@@ -31,8 +31,8 @@ request, and `set_text_body` copies the exact UTF-8 bytes. These conveniences do
 framing, and the public response cursor operate on the sum rather than branching on the URL scheme. Ordinary
 informational responses are consumed before the final response is exposed; protocol-switching
 status 101 is rejected because the API does not transfer the upgraded stream. `Response` exposes
-the final status and fields and implements `Reader` for decoded body bytes. Completion, decoding or
-network failure, explicit `close`, and destruction of an unfinished response all transfer the
+the final status and fields and implements `BlockingReader` for decoded body bytes. Completion,
+decoding or network failure, explicit `close`, and destruction of an unfinished response all transfer the
 connection through its exact-once nonwaiting disposal boundary. There is no pooling, redirect
 following, request replay, decompression, or connection reuse. `send_blocking` and
 `send_with_timeout_blocking` are explicitly `blocking`; their synchronous transport setup uses the

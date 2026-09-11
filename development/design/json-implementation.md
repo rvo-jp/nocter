@@ -23,7 +23,7 @@ UTF-8 input view
 Value
     -> one owning traversal plan
         -> one escaping and token-emission engine
-            -> String sink or Writer sink
+            -> String sink or BlockingWriter sink
 ```
 
 The byte cursor owns the only source offset. Number scanning, string escape decoding, parser
@@ -37,7 +37,7 @@ frame transfers one completed `Value` either to its parent or to the root slot. 
 the current builder, frame stack, and root through ordinary ownership. No initialized-entry bitmap,
 recursive host stack, caller-provided count, or recovery-side ownership table is allowed.
 
-The generation side likewise has one traversal authority. Both String generation and Writer
+The generation side likewise has one traversal authority. Both String generation and BlockingWriter
 generation consume the same scalar, number, container, separator, and string-escaping decisions.
 A sink boundary chooses where emitted UTF-8 bytes go and classifies sink failure; it cannot choose
 JSON spelling. A new output target must implement that sink contract instead of copying the JSON
@@ -120,7 +120,7 @@ created it. A future canonical JSON API must own a separate ordering contract.
 | owning nested sequences and explicit traversal stacks | `Vec<T>` |
 | decoded-name lookup and owning object storage | `Map<String, Value>` and `Hash` |
 | current and recoverable allocation policies | `std/mem` |
-| recoverable destination output | `io.Writer` |
+| recoverable destination output | `io.BlockingWriter` |
 | move-only partial state and once-only cleanup | language ownership and drop |
 
 JSON consumes two package-internal prerequisites from their existing owners:
@@ -201,7 +201,7 @@ and escaping. `StringSink` and `WriterSink` contain destination adaptation only;
 `Value`, punctuation, Number, or escape decisions. String escaping batches complete UTF-8 chunks
 in fixed local storage. Before a
 multibyte scalar crosses the local capacity boundary, the current chunk is flushed, so an owning
-String never receives a partial scalar even though Writer accepts arbitrary bytes.
+String never receives a partial scalar even though BlockingWriter accepts arbitrary bytes.
 
 `GenerationAttempt` preserves destination failure and traversal-stack allocation failure until a
 public wrapper applies policy. `write` returns destination failure and terminates on stack
@@ -214,8 +214,8 @@ compare public error-code text to reconstruct private failure classes.
 The runnable `json-normalize` package is a consumer of the public standard library, not another
 JSON implementation layer. It obtains one UTF-8 path from the process API, reads one String through
 `std/fs`, parses that String through `std/json`, and writes the compact result through the public
-`Writer` contract. Usage and JSON failures are rendered through the built-in error surface. The
-application contains no parser state, JSON cursor, traversal frame, sink adapter, filesystem
+`BlockingWriter` contract. Usage and JSON failures are rendered through the built-in error surface.
+The application contains no parser state, JSON cursor, traversal frame, sink adapter, filesystem
 primitive, or operating-system binding.
 
 The application receives compiler, formatter, and editor behavior through the same production
@@ -230,10 +230,10 @@ Implementation and review must reject:
 - token arrays or source trees allocated before DOM construction;
 - a second byte offset maintained outside the cursor;
 - recursive JSON input parsing on the native call stack;
-- String and Writer paths with independent escaping or traversal logic;
+- String and BlockingWriter paths with independent escaping or traversal logic;
 - public error-code string matching used to recover private failure classes;
 - duplicate-name handling delegated to Map replacement;
-- JSON code that reads Map, String, Vec, allocator, or Writer representation fields;
+- JSON code that reads Map, String, Vec, allocator, or BlockingWriter representation fields;
 - floating-point conversion used as the Number storage authority;
 - a fixed nesting limit introduced only to accommodate an implementation shortcut.
 

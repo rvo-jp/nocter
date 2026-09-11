@@ -192,7 +192,7 @@
 <span class="token-comment">//! Fallible flushes are always explicit. Dropping a writer discards an</span>
 <span class="token-comment">//! unflushed buffer instead of hiding an I/O failure in destruction.</span>
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">File</span><span class="token-operator">,</span> <span class="token-type">BlockingReader</span><span class="token-operator">,</span> <span class="token-type">BlockingWriter</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>buffering<span class="token-operator">.</span>nct
 
@@ -217,7 +217,7 @@
     <span class="token-comment">/// Closes the source and makes every later read observe end of stream.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
 
-    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// An owning buffered writer whose fallible flush remains explicit.</span>
@@ -234,7 +234,7 @@
 <span class="token-keyword">instance</span> <span class="token-type">BufWriter</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Flushes pending bytes, closes the destination, and makes this writer terminal.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 <span class="token-operator">}</span>
 </code></pre>
             </div>

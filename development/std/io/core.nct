@@ -4,7 +4,7 @@ use /vec.Vec
 
 //! Portable byte-stream implementation bodies.
 
-interface Reader {
+interface BlockingReader {
     blocking default method &+self.read_to_end_blocking(): Vec<u8>! {
         return collect_bytes(self)?
     }
@@ -15,7 +15,7 @@ interface Reader {
     }
 }
 
-interface Writer {
+interface BlockingWriter {
     blocking default method &+self.flush_blocking(): void! {
         return
     }
@@ -31,7 +31,7 @@ interface Writer {
     }
 }
 
-blocking func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl Reader {
+blocking func collect_bytes<R>(reader: &+R): Vec<u8>! where R impl BlockingReader {
     var result: Vec<u8> = Vec.empty()
     var scratch: Vec<u8> = initialized_scratch(8192)
     while true {
@@ -61,13 +61,13 @@ func initialized_scratch(size: usize): Vec<u8> {
     return move scratch
 }
 
-blocking func write_text_to<W>(writer: &+W, text: &str): void! where W impl Writer {
+blocking func write_text_to<W>(writer: &+W, text: &str): void! where W impl BlockingWriter {
     let encoded: &[u8] = text.bytes()
     writer.write_blocking(encoded)?
     return
 }
 
-blocking func write_line_to<W>(writer: &+W, text: &str): void! where W impl Writer {
+blocking func write_line_to<W>(writer: &+W, text: &str): void! where W impl BlockingWriter {
     writer.write_text_blocking(text)?
     writer.write_text_blocking("\n")?
     return

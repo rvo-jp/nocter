@@ -27,7 +27,8 @@ that same method. This keeps decimal spelling under one implementation authority
 presenting a closed type matrix as a general formatting API.
 
 Formatting and byte output deliberately remain distinct contracts. `Format` reports only mutation
-failure from its owned `String` destination; `Writer` may report an I/O failure after publishing a
+failure from its owned `String` destination; `BlockingWriter` may report an I/O failure after
+publishing a
 prefix outside the process. Their sole value boundary is well-formed `&str`. The standard library
 does not define a second direct-to-writer formatting protocol or reinterpret a writer error as
 allocation failure.

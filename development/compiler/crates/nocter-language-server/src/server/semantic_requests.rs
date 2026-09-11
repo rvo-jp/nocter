@@ -2308,7 +2308,7 @@ mod tests {
     fn http_client_source() -> &'static str {
         concat!(
             "use std/http.{Client, Request}\n",
-            "use std/io.Reader\n",
+            "use std/io.BlockingReader\n",
             "use std/url.Url\n",
             "blocking func main(): void! {\n",
             "    let url = Url.parse(\"http://localhost/\")?\n",

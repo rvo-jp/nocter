@@ -90,7 +90,7 @@ contract.
 
 ## TCP Semantics
 
-`TcpStream` is a byte stream and conforms to `Reader` and `Writer`.
+`TcpStream` is a byte stream and conforms to `BlockingReader` and `BlockingWriter`.
 
 - A read returns zero only after clean peer EOF or for an empty destination buffer.
 - A successful write consumes the complete supplied buffer.
@@ -109,8 +109,8 @@ not implement its own callback, retry, or elapsed-time loop.
 
 ## UDP Semantics
 
-`UdpSocket` does not conform to `Reader` or `Writer`. Those contracts describe a byte stream and
-cannot preserve datagram boundaries or distinguish an empty datagram from EOF.
+`UdpSocket` does not conform to `BlockingReader` or `BlockingWriter`. Those contracts describe a
+byte stream and cannot preserve datagram boundaries or distinguish an empty datagram from EOF.
 
 One send operation transmits one complete datagram or returns an error. One receive operation
 returns the source address, copied byte count, and whether the datagram exceeded the destination

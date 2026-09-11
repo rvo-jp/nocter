@@ -236,7 +236,7 @@ nocter run -- "  alpha beta  "
 
 [stdin-prefix/index.nct](stdin-prefix/index.nct) prefixes every logical standard-input line with
 one exact command-line argument. Its [prefix.nct](stdin-prefix/prefix.nct) implementation combines
-the borrowed `io.stdin()` stream with explicit `BufReader` state and ordinary `Writer` output;
+the borrowed `io.stdin()` stream with explicit `BufReader` state and ordinary `BlockingWriter` output;
 there is no global line buffer or input-specific compiler path.
 
 ```sh
@@ -248,7 +248,7 @@ nocter run -- '> ' < sample.txt
 [json-normalize/index.nct](json-normalize/index.nct) reads one UTF-8 JSON file, validates and owns
 its complete value, then writes the shared compact spelling directly to standard output. Its
 [normalize.nct](json-normalize/normalize.nct) implementation composes process arguments, paths,
-filesystem input, JSON parsing, and the public `Writer` generator without a JSON-specific file or
+filesystem input, JSON parsing, and the public `BlockingWriter` generator without a JSON-specific file or
 operating-system API.
 
 ```sh

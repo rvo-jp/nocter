@@ -1,6 +1,6 @@
 //! Package-internal JSON byte destinations.
 
-use /io.Writer
+use /io.BlockingWriter
 use /string.String
 see ./adapters.nct
 
@@ -25,6 +25,6 @@ instance StringSink {
     impl ByteSink
 }
 
-instance WriterSink<W> where W impl Writer {
+instance WriterSink<W> where W impl BlockingWriter {
     impl ByteSink
 }

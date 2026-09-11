@@ -1,11 +1,11 @@
-//! Non-recursive compact JSON traversal shared by String and Writer output.
+//! Non-recursive compact JSON traversal shared by String and BlockingWriter output.
 
 see ./index.nct
 see ./escaping.nct
 see ./generation_failure.nct
 
 use /internal/mem
-use /io.Writer
+use /io.BlockingWriter
 use /map.Map
 use /mem.TryAllocator
 use /mem as mem_module
@@ -160,7 +160,7 @@ blocking func try_stringify(
     }
 }
 
-blocking func write<W>(destination: &+W, value: &Value): void! where W impl Writer {
+blocking func write<W>(destination: &+W, value: &Value): void! where W impl BlockingWriter {
     var allocator = mem_module.current_try_allocator()
     var sink = WriterSink<W>.new(destination)
     let attempt = generate_core(&+allocator, &+sink, value)
@@ -175,7 +175,7 @@ blocking func try_write<W>(
     allocator: &+TryAllocator,
     destination: &+W,
     value: &Value,
-): void! where W impl Writer {
+): void! where W impl BlockingWriter {
     var sink = WriterSink<W>.new(destination)
     let attempt = generate_core(allocator, &+sink, value)
     match move attempt {

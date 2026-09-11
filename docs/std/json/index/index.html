@@ -188,7 +188,7 @@
             <div class="markdown-body">
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Owning JSON values, exact number tokens, and strict whole-text parsing.</span>
 
-<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">Writer</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">BlockingWriter</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>map<span class="token-operator">.</span><span class="token-type">Map</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
@@ -269,14 +269,14 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">String</span><span class="token-operator">!</span> from allocator
 
 <span class="token-comment">/// Writes one compact JSON text without constructing a complete intermediate String.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">func</span> write<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">func</span> write<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span> value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 
 <span class="token-comment">/// Writes one compact JSON text with recoverable traversal-stack allocation.</span>
 <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">func</span> try_write<span class="token-operator">&lt;</span><span class="token-type">W</span><span class="token-operator">&gt;</span><span class="token-operator">(</span>
     allocator<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">TryAllocator</span><span class="token-operator">,</span>
     destination<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">W</span><span class="token-operator">,</span>
     value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-type">Value</span><span class="token-operator">,</span>
-<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+<span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> where <span class="token-type">W</span> <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 </code></pre>
             </div>
         </main>

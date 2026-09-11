@@ -59,8 +59,8 @@ fails metadata construction with `std.fs.invalid_metadata_time` rather than esca
 `read_to_string` validates the complete file as UTF-8 and preserves the ordinary
 `std.string.invalid_utf8` failure when validation fails. `write` and `write_text` create or
 truncate the destination and return success only after the complete input has passed through the
-`Writer` contract. These four functions compose `File`, `Reader`, and `Writer`; they do not define
-a second descriptor-I/O algorithm.
+`BlockingWriter` contract. These four functions compose `File`, `BlockingReader`, and
+`BlockingWriter`; they do not define a second descriptor-I/O algorithm.
 
 `metadata` follows symbolic links. Its `len` is the target-reported byte length represented as
 `u64`; it is not a collection index and therefore is not narrowed to `usize`. `regular` and

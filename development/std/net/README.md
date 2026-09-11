@@ -65,8 +65,8 @@ provider resolution, and connection.
 
 ## TCP Streams and Listeners
 
-`TcpStream` is a uniquely owned byte stream implementing `Reader` and `Writer`. Connecting accepts
-one numeric `SocketAddress`, while the host constructors compose the separate resolution contract
+`TcpStream` is a uniquely owned byte stream implementing `BlockingReader` and `BlockingWriter`.
+Connecting accepts one numeric `SocketAddress`, while the host constructors compose the separate resolution contract
 with ordered candidate connection. `net.connect_tcp` performs numeric connection without
 blocking the executor thread. Reads initialize at most the supplied mutable byte view and return
 zero at peer EOF. Writes complete the entire byte view or return a failure after any already-
@@ -117,8 +117,8 @@ unsupported operations, and invalid target results.
 
 ## UDP Datagrams
 
-`UdpSocket` is a uniquely owned datagram endpoint and deliberately does not implement `Reader` or
-`Writer`. Binding port zero and reporting the effective local address behave like TCP listeners.
+`UdpSocket` is a uniquely owned datagram endpoint and deliberately does not implement
+`BlockingReader` or `BlockingWriter`. Binding port zero and reporting the effective local address behaves like TCP listeners.
 `send_to` supplies an address for one message. `connect` selects one peer for later `send`
 operations and makes that peer available through `peer_address`; it does not turn UDP into a byte
 stream. Binding, numeric peer selection, and address observation complete immediately without

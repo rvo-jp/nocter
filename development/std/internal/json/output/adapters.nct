@@ -1,8 +1,8 @@
-//! String and Writer adapters for the package-internal JSON byte-sink contract.
+//! String and BlockingWriter adapters for the package-internal JSON byte-sink contract.
 
 see ./index.nct
 
-use /io.Writer
+use /io.BlockingWriter
 use /string.String
 
 struct StringSink {
@@ -32,7 +32,7 @@ instance StringSink {
     }
 }
 
-instance WriterSink<W> where W impl Writer {
+instance WriterSink<W> where W impl BlockingWriter {
     blocking method &+self.emit(bytes: &[u8]): void! {
         self.destination.write_blocking(bytes)?
         return

@@ -1,5 +1,5 @@
 use std/fs
-use std/io.Writer
+use std/io.BlockingWriter
 use std/io
 use std/json
 use std/path.Utf8Path

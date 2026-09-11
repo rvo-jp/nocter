@@ -2,7 +2,7 @@
 
 see ./index.nct
 
-use /io.{File, Reader, Writer}
+use /io.{File, BlockingReader, BlockingWriter}
 use /internal/io
 use /string.String
 use /vec.Vec

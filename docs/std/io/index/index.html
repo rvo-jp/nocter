@@ -203,7 +203,7 @@
 <span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>output_tests<span class="token-operator">.</span>nct
 
 <span class="token-comment">/// A source that initializes at most `buffer.len()` bytes per read.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Reader</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">BlockingReader</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Initializes at most the supplied buffer length and returns zero at end of stream.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">read_blocking</span><span class="token-operator">(</span>buffer<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">usize</span><span class="token-operator">!</span>
 
@@ -215,7 +215,7 @@
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// A destination that accepts the complete byte view or returns an error.</span>
-<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">Writer</span> <span class="token-operator">{</span>
+<span class="token-keyword">pub</span> <span class="token-keyword">interface</span> <span class="token-type">BlockingWriter</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Writes the complete byte view or reports an error after an observable prefix.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">blocking</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">write_blocking</span><span class="token-operator">(</span>value<span class="token-operator">:</span> <span class="token-operator">&amp;</span><span class="token-operator">[</span><span class="token-type">u8</span><span class="token-operator">]</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span>
 
@@ -255,8 +255,8 @@
 <span class="token-keyword">instance</span> <span class="token-type">File</span> <span class="token-operator">{</span>
     <span class="token-comment">/// Makes this wrapper terminal and closes its descriptor only when the wrapper owns it.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;+</span>self<span class="token-operator">.</span><span class="token-function">close</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 <span class="token-operator">}</span>
 
 <span class="token-comment">/// Writes UTF-8 text to standard output without adding a newline.</span>

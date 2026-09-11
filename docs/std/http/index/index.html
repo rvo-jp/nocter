@@ -189,7 +189,7 @@
                 <h1>index.nct</h1><pre><code class="language-nocter"><span class="token-comment">//! Validated HTTP/1.1 message values and transport-independent framing.</span>
 
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Hash</span><span class="token-operator">,</span> <span class="token-type">HashState</span><span class="token-operator">}</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">Reader</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-type">BlockingReader</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-type">Duration</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>tls<span class="token-operator">.</span><span class="token-type">TrustAnchor</span>
@@ -468,7 +468,7 @@
 <span class="token-keyword">pub</span> <span class="token-keyword">struct</span> <span class="token-type">Response</span>
 
 <span class="token-keyword">instance</span> <span class="token-type">Response</span> <span class="token-operator">{</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
 
     <span class="token-comment">/// Returns the final response status.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">status</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Status</span>

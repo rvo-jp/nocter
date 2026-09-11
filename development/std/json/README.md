@@ -25,14 +25,14 @@ blocking func normalize(text: &str): String! {
 }
 ```
 
-Write the same compact spelling directly to any `Writer` without first constructing the complete
-output String:
+Write the same compact spelling directly to any `BlockingWriter` without first constructing the
+complete output String:
 
 ```nct
-use std/io.Writer
+use std/io.BlockingWriter
 use std/json
 
-blocking func normalize_into<W>(destination: &+W, text: &str): void! where W impl Writer {
+blocking func normalize_into<W>(destination: &+W, text: &str): void! where W impl BlockingWriter {
     let value = json.parse(text)?
     json.write(destination, &value)?
     return
@@ -53,8 +53,8 @@ blocking func try_normalize(allocator: &+TryAllocator, text: &str): String! from
 ```
 
 The complete runnable [json-normalize example](../../../examples/json-normalize/index.nct) composes
-process arguments, UTF-8 filesystem input, parsing, public error reporting, and Writer generation.
-It uses no JSON-specific filesystem or operating-system operation.
+process arguments, UTF-8 filesystem input, parsing, public error reporting, and `BlockingWriter`
+generation. It uses no JSON-specific filesystem or operating-system operation.
 
 ## JSON Value Model
 
@@ -157,15 +157,15 @@ value, and emits every other Unicode scalar directly as UTF-8. Solidus is not es
 give strings one generated spelling without promising canonical object order or normalized number
 spelling.
 
-`write` and `try_write` forward a destination `Writer` failure unchanged and do not construct the
-complete JSON text in memory. Traversal uses an explicit stack proportional to value nesting plus
+`write` and `try_write` forward a destination `BlockingWriter` failure unchanged and do not
+construct the complete JSON text in memory. Traversal uses an explicit stack proportional to value nesting plus
 fixed-size local encoding buffers; it does not allocate a second JSON tree. `write` allocates that
 stack in the current context, while `try_write` uses the supplied `TryAllocator`. The writer remains
 responsible for its own internal allocation and I/O policy.
 
 All four generation functions currently carry `blocking`. The shared generator is checked once
-against the package-internal `ByteSink` interface, whose contract admits a blocking `Writer`.
-Nocter does not yet make callable effects polymorphic over an interface witness, so the concrete
+against the package-internal `ByteSink` interface, whose contract admits a blocking
+`BlockingWriter`. Nocter does not yet make callable effects polymorphic over an interface witness, so the concrete
 in-memory `StringSink` cannot narrow that generic callable contract at a use site. This is a
 conservative admission, not a claim that writing into a `String` performs external I/O.
 

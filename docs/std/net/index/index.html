@@ -195,7 +195,7 @@
 <span class="token-keyword">use</span> <span class="token-operator">/</span>hash<span class="token-operator">.</span><span class="token-type">Hash</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>net<span class="token-operator">.</span><span class="token-type">NetworkFailure</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>internal<span class="token-operator">/</span>net<span class="token-operator">/</span>model<span class="token-operator">.</span><span class="token-type">NetworkAddress</span>
-<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">Reader</span><span class="token-operator">,</span> <span class="token-type">Writer</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> <span class="token-operator">/</span>io<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">BlockingReader</span><span class="token-operator">,</span> <span class="token-type">BlockingWriter</span><span class="token-operator">}</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>mem<span class="token-operator">.</span><span class="token-type">TryAllocator</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>order<span class="token-operator">.</span><span class="token-type">TotalOrder</span>
 <span class="token-keyword">use</span> <span class="token-operator">/</span>string<span class="token-operator">.</span><span class="token-type">String</span>
@@ -491,8 +491,8 @@
 <span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">SocketAddress</span><span class="token-operator">&gt;</span><span class="token-operator">!</span> from allocator
 
 <span class="token-keyword">instance</span> <span class="token-type">TcpStream</span> <span class="token-operator">{</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Reader</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Writer</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingReader</span>
+    <span class="token-keyword">impl</span> <span class="token-type">BlockingWriter</span>
 
     <span class="token-comment">/// Returns the effective local socket address.</span>
     <span class="token-keyword">pub</span> <span class="token-keyword">noalloc</span> <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span><span class="token-operator">!</span>

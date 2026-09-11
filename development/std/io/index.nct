@@ -14,7 +14,7 @@ see ./output.nct
 see ./output_tests.nct
 
 /// A source that initializes at most `buffer.len()` bytes per read.
-pub interface Reader {
+pub interface BlockingReader {
     /// Initializes at most the supplied buffer length and returns zero at end of stream.
     pub blocking method &+self.read_blocking(buffer: &+[u8]): usize!
 
@@ -26,7 +26,7 @@ pub interface Reader {
 }
 
 /// A destination that accepts the complete byte view or returns an error.
-pub interface Writer {
+pub interface BlockingWriter {
     /// Writes the complete byte view or reports an error after an observable prefix.
     pub blocking method &+self.write_blocking(value: &[u8]): void!
 
@@ -66,8 +66,8 @@ construct File {
 instance File {
     /// Makes this wrapper terminal and closes its descriptor only when the wrapper owns it.
     pub method &+self.close(): void
-    impl Reader
-    impl Writer
+    impl BlockingReader
+    impl BlockingWriter
 }
 
 /// Writes UTF-8 text to standard output without adding a newline.

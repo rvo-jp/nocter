@@ -1,5 +1,5 @@
 use std/http.{Client, Request}
-use std/io.{Reader, Writer}
+use std/io.{BlockingReader, BlockingWriter}
 use std/io
 use std/process
 use std/time.Duration

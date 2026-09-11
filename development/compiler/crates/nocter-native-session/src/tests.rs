@@ -19,10 +19,10 @@ use nocter_session::{AnalyzedUnit, AnalyzedUnitStatus, CompiledTarget, Executabl
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
-const JSON_WRITER_CONTRACT_TEST_SOURCE: &str = r#"//! Public JSON Writer contract tests.
+const JSON_WRITER_CONTRACT_TEST_SOURCE: &str = r#"//! Public JSON BlockingWriter contract tests.
 #package: { name: "json-writer-tests", version: "0.0.0", }
 #test: { name: "writer", module: "." }
-use std/io.Writer
+use std/io.BlockingWriter
 use std/string.String
 see ./implementation.nct
 pub struct RecordingWriter
@@ -31,7 +31,7 @@ construct RecordingWriter {
     pub func failing_after(write_count: usize): Self
 }
 instance RecordingWriter {
-    impl Writer
+    impl BlockingWriter
     pub method &self.text(): &str
 }
 "#;
@@ -69,7 +69,7 @@ test write_streams_the_shared_compact_spelling {
     var writer = RecordingWriter.accepting()
     json.write(&+writer, &value)?
     if writer.text() != "{\"items\":[1,\"é\"]}" {
-        return error.new("test.output", "Writer spelling diverged from String generation")
+        return error.new("test.output", "BlockingWriter spelling diverged from String generation")
     }
     return
 }
@@ -79,7 +79,7 @@ test try_write_uses_the_selected_traversal_allocator {
     var writer = RecordingWriter.accepting()
     json.try_write(&+allocator, &+writer, &value)?
     if writer.text() != "[null,true,-0]" {
-        return error.new("test.output", "recoverable Writer spelling changed")
+        return error.new("test.output", "recoverable BlockingWriter spelling changed")
     }
     return
 }
@@ -96,10 +96,10 @@ test write_returns_destination_failure_after_partial_output {
 }
 "#;
 
-const IO_WRITER_CONTRACT_TEST_SOURCE: &str = r#"//! Public Writer line-adapter tests.
+const IO_WRITER_CONTRACT_TEST_SOURCE: &str = r#"//! Public BlockingWriter line-adapter tests.
 #package: { name: "io-writer-tests", version: "0.0.0", }
 #test: { name: "writer", module: "." }
-use std/io.Writer
+use std/io.BlockingWriter
 use std/string.String
 see ./implementation.nct
 pub struct RecordingWriter
@@ -108,7 +108,7 @@ construct RecordingWriter {
     pub func failing_after(write_count: usize): Self
 }
 instance RecordingWriter {
-    impl Writer
+    impl BlockingWriter
     pub method &self.text(): &str
 }
 "#;
@@ -144,7 +144,7 @@ test line_adapter_preserves_exact_and_empty_lines {
     writer.write_line_blocking("alpha")?
     writer.write_line_blocking("")?
     if writer.text() != "alpha\n\n" {
-        return error.new("test.output", "Writer line adapter changed its exact bytes")
+        return error.new("test.output", "BlockingWriter line adapter changed its exact bytes")
     }
     return
 }
@@ -152,11 +152,11 @@ test line_adapter_returns_failure_after_observable_prefix {
     var writer = RecordingWriter.failing_after(1)
     writer.write_line_blocking("prefix") catch failure {
         if !failure.has_code("test.destination") || writer.text() != "prefix" {
-            return error.new("test.failure", "Writer line failure or prefix changed")
+            return error.new("test.failure", "BlockingWriter line failure or prefix changed")
         }
         return
     }
-    return error.new("test.failure", "Writer line destination failure was not returned")
+    return error.new("test.failure", "BlockingWriter line destination failure was not returned")
 }
 "#;
 
@@ -1844,7 +1844,7 @@ fn standard_streaming_lines_cross_the_complete_native_session() {
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        r#"use std/io.{File, Writer}
+        r#"use std/io.{File, BlockingWriter}
 use std/io/buffer.{BufReader, BufWriter}
 use std/string.String
 
@@ -1949,7 +1949,7 @@ fn standard_input_crosses_the_complete_native_session() {
     let package_root = TempPackage::new();
     package_root.source(
         "main.nct",
-        r#"use std/io.Reader
+        r#"use std/io.BlockingReader
 use std/io
 use std/vec.Vec
 
@@ -2453,7 +2453,7 @@ fn public_http_client_crosses_localhost_resolution_and_streaming_fixture() {
         "main.nct",
         &format!(
             "use std/http.{{Client, Request}}\n\
-             use std/io.Reader\n\
+             use std/io.BlockingReader\n\
              use std/url.Url\n\
              \n\
              blocking func main(): i32 {{\n\
@@ -3728,7 +3728,7 @@ fn public_writer_line_adapter_crosses_native_tests() {
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("public Writer line tests failed native compilation")
+        panic!("public BlockingWriter line tests failed native compilation")
     };
     assert_eq!(cases.len(), 2);
     let output = TempPackage::new();
@@ -4781,7 +4781,7 @@ fn standard_json_writer_contract_crosses_native_tests() {
     let compiled = compile_native_tests(NativeTestCompileRequest::all(target)).unwrap();
     assert_eq!(compiled.targets().len(), 1);
     let NativeTestTargetOutcome::Compiled(cases) = compiled.targets()[0].outcome() else {
-        panic!("standard JSON Writer tests failed native compilation")
+        panic!("standard JSON BlockingWriter tests failed native compilation")
     };
     assert_eq!(cases.len(), 3);
     let output = TempPackage::new();

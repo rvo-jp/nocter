@@ -3,7 +3,7 @@
 see ./index.nct
 see ./darwin.nct
 
-use /io.{File, Reader, Writer}
+use /io.{File, BlockingReader, BlockingWriter}
 use /string.String
 use /time.SystemTime
 use /vec.Vec

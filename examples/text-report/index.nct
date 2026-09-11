@@ -9,7 +9,7 @@
 
 use ./report.Report
 use ./report as report_module
-use std/io.{File, Reader}
+use std/io.{File, BlockingReader}
 use std/io
 use std/path.Utf8Path
 use std/process

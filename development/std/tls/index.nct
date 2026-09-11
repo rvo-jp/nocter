@@ -3,7 +3,7 @@
 //! `TlsStream` uses the operating system trust store, verifies the requested server name, requires
 //! TLS 1.2 or newer, and preserves the same unique stream ownership and timeout model as TCP.
 
-use /io.{Reader, Writer}
+use /io.{BlockingReader, BlockingWriter}
 use /net.{SocketAddress, TcpShutdown}
 use /time.Duration
 see ./trust_anchor.nct
@@ -128,8 +128,8 @@ pub(/) async func connect_http1_with_trust_anchor_and_timeout(
 ): TlsStream!
 
 instance TlsStream {
-    impl Reader
-    impl Writer
+    impl BlockingReader
+    impl BlockingWriter
 
     /// Returns the effective local socket address.
     pub noalloc method &self.local_address(): SocketAddress!
