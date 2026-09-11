@@ -110,6 +110,20 @@ impl PublicPackageExample {
 /// Every public package example that must cross native compilation and execution.
 pub const PUBLIC_PACKAGE_EXAMPLES: &[PublicPackageExample] = &[
     PublicPackageExample {
+        directory: "async-udp",
+        package_identity: "workspace:async-udp",
+        executable: "async-udp",
+        fixtures: &[],
+        runs: &[PublicExampleRun {
+            name: "async-datagram-exchange",
+            arguments: &[],
+            stdin: b"",
+            status: 0,
+            stdout: b"",
+            stderr: b"",
+        }],
+    },
+    PublicPackageExample {
         directory: "async-http",
         package_identity: "workspace:async-http",
         executable: "async-http",

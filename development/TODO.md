@@ -3,18 +3,18 @@
 ## Current State
 
 Nocter v0.45.0 is published and externally audited. Development has moved to v0.46.0 on
-`develop-v0.46.0`. Closed target attempts, the shared synchronous/asynchronous UDP policy, and the
-public async-first datagram surface are complete without weakening the universal `future T` drive
-invariant or inferring nonblocking behavior from generic syscall arguments.
+`develop-v0.46.0`. The asynchronous datagram area is implemented through its public surface,
+native IPv4/IPv6 execution, cancellation and timeout behavior, complete public example, and
+ordinary checked LSP queries without weakening the universal `future T` drive invariant.
 
 ## Next Work
 
-Qualify the public UDP surface defined by the
+Perform the whole-area review and release-readiness work defined by the
 [v0.46.0 milestone](history/milestones/v0.46.0.md) and
-[asynchronous datagram design](design/asynchronous-datagram-io-design.md). Exercise async IPv4 and
-IPv6 transfer, connected and explicit destinations, empty and truncated datagrams, fixed timeout,
-cancellation reuse, close, and failure paths natively. Add one complete async UDP example and
-qualify its contracts through ordinary LSP queries.
+[asynchronous datagram design](design/asynchronous-datagram-io-design.md). Audit generic-syscall
+reachability, retry and timeout authority, dependency direction, effect preservation, caller-trust
+contracts, and stale documentation. Then run the complete compiler, documentation, public-example,
+formatting, and repository gates and stop before changing release identity or publishing.
 
 Preserve every published tag and asset, including v0.45.0.
 

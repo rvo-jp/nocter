@@ -4177,6 +4177,128 @@ fn public_async_tcp_crosses_the_complete_native_session() {
 }
 
 #[test]
+fn public_async_udp_crosses_readiness_timeout_cancellation_and_datagram_boundaries() {
+    let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let standard_root = compiler_root.join("../std");
+    let package_root = TempPackage::new();
+    package_root.source(
+        "main.nct",
+        "use std/net\n\
+         use std/net.IpFamily\n\
+         use std/task\n\
+         use std/task.Timeout\n\
+         use std/time.Duration\n\
+         use std/vec.Vec\n\
+         \n\
+         noalloc func loopback_v4(): net.SocketAddress {\n\
+             return net.SocketAddress.new(\n\
+                 net.IpAddress.from_ipv4(net.Ipv4Address.loopback()),\n\
+                 0,\n\
+             )\n\
+         }\n\
+         \n\
+         noalloc func loopback_v6(): net.SocketAddress {\n\
+             return net.SocketAddress.new(\n\
+                 net.IpAddress.from_ipv6(net.Ipv6Address.loopback()),\n\
+                 0,\n\
+             )\n\
+         }\n\
+         \n\
+         async func receive_fails_with(\n\
+             socket: &+net.UdpSocket,\n\
+             buffer: &+[u8],\n\
+             timeout: Duration,\n\
+             code: &str,\n\
+         ): bool {\n\
+             let _received = await socket.receive_with_timeout(buffer, timeout) catch failure {\n\
+                 return failure.has_code(code)\n\
+             }\n\
+             return false\n\
+         }\n\
+         \n\
+         async func main(): i32! {\n\
+             let generous = Duration.from_seconds(1)\n\
+             var sender = net.UdpSocket.bind(loopback_v4())?\n\
+             var receiver = net.UdpSocket.bind(loopback_v4())?\n\
+             let sender_address = sender.local_address()?\n\
+             let receiver_address = receiver.local_address()?\n\
+             await sender.send_to_with_timeout(\"abcdef\".bytes(), receiver_address, generous)?\n\
+             var short: Vec<u8> = Vec [\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+                 u8.truncate(0),\n\
+             ]\n\
+             let truncated = await receiver.receive_with_timeout(&+short, generous)?\n\
+             if truncated.source() != sender_address || truncated.copied_len() != 3\n\
+                 || !truncated.was_truncated() || short[0] != 97 || short[1] != 98\n\
+                 || short[2] != 99 { return 1 }\n\
+             await sender.send_to(\"\".bytes(), receiver_address)?\n\
+             var byte: Vec<u8> = Vec [u8.truncate(0)]\n\
+             let empty = await receiver.receive_with_timeout(&+byte, generous)?\n\
+             if empty.copied_len() != 0 || empty.was_truncated() { return 2 }\n\
+             sender.connect(receiver_address)?\n\
+             receiver.connect(sender_address)?\n\
+             if sender.peer_address()? != receiver_address { return 3 }\n\
+             await sender.send(\"ok\".bytes())?\n\
+             let connected = await receiver.receive_with_timeout(&+byte, generous)?\n\
+             if connected.copied_len() != 1 || !connected.was_truncated()\n\
+                 || byte[0] != 111 { return 4 }\n\
+             let cancelled = await task.with_timeout(\n\
+                 receiver.receive(&+byte),\n\
+                 Duration.from_milliseconds(5),\n\
+             )\n\
+             match move cancelled {\n\
+                 Timeout.completed(_) { return 5 }\n\
+                 Timeout.elapsed {}\n\
+             }\n\
+             await sender.send(\"r\".bytes())?\n\
+             let reused = await receiver.receive_with_timeout(&+byte, generous)?\n\
+             if reused.copied_len() != 1 || reused.was_truncated() || byte[0] != 114 {\n\
+                 return 6\n\
+             }\n\
+             if !await receive_fails_with(\n\
+                 &+receiver,\n\
+                 &+byte,\n\
+                 Duration.from_milliseconds(2),\n\
+                 \"std.net.timed_out\",\n\
+             ) { return 7 }\n\
+             receiver.close()\n\
+             if !await receive_fails_with(\n\
+                 &+receiver,\n\
+                 &+byte,\n\
+                 generous,\n\
+                 \"std.net.closed\",\n\
+             ) { return 8 }\n\
+             var sender_v6 = net.UdpSocket.bind(loopback_v6())?\n\
+             var receiver_v6 = net.UdpSocket.bind(loopback_v6())?\n\
+             let sender_v6_address = sender_v6.local_address()?\n\
+             let receiver_v6_address = receiver_v6.local_address()?\n\
+             await sender_v6.send_to(\"6\".bytes(), receiver_v6_address)?\n\
+             let ipv6 = await receiver_v6.receive_with_timeout(&+byte, generous)?\n\
+             if ipv6.source().ip().family() is IpFamily.ipv4 { return 9 }\n\
+             if ipv6.copied_len() != 1 || byte[0] != 54 { return 10 }\n\
+             receiver_v6.connect(sender_v6_address)?\n\
+             await receiver_v6.send(\"v\".bytes())?\n\
+             let ipv6_reply = await sender_v6.receive_with_timeout(&+byte, generous)?\n\
+             if ipv6_reply.source() != receiver_v6_address\n\
+                 || ipv6_reply.copied_len() != 1 || byte[0] != 118 { return 11 }\n\
+             return 0\n\
+         }\n",
+    );
+    let standard_package = PackageIdentity::new("toolchain:std");
+    let unit = discover(DiscoveryRequest::single_file(
+        CompilationTarget::Arm64Darwin,
+        package_root.0.join("main.nct"),
+        package_graph(vec![resolved_standard(&standard_root, &standard_package)]),
+        bundled_standard_toolchain(&standard_package),
+    ))
+    .unwrap();
+    let compiled = compile_for_test(unit);
+    let image = compile_native_image(ExecutableCompileRequest::only(compiled)).unwrap();
+    execute_native_status(image.image(), &package_root.0, "async-udp", 0);
+}
+
+#[test]
 fn provider_async_stream_policy_crosses_the_complete_native_session() {
     let compiler_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let standard_root = fs::canonicalize(compiler_root.join("../std")).unwrap();

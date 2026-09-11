@@ -137,6 +137,122 @@ fn network_loopback_source_drives_local_editor_features() {
 }
 
 #[test]
+fn async_udp_uses_one_checked_contract_across_editor_features() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/async-udp");
+    let source = root.join("exchange.nct");
+    let (mut server, text) = open_package_source(&root, &source);
+
+    let (send_line, send_source) = source_line(&text, "sender.send_to_with_timeout");
+    let send_character = send_source.find("send_to_with_timeout").unwrap();
+    let hover = server.receive(&position_request(
+        2,
+        "textDocument/hover",
+        &source,
+        send_line,
+        send_character,
+    ));
+    let response = hover.response().unwrap();
+    assert!(
+        response.contains(
+            "pub async method &+UdpSocket.send_to_with_timeout(bytes: &[u8], target: SocketAddress, timeout: Duration): void!"
+        ),
+        "{response}"
+    );
+    assert!(hover.issue().is_none(), "{:?}", hover.issue());
+
+    let definition = server.receive(&position_request(
+        3,
+        "textDocument/definition",
+        &source,
+        send_line,
+        send_character,
+    ));
+    let response = definition.response().unwrap();
+    assert!(response.contains("/std/net/index.nct"), "{response}");
+    assert!(definition.issue().is_none(), "{:?}", definition.issue());
+
+    let implementation = server.receive(&position_request(
+        4,
+        "textDocument/implementation",
+        &source,
+        send_line,
+        send_character,
+    ));
+    let response = implementation.response().unwrap();
+    assert!(response.contains("/std/net/udp.nct"), "{response}");
+    assert!(
+        implementation.issue().is_none(),
+        "{:?}",
+        implementation.issue()
+    );
+
+    let send_target = send_source.find("receiver_address").unwrap() + 2;
+    let signature = server.receive(&position_request(
+        5,
+        "textDocument/signatureHelp",
+        &source,
+        send_line,
+        send_target,
+    ));
+    let response = signature.response().unwrap();
+    assert!(
+        response.contains(
+            "method &+UdpSocket.send_to_with_timeout(bytes: &[u8], target: SocketAddress, timeout: Duration): void!"
+        ),
+        "{response}"
+    );
+    assert!(response.contains("\"activeParameter\":1"), "{response}");
+    assert!(signature.issue().is_none(), "{:?}", signature.issue());
+
+    let (completion_line, completion_source) =
+        source_line(&text, "let received = await receiver.receive");
+    let completion_character = completion_source.find("receiver.").unwrap() + "receiver.".len();
+    let completion = server.receive(&position_request(
+        6,
+        "textDocument/completion",
+        &source,
+        completion_line,
+        completion_character,
+    ));
+    let response = completion.response().unwrap();
+    for method in [
+        "receive",
+        "receive_blocking",
+        "receive_with_timeout",
+        "send_to",
+    ] {
+        assert!(
+            response.contains(&format!("\"label\":\"{method}\",\"kind\":2")),
+            "{response}"
+        );
+    }
+    assert!(completion.issue().is_none(), "{:?}", completion.issue());
+
+    let tokens = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"textDocument/semanticTokens/full\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}}}}}}",
+        source.display()
+    ));
+    let response = tokens.response().unwrap();
+    assert!(response.contains("\"data\":["), "{response}");
+    assert!(!response.contains("\"data\":[]"), "{response}");
+    assert!(tokens.issue().is_none(), "{:?}", tokens.issue());
+
+    let end_line = text.lines().count();
+    let hints = server.receive(&format!(
+        "{{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"textDocument/inlayHint\",\"params\":{{\"textDocument\":{{\"uri\":\"file://{}\"}},\"range\":{{\"start\":{{\"line\":0,\"character\":0}},\"end\":{{\"line\":{end_line},\"character\":0}}}}}}}}",
+        source.display()
+    ));
+    let response = hints.response().unwrap();
+    for inferred in [": UdpSocket", ": DatagramRead"] {
+        assert!(
+            response.contains(&format!("\"label\":\"{inferred}\"")),
+            "{response}"
+        );
+    }
+    assert!(hints.issue().is_none(), "{:?}", hints.issue());
+}
+
+#[test]
 fn recursive_text_search_uses_ordinary_package_editor_semantics() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../examples/text-search");
     let source = root.join("search.nct");

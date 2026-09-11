@@ -3,37 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>examples/custom-format.nct - Nocter</title>
-    <meta name="description" content="Nocter source code for examples/custom-format.nct.">
+    <title>examples/async-udp/exchange.nct - Nocter</title>
+    <meta name="description" content="Nocter source code for examples/async-udp/exchange.nct.">
     <meta name="robots" content="index, follow">
     <meta name="theme-color" content="#f7f8fc">
-    <link rel="canonical" href="https://nocter.dev/examples/custom-format/">
-    <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://nocter.dev/examples/async-udp/exchange/">
+    <link rel="icon" href="../../../assets/logo.svg" type="image/svg+xml">
 
     <meta property="og:type" content="article">
     <meta property="og:site_name" content="Nocter">
-    <meta property="og:title" content="examples/custom-format.nct - Nocter">
-    <meta property="og:description" content="Nocter source code for examples/custom-format.nct.">
-    <meta property="og:url" content="https://nocter.dev/examples/custom-format/">
+    <meta property="og:title" content="examples/async-udp/exchange.nct - Nocter">
+    <meta property="og:description" content="Nocter source code for examples/async-udp/exchange.nct.">
+    <meta property="og:url" content="https://nocter.dev/examples/async-udp/exchange/">
     <meta property="og:image" content="https://nocter.dev/assets/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="examples/custom-format.nct - Nocter">
-    <meta name="twitter:description" content="Nocter source code for examples/custom-format.nct.">
+    <meta name="twitter:title" content="examples/async-udp/exchange.nct - Nocter">
+    <meta name="twitter:description" content="Nocter source code for examples/async-udp/exchange.nct.">
     <meta name="twitter:image" content="https://nocter.dev/assets/og-image.png">
 
-    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/custom-format.nct - Nocter","description":"Nocter source code for examples/custom-format.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/custom-format/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Custom Format","item":"https://nocter.dev/examples/custom-format/"}]}]</script>
+    <script type="application/ld+json">[{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"examples/async-udp/exchange.nct - Nocter","description":"Nocter source code for examples/async-udp/exchange.nct.","programmingLanguage":"Nocter","codeRepository":"https://github.com/rvo-jp/nocter/","license":"https://www.apache.org/licenses/LICENSE-2.0","url":"https://nocter.dev/examples/async-udp/exchange/","author":{"@type":"Organization","name":"Rvo JP","email":"contact@rvo.jp"}},{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://nocter.dev/"},{"@type":"ListItem","position":2,"name":"Examples","item":"https://nocter.dev/examples/"},{"@type":"ListItem","position":3,"name":"Async Udp","item":"https://nocter.dev/examples/async-udp/"},{"@type":"ListItem","position":4,"name":"Exchange","item":"https://nocter.dev/examples/async-udp/exchange/"}]}]</script>
 
-    <link rel="stylesheet" href="../../style.css">
+    <link rel="stylesheet" href="../../../style.css">
 </head>
 <body class="has-document-tree">
     <header class="hero">
         <div class="hero-inner">
             <div class="hero-copy">
                 <div class="hero-mark">
-                    <img class="hero-logo" src="../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
+                    <img class="hero-logo" src="../../../assets/logo.svg" alt="Nocter Logo" width="72" height="72">
                     <p class="hero-kicker">Programming Language</p>
                 </div>
 
@@ -44,7 +44,7 @@
                 </p>
 
                 <div class="hero-actions" aria-label="Nocter links">
-                    <a class="hero-action hero-action-primary" href="../../spec/index.html#content">Specification</a>
+                    <a class="hero-action hero-action-primary" href="../../../spec/index.html#content">Specification</a>
                     <a class="hero-action" href="https://github.com/rvo-jp/nocter/" target="_blank" rel="noreferrer">GitHub</a>
                 </div>
             </div>
@@ -173,71 +173,58 @@
     <div class="docs-shell">
         <aside class="document-tree">
             <nav aria-label="Documentation tree">
-                <ol class="document-tree-breadcrumbs"><li><a href="../../index.html#content">Nocter</a></li></ol>
-                <p class="document-tree-title">examples/</p>
+                <ol class="document-tree-breadcrumbs"><li><a href="../../../index.html#content">Nocter</a></li><li><a href="../../index.html#content">Nocter Examples</a></li></ol>
+                <p class="document-tree-title">examples/async-udp/</p>
                 <ul class="document-tree-list">
-                    <li><a href="../index.html#content">Nocter Examples</a></li>
-                    <li><a href="./index.html#content" aria-current="page">custom-format.nct</a></li>
-                    <li><a href="../elapsed/index.html#content">elapsed.nct</a></li>
-                    <li><a href="../equality/index.html#content">equality.nct</a></li>
-                    <li><a href="../floating-point/index.html#content">floating-point.nct</a></li>
-                    <li><a href="../hello/index.html#content">hello.nct</a></li>
-                    <li><a href="../indexing/index.html#content">indexing.nct</a></li>
-                    <li><a href="../mutable-iteration/index.html#content">mutable-iteration.nct</a></li>
-                    <li><a href="../network-address/index.html#content">network-address.nct</a></li>
-                    <li><a href="../ordering/index.html#content">ordering.nct</a></li>
-                    <li><a href="../recovery/index.html#content">recovery.nct</a></li>
-                    <li><a href="../tuples/index.html#content">tuples.nct</a></li>
-                    <li><a href="../unicode-text/index.html#content">unicode-text.nct</a></li>
-                    <li><a href="../url-inspect/index.html#content">url-inspect.nct</a></li>
-                    <li><a href="../async-http/index/index.html#content">async-http</a></li>
-                    <li><a href="../async-loopback/index/index.html#content">async-loopback</a></li>
-                    <li><a href="../async-udp/index/index.html#content">async-udp</a></li>
-                    <li><a href="../file-summary/index/index.html#content">file-summary</a></li>
-                    <li><a href="../http-get/index/index.html#content">http-get</a></li>
-                    <li><a href="../json-normalize/index/index.html#content">json-normalize</a></li>
-                    <li><a href="../line-frequency/index/index.html#content">line-frequency</a></li>
-                    <li><a href="../network-loopback/index/index.html#content">network-loopback</a></li>
-                    <li><a href="../stdin-prefix/index/index.html#content">stdin-prefix</a></li>
-                    <li><a href="../subprocess-configured/index/index.html#content">subprocess-configured</a></li>
-                    <li><a href="../subprocess-output/index/index.html#content">subprocess-output</a></li>
-                    <li><a href="../subprocess-status/index/index.html#content">subprocess-status</a></li>
-                    <li><a href="../text-banner/index/index.html#content">text-banner</a></li>
-                    <li><a href="../text-report/index/index.html#content">text-report</a></li>
-                    <li><a href="../text-search/index.html#content">text-search</a></li>
-                    <li><a href="../wall-clock/index/index.html#content">wall-clock</a></li>
+                    <li><a href="../index/index.html#content">async-udp</a></li>
+                    <li><a href="./index.html#content" aria-current="page">exchange.nct</a></li>
                 </ul>
             </nav>
         </aside>
         <main id="content">
             <div class="markdown-path">
-                <span class="markdown-path-text">/examples/custom-format.nct</span>
+                <span class="markdown-path-text">/examples/async-udp/exchange.nct</span>
             </div>
             <div class="markdown-body">
-                <h1>custom-format.nct</h1><pre><code class="language-nocter"><span class="token-keyword">use</span> std<span class="token-operator">/</span>fmt<span class="token-operator">.</span><span class="token-type">Format</span>
-<span class="token-keyword">use</span> std<span class="token-operator">/</span>io
+                <h1>exchange.nct</h1><pre><code class="language-nocter"><span class="token-keyword">see</span> <span class="token-operator">.</span><span class="token-operator">/</span>index<span class="token-operator">.</span>nct
 
-<span class="token-keyword">struct</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
-    x<span class="token-operator">:</span> <span class="token-type">i32</span>
-    y<span class="token-operator">:</span> <span class="token-type">i32</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>net<span class="token-operator">.</span><span class="token-operator">{</span><span class="token-type">IpAddress</span><span class="token-operator">,</span> <span class="token-type">Ipv4Address</span><span class="token-operator">,</span> <span class="token-type">SocketAddress</span><span class="token-operator">,</span> <span class="token-type">UdpSocket</span><span class="token-operator">}</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>time<span class="token-operator">.</span><span class="token-type">Duration</span>
+<span class="token-keyword">use</span> std<span class="token-operator">/</span>vec<span class="token-operator">.</span><span class="token-type">Vec</span>
+
+<span class="token-keyword">noalloc</span> <span class="token-keyword">func</span> <span class="token-function">loopback</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">SocketAddress</span> <span class="token-operator">{</span>
+    <span class="token-keyword">return</span> <span class="token-type">SocketAddress</span><span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-type">IpAddress</span><span class="token-operator">.</span><span class="token-function">from_ipv4</span><span class="token-operator">(</span><span class="token-type">Ipv4Address</span><span class="token-operator">.</span><span class="token-function">loopback</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">,</span> <span class="token-number">0</span><span class="token-operator">)</span>
 <span class="token-operator">}</span>
 
-<span class="token-keyword">instance</span> <span class="token-type">Point</span> <span class="token-operator">{</span>
-    <span class="token-keyword">impl</span> <span class="token-type">Format</span>
-    <span class="token-keyword">method</span> <span class="token-operator">&amp;</span>self<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">:</span> <span class="token-operator">&amp;+</span><span class="token-type">String</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-keyword">void</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">"("</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        self<span class="token-operator">.</span>x<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
-        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">", "</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        self<span class="token-operator">.</span>y<span class="token-operator">.</span><span class="token-function">try_format_into</span><span class="token-operator">(</span>output<span class="token-operator">)</span><span class="token-operator">?</span>
-        output<span class="token-operator">.</span><span class="token-function">try_push_str</span><span class="token-operator">(</span><span class="token-string">")"</span><span class="token-operator">)</span><span class="token-operator">?</span>
-        <span class="token-keyword">return</span>
+<span class="token-keyword">async</span> <span class="token-keyword">func</span> <span class="token-function">run</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
+    <span class="token-keyword">let</span> timeout <span class="token-operator">=</span> <span class="token-type">Duration</span><span class="token-operator">.</span><span class="token-function">from_seconds</span><span class="token-operator">(</span><span class="token-number">1</span><span class="token-operator">)</span>
+    <span class="token-keyword">var</span> sender <span class="token-operator">=</span> <span class="token-type">UdpSocket</span><span class="token-operator">.</span><span class="token-function">bind</span><span class="token-operator">(</span><span class="token-function">loopback</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">var</span> receiver <span class="token-operator">=</span> <span class="token-type">UdpSocket</span><span class="token-operator">.</span><span class="token-function">bind</span><span class="token-operator">(</span><span class="token-function">loopback</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> sender_address <span class="token-operator">=</span> sender<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> receiver_address <span class="token-operator">=</span> receiver<span class="token-operator">.</span><span class="token-function">local_address</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">?</span>
+
+    <span class="token-keyword">await</span> sender<span class="token-operator">.</span><span class="token-function">send_to_with_timeout</span><span class="token-operator">(</span><span class="token-string">"ping"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">,</span> receiver_address<span class="token-operator">,</span> timeout<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">var</span> bytes<span class="token-operator">:</span> <span class="token-type">Vec</span><span class="token-operator">&lt;</span><span class="token-type">u8</span><span class="token-operator">&gt;</span> <span class="token-operator">=</span> <span class="token-type">Vec</span> <span class="token-operator">[</span>
+        <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span><span class="token-operator">,</span>
+        <span class="token-type">u8</span><span class="token-operator">.</span><span class="token-function">truncate</span><span class="token-operator">(</span><span class="token-number">0</span><span class="token-operator">)</span><span class="token-operator">,</span>
+    <span class="token-operator">]</span>
+    <span class="token-keyword">let</span> received <span class="token-operator">=</span> <span class="token-keyword">await</span> receiver<span class="token-operator">.</span><span class="token-function">receive_with_timeout</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>bytes<span class="token-operator">,</span> timeout<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> received<span class="token-operator">.</span><span class="token-function">source</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> sender_address || received<span class="token-operator">.</span><span class="token-function">copied_len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">4</span>
+        || received<span class="token-operator">.</span><span class="token-function">was_truncated</span><span class="token-operator">(</span><span class="token-operator">)</span> || bytes<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">112</span> || bytes<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">105</span>
+        || bytes<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">110</span> || bytes<span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">103</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"async-udp.datagram"</span><span class="token-operator">,</span> <span class="token-string">"UDP changed one message boundary"</span><span class="token-operator">)</span>
     <span class="token-operator">}</span>
-<span class="token-operator">}</span>
 
-<span class="token-keyword">blocking</span> <span class="token-keyword">func</span> <span class="token-function">main</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">:</span> <span class="token-type">i32</span><span class="token-operator">!</span> <span class="token-operator">{</span>
-    <span class="token-keyword">let</span> point <span class="token-operator">=</span> <span class="token-type">Point</span> <span class="token-operator">{</span> x<span class="token-operator">:</span> <span class="token-number">3</span><span class="token-operator">,</span> y<span class="token-operator">:</span> <span class="token-number">4</span> <span class="token-operator">}</span>
-    <span class="token-keyword">let</span> message <span class="token-operator">=</span> <span class="token-string">"point = ${point}\n"</span>
-    io<span class="token-operator">.</span><span class="token-function">print</span><span class="token-operator">(</span><span class="token-operator">&amp;</span>message<span class="token-operator">)</span><span class="token-operator">?</span>
+    sender<span class="token-operator">.</span><span class="token-function">connect</span><span class="token-operator">(</span>receiver_address<span class="token-operator">)</span><span class="token-operator">?</span>
+    receiver<span class="token-operator">.</span><span class="token-function">connect</span><span class="token-operator">(</span>sender_address<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">await</span> receiver<span class="token-operator">.</span><span class="token-function">send</span><span class="token-operator">(</span><span class="token-string">"pong"</span><span class="token-operator">.</span><span class="token-function">bytes</span><span class="token-operator">(</span><span class="token-operator">)</span><span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">let</span> reply <span class="token-operator">=</span> <span class="token-keyword">await</span> sender<span class="token-operator">.</span><span class="token-function">receive_with_timeout</span><span class="token-operator">(</span><span class="token-operator">&amp;+</span>bytes<span class="token-operator">,</span> timeout<span class="token-operator">)</span><span class="token-operator">?</span>
+    <span class="token-keyword">if</span> reply<span class="token-operator">.</span><span class="token-function">copied_len</span><span class="token-operator">(</span><span class="token-operator">)</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">4</span> || reply<span class="token-operator">.</span><span class="token-function">was_truncated</span><span class="token-operator">(</span><span class="token-operator">)</span>
+        || bytes<span class="token-operator">[</span><span class="token-number">0</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">112</span> || bytes<span class="token-operator">[</span><span class="token-number">1</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">111</span> || bytes<span class="token-operator">[</span><span class="token-number">2</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">110</span> || bytes<span class="token-operator">[</span><span class="token-number">3</span><span class="token-operator">]</span> <span class="token-operator">!</span><span class="token-operator">=</span> <span class="token-number">103</span> <span class="token-operator">{</span>
+        <span class="token-keyword">return</span> error<span class="token-operator">.</span><span class="token-function">new</span><span class="token-operator">(</span><span class="token-string">"async-udp.reply"</span><span class="token-operator">,</span> <span class="token-string">"connected UDP changed one reply"</span><span class="token-operator">)</span>
+    <span class="token-operator">}</span>
     <span class="token-keyword">return</span> <span class="token-number">0</span>
 <span class="token-operator">}</span>
 </code></pre>
@@ -256,6 +243,6 @@
             </nav>
         </div>
     </footer>
-    <script src="../../script.js" defer></script>
+    <script src="../../../script.js" defer></script>
 </body>
 </html>

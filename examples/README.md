@@ -122,6 +122,17 @@ nocter run examples/url-inspect.nct
 
 ## Package Examples
 
+[async-udp/index.nct](async-udp/index.nct) exchanges explicit-address and connected UDP datagrams
+over IPv4 loopback with finite asynchronous deadlines. It checks the sender address, exact message
+boundary, byte content, and truncation state without exposing nonblocking descriptor configuration
+or depending on external network access.
+
+```sh
+cd examples/async-udp
+nocter check
+nocter run
+```
+
 [async-http/index.nct](async-http/index.nct) runs a complete HTTP/1.1 exchange over a kernel-selected
 IPv4 loopback port. A structured join drives the async client and a small local peer together. The
 client uses validated text request conveniences, operation timeouts, and UTF-8 whole-body async

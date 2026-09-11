@@ -82,6 +82,13 @@ does not need a cleanup worker and cannot close or duplicate the borrowed socket
 usable after cancellation. Reactor qualification removes the last waiter, registers a replacement
 against the same still-open descriptor, and observes readiness through that replacement.
 
+Native integration exercises this contract through real IPv4 and IPv6 loopback descriptors. It
+observes explicit and connected transfer, an empty message, truncation without boundary loss, a
+suspended receive cancelled by `task.with_timeout`, reuse of the same socket after cancellation,
+an explicit receive timeout, and a closed-socket failure. The public `async-udp` package repeats the
+ordinary connected and explicit-address paths under an exact process contract, and its checked
+semantic snapshot is the sole input to all qualified editor features.
+
 ## Information Flow
 
 The responsibility direction is strictly downstream:
