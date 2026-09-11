@@ -15,6 +15,7 @@ separate crates.
 ## Internal Responsibilities
 
 - package declaration decoding, including source-specific exact-selection fields
+- one closed package-field schema and one validated exact-selection representation
 - revision-local package-root source catalog and canonical package identity
 - dependency graph resolution
 - verified package-store and exact-selection overlays for validation
@@ -28,6 +29,8 @@ separate crates.
   by its `StandardPackage` input before its graph can close.
 - Each dependency declaration is the sole syntax authority for both its source intent and optional
   exact selection; no parallel alias-to-lock map is decoded from source.
+- An authored exact selection stores the validated `ExactDependencyLock`; downstream resolution
+  cannot bypass validation or reconstruct a lock from trusted text.
 - Resolution is deterministic and independent of filesystem enumeration order.
 - One root catalog retains the exact bytes and result behind every package-boundary decision.
   Package loading binds the same retained parse product to its semantic source identity, while

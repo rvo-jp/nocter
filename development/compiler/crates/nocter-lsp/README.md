@@ -16,10 +16,13 @@ Nocter compiler, workspace, filesystem, semantic query, or feature-selection log
 - initialization and lifecycle state
 - UTF-16 protocol coordinates and URIs
 - feature parameter and result schemas
+- caller-parameterized watched-file registration encoding
 - outbound request/session tracking
 
 ## Invariants
 
 - Protocol validity is decided before semantic handlers run.
+- Watched-file registration encodes its caller-provided glob and does not know Nocter's source
+  extension; the language server supplies that language-specific policy.
 - LSP coordinate values do not enter compiler storage directly.
 - The crate remains reusable without the Nocter compiler pipeline.

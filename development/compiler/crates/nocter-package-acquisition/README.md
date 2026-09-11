@@ -17,3 +17,5 @@ versions or publish package state directly.
 - Locked Git commits and archive digests are verified before publication.
 - Symlinks, traversal, devices, duplicate destinations, and resource-limit violations are rejected.
 - A rejected download cannot leave an installable partial package.
+- Git and archive roots are accepted only when the language-owned module-root source is a regular
+  file; acquisition does not maintain a second root-file convention.

@@ -21,6 +21,7 @@ environment or installation layout themselves.
 ## Invariants
 
 - The manifest binds the exact compiler file and complete regular standard-library tree.
+- Standard-library validation consumes the language-owned module-root file name.
 - A configured home accepts the running compiler only when its digest equals the manifest-bound
   compiler digest.
 - Environment and executable-path reads occur at the outer boundary.

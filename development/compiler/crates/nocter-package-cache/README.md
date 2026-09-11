@@ -22,6 +22,8 @@ directories, or parse Nocter source.
 ## Invariants
 
 - A verified root contains a regular root `index.nct` and a valid root manifest.
+- Root-source recognition consumes the language-owned module-root file name rather than maintaining
+  a cache-local spelling.
 - Every directory and source artifact included in the package tree contributes to one deterministic
   digest; filesystem enumeration order cannot change it.
 - Symlinks, special files, non-Unicode names, and a reserved root-manifest collision are rejected.

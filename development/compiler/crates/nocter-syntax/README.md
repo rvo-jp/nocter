@@ -21,6 +21,7 @@ package or discovery code. It does not resolve names or apply semantic rules.
 
 - lexing and token subdivision
 - the closed contextual-spelling catalog shared by parser comparisons and lexical validation
+- canonical source-name and portable directory-module-segment validation
 - event-based parsing and flat tree construction
 - structural callable modifiers, including authored `noalloc`, `blocking`, and `async`, without
   effect or execution interpretation
@@ -41,6 +42,8 @@ package or discovery code. It does not resolve names or apply semantic rules.
   lexical suffix to a type and send only the decimal component to target evaluation.
 - Contextual spellings remain identifier tokens; parser responsibilities select them through the
   typed catalog rather than duplicating source-text literals.
+- Package, discovery, lowering, and tooling consume the syntax-owned module-segment validator;
+  none maintains a second keyword or identifier exclusion list.
 - Parser recovery preserves authored structure without inventing semantic success.
 - Callable modifiers have dedicated nodes; downstream stages never recover guarantees from token
   text or declaration spelling.

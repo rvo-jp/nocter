@@ -16,6 +16,7 @@ cannot name checking, declaration, target-program, syntax-tree, or source-index 
 - initialize/shutdown and JSON-RPC request routing
 - document open/change/save/close handling
 - watched-file and workspace configuration handling
+- selection of the language-owned Nocter source glob supplied to the protocol registration builder
 - semantic feature response projection
 - atomic workspace-diagnostic projection
 - workspace edit version projection

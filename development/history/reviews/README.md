@@ -10,6 +10,7 @@ forcing consumers that use only its contract to change.
 
 ## Review Catalog
 
+- [v0.47.0 Phase 6 Compiler Convention Authority Closure](v0.47.0-phase-6.md)
 - [v0.47.0 Phase 5 Canonical Asynchronous Byte I/O Final Review](v0.47.0-phase-5.md)
 - [v0.46.0 Phase 5 Asynchronous Datagram I/O Final Review](v0.46.0-phase-5.md)
 - [v0.43.0 Phase 6 Secure Transport Final Review](v0.43.0-phase-6.md)

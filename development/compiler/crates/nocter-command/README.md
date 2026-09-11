@@ -20,6 +20,7 @@ cannot invoke or order semantic stages.
 ## Internal Responsibilities
 
 - command schema and input planning
+- typed diagnostic-command projection for outer CLI presentation
 - one-time `run` compiler/program argument partition and opaque launch transport
 - package versus explicit single-file selection
 - ephemeral compiler-computation lifetime and query-backed package/discovery composition
@@ -29,6 +30,7 @@ cannot invoke or order semantic stages.
 ## Invariants
 
 - A command selects its compilation mode explicitly and once.
+- CLI presentation receives a typed diagnostic command and never reclassifies a command spelling.
 - `run` partitions at its first standalone `--`; only compiler arguments enter generic option
   parsing, and only the process launcher opens the resulting program-argument vector.
 - Package-only and single-file-only commands resolve through typed input boundaries; they do not

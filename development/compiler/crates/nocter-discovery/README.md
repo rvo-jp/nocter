@@ -28,6 +28,8 @@ does not lower declarations or interpret body semantics.
 ## Invariants
 
 - Physical placement determines module ownership; `see` controls direct source visibility only.
+- Source extension and module-root recognition consume the language-owned physical layout; no
+  discovery path embeds a second `index.nct` or `.nct` decision.
 - Complete `see`, `use`, and target-gate nodes survive unrelated syntax errors.
 - Discovery never uses source or traversal order to choose between equal candidates.
 - Package-boundary validation extends and reuses the graph's exact root catalog; it does not probe

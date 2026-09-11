@@ -2,10 +2,12 @@
 
 ## Current State
 
-Nocter v0.46.0 is published and externally audited. v0.47.0 implementation Phases 0–5 are complete on
+Nocter v0.46.0 is published and externally audited. v0.47.0 implementation Phases 0–6 are complete on
 `develop-v0.47.0`. The new milestone makes the unqualified `Reader` and `Writer` names canonical
 asynchronous byte-stream contracts, gives synchronous contracts explicit `BlockingReader` and
-`BlockingWriter` names, and removes duplicated concrete collection logic through generic defaults.
+`BlockingWriter` names, removes duplicated concrete collection logic through generic defaults, and
+closes compiler-owned spelling, package-schema, and physical-source-layout authorities before
+release preparation.
 
 ## Next Work
 
