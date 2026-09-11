@@ -1,0 +1,66 @@
+//! Provider-independent meaning of one immediate datagram transfer attempt.
+
+see ./index.nct
+
+use /internal/net/darwin
+use /internal/net/darwin.{RawDatagramAttempt, RawUnitAttempt}
+use /internal/net/model.NetworkAddress
+
+enum DatagramDestination {
+    connected
+    explicit(address: NetworkAddress)
+}
+
+enum DatagramSendProgress {
+    ready
+    retry
+    wait
+    failed(failure: NetworkFailure)
+}
+
+enum DatagramReceiveProgress {
+    ready(source: NetworkAddress, copied_len: usize, truncated: bool)
+    retry
+    wait
+    failed(failure: NetworkFailure)
+}
+
+noalloc func datagram_send_attempt(
+    fd: usize,
+    bytes: &[u8],
+    destination: &DatagramDestination,
+): DatagramSendProgress {
+    let attempt = match destination {
+        DatagramDestination.connected { darwin.send_once(fd, bytes) }
+        DatagramDestination.explicit(address) { darwin.send_to_once(fd, bytes, address) }
+    }
+    match attempt {
+        RawUnitAttempt.ready { return DatagramSendProgress.ready }
+        RawUnitAttempt.interrupted { return DatagramSendProgress.retry }
+        RawUnitAttempt.would_block { return DatagramSendProgress.wait }
+        RawUnitAttempt.failed(failure) {
+            return DatagramSendProgress.failed(NetworkFailure.os(failure))
+        }
+        RawUnitAttempt.in_progress {}
+        RawUnitAttempt.malformed {}
+    }
+    return DatagramSendProgress.failed(NetworkFailure.invalid_target_result)
+}
+
+noalloc func datagram_receive_attempt(
+    fd: usize,
+    buffer: &+[u8],
+): DatagramReceiveProgress {
+    match darwin.receive_from_once(fd, buffer) {
+        RawDatagramAttempt.ready(source, copied_len, truncated) {
+            return DatagramReceiveProgress.ready(source, copied_len, truncated)
+        }
+        RawDatagramAttempt.interrupted { return DatagramReceiveProgress.retry }
+        RawDatagramAttempt.would_block { return DatagramReceiveProgress.wait }
+        RawDatagramAttempt.failed(failure) {
+            return DatagramReceiveProgress.failed(NetworkFailure.os(failure))
+        }
+        RawDatagramAttempt.malformed {}
+    }
+    return DatagramReceiveProgress.failed(NetworkFailure.invalid_target_result)
+}

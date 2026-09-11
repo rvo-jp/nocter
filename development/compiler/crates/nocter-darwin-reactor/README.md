@@ -20,6 +20,8 @@ is qualified independently before v0.41.0 closes.
 
 - Registering a logical interest either completes fully or retains no registration.
 - Removing a registration invalidates its logical and native-token mapping before returning.
+- Cancelling the last logical waiter releases only its registration; the reactor never closes or
+  duplicates the observed descriptor, which may be registered again by its owner.
 - Native deregistration failure can leave only harmless surplus observation; current logical
   registrations still filter every delivered event.
 - Read closure and descriptor errors wake readable waiters; write closure and descriptor errors

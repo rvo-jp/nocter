@@ -97,3 +97,32 @@ fn removing_one_logical_waiter_preserves_another_on_the_same_descriptor() {
         SchedulerProgress::Resume(retained)
     );
 }
+
+#[test]
+fn cancelling_the_last_waiter_does_not_take_descriptor_ownership() {
+    let (reader, mut writer) = UnixStream::pair().unwrap();
+    reader.set_nonblocking(true).unwrap();
+    let mut scheduler = Scheduler::new(DarwinReactor::new().unwrap());
+    let cancelled = scheduler.spawn().unwrap();
+
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(cancelled)
+    );
+    scheduler.suspend(cancelled, [readable(&reader)]).unwrap();
+    scheduler.cancel(cancelled).unwrap();
+    scheduler.finish_cancellation(cancelled).unwrap();
+
+    let replacement = scheduler.spawn().unwrap();
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(replacement)
+    );
+    scheduler.suspend(replacement, [readable(&reader)]).unwrap();
+    writer.write_all(b"still-open").unwrap();
+
+    assert_eq!(
+        scheduler.next_progress().unwrap(),
+        SchedulerProgress::Resume(replacement)
+    );
+}

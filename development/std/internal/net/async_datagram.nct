@@ -1,0 +1,134 @@
+//! Cancellation-safe asynchronous datagram retry and readiness policy.
+
+see ./index.nct
+see ./descriptor.nct
+see ./datagram_attempt.nct
+see ./deadline.nct
+see ./async_wait.nct
+
+use /internal/net/model.NetworkAddress
+use /time.Duration
+
+async func send_datagram_async_before(
+    descriptor: &+SocketDescriptor,
+    bytes: &[u8],
+    destination: DatagramDestination,
+    deadline: &OperationDeadline,
+): UnitAttempt {
+    if !descriptor_is_open(descriptor) { return UnitAttempt.failed(NetworkFailure.closed) }
+    var first_attempt = true
+    while true {
+        if !first_attempt && deadline_expired(deadline) { return timeout_unit() }
+        first_attempt = false
+        match datagram_send_attempt(descriptor.fd, bytes, &destination) {
+            DatagramSendProgress.ready { return UnitAttempt.ready }
+            DatagramSendProgress.retry {}
+            DatagramSendProgress.wait {
+                if !await await_native_descriptor_before(descriptor.fd, true, deadline) {
+                    return timeout_unit()
+                }
+            }
+            DatagramSendProgress.failed(failure) {
+                return UnitAttempt.failed(move failure)
+            }
+        }
+    }
+    return invalid_unit()
+}
+
+async func receive_datagram_async_before(
+    descriptor: &+SocketDescriptor,
+    buffer: &+[u8],
+    deadline: &OperationDeadline,
+): DatagramAttempt {
+    if !descriptor_is_open(descriptor) {
+        return DatagramAttempt.failed(NetworkFailure.closed)
+    }
+    var first_attempt = true
+    while true {
+        if !first_attempt && deadline_expired(deadline) {
+            return DatagramAttempt.failed(NetworkFailure.timed_out)
+        }
+        first_attempt = false
+        match datagram_receive_attempt(descriptor.fd, buffer) {
+            DatagramReceiveProgress.ready(source, copied_len, truncated) {
+                return DatagramAttempt.ready(source, copied_len, truncated)
+            }
+            DatagramReceiveProgress.retry {}
+            DatagramReceiveProgress.wait {
+                if !await await_native_descriptor_before(descriptor.fd, false, deadline) {
+                    return DatagramAttempt.failed(NetworkFailure.timed_out)
+                }
+            }
+            DatagramReceiveProgress.failed(failure) {
+                return DatagramAttempt.failed(move failure)
+            }
+        }
+    }
+    return DatagramAttempt.failed(NetworkFailure.invalid_target_result)
+}
+
+instance SocketDescriptor {
+    async method &+self.send_datagram_async(bytes: &[u8]): UnitAttempt {
+        let deadline = operation_deadline(none)
+        return await send_datagram_async_before(
+            self,
+            bytes,
+            DatagramDestination.connected,
+            &deadline,
+        )
+    }
+
+    async method &+self.send_datagram_async_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): UnitAttempt {
+        let deadline = operation_deadline(timeout)
+        return await send_datagram_async_before(
+            self,
+            bytes,
+            DatagramDestination.connected,
+            &deadline,
+        )
+    }
+
+    async method &+self.send_datagram_to_async(
+        bytes: &[u8],
+        target: NetworkAddress,
+    ): UnitAttempt {
+        let deadline = operation_deadline(none)
+        return await send_datagram_async_before(
+            self,
+            bytes,
+            DatagramDestination.explicit(target),
+            &deadline,
+        )
+    }
+
+    async method &+self.send_datagram_to_async_with_timeout(
+        bytes: &[u8],
+        target: NetworkAddress,
+        timeout: Duration,
+    ): UnitAttempt {
+        let deadline = operation_deadline(timeout)
+        return await send_datagram_async_before(
+            self,
+            bytes,
+            DatagramDestination.explicit(target),
+            &deadline,
+        )
+    }
+
+    async method &+self.receive_datagram_async(buffer: &+[u8]): DatagramAttempt {
+        let deadline = operation_deadline(none)
+        return await receive_datagram_async_before(self, buffer, &deadline)
+    }
+
+    async method &+self.receive_datagram_async_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): DatagramAttempt {
+        let deadline = operation_deadline(timeout)
+        return await receive_datagram_async_before(self, buffer, &deadline)
+    }
+}

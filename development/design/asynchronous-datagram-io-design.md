@@ -65,6 +65,12 @@ one fixed `OperationDeadline`. An asynchronous transfer uses the existing compil
 descriptor-readiness future, retries the same immediate attempt, and never invokes the blocking
 wait adapter.
 
+The shared attempt reducer is the sole owner of ready, interrupted, would-block, target-failure,
+malformed-result, source-address, and truncation meanings. Synchronous and asynchronous loops may
+select different wait mechanisms, but cannot reinterpret a target attempt. Both transfer surfaces
+hold one exclusive borrow of the descriptor for the complete operation, so close, timeout mutation,
+and a competing transfer cannot race a suspended wait.
+
 The ordinary async methods use no deadline. Each `_with_timeout` method creates exactly one
 monotonic deadline before its first attempt and publishes descriptor readiness and that deadline in
 one wait set. A zero timeout still permits one immediate attempt. Waking, interruption, and retry do
@@ -73,7 +79,8 @@ not restart a relative duration.
 Dropping a suspended send or receive removes its wait registration through the existing future
 cancellation contract. The future contains no independent native operation owner, so cancellation
 does not need a cleanup worker and cannot close or duplicate the borrowed socket. The socket remains
-usable after cancellation.
+usable after cancellation. Reactor qualification removes the last waiter, registers a replacement
+against the same still-open descriptor, and observes readiness through that replacement.
 
 ## Information Flow
 

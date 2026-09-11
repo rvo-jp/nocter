@@ -1,4 +1,4 @@
-//! Target-independent socket ownership and synchronous operation policy.
+//! Target-independent socket ownership and synchronous/asynchronous operation policy.
 //!
 //! This package-private module owns provider-independent connection ownership plus the descriptor
 //! state and retry/readiness policy retained for UDP. The selected target adapter owns native
@@ -19,6 +19,8 @@ use /internal/net/model.{
 use /time.Duration
 
 see ./descriptor.nct
+see ./datagram_attempt.nct
+see ./async_datagram.nct
 see ./async_wait.nct
 see ./deadline.nct
 see ./connection.nct
@@ -266,19 +268,50 @@ instance SocketDescriptor {
     pub(/) noalloc blocking method &self.peer_address(): AddressAttempt
 
     /// Connects this datagram socket to one peer without changing ownership.
-    pub(/) noalloc blocking method &self.connect_udp(address: NetworkAddress): UnitAttempt
+    pub(/) noalloc blocking method &+self.connect_udp(address: NetworkAddress): UnitAttempt
 
     /// Sends one complete datagram to the connected peer.
-    pub(/) noalloc blocking method &self.send_datagram(bytes: &[u8]): UnitAttempt
+    pub(/) noalloc blocking method &+self.send_datagram(bytes: &[u8]): UnitAttempt
 
     /// Sends one complete datagram to an explicit peer.
-    pub(/) noalloc blocking method &self.send_datagram_to(
+    pub(/) noalloc blocking method &+self.send_datagram_to(
         bytes: &[u8],
         target: NetworkAddress,
     ): UnitAttempt
 
     /// Receives exactly one datagram and preserves source and truncation information.
-    pub(/) noalloc blocking method &self.receive_datagram(buffer: &+[u8]): DatagramAttempt
+    pub(/) noalloc blocking method &+self.receive_datagram(buffer: &+[u8]): DatagramAttempt
+
+    /// Sends one connected datagram without blocking the executor thread.
+    pub(/) async method &+self.send_datagram_async(bytes: &[u8]): UnitAttempt
+
+    /// Sends one connected datagram asynchronously until one fixed relative timeout expires.
+    pub(/) async method &+self.send_datagram_async_with_timeout(
+        bytes: &[u8],
+        timeout: Duration,
+    ): UnitAttempt
+
+    /// Sends one addressed datagram without blocking the executor thread.
+    pub(/) async method &+self.send_datagram_to_async(
+        bytes: &[u8],
+        target: NetworkAddress,
+    ): UnitAttempt
+
+    /// Sends one addressed datagram asynchronously until one fixed relative timeout expires.
+    pub(/) async method &+self.send_datagram_to_async_with_timeout(
+        bytes: &[u8],
+        target: NetworkAddress,
+        timeout: Duration,
+    ): UnitAttempt
+
+    /// Receives one datagram without blocking the executor thread.
+    pub(/) async method &+self.receive_datagram_async(buffer: &+[u8]): DatagramAttempt
+
+    /// Receives one datagram asynchronously until one fixed relative timeout expires.
+    pub(/) async method &+self.receive_datagram_async_with_timeout(
+        buffer: &+[u8],
+        timeout: Duration,
+    ): DatagramAttempt
 
     /// Makes this owner terminal and releases an open descriptor at most once.
     pub(/) noalloc method &+self.close(): void

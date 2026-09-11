@@ -2,11 +2,11 @@
 
 see ./index.nct
 see ./deadline.nct
+see ./datagram_attempt.nct
 
 use /internal/net/darwin
 use /internal/net/darwin.{
     RawAddressAttempt,
-    RawDatagramAttempt,
     RawDescriptorAttempt,
     RawUnitAttempt,
     RawWaitAttempt,
@@ -18,11 +18,6 @@ use /time.Duration
 enum DescriptorState {
     open
     closed
-}
-
-enum DatagramDestination {
-    connected
-    explicit(address: NetworkAddress)
 }
 
 struct SocketDescriptor {
@@ -202,14 +197,10 @@ noalloc blocking func send_datagram_with(
     while true {
         if !first_attempt && deadline_expired(deadline) { return timeout_unit() }
         first_attempt = false
-        let attempt = match destination {
-            DatagramDestination.connected { darwin.send_once(fd, bytes) }
-            DatagramDestination.explicit(address) { darwin.send_to_once(fd, bytes, &address) }
-        }
-        match attempt {
-            RawUnitAttempt.ready { return UnitAttempt.ready }
-            RawUnitAttempt.interrupted {}
-            RawUnitAttempt.would_block {
+        match datagram_send_attempt(fd, bytes, &destination) {
+            DatagramSendProgress.ready { return UnitAttempt.ready }
+            DatagramSendProgress.retry {}
+            DatagramSendProgress.wait {
                 match wait_writable(fd, deadline) {
                     UnitAttempt.ready {}
                     UnitAttempt.failed(failure) {
@@ -217,11 +208,9 @@ noalloc blocking func send_datagram_with(
                     }
                 }
             }
-            RawUnitAttempt.failed(failure) {
-                return UnitAttempt.failed(failure_from_raw(failure))
+            DatagramSendProgress.failed(failure) {
+                return UnitAttempt.failed(move failure)
             }
-            RawUnitAttempt.in_progress { return invalid_unit() }
-            RawUnitAttempt.malformed { return invalid_unit() }
         }
     }
     return invalid_unit()
@@ -267,19 +256,19 @@ instance SocketDescriptor {
         return AddressAttempt.failed(NetworkFailure.invalid_target_result)
     }
 
-    noalloc blocking method &self.connect_udp(address: NetworkAddress): UnitAttempt {
+    noalloc blocking method &+self.connect_udp(address: NetworkAddress): UnitAttempt {
         if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
         let deadline = operation_deadline(self.write_timeout_value)
         return select_datagram_peer(self.fd, &address, &deadline)
     }
 
-    noalloc blocking method &self.send_datagram(bytes: &[u8]): UnitAttempt {
+    noalloc blocking method &+self.send_datagram(bytes: &[u8]): UnitAttempt {
         if !descriptor_is_open(self) { return UnitAttempt.failed(NetworkFailure.closed) }
         let deadline = operation_deadline(self.write_timeout_value)
         return send_datagram_with(self.fd, bytes, DatagramDestination.connected, &deadline)
     }
 
-    noalloc blocking method &self.send_datagram_to(
+    noalloc blocking method &+self.send_datagram_to(
         bytes: &[u8],
         target: NetworkAddress,
     ): UnitAttempt {
@@ -293,7 +282,7 @@ instance SocketDescriptor {
         )
     }
 
-    noalloc blocking method &self.receive_datagram(buffer: &+[u8]): DatagramAttempt {
+    noalloc blocking method &+self.receive_datagram(buffer: &+[u8]): DatagramAttempt {
         if !descriptor_is_open(self) { return DatagramAttempt.failed(NetworkFailure.closed) }
         let deadline = operation_deadline(self.read_timeout_value)
         var first_attempt = true
@@ -302,12 +291,12 @@ instance SocketDescriptor {
                 return DatagramAttempt.failed(NetworkFailure.timed_out)
             }
             first_attempt = false
-            match darwin.receive_from_once(self.fd, buffer) {
-                RawDatagramAttempt.ready(source, copied_len, truncated) {
+            match datagram_receive_attempt(self.fd, buffer) {
+                DatagramReceiveProgress.ready(source, copied_len, truncated) {
                     return DatagramAttempt.ready(source, copied_len, truncated)
                 }
-                RawDatagramAttempt.interrupted {}
-                RawDatagramAttempt.would_block {
+                DatagramReceiveProgress.retry {}
+                DatagramReceiveProgress.wait {
                     match wait_readable(self.fd, &deadline) {
                         UnitAttempt.ready {}
                         UnitAttempt.failed(failure) {
@@ -315,11 +304,8 @@ instance SocketDescriptor {
                         }
                     }
                 }
-                RawDatagramAttempt.failed(failure) {
-                    return DatagramAttempt.failed(failure_from_raw(failure))
-                }
-                RawDatagramAttempt.malformed {
-                    return DatagramAttempt.failed(NetworkFailure.invalid_target_result)
+                DatagramReceiveProgress.failed(failure) {
+                    return DatagramAttempt.failed(move failure)
                 }
             }
         }
