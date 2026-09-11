@@ -433,6 +433,42 @@ mod tests {
         )
     }
 
+    fn structured_task_server() -> (TemporaryDirectory, String, LanguageServer, &'static str) {
+        let temporary = TemporaryDirectory::new();
+        let (uri, mut server) = construction_completion_server(&temporary);
+        let text = concat!(
+            "use std/task\n",
+            "use std/task.Timeout\n",
+            "use std/time\n",
+            "async func left(): i32 { return 1 }\n",
+            "async func right(): u64 { return 2 }\n",
+            "async func main(): i32 {\n",
+            "    let pending = task.join(left(), right())\n",
+            "    let outputs = await pending\n",
+            "    if outputs.1 == 2 { return outputs.0 }\n",
+            "    let timed = task.with_timeout(\n",
+            "        left(),\n",
+            "        time.Duration.from_milliseconds(1),\n",
+            "    )\n",
+            "    let outcome = await timed\n",
+            "    match outcome {\n",
+            "        Timeout.completed(_) {}\n",
+            "        Timeout.elapsed {}\n",
+            "    }\n",
+            "    return 0\n",
+            "}\n",
+        );
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+        (temporary, uri, server, text)
+    }
+
     fn request_outcome_code_action(
         source: &str,
         start: (usize, usize),
@@ -1354,47 +1390,8 @@ mod tests {
     }
 
     #[test]
-    fn structured_task_contracts_drive_editor_requests() {
-        let temporary = TemporaryDirectory::new();
-        let source = temporary.path().join("main.nct");
-        let uri = format!("file://{}", source.display());
-        let mut server = semantic_server(temporary.path());
-        server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
-            temporary.path().display()
-        ));
-        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let text = concat!(
-            "use std/task\n",
-            "use std/task.Timeout\n",
-            "use std/time\n",
-            "async func left(): i32 { return 1 }\n",
-            "async func right(): u64 { return 2 }\n",
-            "async func main(): i32 {\n",
-            "    let pending = task.join(left(), right())\n",
-            "    let outputs = await pending\n",
-            "    if outputs.1 == 2 { return outputs.0 }\n",
-            "    let timed = task.with_timeout(\n",
-            "        left(),\n",
-            "        time.Duration.from_milliseconds(1),\n",
-            "    )\n",
-            "    let outcome = await timed\n",
-            "    match outcome {\n",
-            "        Timeout.completed(_) {}\n",
-            "        Timeout.elapsed {}\n",
-            "    }\n",
-            "    return 0\n",
-            "}\n",
-        );
-        let opened = set_completion_document(&mut server, &uri, text, 1);
-        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
-        assert_eq!(
-            snapshot.status(),
-            nocter_analysis::AnalysisStatus::Complete,
-            "{:?}",
-            snapshot.diagnostics()
-        );
-
+    fn structured_task_hover_and_definition_use_public_contracts() {
+        let (_temporary, uri, mut server, text) = structured_task_server();
         let (join_line, join_character) = source_position(text, "join");
         let hover = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{join_line},\"character\":{join_character}}}}}}}"
@@ -1433,7 +1430,11 @@ mod tests {
             "{:?}",
             timeout_hover.issue()
         );
+    }
 
+    #[test]
+    fn structured_task_specializations_drive_signature_help_and_inlay_hints() {
+        let (_temporary, uri, mut server, text) = structured_task_server();
         let (argument_line, argument_character) = source_position(text, ", right())");
         let signature = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{argument_line},\"character\":{}}}}}}}",

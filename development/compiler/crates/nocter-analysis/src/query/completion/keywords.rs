@@ -154,9 +154,7 @@ fn callable_modifier_prefix<'a>(
     let (noalloc, blocking, asynchronous) = match words.as_slice() {
         [] => (true, true, true),
         ["noalloc"] => (false, true, false),
-        ["blocking"] | ["noalloc", "blocking"] | ["async"] | ["noalloc", "async"] => {
-            (false, false, false)
-        }
+        ["blocking" | "async"] | ["noalloc", "blocking" | "async"] => (false, false, false),
         _ => return None,
     };
     let asynchronous = asynchronous && container != Some(NodeKind::ConstructDeclaration);

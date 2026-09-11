@@ -2739,9 +2739,10 @@ fn tls_handshake_timeout_source(port: u16, asynchronous: bool) -> String {
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 #[test]
 fn tls_and_https_handshakes_share_the_fixed_timeout_contract() {
+    use std::io::ErrorKind;
     use std::net::TcpListener;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     let fixture = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = fixture.local_addr().unwrap().port();
@@ -2760,10 +2761,22 @@ fn tls_and_https_handshakes_share_the_fixed_timeout_contract() {
     );
 
     let server = thread::spawn(move || {
-        for _ in 0..4 {
-            let (_stream, _) = fixture.accept().unwrap();
-            thread::sleep(Duration::from_millis(80));
+        fixture.set_nonblocking(true).unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut accepted = 0;
+        while accepted < 4 && Instant::now() < deadline {
+            match fixture.accept() {
+                Ok((_stream, _)) => {
+                    accepted += 1;
+                    thread::sleep(Duration::from_millis(80));
+                }
+                Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(5));
+                }
+                Err(error) => panic!("failed to accept a TLS timeout peer: {error}"),
+            }
         }
+        accepted
     });
     execute_native_status(
         &sync_image,
@@ -2777,7 +2790,11 @@ fn tls_and_https_handshakes_share_the_fixed_timeout_contract() {
         "tls-handshake-timeout-async",
         0,
     );
-    server.join().unwrap();
+    assert_eq!(
+        server.join().unwrap(),
+        4,
+        "every TLS and HTTPS timeout path must reach the network peer"
+    );
 }
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
