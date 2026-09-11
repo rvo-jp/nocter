@@ -34,6 +34,7 @@ under `development/history/`, not in current design documents.
 - [Floating-Point Boundary](floating-point-design.md)
 - [Network I/O Boundary](network-io-design.md)
 - [Asynchronous Datagram I/O Boundary](asynchronous-datagram-io-design.md)
+- [Canonical Asynchronous Byte I/O Boundary](asynchronous-byte-io-design.md)
 - [Internet Client Foundation](internet-client-design.md)
 - [Asynchronous Computation Boundary](asynchronous-computation-design.md)
 - [Blocking Effect Boundary](blocking-effect-design.md)

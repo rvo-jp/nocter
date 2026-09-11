@@ -197,6 +197,29 @@ fn nested_await_and_outer_failure_propagation_keep_their_type_layers() {
 }
 
 #[test]
+fn generic_async_interface_defaults_dispatch_without_blocking_or_concrete_type_knowledge() {
+    check(
+        "pub interface Reader {\n\
+             pub async method &+self.read(): i32\n\
+             pub async default method &+self.read_twice(): i32 {\n\
+                 let first = await self.read()\n\
+                 let second = await self.read()\n\
+                 first + second\n\
+             }\n\
+         }\n\
+         struct Source {}\n\
+         instance Source {\n\
+             impl Reader\n\
+             async method &+self.read(): i32 { 1 }\n\
+         }\n\
+         async func collect<R>(source: &+R): i32 where R impl Reader {\n\
+             await source.read_twice()\n\
+         }\n",
+    )
+    .unwrap();
+}
+
+#[test]
 fn an_immediate_nested_closure_cannot_inherit_its_owners_suspension_authority() {
     let error = check(
         "async func outer(): i32 {\n\

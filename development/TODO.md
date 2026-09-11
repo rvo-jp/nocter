@@ -2,17 +2,18 @@
 
 ## Current State
 
-Nocter v0.46.0 is published and externally audited. The public asset is byte-identical to the
-retained qualified archive built from release-content commit
-`ad30785c52479bd123c419887e081381051831c0`. Asynchronous datagrams cross closed target operations,
-shared blocking/async policy, the public standard surface, native IPv4/IPv6 execution,
-cancellation and timeout behavior, a complete public example, and ordinary checked LSP queries.
+Nocter v0.46.0 is published and externally audited. v0.47.0 Phase 0 is complete on
+`develop-v0.47.0`. The new milestone makes the unqualified `Reader` and `Writer` names canonical
+asynchronous byte-stream contracts, gives synchronous contracts explicit `BlockingReader` and
+`BlockingWriter` names, and removes duplicated concrete collection logic through generic defaults.
 
 ## Next Work
 
-Plan the next milestone only when requested. Preserve the separation between closed target
-operations, standard-source retry and timeout policy, executor readiness, positive synchronous
-`blocking`, and result provenance; do not infer one fact from another.
+Migrate the synchronous interfaces and all consumers to `BlockingReader` and `BlockingWriter`
+without aliases before introducing their canonical asynchronous replacements. The
+[v0.47.0 milestone](history/milestones/v0.47.0.md) owns phase gates; the
+[asynchronous byte-I/O design](design/asynchronous-byte-io-design.md) owns the cross-module
+contract and information flow.
 
 Preserve every published tag and asset, including v0.46.0.
 
