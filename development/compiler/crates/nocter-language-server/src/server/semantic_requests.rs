@@ -2552,54 +2552,7 @@ mod tests {
         )
     }
 
-    #[test]
-    fn async_http_generic_reader_contract_drives_the_complete_editor_surface() {
-        let temporary = TemporaryDirectory::new();
-        let source = temporary.path().join("main.nct");
-        let uri = format!("file://{}", source.display());
-        let mut server = semantic_server(temporary.path());
-        server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
-            temporary.path().display()
-        ));
-        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
-        let text = async_http_source();
-        let opened = set_completion_document(&mut server, &uri, text, 1);
-        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
-        assert_eq!(
-            snapshot.status(),
-            nocter_analysis::AnalysisStatus::Complete,
-            "{:?}",
-            snapshot.diagnostics()
-        );
-
-        let (send_line, send_character) = source_position(text, "send_with_timeout");
-        let send_hover = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{send_line},\"character\":{}}}}}}}",
-            send_character + 5,
-        ));
-        let response = send_hover.response().unwrap();
-        assert!(response.contains("send_with_timeout"), "{response}");
-        assert!(
-            response.contains("async method &Client.send_with_timeout"),
-            "{response}"
-        );
-        assert!(response.contains("): Response!"), "{response}");
-        assert!(send_hover.issue().is_none(), "{:?}", send_hover.issue());
-
-        let send_definition = server.receive(&format!(
-            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{send_line},\"character\":{}}}}}}}",
-            send_character + 5,
-        ));
-        let response = send_definition.response().unwrap();
-        assert!(response.contains("/std/http/index.nct"), "{response}");
-        assert!(!response.contains("async_client.nct"), "{response}");
-        assert!(
-            send_definition.issue().is_none(),
-            "{:?}",
-            send_definition.issue()
-        );
-
+    fn assert_generic_reader_editor_surface(server: &mut LanguageServer, uri: &str, text: &str) {
         let (read_line, read_character) = source_position(text, "read_to_string");
         let read_hover = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{read_line},\"character\":{}}}}}}}",
@@ -2669,6 +2622,57 @@ mod tests {
             );
         }
         assert!(hints.issue().is_none(), "{:?}", hints.issue());
+    }
+
+    #[test]
+    fn async_http_generic_reader_contract_drives_the_complete_editor_surface() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = async_http_source();
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        let snapshot = opened.analysis().unwrap().snapshot().unwrap();
+        assert_eq!(
+            snapshot.status(),
+            nocter_analysis::AnalysisStatus::Complete,
+            "{:?}",
+            snapshot.diagnostics()
+        );
+
+        let (send_line, send_character) = source_position(text, "send_with_timeout");
+        let send_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{send_line},\"character\":{}}}}}}}",
+            send_character + 5,
+        ));
+        let response = send_hover.response().unwrap();
+        assert!(response.contains("send_with_timeout"), "{response}");
+        assert!(
+            response.contains("async method &Client.send_with_timeout"),
+            "{response}"
+        );
+        assert!(response.contains("): Response!"), "{response}");
+        assert!(send_hover.issue().is_none(), "{:?}", send_hover.issue());
+
+        let send_definition = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{send_line},\"character\":{}}}}}}}",
+            send_character + 5,
+        ));
+        let response = send_definition.response().unwrap();
+        assert!(response.contains("/std/http/index.nct"), "{response}");
+        assert!(!response.contains("async_client.nct"), "{response}");
+        assert!(
+            send_definition.issue().is_none(),
+            "{:?}",
+            send_definition.issue()
+        );
+
+        assert_generic_reader_editor_surface(&mut server, &uri, text);
     }
 
     #[test]
