@@ -101,6 +101,9 @@ diagnostics. Source projection is extended beside, never inside, semantic output
   and residual-payload selection. A positive `MayAllocate` fact reaches one least fixed point
   across callables, closures, and drop bodies; the effect pass has no type-store input and cannot
   reconstruct dispatch or destruction.
+- A source-backed `blocking` contract seeds `MayBlock` even when its current body happens not to
+  wait. Callers consume the authored contract, so whole-program visibility cannot silently weaken
+  a callable type or make asynchronous safety depend on the current implementation body.
 - Callable guarantees may be forgotten only through an explicit checked operation. An unqualified
   callable value cannot acquire `noalloc`, and a downstream phase cannot recover a guarantee after
   that operation erased it.

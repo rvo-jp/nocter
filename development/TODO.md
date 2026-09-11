@@ -2,8 +2,8 @@
 
 ## Current State
 
-Nocter v0.44.0 is published and externally audited. v0.45.0 Phases 0 through 3 are complete and
-Phase 4 is next.
+Nocter v0.44.0 is published and externally audited. v0.45.0 Phases 0 through 4 are complete and
+Phase 5 is next.
 The standard library has nonwaiting network disposal, provider-backed asynchronous host setup, an
 explicit synchronous resolver effect, exact primitive blocking validation, propagated synchronous
 contracts, single-layer awaited failures, and canonical base names for asynchronous TCP, TLS, and
@@ -13,8 +13,8 @@ positive `blocking` callable effect.
 
 ## Next Work
 
-Complete Phase 4 by qualifying semantic tooling and practical asynchronous integration over the
-closed effect and structured-task contracts. Follow the phases and gates in the
+Complete Phase 5 with disposable-target qualification and a release-candidate design review over
+the closed effect and structured-task contracts. Follow the phases and gates in the
 [v0.45.0 milestone](history/milestones/v0.45.0.md).
 
 Preserve every published tag and asset, including v0.44.0.

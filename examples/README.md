@@ -134,9 +134,10 @@ nocter run
 ```
 
 [async-loopback/index.nct](async-loopback/index.nct) starts TCP connection and listener acceptance
-as one bounded `task.join`, then joins a complete async write with the matching async read. Both
-joins own their children and preserve each fallible result until the program handles it. The
-example uses only IPv4 loopback and a kernel-selected port.
+as one bounded `task.join`, exchanges data in both directions, and preserves each fallible result
+until the program handles it. The first read uses `task.with_timeout`, exercising an I/O computation
+against an ordinary monotonic delay without changing the I/O error layer. The example uses only
+IPv4 loopback and a kernel-selected port.
 
 ```sh
 cd examples/async-loopback

@@ -94,6 +94,18 @@ fn blocking_effects_propagate_through_the_existing_call_graph() {
 }
 
 #[test]
+fn authored_blocking_contract_is_not_weakened_by_a_nonwaiting_body() {
+    let error = check(
+        "blocking func admitted_wait(): void { return }\n\
+         async func invalid(): void { admitted_wait() }\n",
+    )
+    .unwrap_err();
+
+    assert_eq!(error.rule(), Some(BodyRule::BlockingContractViolation));
+    assert_eq!(error.source_diagnostic().unwrap().code(), "E0417");
+}
+
+#[test]
 fn asynchronous_bodies_and_destruction_are_always_nonblocking() {
     let error = check_standard(
         "blocking primitive func wait_raw(): void\n\

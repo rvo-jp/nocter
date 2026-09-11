@@ -1354,7 +1354,7 @@ mod tests {
     }
 
     #[test]
-    fn structured_async_join_contract_drives_editor_requests() {
+    fn structured_task_contracts_drive_editor_requests() {
         let temporary = TemporaryDirectory::new();
         let source = temporary.path().join("main.nct");
         let uri = format!("file://{}", source.display());
@@ -1366,12 +1366,23 @@ mod tests {
         server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
         let text = concat!(
             "use std/task\n",
+            "use std/task.Timeout\n",
+            "use std/time\n",
             "async func left(): i32 { return 1 }\n",
             "async func right(): u64 { return 2 }\n",
             "async func main(): i32 {\n",
             "    let pending = task.join(left(), right())\n",
             "    let outputs = await pending\n",
             "    if outputs.1 == 2 { return outputs.0 }\n",
+            "    let timed = task.with_timeout(\n",
+            "        left(),\n",
+            "        time.Duration.from_milliseconds(1),\n",
+            "    )\n",
+            "    let outcome = await timed\n",
+            "    match outcome {\n",
+            "        Timeout.completed(_) {}\n",
+            "        Timeout.elapsed {}\n",
+            "    }\n",
             "    return 0\n",
             "}\n",
         );
@@ -1405,6 +1416,24 @@ mod tests {
         assert!(response.contains("/std/task/index.nct"), "{response}");
         assert!(definition.issue().is_none(), "{:?}", definition.issue());
 
+        let (timeout_line, timeout_character) = source_position(text, "with_timeout");
+        let timeout_hover = server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"textDocument/hover\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{timeout_line},\"character\":{timeout_character}}}}}}}"
+        ));
+        let response = timeout_hover.response().unwrap();
+        assert!(
+            response.contains(concat!(
+                "pub async func with_timeout<T>(computation: future T, timeout: Duration): ",
+                "Timeout<T>"
+            )),
+            "{response}"
+        );
+        assert!(
+            timeout_hover.issue().is_none(),
+            "{:?}",
+            timeout_hover.issue()
+        );
+
         let (argument_line, argument_character) = source_position(text, ", right())");
         let signature = server.receive(&format!(
             "{{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"textDocument/signatureHelp\",\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},\"position\":{{\"line\":{argument_line},\"character\":{}}}}}}}",
@@ -1427,18 +1456,51 @@ mod tests {
                 "\"method\":\"textDocument/inlayHint\",",
                 "\"params\":{{\"textDocument\":{{\"uri\":\"{uri}\"}},",
                 "\"range\":{{\"start\":{{\"line\":0,\"character\":0}},",
-                "\"end\":{{\"line\":9,\"character\":0}}}}}}}}"
+                "\"end\":{{\"line\":20,\"character\":0}}}}}}}}"
             ),
             uri = uri,
         ));
         let response = hints.response().unwrap();
-        for label in [": future (i32, u64)", ": (i32, u64)"] {
+        for label in [
+            ": future (i32, u64)",
+            ": (i32, u64)",
+            ": future Timeout<i32>",
+            ": Timeout<i32>",
+        ] {
             assert!(
                 response.contains(&format!("\"label\":\"{label}\"")),
                 "{response}"
             );
         }
         assert!(hints.issue().is_none(), "{:?}", hints.issue());
+    }
+
+    #[test]
+    fn callable_effect_completion_reaches_the_protocol_surface() {
+        let temporary = TemporaryDirectory::new();
+        let source = temporary.path().join("main.nct");
+        let uri = format!("file://{}", source.display());
+        let mut server = semantic_server(temporary.path());
+        server.receive(&format!(
+            "{{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{{\"rootUri\":\"file://{}\",\"capabilities\":{{}}}}}}",
+            temporary.path().display()
+        ));
+        server.receive(r#"{"jsonrpc":"2.0","method":"initialized"}"#);
+        let text = "pub noalloc blo";
+        let opened = set_completion_document(&mut server, &uri, text, 1);
+        assert_eq!(
+            opened.analysis().unwrap().snapshot().unwrap().status(),
+            nocter_analysis::AnalysisStatus::SyntaxFailed
+        );
+        let completion = request_completion(&mut server, &uri, 2, 0, text.len());
+        let response = completion.response().unwrap();
+        assert!(
+            response.contains("\"label\":\"blocking\",\"kind\":14"),
+            "{response}"
+        );
+        assert!(!response.contains("\"label\":\"noalloc\""), "{response}");
+        assert!(!response.contains("\"label\":\"async\""), "{response}");
+        assert!(completion.issue().is_none(), "{:?}", completion.issue());
     }
 
     #[test]

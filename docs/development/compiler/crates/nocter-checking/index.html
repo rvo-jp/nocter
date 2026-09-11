@@ -277,7 +277,9 @@
   schedules. Ownership freezes each cleanup's exact drop dependencies after generic substitution
   and residual-payload selection. A positive <code>MayAllocate</code> fact reaches one least fixed point
   across callables, closures, and drop bodies; the effect pass has no type-store input and cannot
-  reconstruct dispatch or destruction.</li><li>Callable guarantees may be forgotten only through an explicit checked operation. An unqualified
+  reconstruct dispatch or destruction.</li><li>A source-backed <code>blocking</code> contract seeds <code>MayBlock</code> even when its current body happens not to
+  wait. Callers consume the authored contract, so whole-program visibility cannot silently weaken
+  a callable type or make asynchronous safety depend on the current implementation body.</li><li>Callable guarantees may be forgotten only through an explicit checked operation. An unqualified
   callable value cannot acquire <code>noalloc</code>, and a downstream phase cannot recover a guarantee after
   that operation erased it.</li><li>Canonical replay and whole-program authorities are exposed only through one finalization
   contract. Recipes own their body IDs, exact-current checked/failure outputs open explicit owned

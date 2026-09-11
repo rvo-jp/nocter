@@ -38,41 +38,71 @@ pub(super) fn completions(
         )]);
     }
 
+    let mut completions = Vec::new();
     if let Some(prefix) = top_level_declaration_prefix(tree, source_file, offset) {
-        return [
-            ("static", "static NAME: Type = value"),
-            ("test", "test name { ... }"),
-        ]
-        .into_iter()
-        .filter(|(keyword, _)| keyword.starts_with(prefix))
-        .map(|(keyword, detail)| {
-            SemanticCompletion::new(
-                keyword,
-                SemanticCompletionKind::Keyword,
-                Some(detail.into()),
-            )
-        })
-        .collect();
+        completions.extend(
+            [
+                ("static", "static NAME: Type = value"),
+                ("test", "test name { ... }"),
+            ]
+            .into_iter()
+            .filter(|(keyword, _)| keyword.starts_with(prefix))
+            .map(|(keyword, detail)| {
+                SemanticCompletion::new(
+                    keyword,
+                    SemanticCompletionKind::Keyword,
+                    Some(detail.into()),
+                )
+            }),
+        );
     }
 
-    if noalloc_modifier_prefix(tree, source_file, offset)
-        .is_some_and(|prefix| "noalloc".starts_with(prefix))
-    {
-        return Box::new([SemanticCompletion::new(
-            "noalloc",
-            SemanticCompletionKind::Keyword,
-            Some("allocation-free callable guarantee".into()),
-        )]);
+    if let Some(modifiers) = callable_modifier_prefix(tree, source_file, offset) {
+        completions.extend(
+            [
+                (
+                    "noalloc",
+                    "allocation-free callable guarantee",
+                    modifiers.noalloc,
+                ),
+                (
+                    "blocking",
+                    "synchronous waiting callable effect",
+                    modifiers.blocking,
+                ),
+                (
+                    "async",
+                    "deferred producer execution",
+                    modifiers.asynchronous,
+                ),
+            ]
+            .into_iter()
+            .filter(|(keyword, _, allowed)| *allowed && keyword.starts_with(modifiers.prefix))
+            .map(|(keyword, detail, _)| {
+                SemanticCompletion::new(
+                    keyword,
+                    SemanticCompletionKind::Keyword,
+                    Some(detail.into()),
+                )
+            }),
+        );
     }
 
-    Box::new([])
+    completions.into_boxed_slice()
 }
 
-fn noalloc_modifier_prefix<'a>(
+struct CallableModifierPrefix<'a> {
+    prefix: &'a str,
+    noalloc: bool,
+    blocking: bool,
+    asynchronous: bool,
+}
+
+fn callable_modifier_prefix<'a>(
     tree: &SyntaxTree,
     source: &'a nocter_source::SourceFile,
     offset: ByteOffset,
-) -> Option<&'a str> {
+) -> Option<CallableModifierPrefix<'a>> {
     if tree
         .nodes()
         .any(|(_, node)| node.kind() == NodeKind::Block && node.range().contains_cursor(offset))
@@ -101,21 +131,41 @@ fn noalloc_modifier_prefix<'a>(
         .text()
         .get(..end)?
         .rsplit_once('\n')
-        .map_or_else(|| source.text().get(..end), |(_, line)| Some(line))?
-        .trim();
-    let mut words = line.split_ascii_whitespace();
-    let first = words.next().unwrap_or("");
-    let second = words.next();
-    if words.next().is_some() {
+        .map_or_else(|| source.text().get(..end), |(_, line)| Some(line))?;
+    let trailing_space = line.as_bytes().last().is_some_and(u8::is_ascii_whitespace);
+    let mut words = line.split_ascii_whitespace().collect::<Vec<_>>();
+    if words
+        .first()
+        .is_some_and(|word| *word == "pub" || (word.starts_with("pub(") && word.ends_with(')')))
+    {
+        words.remove(0);
+    }
+    let prefix = if trailing_space {
+        ""
+    } else {
+        words.pop().unwrap_or("")
+    };
+    if !prefix
+        .chars()
+        .all(|character| character == '_' || character.is_ascii_alphanumeric())
+    {
         return None;
     }
-    match second {
-        None => Some(first),
-        Some(prefix) if first == "pub" || (first.starts_with("pub(") && first.ends_with(')')) => {
-            Some(prefix)
+    let (noalloc, blocking, asynchronous) = match words.as_slice() {
+        [] => (true, true, true),
+        ["noalloc"] => (false, true, false),
+        ["blocking"] | ["noalloc", "blocking"] | ["async"] | ["noalloc", "async"] => {
+            (false, false, false)
         }
-        Some(_) => None,
-    }
+        _ => return None,
+    };
+    let asynchronous = asynchronous && container != Some(NodeKind::ConstructDeclaration);
+    Some(CallableModifierPrefix {
+        prefix,
+        noalloc,
+        blocking,
+        asynchronous,
+    })
 }
 
 fn current_where_prefix<'a>(

@@ -113,7 +113,7 @@ fn initial_summaries(graph: &DeclarationGraph, closures: &ClosureTable) -> Summa
         .map(|(callable, declaration)| {
             (
                 callable,
-                bodyless_effects(declaration.body().is_none(), declaration.guarantees()),
+                initial_callable_effects(declaration.body().is_none(), declaration.guarantees()),
             )
         })
         .collect();
@@ -135,12 +135,9 @@ fn initial_summaries(graph: &DeclarationGraph, closures: &ClosureTable) -> Summa
     }
 }
 
-fn bodyless_effects(bodyless: bool, guarantees: CallableGuarantees) -> CallableEffects {
-    if !bodyless {
-        return CallableEffects::default();
-    }
+fn initial_callable_effects(bodyless: bool, guarantees: CallableGuarantees) -> CallableEffects {
     CallableEffects::new(
-        if guaranteed_noalloc(guarantees) {
+        if !bodyless || guaranteed_noalloc(guarantees) {
             AllocationEffect::NoAllocation
         } else {
             AllocationEffect::MayAllocate

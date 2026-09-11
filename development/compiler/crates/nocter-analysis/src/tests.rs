@@ -419,26 +419,40 @@ fn repeated_checked_member_queries_are_semantically_identical() {
 }
 
 #[test]
-fn noalloc_keyword_completion_is_available_at_callable_modifier_positions() {
-    let tree = TempTree::new();
-    let source_text = "pub noa";
-    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(61));
-    let source = snapshot
-        .sources()
-        .iter()
-        .find(|source| source.name().as_str().ends_with("app.nct"))
-        .unwrap();
-    let completions = snapshot
-        .semantic_completions(
-            source.id(),
-            ByteOffset::new(u32::try_from(source_text.len()).unwrap()),
-        )
-        .unwrap();
-    assert!(
-        completions
+fn callable_modifier_completion_follows_the_authored_modifier_order() {
+    for (source_text, expected) in [
+        ("pub noa", &["noalloc"][..]),
+        ("blo", &["blocking"][..]),
+        ("noalloc blo", &["blocking"][..]),
+        ("asy", &["async"][..]),
+        ("noalloc asy", &[][..]),
+        ("blocking asy", &[][..]),
+        ("struct Value\nconstruct Value {\n    asy", &[][..]),
+        (
+            "struct Value\nconstruct Value {\n    blo",
+            &["blocking"][..],
+        ),
+    ] {
+        let tree = TempTree::new();
+        let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(61));
+        let source = snapshot
+            .sources()
             .iter()
-            .any(|completion| completion.label() == "noalloc")
-    );
+            .find(|source| source.name().as_str().ends_with("app.nct"))
+            .unwrap();
+        let completions = snapshot
+            .semantic_completions(
+                source.id(),
+                ByteOffset::new(u32::try_from(source_text.len()).unwrap()),
+            )
+            .unwrap();
+        let actual = completions
+            .iter()
+            .filter(|completion| completion.kind() == crate::SemanticCompletionKind::Keyword)
+            .map(crate::SemanticCompletion::label)
+            .collect::<Vec<_>>();
+        assert_eq!(actual, expected, "modifier completion for {source_text:?}");
+    }
 }
 
 #[test]
@@ -503,6 +517,39 @@ fn blocking_callable_contract_is_presented_from_semantic_authority() {
         subject.presentation().code(),
         "pub noalloc blocking func wait(): void"
     );
+}
+
+#[test]
+fn blocking_violation_retains_the_authored_callable_presentation() {
+    let tree = TempTree::new();
+    let source_text = concat!(
+        "blocking func wait(): void { return }\n",
+        "async func run(): void {\n",
+        "    wait()\n",
+        "    return\n",
+        "}\n",
+    );
+    let (_, snapshot) = bundled_snapshot(&tree, source_text, GenerationId::new(72));
+    assert_eq!(snapshot.status(), AnalysisStatus::CompilationFailed);
+    assert!(
+        snapshot
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.code() == "E0417"),
+        "blocking violation was not projected: {:#?}",
+        snapshot.diagnostics()
+    );
+    let source = snapshot
+        .sources()
+        .iter()
+        .find(|source| source.name().as_str().ends_with("app.nct"))
+        .unwrap();
+    let call = source_text.rfind("wait").unwrap();
+    let subject = snapshot
+        .semantic_subject(source.id(), ByteOffset::new(u32::try_from(call).unwrap()))
+        .unwrap()
+        .expect("the rejected call lost its authored declaration evidence");
+    assert_eq!(subject.presentation().code(), "blocking func wait(): void");
 }
 
 #[test]
